@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es;
 
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.IndexEntry;
@@ -9,11 +10,11 @@ import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
 import io.joshworks.fstore.es.log.EventSerializer;
+import io.joshworks.fstore.es.projections.ProjectionEntry;
 import io.joshworks.fstore.es.projections.ProjectionsLog;
 import io.joshworks.fstore.es.stream.StreamInfo;
 import io.joshworks.fstore.es.stream.StreamMetadata;
 import io.joshworks.fstore.es.stream.Streams;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.utils.Tuple;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -208,16 +209,17 @@ public class EventStore implements Closeable {
     }
 
     public PollingSubscriber<Event> poller() {
-        return new EventStorePoller(index.poller(), eventLog);
+        return new EventStorePoller(eventLog, eventLog.poller(), projectionsLog.poller());
     }
 
     public PollingSubscriber<Event> poller(String stream, int version) {
-        long streamHash = hasher.hash(stream);
-        return new EventStorePoller(index.poller(streamHash, version), eventLog);
+//        long streamHash = hasher.hash(stream);
+//        return new EventStorePoller(index.poller(streamHash, version), eventLog);
+        throw new UnsupportedOperationException("TODO");
     }
 
     private Event add(StreamMetadata streamMetadata, Event event, int expectedVersion) {
-        if(streamMetadata == null) {
+        if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
         }
         long streamHash = streamMetadata.hash;
@@ -266,60 +268,151 @@ public class EventStore implements Closeable {
 
     private static class EventStorePoller implements PollingSubscriber<Event> {
 
-        private final PollingSubscriber<IndexEntry> indexPoller;
         private final EventLog log;
+        private final PollingSubscriber<Event> logPoller;
+        private final PollingSubscriber<ProjectionEntry> projPoller;
 
-        private EventStorePoller(PollingSubscriber<IndexEntry> indexPoller, EventLog log) {
-            this.indexPoller = indexPoller;
+        private Event lastEvent;
+        private ProjectionEntry lastProj;
+
+        private EventStorePoller(EventLog log, PollingSubscriber<Event> logPoller, PollingSubscriber<ProjectionEntry> projPoller) {
             this.log = log;
+            this.logPoller = logPoller;
+            this.projPoller = projPoller;
         }
 
-        private Event getOrElse(IndexEntry peek) {
-            return Optional.of(peek).map(i -> log.get(i.position)).orElse(null);
+        private Event event() throws InterruptedException {
+            lastEvent = lastEvent == null ? logPoller.poll() : lastEvent;
+            return this.lastEvent;
         }
+
+        private ProjectionEntry projection() throws InterruptedException {
+            lastProj = lastProj == null ? projPoller.poll() : lastProj;
+            return lastProj;
+        }
+
+        private Event fetch(IndexEntry indexEntry) {
+            //TODO add stream name and other info
+            return log.get(indexEntry.position);
+        }
+
+        //tODO add max wait time for pool
+        private void waitForEither() throws InterruptedException {
+            while(lastProj == null && lastEvent == null) {
+                lastEvent = logPoller.poll();
+                lastProj = projPoller.poll();
+                if(lastProj == null && lastEvent == null)  {
+                    Thread.sleep(500); //TODO
+                }
+            }
+        }
+
 
         @Override
         public Event peek() throws InterruptedException {
-            IndexEntry peek = indexPoller.peek();
-            return getOrElse(peek);
+            Event event = event();
+            ProjectionEntry projection = projection();
+            if(projection == null) {
+                return event;
+            }
+            if(event == null) {
+                return fetch(projection.indexEntry);
+            }
+            if(event.timestamp() <= projection.timestamp) {
+                return event;
+            }
+            return fetch(projection.indexEntry);
         }
 
         @Override
         public Event poll() throws InterruptedException {
-            IndexEntry poll = indexPoller.poll();
-            return getOrElse(poll);
+            Event event = event();
+            ProjectionEntry projection = projection();
+            if(projection == null) {
+                this.lastEvent = null;
+                return event;
+            }
+            if(event == null) {
+                this.lastProj = null;
+                return fetch(projection.indexEntry);
+            }
+            if(event.timestamp() <= projection.timestamp) {
+                this.lastEvent = null;
+                return event;
+            }
+            this.lastProj = null;
+            return fetch(projection.indexEntry);
         }
 
         @Override
         public Event poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            IndexEntry poll = indexPoller.poll(limit, timeUnit);
-            return getOrElse(poll);
+            Event event = event();
+            ProjectionEntry projection = projection();
+            if(event == null && projection == null) {
+                waitForEither();//TODO pass limit and timeUnit
+                poll(limit, timeUnit);
+            }
+            if(projection == null) {
+                this.lastEvent = null;
+                return event;
+            }
+            if(event == null) {
+                this.lastProj = null;
+                return fetch(projection.indexEntry);
+            }
+            if(event.timestamp() <= projection.timestamp) {
+                this.lastEvent = null;
+                return event;
+            }
+            this.lastProj = null;
+            return fetch(projection.indexEntry);
         }
 
         @Override
         public Event take() throws InterruptedException {
-            IndexEntry take = indexPoller.take();
-            return getOrElse(take);
+            Event event = event();
+            ProjectionEntry projection = projection();
+            if(event == null && projection == null) {
+                waitForEither();
+                take();
+            }
+            if(projection == null) {
+                this.lastEvent = null;
+                return event;
+            }
+            if(event == null) {
+                this.lastProj = null;
+                return fetch(projection.indexEntry);
+            }
+            if(event.timestamp() <= projection.timestamp) {
+                this.lastEvent = null;
+                return event;
+            }
+            this.lastProj = null;
+            return fetch(projection.indexEntry);
         }
 
         @Override
         public boolean headOfLog() {
-            return indexPoller.headOfLog();
+            //FIXME
+            return lastProj == null && lastEvent == null;
         }
 
         @Override
         public boolean endOfLog() {
-            return indexPoller.endOfLog();
+            return false;
         }
 
         @Override
         public long position() {
-            return -1;
+            return 0;
         }
 
         @Override
         public void close() throws IOException {
-            indexPoller.close();
+            logPoller.close();
+            projPoller.close();
         }
     }
+
 }

@@ -1,4 +1,4 @@
-package io.joshworks.fstore.es.subscription;
+package io.joshworks.fstore.es;
 
 import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;
