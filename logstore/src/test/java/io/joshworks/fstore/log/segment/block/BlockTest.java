@@ -90,14 +90,6 @@ public class BlockTest {
     }
 
     @Test
-    public void uncompressedSize() {
-        Block<String> block = Block.newBlock(Serializers.STRING, 4);
-        assertFalse(block.add("a"));
-
-        assertEquals(12, block.size());
-    }
-
-    @Test
     public void iterator() {
         Block<String> block = Block.newBlock(Serializers.STRING, 4);
         assertFalse(block.add("a"));
@@ -119,7 +111,7 @@ public class BlockTest {
     }
 
     @Test
-    public void block_returns_the_same_sata_after_serialization() {
+    public void block_returns_the_same_data_after_serialization() {
         Block<String> block = Block.newBlock(Serializers.STRING, 4);
         block.add("a");
         block.add("b");
