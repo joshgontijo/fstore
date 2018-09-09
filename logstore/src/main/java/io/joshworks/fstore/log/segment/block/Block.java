@@ -124,10 +124,6 @@ public class Block<T> implements Iterable<T> {
         return readEntry(readOnlyBb, serializer, lengths.get(pos));
     }
 
-    public int size() {
-        return buffer.limit();
-    }
-
     @Override
     public Iterator<T> iterator() {
         ByteBuffer readBuffer = readOnly ? buffer : buffer.asReadOnlyBuffer();
