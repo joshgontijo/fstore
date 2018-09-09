@@ -44,7 +44,7 @@ public class Utils {
             for (String s : files) {
                 System.out.println("Deleting " + s);
                 File file = new File(directory, s);
-                if(file.isDirectory()) {
+                if (file.isDirectory()) {
                     removeFiles(file);
                 }
                 Files.delete(file.toPath());
@@ -67,7 +67,7 @@ public class Utils {
 
     public static File tempFolder() {
         try {
-            return File.createTempFile("eventry", null);
+            return Files.createTempDirectory("eventry").toFile();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
