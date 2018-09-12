@@ -9,8 +9,8 @@ import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.StorageProvider;
-import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
+import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
 import org.slf4j.Logger;
@@ -100,11 +100,12 @@ public class Compactor<T, L extends Log<T>> {
                 return;
             }
             List<L> segmentsForCompaction = segmentsForCompaction(level);
-            if (segmentsForCompaction.size() <= 1) {
-                long count = compacting.stream().filter(l -> l.level() == level).count();
-                logger.info("Nothing to compact on level {} (compacting {})", level, count);
-                return;
-            }
+            //TODO investigate if is actually needed
+//            if (segmentsForCompaction.size() <= 1) {
+//                long count = compacting.stream().filter(l -> l.level() == level).count();
+//                logger.info("Nothing to compact on level {} (compacting {})", level, count);
+//                return;
+//            }
             compacting.addAll(segmentsForCompaction);
 
             logger.info("Compacting level {}", level);
@@ -169,7 +170,7 @@ public class Compactor<T, L extends Log<T>> {
     }
 
     //delete all source segments only if all of them are not being used
-    private static <T, L extends Log<T>> void  deleteAll(List<L> segments) {
+    private static <T, L extends Log<T>> void deleteAll(List<L> segments) {
         int pendingReaders = 0;
         do {
             if (pendingReaders > 0) {
@@ -179,7 +180,7 @@ public class Compactor<T, L extends Log<T>> {
             pendingReaders = 0;
             for (L segment : segments) {
                 Set<TimeoutReader> readers = segment.readers();
-                if(!readers.isEmpty()) {
+                if (!readers.isEmpty()) {
                     logger.info("Pending segment: {}", segment);
                 }
                 for (TimeoutReader logReader : readers) {
