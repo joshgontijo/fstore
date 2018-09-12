@@ -3,8 +3,8 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.BitUtil;
-import io.joshworks.fstore.log.appender.merge.ConcatenateCombiner;
-import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
+import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
+import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 

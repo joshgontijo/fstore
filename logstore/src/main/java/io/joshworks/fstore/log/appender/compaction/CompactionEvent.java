@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.StorageProvider;
-import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
+import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.segment.Log;
 
 import java.io.File;

@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.appender.merge;
+package io.joshworks.fstore.log.appender.compaction.combiner;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;

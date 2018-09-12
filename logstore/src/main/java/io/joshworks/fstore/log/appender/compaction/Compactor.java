@@ -10,7 +10,7 @@ import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.StorageProvider;
 import io.joshworks.fstore.log.appender.level.Levels;
-import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
+import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
 import org.slf4j.Logger;
