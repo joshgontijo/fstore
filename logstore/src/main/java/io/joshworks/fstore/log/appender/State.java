@@ -45,6 +45,11 @@ public class State implements Closeable {
         this.dirty = true;
     }
 
+    public void addEntryCount(long delta) {
+        this.entryCount += delta;
+        this.dirty = true;
+    }
+
     public void incrementEntryCount() {
         this.entryCount++;
         this.dirty = true;
