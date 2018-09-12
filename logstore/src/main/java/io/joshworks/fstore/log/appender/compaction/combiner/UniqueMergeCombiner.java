@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.appender.merge;
+package io.joshworks.fstore.log.appender.compaction.combiner;
 
 import java.util.TreeSet;
 

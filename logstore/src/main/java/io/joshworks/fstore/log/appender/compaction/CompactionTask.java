@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.seda.EventContext;
 import io.joshworks.fstore.core.seda.StageHandler;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.StorageProvider;
-import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
+import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 import org.slf4j.Logger;
