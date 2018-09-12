@@ -116,6 +116,18 @@ public class LogAppenderTest {
     }
 
     @Test
+    public void position_is_the_same_after_restarting() {
+        appender.append("abc");
+        long pos = appender.position();
+        appender.close();
+
+        appender = new SimpleLogAppender<>(config);
+
+        assertEquals(pos, appender.position());
+
+    }
+
+    @Test
     public void positionOnSegment() {
 
         int segmentIdx = 0;

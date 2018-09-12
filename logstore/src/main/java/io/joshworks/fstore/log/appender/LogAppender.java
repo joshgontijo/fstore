@@ -130,6 +130,14 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
         try {
             this.levels = loadSegments();
+            L current = this.levels.current();
+            long segmentPosition = current.position();
+            long position = toSegmentedPosition(levels.numSegments() - 1L, segmentPosition);
+            state.position(position);
+            state.addEntryCount(current.entries());
+
+            logger.info("State restored: {}", state);
+
         } catch (Exception e) {
             IOUtils.closeQuietly(state);
             throw e;
