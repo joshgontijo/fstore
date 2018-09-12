@@ -14,6 +14,8 @@
         <module>serializer</module>
         <module>logstore</module>
         <module>codec</module>
+        <module>event-store</module>
+        <module>server</module>
     </modules>
 
     <properties>
@@ -62,6 +64,13 @@
                 <artifactId>logstore</artifactId>
                 <version>${project.version}</version>
             </dependency>
+
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>event-store</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
