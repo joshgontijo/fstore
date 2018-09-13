@@ -41,7 +41,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                 Optional<StreamMetadata> metadataOpt = streams.get(record.stream);
                 if (!metadataOpt.isPresent()) {
                     //replace with a log warn
-                    throw new RuntimeException("No metadataOpt available for stream: " + record.stream);
+                    throw new RuntimeException("No metadata available for stream: " + record.stream);
                 }
                 StreamMetadata metadata = metadataOpt.get();
 
