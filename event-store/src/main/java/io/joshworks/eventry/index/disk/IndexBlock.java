@@ -39,7 +39,8 @@ public class IndexBlock extends Block<IndexEntry> {
             return ByteBuffer.allocate(0);
         }
         int maxVersionSizeOverhead = entryCount() * Integer.BYTES;
-        var packed = ByteBuffer.allocate(buffer.position() + maxVersionSizeOverhead);
+        int actualSize = IndexEntry.BYTES * entryCount();
+        var packedBuffer = ByteBuffer.allocate(actualSize + maxVersionSizeOverhead);
 
         IndexEntry last = null;
         List<Integer> versions = new ArrayList<>();
@@ -49,7 +50,7 @@ public class IndexBlock extends Block<IndexEntry> {
                 last = indexEntry;
             }
             if (last.stream != indexEntry.stream) {
-                writeToBuffer(packed, last.stream, versions, positions);
+                writeToBuffer(packedBuffer, last.stream, versions, positions);
                 versions = new ArrayList<>();
                 positions = new ArrayList<>();
             }
@@ -59,11 +60,11 @@ public class IndexBlock extends Block<IndexEntry> {
             last = indexEntry;
         }
         if(last != null && !versions.isEmpty()) {
-            writeToBuffer(packed, last.stream, versions, positions);
+            writeToBuffer(packedBuffer, last.stream, versions, positions);
         }
 
-        packed.flip();
-        return codec.compress(packed);
+        packedBuffer.flip();
+        return codec.compress(packedBuffer);
     }
 
     private void writeToBuffer(ByteBuffer buffer, long stream, List<Integer> versions, List<Long> positions) {
