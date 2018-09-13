@@ -21,7 +21,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
     @Override
     public void merge(List<? extends Log<EventRecord>> segments, Log<EventRecord> output) {
         if (segments.size() != 1) {
-            throw new IllegalArgumentException("Scavenge can only be executed on a single segment at once");
+            throw new IllegalArgumentException("Cleanup task can only be executed on a single segment at once");
         }
 
         Log<EventRecord> log = segments.get(0);
