@@ -1,5 +1,7 @@
 package io.joshworks.fstore.index.filter;
 
+import io.joshworks.fstore.serializer.IntegerSerializer;
+
 import java.util.BitSet;
 
 public class BloomFilter<T> {
@@ -110,6 +112,20 @@ public class BloomFilter<T> {
      */
     private static int getNumberOfBits(double probabilityOfFalsePositives, long elementSize) {
         return (int) (Math.abs(elementSize * Math.log(probabilityOfFalsePositives)) / (Math.pow(Math.log(2), 2)));
+    }
+
+    public static void main(String[] args) {
+        BloomFilter<Integer> filter = new BloomFilter<>(10, 50, Hash.Murmur64(new IntegerSerializer()));
+        filter.add(1);
+        filter.add(2);
+        filter.add(3);
+
+        System.out.println(filter.contains(1));
+        System.out.println(filter.contains(2));
+        System.out.println(filter.contains(3));
+        System.out.println(filter.contains(3));
+        System.out.println(filter.contains(4));
+        System.out.println(filter.contains(5));
     }
 
 }
