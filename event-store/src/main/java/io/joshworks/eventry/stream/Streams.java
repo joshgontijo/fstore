@@ -3,12 +3,13 @@ package io.joshworks.eventry.stream;
 import io.joshworks.eventry.LRUCache;
 import io.joshworks.eventry.hash.Murmur3Hash;
 import io.joshworks.eventry.hash.XXHash;
-import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.utils.StringUtils;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
+import static io.joshworks.eventry.stream.StreamMetadata.STREAM_ACTIVE;
 
 public class Streams implements Closeable {
 
@@ -50,11 +55,34 @@ public class Streams implements Closeable {
         return hasher.hash(stream);
     }
 
-    public boolean create(StreamMetadata stream) {
-        Objects.requireNonNull(stream);
-        StringUtils.requireNonBlank(stream.name);
-        versions.set(stream.hash, new AtomicInteger(IndexEntry.NO_VERSION));
-        return streamsMap.putIfAbsent(stream.hash, stream) == null;
+    public void add(StreamMetadata metadata) {
+        Objects.requireNonNull(metadata, "Metadata must be provided");
+        StringUtils.requireNonBlank(metadata.name, "Stream name was not empty");
+        versions.set(metadata.hash, new AtomicInteger(IndexEntry.NO_VERSION));
+        StreamMetadata existing = streamsMap.putIfAbsent(metadata.hash, metadata);
+        if (existing != null) {
+            throw new IllegalStateException("Stream '" + metadata.name + "' already exist");
+        }
+    }
+
+    public StreamMetadata create(String stream) {
+        return create(stream, NO_MAX_AGE, NO_MAX_COUNT);
+    }
+
+    public StreamMetadata create(String stream, long maxAge, int maxCount) {
+        return create(stream, maxAge, maxCount, new HashMap<>(), new HashMap<>());
+    }
+
+    public StreamMetadata create(String stream, long maxAge, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata) {
+        StringUtils.requireNonBlank(stream, "Stream must be provided");
+        long hash = hashOf(stream);
+        StreamMetadata streamMeta = new StreamMetadata(stream, hash, System.currentTimeMillis(), maxAge, maxCount, permissions, metadata, STREAM_ACTIVE);
+        versions.set(hash, new AtomicInteger(IndexEntry.NO_VERSION));
+        StreamMetadata existing = streamsMap.putIfAbsent(hash, streamMeta);
+        if (existing != null) {
+            return null;
+        }
+        return streamMeta;
     }
 
     public StreamMetadata remove(long streamHash) {
@@ -64,11 +92,11 @@ public class Streams implements Closeable {
     //Only supports 'startingWith' wildcard
     //EX: users-*
     public Set<String> streamMatching(String value) {
-        if(value == null) {
+        if (value == null) {
             return new HashSet<>();
         }
         //wildcard
-        if(value.endsWith(STREAM_WILDCARD)) {
+        if (value.endsWith(STREAM_WILDCARD)) {
             final String prefix = value.substring(0, value.length() - 1);
             return streamsMap.values().stream()
                     .filter(stream -> stream.name.startsWith(prefix))
@@ -90,16 +118,15 @@ public class Streams implements Closeable {
 
     public int tryIncrementVersion(long stream, int expected) {
         AtomicInteger versionCounter = versions.getOrElse(stream, new AtomicInteger(IndexEntry.NO_VERSION));
-        if(expected < 0) {
+        if (expected < 0) {
             return versionCounter.incrementAndGet();
         }
         int newValue = expected + 1;
-        if(!versionCounter.compareAndSet(expected, newValue)) {
+        if (!versionCounter.compareAndSet(expected, newValue)) {
             throw new IllegalArgumentException("Version mismatch: expected stream " + stream + " version is higher than expected: " + expected);
         }
         return newValue;
     }
-
 
 
     @Override

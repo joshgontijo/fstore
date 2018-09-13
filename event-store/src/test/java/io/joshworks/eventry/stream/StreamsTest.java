@@ -4,9 +4,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -27,18 +30,36 @@ public class StreamsTest {
 
 
     @Test
+    public void stream_with_same_name_is_not_created() {
+        StreamMetadata created = streams.create("a");
+        assertNotNull(created);
+
+        StreamMetadata anotherOne = streams.create("a");
+        assertNull(anotherOne);
+
+        assertEquals(created, streams.get(created.hash).get());
+
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void adding_a_stream_with_same_name_throws_exception() {
+        streams.add(new StreamMetadata("name", 0, 0, 0, 0, Map.of(), Map.of(), 0));
+        streams.add(new StreamMetadata("name", 0, 0, 0, 0, Map.of(), Map.of(), 0));
+    }
+
+    @Test
     public void get_returns_correct_stream() {
-        streams.create(new StreamMetadata("a", 1, 0));
-        assertTrue(streams.get(1).isPresent());
+        StreamMetadata created = streams.create("a", 1, 0);
+        assertTrue(streams.get(created.hash).isPresent());
     }
 
     @Test
     public void streamsStartingWith() {
 
-        streams.create(new StreamMetadata("abc-123", 1, 0));
-        streams.create(new StreamMetadata("abc-345", 2, 0));
-        streams.create(new StreamMetadata("another1", 3, 0));
-        streams.create(new StreamMetadata("another2", 4, 0));
+        streams.create("abc-123", 1, 0);
+        streams.create("abc-345", 2, 0);
+        streams.create("another1", 3, 0);
+        streams.create("another2", 4, 0);
 
         Set<String> names = streams.streamMatching("abc-*");
 

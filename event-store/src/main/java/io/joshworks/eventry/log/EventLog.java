@@ -62,10 +62,6 @@ public class EventLog {
         appender.compact();
     }
 
-    public void roll() {
-        appender.roll();
-    }
-
     private static class EventLogIterator implements LogIterator<EventRecord> {
 
         private final LogIterator<EventRecord> iterator;

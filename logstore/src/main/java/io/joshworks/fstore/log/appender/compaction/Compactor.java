@@ -101,11 +101,10 @@ public class Compactor<T, L extends Log<T>> {
             }
             List<L> segmentsForCompaction = segmentsForCompaction(level);
             //TODO investigate if is actually needed
-//            if (segmentsForCompaction.size() <= 1) {
-//                long count = compacting.stream().filter(l -> l.level() == level).count();
-//                logger.info("Nothing to compact on level {} (compacting {})", level, count);
-//                return;
-//            }
+            if (segmentsForCompaction.isEmpty()) {
+                logger.warn("Level {} is empty, nothing to compact", level);
+                return;
+            }
             compacting.addAll(segmentsForCompaction);
 
             logger.info("Compacting level {}", level);

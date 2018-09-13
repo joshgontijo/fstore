@@ -1,24 +1,24 @@
 package io.joshworks.eventry;
 
-import io.joshworks.eventry.index.IndexEntry;
-import io.joshworks.eventry.index.Range;
-import io.joshworks.eventry.log.EventLog;
-import io.joshworks.eventry.log.RecordCleanup;
-import io.joshworks.eventry.stream.Streams;
-import io.joshworks.eventry.utils.Tuple;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamDeleted;
 import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.TableIndex;
+import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
+import io.joshworks.eventry.log.RecordCleanup;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
+import io.joshworks.eventry.utils.Tuple;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -93,10 +93,9 @@ public class EventStore implements Closeable {
             EventRecord event = eventLog.get(next.position);
 
             //pattern matching would be great here
-            if(StreamCreated.TYPE.equals(event.type)) {
-                StreamMetadata metadata = StreamCreated.from(event);
-                streams.create(metadata);
-            } else if(StreamDeleted.TYPE.equals(event.type)) {
+            if (StreamCreated.TYPE.equals(event.type)) {
+                streams.add(StreamCreated.from(event));
+            } else if (StreamDeleted.TYPE.equals(event.type)) {
                 StreamDeleted deleted = StreamDeleted.from(event);
                 long hash = streams.hashOf(deleted.stream);
                 streams.remove(hash);
@@ -123,16 +122,14 @@ public class EventStore implements Closeable {
         createStream(name, maxCount, maxAge, new HashMap<>(), new HashMap<>());
     }
 
-    public StreamMetadata createStream(String name, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
-        long hash = streams.hashOf(name);
-        StreamMetadata streamMetadata = new StreamMetadata(
-                name, hash, System.currentTimeMillis(), maxAge, maxCount, permissions, metadata, StreamMetadata.STREAM_ACTIVE);
-
-        EventRecord eventRecord = StreamCreated.create(streamMetadata);
+    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
+        StreamMetadata created = streams.create(stream, maxAge, maxCount, permissions, metadata);
+        if (created == null) {
+            throw new IllegalStateException("Stream '" + stream + "' already exist");
+        }
+        EventRecord eventRecord = StreamCreated.create(created);
         this.appendSystemEvent(eventRecord);
-        streams.create(streamMetadata);
-
-        return streamMetadata;
+        return created;
     }
 
     public List<StreamInfo> streamsMetadata() {
@@ -180,7 +177,7 @@ public class EventStore implements Closeable {
 
     public LogIterator<EventRecord> zipStreamsIter(String stream) {
         Set<String> eventStreams = streams.streamMatching(stream);
-        if(eventStreams.isEmpty()) {
+        if (eventStreams.isEmpty()) {
             return Iterators.empty();
         }
         return zipStreamsIter(eventStreams);
@@ -329,12 +326,12 @@ public class EventStore implements Closeable {
     private StreamMetadata getOrCreateStream(String stream) {
         long streamHash = streams.hashOf(stream);
         return streams.get(streamHash).orElseGet(() -> {
-            StreamMetadata streamMetadata = new StreamMetadata(stream, streamHash, System.currentTimeMillis());
-            if (streams.create(streamMetadata)) {
-                EventRecord eventRecord = StreamCreated.create(streamMetadata);
+            StreamMetadata created = streams.create(stream);
+            if (created != null) { // metadata was created
+                EventRecord eventRecord = StreamCreated.create(created);
                 this.appendSystemEvent(eventRecord);
             }
-            return streamMetadata;
+            return created;
         });
     }
 
@@ -388,10 +385,6 @@ public class EventStore implements Closeable {
         index.close();
         eventLog.close();
         streams.close();
-    }
-
-    public void roll() {
-        eventLog.roll();
     }
 
     private static class LogPoller implements PollingSubscriber<EventRecord> {

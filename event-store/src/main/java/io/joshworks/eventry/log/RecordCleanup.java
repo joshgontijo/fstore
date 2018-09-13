@@ -57,7 +57,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                     continue;
                 }
                 int currentStreamVersion = streams.version(metadata.hash);
-                boolean obsolete = metadata.maxCount > 0 && currentStreamVersion - record.version > metadata.maxCount;
+                boolean obsolete = metadata.maxCount > 0 && currentStreamVersion - record.version >= metadata.maxCount;
                 if (obsolete) {
                     //skip record
                     continue;
@@ -66,7 +66,8 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                 long newPosition = output.append(record);
                 System.out.println("Mapping from position " + oldPosition + " to " + newPosition);
                 //TODO add position mapping to footer
-                //TODO Create a new Segment Type to handle mapping
+                //TODO New Segment class for the EventLog is needed to handle the mapping on read
+                //TODO mapping should be relative offset that the deleted entry adds to the subsequent entries
             }
 
 

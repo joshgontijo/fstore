@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -637,28 +636,6 @@ public class EventStoreIT {
             }
         }
         assertEquals(createdStreams.size(), hits);
-
-    }
-
-    @Test
-    public void cleanup() throws InterruptedException {
-
-        var stream = "stream-123";
-        int maxCount = 10;
-        store.createStream(stream, maxCount, -1, new HashMap<>(), new HashMap<>());
-
-        for (int i = 0; i < 200; i++) {
-            store.append(EventRecord.create(stream, "type-" + i, "data-" + i));
-        }
-
-        assertEquals(maxCount, store.fromStream(stream).count());
-
-        store.roll();
-
-        store.cleanup();
-
-        TimeUnit.MINUTES.sleep(3);
-
 
     }
 
