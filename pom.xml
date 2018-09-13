@@ -15,7 +15,7 @@
         <module>logstore</module>
         <module>codec</module>
         <module>event-store</module>
-        <module>server</module>
+        <module>es-server</module>
     </modules>
 
     <properties>
