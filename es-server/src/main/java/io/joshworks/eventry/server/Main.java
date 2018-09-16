@@ -1,6 +1,7 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.LocalStore;
 
 import java.io.File;
 
@@ -19,7 +20,7 @@ public class Main {
 
     public static void main(String[] args) {
 
-        EventStore store = EventStore.open(new File("J:\\event-store-app"));
+        EventStore store = LocalStore.open(new File("J:\\event-store-app"));
 
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
         SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store, broadcast);
