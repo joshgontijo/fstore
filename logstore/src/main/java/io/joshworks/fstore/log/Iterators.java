@@ -86,6 +86,7 @@ public class Iterators {
     private static class ListLogIterator<T> implements LogIterator<T> {
 
         private final Iterator<T> source;
+        private int position;
 
         private ListLogIterator(Collection<T> source) {
             this.source = source.iterator();
@@ -93,7 +94,7 @@ public class Iterators {
 
         @Override
         public long position() {
-            return 0;
+            return position;
         }
 
         @Override
@@ -108,7 +109,12 @@ public class Iterators {
 
         @Override
         public T next() {
-            return source.next();
+            T next = source.next();
+            if(next == null) {
+                throw new NoSuchElementException();
+            }
+            position++;
+            return next;
         }
     }
 

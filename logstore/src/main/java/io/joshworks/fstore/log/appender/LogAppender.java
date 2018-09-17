@@ -6,9 +6,6 @@ import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.seda.SedaContext;
-import io.joshworks.fstore.core.seda.Stage;
-import io.joshworks.fstore.core.seda.StageHandler;
-import io.joshworks.fstore.core.seda.StageStats;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -32,7 +29,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -74,11 +70,9 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     //state
     private final State state;
     private final boolean compactionDisabled;
-//    private final History history;
 
     private AtomicBoolean closed = new AtomicBoolean();
 
-    //    private final ScheduledExecutorService stateScheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
     private final SedaContext sedaContext = new SedaContext();
     private final Set<LogPoller> pollers = new HashSet<>();
@@ -117,8 +111,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             this.state = State.readFrom(directory);
         }
 
-//        this.history = new History(directory);
-
         this.maxSegments = BitUtil.maxValueForBits(Long.SIZE - metadata.segmentBitShift);
         this.maxAddressPerSegment = BitUtil.maxValueForBits(metadata.segmentBitShift);
 
@@ -130,13 +122,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
         try {
             this.levels = loadSegments();
-            L current = this.levels.current();
-            long segmentPosition = current.position();
-            long position = toSegmentedPosition(levels.numSegments() - 1L, segmentPosition);
-            state.position(position);
-            state.addEntryCount(current.entries());
-
-            logger.info("State restored: {}", state);
+            restoreState(levels.current());
 
         } catch (Exception e) {
             IOUtils.closeQuietly(state);
@@ -148,21 +134,20 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
         this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, levels, sedaContext, config.threadPerLevel);
 
-
         logger.info("SEGMENT BIT SHIFT: {}", metadata.segmentBitShift);
         logger.info("MAX SEGMENTS: {} ({} bits)", maxSegments, Long.SIZE - metadata.segmentBitShift);
         logger.info("MAX ADDRESS PER SEGMENT: {} ({} bits)", maxAddressPerSegment, metadata.segmentBitShift);
 
-//        this.stateScheduler.scheduleAtFixedRate(() -> state.flush(), 5, 1, TimeUnit.SECONDS);
-//
-//        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-//            this.flushInternal();
-//            this.close();
-//        }));
+    }
 
+    private void restoreState(L current) {
+        logger.info("Restoring state");
+        long segmentPosition = current.position();
+        long position = toSegmentedPosition(levels.numSegments() - 1L, segmentPosition);
+        state.position(position);
+        state.addEntryCount(current.entries());
 
-        sedaContext.addStage("write", (StageHandler<WriteItem>) elem -> appendAsyncInternal(elem.data), new Stage.Builder());
-
+        logger.info("State restored: {}", state);
     }
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
@@ -216,10 +201,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             IOUtils.closeQuietly(storage);
             throw e;
         }
-    }
-
-    public Map<String, StageStats> stats() {
-        return sedaContext.stats();
     }
 
     public synchronized void roll() {
@@ -277,15 +258,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     public void compact() {
         compactor.forceCompaction(1);
-    }
-
-    public void appendAsync(T data, Consumer<Long> onComplete) {
-        sedaContext.submit("write", new WriteItem(data, onComplete));
-    }
-
-    private void appendAsyncInternal(WriteItem item) {
-        long position = this.append(item.data);
-        item.completionHandler.accept(position);
     }
 
     private void addToPollers(L newSegment) {
