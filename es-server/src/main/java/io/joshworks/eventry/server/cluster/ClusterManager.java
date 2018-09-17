@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster;
 
+import io.joshworks.eventry.server.cluster.data.Node;
 import io.joshworks.eventry.server.cluster.data.NodeInfo;
-import io.joshworks.eventry.server.cluster.data.NodeLeft;
 import io.joshworks.fstore.core.eventbus.EventBus;
 import org.jgroups.Address;
 import org.jgroups.Event;
@@ -12,7 +12,10 @@ import org.jgroups.View;
 import org.jgroups.stack.IpAddress;
 
 import java.net.InetSocketAddress;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class ClusterManager {
 
@@ -21,9 +24,13 @@ public class ClusterManager {
     private final EventBus eventBus;
     private final JChannel channel;
     private final String nodeId;
+    private Address thisAddress;
 
     private View state;
     private int port;
+
+
+    private final Map<Address, Node> nodes = new HashMap<>();
 
     //sync message (request / response)
 //    MessageDispatcher dispatcher;
@@ -32,10 +39,12 @@ public class ClusterManager {
 
         bus.on(String.class, (EventBus.EventConsumer<String>) System.out::println);
 
-        ClusterManager clusterManager = new ClusterManager(bus, 5555);
+        int port = ThreadLocalRandom.current().nextInt(0,10);
+
+        ClusterManager clusterManager = new ClusterManager(bus, port);
         clusterManager.connect();
 
-        clusterManager.send("Ola");
+//        clusterManager.send("Ola");
     }
 
 
@@ -47,6 +56,7 @@ public class ClusterManager {
         this.channel.setDiscardOwnMessages(true);
         this.channel.setReceiver(new EventReceiver());
 
+
 //        this.channel.name(nodeId);
 //        this.channel.addChannelListener(new ChannelHandler());
 //        this.dispatcher = new MessageDispatcher(channel);
@@ -55,8 +65,11 @@ public class ClusterManager {
 
     public void connect() throws Exception {
         channel.connect(CLUSTER_NAME);
+        System.out.println("Connected to " + CLUSTER_NAME);
+        this.thisAddress = channel.getAddress();
         InetSocketAddress inetSocketAddress = inetAddress(channel.getAddress());
         String hostAddress = inetSocketAddress.getAddress().getHostAddress();
+        System.out.println("Sending joined message...");
         channel.send(new Message(null, new NodeInfo("joined", hostAddress, port).toJson()));
     }
 
@@ -82,11 +95,14 @@ public class ClusterManager {
                 for (Address address : view.getMembers()) {
                     if (!state.containsMember(address)) {
 //                        eventBus.emit(new NodeJoined(inetAddress(address)));
+                        System.out.println("Node joined, standby for info...");
                     }
                 }
                 for (Address address : state.getMembers()) {
                     if (!view.containsMember(address)) {
-                        eventBus.emit(new NodeLeft(inetAddress(address)));
+                        System.out.println("Node left: " + address);
+//                        eventBus.emit(new NodeLeft(inetAddress(address)));
+                        nodes.remove(address);
                     }
                 }
 
@@ -102,7 +118,25 @@ public class ClusterManager {
         public void receive(Message msg) {
             System.out.println("Message received: " + msg);
             String json = msg.getObject();
-            eventBus.emit(NodeInfo.fromJson(json));
+
+            NodeInfo nodeInfo = NodeInfo.fromJson(json);
+            if("joined".equals(nodeInfo.type)) {
+                nodes.put(msg.getSrc(), new Node(nodeInfo.port, nodeInfo.host));
+                //Send this node info to the new Node
+                try {
+                    System.out.println("Sending this node info back to the joined node...");
+                    channel.send(msg.getSrc(), new NodeInfo("existingNodeInfo", inetAddress(thisAddress).getHostName(), port).toJson());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+            }
+
+            if("existingNodeInfo".equals(nodeInfo.type)) {
+                nodes.put(msg.getSrc(), new Node(nodeInfo.port, nodeInfo.host));
+            }
+
+
         }
 
     }
