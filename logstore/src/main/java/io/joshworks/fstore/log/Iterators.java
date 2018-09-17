@@ -1,7 +1,6 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.core.RuntimeIOException;
-
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,12 +28,16 @@ public class Iterators {
         return new ReversedIterator<>(original);
     }
 
-    public static <T> LogIterator<T> concat(List<LogIterator<T>> original) {
-        return new IteratorIterator<>(original);
+    public static <T> LogIterator<T> flatten(List<LogIterator<T>> original) {
+        return flatten(new ArrayList<>(original).iterator());
     }
 
-    public static <T> LogIterator<T> concat(LogIterator<T>... originals) {
-        return new IteratorIterator<>(Arrays.asList(originals));
+    public static <T> LogIterator<T> flatten(LogIterator<T>... originals) {
+        return flatten(Arrays.asList(originals).iterator());
+    }
+
+    public static <T> LogIterator<T> flatten(Iterator<LogIterator<T>> iterator) {
+        return new IteratorIterator<>(iterator);
     }
 
     public static <T> PeekingIterator<T> peekingIterator(LogIterator<T> iterator) {
@@ -110,7 +113,7 @@ public class Iterators {
         @Override
         public T next() {
             T next = source.next();
-            if(next == null) {
+            if (next == null) {
                 throw new NoSuchElementException();
             }
             position++;
@@ -151,20 +154,20 @@ public class Iterators {
 
     private static class IteratorIterator<T> implements LogIterator<T> {
 
-        private final List<LogIterator<T>> is;
-        private int current;
+        private final Iterator<LogIterator<T>> iterators;
+        private LogIterator<T> current;
 
-        private IteratorIterator(List<LogIterator<T>> iterators) {
-            this.is = iterators;
-            this.current = 0;
+        private IteratorIterator(Iterator<LogIterator<T>> iterators) {
+            this.iterators = iterators;
+            this.current = this.iterators.hasNext() ? this.iterators.next() : Iterators.empty();
         }
 
         @Override
         public boolean hasNext() {
-            while (current < is.size() && !is.get(current).hasNext())
-                current++;
+            while (!current.hasNext() && iterators.hasNext())
+                current = iterators.next();
 
-            boolean hasNext = current < is.size();
+            boolean hasNext = current.hasNext();
             if (!hasNext) {
                 this.close();
             }
@@ -173,32 +176,37 @@ public class Iterators {
 
         @Override
         public T next() {
-            while (current < is.size() && !is.get(current).hasNext())
-                current++;
+            while (!current.hasNext() && iterators.hasNext()) {
+                closeIterator(current);
+                current = iterators.next();
+            }
 
-            if(current >= is.size()) {
+            if (!current.hasNext()) {
                 close();
                 throw new NoSuchElementException();
             }
 
-            return is.get(current).next();
+            return current.next();
         }
 
         @Override
         public long position() {
-            return is.get(current).position();
+            return current.position();
         }
 
         @Override
         public void close() {
-            try {
-                for (LogIterator<T> iterator : is) {
-                    iterator.close();
-                }
-            } catch (IOException e) {
-                throw RuntimeIOException.of(e);
+            while (iterators.hasNext()) {
+                closeIterator(iterators.next());
             }
+        }
 
+        private void closeIterator(Closeable closeable) {
+            try {
+                closeable.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 

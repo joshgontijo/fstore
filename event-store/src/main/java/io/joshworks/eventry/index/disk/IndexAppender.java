@@ -37,7 +37,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
                 .map(idxSeg -> idxSeg.iterator(direction, range))
                 .collect(Collectors.toList());
 
-        return Iterators.concat(iterators);
+        return Iterators.flatten(iterators);
     }
 
     @Override

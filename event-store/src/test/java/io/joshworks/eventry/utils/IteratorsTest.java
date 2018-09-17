@@ -22,7 +22,7 @@ public class IteratorsTest {
         LogIterator<Integer> first = Iterators.of(List.of(1));
         LogIterator<Integer> second = Iterators.of(List.of(2));
 
-        LogIterator<Integer> concat = Iterators.concat(List.of(first, second));
+        LogIterator<Integer> concat = Iterators.flatten(List.of(first, second));
 
         assertTrue(concat.hasNext());
         assertEquals(Integer.valueOf(1), concat.next());
@@ -39,7 +39,7 @@ public class IteratorsTest {
         LogIterator<Integer> first = Iterators.empty();
         LogIterator<Integer> second = Iterators.empty();
 
-        Iterator<Integer> concat = Iterators.concat(List.of(first, second));
+        Iterator<Integer> concat = Iterators.flatten(List.of(first, second));
 
         assertFalse(concat.hasNext());
         assertFalse(concat.hasNext());
@@ -59,7 +59,7 @@ public class IteratorsTest {
         LogIterator<Integer> first = Iterators.of(List.of(1));
         LogIterator<Integer> second = Iterators.empty();
 
-        Iterator<Integer> concat = Iterators.concat(List.of(first, second));
+        Iterator<Integer> concat = Iterators.flatten(List.of(first, second));
 
         assertTrue(concat.hasNext());
         assertEquals(Integer.valueOf(1), concat.next());
@@ -76,7 +76,7 @@ public class IteratorsTest {
         LogIterator<Integer> second = Iterators.empty();
         LogIterator<Integer> third = Iterators.of(List.of(2));
 
-        Iterator<Integer> concat = Iterators.concat(List.of(first, second, third));
+        Iterator<Integer> concat = Iterators.flatten(List.of(first, second, third));
 
         assertTrue(concat.hasNext());
         assertEquals(Integer.valueOf(1), concat.next());

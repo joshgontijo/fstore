@@ -43,9 +43,6 @@ public class FixedBufferDataReader extends ChecksumDataReader {
         }
 
         int length = buffer.getInt();
-//        if(position == 143775612) {
-//            System.err.println(position);
-//        }
         checkRecordLength(length, position);
         if (length == 0) {
             return EMPTY;
@@ -76,7 +73,7 @@ public class FixedBufferDataReader extends ChecksumDataReader {
 
         storage.read(position - limit, buffer);
         buffer.flip();
-        int originalSize = buffer.remaining();
+
         if (buffer.remaining() == 0) {
             return EMPTY;
         }

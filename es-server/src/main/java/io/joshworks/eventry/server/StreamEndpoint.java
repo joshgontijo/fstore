@@ -116,13 +116,4 @@ public class StreamEndpoint {
     private String extractZipStartingWith(HttpExchange exchange) {
         return exchange.queryParameter(QUERY_PARAM_ZIP_PREFIX);
     }
-
-    public void getEvent(HttpExchange exchange) {
-        String stream = exchange.pathParameter("streamId");
-        int version = exchange.pathParameterVal("version").asInt().get();
-
-        EventRecord eventRecord = store.get(stream, version);
-        exchange.send(EventBody.from(eventRecord));
-
-    }
 }

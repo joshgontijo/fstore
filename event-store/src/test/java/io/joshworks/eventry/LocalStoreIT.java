@@ -36,7 +36,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class EventStoreIT {
+public class LocalStoreIT {
 
     private File directory;
     private EventStore store;
@@ -44,7 +44,7 @@ public class EventStoreIT {
     @Before
     public void setUp() {
         directory = Utils.testFolder();
-        store = EventStore.open(directory);
+        store = LocalStore.open(directory);
     }
 
     @After
@@ -154,7 +154,7 @@ public class EventStoreIT {
 
         store.close();
 
-        try (EventStore store = EventStore.open(directory)) {
+        try (LocalStore store = LocalStore.open(directory)) {
             for (int i = 0; i < size; i++) {
                 Stream<EventRecord> events = store.fromStream(streamPrefix + i);
                 assertEquals("Failed on iteration " + i, 1, events.count());
@@ -174,7 +174,7 @@ public class EventStoreIT {
 
         store.close();
 
-        try (EventStore store = EventStore.open(directory)) {
+        try (LocalStore store = LocalStore.open(directory)) {
             Stream<EventRecord> events = store.fromAll();
             assertTrue(events.count() >= size);
         }
@@ -192,7 +192,7 @@ public class EventStoreIT {
 
         store.close();
 
-        try (EventStore store = EventStore.open(directory)) {
+        try (LocalStore store = LocalStore.open(directory)) {
             for (int i = 0; i < size; i++) {
                 EventRecord event = store.get(streamPrefix + i, Range.START_VERSION);
                 assertNotNull(event);
@@ -575,7 +575,7 @@ public class EventStoreIT {
         }
 
         store.close();
-        store = EventStore.open(directory);
+        store = LocalStore.open(directory);
 
         Stream<EventRecord> dataStream = store.fromStream(stream);
         assertEquals(size, dataStream.count());
@@ -621,7 +621,7 @@ public class EventStoreIT {
 
         store.close();
 
-        store = EventStore.open(directory);
+        store = LocalStore.open(directory);
 
         List<EventRecord> foundStreams = store.fromStream(SystemStreams.STREAMS).collect(Collectors.toList());
 

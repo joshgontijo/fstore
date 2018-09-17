@@ -42,8 +42,8 @@ public class Segment<T> implements Log<T> {
 
     private final Serializer<Header> headerSerializer = new HeaderSerializer();
     private final Serializer<T> serializer;
-    private final Storage storage;
-    private final DataReader reader;
+    final Storage storage;
+    final DataReader reader;
     private final String magic;
 
     private long entries;

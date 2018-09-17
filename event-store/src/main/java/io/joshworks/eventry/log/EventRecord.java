@@ -20,6 +20,15 @@ public class EventRecord {
     public final byte[] data;
     public final byte[] metadata;
 
+    public EventRecord() {
+        this.stream = null;
+        this.type = null;
+        this.version = 0;
+        this.timestamp = 0;
+        this.data = null;
+        this.metadata = null;
+    }
+
     public EventRecord(String stream, String type, int version, long timestamp, byte[] data, byte[] metadata) {
         StringUtils.requireNonBlank(stream, "Stream must be provided");
         StringUtils.requireNonBlank(type, "Type must be provided");

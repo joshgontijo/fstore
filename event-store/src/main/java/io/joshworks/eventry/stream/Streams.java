@@ -131,7 +131,8 @@ public class Streams implements Closeable {
 
     @Override
     public void close() {
-
+        streamsMap.clear();
+        versions.clear();
     }
 
 }

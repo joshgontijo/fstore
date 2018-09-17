@@ -1,8 +1,5 @@
 package io.joshworks.eventry.stream;
 
-import io.joshworks.eventry.utils.StringUtils;
-
-import java.util.HashMap;
 import java.util.Map;
 
 public class StreamMetadata {

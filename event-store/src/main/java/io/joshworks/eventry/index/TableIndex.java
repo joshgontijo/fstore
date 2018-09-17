@@ -158,7 +158,7 @@ public class TableIndex implements Index {
     }
 
     private LogIterator<IndexEntry> joiningDiskAndMem(LogIterator<IndexEntry> diskIterator, LogIterator<IndexEntry> memIndex) {
-        return Iterators.concat(Arrays.asList(diskIterator, memIndex));
+        return Iterators.flatten(Arrays.asList(diskIterator, memIndex));
     }
 
     public FlushInfo flush() {

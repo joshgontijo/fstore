@@ -43,4 +43,8 @@ public class LRUCache<K, V> {
         map.put(key, value);
         return prev;
     }
+
+    public void clear() {
+        map.clear();
+    }
 }
