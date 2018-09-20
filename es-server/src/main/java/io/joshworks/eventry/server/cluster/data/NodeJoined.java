@@ -1,12 +1,21 @@
 package io.joshworks.eventry.server.cluster.data;
 
-import java.net.InetSocketAddress;
+import com.google.gson.Gson;
+import io.joshworks.eventry.server.cluster.Node;
 
-public class NodeJoined  {
+public class NodeJoined extends Node {
 
-    public final InetSocketAddress address;
+    private static final Gson gson = new Gson();
 
-    public NodeJoined(InetSocketAddress address) {
-        this.address = address;
+    public NodeJoined(String id, String host, int port) {
+        super(id, host, port);
+    }
+
+    public static NodeJoined fromJson(String json) {
+        return gson.fromJson(json, NodeJoined.class);
+    }
+
+    public String toJson() {
+        return gson.toJson(this);
     }
 }

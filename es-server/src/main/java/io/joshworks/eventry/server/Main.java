@@ -2,6 +2,8 @@ package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LocalStore;
+import io.joshworks.eventry.server.cluster.ClusterManager;
+import io.joshworks.eventry.server.cluster.ClusterWebService;
 
 import java.io.File;
 
@@ -13,6 +15,7 @@ import static io.joshworks.snappy.SnappyServer.onShutdown;
 import static io.joshworks.snappy.SnappyServer.post;
 import static io.joshworks.snappy.SnappyServer.sse;
 import static io.joshworks.snappy.SnappyServer.start;
+import static io.joshworks.snappy.SnappyServer.websocket;
 import static io.joshworks.snappy.parser.MediaTypes.consumes;
 
 public class Main {
@@ -26,6 +29,10 @@ public class Main {
         SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store, broadcast);
         StreamEndpoint streams = new StreamEndpoint(store);
         ProjectionsEndpoint projections = new ProjectionsEndpoint(store);
+
+
+        ClusterManager clusterManager = new ClusterManager();
+        ClusterWebService clusterService = new ClusterWebService(clusterManager);
 
 
         group("/streams", () -> {
@@ -51,6 +58,9 @@ public class Main {
         });
 
         group("/push", () -> sse(subscriptions.newPushHandler()));
+
+
+        websocket("/cluster", clusterService);
 
 
         onShutdown(store::close);

@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster;
 
-import io.joshworks.eventry.server.cluster.data.Node;
 import io.joshworks.eventry.server.cluster.data.NodeInfo;
+import io.joshworks.eventry.server.cluster.data.NodeLeft;
 import io.joshworks.fstore.core.eventbus.EventBus;
 import org.jgroups.Address;
 import org.jgroups.Event;
@@ -12,9 +12,9 @@ import org.jgroups.View;
 import org.jgroups.stack.IpAddress;
 
 import java.net.InetSocketAddress;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class ClusterManager {
@@ -30,15 +30,13 @@ public class ClusterManager {
     private int port;
 
 
-    private final Map<Address, Node> nodes = new HashMap<>();
+    private final Map<Address, Node> nodes = new ConcurrentHashMap<>();
 
-    //sync message (request / response)
-//    MessageDispatcher dispatcher;
+
     public static void main(String[] args) throws Exception {
         EventBus bus = new EventBus();
 
         bus.on(String.class, (EventBus.EventConsumer<String>) System.out::println);
-
         int port = ThreadLocalRandom.current().nextInt(0,10);
 
         ClusterManager clusterManager = new ClusterManager(bus, port);
@@ -70,7 +68,7 @@ public class ClusterManager {
         InetSocketAddress inetSocketAddress = inetAddress(channel.getAddress());
         String hostAddress = inetSocketAddress.getAddress().getHostAddress();
         System.out.println("Sending joined message...");
-        channel.send(new Message(null, new NodeInfo("joined", hostAddress, port).toJson()));
+        channel.send(new Message(null, new NodeInfo(nodeId, "joined", hostAddress, port).toJson()));
     }
 
     public void send(String message) throws Exception {
@@ -101,13 +99,15 @@ public class ClusterManager {
                 for (Address address : state.getMembers()) {
                     if (!view.containsMember(address)) {
                         System.out.println("Node left: " + address);
-//                        eventBus.emit(new NodeLeft(inetAddress(address)));
-                        nodes.remove(address);
+                        Node remove = nodes.remove(address);
+                        eventBus.emit(new NodeLeft(remove.id, remove.address.getAddress().getHostAddress(), remove.address.getPort()));
+
                     }
                 }
 
             } else {
                 for (Address address : view.getMembers()) {
+
 //                    eventBus.emit(new NodeJoined(inetAddress(address)));
                 }
             }
@@ -121,45 +121,24 @@ public class ClusterManager {
 
             NodeInfo nodeInfo = NodeInfo.fromJson(json);
             if("joined".equals(nodeInfo.type)) {
-                nodes.put(msg.getSrc(), new Node(nodeInfo.port, nodeInfo.host));
+                nodes.put(msg.getSrc(), new Node(nodeInfo.id, nodeInfo.host, nodeInfo.port));
                 //Send this node info to the new Node
                 try {
                     System.out.println("Sending this node info back to the joined node...");
-                    channel.send(msg.getSrc(), new NodeInfo("existingNodeInfo", inetAddress(thisAddress).getHostName(), port).toJson());
+                    channel.send(msg.getSrc(), new NodeInfo(nodeId, "existingNodeInfo", inetAddress(thisAddress).getHostName(), port).toJson());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-
             }
 
             if("existingNodeInfo".equals(nodeInfo.type)) {
-                nodes.put(msg.getSrc(), new Node(nodeInfo.port, nodeInfo.host));
+                System.out.println("Received info from already connected node " + nodeInfo.id);
+                nodes.put(msg.getSrc(), new Node(nodeInfo.id, nodeInfo.host, nodeInfo.port));
             }
 
 
         }
 
     }
-
-//    private class ChannelHandler implements ChannelListener {
-//
-//        @Override
-//        public void channelConnected(JChannel channel) {
-//            System.out.println("Channel connected: " + channel.name());
-//        }
-//
-//        @Override
-//        public void channelDisconnected(JChannel channel) {
-//            System.out.println("Channel disconnected: " + channel.name());
-//        }
-//
-//        @Override
-//        public void channelClosed(JChannel channel) {
-//            System.out.println("Channel closed: " + channel.name());
-//        }
-//
-//
-//    }
-
 
 }

@@ -24,6 +24,7 @@ public class MulticastSubscriber implements Runnable, Closeable {
 
     public static void main(String[] args) {
         new Thread(new MulticastSubscriber("224.0.0.3", 5555)).start();
+        new Thread(new MulticastSubscriber("224.0.0.3", 5555)).start();
         new Thread(new MulticastPublisher("224.0.0.3", 5555)).start();
     }
 
