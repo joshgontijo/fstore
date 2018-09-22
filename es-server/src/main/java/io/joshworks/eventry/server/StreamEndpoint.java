@@ -1,6 +1,7 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.snappy.http.HttpException;
@@ -34,6 +35,11 @@ public class StreamEndpoint {
     public void fetchStreams(HttpExchange exchange) {
         String stream = exchange.pathParameter(PATH_PARAM_STREAM);
 
+        if(SystemStreams.ALL.equals(stream)) {
+            List<EventBody> all = store.fromAll().filter(ev -> !ev.isLinkToEvent()).map(EventBody::from).collect(Collectors.toList());
+            exchange.send(all);
+            return;
+        }
 
         String zipWithPrefix = extractZipStartingWith(exchange);
         Set<String> streams = extractZipParams(exchange);
@@ -63,7 +69,7 @@ public class StreamEndpoint {
         EventRecord event = eventBody.toEvent(stream);
         EventRecord result = store.append(event);
 
-        exchange.send(EventBody.from(result));
+        exchange.status(201).send(EventBody.from(result));
     }
 
     public void delete(HttpExchange exchange) {

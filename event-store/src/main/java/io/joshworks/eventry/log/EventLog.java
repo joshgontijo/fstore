@@ -30,7 +30,7 @@ public class EventLog {
         return event;
     }
 
-    public long size() {
+    public long entries() {
         return appender.entries();
     }
 

@@ -7,18 +7,25 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-public class ForEachStream {
+public class ForEachStream extends ScriptStreamBase {
 
     private final Map<String, Stream<JsonEvent>> streams;
     private Map<String, Object> original = new HashMap<>();
     private Map<String, Map<String, Object>> streamState = new HashMap<>();
 
+    //TODO move to ProjectionWorker ?
     private final ExecutorService executor = Executors.newFixedThreadPool(5);
 
 
-    public ForEachStream(Map<String, Stream<JsonEvent>>  streams) {
+    public ForEachStream(
+            Map<String, Stream<JsonEvent>> streams,
+            Consumer<ExecutionStatus> executionStatusListener,
+            Supplier<Boolean> shutdownRequest) {
+        super(executionStatusListener, shutdownRequest);
         this.streams = streams;
     }
 
@@ -29,15 +36,10 @@ public class ForEachStream {
 
     public ForEachStream when(ScriptObjectMirror handlers) {
         streams.forEach((key, value) -> {
-            streamState.putIfAbsent(key, new HashMap<>(original));
+            Map<String, Object> streamState = this.streamState.putIfAbsent(key, new HashMap<>(original));
             executor.submit(() -> {
                 value.forEach(event -> {
-                    if (handlers.containsKey(event.type)) {
-                        handlers.callMember(event.type, streamState, event);
-                    }
-                    if (handlers.containsKey("_any")) {
-                        handlers.callMember(event.type, streamState, event);
-                    }
+                    handleEvent(handlers, event, value, streamState);
                 });
             });
         });

@@ -6,12 +6,13 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
 
-public class ProjectionCreated {
+//TODO ideally it would update only the diff, currently is just overriding everything into the storage
+public class ProjectionUpdated {
 
     //serializing straight into a StreamMetadata
     private static final JsonSerializer<Projection> serializer = JsonSerializer.of(Projection.class);
 
-    public static final String TYPE = Constant.SYSTEM_PREFIX + "PROJECTION_CREATED";
+    public static final String TYPE = Constant.SYSTEM_PREFIX + "PROJECTION_UPDATED";
 
     public static EventRecord create(Projection metadata) {
         var data = serializer.toBytes(metadata);
