@@ -1,17 +1,14 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.EventStore;
-import io.joshworks.eventry.projections.Script;
-import io.joshworks.snappy.http.HttpException;
+import io.joshworks.eventry.projections.ExecutionStatus;
+import io.joshworks.eventry.projections.Projection;
 import io.joshworks.snappy.http.HttpExchange;
+import org.apache.http.HttpStatus;
 
-import javax.script.ScriptException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Collection;
 
 public class ProjectionsEndpoint {
-
-    private static final Map<String, Projection> projections = new HashMap<>();
 
     private final EventStore store;
 
@@ -20,50 +17,58 @@ public class ProjectionsEndpoint {
     }
 
     public void create(HttpExchange exchange) {
+        Projection projection = exchange.body().asObject(Projection.class);
+
+        Projection created = store.createProjection(projection.name, projection.script, projection.type, projection.enabled);
+        exchange.status(201).send(created);
+    }
+
+    public void update(HttpExchange exchange) {
         String name = exchange.pathParameter("name");
-        String script = exchange.body().asString();
+        Projection projection = exchange.body().asObject(Projection.class);
 
-        //TODO use json, this is just send the js easily
-        Projection projection = new Projection();
-        projection.script = script;
+        store.updateProjection(name, projection.script, projection.type, projection.enabled);
+        exchange.status(HttpStatus.SC_NO_CONTENT).end();
+    }
 
-        projections.put(name, projection);
-        exchange.status(201);
+    public void runAdHocQuery(HttpExchange exchange) {
+
     }
 
     public void run(HttpExchange exchange) {
         String name = exchange.pathParameter("name");
-        Projection projection = projections.get(name);
+        store.runProjection(name);
+    }
 
-        if(projection == null) {
-            exchange.status(404).end();
+    public void executionStatus(HttpExchange exchange) {
+        String name = exchange.pathParameter("name");
+        ExecutionStatus executionStatus = store.projectionExecutionStatus(name);
+        if(executionStatus == null) {
+            exchange.status(404);
             return;
         }
+        exchange.send(executionStatus);
+    }
 
-        Script script = new Script(store);
-        try {
-            script.run(projection.script);
-        } catch (ScriptException e) {
-            throw new HttpException(500, e.getMessage());
-        }
+    public void executionStatuses(HttpExchange exchange) {
+        Collection<ExecutionStatus> executionStatus = store.projectionExecutionStatuses();
+        exchange.send(executionStatus);
     }
 
     public void getAll(HttpExchange exchange) {
-        exchange.send(projections);
+        exchange.send(store.projections());
     }
 
+    public void delete(HttpExchange exchange) {
+        String name = exchange.pathParameter("name");
+        store.deleteProjection(name);
+    }
+
+    //TODO improve exception handling for all CRUD operations
     public void get(HttpExchange exchange) {
         String name = exchange.pathParameter("name");
-        Projection projection = projections.get(name);
-        if(projection == null) {
-            exchange.status(404).end();
-            return;
-        }
-        exchange.send(projection);
+        exchange.send(store.projection(name));
     }
 
-    private static class Projection {
-        private String script;
-    }
 
 }

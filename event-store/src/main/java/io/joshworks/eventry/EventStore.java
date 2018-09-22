@@ -3,6 +3,9 @@ package io.joshworks.eventry;
 import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
+import io.joshworks.eventry.data.ProjectionCreated;
+import io.joshworks.eventry.data.ProjectionDeleted;
+import io.joshworks.eventry.data.ProjectionUpdated;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamDeleted;
 import io.joshworks.eventry.data.SystemStreams;
@@ -13,6 +16,9 @@ import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.RecordCleanup;
+import io.joshworks.eventry.projections.ExecutionStatus;
+import io.joshworks.eventry.projections.Projection;
+import io.joshworks.eventry.projections.Projections;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
@@ -28,13 +34,14 @@ import io.joshworks.fstore.log.appender.LogAppender;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -46,9 +53,11 @@ public class EventStore implements Closeable {
     private final TableIndex index;
     private final Streams streams;
     private final EventLog eventLog;
+    private final Projections projections;
 
     private EventStore(File rootDir) {
         this.index = new TableIndex(rootDir);
+        this.projections = new Projections();
         this.streams = new Streams(LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize((int) Size.MEGABYTE.toBytes(200))
@@ -57,6 +66,7 @@ public class EventStore implements Closeable {
 
         this.loadIndex();
         this.loadStreams();
+        this.loadProjections();
     }
 
     public static EventStore open(File rootDir) {
@@ -103,7 +113,24 @@ public class EventStore implements Closeable {
                 //unrecognized event
             }
         }
+    }
 
+    private void loadProjections() {
+        long streamHash = streams.hashOf(SystemStreams.PROJECTIONS);
+        LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.allOf(streamHash));
+
+        while (addresses.hasNext()) {
+            IndexEntry next = addresses.next();
+            EventRecord event = eventLog.get(next.position);
+
+            //pattern matching would be great here
+            if (ProjectionCreated.TYPE.equals(event.type)) {
+                projections.add(ProjectionCreated.from(event));
+            } else if (ProjectionDeleted.TYPE.equals(event.type)) {
+                ProjectionDeleted deleted = ProjectionDeleted.from(event);
+                projections.delete(deleted.name);
+            }
+        }
     }
 
     public LogIterator<IndexEntry> keys() {
@@ -116,6 +143,48 @@ public class EventStore implements Closeable {
 
     public void createStream(String name) {
         createStream(name, -1, -1);
+    }
+
+    public Collection<Projection> projections() {
+        return new ArrayList<>(projections.all());
+    }
+
+    public Projection projection(String name) {
+        return projections.get(name);
+    }
+
+    public Projection createProjection(String name, String script, Projection.Type type, boolean enabled) {
+        Projection projection = projections.create(name, script, type, enabled);
+        EventRecord eventRecord = ProjectionCreated.create(projection);
+        this.appendSystemEvent(eventRecord);
+
+        return projection;
+    }
+
+    public Projection updateProjection(String name, String script, Projection.Type type, Boolean enabled) {
+        Projection projection = projections.update(name, script, type, enabled);
+        EventRecord eventRecord = ProjectionUpdated.create(projection);
+        this.appendSystemEvent(eventRecord);
+
+        return projection;
+    }
+
+    public void deleteProjection(String name) {
+        projections.delete(name);
+        EventRecord eventRecord = ProjectionDeleted.create(name);
+        this.appendSystemEvent(eventRecord);
+    }
+
+    public void runProjection(String name) {
+        projections.run(name, this, this::appendSystemEvent);
+    }
+
+    public ExecutionStatus projectionExecutionStatus(String name) {
+        return projections.executionStatus(name);
+    }
+
+    public Collection<ExecutionStatus> projectionExecutionStatuses() {
+        return projections.executionStatuses();
     }
 
     public void createStream(String name, int maxCount, long maxAge) {
@@ -264,7 +333,7 @@ public class EventStore implements Closeable {
         return resolve(record);
     }
 
-    private EventRecord resolve(EventRecord record) {
+    EventRecord resolve(EventRecord record) {
         if (record.isLinkToEvent()) {
             String[] split = record.dataAsString().split(EventRecord.STREAM_VERSION_SEPARATOR);
             var linkToStream = split[0];
@@ -294,7 +363,7 @@ public class EventStore implements Closeable {
         return append(metadata, event, expectedVersion);
     }
 
-    private EventRecord appendSystemEvent(EventRecord event) {
+    private synchronized EventRecord appendSystemEvent(EventRecord event) {
         StreamMetadata metadata = getOrCreateStream(event.stream);
         return append(metadata, event, IndexEntry.NO_VERSION);
     }
@@ -387,113 +456,4 @@ public class EventStore implements Closeable {
         streams.close();
     }
 
-    private static class LogPoller implements PollingSubscriber<EventRecord> {
-
-        private final EventStore store;
-        private final PollingSubscriber<EventRecord> logPoller;
-
-        private LogPoller(PollingSubscriber<EventRecord> logPoller, EventStore store) {
-            this.store = store;
-            this.logPoller = logPoller;
-        }
-
-        @Override
-        public EventRecord peek() throws InterruptedException {
-            return store.resolve(logPoller.peek());
-        }
-
-        @Override
-        public EventRecord poll() throws InterruptedException {
-            return store.resolve(logPoller.poll());
-        }
-
-        @Override
-        public EventRecord poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            return store.resolve(logPoller.poll(limit, timeUnit));
-        }
-
-        @Override
-        public EventRecord take() throws InterruptedException {
-            return store.resolve(logPoller.take());
-        }
-
-        @Override
-        public boolean headOfLog() {
-            return logPoller.headOfLog();
-        }
-
-        @Override
-        public boolean endOfLog() {
-            return false;
-        }
-
-        @Override
-        public long position() {
-            return logPoller.position();
-        }
-
-        @Override
-        public void close() throws IOException {
-            logPoller.close();
-        }
-    }
-
-    private static class IndexedLogPoller implements PollingSubscriber<EventRecord> {
-
-        private final EventStore store;
-        private final PollingSubscriber<IndexEntry> indexPoller;
-
-        private IndexedLogPoller(PollingSubscriber<IndexEntry> indexPoller, EventStore store) {
-            this.indexPoller = indexPoller;
-            this.store = store;
-        }
-
-        private EventRecord getOrElse(IndexEntry peek) {
-            return Optional.ofNullable(peek).map(store::get).orElse(null);
-        }
-
-        @Override
-        public EventRecord peek() throws InterruptedException {
-            IndexEntry peek = indexPoller.peek();
-            return getOrElse(peek);
-        }
-
-        @Override
-        public EventRecord poll() throws InterruptedException {
-            IndexEntry poll = indexPoller.poll();
-            return getOrElse(poll);
-        }
-
-        @Override
-        public EventRecord poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            IndexEntry poll = indexPoller.poll(limit, timeUnit);
-            return getOrElse(poll);
-        }
-
-        @Override
-        public EventRecord take() throws InterruptedException {
-            IndexEntry take = indexPoller.take();
-            return getOrElse(take);
-        }
-
-        @Override
-        public boolean headOfLog() {
-            return indexPoller.headOfLog();
-        }
-
-        @Override
-        public boolean endOfLog() {
-            return indexPoller.endOfLog();
-        }
-
-        @Override
-        public long position() {
-            return -1; //TODO this is not reliable for index log
-        }
-
-        @Override
-        public void close() throws IOException {
-            indexPoller.close();
-        }
-    }
 }

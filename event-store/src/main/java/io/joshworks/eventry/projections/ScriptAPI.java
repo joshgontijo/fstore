@@ -7,11 +7,13 @@ import java.util.AbstractMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class ScriptAPI {
+class ScriptAPI {
 
     final EventStore store;
     final Function<String, SingleStream> fromStream;
@@ -20,10 +22,10 @@ public class ScriptAPI {
     final BiConsumer<String, JsonEvent> linkTo;
     final BiConsumer<String, JsonEvent> emit;
 
-    public ScriptAPI(EventStore store) {
+    ScriptAPI(EventStore store, Consumer<ExecutionStatus> executionStatusListener, Supplier<Boolean> shutdownRequest) {
         this.store = store;
-        this.fromStream = s -> new SingleStream(store.fromStream(s).map(JsonEvent::from));
-        this.fromStreams = streams ->  new SingleStream(store.zipStreams( Set.of(streams)).map(JsonEvent::from));
+        this.fromStream = s -> new SingleStream(store.fromStream(s).map(JsonEvent::from), executionStatusListener, shutdownRequest);
+        this.fromStreams = streams -> new SingleStream(store.zipStreams(Set.of(streams)).map(JsonEvent::from), executionStatusListener, shutdownRequest);
         this.foreachstream = streams -> {
             Set<String> streams1 = Set.of(streams);
             Map<String, Stream<EventRecord>> mapped = store.fromStreamsMapped(streams1);
@@ -31,7 +33,7 @@ public class ScriptAPI {
                     .map(kv -> new AbstractMap.SimpleEntry<>(kv.getKey(), kv.getValue().map(JsonEvent::from)))
                     .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
 
-            return new ForEachStream(mappedStream);
+            return new ForEachStream(mappedStream, executionStatusListener, shutdownRequest);
 
         };
 

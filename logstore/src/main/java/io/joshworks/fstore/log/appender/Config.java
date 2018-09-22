@@ -14,7 +14,7 @@ import java.util.Objects;
 public class Config<T> {
 
     //reader / writer max message size
-    public static final int MAX_RECORD_SIZE = 16384;
+    public static final int MAX_RECORD_SIZE = 32768;
 
     //How many bits a segment index can hold
     private static final int SEGMENT_BITS = 18;

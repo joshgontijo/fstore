@@ -5,22 +5,25 @@ import io.joshworks.eventry.EventStore;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-public class Script {
+public class ScriptExecution {
 
     private final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
     private final ScriptAPI api;
     private EventStore store;
+    private AtomicBoolean stopRequested = new AtomicBoolean();
 
     private Map<String, Object> options = new HashMap<>();
 
-    public Script(EventStore store) {
+    ExecutionStatus executionStatus;
+
+    public ScriptExecution(EventStore store) {
         this.store = store;
-        this.api = new ScriptAPI(store);
+        this.api = new ScriptAPI(store, this::onExecutionStatusUpdate, this::stopRequested);
 
         engine.put("options", (Consumer<Map<String, Object>>) this::options);
 
@@ -32,15 +35,24 @@ public class Script {
         engine.put("linkTo", api.linkTo);
     }
 
-    public void options(Map<String, Object> options) {
+    private void onExecutionStatusUpdate(ExecutionStatus status) {
+        executionStatus = status;
+    }
+
+    private boolean stopRequested() {
+        return stopRequested.get();
+    }
+
+    public void stop() {
+        stopRequested.set(true);
+    }
+
+    void options(Map<String, Object> options) {
         this.options = options;
     }
 
-    public void run(String script) throws ScriptException {
+    public void execute(String script) throws ScriptException {
         engine.eval(script);
-
-        System.out.println(Arrays.toString(options.entrySet().toArray()));
-
     }
 
 
