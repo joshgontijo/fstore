@@ -8,7 +8,7 @@ import java.nio.ByteBuffer;
 //THREAD SAFE
 public class FixedBufferDataReader extends ChecksumDataReader {
 
-    private static final int DEFAULT_SIZE = 4096;
+    private static final int DEFAULT_BUFFER_SIZE = 4096;
     public static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
 
     private final boolean direct;
@@ -19,11 +19,11 @@ public class FixedBufferDataReader extends ChecksumDataReader {
     }
 
     public FixedBufferDataReader(int maxRecordSize, boolean direct) {
-        this(maxRecordSize, direct, DEFAULT_CHECKUM_PROB, DEFAULT_SIZE);
+        this(maxRecordSize, direct, DEFAULT_CHECKUM_PROB, DEFAULT_BUFFER_SIZE);
     }
 
     public FixedBufferDataReader(int maxRecordSize, boolean direct, double checksumProb) {
-        this(maxRecordSize, direct, checksumProb, DEFAULT_SIZE);
+        this(maxRecordSize, direct, checksumProb, DEFAULT_BUFFER_SIZE);
     }
 
     public FixedBufferDataReader(int maxRecordSize, boolean direct, double checksumProb, int bufferSize) {
@@ -46,7 +46,7 @@ public class FixedBufferDataReader extends ChecksumDataReader {
 //        if(position == 143775612) {
 //            System.err.println(position);
 //        }
-        checkRecordLength(length, position);
+//        checkRecordLength(length, position);
         if (length == 0) {
             return EMPTY;
         }
@@ -84,7 +84,7 @@ public class FixedBufferDataReader extends ChecksumDataReader {
         buffer.position(buffer.limit() - Log.LENGTH_SIZE);
         buffer.mark();
         int length = buffer.getInt();
-        checkRecordLength(length, position);
+//        checkRecordLength(length, position);
         if (length == 0) {
             return EMPTY;
         }
@@ -106,11 +106,11 @@ public class FixedBufferDataReader extends ChecksumDataReader {
         return direct ? ByteBuffer.allocateDirect(bufferSize) : ByteBuffer.allocate(bufferSize);
     }
 
-    private void checkRecordLength(int length, long position) {
-        if (length > maxRecordSize) {
-            throw new IllegalStateException("Record at position " + position + " of size " + length + " must be less than MAX_RECORD_SIZE: " + maxRecordSize);
-        }
-    }
+//    private void checkRecordLength(int length, long position) {
+//        if (length > maxRecordSize) {
+//            throw new IllegalStateException("Record at position " + position + " of size " + length + " must be less than MAX_RECORD_SIZE: " + maxRecordSize);
+//        }
+//    }
 
     private ByteBuffer extending(Storage storage, long position, int length) {
         ByteBuffer extra = ByteBuffer.allocate(Log.MAIN_HEADER + length);
@@ -118,7 +118,7 @@ public class FixedBufferDataReader extends ChecksumDataReader {
         extra.flip();
         int foundLength = extra.getInt();
         if (foundLength != length) {
-            throw new IllegalStateException("Expected length " + length + " got " + foundLength);
+            throw new IllegalStateException("Record at position " + position + " has unexpected length, expected " + length + ", got " + foundLength);
         }
         int checksum = extra.getInt();
         checksum(checksum, extra, position);
