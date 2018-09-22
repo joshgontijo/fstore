@@ -58,7 +58,6 @@ public class Streams implements Closeable {
     public void add(StreamMetadata metadata) {
         Objects.requireNonNull(metadata, "Metadata must be provided");
         StringUtils.requireNonBlank(metadata.name, "Stream name was not empty");
-        versions.set(metadata.hash, new AtomicInteger(IndexEntry.NO_VERSION));
         StreamMetadata existing = streamsMap.putIfAbsent(metadata.hash, metadata);
         if (existing != null) {
             throw new IllegalStateException("Stream '" + metadata.name + "' already exist");
