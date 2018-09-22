@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projections;
 
-import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
@@ -14,14 +14,14 @@ public class ScriptExecution {
 
     private final ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
     private final ScriptAPI api;
-    private EventStore store;
+    private IEventStore store;
     private AtomicBoolean stopRequested = new AtomicBoolean();
 
     private Map<String, Object> options = new HashMap<>();
 
     ExecutionStatus executionStatus;
 
-    public ScriptExecution(EventStore store) {
+    public ScriptExecution(IEventStore store) {
         this.store = store;
         this.api = new ScriptAPI(store, this::onExecutionStatusUpdate, this::stopRequested);
 

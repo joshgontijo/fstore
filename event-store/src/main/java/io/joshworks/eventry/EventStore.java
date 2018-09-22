@@ -31,7 +31,6 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.LogAppender;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,7 +44,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class EventStore implements Closeable {
+public class EventStore implements IEventStore {
 
     //TODO expose
     private static final int LRU_CACHE_SIZE = 1000000;
@@ -69,7 +68,7 @@ public class EventStore implements Closeable {
         this.loadProjections();
     }
 
-    public static EventStore open(File rootDir) {
+    public static IEventStore open(File rootDir) {
         return new EventStore(rootDir);
     }
 
@@ -133,26 +132,32 @@ public class EventStore implements Closeable {
         }
     }
 
+    @Override
     public LogIterator<IndexEntry> keys() {
         return index.iterator(Direction.FORWARD);
     }
 
+    @Override
     public void cleanup() {
         eventLog.cleanup();
     }
 
+    @Override
     public void createStream(String name) {
         createStream(name, -1, -1);
     }
 
+    @Override
     public Collection<Projection> projections() {
         return new ArrayList<>(projections.all());
     }
 
+    @Override
     public Projection projection(String name) {
         return projections.get(name);
     }
 
+    @Override
     public Projection createProjection(String name, String script, Projection.Type type, boolean enabled) {
         Projection projection = projections.create(name, script, type, enabled);
         EventRecord eventRecord = ProjectionCreated.create(projection);
@@ -161,6 +166,7 @@ public class EventStore implements Closeable {
         return projection;
     }
 
+    @Override
     public Projection updateProjection(String name, String script, Projection.Type type, Boolean enabled) {
         Projection projection = projections.update(name, script, type, enabled);
         EventRecord eventRecord = ProjectionUpdated.create(projection);
@@ -169,28 +175,34 @@ public class EventStore implements Closeable {
         return projection;
     }
 
+    @Override
     public void deleteProjection(String name) {
         projections.delete(name);
         EventRecord eventRecord = ProjectionDeleted.create(name);
         this.appendSystemEvent(eventRecord);
     }
 
+    @Override
     public void runProjection(String name) {
         projections.run(name, this, this::appendSystemEvent);
     }
 
+    @Override
     public ExecutionStatus projectionExecutionStatus(String name) {
         return projections.executionStatus(name);
     }
 
+    @Override
     public Collection<ExecutionStatus> projectionExecutionStatuses() {
         return projections.executionStatuses();
     }
 
+    @Override
     public void createStream(String name, int maxCount, long maxAge) {
         createStream(name, maxCount, maxAge, new HashMap<>(), new HashMap<>());
     }
 
+    @Override
     public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
         StreamMetadata created = streams.create(stream, maxAge, maxCount, permissions, metadata);
         if (created == null) {
@@ -201,6 +213,7 @@ public class EventStore implements Closeable {
         return created;
     }
 
+    @Override
     public List<StreamInfo> streamsMetadata() {
         return streams.all().stream().map(meta -> {
             int version = streams.version(meta.hash);
@@ -208,6 +221,7 @@ public class EventStore implements Closeable {
         }).collect(Collectors.toList());
     }
 
+    @Override
     public Optional<StreamInfo> streamMetadata(String stream) {
         long streamHash = streams.hashOf(stream);
         return streams.get(streamHash).map(meta -> {
@@ -216,14 +230,17 @@ public class EventStore implements Closeable {
         });
     }
 
+    @Override
     public LogIterator<EventRecord> fromStreamIter(String stream) {
         return fromStreamIter(stream, Range.START_VERSION);
     }
 
+    @Override
     public Stream<EventRecord> fromStream(String stream) {
         return fromStream(stream, Range.START_VERSION);
     }
 
+    @Override
     public LogIterator<EventRecord> fromStreamIter(String stream, int versionInclusive) {
         long streamHash = streams.hashOf(stream);
         LogIterator<IndexEntry> indexIterator = index.iterator(Direction.FORWARD, Range.of(streamHash, versionInclusive));
@@ -234,16 +251,19 @@ public class EventStore implements Closeable {
 
     }
 
+    @Override
     public Stream<EventRecord> fromStream(String stream, int versionInclusive) {
         LogIterator<EventRecord> iterator = fromStreamIter(stream, versionInclusive);
         return Iterators.stream(iterator);
     }
 
+    @Override
     public Stream<EventRecord> zipStreams(Set<String> streams) {
         LogIterator<EventRecord> iterator = zipStreamsIter(streams);
         return Iterators.stream(iterator);
     }
 
+    @Override
     public LogIterator<EventRecord> zipStreamsIter(String stream) {
         Set<String> eventStreams = streams.streamMatching(stream);
         if (eventStreams.isEmpty()) {
@@ -252,10 +272,12 @@ public class EventStore implements Closeable {
         return zipStreamsIter(eventStreams);
     }
 
+    @Override
     public Stream<EventRecord> zipStreams(String streamPrefix) {
         return Iterators.stream(zipStreamsIter(streamPrefix));
     }
 
+    @Override
     public LogIterator<EventRecord> zipStreamsIter(Set<String> streamNames) {
 
         Set<Long> hashes = streamNames.stream()
@@ -271,30 +293,36 @@ public class EventStore implements Closeable {
         return new LinkToResolveIterator(ageFilterIterator, this::resolve);
     }
 
+    @Override
     public Stream<Stream<EventRecord>> fromStreams(Set<String> streams) {
         return streams.stream().map(this::fromStream);
     }
 
+    @Override
     public Map<String, Stream<EventRecord>> fromStreamsMapped(Set<String> streams) {
         return streams.stream()
                 .map(stream -> Tuple.of(stream, fromStream(stream)))
                 .collect(Collectors.toMap(Tuple::a, Tuple::b));
     }
 
+    @Override
     public int version(String stream) {
         long streamHash = streams.hashOf(stream);
         return streams.version(streamHash);
     }
 
+    @Override
     public LogIterator<EventRecord> fromAllIter() {
         return eventLog.iterator(Direction.FORWARD);
     }
 
     //Won't return the stream in the event !
+    @Override
     public Stream<EventRecord> fromAll() {
         return eventLog.stream(Direction.FORWARD);
     }
 
+    @Override
     public EventRecord linkTo(String stream, EventRecord event) {
         if (event.isLinkToEvent()) {
             //resolve event
@@ -304,11 +332,13 @@ public class EventStore implements Closeable {
         return this.appendSystemEvent(linkTo);
     }
 
+    @Override
     public void emit(String stream, EventRecord event) {
         EventRecord withStream = EventRecord.create(stream, event.type, event.data, event.metadata);
         this.append(withStream);
     }
 
+    @Override
     public EventRecord get(String stream, int version) {
         long streamHash = streams.hashOf(stream);
 
@@ -352,10 +382,12 @@ public class EventStore implements Closeable {
         }
     }
 
+    @Override
     public EventRecord append(EventRecord event) {
         return append(event, IndexEntry.NO_VERSION);
     }
 
+    @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
 
@@ -404,19 +436,23 @@ public class EventStore implements Closeable {
         });
     }
 
+    @Override
     public PollingSubscriber<EventRecord> poller() {
         return new LogPoller(eventLog.poller(), this);
     }
 
+    @Override
     public PollingSubscriber<EventRecord> poller(long position) {
         return new LogPoller(eventLog.poller(position), this);
     }
 
+    @Override
     public PollingSubscriber<EventRecord> poller(String stream) {
         Set<Long> hashes = streams.streamMatching(stream).stream().map(streams::hashOf).collect(Collectors.toSet());
         return new IndexedLogPoller(index.poller(hashes), this);
     }
 
+    @Override
     public PollingSubscriber<EventRecord> poller(Set<String> streamNames) {
         Set<Long> hashes = streamNames.stream().map(streams::hashOf).collect(Collectors.toSet());
         return new IndexedLogPoller(index.poller(hashes), this);
@@ -445,6 +481,7 @@ public class EventStore implements Closeable {
         return new MaxAgeFilteringIterator(metadataMap, iterator);
     }
 
+    @Override
     public long logPosition() {
         return eventLog.position();
     }
