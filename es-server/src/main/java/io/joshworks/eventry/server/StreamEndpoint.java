@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamInfo;
@@ -20,9 +20,9 @@ public class StreamEndpoint {
     public static final String QUERY_PARAM_ZIP = "zip";
     public static final String QUERY_PARAM_ZIP_PREFIX = "prefix";
     public static final String PATH_PARAM_STREAM = "streamId";
-    private final EventStore store;
+    private final IEventStore store;
 
-    public StreamEndpoint(EventStore store) {
+    public StreamEndpoint(IEventStore store) {
         this.store = store;
     }
 

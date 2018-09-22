@@ -1,6 +1,6 @@
 package io.joshworks.eventry.tools;
 
-import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.LogIterator;
@@ -11,7 +11,7 @@ import java.io.IOException;
 
 public class LogDump {
 
-    public static void dumpStream(String stream, File file, EventStore store) {
+    public static void dumpStream(String stream, File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file)) {
             LogIterator<EventRecord> iterator = store.fromStreamIter(stream);
             while (iterator.hasNext()) {
@@ -23,7 +23,7 @@ public class LogDump {
         }
     }
 
-    public static void dumpLog(File file, EventStore store) {
+    public static void dumpLog(File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file)) {
             LogIterator<EventRecord> iterator = store.fromAllIter();
             while (iterator.hasNext()) {
@@ -36,7 +36,7 @@ public class LogDump {
         }
     }
 
-    public static void dumpIndex(File file, EventStore store) {
+    public static void dumpIndex(File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file)) {
             LogIterator<IndexEntry> iterator = store.keys();
             while (iterator.hasNext()) {

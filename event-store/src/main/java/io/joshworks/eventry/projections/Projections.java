@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projections;
 
-import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.utils.StringUtils;
 
@@ -38,11 +38,11 @@ public class Projections {
         return projection;
     }
 
-    public void runAdHoc(String script, EventStore store, Consumer<EventRecord> systemRecordAppender) {
+    public void runAdHoc(String script, IEventStore store, Consumer<EventRecord> systemRecordAppender) {
         //TODO
     }
 
-    public void run(String name, EventStore store, Consumer<EventRecord> systemRecordAppender) {
+    public void run(String name, IEventStore store, Consumer<EventRecord> systemRecordAppender) {
         Projection projection = get(name);
         ProjectionTask projectionTask = new ProjectionTask(projection, store, systemRecordAppender, runningTasks);
         executor.execute(projectionTask);

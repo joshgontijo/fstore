@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.projections.ExecutionStatus;
 import io.joshworks.eventry.projections.Projection;
 import io.joshworks.snappy.http.HttpExchange;
@@ -10,9 +10,9 @@ import java.util.Collection;
 
 public class ProjectionsEndpoint {
 
-    private final EventStore store;
+    private final IEventStore store;
 
-    public ProjectionsEndpoint(EventStore store) {
+    public ProjectionsEndpoint(IEventStore store) {
         this.store = store;
     }
 

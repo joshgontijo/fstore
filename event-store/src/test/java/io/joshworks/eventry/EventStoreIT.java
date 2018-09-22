@@ -39,7 +39,7 @@ import static org.junit.Assert.fail;
 public class EventStoreIT {
 
     private File directory;
-    private EventStore store;
+    private IEventStore store;
 
     @Before
     public void setUp() {
@@ -154,7 +154,7 @@ public class EventStoreIT {
 
         store.close();
 
-        try (EventStore store = EventStore.open(directory)) {
+        try (IEventStore store = EventStore.open(directory)) {
             for (int i = 0; i < size; i++) {
                 Stream<EventRecord> events = store.fromStream(streamPrefix + i);
                 assertEquals("Failed on iteration " + i, 1, events.count());
@@ -174,7 +174,7 @@ public class EventStoreIT {
 
         store.close();
 
-        try (EventStore store = EventStore.open(directory)) {
+        try (IEventStore store = EventStore.open(directory)) {
             Stream<EventRecord> events = store.fromAll();
             assertTrue(events.count() >= size);
         }
@@ -192,7 +192,7 @@ public class EventStoreIT {
 
         store.close();
 
-        try (EventStore store = EventStore.open(directory)) {
+        try (IEventStore store = EventStore.open(directory)) {
             for (int i = 0; i < size; i++) {
                 EventRecord event = store.get(streamPrefix + i, Range.START_VERSION);
                 assertNotNull(event);

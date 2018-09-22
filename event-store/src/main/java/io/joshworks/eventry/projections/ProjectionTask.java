@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projections;
 
-import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.data.ProjectionCompleted;
 import io.joshworks.eventry.data.ProjectionFailed;
 import io.joshworks.eventry.data.ProjectionStarted;
@@ -20,9 +20,9 @@ public class ProjectionTask implements Runnable {
     private ScriptExecution scriptExecution;
     private Consumer<EventRecord> systemRecordAppender;
     private Map<String, ExecutionStatus> tracker;
-    private final EventStore store;
+    private final IEventStore store;
 
-    public ProjectionTask(Projection projection, EventStore store, Consumer<EventRecord> systemRecordAppender, Map<String, ExecutionStatus> tracker) {
+    public ProjectionTask(Projection projection, IEventStore store, Consumer<EventRecord> systemRecordAppender, Map<String, ExecutionStatus> tracker) {
         this.projection = projection;
         this.store = store;
         this.scriptExecution = new ScriptExecution(store);

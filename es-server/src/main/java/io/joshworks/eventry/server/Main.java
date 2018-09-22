@@ -1,6 +1,7 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
 import io.joshworks.fstore.core.properties.AppProperties;
 
 import java.io.File;
@@ -22,7 +23,7 @@ public class Main {
 
         AppProperties properties = AppProperties.create();
         String path = properties.get("db.path").orElse("J:\\event-store-app");
-        EventStore store = EventStore.open(new File(path));
+        IEventStore store = EventStore.open(new File(path));
 
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
         SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store, broadcast);

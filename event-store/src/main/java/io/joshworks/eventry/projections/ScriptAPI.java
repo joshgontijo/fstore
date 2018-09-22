@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projections;
 
-import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 
 import java.util.AbstractMap;
@@ -15,14 +15,14 @@ import java.util.stream.Stream;
 
 class ScriptAPI {
 
-    final EventStore store;
+    final IEventStore store;
     final Function<String, SingleStream> fromStream;
     final Function<String[], SingleStream> fromStreams;
     final Function<String[], ForEachStream> foreachstream;
     final BiConsumer<String, JsonEvent> linkTo;
     final BiConsumer<String, JsonEvent> emit;
 
-    ScriptAPI(EventStore store, Consumer<ExecutionStatus> executionStatusListener, Supplier<Boolean> shutdownRequest) {
+    ScriptAPI(IEventStore store, Consumer<ExecutionStatus> executionStatusListener, Supplier<Boolean> shutdownRequest) {
         this.store = store;
         this.fromStream = s -> new SingleStream(store.fromStream(s).map(JsonEvent::from), executionStatusListener, shutdownRequest);
         this.fromStreams = streams -> new SingleStream(store.zipStreams(Set.of(streams)).map(JsonEvent::from), executionStatusListener, shutdownRequest);
