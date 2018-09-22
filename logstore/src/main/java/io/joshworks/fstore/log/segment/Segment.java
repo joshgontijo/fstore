@@ -26,6 +26,7 @@ import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -46,7 +47,7 @@ public class Segment<T> implements Log<T> {
     private final DataReader reader;
     private final String magic;
 
-    private long entries;
+    private AtomicLong entries = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
 
     private Header header;
@@ -87,11 +88,11 @@ public class Segment<T> implements Log<T> {
         }
         this.position(Header.BYTES);
 
-        this.entries = header.entries;
+        entries.set(header.entries);
         if (Type.LOG_HEAD.equals(header.type)) { //reopening log head
             SegmentState result = rebuildState(Segment.START);
             this.position(result.position);
-            this.entries = result.entries;
+            entries.set(result.entries);
         }
     }
 
@@ -198,7 +199,7 @@ public class Segment<T> implements Log<T> {
         long recordPosition = position();
         write(storage, bytes);
 
-        entries++;
+        entries.incrementAndGet();
         return recordPosition;
     }
 
@@ -336,7 +337,7 @@ public class Segment<T> implements Log<T> {
     private Header writeHeader(int level, FooterInfo footerInfo) {
         long segmentSize = footerInfo.start + footerInfo.end;
         long logEnd = footerInfo.start - EOL.length;
-        Header newHeader = new Header(this.magic, entries, this.header.created, level, Type.READ_ONLY, segmentSize, Log.START, logEnd, footerInfo.start, footerInfo.end);
+        Header newHeader = new Header(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, Log.START, logEnd, footerInfo.start, footerInfo.end);
         storage.position(0);
         ByteBuffer headerData = headerSerializer.toBytes(newHeader);
         storage.write(headerData);
@@ -368,7 +369,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public long entries() {
-        return entries;
+        return entries.get();
     }
 
     @Override

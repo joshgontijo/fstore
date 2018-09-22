@@ -2,6 +2,7 @@ package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.QueuedEventStore;
 import io.joshworks.fstore.core.properties.AppProperties;
 
 import java.io.File;
@@ -16,14 +17,14 @@ import static io.joshworks.snappy.SnappyServer.put;
 import static io.joshworks.snappy.SnappyServer.sse;
 import static io.joshworks.snappy.SnappyServer.start;
 
-public class Main {
+public class Server {
 
 
     public static void main(String[] args) {
 
         AppProperties properties = AppProperties.create();
-        String path = properties.get("db.path").orElse("J:\\event-store-app");
-        IEventStore store = EventStore.open(new File(path));
+        String path = properties.get("db.path").orElse("J:\\event-store-github");
+        IEventStore store = new QueuedEventStore(EventStore.open(new File(path)));
 
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
         SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store, broadcast);

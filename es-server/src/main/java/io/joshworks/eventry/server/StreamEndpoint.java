@@ -69,7 +69,7 @@ public class StreamEndpoint {
         EventRecord event = eventBody.toEvent(stream);
         EventRecord result = store.append(event);
 
-        exchange.status(201).send(EventBody.from(result));
+        exchange.status(201);
     }
 
     public void delete(HttpExchange exchange) {
