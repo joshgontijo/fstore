@@ -45,7 +45,8 @@ public class BlockSerializer<T> implements Serializer<Block<T>> {
 
     @Override
     public void writeTo(Block<T> block, ByteBuffer dest) {
-        //do nothing
+        ByteBuffer packed = toBytes(block);
+        dest.put(packed);
     }
 
 

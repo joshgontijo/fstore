@@ -3,12 +3,12 @@ package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.io.DataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Checksum;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import org.slf4j.Logger;
@@ -44,7 +44,7 @@ public class Segment<T> implements Log<T> {
     private final Serializer<Header> headerSerializer = new HeaderSerializer();
     private final Serializer<T> serializer;
     private final Storage storage;
-    private final DataReader reader;
+    private final DataStream reader;
     private final String magic;
 
     private AtomicLong entries = new AtomicLong();
@@ -54,13 +54,13 @@ public class Segment<T> implements Log<T> {
 
     private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
 
-    public Segment(Storage storage, Serializer<T> serializer, DataReader reader, String magic) {
+    public Segment(Storage storage, Serializer<T> serializer, DataStream reader, String magic) {
         this(storage, serializer, reader, magic, null);
     }
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
-    public Segment(Storage storage, Serializer<T> serializer, DataReader reader, String magic, Type type) {
+    public Segment(Storage storage, Serializer<T> serializer, DataStream reader, String magic, Type type) {
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
         this.storage = requireNonNull(storage, "Storage must be provided");
         this.reader = requireNonNull(reader, "Reader must be provided");
@@ -437,7 +437,7 @@ public class Segment<T> implements Log<T> {
     private class SegmentReader extends TimeoutReader implements LogIterator<T> {
 
         private final Storage storage;
-        private final DataReader reader;
+        private final DataStream reader;
         private final Serializer<T> serializer;
 
         private T data;
@@ -446,7 +446,7 @@ public class Segment<T> implements Log<T> {
         private int lastReadSize;
         private final Direction direction;
 
-        SegmentReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition, Direction direction) {
+        SegmentReader(Storage storage, DataStream reader, Serializer<T> serializer, long initialPosition, Direction direction) {
             this.direction = direction;
             checkBounds(initialPosition);
             this.storage = storage;
@@ -514,11 +514,11 @@ public class Segment<T> implements Log<T> {
         private static final int VERIFICATION_INTERVAL_MILLIS = 500;
 
         private final Storage storage;
-        private final DataReader reader;
+        private final DataStream reader;
         private final Serializer<T> serializer;
         private long readPosition;
 
-        SegmentPoller(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition) {
+        SegmentPoller(Storage storage, DataStream reader, Serializer<T> serializer, long initialPosition) {
             checkBounds(initialPosition);
             this.storage = storage;
             this.reader = reader;

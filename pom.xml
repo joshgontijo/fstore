@@ -16,6 +16,7 @@
         <module>codec</module>
         <module>event-store</module>
         <module>es-server</module>
+        <module>tools</module>
     </modules>
 
     <properties>

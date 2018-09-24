@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.io.DataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
@@ -33,7 +33,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     private final Serializer<T> serializer;
     private B block;
 
-    public BlockSegment(Storage storage, Serializer<T> serializer, Serializer<B> blockSerializer, int maxBlockSize, DataReader reader, String magic, Type type) {
+    public BlockSegment(Storage storage, Serializer<T> serializer, Serializer<B> blockSerializer, int maxBlockSize, DataStream reader, String magic, Type type) {
         delegate = new Segment<>(storage, blockSerializer, reader, magic, type);
         this.serializer = serializer;
         this.maxBlockSize = maxBlockSize;

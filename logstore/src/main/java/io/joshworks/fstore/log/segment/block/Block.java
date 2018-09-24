@@ -65,12 +65,8 @@ public class Block<T> implements Iterable<T> {
         return readOnly ? readOnlyBuffer : readOnlyBuffer.flip();
     }
 
-    ByteBuffer pack() {
-        return buffer.asReadOnlyBuffer().flip();
-    }
-
     public ByteBuffer pack(Codec codec) {
-        ByteBuffer original = pack();
+        ByteBuffer original = buffer.asReadOnlyBuffer().flip();
         return codec.compress(original);
     }
 

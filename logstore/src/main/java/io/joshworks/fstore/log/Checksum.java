@@ -15,6 +15,13 @@ public class Checksum {
     }
 
     public static int crc32(ByteBuffer buffer) {
+        final CRC32 checksum = new CRC32();
+        checksum.update(CRC_SEED);
+        checksum.update(buffer);
+        return (int) checksum.getValue();
+    }
+
+    public static int crc32WithCopy(ByteBuffer buffer) {
         if (!buffer.hasArray()) {
             byte[] data = new byte[buffer.remaining()];
             buffer.mark();

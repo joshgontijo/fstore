@@ -5,15 +5,18 @@ import com.google.gson.reflect.TypeToken;
 import io.joshworks.restclient.http.HttpResponse;
 import io.joshworks.restclient.http.MediaType;
 import io.joshworks.restclient.http.RestClient;
+import io.joshworks.restclient.request.body.RequestBodyEntity;
 
 import java.io.File;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class GithubPump {
@@ -32,7 +35,7 @@ public class GithubPump {
                 executor.execute(() -> {
                     try {
                         RestClient client = RestClient.builder().baseUrl("http://localhost:9000").build();
-                        importFromFile(client,  new File(directory, fileName));
+                        importFromFile(client, new File(directory, fileName));
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -43,10 +46,10 @@ public class GithubPump {
     }
 
     private static void importFromFile(RestClient client, File file) throws Exception {
-        long start = System.currentTimeMillis();
+
         AtomicInteger counter = new AtomicInteger();
         try (Stream<String> lines = Files.lines(file.toPath())) {
-            lines.map(line -> {
+            List<RequestBodyEntity> requests = lines.map(line -> {
                 Map<String, Object> map = gson.fromJson(line, type);
                 return map;
             }).map(map -> {
@@ -54,18 +57,22 @@ public class GithubPump {
                 wrapper.put("type", map.get("type"));
                 wrapper.put("data", map);
                 return wrapper;
-            })
-                    .forEach(map -> {
-                        HttpResponse<String> response = client.post("/streams/github").contentType(MediaType.APPLICATION_JSON_TYPE).body(map).asString();
-                        if (response.getStatus() != 201) {
-                            System.err.println("Failed " + response.getBody());
-                        }
+            }).map(map -> client.post("/streams/github").contentType(MediaType.APPLICATION_JSON_TYPE).body(map))
+                    .collect(Collectors.toList());
 
 
-                        counter.incrementAndGet();
-                    });
+
+            long start = System.currentTimeMillis();
+            requests.forEach(req -> {
+                HttpResponse<String> response = req.asString();
+                if (response.getStatus() != 201) {
+                    System.err.println("Failed " + response.getBody());
+                }
+            });
+            System.out.println(requests.size() + " entries imported from " + file.getName() + " in: " + (System.currentTimeMillis() - start));
+
         }
-        System.out.println(counter.get() + " entries imported from " + file.getName() + " in: " + (System.currentTimeMillis() - start));
+
     }
 
 

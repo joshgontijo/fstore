@@ -1,6 +1,8 @@
 package io.joshworks.eventry.tools;
 
+import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.QueuedEventStore;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.LogIterator;
@@ -10,6 +12,12 @@ import java.io.FileWriter;
 import java.io.IOException;
 
 public class LogDump {
+
+    public static void main(String[] args) {
+        IEventStore store = new QueuedEventStore(EventStore.open(new File("J:\\event-store-github")));
+        dumpLog(new File("J:\\event-store-github\\dump.txt"), store);
+
+    }
 
     public static void dumpStream(String stream, File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file)) {

@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log.reader;
 
-import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.io.DataStream;
 import io.joshworks.fstore.core.io.Storage;
 
 import java.nio.ByteBuffer;
@@ -8,24 +8,19 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.function.Supplier;
 
-public class PooledDataReader extends ChecksumDataReader {
+public class PooledDataReader implements DataStream {
 
-    private final BlockingQueue<DataReader> readers;
+    private final BlockingQueue<DataStream> readers;
     private static final int DEFAULT_READER_SIZE = 1000;
 
-    public PooledDataReader(int maxRecordSize, Supplier<DataReader> readerSupplier) {
-        this(maxRecordSize, DEFAULT_READER_SIZE, DEFAULT_CHECKUM_PROB, readerSupplier);
+    public PooledDataReader(Supplier<DataStream> readerSupplier) {
+        this(DEFAULT_READER_SIZE, readerSupplier);
     }
 
-    public PooledDataReader(int maxRecordSize, int maxReaders, Supplier<DataReader> readerSupplier) {
-        this(maxRecordSize, maxReaders, DEFAULT_CHECKUM_PROB, readerSupplier);
-    }
-
-    public PooledDataReader(int maxRecordSize, int maxReaders, double checksumProb, Supplier<DataReader> readerSupplier) {
-        super(maxRecordSize, checksumProb);
+    public PooledDataReader(int maxReaders, Supplier<DataStream> readerSupplier) {
         this.readers = new ArrayBlockingQueue<>(maxReaders);
         for (int i = 0; i < maxReaders; i++) {
-            this.readers.offer(readerSupplier.get());
+            this.readers.add(readerSupplier.get());
         }
     }
 
@@ -35,7 +30,7 @@ public class PooledDataReader extends ChecksumDataReader {
     }
 
     private ByteBuffer read(Storage storage, long position) {
-        DataReader reader = null;
+        DataStream reader = null;
         try {
             reader = readers.take();
             return reader.readForward(storage, position);
