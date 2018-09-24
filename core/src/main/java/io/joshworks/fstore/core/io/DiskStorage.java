@@ -58,6 +58,17 @@ public abstract class DiskStorage implements Storage {
         }
     }
 
+    protected int ensureNonEmpty(ByteBuffer[] buffers) {
+        int totalSize = 0;
+        for (ByteBuffer buffer : buffers) {
+            totalSize += buffer.remaining();
+        }
+        if(totalSize == 0) {
+            throw new IllegalArgumentException("Cannot store empty record");
+        }
+        return totalSize;
+    }
+
     @Override
     public long length() {
         try {

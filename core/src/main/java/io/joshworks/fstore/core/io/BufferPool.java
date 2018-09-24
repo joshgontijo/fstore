@@ -9,25 +9,25 @@ import java.util.function.Consumer;
 public class BufferPool {
 
     private final int bufferSize;
-    private final int maxBuffers;
+    private final int numBuffers;
     private final boolean direct;
     private int counter;
     private final BlockingQueue<ByteBuffer> buffers = new LinkedBlockingQueue<>();
 //    private final ThreadLocal<Cache> threadLocalCache = ThreadLocal.withInitial(this::getDefaultCache);
 //    private final Cache defaultCache = new DefaultCache();
 
-    public BufferPool(int bufferSize, int maxBuffers, boolean direct) {
+    public BufferPool(int bufferSize, int numBuffers, boolean direct) {
         this.bufferSize = bufferSize;
-        this.maxBuffers = maxBuffers;
+        this.numBuffers = numBuffers;
         this.direct = direct;
     }
 
     public ByteBuffer allocate() {
         ByteBuffer buffer = buffers.poll();
         if (buffer == null) {
-            if (counter < maxBuffers) {
+            if (counter < numBuffers) {
                 synchronized (this) {
-                    if (counter < maxBuffers) {
+                    if (counter < numBuffers) {
                         buffer = direct ? ByteBuffer.allocateDirect(bufferSize) : ByteBuffer.allocate(bufferSize);
                         counter++;
                         return buffer;

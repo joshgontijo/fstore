@@ -2,7 +2,7 @@ package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.reader.FixedBufferDataReader;
+import io.joshworks.fstore.log.reader.FixedBufferDataStream;
 import io.joshworks.fstore.log.segment.Header;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
@@ -43,12 +43,12 @@ public abstract class SegmentTest {
 
     private Segment<String> create(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(4096), "magic", Type.LOG_HEAD);
+        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataStream(4096), "magic", Type.LOG_HEAD);
     }
 
     private Segment<String> open(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(4096), "magic");
+        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataStream(4096), "magic");
     }
 
     @Before

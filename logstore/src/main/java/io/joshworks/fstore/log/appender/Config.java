@@ -31,9 +31,12 @@ public class Config<T> {
     int maxSegmentsPerLevel = 3;
     int mmapBufferSize = segmentSize;
     int maxRecordSize = MAX_RECORD_SIZE;
+    double checksumProb = 1;
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
+    boolean directBuffers;
+    int numBuffers;
 
     Config(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -73,6 +76,25 @@ public class Config<T> {
         this.maxRecordSize = maxRecordSize;
         return this;
     }
+
+    public Config<T> numBuffers(int numBuffers) {
+        this.numBuffers = numBuffers;
+        return this;
+    }
+
+    public Config<T> checksumProbability(double checksumProb) {
+        if (checksumProb < 0 || checksumProb > 1) {
+            throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
+        }
+        this.checksumProb = checksumProb;
+        return this;
+    }
+
+    public Config<T> useDirectBuffers(boolean directBuffers) {
+        this.directBuffers = directBuffers;
+        return this;
+    }
+
 
     public Config<T> namingStrategy(NamingStrategy strategy) {
         Objects.requireNonNull(strategy, "NamingStrategy must be provided");

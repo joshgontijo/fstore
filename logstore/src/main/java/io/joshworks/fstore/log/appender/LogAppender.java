@@ -15,7 +15,7 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
-import io.joshworks.fstore.log.reader.FixedBufferDataReader;
+import io.joshworks.fstore.log.reader.FixedBufferDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 import org.slf4j.Logger;
@@ -85,7 +85,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         this.serializer = config.serializer;
         this.factory = factory;
         this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
-        this.dataStream = new FixedBufferDataReader(config.maxRecordSize);
+        this.dataStream = new FixedBufferDataStream<>(config.maxRecordSize, config.numBuffers, config.checksumProb, config.directBuffers, serializer);
         this.namingStrategy = config.namingStrategy;
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
@@ -302,7 +302,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return directory.getName();
     }
 
-    //TODO implement reader pool, instead using a new instance of reader, provide a pool of reader to better performance
     public LogIterator<T> iterator(Direction direction) {
         long startPosition = Direction.FORWARD.equals(direction) ? Log.START : Math.max(position(), Log.START);
         return iterator(startPosition, direction);

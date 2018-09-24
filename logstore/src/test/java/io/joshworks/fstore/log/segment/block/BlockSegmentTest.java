@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
-import io.joshworks.fstore.log.reader.FixedBufferDataReader;
+import io.joshworks.fstore.log.reader.FixedBufferDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.serializer.Serializers;
@@ -34,7 +34,7 @@ public class BlockSegmentTest {
     @Before
     public void setUp() {
         testFile = Utils.testFile();
-        segment = new DefaultBlockSegment<>(new RafStorage(testFile, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.INTEGER, new FixedBufferDataReader(blockSize * 4), "abc", Type.LOG_HEAD, blockSize);
+        segment = new DefaultBlockSegment<>(new RafStorage(testFile, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.INTEGER, new FixedBufferDataStream(blockSize * 4), "abc", Type.LOG_HEAD, blockSize);
     }
 
     @After

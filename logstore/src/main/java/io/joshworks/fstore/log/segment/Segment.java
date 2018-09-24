@@ -44,7 +44,7 @@ public class Segment<T> implements Log<T> {
     private final Serializer<Header> headerSerializer = new HeaderSerializer();
     private final Serializer<T> serializer;
     private final Storage storage;
-    private final DataStream reader;
+    private final DataStream<T> reader;
     private final String magic;
 
     private AtomicLong entries = new AtomicLong();
@@ -54,8 +54,8 @@ public class Segment<T> implements Log<T> {
 
     private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
 
-    public Segment(Storage storage, Serializer<T> serializer, DataStream reader, String magic) {
-        this(storage, serializer, reader, magic, null);
+    public Segment(Storage storage, Serializer<T> serializer, DataStream<T> dataStream, String magic) {
+        this(storage, serializer, dataStream, magic, null);
     }
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
@@ -155,11 +155,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public T get(long position) {
         checkBounds(position);
-        ByteBuffer data = reader.readForward(storage, position);
-        if (data.remaining() == 0) { //EOF
-            return null;
-        }
-        return serializer.fromBytes(data);
+        return reader.readForward(storage, position);
     }
 
     @Override
