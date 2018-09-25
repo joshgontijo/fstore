@@ -8,7 +8,7 @@ public interface Storage extends Flushable, Closeable {
 
     int write(ByteBuffer data);
 
-    int write(ByteBuffer[] data);
+//    int write(ByteBuffer[] data);
 
     int read(long position, ByteBuffer data);
 

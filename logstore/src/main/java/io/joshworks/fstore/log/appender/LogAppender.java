@@ -53,7 +53,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     private final File directory;
     private final Serializer<T> serializer;
     private final Metadata metadata;
-    private final DataStream dataStream;
+    private final DataStream<T> dataStream;
     private final NamingStrategy namingStrategy;
     private final SegmentFactory<T, L> factory;
     private final StorageProvider storageProvider;
@@ -158,7 +158,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
         Storage storage = storageProvider.create(segmentFile, size + (size / 10));
 
-        return factory.createOrOpen(storage, serializer, dataStream, metadata.magic, Type.LOG_HEAD);
+        return factory.createOrOpen(storage, dataStream, metadata.magic, Type.LOG_HEAD);
     }
 
     private Levels<T, L> loadSegments() {
@@ -194,7 +194,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         try {
             File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
             storage = storageProvider.open(segmentFile);
-            L segment = factory.createOrOpen(storage, serializer, dataStream, metadata.magic, null);
+            L segment = factory.createOrOpen(storage, dataStream, metadata.magic, null);
             logger.info("Loaded segment {}", segment);
             return segment;
         } catch (Exception e) {

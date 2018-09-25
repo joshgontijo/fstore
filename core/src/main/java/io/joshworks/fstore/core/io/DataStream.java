@@ -26,8 +26,6 @@ public abstract class DataStream<T> {
 
     public abstract long write(Storage storage, T data);
 
-    public abstract T readForward(Storage storage, long position);
-
-    public abstract T readBackward(Storage storage, long position);
+    public abstract DataReader<T> reader(Storage storage, long position);
 
 }

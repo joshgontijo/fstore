@@ -36,7 +36,7 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
         File segmentFile = data.segmentFile;
         SegmentCombiner<T> combiner = data.combiner;
         List<L> segments = data.segments;
-        DataStream dataStream = data.dataStream;
+        DataStream<T> dataStream = data.dataStream;
         Serializer<T> serializer = data.serializer;
         StorageProvider storageProvider = data.storageProvider;
         SegmentFactory<T, L> segmentFactory = data.segmentFactory;
@@ -59,7 +59,7 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
             long start = System.currentTimeMillis();
 
             Storage storage = storageProvider.create(segmentFile, totalSize);
-            target = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, Type.MERGE_OUT);
+            target = segmentFactory.createOrOpen(storage, dataStream, magic, Type.MERGE_OUT);
 
             combiner.merge(segments, target);
 

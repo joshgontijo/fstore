@@ -17,11 +17,11 @@ class CompactionEvent<T, L extends Log<T>> {
     final SegmentFactory<T, L> segmentFactory;
     final StorageProvider storageProvider;
     final Serializer<T> serializer;
-    final DataStream dataStream;
+    final DataStream<T> dataStream;
     final int level;
     final String magic;
 
-    CompactionEvent(List<L> segments, SegmentCombiner<T> combiner, File segmentFile, SegmentFactory<T, L> segmentFactory, StorageProvider storageProvider, Serializer<T> serializer, DataStream dataStream, int level, String magic) {
+    CompactionEvent(List<L> segments, SegmentCombiner<T> combiner, File segmentFile, SegmentFactory<T, L> segmentFactory, StorageProvider storageProvider, Serializer<T> serializer, DataStream<T> dataStream, int level, String magic) {
         this.segments = segments;
         this.combiner = combiner;
         this.segmentFile = segmentFile;

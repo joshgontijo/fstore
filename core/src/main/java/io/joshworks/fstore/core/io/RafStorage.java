@@ -31,20 +31,20 @@ public class RafStorage extends DiskStorage {
         }
     }
 
-    @Override
-    public int write(ByteBuffer[] data) {
-        int length = ensureNonEmpty(data);
-        try {
-            int written = 0;
-            while (written < length) {
-                written += channel.write(data);
-            }
-            position += written;
-            return written;
-        } catch (IOException e) {
-            throw RuntimeIOException.of(e);
-        }
-    }
+//    @Override
+//    public int write(ByteBuffer[] data) {
+//        int length = ensureNonEmpty(data);
+//        try {
+//            int written = 0;
+//            while (written < length) {
+//                written += channel.write(data);
+//            }
+//            position += written;
+//            return written;
+//        } catch (IOException e) {
+//            throw RuntimeIOException.of(e);
+//        }
+//    }
 
     @Override
     public int read(long position, ByteBuffer data) {

@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.segment.block;
 
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
@@ -34,7 +35,7 @@ public class BlockSegmentTest {
     @Before
     public void setUp() {
         testFile = Utils.testFile();
-        segment = new DefaultBlockSegment<>(new RafStorage(testFile, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.INTEGER, new FixedBufferDataStream(blockSize * 4), "abc", Type.LOG_HEAD, blockSize);
+        segment = new DefaultBlockSegment<>(new RafStorage(testFile, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.INTEGER, new FixedBufferDataStream<>(blockSize * 4, 10, 1, false, new BlockSerializer<>(Serializers.INTEGER, Codec.noCompression())), "abc", Type.LOG_HEAD, blockSize);
     }
 
     @After

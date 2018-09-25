@@ -33,8 +33,8 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     private final Serializer<T> serializer;
     private B block;
 
-    public BlockSegment(Storage storage, Serializer<T> serializer, Serializer<B> blockSerializer, int maxBlockSize, DataStream reader, String magic, Type type) {
-        delegate = new Segment<>(storage, blockSerializer, reader, magic, type);
+    public BlockSegment(Storage storage, Serializer<T> serializer, int maxBlockSize, DataStream<B> dataStream, String magic, Type type) {
+        delegate = new Segment<>(storage, dataStream, magic, type);
         this.serializer = serializer;
         this.maxBlockSize = maxBlockSize;
         this.block = createBlock(serializer, maxBlockSize);

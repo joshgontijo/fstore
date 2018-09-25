@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.appender;
 
+import io.joshworks.fstore.core.io.DataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
@@ -280,7 +281,7 @@ public class LogAppenderTest {
         File file = new File(testDirectory, segmentName);
         try (Storage storage = new RafStorage(file, file.length(), Mode.READ_WRITE)) {
             storage.position(Log.START);
-            ByteBuffer broken = ByteBuffer.allocate(Log.HEADER_OVERHEAD + 4);
+            ByteBuffer broken = ByteBuffer.allocate(DataStream.HEADER_OVERHEAD + 4);
             broken.putInt(444); //expected length
             broken.putInt(123); // broken checksum
             broken.putChar('A'); // broken data

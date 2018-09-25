@@ -4,13 +4,13 @@ import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.filter.BloomFilter;
+import io.joshworks.eventry.index.filter.BloomFilterHasher;
+import io.joshworks.eventry.index.midpoint.Midpoint;
 import io.joshworks.eventry.index.midpoint.Midpoints;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataStream;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.eventry.index.filter.BloomFilterHasher;
-import io.joshworks.eventry.index.midpoint.Midpoint;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -36,13 +36,12 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
     private static final double FALSE_POSITIVE_PROB = 0.01;
 
     IndexSegment(Storage storage,
-                        Serializer<IndexBlock> serializer,
-                        DataStream reader,
+                        DataStream<IndexBlock> dataStream,
                         String magic,
                         Type type,
                         File directory,
                         int numElements) {
-        super(storage, new IndexEntrySerializer(), serializer, MAX_BLOCK_SIZE, reader, magic, type);
+        super(storage, new IndexEntrySerializer(), MAX_BLOCK_SIZE, dataStream, magic, type);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.Murmur64(Serializers.LONG));
