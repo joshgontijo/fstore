@@ -51,8 +51,7 @@ public class IndexSegmentTest {
         long size = location.length() == 0 ? 1048576 : location.length();
         return new IndexSegment(
                 new RafStorage(location, size, Mode.READ_WRITE),
-                new IndexBlockSerializer(Codec.noCompression()),
-                new FixedBufferDataStream(4096 * 4),
+                new FixedBufferDataStream<>(4096 * 4, new IndexBlockSerializer(Codec.noCompression())),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,

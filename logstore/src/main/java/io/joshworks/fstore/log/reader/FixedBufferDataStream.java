@@ -47,16 +47,20 @@ public class FixedBufferDataStream<T> extends DataStream<T> {
 
             serializer.writeTo(data, buffer);
 
-            buffer.mark();
+            int endOfDataPos = buffer.position();
             buffer.position(RECORD_START_POS);
-            int length = buffer.remaining();
+            buffer.limit(endOfDataPos);
+            int length = endOfDataPos - RECORD_START_POS;
             int checksum = Checksum.crc32(buffer);
 
+            //write main header
             buffer.position(0);
             buffer.putInt(length);
             buffer.putInt(checksum);
 
-            buffer.reset();
+            //write secondary header
+            buffer.limit(endOfDataPos + SECONDARY_HEADER);
+            buffer.position(endOfDataPos);
             buffer.putInt(length);
 
             buffer.flip();

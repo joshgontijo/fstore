@@ -13,6 +13,7 @@ import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
+import io.joshworks.fstore.log.reader.FixedBufferDataStream;
 import io.joshworks.fstore.log.segment.Type;
 
 import java.io.File;
@@ -95,13 +96,9 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
         }
 
         @Override
-        public IndexSegment createOrOpen(Storage storage, DataStream<IndexBlock> dataStream, String magic, Type type) {
-
-        }
-
-        @Override
         public IndexSegment createOrOpen(Storage storage, DataStream<IndexEntry> dataStream, String magic, Type type) {
-            return new IndexSegment(storage, dataStream, magic, type, directory, numElements);
+            //TODO this FixedBufferDataStream will create two buffer pools, one from super, and this one. This API is terrible...
+            return new IndexSegment(storage, new FixedBufferDataStream<>(IndexEntry.BYTES * numElements, new IndexBlockSerializer(codec)), magic, type, directory, numElements);
         }
     }
 
