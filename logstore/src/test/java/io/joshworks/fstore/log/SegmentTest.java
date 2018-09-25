@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.log.reader.DataStream;
+import io.joshworks.fstore.core.io.BufferPool1;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.reader.DataStream;
@@ -44,12 +44,12 @@ public abstract class SegmentTest {
 
     private Segment<String> create(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new DataStream<>(4096, Serializers.STRING), "magic", Type.LOG_HEAD);
+        return new Segment<>(storage, new DataStream<>(Serializers.STRING, new BufferPool1(Integer.SIZE, 10, false)), "magic", Type.LOG_HEAD);
     }
 
     private Segment<String> open(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new DataStream<>(4096, Serializers.STRING), "magic");
+        return new Segment<>(storage, new DataStream<>(4096, Serializers.STRING, new BufferPool1(Integer.SIZE, 10, false)), "magic");
     }
 
     @Before

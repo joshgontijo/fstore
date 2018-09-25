@@ -63,8 +63,9 @@ public class Utils {
 
     public static File tempFolder() {
         try {
-            return Files.createTempDirectory("eventry").toFile();
-        } catch (IOException e) {
+            return new File("J:\\event-store");
+//            return Files.createTempDirectory("eventry").toFile();
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }

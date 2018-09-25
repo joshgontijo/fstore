@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.reader.DataStream;
+import io.joshworks.fstore.core.io.BufferPool1;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.seda.SedaContext;
@@ -15,6 +15,7 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
+import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 import org.slf4j.Logger;
@@ -84,8 +85,10 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         this.serializer = config.serializer;
         this.factory = factory;
         this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
-        this.dataStream = new DataStream<>(config.maxRecordSize, config.numBuffers, config.checksumProb, config.directBuffers, serializer);
         this.namingStrategy = config.namingStrategy;
+
+//        this.dataStream = new DataStream<>(config.maxRecordSize, config.numBuffers, config.checksumProb, config.directBuffers, serializer);
+        this.dataStream = new DataStream<>(serializer, new BufferPool1(Integer.SIZE, 10, false)); //TODO implement
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
 
@@ -592,7 +595,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
                 current = segmentsIterators.next();
                 segmentIdx--;
             }
-            if(current == null || !hasNext()) {
+            if (current == null || !hasNext()) {
                 return null; //TODO throw nosuchelementexception
             }
             return current.next();

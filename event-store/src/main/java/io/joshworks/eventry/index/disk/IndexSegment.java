@@ -9,7 +9,6 @@ import io.joshworks.eventry.index.midpoint.Midpoint;
 import io.joshworks.eventry.index.midpoint.Midpoints;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;

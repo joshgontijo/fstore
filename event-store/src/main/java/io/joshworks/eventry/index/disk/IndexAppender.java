@@ -13,7 +13,6 @@ import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
-import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.log.segment.Type;
 
 import java.io.File;
