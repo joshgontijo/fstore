@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log.appender;
 
-import io.joshworks.fstore.core.io.DataStream;
+import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
@@ -23,8 +23,10 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -82,11 +84,13 @@ public class LogAppenderTest {
 
     @Test
     public void roll_size_based() {
-        StringBuilder sb = new StringBuilder();
-        while (sb.length() <= SEGMENT_SIZE) {
-            sb.append(UUID.randomUUID().toString());
+        int written = 0;
+        String value = "a";
+        int entrySize = value.getBytes(StandardCharsets.UTF_8).length;
+        while (written <= SEGMENT_SIZE) {
+            written += entrySize;
+            appender.append(value);
         }
-        appender.append(sb.toString());
         appender.append("new-segment");
 
         assertEquals(2, appender.levels.numSegments());
@@ -277,7 +281,6 @@ public class LogAppenderTest {
         }
 
         //write broken data
-
         File file = new File(testDirectory, segmentName);
         try (Storage storage = new RafStorage(file, file.length(), Mode.READ_WRITE)) {
             storage.position(Log.START);
@@ -285,9 +288,11 @@ public class LogAppenderTest {
             broken.putInt(444); //expected length
             broken.putInt(123); // broken checksum
             broken.putChar('A'); // broken data
+            broken.putInt(444); //expected length
             storage.write(broken);
         }
 
+        //append new data after reopening, this should overwrite the broken one
         try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
             testAppender.append("4");
         }

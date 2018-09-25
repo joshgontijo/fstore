@@ -51,7 +51,7 @@ public class Levels<T, L extends Log<T>> {
         return new Levels<>(maxItemsPerLevel, segments);
     }
 
-    public synchronized void appendSegment(L segment) {
+    public synchronized void roll(L segment) {
         if (segment.level() != 0) {
             throw new IllegalArgumentException("New segment must be level zero");
         }

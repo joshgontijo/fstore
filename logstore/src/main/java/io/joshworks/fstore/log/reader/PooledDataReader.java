@@ -1,6 +1,6 @@
 //package io.joshworks.fstore.log.reader;
 //
-//import io.joshworks.fstore.core.io.DataStream;
+//import io.joshworks.fstore.log.reader.DataStream;
 //import io.joshworks.fstore.core.io.Storage;
 //
 //import java.nio.ByteBuffer;
@@ -25,7 +25,7 @@
 //    }
 //
 //    @Override
-//    public ByteBuffer readForward(Storage storage, long position) {
+//    public ByteBuffer readNext(Storage storage, long position) {
 //        return read(storage, position);
 //    }
 //
@@ -33,7 +33,7 @@
 //        DataStream reader = null;
 //        try {
 //            reader = readers.take();
-//            return reader.readForward(storage, position);
+//            return reader.readNext(storage, position);
 //        } catch (InterruptedException e) {
 //            throw new RuntimeException("Could not acquire reader", e);
 //        } finally {

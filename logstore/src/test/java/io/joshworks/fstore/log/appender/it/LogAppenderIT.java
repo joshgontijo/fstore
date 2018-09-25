@@ -6,6 +6,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.log.segment.Log;
 import org.junit.After;
 import org.junit.Before;
@@ -89,11 +90,9 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         appender.close();
 
         File f = new File(testDirectory, name);
-        if (!Files.exists(f.toPath())) {
-            fail("File " + f + " doesn't exist");
-        }
 
-        assertEquals(position, f.length());
+        assertTrue("File " + f + " doesn't exist", Files.exists(f.toPath()));
+        assertEquals(position + DataStream.EOL.length, f.length());
 
         try (LogAppender<String, L> appender = appender(testDirectory)) {
             LogIterator<String> logIterator = appender.iterator(Direction.FORWARD);
@@ -171,7 +170,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
     @Test
-    public void poll_returns_data_from_disk_and_memory_IT() throws IOException, InterruptedException {
+    public void take_returns_data_concurrently_IT() throws IOException, InterruptedException {
         int totalEntries = 5000000;
 
         new Thread(() -> {
@@ -182,7 +181,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
         try(PollingSubscriber<String> poller = appender.poller()) {
             for (int i = 0; i < totalEntries; i++) {
-                String poll = poller.poll();
+                String poll = poller.take();
 //                System.out.println(poll);
                 assertEquals(String.valueOf(i), poll);
             }
@@ -230,7 +229,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
             long read = 0;
             long totalRead = 0;
 
-            while (logIterator.hasNext()) {
+                while (logIterator.hasNext()) {
                 if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
                     avg = (avg + read) / 2;
                     System.out.println("TOTAL READ: " + totalRead + " - LAST SECOND: " + read + " - AVG: " + avg);

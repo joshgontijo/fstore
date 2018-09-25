@@ -3,7 +3,7 @@
 //import java.nio.ByteBuffer;
 //
 ////NOT THREAD SAFE
-//public class SingletonBufferDataReader extends FixedBufferDataReader {
+//public class SingletonBufferDataReader extends BackwardRecordReader {
 //
 //    private ByteBuffer buffer;
 //

@@ -1,4 +1,4 @@
-package io.joshworks.eventry.utils;
+package io.joshworks.fstore.core.util;
 
 public class Memory {
     private Memory(){}

@@ -26,7 +26,7 @@
 //    }
 //
 //    @Override
-//    public ByteBuffer readForward(Storage storage, long position) {
+//    public ByteBuffer readNext(Storage storage, long position) {
 //        buffer.clear();
 //        storage.read(position, buffer);
 //        buffer.flip();

@@ -36,7 +36,7 @@ public class Config<T> {
     boolean threadPerLevel;
     boolean compactionDisabled;
     boolean directBuffers;
-    int numBuffers;
+    int numBuffers = 100;
 
     Config(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");

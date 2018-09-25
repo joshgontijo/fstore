@@ -4,7 +4,7 @@ import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.core.Codec;
-import io.joshworks.fstore.core.io.DataStream;
+import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -13,7 +13,7 @@ import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
-import io.joshworks.fstore.log.reader.FixedBufferDataStream;
+import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.log.segment.Type;
 
 import java.io.File;
@@ -97,8 +97,8 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
         @Override
         public IndexSegment createOrOpen(Storage storage, DataStream<IndexEntry> dataStream, String magic, Type type) {
-            //TODO this FixedBufferDataStream will create two buffer pools, one from super, and this one. This API is terrible...
-            return new IndexSegment(storage, new FixedBufferDataStream<>(IndexEntry.BYTES * numElements, new IndexBlockSerializer(codec)), magic, type, directory, numElements);
+            //TODO this DataStream will create two buffer pools, one from super, and this one. This API is terrible...
+            return new IndexSegment(storage, new DataStream<>(IndexEntry.BYTES * numElements, new IndexBlockSerializer(codec)), magic, type, directory, numElements);
         }
     }
 

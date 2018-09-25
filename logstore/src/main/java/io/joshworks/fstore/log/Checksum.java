@@ -17,7 +17,9 @@ public class Checksum {
     public static int crc32(ByteBuffer buffer) {
         final CRC32 checksum = new CRC32();
         checksum.update(CRC_SEED);
+        buffer.mark();
         checksum.update(buffer);
+        buffer.reset();
         return (int) checksum.getValue();
     }
 

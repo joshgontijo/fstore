@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log.appender.history;
 
-import io.joshworks.fstore.core.io.DataStream;
+import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.Type;

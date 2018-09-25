@@ -148,7 +148,6 @@ public class State implements Closeable {
     @Override
     public void close() {
         try {
-            flush();
             logger.info("Closing state file handler");
             storage.close();
         } catch (IOException e) {

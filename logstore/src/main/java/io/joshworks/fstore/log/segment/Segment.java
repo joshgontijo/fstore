@@ -3,8 +3,8 @@ package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
-import io.joshworks.fstore.core.io.DataStream;
+import io.joshworks.fstore.core.io.RecordReader;
+import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
@@ -45,7 +45,7 @@ public class Segment<T> implements Log<T> {
     private final Storage storage;
     private final DataStream<T> dataStream;
     private final String magic;
-    private final DataReader<T> reader;
+    private final RecordReader<T> reader;
 
     private AtomicLong entries = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -64,7 +64,7 @@ public class Segment<T> implements Log<T> {
         this.storage = requireNonNull(storage, "Storage must be provided");
         this.dataStream = requireNonNull(dataStream, "DataStream must be provided");
         this.magic = requireNonNull(magic, "Magic must be provided");
-        this.reader = dataStream.reader(storage, Log.START);
+        this.reader = dataStream.reader(storage, Log.START, Direction.FORWARD);
 
         Header readHeader = readHeader(storage);
 
@@ -155,13 +155,13 @@ public class Segment<T> implements Log<T> {
     @Override
     public T get(long position) {
         checkBounds(position);
-        return reader.position(position).readForward();
+        return reader.position(position).readNext();
     }
 
     @Override
     public PollingSubscriber<T> poller(long position) {
         checkBounds(position);
-        SegmentPoller segmentPoller = new SegmentPoller(dataStream.reader(storage, position));
+        SegmentPoller segmentPoller = new SegmentPoller(dataStream.reader(storage, position, Direction.FORWARD));
         return addToReaders(segmentPoller);
     }
 
@@ -211,7 +211,7 @@ public class Segment<T> implements Log<T> {
         if (Direction.FORWARD.equals(direction)) {
             return iterator(Log.START, direction);
         }
-        if(readOnly()) {
+        if (readOnly()) {
             return iterator(header.logEnd, direction);
         }
         return iterator(position(), direction);
@@ -352,7 +352,7 @@ public class Segment<T> implements Log<T> {
         }
 
         checkBounds(pos);
-        SegmentReader segmentReader = new SegmentReader(dataStream.reader(storage, pos), direction);
+        SegmentReader segmentReader = new SegmentReader(dataStream.reader(storage, pos, direction));
         return addToReaders(segmentReader);
     }
 
@@ -418,14 +418,12 @@ public class Segment<T> implements Log<T> {
     //NOT THREAD SAFE
     private class SegmentReader extends TimeoutReader implements LogIterator<T> {
 
-        private final DataReader<T> reader;
+        private final RecordReader<T> reader;
 
         private T data;
         protected long position;
-        private final Direction direction;
 
-        SegmentReader(DataReader<T> reader, Direction direction) {
-            this.direction = direction;
+        SegmentReader(RecordReader<T> reader) {
             this.reader = reader;
             this.position = reader.position();
             this.data = readAhead();
@@ -457,7 +455,7 @@ public class Segment<T> implements Log<T> {
 
         private T readAhead() {
             this.position = reader.position();
-            T item = Direction.FORWARD.equals(direction) ? reader.readForward() : reader.readBackward();
+            T item = reader.readNext();
             if (item == null) { //EOF
                 close();
                 return null;
@@ -476,16 +474,16 @@ public class Segment<T> implements Log<T> {
 
         private static final int VERIFICATION_INTERVAL_MILLIS = 500;
 
-        private final DataReader<T> reader;
+        private final RecordReader<T> reader;
 
-        SegmentPoller(DataReader<T> reader) {
+        SegmentPoller(RecordReader<T> reader) {
             this.reader = reader;
             this.lastReadTs = System.currentTimeMillis();
         }
 
         private T read(boolean advance) {
             long position = reader.position();
-            T item = reader.readForward();
+            T item = reader.readNext();
             if (item == null) { //EOF
                 close();
                 return null;
@@ -510,7 +508,7 @@ public class Segment<T> implements Log<T> {
             if (Segment.this.readOnly()) {
                 return reader.position() < Segment.this.header.logEnd;
             }
-            return !reader.head();
+            return reader.position() < Segment.this.position();
         }
 
         private synchronized T tryPool(long time, TimeUnit timeUnit) throws InterruptedException {
@@ -568,7 +566,7 @@ public class Segment<T> implements Log<T> {
             if (Segment.this.readOnly()) {
                 return reader.position() >= Segment.this.header.logEnd;
             }
-            return reader.head();
+            return reader.position() == Segment.this.position();
         }
 
         @Override

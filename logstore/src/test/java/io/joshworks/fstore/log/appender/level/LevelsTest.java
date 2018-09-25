@@ -212,7 +212,7 @@ public class LevelsTest {
     @Test(expected = IllegalArgumentException.class)
     public void exception_is_thrown_when_new_segment_is_not_level_zero() {
         Levels<String, DummySegment> levels = Levels.create(3, Arrays.asList(new DummySegment(0)));
-        levels.appendSegment(new DummySegment(1));
+        levels.roll(new DummySegment(1));
     }
 
     @Test
@@ -223,7 +223,7 @@ public class LevelsTest {
 
         Levels<String, DummySegment> levels = Levels.create(3, Arrays.asList(seg1));
 
-        levels.appendSegment(seg2);
+        levels.roll(seg2);
 
         assertEquals(seg1, levels.get(0));
         assertEquals(1, levels.get(0).level);
@@ -233,7 +233,7 @@ public class LevelsTest {
         assertEquals(0, levels.get(1).level);
 
 
-        levels.appendSegment(seg3);
+        levels.roll(seg3);
 
         assertEquals(seg1, levels.get(0));
         assertEquals(1, levels.get(0).level);
@@ -258,9 +258,9 @@ public class LevelsTest {
 
         Levels<String, DummySegment> levels = Levels.create(3, Arrays.asList(seg1));
 
-        levels.appendSegment(seg2);
-        levels.appendSegment(seg3);
-        levels.appendSegment(seg4);
+        levels.roll(seg2);
+        levels.roll(seg3);
+        levels.roll(seg4);
 
         levels.merge(Arrays.asList(seg1, seg2, seg3), seg5);
 
