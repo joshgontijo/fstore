@@ -204,7 +204,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public long append(T data) {
         long recordPosition = position();
-        write(storage, data);
+        write(storage, data, serializer, bufferPool);
 
         entries.incrementAndGet();
         return recordPosition;
