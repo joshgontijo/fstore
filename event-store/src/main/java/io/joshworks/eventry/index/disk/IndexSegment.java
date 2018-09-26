@@ -7,7 +7,7 @@ import io.joshworks.eventry.index.filter.BloomFilter;
 import io.joshworks.eventry.index.midpoint.Midpoints;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.eventry.index.filter.BloomFilterHasher;
 import io.joshworks.eventry.index.midpoint.Midpoint;
@@ -37,7 +37,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
 
     IndexSegment(Storage storage,
                         Serializer<IndexBlock> serializer,
-                        DataReader reader,
+                        DataStream reader,
                         String magic,
                         Type type,
                         File directory,
