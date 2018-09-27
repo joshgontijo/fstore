@@ -9,7 +9,7 @@ import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.reader.FixedBufferDataReader;
+import io.joshworks.fstore.log.record.FixedBufferDataStream;
 import io.joshworks.fstore.log.segment.Type;
 import org.junit.After;
 import org.junit.Before;
@@ -52,7 +52,7 @@ public class IndexSegmentTest {
         return new IndexSegment(
                 new RafStorage(location, size, Mode.READ_WRITE),
                 new IndexBlockSerializer(Codec.noCompression()),
-                new FixedBufferDataReader(4096 * 4),
+                new FixedBufferDataStream(),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,

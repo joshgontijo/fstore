@@ -7,7 +7,6 @@ import java.util.concurrent.TimeUnit;
 
 public class BufferPool1 implements BufferPool {
 
-    private final int bufferSize;
     private final int numBuffers;
     private final boolean direct;
     private int activeBuffers;
@@ -15,36 +14,30 @@ public class BufferPool1 implements BufferPool {
 //    private final ThreadLocal<Cache> threadLocalCache = ThreadLocal.withInitial(this::getDefaultCache);
 //    private final Cache defaultCache = new DefaultCache();
 
-    public BufferPool1(int bufferSize, int numBuffers, boolean direct) {
-        this.bufferSize = bufferSize;
-        this.numBuffers = numBuffers;
+    public BufferPool1(int maxNumBuffers, boolean direct) {
+        this.numBuffers = maxNumBuffers;
         this.direct = direct;
     }
 
     @Override
-    public ByteBuffer allocate(int bytes) {
+    public ByteBuffer allocate(int size) {
         ByteBuffer buffer = buffers.poll();
-        if (buffer == null) {
-            if (activeBuffers < numBuffers) {
-                synchronized (this) {
-                    if (activeBuffers < numBuffers) {
-                        buffer = direct ? ByteBuffer.allocateDirect(bufferSize) : ByteBuffer.allocate(bufferSize);
-                        activeBuffers++;
-                        return buffer;
-                    }
-                }
-            }
-            try {
-                buffer = buffers.poll(10, TimeUnit.SECONDS);
-                if (buffer == null) {
-                    throw new RuntimeException("No buffer was available after 10s");
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            }
+        //discard smaller buffers, keeps maxNumBuffers of the biggest
+        if (buffer != null && buffer.capacity() >= size) {
+            buffer.limit(size);
+            return buffer;
         }
-        return buffer;
+
+        if (activeBuffers >= numBuffers) {
+            return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+        }
+
+        synchronized (this) {
+            buffer = direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+            activeBuffers++;
+            return buffer;
+        }
+
     }
 
     @Override

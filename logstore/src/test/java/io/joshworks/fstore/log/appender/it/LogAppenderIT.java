@@ -182,7 +182,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
         try(PollingSubscriber<String> poller = appender.poller()) {
             for (int i = 0; i < totalEntries; i++) {
-                String poll = poller.poll();
+                String poll = poller.poll(1, TimeUnit.MINUTES);
 //                System.out.println(poll);
                 assertEquals(String.valueOf(i), poll);
             }

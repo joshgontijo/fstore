@@ -2,7 +2,8 @@ package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.reader.FixedBufferDataReader;
+import io.joshworks.fstore.log.record.FixedBufferDataStream;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Header;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
@@ -43,12 +44,12 @@ public abstract class SegmentTest {
 
     private Segment<String> create(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(4096), "magic", Type.LOG_HEAD);
+        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataStream(), "magic", Type.LOG_HEAD);
     }
 
     private Segment<String> open(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(4096), "magic");
+        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataStream(), "magic");
     }
 
     @Before
@@ -68,7 +69,7 @@ public abstract class SegmentTest {
         String data = "hello";
         segment.append(data);
 
-        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), segment.position()); // 4 + 4 (header) + data length
+        assertEquals(Header.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), segment.position()); // 4 + 4 (header) + data length
     }
 
     @Test
@@ -103,7 +104,7 @@ public abstract class SegmentTest {
         LogIterator<String> logIterator = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -124,7 +125,7 @@ public abstract class SegmentTest {
         assertEquals(position, segment.position());
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -135,12 +136,12 @@ public abstract class SegmentTest {
         LogIterator<String> logIterator1 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
         LogIterator<String> logIterator2 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator2.hasNext());
         assertEquals(data, logIterator2.next());
-        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -155,7 +156,7 @@ public abstract class SegmentTest {
         LogIterator<String> logIterator1 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
     }
 
@@ -347,13 +348,13 @@ public abstract class SegmentTest {
         segment.append("a");
         segment.append("b");
 
-        assertEquals(Header.BYTES + (Log.HEADER_OVERHEAD + 1) * 2, segment.size());
+        assertEquals(Header.BYTES + (RecordHeader.HEADER_OVERHEAD + 1) * 2, segment.size());
 
         segment.position();
         segment.close();
 
         segment = open(testFile);
-        assertEquals(Header.BYTES + (Log.HEADER_OVERHEAD + 1) * 2, segment.size());
+        assertEquals(Header.BYTES + (RecordHeader.HEADER_OVERHEAD + 1) * 2, segment.size());
     }
 
     @Test

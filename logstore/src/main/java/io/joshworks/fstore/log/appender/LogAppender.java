@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.reader.DataStream;
+import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.seda.SedaContext;
@@ -15,7 +15,7 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
-import io.joshworks.fstore.log.reader.FixedBufferDataReader;
+import io.joshworks.fstore.log.record.FixedBufferDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 import org.slf4j.Logger;
@@ -85,7 +85,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         this.serializer = config.serializer;
         this.factory = factory;
         this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
-        this.dataStream = new FixedBufferDataReader(config.maxRecordSize);
+        this.dataStream = new FixedBufferDataStream();
         this.namingStrategy = config.namingStrategy;
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
@@ -97,7 +97,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             this.metadata = Metadata.create(
                     directory,
                     config.segmentSize,
-                    config.maxRecordSize,
                     config.segmentBitShift,
                     config.maxSegmentsPerLevel,
                     config.mmap,
@@ -380,7 +379,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             state.position(this.position());
         }
 
-        state.flush();
+//        state.flush();
         state.close();
 
         streamSegments(Direction.FORWARD).forEach(segment -> {

@@ -5,9 +5,9 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.BufferPool;
 import io.joshworks.fstore.core.io.BufferPool1;
-import io.joshworks.fstore.log.reader.ByteBufferReference;
-import io.joshworks.fstore.log.reader.DataReader;
-import io.joshworks.fstore.log.reader.DataStream;
+import io.joshworks.fstore.log.record.BufferRef;
+import io.joshworks.fstore.log.record.RecordHeader;
+import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogIterator;
@@ -49,8 +49,7 @@ public class Segment<T> implements Log<T> {
     private final Storage storage;
     private final DataStream dataStream;
     private final String magic;
-    private final DataReader reader;
-    private final BufferPool bufferPool = new BufferPool1(1024, 10, false);
+    private final BufferPool bufferPool = new BufferPool1(1000,  false);
 
     private AtomicLong entries = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -70,7 +69,6 @@ public class Segment<T> implements Log<T> {
         this.storage = requireNonNull(storage, "Storage must be provided");
         this.dataStream = requireNonNull(dataStream, "Reader must be provided");
         this.magic = requireNonNull(magic, "Magic must be provided");
-        this.reader = dataStream.reader(storage, bufferPool, Direction.FORWARD);
 
         Header readHeader = readHeader(storage);
 
@@ -161,8 +159,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public T get(long position) {
         checkBounds(position);
-        //TODO move reader to class field
-        try(ByteBufferReference ref = reader.read(position)) {
+        try(BufferRef ref = dataStream.read(storage, bufferPool, Direction.FORWARD, position)) {
             ByteBuffer bb = ref.get();
             if (bb.remaining() == 0) { //EOF
                 return null;
@@ -173,8 +170,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public PollingSubscriber<T> poller(long position) {
-        DataReader reader = dataStream.reader(storage, bufferPool, Direction.FORWARD);
-        SegmentPoller segmentPoller = new SegmentPoller(reader, serializer, position);
+        SegmentPoller segmentPoller = new SegmentPoller(dataStream, serializer, position);
         return addToReaders(segmentPoller);
     }
 
@@ -352,22 +348,21 @@ public class Segment<T> implements Log<T> {
         return newHeader;
     }
 
-    //TODO properly implement reader pool
+    //TODO properly implement dataStream pool
     //TODO implement race condition on acquiring readers and closing / deleting segment
     protected SegmentReader newLogReader(long pos, Direction direction) {
 
         while (readers.size() >= 10) {
             try {
                 Thread.sleep(1000);
-                logger.info("Waiting to acquire reader");
+                logger.info("Waiting to acquire dataStream");
             } catch (InterruptedException e) {
                 e.printStackTrace();
                 Thread.currentThread().interrupt();
             }
         }
 
-        DataReader reader = dataStream.reader(storage, bufferPool, direction);
-        SegmentReader segmentReader = new SegmentReader(reader, serializer, pos, direction);
+        SegmentReader segmentReader = new SegmentReader(dataStream, serializer, pos, direction);
         return addToReaders(segmentReader);
     }
 
@@ -434,7 +429,7 @@ public class Segment<T> implements Log<T> {
     //NOT THREAD SAFE
     private class SegmentReader extends TimeoutReader implements LogIterator<T> {
 
-        private final DataReader reader;
+        private final DataStream dataStream;
         private final Serializer<T> serializer;
 
         private T data;
@@ -443,10 +438,10 @@ public class Segment<T> implements Log<T> {
         private int lastReadSize;
         private final Direction direction;
 
-        SegmentReader(DataReader reader, Serializer<T> serializer, long initialPosition, Direction direction) {
+        SegmentReader(DataStream dataStream, Serializer<T> serializer, long initialPosition, Direction direction) {
+            this.dataStream = dataStream;
             this.direction = direction;
             checkBounds(initialPosition);
-            this.reader = reader;
             this.serializer = serializer;
             this.position = initialPosition;
             this.readAheadPosition = initialPosition;
@@ -480,13 +475,13 @@ public class Segment<T> implements Log<T> {
         }
 
         private T readAhead() {
-            try(ByteBufferReference ref = reader.read(readAheadPosition)) {
+            try(BufferRef ref = dataStream.read(storage, bufferPool, direction, readAheadPosition)) {
                 ByteBuffer bb = ref.get();
                 if (bb.remaining() == 0) { //EOF
                     close();
                     return null;
                 }
-                lastReadSize = bb.remaining() + Log.HEADER_OVERHEAD;
+                lastReadSize = bb.remaining() + RecordHeader.HEADER_OVERHEAD;
                 readAheadPosition = Direction.FORWARD.equals(direction) ? readAheadPosition + lastReadSize : readAheadPosition - lastReadSize;
                 return serializer.fromBytes(bb);
             }
@@ -512,27 +507,27 @@ public class Segment<T> implements Log<T> {
 
         private static final int VERIFICATION_INTERVAL_MILLIS = 500;
 
-        private final DataReader reader;
+        private final DataStream dataStream;
         private final Serializer<T> serializer;
         private long readPosition;
 
-        SegmentPoller(DataReader reader, Serializer<T> serializer, long initialPosition) {
+        SegmentPoller(DataStream dataStream, Serializer<T> serializer, long initialPosition) {
             checkBounds(initialPosition);
-            this.reader = reader;
+            this.dataStream = dataStream;
             this.serializer = serializer;
             this.readPosition = initialPosition;
             this.lastReadTs = System.currentTimeMillis();
         }
 
         private T read(boolean advance) {
-            try(ByteBufferReference ref = reader.read(readPosition)) {
+            try(BufferRef ref = dataStream.read(storage, bufferPool, Direction.FORWARD, readPosition)) {
                 ByteBuffer bb = ref.get();
                 if (bb.remaining() == 0) { //EOF
                     close();
                     return null;
                 }
                 if (advance) {
-                    readPosition += bb.remaining() + Log.HEADER_OVERHEAD;
+                    readPosition += bb.remaining() + RecordHeader.HEADER_OVERHEAD;
                 }
                 return serializer.fromBytes(bb);
             }

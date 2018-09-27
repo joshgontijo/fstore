@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.reader;
+package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.io.BufferPool;
 
@@ -6,25 +6,25 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class ByteBufferReference implements Supplier<ByteBuffer>, AutoCloseable {
+public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
 
     private ByteBuffer buffer;
     private final BufferPool pool;
 
-    public static ByteBufferReference of(ByteBuffer buffer) {
+    public static BufferRef of(ByteBuffer buffer) {
         return of(buffer, null);
     }
 
-    public static ByteBufferReference ofEmpty() {
+    public static BufferRef ofEmpty() {
         return of(ByteBuffer.allocate(0), null);
     }
 
-    public static ByteBufferReference of(ByteBuffer buffer, BufferPool pool) {
+    public static BufferRef of(ByteBuffer buffer, BufferPool pool) {
         Objects.requireNonNull(buffer);
-        return new ByteBufferReference(buffer, pool);
+        return new BufferRef(buffer, pool);
     }
 
-    public static ByteBuffer[] toBuffers(ByteBufferReference... refs) {
+    public static ByteBuffer[] toBuffers(BufferRef... refs) {
         ByteBuffer[] bufs = new ByteBuffer[refs.length];
         for (int i = 0; i < refs.length; i++) {
             bufs[i] = refs[i].get();
@@ -32,21 +32,21 @@ public class ByteBufferReference implements Supplier<ByteBuffer>, AutoCloseable 
         return bufs;
     }
 
-    public static ByteBufferReference[] toReferences(ByteBuffer... buffers) {
-        ByteBufferReference[] refs = new ByteBufferReference[buffers.length];
+    public static BufferRef[] toReferences(ByteBuffer... buffers) {
+        BufferRef[] refs = new BufferRef[buffers.length];
         for (int i = 0; i < buffers.length; i++) {
             refs[i] = of(buffers[i]);
         }
         return refs;
     }
 
-    public static void clear(ByteBufferReference[] refs) {
-        for (ByteBufferReference ref : refs) {
+    public static void clear(BufferRef[] refs) {
+        for (BufferRef ref : refs) {
             ref.clear();
         }
     }
 
-    private ByteBufferReference(ByteBuffer buffer, BufferPool pool) {
+    private BufferRef(ByteBuffer buffer, BufferPool pool) {
         this.buffer = buffer;
         this.pool = pool;
     }

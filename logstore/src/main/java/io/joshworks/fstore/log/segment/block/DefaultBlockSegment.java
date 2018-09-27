@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.reader.DataStream;
+import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.segment.Type;
 

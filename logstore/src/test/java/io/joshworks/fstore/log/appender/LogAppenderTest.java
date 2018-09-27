@@ -10,6 +10,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.serializer.Serializers;
@@ -280,7 +281,7 @@ public class LogAppenderTest {
         File file = new File(testDirectory, segmentName);
         try (Storage storage = new RafStorage(file, file.length(), Mode.READ_WRITE)) {
             storage.position(Log.START);
-            ByteBuffer broken = ByteBuffer.allocate(Log.HEADER_OVERHEAD + 4);
+            ByteBuffer broken = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD + 4);
             broken.putInt(444); //expected length
             broken.putInt(123); // broken checksum
             broken.putChar('A'); // broken data

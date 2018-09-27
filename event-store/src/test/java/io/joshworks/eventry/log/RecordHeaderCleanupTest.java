@@ -26,7 +26,7 @@ import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static org.junit.Assert.assertEquals;
 
-public class RecordCleanupTest {
+public class RecordHeaderCleanupTest {
 
     private RecordCleanup cleanup;
     private Streams streams;

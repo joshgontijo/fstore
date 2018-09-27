@@ -25,7 +25,7 @@ public class BufferPool2 implements BufferPool{
         List<ByteBuffer> list = potBuffers[index];
 
         ByteBuffer bb = list.isEmpty() ? create(alloc) : list.remove(list.size() - 1);
-        bb.position(0).limit(bytes);
+        bb.limit(bytes);
 
         // fill with zeroes to ensure deterministic behavior upon handling 'uninitialized' data
         for (int i = 0, n = bb.remaining(); i < n; i++) {
@@ -42,6 +42,7 @@ public class BufferPool2 implements BufferPool{
             throw new IllegalArgumentException("buffer capacity not a power of two");
         }
         int index = Integer.numberOfTrailingZeros(alloc);
+        buffer.clear();
         potBuffers[index].add(buffer);
     }
 
