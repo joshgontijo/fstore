@@ -10,7 +10,6 @@ import io.joshworks.fstore.log.reader.DataReader;
 import io.joshworks.fstore.log.reader.DataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.Checksum;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.PollingSubscriber;
@@ -48,9 +47,9 @@ public class Segment<T> implements Log<T> {
     private final Serializer<Header> headerSerializer = new HeaderSerializer();
     private final Serializer<T> serializer;
     private final Storage storage;
-    private final DataStream reader;
+    private final DataStream dataStream;
     private final String magic;
-
+    private final DataReader reader;
     private final BufferPool bufferPool = new BufferPool1(1024, 10, false);
 
     private AtomicLong entries = new AtomicLong();
@@ -60,17 +59,18 @@ public class Segment<T> implements Log<T> {
 
     private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
 
-    public Segment(Storage storage, Serializer<T> serializer, DataStream reader, String magic) {
-        this(storage, serializer, reader, magic, null);
+    public Segment(Storage storage, Serializer<T> serializer, DataStream dataStream, String magic) {
+        this(storage, serializer, dataStream, magic, null);
     }
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
-    public Segment(Storage storage, Serializer<T> serializer, DataStream reader, String magic, Type type) {
+    public Segment(Storage storage, Serializer<T> serializer, DataStream dataStream, String magic, Type type) {
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
         this.storage = requireNonNull(storage, "Storage must be provided");
-        this.reader = requireNonNull(reader, "Reader must be provided");
+        this.dataStream = requireNonNull(dataStream, "Reader must be provided");
         this.magic = requireNonNull(magic, "Magic must be provided");
+        this.reader = dataStream.reader(storage, bufferPool, Direction.FORWARD);
 
         Header readHeader = readHeader(storage);
 
@@ -162,7 +162,7 @@ public class Segment<T> implements Log<T> {
     public T get(long position) {
         checkBounds(position);
         //TODO move reader to class field
-        try(ByteBufferReference ref = reader.reader(Direction.FORWARD, bufferPool).read(storage, position)) {
+        try(ByteBufferReference ref = reader.read(position)) {
             ByteBuffer bb = ref.get();
             if (bb.remaining() == 0) { //EOF
                 return null;
@@ -173,7 +173,8 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public PollingSubscriber<T> poller(long position) {
-        SegmentPoller segmentPoller = new SegmentPoller(storage, reader, serializer, position);
+        DataReader reader = dataStream.reader(storage, bufferPool, Direction.FORWARD);
+        SegmentPoller segmentPoller = new SegmentPoller(reader, serializer, position);
         return addToReaders(segmentPoller);
     }
 
@@ -204,8 +205,8 @@ public class Segment<T> implements Log<T> {
     @Override
     public long append(T data) {
         long recordPosition = position();
-        write(storage, data, serializer, bufferPool);
-
+        ByteBuffer bytes = serializer.toBytes(data);
+        dataStream.write(storage, bufferPool, bytes);
         entries.incrementAndGet();
         return recordPosition;
     }
@@ -365,7 +366,8 @@ public class Segment<T> implements Log<T> {
             }
         }
 
-        SegmentReader segmentReader = new SegmentReader(storage, bufferPool, reader, serializer, pos, direction);
+        DataReader reader = dataStream.reader(storage, bufferPool, direction);
+        SegmentReader segmentReader = new SegmentReader(reader, serializer, pos, direction);
         return addToReaders(segmentReader);
     }
 
@@ -389,27 +391,6 @@ public class Segment<T> implements Log<T> {
         return header.created;
     }
 
-    private static <T> long write(Storage storage, T data, Serializer<T> serializer, BufferPool bufferPool) {
-        ByteBuffer bytes = serializer.toBytes(data);
-
-        int recordSize = Log.HEADER_OVERHEAD + bytes.remaining();
-
-        ByteBuffer bb = bufferPool.allocate(recordSize);
-        try {
-            int entrySize = bytes.remaining();
-            bb.putInt(entrySize);
-            bb.putInt(Checksum.crc32(bytes));
-            bb.put(bytes);
-            bb.putInt(entrySize);
-
-            bb.flip();
-            return storage.write(bb);
-
-        } finally {
-            bufferPool.free(bb);
-        }
-    }
-
 
     @Override
     public boolean equals(Object o) {
@@ -420,14 +401,14 @@ public class Segment<T> implements Log<T> {
                 Objects.equals(headerSerializer, that.headerSerializer) &&
                 Objects.equals(serializer, that.serializer) &&
                 Objects.equals(storage, that.storage) &&
-                Objects.equals(reader, that.reader) &&
+                Objects.equals(dataStream, that.dataStream) &&
                 Objects.equals(header, that.header);
     }
 
     @Override
     public int hashCode() {
 
-        return Objects.hash(headerSerializer, serializer, storage, reader, entries, header);
+        return Objects.hash(headerSerializer, serializer, storage, dataStream, entries, header);
     }
 
     @Override
@@ -453,7 +434,6 @@ public class Segment<T> implements Log<T> {
     //NOT THREAD SAFE
     private class SegmentReader extends TimeoutReader implements LogIterator<T> {
 
-        private final Storage storage;
         private final DataReader reader;
         private final Serializer<T> serializer;
 
@@ -463,11 +443,10 @@ public class Segment<T> implements Log<T> {
         private int lastReadSize;
         private final Direction direction;
 
-        SegmentReader(Storage storage, BufferPool bufferPool, DataStream reader, Serializer<T> serializer, long initialPosition, Direction direction) {
+        SegmentReader(DataReader reader, Serializer<T> serializer, long initialPosition, Direction direction) {
             this.direction = direction;
             checkBounds(initialPosition);
-            this.storage = storage;
-            this.reader = reader.reader(direction, bufferPool);
+            this.reader = reader;
             this.serializer = serializer;
             this.position = initialPosition;
             this.readAheadPosition = initialPosition;
@@ -501,7 +480,7 @@ public class Segment<T> implements Log<T> {
         }
 
         private T readAhead() {
-            try(ByteBufferReference ref = reader.read(storage, readAheadPosition)) {
+            try(ByteBufferReference ref = reader.read(readAheadPosition)) {
                 ByteBuffer bb = ref.get();
                 if (bb.remaining() == 0) { //EOF
                     close();
@@ -533,14 +512,12 @@ public class Segment<T> implements Log<T> {
 
         private static final int VERIFICATION_INTERVAL_MILLIS = 500;
 
-        private final Storage storage;
-        private final DataStream reader;
+        private final DataReader reader;
         private final Serializer<T> serializer;
         private long readPosition;
 
-        SegmentPoller(Storage storage, DataStream reader, Serializer<T> serializer, long initialPosition) {
+        SegmentPoller(DataReader reader, Serializer<T> serializer, long initialPosition) {
             checkBounds(initialPosition);
-            this.storage = storage;
             this.reader = reader;
             this.serializer = serializer;
             this.readPosition = initialPosition;
@@ -548,15 +525,18 @@ public class Segment<T> implements Log<T> {
         }
 
         private T read(boolean advance) {
-            ByteBuffer bb = reader.read(storage, readPosition);
-            if (bb.remaining() == 0) { //EOF
-                close();
-                return null;
+            try(ByteBufferReference ref = reader.read(readPosition)) {
+                ByteBuffer bb = ref.get();
+                if (bb.remaining() == 0) { //EOF
+                    close();
+                    return null;
+                }
+                if (advance) {
+                    readPosition += bb.remaining() + Log.HEADER_OVERHEAD;
+                }
+                return serializer.fromBytes(bb);
             }
-            if (advance) {
-                readPosition += bb.remaining() + Log.HEADER_OVERHEAD;
-            }
-            return serializer.fromBytes(bb);
+
         }
 
         private synchronized T tryTake(long sleepInterval, TimeUnit timeUnit, boolean advance) throws InterruptedException {

@@ -48,8 +48,28 @@ public class FixedBufferDataReader implements DataStream {
 
 
     @Override
-    public DataReader reader(Direction direction, BufferPool bufferPool) {
-        return Direction.FORWARD.equals(direction) ? new ForwardDataReader(bufferPool) : new BackwardDataReader(bufferPool);
+    public int write(Storage storage, BufferPool bufferPool, ByteBuffer bytes) {
+        int recordSize = Log.HEADER_OVERHEAD + bytes.remaining();
+
+        ByteBuffer bb = bufferPool.allocate(recordSize);
+        try {
+            int entrySize = bytes.remaining();
+            bb.putInt(entrySize);
+            bb.putInt(Checksum.crc32(bytes));
+            bb.put(bytes);
+            bb.putInt(entrySize);
+
+            bb.flip();
+            return storage.write(bb);
+
+        } finally {
+            bufferPool.free(bb);
+        }
+    }
+
+    @Override
+    public DataReader reader(Storage storage, BufferPool bufferPool, Direction direction) {
+        return Direction.FORWARD.equals(direction) ? new ForwardDataReader(storage, bufferPool) : new BackwardDataReader(storage, bufferPool);
     }
 
 
@@ -84,13 +104,15 @@ public class FixedBufferDataReader implements DataStream {
     private final class ForwardDataReader implements DataReader {
 
         private final BufferPool bufferPool;
+        private final Storage storage;
 
-        private ForwardDataReader(BufferPool bufferPool) {
+        private ForwardDataReader(Storage storage, BufferPool bufferPool) {
+            this.storage = storage;
             this.bufferPool = bufferPool;
         }
 
         @Override
-        public ByteBufferReference read(Storage storage, long position) {
+        public ByteBufferReference read(long position) {
             //TODO define correct size
             ByteBuffer buffer = bufferPool.allocate(1024);
             storage.read(position, buffer);
@@ -125,19 +147,22 @@ public class FixedBufferDataReader implements DataStream {
     private final class BackwardDataReader implements DataReader {
 
         private final BufferPool bufferPool;
+        private final Storage storage;
 
-        private BackwardDataReader(BufferPool bufferPool) {
+        private BackwardDataReader(Storage storage, BufferPool bufferPool) {
+            this.storage = storage;
             this.bufferPool = bufferPool;
         }
 
         @Override
-        public ByteBufferReference read(Storage storage, long position) {
-            ByteBuffer buffer = getBuffer();
+        public ByteBufferReference read(long position) {
+            //TODO initial size must be defined
+            ByteBuffer buffer = bufferPool.allocate(4096);
             int limit = buffer.limit();
             if (position - limit < Log.START) {
                 int available = (int) (position - Log.START);
                 if (available == 0) {
-                    return EMPTY;
+                    return ByteBufferReference.of(EMPTY);
                 }
                 buffer.limit(available);
                 limit = available;
@@ -147,7 +172,7 @@ public class FixedBufferDataReader implements DataStream {
             buffer.flip();
             int originalSize = buffer.remaining();
             if (buffer.remaining() == 0) {
-                return EMPTY;
+                return ByteBufferReference.of(EMPTY);
             }
 
             buffer.position(buffer.limit() - Log.LENGTH_SIZE);
@@ -155,7 +180,7 @@ public class FixedBufferDataReader implements DataStream {
             int length = buffer.getInt();
 //        checkRecordLength(length, position);
             if (length == 0) {
-                return EMPTY;
+                return ByteBufferReference.of(EMPTY);
             }
 
             if (length + Log.HEADER_OVERHEAD > buffer.capacity()) {
@@ -167,7 +192,7 @@ public class FixedBufferDataReader implements DataStream {
             buffer.position(buffer.position() - length - Log.CHECKSUM_SIZE);
             int checksum = buffer.getInt();
             checksum(checksum, buffer, position);
-            return buffer;
+            return ByteBufferReference.of(buffer);
         }
     }
 
