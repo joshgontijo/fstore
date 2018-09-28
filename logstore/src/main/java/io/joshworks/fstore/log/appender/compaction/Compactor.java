@@ -183,8 +183,8 @@ public class Compactor<T, L extends Log<T>> {
                     logger.info("Pending segment: {}", segment);
                 }
                 for (TimeoutReader logReader : readers) {
-                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.MINUTES.toMillis(10)) {
-                        logger.warn("Removing reader after 10s of inactivity");
+                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.HOURS.toMillis(1)) {
+                        logger.warn("Removing reader after 10 minutes of inactivity");
                         readers.remove(logReader);
                     } else {
                         pendingReaders += readers.size();

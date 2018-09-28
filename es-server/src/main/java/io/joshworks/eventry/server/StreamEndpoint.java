@@ -4,9 +4,14 @@ import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamInfo;
+import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.snappy.http.HttpException;
 import io.joshworks.snappy.http.HttpExchange;
+import io.joshworks.snappy.http.MediaType;
+import io.undertow.util.HeaderValues;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
@@ -17,7 +22,9 @@ import java.util.stream.Collectors;
 
 public class StreamEndpoint {
 
+    public static final MediaType EVENTS_MEDIA_TYPE = MediaType.valueOf("applications/vnd.eventry.events+json");
     public static final String QUERY_PARAM_ZIP = "zip";
+    public static final String EVENT_TYPE_HEADER = "Event-Type";
     public static final String QUERY_PARAM_ZIP_PREFIX = "prefix";
     public static final String PATH_PARAM_STREAM = "streamId";
     private final IEventStore store;
@@ -35,7 +42,7 @@ public class StreamEndpoint {
     public void fetchStreams(HttpExchange exchange) {
         String stream = exchange.pathParameter(PATH_PARAM_STREAM);
 
-        if(SystemStreams.ALL.equals(stream)) {
+        if (SystemStreams.ALL.equals(stream)) {
             List<EventBody> all = store.fromAll().filter(ev -> !ev.isLinkToEvent()).map(EventBody::from).collect(Collectors.toList());
             exchange.send(all);
             return;
@@ -63,14 +70,54 @@ public class StreamEndpoint {
     //TODO json parsing should be avoided
     public void append(HttpExchange exchange) {
         String stream = exchange.pathParameter(PATH_PARAM_STREAM);
+        if (MediaType.APPLICATION_OCTET_STREAM_TYPE.isCompatible(exchange.type())) {
+            //simple json body, header must be present
+            HeaderValues header = exchange.header(EVENT_TYPE_HEADER);
+            if (header == null || header.isEmpty()) {
+                //header must be provided
+                //TODO add message
+                exchange.status(400);
+                return;
+            }
+            String eventType = header.get(0);
+            if (StringUtils.isBlank(eventType)) {
+                //TODO add message
+                exchange.status(400);
+                return;
+            }
+
+            byte[] eventBody = toBytes(exchange.body().asBinary());
+
+            EventRecord record = EventRecord.create(stream, eventType, eventBody);
+            store.append(record);
+
+            exchange.status(201);
+            return;
+        }
+
         EventBody eventBody = exchange.body().asObject(EventBody.class);
 
         //TODO fix toEvent metadata when is empty
         EventRecord event = eventBody.toEvent(stream);
-        EventRecord result = store.append(event);
+        store.append(event);
 
         exchange.status(201);
     }
+
+    private static byte[] toBytes(InputStream is) {
+        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
+            int nRead;
+            byte[] data = new byte[8192];
+
+            while ((nRead = is.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, nRead);
+            }
+            return buffer.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     public void delete(HttpExchange exchange) {
 

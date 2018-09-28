@@ -19,7 +19,7 @@ public class DataStream implements IDataStream {
     private static final double DEFAULT_CHECKUM_PROB = 1;
 
     //hard limit is required to memory issues in case of broken record
-    public static final int MAX_ENTRY_SIZE = 1024 * 1024;
+    public static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
 
     private final double checksumProb;
     private final Random rand = new Random();

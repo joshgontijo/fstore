@@ -4,6 +4,7 @@ import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.QueuedEventStore;
 import io.joshworks.fstore.core.properties.AppProperties;
+import io.joshworks.snappy.http.MediaType;
 
 import java.io.File;
 
@@ -16,6 +17,8 @@ import static io.joshworks.snappy.SnappyServer.post;
 import static io.joshworks.snappy.SnappyServer.put;
 import static io.joshworks.snappy.SnappyServer.sse;
 import static io.joshworks.snappy.SnappyServer.start;
+import static io.joshworks.snappy.parser.MediaTypes.consumes;
+import static io.joshworks.snappy.parser.MediaTypes.produces;
 
 public class Server {
 
@@ -23,7 +26,7 @@ public class Server {
     public static void main(String[] args) {
 
         AppProperties properties = AppProperties.create();
-        String path = properties.get("db.path").orElse("J:\\event-store-github");
+        String path = properties.get("store.path").orElse("J:\\event-store-github");
         IEventStore store = new QueuedEventStore(EventStore.open(new File(path)));
 
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
@@ -39,7 +42,7 @@ public class Server {
 
             group("{streamId}", () -> {
                 get(streams::fetchStreams);
-                post(streams::append);
+                post(streams::append, consumes(MediaType.APPLICATION_JSON, MediaType.APPLICATION_OCTET_STREAM));
                 delete(streams::delete);
                 get("/metadata", streams::metadata);
             });
@@ -53,6 +56,10 @@ public class Server {
                 put(projections::update);
                 get(projections::get);
                 delete(projections::delete);
+                group("/script", () -> {
+                    put(projections::updateScript, consumes("application/javascript"));
+                    get(projections::getScript, produces("application/javascript"));
+                });
                 group("/executions", () -> {
                     post(projections::run);
                     get(projections::executionStatus);

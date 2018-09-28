@@ -2,8 +2,8 @@ package io.joshworks.eventry.server;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;

@@ -31,8 +31,26 @@ public class ProjectionsEndpoint {
         exchange.status(HttpStatus.SC_NO_CONTENT).end();
     }
 
-    public void runAdHocQuery(HttpExchange exchange) {
+    public void updateScript(HttpExchange exchange) {
+        String name = exchange.pathParameter("name");
+        String script = exchange.body().asString();
 
+        store.updateProjection(name, script, null, null);
+    }
+
+    public void runAdHocQuery(HttpExchange exchange) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+
+    public void getScript(HttpExchange exchange) {
+        String name = exchange.pathParameter("name");
+        Projection projection = store.projection(name);
+        if(projection == null) {
+            exchange.status(404).end();
+            return;
+        }
+        exchange.send(projection.script);
     }
 
     public void run(HttpExchange exchange) {
@@ -69,6 +87,5 @@ public class ProjectionsEndpoint {
         String name = exchange.pathParameter("name");
         exchange.send(store.projection(name));
     }
-
 
 }

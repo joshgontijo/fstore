@@ -38,9 +38,12 @@ public class SingleStream extends ScriptStreamBase {
         stream.forEach(event -> {
             checkStopRequest(event, stream);
             processedItems.incrementAndGet();
-            executionStatusListener.accept(new ExecutionStatus(ExecutionStatus.State.RUNNING, event.stream, event.version, processedItems.get()));
 
+            long start = System.currentTimeMillis();
             handler.accept(state, event);
+            long end = System.currentTimeMillis();
+
+            executionStatusListener.accept(new ExecutionStatus(ExecutionStatus.State.RUNNING, event.stream, event.version, processedItems.get(), processedTime.addAndGet((end - start))));
         });
         return this;
     }

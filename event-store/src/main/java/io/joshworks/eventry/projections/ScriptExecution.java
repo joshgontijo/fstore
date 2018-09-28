@@ -19,11 +19,9 @@ public class ScriptExecution {
 
     private Map<String, Object> options = new HashMap<>();
 
-    ExecutionStatus executionStatus;
-
-    public ScriptExecution(IEventStore store) {
+    public ScriptExecution(IEventStore store, Consumer<ExecutionStatus> onExecutionStatusUpdate) {
         this.store = store;
-        this.api = new ScriptAPI(store, this::onExecutionStatusUpdate, this::stopRequested);
+        this.api = new ScriptAPI(store, onExecutionStatusUpdate, this::stopRequested);
 
         engine.put("options", (Consumer<Map<String, Object>>) this::options);
 
@@ -33,10 +31,6 @@ public class ScriptExecution {
 
         engine.put("emit", api.emit);
         engine.put("linkTo", api.linkTo);
-    }
-
-    private void onExecutionStatusUpdate(ExecutionStatus status) {
-        executionStatus = status;
     }
 
     private boolean stopRequested() {
@@ -54,7 +48,5 @@ public class ScriptExecution {
     public void execute(String script) throws ScriptException {
         engine.eval(script);
     }
-
-
 
 }
