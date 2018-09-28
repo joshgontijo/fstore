@@ -18,7 +18,7 @@ public class ProjectionsExecutor extends ThreadPoolExecutor {
     protected void beforeExecute(Thread t, Runnable r) {
         super.beforeExecute(t, r);
         ProjectionTask task = (ProjectionTask) r;
-        t.setName(task.projection.name);
+        t.setName("projection-task-" + task.projection.name);
         this.running.add(task);
     }
 

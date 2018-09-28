@@ -16,7 +16,7 @@ public class Projections {
     private static final Map<String, Projection> items = new HashMap<>();
     //TODO externalize
     private final ProjectionsExecutor executor = new ProjectionsExecutor(10);
-    private final Map<String, ExecutionStatus> runningTasks = new HashMap<>();
+    private final Map<String, ExecutionStatus> taskTracker = new HashMap<>();
 
     public void add(Projection projection) {
         items.put(projection.name, projection);
@@ -44,7 +44,7 @@ public class Projections {
 
     public void run(String name, IEventStore store, Consumer<EventRecord> systemRecordAppender) {
         Projection projection = get(name);
-        ProjectionTask projectionTask = new ProjectionTask(projection, store, systemRecordAppender, runningTasks);
+        ProjectionTask projectionTask = new ProjectionTask(projection, store, systemRecordAppender, taskTracker);
         executor.execute(projectionTask);
     }
 
@@ -61,11 +61,11 @@ public class Projections {
     }
 
     public Collection<ExecutionStatus> executionStatuses() {
-        return new ArrayList<>(runningTasks.values());
+        return new ArrayList<>(taskTracker.values());
     }
 
     public ExecutionStatus executionStatus(String name) {
-        return runningTasks.get(name);
+        return taskTracker.get(name);
     }
 
     public Projection update(String name, String script, Projection.Type type, Boolean enabled) {

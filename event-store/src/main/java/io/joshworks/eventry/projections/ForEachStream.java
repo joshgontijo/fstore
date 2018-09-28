@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -18,7 +20,15 @@ public class ForEachStream extends ScriptStreamBase {
     private Map<String, Map<String, Object>> streamState = new HashMap<>();
 
     //TODO move to ProjectionWorker ?
-    private final ExecutorService executor = Executors.newFixedThreadPool(5);
+    private final ExecutorService executor = Executors.newFixedThreadPool(5, new ThreadFactory() {
+        final AtomicLong counter = new AtomicLong();
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r);
+            t.setName("projection-stream-task-" + counter.incrementAndGet());
+            return t;
+        }
+    });
 
 
     public ForEachStream(

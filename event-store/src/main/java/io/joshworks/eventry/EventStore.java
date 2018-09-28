@@ -30,6 +30,8 @@ import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.LogAppender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,6 +47,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class EventStore implements IEventStore {
+
+    private static final Logger logger = LoggerFactory.getLogger(EventStore.class);
 
     //TODO expose
     private static final int LRU_CACHE_SIZE = 1000000;
@@ -74,25 +78,30 @@ public class EventStore implements IEventStore {
 
 
     private void loadIndex() {
+        logger.info("Loading index");
+        long start = System.currentTimeMillis();
         try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
 
             while (iterator.hasNext()) {
                 EventRecord next = iterator.next();
                 long position = iterator.position();
-                if (next.isSystemEvent() && IndexFlushed.TYPE.equals(next.type)) {
-                    break;
-                }
                 long streamHash = streams.hashOf(next.stream);
                 index.add(streamHash, next.version, position);
+                if (IndexFlushed.TYPE.equals(next.type)) {
+                    break;
+                }
             }
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to load memIndex", e);
         }
 
+        logger.info("Index loaded in {}ms", (System.currentTimeMillis() - start));
     }
 
     private void loadStreams() {
+        logger.info("Loading streams");
+        long start = System.currentTimeMillis();
 
         long streamHash = streams.hashOf(SystemStreams.STREAMS);
         LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.allOf(streamHash));
@@ -112,9 +121,14 @@ public class EventStore implements IEventStore {
                 //unrecognized event
             }
         }
+
+        logger.info("Streams loaded in {}ms", (System.currentTimeMillis() - start));
     }
 
     private void loadProjections() {
+        logger.info("Loading projections");
+        long start = System.currentTimeMillis();
+
         long streamHash = streams.hashOf(SystemStreams.PROJECTIONS);
         LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.allOf(streamHash));
 
@@ -125,11 +139,14 @@ public class EventStore implements IEventStore {
             //pattern matching would be great here
             if (ProjectionCreated.TYPE.equals(event.type)) {
                 projections.add(ProjectionCreated.from(event));
+            } else if (ProjectionUpdated.TYPE.equals(event.type)) {
+                projections.add(ProjectionCreated.from(event));
             } else if (ProjectionDeleted.TYPE.equals(event.type)) {
                 ProjectionDeleted deleted = ProjectionDeleted.from(event);
                 projections.delete(deleted.name);
             }
         }
+        logger.info("Projections loaded in {}ms", (System.currentTimeMillis() - start));
     }
 
     @Override

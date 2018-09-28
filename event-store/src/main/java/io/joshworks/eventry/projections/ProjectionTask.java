@@ -25,7 +25,7 @@ public class ProjectionTask implements Runnable {
     public ProjectionTask(Projection projection, IEventStore store, Consumer<EventRecord> systemRecordAppender, Map<String, ExecutionStatus> tracker) {
         this.projection = projection;
         this.store = store;
-        this.scriptExecution = new ScriptExecution(store);
+        this.scriptExecution = new ScriptExecution(store, this::onExecutionStatusUpdate);
         this.systemRecordAppender = systemRecordAppender;
         this.tracker = tracker;
     }
@@ -33,25 +33,28 @@ public class ProjectionTask implements Runnable {
     @Override
     public void run() {
         logger.info("Started projection '{}'", projection.name);
+        //TODO execution status only work for SingleStream ??
+        tracker.put(projection.name, new ExecutionStatus(ExecutionStatus.State.RUNNING, null, -1, 0, 0));
+
         try {
             EventRecord eventRecord = ProjectionStarted.create(projection.name);
             systemRecordAppender.accept(eventRecord);
 
             scriptExecution.execute(projection.script);
 
-            ExecutionStatus executionStatus = scriptExecution.executionStatus;
+            ExecutionStatus executionStatus = tracker.get(projection.name);
             EventRecord projectionCompleted = ProjectionCompleted.create(projection.name, executionStatus.processedItems);
 
             systemRecordAppender.accept(projectionCompleted);
 
         } catch (StopRequest e) {
             logger.warn("Stop request " + projection.name, e);
-            ExecutionStatus executionStatus = scriptExecution.executionStatus;
+            ExecutionStatus executionStatus = tracker.get(projection.name);
             EventRecord projectionStopped = ProjectionStopped.create(projection.name, e.getMessage(), executionStatus.processedItems);
             systemRecordAppender.accept(projectionStopped);
         } catch (Exception e) {
             logger.error("Script execution failed for projection " + projection.name, e);
-            ExecutionStatus executionStatus = scriptExecution.executionStatus;
+            ExecutionStatus executionStatus = tracker.get(projection.name);
             EventRecord projectionFailed = ProjectionFailed.create(projection.name, e.getMessage(), executionStatus.processedItems, executionStatus.stream, executionStatus.version);
             systemRecordAppender.accept(projectionFailed);
         }
@@ -61,9 +64,7 @@ public class ProjectionTask implements Runnable {
         scriptExecution.stop();
     }
 
-    public ExecutionStatus executionStatus() {
-        return scriptExecution.executionStatus;
+    private void onExecutionStatusUpdate(ExecutionStatus status) {
+        tracker.put(projection.name, status);
     }
-
-
 }
