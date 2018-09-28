@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.seda.EventContext;
 import io.joshworks.fstore.core.seda.StageHandler;
@@ -36,7 +36,7 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
         File segmentFile = data.segmentFile;
         SegmentCombiner<T> combiner = data.combiner;
         List<L> segments = data.segments;
-        DataReader dataReader = data.dataReader;
+        IDataStream dataStream = data.dataStream;
         Serializer<T> serializer = data.serializer;
         StorageProvider storageProvider = data.storageProvider;
         SegmentFactory<T, L> segmentFactory = data.segmentFactory;
@@ -59,7 +59,7 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
             long start = System.currentTimeMillis();
 
             Storage storage = storageProvider.create(segmentFile, totalSize);
-            target = segmentFactory.createOrOpen(storage, serializer, dataReader, magic, Type.MERGE_OUT);
+            target = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, Type.MERGE_OUT);
 
             combiner.merge(segments, target);
 

@@ -2,6 +2,7 @@ package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.util.Memory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -132,7 +133,7 @@ public class Block<T> implements Iterable<T> {
     }
 
     public static <T> Block<T> newBlock(Serializer<T> serializer) {
-        return new Block<>(serializer, 4096);
+        return new Block<>(serializer, Memory.PAGE_SIZE);
     }
 
     public static <T> Block<T> newBlock(Serializer<T> serializer, int maxSize) {

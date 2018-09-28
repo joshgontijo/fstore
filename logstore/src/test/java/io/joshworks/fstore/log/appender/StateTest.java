@@ -35,6 +35,7 @@ public class StateTest {
         state.incrementEntryCount();
         state.lastRollTime(123L);
 
+        state.flush();
         state.close();
 
         //when
