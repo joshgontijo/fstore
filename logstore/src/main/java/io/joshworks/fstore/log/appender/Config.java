@@ -13,9 +13,6 @@ import java.util.Objects;
 
 public class Config<T> {
 
-    //reader / writer max message size
-    public static final int MAX_RECORD_SIZE = 131072;
-
     //How many bits a segment index can hold
     private static final int SEGMENT_BITS = 18;
 
@@ -30,7 +27,6 @@ public class Config<T> {
     boolean asyncFlush;
     int maxSegmentsPerLevel = 3;
     int mmapBufferSize = segmentSize;
-    int maxRecordSize = MAX_RECORD_SIZE;
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
@@ -66,11 +62,6 @@ public class Config<T> {
 
     public Config<T> threadPerLevelCompaction() {
         this.threadPerLevel = true;
-        return this;
-    }
-
-    public Config<T> maxRecordSize(int maxRecordSize) {
-        this.maxRecordSize = maxRecordSize;
         return this;
     }
 

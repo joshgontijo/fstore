@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.segment.Log;
 import org.slf4j.Logger;
@@ -17,7 +18,7 @@ import java.nio.ByteBuffer;
 
 public class State implements Closeable {
 
-    private static final int SIZE = 4096;
+    private static final int SIZE = Memory.PAGE_SIZE;
 
     private static final Logger logger = LoggerFactory.getLogger(State.class);
 
@@ -148,7 +149,6 @@ public class State implements Closeable {
     @Override
     public void close() {
         try {
-            flush();
             logger.info("Closing state file handler");
             storage.close();
         } catch (IOException e) {

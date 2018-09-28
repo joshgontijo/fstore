@@ -7,7 +7,8 @@ import io.joshworks.eventry.index.filter.BloomFilter;
 import io.joshworks.eventry.index.midpoint.Midpoints;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.eventry.index.filter.BloomFilterHasher;
 import io.joshworks.eventry.index.midpoint.Midpoint;
@@ -31,13 +32,13 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
     BloomFilter<Long> filter;
     final Midpoints midpoints;
     final File directory;
-    private static final int MAX_BLOCK_SIZE = 4096;
+    private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
 
     private static final double FALSE_POSITIVE_PROB = 0.01;
 
     IndexSegment(Storage storage,
                         Serializer<IndexBlock> serializer,
-                        DataReader reader,
+                        IDataStream reader,
                         String magic,
                         Type type,
                         File directory,

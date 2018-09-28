@@ -20,16 +20,14 @@ public class Metadata {
     final String magic;
     final int segmentSize;
     final int segmentBitShift;
-    final int maxRecordSize;
     final int maxSegmentsPerLevel;
     final boolean mmap;
     final boolean flushAfterWrite;
     final boolean asyncFlush;
 
-    private Metadata(String magic, int segmentSize, int maxRecordSize, int segmentBitShift, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
+    private Metadata(String magic, int segmentSize, int segmentBitShift, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
         this.magic = magic;
         this.segmentSize = segmentSize;
-        this.maxRecordSize = maxRecordSize;
         this.segmentBitShift = segmentBitShift;
         this.mmap = mmap;
         this.flushAfterWrite = flushAfterWrite;
@@ -46,20 +44,19 @@ public class Metadata {
 
             String magic = Serializers.VSTRING.fromBytes(bb);
             int segmentSize = bb.getInt();
-            int maxRecordSize = bb.getInt();
             int segmentBitShift = bb.getInt();
             int maxSegmentsPerLevel = bb.getInt();
             boolean mmap = bb.get() == 1;
             boolean flushAfterWrite = bb.get() == 1;
             boolean asyncFlush = bb.get() == 1;
 
-            return new Metadata(magic, segmentSize, maxRecordSize, segmentBitShift, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
+            return new Metadata(magic, segmentSize, segmentBitShift, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
     }
 
-    public static Metadata create(File directory, int segmentSize, int maxRecordSize, int segmentBitShift, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
+    public static Metadata create(File directory, int segmentSize, int segmentBitShift, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
         try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE, Mode.READ_WRITE)) {
             ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
 
@@ -67,7 +64,6 @@ public class Metadata {
 
             bb.put(Serializers.VSTRING.toBytes(magic));
             bb.putInt(segmentSize);
-            bb.putInt(maxRecordSize);
             bb.putInt(segmentBitShift);
             bb.putInt(maxSegmentsPerLevel);
             bb.put(mmap ? (byte) 1 : 0);
@@ -76,7 +72,7 @@ public class Metadata {
 
             bb.flip();
             storage.write(bb);
-            return new Metadata(magic, segmentSize, maxRecordSize, segmentBitShift, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
+            return new Metadata(magic, segmentSize, segmentBitShift, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
