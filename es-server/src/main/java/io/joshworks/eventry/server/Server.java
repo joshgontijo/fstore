@@ -41,7 +41,7 @@ public class Server {
             get("/metadata", streams::listStreams);
 
             group("{streamId}", () -> {
-                get(streams::fetchStreams);
+                get(streams::fetchStream);
                 post(streams::append, consumes(MediaType.APPLICATION_JSON, MediaType.APPLICATION_OCTET_STREAM));
                 delete(streams::delete);
                 get("/metadata", streams::metadata);
