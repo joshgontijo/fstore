@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.IOUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
@@ -66,6 +68,14 @@ public class Iterators {
 
     public static <T> LogIterator<T> buffering(LogIterator<T> iterator, int bufferSize) {
         return new BufferingIterator<>(iterator, bufferSize);
+    }
+
+    public static <T> LogIterator<T> limiting(LogIterator<T> iterator, int limit) {
+        return new LimitIterator<>(iterator, limit);
+    }
+
+    public static <T> LogIterator<T> skipping(LogIterator<T> iterator, int skips) {
+        return new SkippingIterator<>(iterator, skips);
     }
 
     public static <T> PeekingIterator<T> peekingIterator(LogIterator<T> iterator) {
@@ -385,6 +395,94 @@ public class Iterators {
             }
             return buffered > 0;
         }
+    }
+
+    private static final class LimitIterator<T> implements LogIterator<T> {
+
+        private final LogIterator<T> delegate;
+        private final int limit;
+        private final AtomicInteger processed = new AtomicInteger();
+
+        private LimitIterator(LogIterator<T> delegate, int limit) {
+            this.delegate = delegate;
+            this.limit = limit;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            if(processed.get() >= limit) {
+                IOUtils.closeQuietly(delegate);
+                return false;
+            }
+            return delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            if (!hasNext()) {
+                IOUtils.closeQuietly(delegate);
+                throw new NoSuchElementException();
+            }
+            processed.incrementAndGet();
+            return delegate.next();
+        }
+    }
+
+    private static final class SkippingIterator<T> implements LogIterator<T> {
+
+        private final LogIterator<T> delegate;
+        private final int skips;
+        private final AtomicInteger skipped = new AtomicInteger();
+
+        private SkippingIterator(LogIterator<T> delegate, int skips) {
+            this.delegate = delegate;
+            this.skips = skips;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            if(skipped.get() < skips) {
+                skip();
+            }
+            return delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            if(skipped.get() < skips) {
+                skip();
+            }
+            return delegate.next();
+        }
+
+        private void skip() {
+            while(skipped.get() < skips && delegate.hasNext()) {
+                delegate.next();
+                skipped.incrementAndGet();
+            }
+        }
+
+
     }
 
     private static final class MappingIterator<R, T> implements LogIterator<R> {
