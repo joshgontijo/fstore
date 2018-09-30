@@ -18,7 +18,7 @@ class ScriptAPI {
     final IEventStore store;
     final Function<String, SingleStream> fromStream;
     final Function<String[], SingleStream> fromStreams;
-    final Function<String[], ForEachStream> foreachstream;
+    final Function<String[], ForEachStream> forEachStream;
     final BiConsumer<String, JsonEvent> linkTo;
     final BiConsumer<String, JsonEvent> emit;
 
@@ -26,7 +26,7 @@ class ScriptAPI {
         this.store = store;
         this.fromStream = s -> new SingleStream(store.fromStream(s).map(JsonEvent::from), executionStatusListener, shutdownRequest);
         this.fromStreams = streams -> new SingleStream(store.zipStreams(Set.of(streams)).map(JsonEvent::from), executionStatusListener, shutdownRequest);
-        this.foreachstream = streams -> {
+        this.forEachStream = streams -> {
             Set<String> streams1 = Set.of(streams);
             Map<String, Stream<EventRecord>> mapped = store.fromStreamsMapped(streams1);
             Map<String, Stream<JsonEvent>> mappedStream = mapped.entrySet().stream()
