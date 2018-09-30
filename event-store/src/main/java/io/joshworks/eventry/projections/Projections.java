@@ -1,8 +1,6 @@
 package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.projections.meta.Metrics;
-import io.joshworks.eventry.projections.meta.ProjectionManager;
 import io.joshworks.eventry.utils.StringUtils;
 
 import java.util.ArrayList;

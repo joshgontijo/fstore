@@ -1,6 +1,4 @@
-package io.joshworks.eventry.projections.meta;
-
-import io.joshworks.eventry.projections.JsonEvent;
+package io.joshworks.eventry.projections;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;

@@ -1,9 +1,7 @@
-package io.joshworks.eventry.projections.meta;
+package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.projections.JsonEvent;
-import io.joshworks.eventry.projections.Projection;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;

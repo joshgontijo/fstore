@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projections.meta;
+package io.joshworks.eventry.projections;
 
 public class Metrics {
     public long processed;

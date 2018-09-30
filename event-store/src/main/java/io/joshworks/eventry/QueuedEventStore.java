@@ -3,7 +3,7 @@ package io.joshworks.eventry;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.Projection;
-import io.joshworks.eventry.projections.meta.Metrics;
+import io.joshworks.eventry.projections.Metrics;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
