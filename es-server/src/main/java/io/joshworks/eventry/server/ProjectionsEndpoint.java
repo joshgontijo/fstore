@@ -2,7 +2,7 @@ package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.projections.Projection;
-import io.joshworks.eventry.projections.meta.Metrics;
+import io.joshworks.eventry.projections.Metrics;
 import io.joshworks.snappy.http.HttpExchange;
 import org.apache.http.HttpStatus;
 

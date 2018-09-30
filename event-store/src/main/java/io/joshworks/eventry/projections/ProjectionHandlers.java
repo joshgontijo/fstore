@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projections.meta;
+package io.joshworks.eventry.projections;
 
 import java.util.HashMap;
 import java.util.Map;

@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projections.meta;
+package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.data.ProjectionCompleted;
@@ -6,7 +6,6 @@ import io.joshworks.eventry.data.ProjectionFailed;
 import io.joshworks.eventry.data.ProjectionStarted;
 import io.joshworks.eventry.data.ProjectionStopped;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.projections.Projection;
 import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,10 +66,10 @@ public class ProjectionManager {
         ExecutionResult.Failure failure = result.failure;
         Metrics metrics = result.metrics;
 
-        if(ExecutionResult.Status.COMPLETED.equals(result.type)) {
+        if(Status.COMPLETED.equals(result.type)) {
             EventRecord projectionCompleted = ProjectionCompleted.create(projection.name, metrics.processed);
             systemRecordAppender.accept(projectionCompleted);
-        } else if(ExecutionResult.Status.STOPPED.equals(result.type)) {
+        } else if(Status.STOPPED.equals(result.type)) {
             EventRecord projectionFailed = ProjectionStopped.create(projection.name, "STOPPED BY USER", metrics.processed, metrics.logPosition);
             systemRecordAppender.accept(projectionFailed);
         } else {

@@ -1,6 +1,4 @@
-package io.joshworks.eventry.projections.meta;
-
-import io.joshworks.eventry.projections.Projection;
+package io.joshworks.eventry.projections;
 
 import java.util.Map;
 
@@ -32,12 +30,6 @@ public class ExecutionResult {
 
     public static ExecutionResult stopped(Projection projection, ProjectionContext context, Metrics metrics) {
         return new ExecutionResult(projection, Status.STOPPED, context.state(), metrics, context.options, null);
-    }
-
-    public enum Status {
-        COMPLETED,
-        FAILED,
-        STOPPED
     }
 
     public static class Failure {

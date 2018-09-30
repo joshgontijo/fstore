@@ -1,7 +1,6 @@
-package io.joshworks.eventry.projections.meta;
+package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.projections.JsonEvent;
 
 import java.util.Map;
 
