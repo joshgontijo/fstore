@@ -174,7 +174,7 @@ public class Compactor<T, L extends Log<T>> {
         do {
             if (pendingReaders > 0) {
                 logger.info("Awaiting {} readers to be released", pendingReaders);
-                sleep();
+                sleep(10000);
             }
             pendingReaders = 0;
             for (L segment : segments) {
@@ -202,9 +202,9 @@ public class Compactor<T, L extends Log<T>> {
         }
     }
 
-    private static void sleep() {
+    private static void sleep(long millis) {
         try {
-            Thread.sleep(1000);
+            Thread.sleep(millis);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

@@ -16,9 +16,10 @@ import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.RecordCleanup;
-import io.joshworks.eventry.projections.ExecutionStatus;
 import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.Projections;
+import io.joshworks.eventry.projections.meta.Metrics;
+import io.joshworks.eventry.projections.meta.ProjectionManager;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
@@ -60,7 +61,7 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         this.index = new TableIndex(rootDir);
-        this.projections = new Projections();
+        this.projections = new Projections(new ProjectionManager(this::appendSystemEvent));
         this.streams = new Streams(LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize((int) Size.MEGABYTE.toBytes(200))
@@ -175,8 +176,8 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public Projection createProjection(String name, String script, Projection.Type type, boolean enabled) {
-        Projection projection = projections.create(name, script, type, enabled);
+    public Projection createProjection(String name, Set<String> streams, String script, Projection.Type type, boolean enabled) {
+        Projection projection = projections.create(name, streams, script, type, enabled);
         EventRecord eventRecord = ProjectionCreated.create(projection);
         this.appendSystemEvent(eventRecord);
 
@@ -201,16 +202,16 @@ public class EventStore implements IEventStore {
 
     @Override
     public void runProjection(String name) {
-        projections.run(name, this, this::appendSystemEvent);
+        projections.run(name, this);
     }
 
     @Override
-    public ExecutionStatus projectionExecutionStatus(String name) {
+    public Metrics projectionExecutionStatus(String name) {
         return projections.executionStatus(name);
     }
 
     @Override
-    public Collection<ExecutionStatus> projectionExecutionStatuses() {
+    public Collection<Metrics> projectionExecutionStatuses() {
         return projections.executionStatuses();
     }
 
