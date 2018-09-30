@@ -27,7 +27,7 @@ public class ScriptExecution {
 
         engine.put("fromStream", api.fromStream);
         engine.put("fromStreams", api.fromStreams);
-        engine.put("foreachStream", api.foreachstream);
+        engine.put("foreachStream", api.forEachStream);
 
         engine.put("emit", api.emit);
         engine.put("linkTo", api.linkTo);
