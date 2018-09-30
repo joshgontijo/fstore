@@ -1,8 +1,8 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.projections.ExecutionStatus;
 import io.joshworks.eventry.projections.Projection;
+import io.joshworks.eventry.projections.meta.Metrics;
 import io.joshworks.snappy.http.HttpExchange;
 import org.apache.http.HttpStatus;
 
@@ -19,7 +19,7 @@ public class ProjectionsEndpoint {
     public void create(HttpExchange exchange) {
         Projection projection = exchange.body().asObject(Projection.class);
 
-        Projection created = store.createProjection(projection.name, projection.script, projection.type, projection.enabled);
+        Projection created = store.createProjection(projection.name, projection.streams, projection.script, projection.type, projection.enabled);
         exchange.status(201).send(created);
     }
 
@@ -60,7 +60,7 @@ public class ProjectionsEndpoint {
 
     public void executionStatus(HttpExchange exchange) {
         String name = exchange.pathParameter("name");
-        ExecutionStatus executionStatus = store.projectionExecutionStatus(name);
+        Metrics executionStatus = store.projectionExecutionStatus(name);
         if(executionStatus == null) {
             exchange.status(404);
             return;
@@ -69,7 +69,7 @@ public class ProjectionsEndpoint {
     }
 
     public void executionStatuses(HttpExchange exchange) {
-        Collection<ExecutionStatus> executionStatus = store.projectionExecutionStatuses();
+        Collection<Metrics> executionStatus = store.projectionExecutionStatuses();
         exchange.send(executionStatus);
     }
 

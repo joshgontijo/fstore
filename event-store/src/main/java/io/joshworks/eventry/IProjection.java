@@ -1,9 +1,10 @@
 package io.joshworks.eventry;
 
-import io.joshworks.eventry.projections.ExecutionStatus;
 import io.joshworks.eventry.projections.Projection;
+import io.joshworks.eventry.projections.meta.Metrics;
 
 import java.util.Collection;
+import java.util.Set;
 
 public interface IProjection {
 
@@ -12,7 +13,7 @@ public interface IProjection {
 
     Projection projection(String name);
 
-    Projection createProjection(String name, String script, Projection.Type type, boolean enabled);
+    Projection createProjection(String name, Set<String> streams, String script, Projection.Type type, boolean enabled);
 
     Projection updateProjection(String name, String script, Projection.Type type, Boolean enabled);
 
@@ -20,8 +21,8 @@ public interface IProjection {
 
     void runProjection(String name);
 
-    ExecutionStatus projectionExecutionStatus(String name);
+    Metrics projectionExecutionStatus(String name);
 
-    Collection<ExecutionStatus> projectionExecutionStatuses();
+    Collection<Metrics> projectionExecutionStatuses();
 
 }
