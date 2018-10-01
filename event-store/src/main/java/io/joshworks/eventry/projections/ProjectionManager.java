@@ -6,7 +6,10 @@ import io.joshworks.eventry.data.ProjectionFailed;
 import io.joshworks.eventry.data.ProjectionStarted;
 import io.joshworks.eventry.data.ProjectionStopped;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.eventry.projections.result.ExecutionResult;
+import io.joshworks.eventry.projections.result.Failure;
+import io.joshworks.eventry.projections.result.Metrics;
+import io.joshworks.eventry.projections.result.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +29,7 @@ public class ProjectionManager {
     private final ExecutorService executor = Executors.newFixedThreadPool(10);
     private final ProjectionHandlers handlers = new ProjectionHandlers();
     private final Consumer<EventRecord> systemRecordAppender;
-    private final Map<String, StreamTask> running = new HashMap<>();
+    private final Map<String, ProjectionTask> running = new HashMap<>();
 
     public ProjectionManager(Consumer<EventRecord> systemRecordAppender) {
         this.systemRecordAppender = systemRecordAppender;
@@ -35,20 +38,17 @@ public class ProjectionManager {
     public void run(Projection projection, IEventStore store) {
         logger.info("Started projection '{}'", projection.name);
 
-        Set<String> streams = projection.streams;
 
         //TODO add multiple streams
-
-        LogIterator<EventRecord> streamRecords = store.fromStreamIter(streams.iterator().next());
-        StreamTask streamTask = new StreamTask(streamRecords, store, projection);
+        ProjectionTask projectionTask = new ProjectionTask(store, projection, executor);
 
         try {
             EventRecord eventRecord = ProjectionStarted.create(projection.name);
             systemRecordAppender.accept(eventRecord);
 
-            running.put(projection.name, streamTask);
+            running.put(projection.name, projectionTask);
 
-            CompletableFuture.supplyAsync(streamTask::execute, executor)
+            CompletableFuture.supplyAsync(projectionTask::execute, executor)
                     .thenAccept(this::processResult);
 
 
@@ -63,13 +63,13 @@ public class ProjectionManager {
         System.out.println("RESULT: " + result);
 
         Projection projection = result.projection;
-        ExecutionResult.Failure failure = result.failure;
+        Failure failure = result.failure;
         Metrics metrics = result.metrics;
 
-        if(Status.COMPLETED.equals(result.type)) {
+        if(Status.COMPLETED.equals(result.status)) {
             EventRecord projectionCompleted = ProjectionCompleted.create(projection.name, metrics.processed);
             systemRecordAppender.accept(projectionCompleted);
-        } else if(Status.STOPPED.equals(result.type)) {
+        } else if(Status.STOPPED.equals(result.status)) {
             EventRecord projectionFailed = ProjectionStopped.create(projection.name, "STOPPED BY USER", metrics.processed, metrics.logPosition);
             systemRecordAppender.accept(projectionFailed);
         } else {
@@ -79,7 +79,7 @@ public class ProjectionManager {
     }
 
     public Metrics status(String projectionName) {
-        StreamTask task = running.get(projectionName);
+        ProjectionTask task = running.get(projectionName);
         if(task != null) {
             return task.metrics();
         }
@@ -91,7 +91,7 @@ public class ProjectionManager {
     }
 
     public void stop(String projectionName) {
-        StreamTask task = running.get(projectionName);
+        ProjectionTask task = running.get(projectionName);
         if(task != null) {
             logger.info("Stop request for {}",  projectionName);
             task.stop();

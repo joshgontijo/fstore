@@ -9,6 +9,7 @@ public class ProjectionContext {
     private final IEventStore store;
     private final State state = new State();
     protected Map<String, Object> options;
+    protected Map<String, Object> source;
 
 
     public ProjectionContext(IEventStore store) {
@@ -29,6 +30,10 @@ public class ProjectionContext {
 
     public final void options(Map<String, Object> options) {
         this.options = options;
+    }
+
+    public final void source(Map<String, Object> source) {
+        this.source = source;
     }
 
 }

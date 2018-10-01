@@ -1,7 +1,7 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.projections.Projection;
-import io.joshworks.eventry.projections.Metrics;
+import io.joshworks.eventry.projections.result.Metrics;
 
 import java.util.Collection;
 import java.util.Set;
