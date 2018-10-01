@@ -2,14 +2,15 @@ package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class ProjectionContext {
 
     private final IEventStore store;
     private final State state = new State();
-    protected Map<String, Object> options;
-    protected Map<String, Object> source;
+    private final Map<String, Object> options = new HashMap<>();
+    private final Map<String, Object> source = new HashMap<>();
 
 
     public ProjectionContext(IEventStore store) {
@@ -29,11 +30,19 @@ public class ProjectionContext {
     }
 
     public final void options(Map<String, Object> options) {
-        this.options = options;
+        this.options.putAll(options);
     }
 
     public final void source(Map<String, Object> source) {
-        this.source = source;
+        this.source.putAll(source);
+    }
+
+    public Map<String, Object> options() {
+        return new HashMap<>(options);
+    }
+
+    public Map<String, Object> source() {
+        return new HashMap<>(source);
     }
 
 }

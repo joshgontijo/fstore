@@ -4,6 +4,7 @@ import io.joshworks.eventry.projections.State;
 
 public class TaskResult {
 
+    public final String stream;
     public final Status status;
     public final Failure failure;
     public final State state;
