@@ -6,4 +6,6 @@ public interface EventStreamHandler {
 
     void onEvent(JsonEvent record, State state);
 
+    StreamSource source();
+
 }

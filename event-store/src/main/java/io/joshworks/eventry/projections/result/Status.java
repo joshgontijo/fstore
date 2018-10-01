@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projections;
+package io.joshworks.eventry.projections.result;
 
 public enum Status {
     RUNNING,

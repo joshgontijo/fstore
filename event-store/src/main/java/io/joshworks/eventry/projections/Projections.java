@@ -1,6 +1,7 @@
 package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.utils.StringUtils;
 
 import java.util.ArrayList;
@@ -8,7 +9,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class Projections {
 
@@ -24,14 +24,14 @@ public class Projections {
         items.put(projection.name, projection);
     }
 
-    public Projection create(String name, Set<String> streams, String script, Projection.Type type, boolean enabled) {
+    public Projection create(String name, String script, Projection.Type type, boolean enabled) {
         StringUtils.requireNonBlank(name, "name");
         StringUtils.requireNonBlank(script, "script");
         Objects.requireNonNull(type, "Type must be provided");
 
         name = name.trim().replaceAll("\\s+", "");
 
-        Projection projection = new Projection(streams, script, name, type, enabled);
+        Projection projection = new Projection(script, name, type, enabled);
         if (items.containsKey(name)) {
             throw new IllegalArgumentException("Projection with name '" + name + "' already exist");
         }
@@ -76,7 +76,7 @@ public class Projections {
         Projection.Type newType = type == null ? projection.type : type;
         String newScript = StringUtils.isBlank(script) ? projection.script : script;
 
-        Projection updated = new Projection(projection.streams, newScript, projection.name, newType, isEnabled);
+        Projection updated = new Projection(newScript, projection.name, newType, isEnabled);
         items.put(updated.name, updated);
 
         return updated;

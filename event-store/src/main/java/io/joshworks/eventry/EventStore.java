@@ -18,7 +18,7 @@ import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.RecordCleanup;
 import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.Projections;
-import io.joshworks.eventry.projections.Metrics;
+import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.ProjectionManager;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
@@ -297,6 +297,9 @@ public class EventStore implements IEventStore {
 
     @Override
     public LogIterator<EventRecord> zipStreamsIter(Set<String> streamNames) {
+        if(streamNames.size() == 1) {
+            return fromStreamIter(streamNames.iterator().next());
+        }
 
         Set<Long> hashes = streamNames.stream()
                 .filter(StringUtils::nonBlank)
