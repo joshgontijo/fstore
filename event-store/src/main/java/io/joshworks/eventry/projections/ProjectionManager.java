@@ -62,18 +62,18 @@ public class ProjectionManager {
     private void processResult(ExecutionResult result) {
         System.out.println("RESULT: " + result);
 
-        Projection projection = result.projection;
+        String projectionName = result.projectionName;
         Failure failure = result.failure;
         Metrics metrics = result.metrics;
 
         if(Status.COMPLETED.equals(result.status)) {
-            EventRecord projectionCompleted = ProjectionCompleted.create(projection.name, metrics.processed);
+            EventRecord projectionCompleted = ProjectionCompleted.create(projectionName, metrics.processed);
             systemRecordAppender.accept(projectionCompleted);
         } else if(Status.STOPPED.equals(result.status)) {
-            EventRecord projectionFailed = ProjectionStopped.create(projection.name, "STOPPED BY USER", metrics.processed, metrics.logPosition);
+            EventRecord projectionFailed = ProjectionStopped.create(projectionName, "STOPPED BY USER", metrics.processed, metrics.logPosition);
             systemRecordAppender.accept(projectionFailed);
         } else {
-            EventRecord projectionCompleted = ProjectionFailed.create(projection.name, failure.reason, metrics.processed, failure.stream, failure.version);
+            EventRecord projectionCompleted = ProjectionFailed.create(projectionName, failure.reason, metrics.processed, failure.stream, failure.version);
             systemRecordAppender.accept(projectionCompleted);
         }
     }
