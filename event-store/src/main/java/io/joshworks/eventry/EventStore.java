@@ -176,8 +176,8 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public Projection createProjection(String name, Set<String> streams, String script, Projection.Type type, boolean enabled) {
-        Projection projection = projections.create(name, streams, script, type, enabled);
+    public Projection createProjection(String name, String script, Projection.Type type, boolean enabled) {
+        Projection projection = projections.create(name, script, type, enabled);
         EventRecord eventRecord = ProjectionCreated.create(projection);
         this.appendSystemEvent(eventRecord);
 

@@ -49,8 +49,8 @@ public class Jsr223Handler implements EventStreamHandler {
 
     private StreamSource getStreamSource(ProjectionContext ctx) {
         try {
-            List<String> streams = (List<String>) ctx.source.get(SOURCE_STREAMS_FIELD_NAME);
-            Boolean parallel = (Boolean) ctx.source.get(SOURCE_PARALLEL_FIELD_NAME);
+            List<String> streams = (List<String>) ctx.source().get(SOURCE_STREAMS_FIELD_NAME);
+            Boolean parallel = (Boolean) ctx.source().get(SOURCE_PARALLEL_FIELD_NAME);
             return new StreamSource(new HashSet<>(streams), parallel != null && parallel);
         } catch (Exception e) {
             throw new RuntimeException(e);

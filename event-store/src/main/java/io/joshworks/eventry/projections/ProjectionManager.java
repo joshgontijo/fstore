@@ -63,24 +63,30 @@ public class ProjectionManager {
         System.out.println("RESULT: " + result);
 
         String projectionName = result.projectionName;
-        Failure failure = result.failure;
-        Metrics metrics = result.metrics;
+//        Failure failure = result.failure;
+//        Metrics metrics = result.metrics;
+        Status status = result.getOverallStatus();
 
-        if(Status.COMPLETED.equals(result.status)) {
-            EventRecord projectionCompleted = ProjectionCompleted.create(projectionName, metrics.processed);
-            systemRecordAppender.accept(projectionCompleted);
-        } else if(Status.STOPPED.equals(result.status)) {
-            EventRecord projectionFailed = ProjectionStopped.create(projectionName, "STOPPED BY USER", metrics.processed, metrics.logPosition);
-            systemRecordAppender.accept(projectionFailed);
+        long processed = result.tasks.stream().mapToLong(t -> t.metrics.processed).sum();
+        if (Status.COMPLETED.equals(status)) {
+            EventRecord completed = ProjectionCompleted.create(projectionName, processed);
+            systemRecordAppender.accept(completed);
+        } else if (Status.STOPPED.equals(status)) {
+            Metrics metrics = result.tasks.stream().map(t -> t.metrics).findFirst().get();
+            EventRecord stopped = ProjectionStopped.create(projectionName, "STOPPED BY USER", processed, metrics.logPosition);
+            systemRecordAppender.accept(stopped);
+        } else if (Status.FAILED.equals(status)) {
+            Failure failure = result.tasks.stream().filter(t -> t.failure != null).map(t -> t.failure).findFirst().get();
+            EventRecord failed = ProjectionFailed.create(projectionName, failure.reason, processed, failure.stream, failure.version);
+            systemRecordAppender.accept(failed);
         } else {
-            EventRecord projectionCompleted = ProjectionFailed.create(projectionName, failure.reason, metrics.processed, failure.stream, failure.version);
-            systemRecordAppender.accept(projectionCompleted);
+            throw new RuntimeException("Invalid task status " + status);
         }
     }
 
-    public Metrics status(String projectionName) {
+    public Map<String, Metrics> status(String projectionName) {
         ProjectionTask task = running.get(projectionName);
-        if(task != null) {
+        if (task != null) {
             return task.metrics();
         }
         return null;
@@ -92,8 +98,8 @@ public class ProjectionManager {
 
     public void stop(String projectionName) {
         ProjectionTask task = running.get(projectionName);
-        if(task != null) {
-            logger.info("Stop request for {}",  projectionName);
+        if (task != null) {
+            logger.info("Stop request for {}", projectionName);
             task.stop();
         }
     }
