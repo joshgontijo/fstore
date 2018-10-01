@@ -13,7 +13,7 @@ public interface IProjection {
 
     Projection projection(String name);
 
-    Projection createProjection(String name, Set<String> streams, String script, Projection.Type type, boolean enabled);
+    Projection createProjection(String name, String script, Projection.Type type, boolean enabled);
 
     Projection updateProjection(String name, String script, Projection.Type type, Boolean enabled);
 

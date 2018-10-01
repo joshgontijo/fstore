@@ -19,7 +19,7 @@ public class ProjectionsEndpoint {
     public void create(HttpExchange exchange) {
         Projection projection = exchange.body().asObject(Projection.class);
 
-        Projection created = store.createProjection(projection.name, projection.streams, projection.script, projection.type, projection.enabled);
+        Projection created = store.createProjection(projection.name, projection.script, projection.type, projection.enabled);
         exchange.status(201).send(created);
     }
 

@@ -1,5 +1,7 @@
 package io.joshworks.eventry.projections;
 
+import java.util.Set;
+
 public class ByType extends JavaHandler {
 
     public ByType(ProjectionContext context) {
@@ -14,6 +16,11 @@ public class ByType extends JavaHandler {
     @Override
     public void onEvent(JsonEvent record, State state) {
         context.linkTo(record.type, record);
+    }
+
+    @Override
+    public StreamSource source() {
+        return new StreamSource(Set.of("_all"), false);
     }
 
 }

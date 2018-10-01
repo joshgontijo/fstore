@@ -56,12 +56,12 @@ public class Shell {
 
                 }
 
-                final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out));
-                String line;
-                while ((line = writer.readLine()) != null) {
-                    System.out.println(line);
-                }
-                writer.close();
+//                final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out));
+//                String line;
+//                while ((line = writer.readLine()) != null) {
+//                    System.out.println(line);
+//                }
+//                writer.close();
             } catch (Exception e) {
                 e.printStackTrace(System.err);
             }
