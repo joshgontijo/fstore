@@ -13,6 +13,8 @@ import io.joshworks.eventry.projections.result.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;

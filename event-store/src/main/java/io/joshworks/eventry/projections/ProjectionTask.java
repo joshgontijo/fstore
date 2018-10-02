@@ -115,6 +115,8 @@ public class ProjectionTask {
                 metrics.logPosition = stream.position();
             }
 
+            System.out.println(context.state());
+
             return TaskResult.completed(projection.name, context.state(), metrics);
 
         } catch (Exception e) {

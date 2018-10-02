@@ -91,4 +91,20 @@ public class IteratorsTest {
 
     }
 
+    @Test
+    public void iterators_iterator_position_is_correct_after_completing() {
+        LogIterator<String> it1 = Iterators.of(List.of("a", "b"));
+
+        LogIterator<String> itit = Iterators.concat(it1);
+
+        assertEquals(0, itit.position());
+        assertEquals("a", itit.next());
+
+        assertEquals(1, itit.position());
+        assertEquals("b", itit.next());
+
+        itit.hasNext();
+        assertEquals(2, itit.position());
+
+    }
 }

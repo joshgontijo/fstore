@@ -13,9 +13,9 @@ public interface IProjection {
 
     Projection projection(String name);
 
-    Projection createProjection(String name, String script, Projection.Type type, boolean enabled);
+    Projection createProjection(String script);
 
-    Projection updateProjection(String name, String script, Projection.Type type, Boolean enabled);
+    Projection updateProjection(String name, String script);
 
     void deleteProjection(String name);
 

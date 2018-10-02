@@ -18,31 +18,23 @@ public class ProjectionsEndpoint {
     }
 
     public void create(HttpExchange exchange) {
-        Projection projection = exchange.body().asObject(Projection.class);
+        String script = exchange.body().asString();
 
-        Projection created = store.createProjection(projection.name, projection.script, projection.type, projection.enabled);
+        Projection created = store.createProjection(script);
         exchange.status(201).send(created);
     }
 
     public void update(HttpExchange exchange) {
         String name = exchange.pathParameter("name");
-        Projection projection = exchange.body().asObject(Projection.class);
-
-        store.updateProjection(name, projection.script, projection.type, projection.enabled);
-        exchange.status(HttpStatus.SC_NO_CONTENT).end();
-    }
-
-    public void updateScript(HttpExchange exchange) {
-        String name = exchange.pathParameter("name");
         String script = exchange.body().asString();
 
-        store.updateProjection(name, script, null, null);
+        store.updateProjection(name, script);
+        exchange.status(HttpStatus.SC_NO_CONTENT).end();
     }
 
     public void runAdHocQuery(HttpExchange exchange) {
         throw new UnsupportedOperationException("TODO");
     }
-
 
     public void getScript(HttpExchange exchange) {
         String name = exchange.pathParameter("name");
