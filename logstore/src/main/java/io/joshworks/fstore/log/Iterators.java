@@ -228,6 +228,7 @@ public class Iterators {
 
         @Override
         public long position() {
+            adasdasdasdasd
             return is.get(current).position();
         }
 
