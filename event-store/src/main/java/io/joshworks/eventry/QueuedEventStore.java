@@ -109,7 +109,7 @@ public class QueuedEventStore implements IEventStore {
     }
 
     @Override
-    public Metrics projectionExecutionStatus(String name) {
+    public Map<String, Metrics> projectionExecutionStatus(String name) {
         return delegate.projectionExecutionStatus(name);
     }
 

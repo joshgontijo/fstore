@@ -4,7 +4,7 @@ import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.result.Metrics;
 
 import java.util.Collection;
-import java.util.Set;
+import java.util.Map;
 
 public interface IProjection {
 
@@ -21,7 +21,7 @@ public interface IProjection {
 
     void runProjection(String name);
 
-    Metrics projectionExecutionStatus(String name);
+    Map<String, Metrics> projectionExecutionStatus(String name);
 
     Collection<Metrics> projectionExecutionStatuses();
 

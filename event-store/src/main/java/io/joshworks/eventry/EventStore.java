@@ -17,9 +17,9 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.RecordCleanup;
 import io.joshworks.eventry.projections.Projection;
+import io.joshworks.eventry.projections.ProjectionManager;
 import io.joshworks.eventry.projections.Projections;
 import io.joshworks.eventry.projections.result.Metrics;
-import io.joshworks.eventry.projections.ProjectionManager;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
@@ -83,11 +83,16 @@ public class EventStore implements IEventStore {
         long start = System.currentTimeMillis();
         try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
 
+            int loaded = 0;
+
             while (iterator.hasNext()) {
                 EventRecord next = iterator.next();
                 long position = iterator.position();
                 long streamHash = streams.hashOf(next.stream);
                 index.add(streamHash, next.version, position);
+                if (++loaded % 50000 == 0) {
+                    logger.info("Loaded {} entries", loaded);
+                }
                 if (IndexFlushed.TYPE.equals(next.type)) {
                     break;
                 }
@@ -97,7 +102,7 @@ public class EventStore implements IEventStore {
             throw new RuntimeException("Failed to load memIndex", e);
         }
 
-        logger.info("Index loaded in {}ms", (System.currentTimeMillis() - start));
+        logger.info("Index loaded in {}ms, entries: {}", (System.currentTimeMillis() - start), index.size());
     }
 
     private void loadStreams() {
@@ -206,7 +211,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public Metrics projectionExecutionStatus(String name) {
+    public Map<String, Metrics> projectionExecutionStatus(String name) {
         return projections.executionStatus(name);
     }
 
@@ -297,7 +302,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public LogIterator<EventRecord> zipStreamsIter(Set<String> streamNames) {
-        if(streamNames.size() == 1) {
+        if (streamNames.size() == 1) {
             return fromStreamIter(streamNames.iterator().next());
         }
 
