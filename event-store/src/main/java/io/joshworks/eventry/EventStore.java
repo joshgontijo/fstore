@@ -181,8 +181,8 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public Projection createProjection(String name, String script, Projection.Type type, boolean enabled) {
-        Projection projection = projections.create(name, script, type, enabled);
+    public Projection createProjection(String script) {
+        Projection projection = projections.create(script);
         EventRecord eventRecord = ProjectionCreated.create(projection);
         this.appendSystemEvent(eventRecord);
 
@@ -190,8 +190,8 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public Projection updateProjection(String name, String script, Projection.Type type, Boolean enabled) {
-        Projection projection = projections.update(name, script, type, enabled);
+    public Projection updateProjection(String name, String script) {
+        Projection projection = projections.update(name, script);
         EventRecord eventRecord = ProjectionUpdated.create(projection);
         this.appendSystemEvent(eventRecord);
 

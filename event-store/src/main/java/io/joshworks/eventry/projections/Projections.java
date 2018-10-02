@@ -15,7 +15,6 @@ public class Projections {
     private static final Map<String, Projection> items = new HashMap<>();
     private final ProjectionManager manager;
 
-
     public Projections(ProjectionManager manager) {
         this.manager = manager;
     }
@@ -24,19 +23,16 @@ public class Projections {
         items.put(projection.name, projection);
     }
 
-    public Projection create(String name, String script, Projection.Type type, boolean enabled) {
-        StringUtils.requireNonBlank(name, "name");
+    public Projection create(String script) {
         StringUtils.requireNonBlank(script, "script");
-        Objects.requireNonNull(type, "Type must be provided");
 
-        name = name.trim().replaceAll("\\s+", "");
+        Projection projection = Jsr223Handler.compile(script, "nashorn");
 
-        Projection projection = new Projection(script, name, type, enabled);
-        if (items.containsKey(name)) {
-            throw new IllegalArgumentException("Projection with name '" + name + "' already exist");
+        if (items.containsKey(projection.name)) {
+            throw new IllegalArgumentException("Projection with name '" + projection.name + "' already exist");
         }
 
-        items.put(name, projection);
+        items.put(projection.name, projection);
         return projection;
     }
 
@@ -46,6 +42,9 @@ public class Projections {
 
     public void run(String name, IEventStore store) {
         Projection projection = get(name);
+        if(!projection.enabled) {
+            throw new RuntimeException("Projection is not enabled");
+        }
         manager.run(projection, store);
     }
 
@@ -69,14 +68,14 @@ public class Projections {
         return manager.status(name);
     }
 
-    public Projection update(String name, String script, Projection.Type type, Boolean enabled) {
-        Projection projection = get(name);
+    public Projection update(String name, String script) {
+        Projection found = get(name);
+        if(found == null) {
+            throw new IllegalArgumentException("No projection found for name " + name);
+        }
 
-        boolean isEnabled = enabled == null ? projection.enabled : enabled;
-        Projection.Type newType = type == null ? projection.type : type;
-        String newScript = StringUtils.isBlank(script) ? projection.script : script;
-
-        Projection updated = new Projection(newScript, projection.name, newType, isEnabled);
+        items.remove(name);
+        Projection updated = Jsr223Handler.compile(script, "nashorn");
         items.put(updated.name, updated);
 
         return updated;

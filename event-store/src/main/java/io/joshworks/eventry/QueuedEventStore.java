@@ -89,13 +89,13 @@ public class QueuedEventStore implements IEventStore {
     }
 
     @Override
-    public Projection createProjection(String name, String script, Projection.Type type, boolean enabled) {
-        return delegate.createProjection(name, script, type, enabled);
+    public Projection createProjection(String script) {
+        return delegate.createProjection(script);
     }
 
     @Override
-    public Projection updateProjection(String name, String script, Projection.Type type, Boolean enabled) {
-        return delegate.updateProjection(name, script, type, enabled);
+    public Projection updateProjection(String name, String script) {
+        return delegate.updateProjection(name, script);
     }
 
     @Override

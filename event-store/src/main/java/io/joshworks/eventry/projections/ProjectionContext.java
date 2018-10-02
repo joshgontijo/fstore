@@ -33,16 +33,18 @@ public class ProjectionContext {
         this.options.putAll(options);
     }
 
+    public final void initialState(Map<String, Object> initialState) {
+        if (initialState != null) {
+            this.state.putAll(initialState);
+        }
+    }
+
     public final void source(Map<String, Object> source) {
         this.source.putAll(source);
     }
 
     public Map<String, Object> options() {
         return new HashMap<>(options);
-    }
-
-    public Map<String, Object> source() {
-        return new HashMap<>(source);
     }
 
 }
