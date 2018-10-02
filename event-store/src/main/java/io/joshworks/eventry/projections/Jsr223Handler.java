@@ -4,7 +4,6 @@ import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -49,9 +48,9 @@ public class Jsr223Handler implements EventStreamHandler {
 
     private StreamSource getStreamSource(ProjectionContext ctx) {
         try {
-            List<String> streams = (List<String>) ctx.source().get(SOURCE_STREAMS_FIELD_NAME);
+            Map<String, String> streams = (Map<String, String>) ctx.source().get(SOURCE_STREAMS_FIELD_NAME);
             Boolean parallel = (Boolean) ctx.source().get(SOURCE_PARALLEL_FIELD_NAME);
-            return new StreamSource(new HashSet<>(streams), parallel != null && parallel);
+            return new StreamSource(new HashSet<>(streams.values()), parallel != null && parallel);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

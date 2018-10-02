@@ -7,6 +7,7 @@ import io.joshworks.snappy.http.HttpExchange;
 import org.apache.http.HttpStatus;
 
 import java.util.Collection;
+import java.util.Map;
 
 public class ProjectionsEndpoint {
 
@@ -60,7 +61,7 @@ public class ProjectionsEndpoint {
 
     public void executionStatus(HttpExchange exchange) {
         String name = exchange.pathParameter("name");
-        Metrics executionStatus = store.projectionExecutionStatus(name);
+        Map<String, Metrics> executionStatus = store.projectionExecutionStatus(name);
         if(executionStatus == null) {
             exchange.status(404);
             return;

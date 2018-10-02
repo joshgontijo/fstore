@@ -3,6 +3,7 @@ package io.joshworks.eventry.projections.result;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class ExecutionResult {
 
@@ -26,24 +27,29 @@ public class ExecutionResult {
     }
 
     public Status getOverallStatus() {
-        int status = 0;
-        for (TaskResult task : tasks) {
-            status = status & task.status.flag;
+        return getStatusFlag(tasks.stream().map(task -> task.status).collect(Collectors.toList()));
+
+    }
+
+    Status getStatusFlag(List<Status> statuses) {
+        int statusFlag = 0;
+        for (Status status : statuses) {
+            statusFlag = statusFlag | status.flag;
         }
-        if((status & Status.FAILED.flag) == Status.FAILED.flag)  {
-            return Status.FAILED;
-        }
-        if((status & Status.RUNNING.flag) == Status.RUNNING.flag)  {
+        if((statusFlag & Status.RUNNING.flag) == Status.RUNNING.flag)  {
             return Status.RUNNING;
         }
-        if((status & Status.STOPPED.flag) == Status.STOPPED.flag)  {
+        if((statusFlag & Status.FAILED.flag) == Status.FAILED.flag)  {
+            return Status.FAILED;
+        }
+        if((statusFlag & Status.STOPPED.flag) == Status.STOPPED.flag)  {
             return Status.STOPPED;
         }
-        if((status & Status.COMPLETED.flag) == Status.COMPLETED.flag)  {
+        if((statusFlag & Status.COMPLETED.flag) == Status.COMPLETED.flag)  {
             return Status.COMPLETED;
         }
 
-        throw new RuntimeException("Unknown status");
+        throw new RuntimeException("Unknown statusFlag");
 
     }
 

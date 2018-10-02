@@ -10,7 +10,6 @@ import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,20 +40,29 @@ public class ProjectionTask {
 
     public ExecutionResult execute() {
 
-        EventStreamHandler handler = createHandler(projection, context);
-        StreamSource source = handler.source();
-        validateSource(source);
-
         ExecutionResult result = new ExecutionResult(projection.name, context.options());
-        if (source.isSingleSource()) {
-            TaskResult taskResult = runSequentially(handler, source.streams);
-            result.addTask(taskResult);
-        } else {
-            List<TaskResult> taskResults = runInParallel(handler, source.streams);
-            result.addTasks(taskResults);
+        try {
+            EventStreamHandler handler = createHandler(projection, context);
+            StreamSource source = handler.source();
+            validateSource(source);
+
+            if (source.isSingleSource()) {
+                TaskResult taskResult = runSequentially(handler, source.streams);
+                result.addTask(taskResult);
+            } else {
+                List<TaskResult> taskResults = runInParallel(handler, source.streams);
+                result.addTasks(taskResults);
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            logger.error("Projection " + projection.name + " failed", e);
+            TaskResult failed = TaskResult.failed(projection.name, context.state(), null, e, null, -1);
+            return result.addTask(failed);
         }
 
-        return result;
+
     }
 
     private List<TaskResult> runInParallel(EventStreamHandler handler, Set<String> streams) {
@@ -75,7 +83,7 @@ public class ProjectionTask {
     private TaskResult runSequentially(EventStreamHandler handler, Set<String> streams) {
         LogIterator<EventRecord> stream = store.zipStreamsIter(streams);
         try {
-            String id = UUID.randomUUID().toString();
+            String id = UUID.randomUUID().toString().substring(0, 8);
             tasksMetrics.put(id, new Metrics(streams));
 
             return run(id, handler, stream);
@@ -94,7 +102,7 @@ public class ProjectionTask {
         try {
             while (stream.hasNext()) {
                 if (stopRequested.get()) {
-                    return TaskResult.stopped(projection.name,  context, metrics);
+                    return TaskResult.stopped(projection.name, context.state(), metrics);
                 }
                 record = stream.next();
                 JsonEvent event = JsonEvent.from(record);
@@ -107,13 +115,13 @@ public class ProjectionTask {
                 metrics.logPosition = stream.position();
             }
 
-            return TaskResult.completed(projection.name, context, metrics);
+            return TaskResult.completed(projection.name, context.state(), metrics);
 
         } catch (Exception e) {
             logger.error("Projection " + projection.name + " failed", e);
             String currentStream = record != null ? record.stream : "(none)";
             int currentVersion = record != null ? record.version : -1;
-            return TaskResult.failed(projection.name, context, metrics, e, currentStream, currentVersion);
+            return TaskResult.failed(projection.name, context.state(), metrics, e, currentStream, currentVersion);
         }
     }
 

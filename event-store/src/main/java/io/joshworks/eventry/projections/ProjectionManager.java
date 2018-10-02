@@ -49,7 +49,11 @@ public class ProjectionManager {
             running.put(projection.name, projectionTask);
 
             CompletableFuture.supplyAsync(projectionTask::execute, executor)
-                    .thenAccept(this::processResult);
+                    .thenAccept(this::processResult)
+                    .exceptionally(e -> {
+                        logger.error("Script execution failed for projection " + projection.name, e);
+                        return null;
+                    });
 
 
         } catch (Exception e) {

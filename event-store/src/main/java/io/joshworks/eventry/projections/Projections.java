@@ -65,7 +65,7 @@ public class Projections {
         throw new UnsupportedOperationException("TODO");
     }
 
-    public Metrics executionStatus(String name) {
+    public Map<String, Metrics> executionStatus(String name) {
         return manager.status(name);
     }
 
