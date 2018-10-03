@@ -15,7 +15,7 @@ import org.junit.Test;
 import java.io.File;
 import java.nio.ByteBuffer;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class DataStreamTest {
 
@@ -67,6 +67,23 @@ public class DataStreamTest {
 
     @Test
     public void reading_forward_with_data_bigger_than_page_returns_all_data() {
+
+        for (int i = 0; i < 10; i++) {
+            stream.write(storage, pool, Serializers.INTEGER.toBytes(i));
+        }
+
+        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
+            for (int i = 0; i < 10; i++) {
+                int read = Serializers.INTEGER.fromBytes(ref.next());
+                assertEquals(Integer.valueOf(i), Integer.valueOf(read));
+
+            }
+
+        }
+    }
+
+    @Test
+    public void many_items() {
 
         String content = ofSize(Memory.PAGE_SIZE + 1);
         ByteBuffer data = Serializers.STRING.toBytes(content);
