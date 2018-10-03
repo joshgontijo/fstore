@@ -21,8 +21,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -437,69 +439,69 @@ public class Segment<T> implements Log<T> {
         private final IDataStream dataStream;
         private final Serializer<T> serializer;
 
-        private T data;
-        protected long position;
+//        protected long position;
         private long readAheadPosition;
         private int lastReadSize;
         private final Direction direction;
+        private final Queue<T> pageQueue = new LinkedList<>();
 
         SegmentReader(IDataStream dataStream, Serializer<T> serializer, long initialPosition, Direction direction) {
             this.dataStream = dataStream;
             this.direction = direction;
             checkBounds(initialPosition);
             this.serializer = serializer;
-            this.position = initialPosition;
+//            this.position = initialPosition;
             this.readAheadPosition = initialPosition;
-            this.data = readAhead();
+            readAhead();
             this.lastReadTs = System.currentTimeMillis();
         }
 
         @Override
         public long position() {
-            return position;
+            return readAheadPosition;
         }
 
         @Override
         public boolean hasNext() {
-            return data != null;
+            return !pageQueue.isEmpty();
         }
 
         @Override
         public T next() {
-            if (data == null) {
+            if (pageQueue.isEmpty()) {
                 close();
                 throw new NoSuchElementException();
             }
             lastReadTs = System.currentTimeMillis();
 
-            T current = data;
-            //tODO check if backwards requite any additional offset addition
-            position = Direction.FORWARD.equals(direction) ? position + lastReadSize : position - lastReadSize;
-            data = readAhead();
+            T current = pageQueue.poll();
+            if(pageQueue.isEmpty()) {
+                readAhead();
+            }
+//            position = Direction.FORWARD.equals(direction) ? position + lastReadSize : position - lastReadSize;
             return current;
         }
 
-        private T readAhead() {
+        private void readAhead() {
             if (Direction.FORWARD.equals(direction)) {
                 if (Segment.this.readOnly() && readAheadPosition >= Segment.this.header.logEnd) {
-                    return null;
+                    return;
                 }
                 if (!Segment.this.readOnly() && readAheadPosition >= Segment.this.position()) {
-                    return null;
+                    return;
                 }
             }
             if (Direction.BACKWARD.equals(direction) && readAheadPosition <= Log.START) {
-                return null;
+                return;
             }
             try (BufferRef ref = dataStream.read(storage, bufferPool, direction, readAheadPosition)) {
-                ByteBuffer bb = ref.get();
-                if (bb.remaining() == 0) { //EOF
+                int totalRead = ref.readAllInto(pageQueue, serializer);
+                if(totalRead == 0) {
                     close();
-                    return null;
+                    return;
                 }
-                lastReadSize = bb.remaining() + RecordHeader.HEADER_OVERHEAD;
+                lastReadSize = totalRead;
                 readAheadPosition = Direction.FORWARD.equals(direction) ? readAheadPosition + lastReadSize : readAheadPosition - lastReadSize;
-                return serializer.fromBytes(bb);
             }
 
         }
@@ -511,7 +513,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public String toString() {
-            return "SegmentReader{ readPosition=" + position +
+            return "SegmentReader{ readPosition=" + readAheadPosition +
                     ", order=" + direction +
                     ", readAheadPosition=" + readAheadPosition +
                     ", lastReadTs=" + lastReadTs +

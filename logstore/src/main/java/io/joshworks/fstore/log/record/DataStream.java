@@ -14,8 +14,10 @@ import java.util.Random;
 //THREAD SAFE
 public class DataStream implements IDataStream {
 
+    public static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
 
     private static final double DEFAULT_CHECKUM_PROB = 1;
+    private static final int MAX_CACHE_RESULT = 100;
 
     //hard limit is required to memory issues in case of broken record
     public static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
@@ -23,6 +25,7 @@ public class DataStream implements IDataStream {
     private final double checksumProb;
     private final Random rand = new Random();
     private final RecordReader forwardReader = new ForwardRecordReader();
+    private final RecordReader bulkForwardReader = new BulkForwardRecordReader();
     private final RecordReader backwardReader = new BackwardRecordReader();
 
     public DataStream() {
@@ -64,7 +67,7 @@ public class DataStream implements IDataStream {
 
     @Override
     public BufferRef read(Storage storage, BufferPool bufferPool, Direction direction, long position) {
-        RecordReader reader = Direction.FORWARD.equals(direction) ? forwardReader : backwardReader;
+        RecordReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : backwardReader;
         return reader.read(storage, bufferPool, position);
     }
 
@@ -104,20 +107,58 @@ public class DataStream implements IDataStream {
                 buffer.getInt(); //skip length
             }
 
+            int checksum = buffer.getInt();
+            buffer.limit(buffer.position() + length);
+            checksum(checksum, buffer, position);
+            return BufferRef.of(buffer, bufferPool);
+
+        }
+    }
+
+
+    private final class BulkForwardRecordReader implements RecordReader {
+
+        @Override
+        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
+            ByteBuffer buffer = bufferPool.allocate(Memory.PAGE_SIZE);
+            storage.read(position, buffer);
+            buffer.flip();
+
+            if (buffer.remaining() == 0) {
+                return BufferRef.ofEmpty();
+            }
+
+            int length = buffer.getInt();
+            checkRecordLength(length, position);
+            if (length == 0) {
+                return BufferRef.ofEmpty();
+            }
+
+            int recordSize = length + RecordHeader.HEADER_OVERHEAD;
+            if (recordSize > buffer.limit()) {
+                bufferPool.free(buffer);
+                buffer = bufferPool.allocate(recordSize);
+                storage.read(position, buffer);
+                buffer.flip();
+                buffer.getInt(); //skip length
+            }
+
             buffer.position(buffer.position() - Integer.BYTES);
-            int[] markers = new int[100];
-            int[] lengths = new int[100];
+            int[] markers = new int[MAX_CACHE_RESULT];
+            int[] lengths = new int[MAX_CACHE_RESULT];
             int i = 0;
-            while(buffer.hasRemaining()) {
+            while (buffer.hasRemaining() && buffer.remaining() > RecordHeader.MAIN_HEADER && i < MAX_CACHE_RESULT) {
                 int pos = buffer.position();
                 int len = buffer.getInt();
-                if(len == 0) {
-                    return BufferRef.withMarker(buffer, bufferPool, markers, lengths);
+                checkRecordLength(len, pos);
+                if (len == 0) {
+                    return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
                 }
-                if(buffer.remaining() > len) {
-                    markers[i] = pos + RecordHeader.MAIN_HEADER;
-                    lengths[i] = len;
+                if (buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
+                    return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
                 }
+                markers[i] = pos + RecordHeader.MAIN_HEADER;
+                lengths[i] = len;
 
                 int checksum = buffer.getInt();
                 buffer.limit(buffer.position() + length);
@@ -126,9 +167,7 @@ public class DataStream implements IDataStream {
                 buffer.position(buffer.position() + len + RecordHeader.SECONDARY_HEADER);
                 i++;
             }
-            return BufferRef.withMarker(buffer, bufferPool, markers, lengths);
-
-
+            return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
         }
     }
 
@@ -166,24 +205,72 @@ public class DataStream implements IDataStream {
                 bufferPool.free(buffer);
                 buffer = bufferPool.allocate(recordSize);
 
-                buffer.limit(recordSize - RecordHeader.SECONDARY_HEADER); //limit to the entry size, excluding the secondary header
+                buffer.limit(recordSize); //limit to the entry size, excluding the secondary header
                 long readStart = position - recordSize;
                 storage.read(readStart, buffer);
                 buffer.flip();
+//                recordDataEnd = buffer.limit() - RecordHeader.SECONDARY_HEADER;
 
-                int foundLength = buffer.getInt();
-                checkRecordLength(foundLength, position);
-                int checksum = buffer.getInt();
-                checksum(checksum, buffer, position);
-                return BufferRef.of(buffer, bufferPool);
+//                int foundLength = buffer.getInt();
+//                checkRecordLength(foundLength, position);
+//                int checksum = buffer.getInt();
+//                checksum(checksum, buffer, position);
+//                return BufferRef.of(buffer, bufferPool);
 
             }
 
-            buffer.limit(recordDataEnd);
-            buffer.position(recordDataEnd - length - RecordHeader.CHECKSUM_SIZE);
-            int checksum = buffer.getInt();
-            checksum(checksum, buffer, position);
-            return BufferRef.of(buffer, bufferPool);
+            int[] markers = new int[MAX_CACHE_RESULT];
+            int[] lengths = new int[MAX_CACHE_RESULT];
+            int i = 0;
+            int lastRecordPos = buffer.limit();
+            boolean hasNext = true;
+            while (i < MAX_CACHE_RESULT) {
+
+                buffer.limit(buffer.capacity());
+                buffer.position(lastRecordPos);
+                //buffer.position(buffer.position() + len + RecordHeader.SECONDARY_HEADER);
+
+                int len = buffer.getInt(lastRecordPos - RecordHeader.SECONDARY_HEADER);
+                int recordStart = lastRecordPos - len - RecordHeader.HEADER_OVERHEAD;
+                if(recordStart < 0) {
+                    return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
+                }
+                buffer.position(lastRecordPos - len - RecordHeader.HEADER_OVERHEAD );
+                checkRecordLength(length, position);
+
+                int pos = buffer.position();
+                if (len == 0) {
+                    return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
+                }
+                if (buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
+                    return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
+                }
+                checkRecordLength(len, pos);
+
+                if (buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
+                    return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
+                }
+
+                markers[i] = pos + RecordHeader.MAIN_HEADER;
+                lengths[i] = len;
+
+                buffer.getInt(); //skip length
+                int checksum = buffer.getInt();
+                buffer.limit(buffer.position() + length);
+                checksum(checksum, buffer, pos);
+
+                lastRecordPos = pos;
+                i++;
+
+                if(lastRecordPos - RecordHeader.SECONDARY_HEADER <= 0) {
+                    return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
+                }
+
+            }
+
+            return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
+
+
         }
     }
 
