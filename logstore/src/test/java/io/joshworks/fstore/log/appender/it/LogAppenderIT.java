@@ -116,6 +116,16 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
     @Test
+    public void insert_1M_with_1kb_entries() {
+        String value = stringOfLength(1024);
+
+        appendN(value, 1000000);
+        appender.flush();
+
+        scanAllAssertingSameValue(value);
+    }
+
+    @Test
     public void insert_1M_with_2kb_entries() {
         String value = stringOfLength(2048);
 
@@ -126,7 +136,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
     @Test
-    public void insert_5M_with_2kb_entries() {
+    public void insert_5M_with_1kb_entries() {
 
         String value = stringOfLength(1024);
 
@@ -192,7 +202,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     private static String stringOfLength(int length) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < length / Character.BYTES; i++)
+        for (int i = 0; i < length; i++)
             sb.append("A");
         return sb.toString();
     }

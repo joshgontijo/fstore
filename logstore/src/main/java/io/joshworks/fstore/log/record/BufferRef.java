@@ -1,18 +1,23 @@
 package io.joshworks.fstore.log.record;
 
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.BufferPool;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Supplier;
 
 public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
 
+    private static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
+
     private ByteBuffer buffer;
     private final BufferPool pool;
-    int[] markers ;
+    int[] markers;
     int[] lengths;
     int i = 0;
+    int entries;
 
     private BufferRef(ByteBuffer buffer, BufferPool pool) {
         this.buffer = buffer;
@@ -28,19 +33,40 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
         return new BufferRef(buffer, pool);
     }
 
-    public static BufferRef withMarker(ByteBuffer buffer, BufferPool pool, int[] markers, int[] lengths) {
+    public static BufferRef withMarker(ByteBuffer buffer, BufferPool pool, int[] markers, int[] lengths, int entries) {
         Objects.requireNonNull(buffer);
         BufferRef bufferRef = new BufferRef(buffer, pool);
         bufferRef.markers = markers;
         bufferRef.lengths = lengths;
+        bufferRef.entries = entries;
         return bufferRef;
     }
 
-    public ByteBuffer next() {
+    private ByteBuffer next() {
+        if (i >= entries) {
+            return EMPTY;
+        }
         buffer.limit(markers[i] + lengths[i]);
         buffer.position(markers[i]);
         i++;
         return buffer;
+    }
+
+    public <T> int readAllInto(Collection<T> col, Serializer<T> serializer) {
+        int totalRead = 0;
+        for (int j = i; j < entries; j++) {
+            ByteBuffer bb = next();
+            if (bb.hasRemaining()) {
+                T entry = serializer.fromBytes(bb);
+                col.add(entry);
+                totalRead += lengths[j] + RecordHeader.HEADER_OVERHEAD;
+            }
+        }
+        return totalRead;
+    }
+
+    public boolean hasNext() {
+        return i < markers.length;
     }
 
 
@@ -68,8 +94,9 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
 
     @Override
     public ByteBuffer get() {
-        ByteBuffer buf = this.buffer;
-        return buf;
+        buffer.limit(markers[0] + lengths[0]);
+        buffer.position(markers[0]);
+        return buffer;
     }
 
     public void clear() {
