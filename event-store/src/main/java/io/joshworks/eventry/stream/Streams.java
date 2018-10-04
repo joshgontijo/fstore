@@ -60,7 +60,7 @@ public class Streams implements Closeable {
         StringUtils.requireNonBlank(metadata.name, "Stream name was not empty");
         StreamMetadata existing = streamsMap.putIfAbsent(metadata.hash, metadata);
         if (existing != null) {
-            throw new IllegalStateException("Stream '" + metadata.name + "' already exist");
+//            throw new IllegalStateException("Stream '" + metadata.name + "' already exist");
         }
     }
 

@@ -26,6 +26,7 @@ public class DataStream implements IDataStream {
     private final Random rand = new Random();
     private final RecordReader forwardReader = new ForwardRecordReader();
     private final RecordReader bulkForwardReader = new BulkForwardRecordReader();
+    private final RecordReader bulkBackwardReader = new BulkBackwardRecordReader();
     private final RecordReader backwardReader = new BackwardRecordReader();
 
     public DataStream() {
@@ -67,7 +68,13 @@ public class DataStream implements IDataStream {
 
     @Override
     public BufferRef read(Storage storage, BufferPool bufferPool, Direction direction, long position) {
-        RecordReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : backwardReader;
+        RecordReader reader = Direction.FORWARD.equals(direction) ? forwardReader : backwardReader;
+        return reader.read(storage, bufferPool, position);
+    }
+
+    @Override
+    public BufferRef bulkRead(Storage storage, BufferPool bufferPool, Direction direction, long position) {
+        RecordReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : bulkBackwardReader;
         return reader.read(storage, bufferPool, position);
     }
 
@@ -84,35 +91,33 @@ public class DataStream implements IDataStream {
 
         @Override
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-//            ByteBuffer buffer = bufferPool.allocate(Memory.PAGE_SIZE);
-//            storage.read(position, buffer);
-//            buffer.flip();
-//
-//            if (buffer.remaining() == 0) {
-//                return BufferRef.ofEmpty();
-//            }
-//
-//            int length = buffer.getInt();
-//            checkRecordLength(length, position);
-//            if (length == 0) {
-//                return BufferRef.ofEmpty();
-//            }
-//
-//            int recordSize = length + RecordHeader.HEADER_OVERHEAD;
-//            if (recordSize > buffer.limit()) {
-//                bufferPool.free(buffer);
-//                buffer = bufferPool.allocate(recordSize);
-//                storage.read(position, buffer);
-//                buffer.flip();
-//                buffer.getInt(); //skip length
-//            }
-//
-//            int checksum = buffer.getInt();
-//            buffer.limit(buffer.position() + length);
-//            checksum(checksum, buffer, position);
-//            return BufferRef.of(buffer, bufferPool);
-            return null;
+            ByteBuffer buffer = bufferPool.allocate(Memory.PAGE_SIZE);
+            storage.read(position, buffer);
+            buffer.flip();
 
+            if (buffer.remaining() == 0) {
+                return BufferRef.ofEmpty();
+            }
+
+            int length = buffer.getInt();
+            checkRecordLength(length, position);
+            if (length == 0) {
+                return BufferRef.ofEmpty();
+            }
+
+            int recordSize = length + RecordHeader.HEADER_OVERHEAD;
+            if (recordSize > buffer.limit()) {
+                bufferPool.free(buffer);
+                buffer = bufferPool.allocate(recordSize);
+                storage.read(position, buffer);
+                buffer.flip();
+                buffer.getInt(); //skip length
+            }
+
+            int checksum = buffer.getInt();
+            buffer.limit(buffer.position() + length);
+            checksum(checksum, buffer, position);
+            return BufferRef.of(buffer, bufferPool);
         }
     }
 
@@ -168,7 +173,7 @@ public class DataStream implements IDataStream {
 
                 i++;
                 int newPos = buffer.position() + len + RecordHeader.SECONDARY_HEADER;
-                if(newPos > buffer.limit()) {
+                if (newPos > buffer.limit()) {
                     return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
                 }
                 buffer.position(newPos);
@@ -177,7 +182,7 @@ public class DataStream implements IDataStream {
         }
     }
 
-    private final class BackwardRecordReader implements RecordReader {
+    private final class BulkBackwardRecordReader implements RecordReader {
 
         @Override
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
@@ -229,7 +234,6 @@ public class DataStream implements IDataStream {
             int[] lengths = new int[MAX_CACHE_RESULT];
             int i = 0;
             int lastRecordPos = buffer.limit();
-            boolean hasNext = true;
             while (i < MAX_CACHE_RESULT) {
 
                 buffer.limit(buffer.capacity());
@@ -238,10 +242,10 @@ public class DataStream implements IDataStream {
 
                 int len = buffer.getInt(lastRecordPos - RecordHeader.SECONDARY_HEADER);
                 int recordStart = lastRecordPos - len - RecordHeader.HEADER_OVERHEAD;
-                if(recordStart < 0) {
+                if (recordStart < 0) {
                     return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
                 }
-                buffer.position(lastRecordPos - len - RecordHeader.HEADER_OVERHEAD );
+                buffer.position(lastRecordPos - len - RecordHeader.HEADER_OVERHEAD);
                 checkRecordLength(length, position);
 
                 int pos = buffer.position();
@@ -268,15 +272,69 @@ public class DataStream implements IDataStream {
                 lastRecordPos = pos;
                 i++;
 
-                if(lastRecordPos - RecordHeader.SECONDARY_HEADER <= 0) {
+                if (lastRecordPos - RecordHeader.SECONDARY_HEADER <= 0) {
                     return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
                 }
-
             }
 
             return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
 
 
+        }
+    }
+
+    private final class BackwardRecordReader implements RecordReader {
+
+        @Override
+        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
+            ByteBuffer buffer = bufferPool.allocate(Memory.PAGE_SIZE);
+            int limit = buffer.limit();
+            if (position - limit < Log.START) {
+                int available = (int) (position - Log.START);
+                if (available == 0) {
+                    return BufferRef.ofEmpty();
+                }
+                buffer.limit(available);
+                limit = available;
+            }
+
+            storage.read(position - limit, buffer);
+            buffer.flip();
+            if (buffer.remaining() == 0) {
+                return BufferRef.ofEmpty();
+            }
+
+            int recordDataEnd = buffer.limit() - RecordHeader.SECONDARY_HEADER;
+            int length = buffer.getInt(recordDataEnd);
+            checkRecordLength(length, position);
+            if (length == 0) {
+                return BufferRef.ofEmpty();
+            }
+
+            int recordSize = length + RecordHeader.HEADER_OVERHEAD;
+
+            if (recordSize > buffer.limit()) {
+                bufferPool.free(buffer);
+                buffer = bufferPool.allocate(recordSize);
+
+                buffer.limit(recordSize - RecordHeader.SECONDARY_HEADER); //limit to the entry size, excluding the secondary header
+                long readStart = position - recordSize;
+                storage.read(readStart, buffer);
+                buffer.flip();
+
+                int foundLength = buffer.getInt();
+                checkRecordLength(foundLength, position);
+                int checksum = buffer.getInt();
+                checksum(checksum, buffer, position);
+                return BufferRef.of(buffer, bufferPool);
+
+            }
+
+            buffer.limit(recordDataEnd);
+            buffer.position(recordDataEnd - length - RecordHeader.CHECKSUM_SIZE);
+            int checksum = buffer.getInt();
+            checksum(checksum, buffer, position);
+            return BufferRef.of(buffer, bufferPool);
         }
     }
 

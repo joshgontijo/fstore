@@ -439,18 +439,18 @@ public class Segment<T> implements Log<T> {
         private final IDataStream dataStream;
         private final Serializer<T> serializer;
 
-//        protected long position;
+        protected long position;
         private long readAheadPosition;
-        private int lastReadSize;
         private final Direction direction;
         private final Queue<T> pageQueue = new LinkedList<>();
+        private final Queue<Integer> entriesSizes = new LinkedList<>();
 
         SegmentReader(IDataStream dataStream, Serializer<T> serializer, long initialPosition, Direction direction) {
             this.dataStream = dataStream;
             this.direction = direction;
             checkBounds(initialPosition);
             this.serializer = serializer;
-//            this.position = initialPosition;
+            this.position = initialPosition;
             this.readAheadPosition = initialPosition;
             readAhead();
             this.lastReadTs = System.currentTimeMillis();
@@ -458,7 +458,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public long position() {
-            return readAheadPosition;
+            return position;
         }
 
         @Override
@@ -475,10 +475,12 @@ public class Segment<T> implements Log<T> {
             lastReadTs = System.currentTimeMillis();
 
             T current = pageQueue.poll();
+            int recordSize = entriesSizes.poll() + RecordHeader.HEADER_OVERHEAD;
             if(pageQueue.isEmpty()) {
                 readAhead();
             }
-//            position = Direction.FORWARD.equals(direction) ? position + lastReadSize : position - lastReadSize;
+
+            position = Direction.FORWARD.equals(direction) ? position + recordSize : position - recordSize;
             return current;
         }
 
@@ -494,14 +496,17 @@ public class Segment<T> implements Log<T> {
             if (Direction.BACKWARD.equals(direction) && readAheadPosition <= Log.START) {
                 return;
             }
-            try (BufferRef ref = dataStream.read(storage, bufferPool, direction, readAheadPosition)) {
-                int totalRead = ref.readAllInto(pageQueue, serializer);
-                if(totalRead == 0) {
+            try (BufferRef ref = dataStream.bulkRead(storage, bufferPool, direction, readAheadPosition)) {
+                int[] totalRead = ref.readAllInto(pageQueue, serializer);
+                for (int length : totalRead) {
+                    entriesSizes.add(length);
+                }
+
+                if(totalRead.length == 0) {
                     close();
                     return;
                 }
-                lastReadSize = totalRead;
-                readAheadPosition = Direction.FORWARD.equals(direction) ? readAheadPosition + lastReadSize : readAheadPosition - lastReadSize;
+                readAheadPosition = Direction.FORWARD.equals(direction) ? readAheadPosition + totalRead : readAheadPosition - totalRead;
             }
 
         }
@@ -521,6 +526,7 @@ public class Segment<T> implements Log<T> {
         }
     }
 
+    //tODO add bulkRead like SegmentReader
     private class SegmentPoller extends TimeoutReader implements PollingSubscriber<T> {
 
         private static final int VERIFICATION_INTERVAL_MILLIS = 500;
