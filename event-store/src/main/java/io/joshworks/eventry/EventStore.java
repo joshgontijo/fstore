@@ -16,6 +16,7 @@ import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.RecordCleanup;
+import io.joshworks.eventry.projections.JsonEvent;
 import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.ProjectionManager;
 import io.joshworks.eventry.projections.Projections;
@@ -120,16 +121,6 @@ public class EventStore implements IEventStore {
 
         long streamHash = streams.hashOf(SystemStreams.STREAMS);
         LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.allOf(streamHash));
-
-//        //TODO how to initialize system streams ?
-//        if (!addresses.hasNext()) {
-//            StreamMetadata created = streams.create(SystemStreams.STREAMS);
-//            if (created != null) { // metadata was created
-//                EventRecord eventRecord = StreamCreated.create(created);
-//                this.appendSystemEvent(eventRecord);
-//            }
-//            return;
-//        }
 
         while (addresses.hasNext()) {
             IndexEntry next = addresses.next();
@@ -475,7 +466,7 @@ public class EventStore implements IEventStore {
             StreamMetadata created = streams.create(stream);
             if (created != null) { // metadata was created
                 EventRecord eventRecord = StreamCreated.create(created);
-                this.appendSystemEvent(eventRecord);
+                this.append(created, eventRecord, IndexEntry.NO_VERSION);
             }
             return created;
         });

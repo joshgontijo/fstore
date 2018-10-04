@@ -4,9 +4,13 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.BufferPool;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
 
@@ -31,10 +35,12 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
         return withMarker(ByteBuffer.allocate(0), null, new int[0], new int[0], 0);
     }
 
-//    public static BufferRef of(ByteBuffer buffer, BufferPool pool) {
-//        Objects.requireNonNull(buffer);
-//        return new BufferRef(buffer, pool);
-//    }
+    public static BufferRef of(ByteBuffer buffer, BufferPool pool) {
+        Objects.requireNonNull(buffer);
+        int position = buffer.position();
+        int len = buffer.remaining();
+        return new BufferRef(buffer, pool, new int[]{position}, new int[] {len}, 1);
+    }
 
     public static BufferRef withMarker(ByteBuffer buffer, BufferPool pool, int[] markers, int[] lengths, int entries) {
         Objects.requireNonNull(buffer);
@@ -52,23 +58,31 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
         return buffer;
     }
 
-    public <T> int readAllInto(Collection<T> col, Serializer<T> serializer) {
-        int totalRead = 0;
+    public <T> int[] readAllInto(Collection<T> col, Serializer<T> serializer) {
+        int[] readLengths = new int[entries];
         for (int j = i; j < entries; j++) {
             ByteBuffer bb = next();
             if (bb.hasRemaining()) {
                 T entry = serializer.fromBytes(bb);
                 col.add(entry);
-                totalRead += lengths[j] + RecordHeader.HEADER_OVERHEAD;
+                readLengths[j] = lengths[j] + RecordHeader.HEADER_OVERHEAD;
             }
         }
-        return totalRead;
+        return readLengths;
     }
 
     public boolean hasNext() {
         return i < markers.length;
     }
 
+    //TODO list can be avoided
+    public List<Integer> lengths() {
+        List<Integer> len = new ArrayList<>();
+        for (int j = 0; j < entries; j++) {
+            len.add(lengths[j]);
+        }
+        return len;
+    }
 
 //    public static ByteBuffer[] toBuffers(BufferRef... refs) {
 //        ByteBuffer[] bufs = new ByteBuffer[refs.length];

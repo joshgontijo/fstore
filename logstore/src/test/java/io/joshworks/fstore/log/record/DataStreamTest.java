@@ -78,7 +78,7 @@ public class DataStreamTest {
 
         List<Integer> found = new ArrayList<>();
         try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
-            int read = ref.readAllInto(found, Serializers.INTEGER);
+            ref.readAllInto(found, Serializers.INTEGER);
             assertEquals(numItems, found.size());
 
             for (int i = 0; i < numItems; i++) {
@@ -98,7 +98,7 @@ public class DataStreamTest {
 
         List<Long> found = new ArrayList<>();
         try (BufferRef ref = stream.read(storage, pool, Direction.BACKWARD, storage.position())) {
-            int read = ref.readAllInto(found, Serializers.LONG);
+            ref.readAllInto(found, Serializers.LONG);
             assertEquals(numItems, found.size());
 
             for (int i = 0; i > numItems; i++) {
@@ -118,7 +118,7 @@ public class DataStreamTest {
 
         List<Integer> found = new ArrayList<>();
         try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
-            int read = ref.readAllInto(found, Serializers.INTEGER);
+            int[] read = ref.readAllInto(found, Serializers.INTEGER);
             assertEquals((numItems * (Integer.BYTES + RecordHeader.HEADER_OVERHEAD)), read);
         }
     }
