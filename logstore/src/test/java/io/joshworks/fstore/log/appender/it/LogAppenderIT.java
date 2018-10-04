@@ -6,6 +6,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import org.junit.After;
 import org.junit.Before;
@@ -93,7 +94,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
             fail("File " + f + " doesn't exist");
         }
 
-        assertEquals(position, f.length());
+        assertEquals(position + RecordHeader.HEADER_OVERHEAD, f.length());
 
         try (LogAppender<String, L> appender = appender(testDirectory)) {
             LogIterator<String> logIterator = appender.iterator(Direction.FORWARD);

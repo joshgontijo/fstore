@@ -4,13 +4,13 @@ import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.utils.StringUtils;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
-public class Projections {
+public class Projections implements Closeable  {
 
     private static final Map<String, Projection> items = new HashMap<>();
     private final ProjectionManager manager;
@@ -100,4 +100,8 @@ public class Projections {
         return projection;
     }
 
+    @Override
+    public void close() {
+        stopAll();
+    }
 }

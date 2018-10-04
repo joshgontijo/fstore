@@ -45,7 +45,7 @@ public class MaxAgeFilteringIterator implements LogIterator<EventRecord> {
 
     private boolean withinMaxAge(EventRecord event) {
         Long maxAge = maxAges.get(event.stream);
-        return maxAge <= 0 || ((timestamp - event.timestamp) / 1000) <= maxAge;
+        return maxAge == null || maxAge <= 0 || ((timestamp - event.timestamp) / 1000) <= maxAge;
     }
 
     private EventRecord nextEntry() {
