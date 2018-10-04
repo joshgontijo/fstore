@@ -14,31 +14,31 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
 
     private ByteBuffer buffer;
     private final BufferPool pool;
-    int[] markers;
-    int[] lengths;
-    int i = 0;
-    int entries;
+    private final int[] markers;
+    private final int[] lengths;
+    private final int entries;
+    private int i = 0;
 
-    private BufferRef(ByteBuffer buffer, BufferPool pool) {
+    private BufferRef(ByteBuffer buffer, BufferPool pool, int[] markers, int[] lengths, int entries) {
         this.buffer = buffer;
         this.pool = pool;
+        this.markers = markers;
+        this.lengths = lengths;
+        this.entries = entries;
     }
 
     public static BufferRef ofEmpty() {
-        return of(ByteBuffer.allocate(0), null);
+        return withMarker(ByteBuffer.allocate(0), null, new int[0], new int[0], 0);
     }
 
-    public static BufferRef of(ByteBuffer buffer, BufferPool pool) {
-        Objects.requireNonNull(buffer);
-        return new BufferRef(buffer, pool);
-    }
+//    public static BufferRef of(ByteBuffer buffer, BufferPool pool) {
+//        Objects.requireNonNull(buffer);
+//        return new BufferRef(buffer, pool);
+//    }
 
     public static BufferRef withMarker(ByteBuffer buffer, BufferPool pool, int[] markers, int[] lengths, int entries) {
         Objects.requireNonNull(buffer);
-        BufferRef bufferRef = new BufferRef(buffer, pool);
-        bufferRef.markers = markers;
-        bufferRef.lengths = lengths;
-        bufferRef.entries = entries;
+        BufferRef bufferRef = new BufferRef(buffer, pool, markers, lengths, entries);
         return bufferRef;
     }
 
@@ -94,6 +94,9 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
 
     @Override
     public ByteBuffer get() {
+        if(!hasNext()) {
+            return EMPTY;
+        }
         buffer.limit(markers[0] + lengths[0]);
         buffer.position(markers[0]);
         return buffer;

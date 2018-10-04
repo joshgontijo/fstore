@@ -25,6 +25,7 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.utils.Tuple;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -68,9 +69,17 @@ public class EventStore implements IEventStore {
                 .disableCompaction()
                 .compactionStrategy(new RecordCleanup(streams)));
 
-        this.loadIndex();
-        this.loadStreams();
-        this.loadProjections();
+        try {
+            this.loadIndex();
+            this.loadStreams();
+            this.loadProjections();
+        } catch (Exception e) {
+            IOUtils.closeQuietly(index);
+            IOUtils.closeQuietly(projections);
+            IOUtils.closeQuietly(streams);
+            IOUtils.closeQuietly(eventLog);
+            throw new RuntimeException(e);
+        }
     }
 
     public static IEventStore open(File rootDir) {
@@ -111,6 +120,16 @@ public class EventStore implements IEventStore {
 
         long streamHash = streams.hashOf(SystemStreams.STREAMS);
         LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.allOf(streamHash));
+
+//        //TODO how to initialize system streams ?
+//        if (!addresses.hasNext()) {
+//            StreamMetadata created = streams.create(SystemStreams.STREAMS);
+//            if (created != null) { // metadata was created
+//                EventRecord eventRecord = StreamCreated.create(created);
+//                this.appendSystemEvent(eventRecord);
+//            }
+//            return;
+//        }
 
         while (addresses.hasNext()) {
             IndexEntry next = addresses.next();

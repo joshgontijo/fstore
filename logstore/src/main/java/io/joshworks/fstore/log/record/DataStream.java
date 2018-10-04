@@ -84,33 +84,34 @@ public class DataStream implements IDataStream {
 
         @Override
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-            ByteBuffer buffer = bufferPool.allocate(Memory.PAGE_SIZE);
-            storage.read(position, buffer);
-            buffer.flip();
-
-            if (buffer.remaining() == 0) {
-                return BufferRef.ofEmpty();
-            }
-
-            int length = buffer.getInt();
-            checkRecordLength(length, position);
-            if (length == 0) {
-                return BufferRef.ofEmpty();
-            }
-
-            int recordSize = length + RecordHeader.HEADER_OVERHEAD;
-            if (recordSize > buffer.limit()) {
-                bufferPool.free(buffer);
-                buffer = bufferPool.allocate(recordSize);
-                storage.read(position, buffer);
-                buffer.flip();
-                buffer.getInt(); //skip length
-            }
-
-            int checksum = buffer.getInt();
-            buffer.limit(buffer.position() + length);
-            checksum(checksum, buffer, position);
-            return BufferRef.of(buffer, bufferPool);
+//            ByteBuffer buffer = bufferPool.allocate(Memory.PAGE_SIZE);
+//            storage.read(position, buffer);
+//            buffer.flip();
+//
+//            if (buffer.remaining() == 0) {
+//                return BufferRef.ofEmpty();
+//            }
+//
+//            int length = buffer.getInt();
+//            checkRecordLength(length, position);
+//            if (length == 0) {
+//                return BufferRef.ofEmpty();
+//            }
+//
+//            int recordSize = length + RecordHeader.HEADER_OVERHEAD;
+//            if (recordSize > buffer.limit()) {
+//                bufferPool.free(buffer);
+//                buffer = bufferPool.allocate(recordSize);
+//                storage.read(position, buffer);
+//                buffer.flip();
+//                buffer.getInt(); //skip length
+//            }
+//
+//            int checksum = buffer.getInt();
+//            buffer.limit(buffer.position() + length);
+//            checksum(checksum, buffer, position);
+//            return BufferRef.of(buffer, bufferPool);
+            return null;
 
         }
     }
@@ -161,11 +162,16 @@ public class DataStream implements IDataStream {
                 lengths[i] = len;
 
                 int checksum = buffer.getInt();
-                buffer.limit(buffer.position() + length);
-                checksum(checksum, buffer, pos);
+                buffer.limit(buffer.position() + len);
+                checksum(checksum, buffer, position + pos);
                 buffer.limit(buffer.capacity());
-                buffer.position(buffer.position() + len + RecordHeader.SECONDARY_HEADER);
+
                 i++;
+                int newPos = buffer.position() + len + RecordHeader.SECONDARY_HEADER;
+                if(newPos > buffer.limit()) {
+                    return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
+                }
+                buffer.position(newPos);
             }
             return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
         }
@@ -256,8 +262,8 @@ public class DataStream implements IDataStream {
 
                 buffer.getInt(); //skip length
                 int checksum = buffer.getInt();
-                buffer.limit(buffer.position() + length);
-                checksum(checksum, buffer, pos);
+                buffer.limit(buffer.position() + len);
+                checksum(checksum, buffer, position + pos);
 
                 lastRecordPos = pos;
                 i++;
