@@ -16,7 +16,6 @@ import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.RecordCleanup;
-import io.joshworks.eventry.projections.JsonEvent;
 import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.ProjectionManager;
 import io.joshworks.eventry.projections.Projections;
@@ -98,6 +97,9 @@ public class EventStore implements IEventStore {
             while (iterator.hasNext()) {
                 EventRecord next = iterator.next();
                 long position = iterator.position();
+                if(loaded >= 63978) {
+                    System.out.println("");
+                }
                 long streamHash = streams.hashOf(next.stream);
                 index.add(streamHash, next.version, position);
                 if (++loaded % 50000 == 0) {
