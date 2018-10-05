@@ -97,9 +97,6 @@ public class EventStore implements IEventStore {
             while (iterator.hasNext()) {
                 EventRecord next = iterator.next();
                 long position = iterator.position();
-                if(loaded >= 63978) {
-                    System.out.println("");
-                }
                 long streamHash = streams.hashOf(next.stream);
                 index.add(streamHash, next.version, position);
                 if (++loaded % 50000 == 0) {

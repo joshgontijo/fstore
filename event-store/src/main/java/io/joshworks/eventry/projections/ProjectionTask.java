@@ -61,15 +61,14 @@ public class ProjectionTask {
             TaskResult failed = TaskResult.failed(projection.name, context.state(), null, e, null, -1);
             return result.addTask(failed);
         }
-
-
     }
 
     private List<TaskResult> runInParallel(EventStreamHandler handler, Set<String> streams) {
-        return streams.stream()
+        List<Future<TaskResult>> tasks = streams.stream()
                 .map(stream -> executor.submit(() -> runSequentially(handler, Set.of(stream))))
-                .map(this::waitForCompletion)
                 .collect(Collectors.toList());
+
+        return tasks.stream().map(this::waitForCompletion).collect(Collectors.toList());
     }
 
     private TaskResult waitForCompletion(Future<TaskResult> future) {
