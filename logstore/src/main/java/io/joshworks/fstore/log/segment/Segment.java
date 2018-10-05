@@ -475,7 +475,7 @@ public class Segment<T> implements Log<T> {
             lastReadTs = System.currentTimeMillis();
 
             T current = pageQueue.poll();
-            int recordSize = entriesSizes.poll() + RecordHeader.HEADER_OVERHEAD;
+            int recordSize = entriesSizes.poll();
             if(pageQueue.isEmpty()) {
                 readAhead();
             }
@@ -497,7 +497,7 @@ public class Segment<T> implements Log<T> {
                 return;
             }
             int totalRead = 0;
-            try (BufferRef ref = dataStream.read(storage, bufferPool, direction, readAheadPosition)) {
+            try (BufferRef ref = dataStream.bulkRead(storage, bufferPool, direction, readAheadPosition)) {
                 int[] entriesLength = ref.readAllInto(pageQueue, serializer);
                 for (int length : entriesLength) {
                     entriesSizes.add(length);
