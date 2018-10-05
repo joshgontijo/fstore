@@ -496,13 +496,15 @@ public class Segment<T> implements Log<T> {
             if (Direction.BACKWARD.equals(direction) && readAheadPosition <= Log.START) {
                 return;
             }
-            try (BufferRef ref = dataStream.bulkRead(storage, bufferPool, direction, readAheadPosition)) {
-                int[] totalRead = ref.readAllInto(pageQueue, serializer);
-                for (int length : totalRead) {
+            int totalRead = 0;
+            try (BufferRef ref = dataStream.read(storage, bufferPool, direction, readAheadPosition)) {
+                int[] entriesLength = ref.readAllInto(pageQueue, serializer);
+                for (int length : entriesLength) {
                     entriesSizes.add(length);
+                    totalRead += length;
                 }
 
-                if(totalRead.length == 0) {
+                if(entriesLength.length == 0) {
                     close();
                     return;
                 }
