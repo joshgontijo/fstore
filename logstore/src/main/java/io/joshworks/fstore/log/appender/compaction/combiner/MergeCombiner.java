@@ -29,22 +29,4 @@ public abstract class MergeCombiner<T extends Comparable<T>> implements SegmentC
     }
 
     public abstract void mergeItems(List<Iterators.PeekingIterator<T>> items, Log<T> output);
-
-    public static class ComparablePeekingIterator<T extends Comparable<T>> extends Iterators.PeekingIterator<T> implements Comparable<ComparablePeekingIterator<T>> {
-
-        public ComparablePeekingIterator(LogIterator<T> it) {
-            super(it);
-        }
-
-        @Override
-        public int compareTo(ComparablePeekingIterator<T> o) {
-            T thisItem = this.peek();
-            T otherItem = o.peek();
-            Objects.requireNonNull(thisItem, "Current item is null");
-            Objects.requireNonNull(otherItem, "Other item is null");
-
-            return thisItem.compareTo(otherItem);
-        }
-
-    }
 }

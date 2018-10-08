@@ -1,11 +1,14 @@
-package io.joshworks.fstore.lsm.sstable.merge;
+package io.joshworks.fstore.lsm.sstable;
 
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.lsm.EntryType;
 import io.joshworks.fstore.lsm.sstable.Entry;
 import io.joshworks.fstore.lsm.sstable.SSTable;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class IndexCompactor<K extends Comparable<K>, V> extends UniqueMergeCombiner<Entry<K, V>> {

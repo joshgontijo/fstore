@@ -9,11 +9,11 @@ import java.util.List;
 import java.util.TreeSet;
 
 /**
+ * For <b>UNIQUE</b> and <b>SORTED</b> segments only
  * Guaranteed uniqueness only for segments that holds unique items.
  * For items that {@link Comparable#compareTo(Object)} returns equals. The last (newest) item in the list will be used.
  */
 public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<T> {
-
 
     @Override
     public void mergeItems(List<Iterators.PeekingIterator<T>> items, Log<T> output) {
@@ -21,7 +21,8 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
         TreeSet<T> set = new TreeSet<>();
 
         while (!items.isEmpty()) {
-            Iterator<Iterators.PeekingIterator<T>> itit = items.iterator();
+            //reversed guarantees that the most recent data is kept when duplicate keys are found
+            Iterator<Iterators.PeekingIterator<T>> itit = Iterators.reversed(items);
             while (itit.hasNext()) {
                 Iterators.PeekingIterator<T> seg = itit.next();
                 set.add(seg.next());
@@ -31,12 +32,10 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
             }
 
             T t = set.pollFirst();
-            System.out.println("-> " + t);
             output.append(t);
         }
         while (!set.isEmpty()) {
             T t = set.pollFirst();
-            System.out.println("-> " + t);
             output.append(t);
         }
     }
@@ -47,73 +46,4 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
     public boolean filter(T entry) {
         return true;
     }
-
-    private static class ComparableIterator<T extends Comparable<T>> extends Iterators.PeekingIterator<T> implements Comparable<ComparableIterator<T>> {
-
-        public ComparableIterator(LogIterator<T> it) {
-            super(it);
-        }
-
-        @Override
-        public int compareTo(ComparableIterator<T> o) {
-            int i;
-            do {
-                T thisItem = this.hasNext() ? this.peek() : null;
-                T otherItem = o.hasNext() ? o.peek() : null;
-
-                if (thisItem == null) {
-                    return 1;
-                }
-                if (otherItem == null) {
-                    return 1;
-                }
-
-                i = thisItem.compareTo(otherItem);
-                if (i == 0) { //if elements are equal, remove the first (oldest) and keep newest
-                    this.next();
-                }
-            } while (i == 0);
-
-            return i;
-        }
-
-    }
-
-
-    // @Override
-    //    public void mergeItems(List<Iterators.PeekingIterator<T>> items, Log<T> output) {
-    //
-    //        TreeSet<Iterators.PeekingIterator<T>> set = new TreeSet<>((o1, o2) -> {
-    //            int i;
-    //            if(o1 == o2) {
-    //                return 0;
-    //            }
-    //            do {
-    //                T i1 = o1.peek();
-    //                T i2 = o2.peek();
-    //                i = i1.compareTo(i2);
-    //                if(i == 0) {
-    //                    o1.next();
-    //                }
-    //            }while(i == 0);
-    //            return i;
-    //        });
-    //
-    //        set.addAll(items);
-    //
-    //        while (!set.isEmpty()) {
-    //            Iterators.PeekingIterator<T> it = set.pollFirst();
-    //            if (it.hasNext()) {
-    //                T next = it.next();
-    //                if (filter(next)) {
-    //                    System.out.println("-> " + next);
-    //                    output.append(next);
-    //                }
-    //                if (it.hasNext()) {
-    //                    set.add(it);
-    //                }
-    //            }
-    //        }
-    //    }
-
 }
