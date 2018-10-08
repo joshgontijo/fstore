@@ -67,7 +67,7 @@ public class EventRecord {
 
     @Override
     public String toString() {
-        return "EventRecord{" + "stream='" + stream + '\'' +
+        return "EventRecord{" + "closeableStream='" + stream + '\'' +
                 ", type='" + type + '\'' +
                 ", version=" + version +
                 ", timestamp=" + timestamp +
@@ -83,8 +83,8 @@ public class EventRecord {
 
 //
 //
-//        public static EventRecord createLinkTo(String stream, EventRecord event) {
-//            return EventRecord.create(stream, LINKTO_TYPE, StringUtils.toUtf8Bytes(event.eventId()));
+//        public static EventRecord createLinkTo(String closeableStream, EventRecord event) {
+//            return EventRecord.create(closeableStream, LINKTO_TYPE, StringUtils.toUtf8Bytes(event.eventId()));
 //        }
 //
 //        //TODO add data

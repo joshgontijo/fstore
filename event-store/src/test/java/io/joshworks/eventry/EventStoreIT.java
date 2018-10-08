@@ -60,7 +60,7 @@ public class EventStoreIT {
 
         final int size = 1000000;
         long start = System.currentTimeMillis();
-        String stream = "test-stream";
+        String stream = "test-closeableStream";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "" + i, "data-" + i));
         }
@@ -88,7 +88,7 @@ public class EventStoreIT {
         long start = System.currentTimeMillis();
         int size = 1000000;
 
-        String stream = "test-stream";
+        String stream = "test-closeableStream";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "" + i, "data-" + i));
         }
@@ -111,7 +111,7 @@ public class EventStoreIT {
         long start = System.currentTimeMillis();
         int size = 1000000;
 
-        String streamPrefix = "test-stream-";
+        String streamPrefix = "test-closeableStream-";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
         }
@@ -147,7 +147,7 @@ public class EventStoreIT {
 
         //given
         int size = 10000;
-        String streamPrefix = "test-stream-";
+        String streamPrefix = "test-closeableStream-";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
         }
@@ -167,7 +167,7 @@ public class EventStoreIT {
 
         //given
         int size = 10000;
-        String streamPrefix = "test-stream-";
+        String streamPrefix = "test-closeableStream-";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
         }
@@ -185,7 +185,7 @@ public class EventStoreIT {
 
         //given
         int size = 10000;
-        String streamPrefix = "test-stream-";
+        String streamPrefix = "test-closeableStream-";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
         }
@@ -205,7 +205,7 @@ public class EventStoreIT {
     @Test
     public void events_have_stream_and_version() {
         int numStreams = 1000;
-        String streamPrefix = "stream-";
+        String streamPrefix = "closeableStream-";
         for (int i = 0; i < numStreams; i++) {
             store.append(EventRecord.create(streamPrefix + i, String.valueOf(i), "data-" + i));
         }
@@ -280,7 +280,7 @@ public class EventStoreIT {
 
         int size = 1000;
         for (int i = 0; i < size; i++) {
-            store.append(EventRecord.create("stream-" + i, "test", "data"));
+            store.append(EventRecord.create("closeableStream-" + i, "test", "data"));
         }
 
         Iterator<EventRecord> it = store.fromAllIter();
@@ -323,7 +323,7 @@ public class EventStoreIT {
     public void fromStream_returns_data_within_maxCount() {
         //given
 
-        String stream = "test-stream";
+        String stream = "test-closeableStream";
         int maxCount = 10;
         int numVersions = 50;
         store.createStream(stream, maxCount, -1);
@@ -348,7 +348,7 @@ public class EventStoreIT {
     public void fromStream_returns_data_within_maxAge() throws InterruptedException {
         //given
 
-        String stream = "test-stream";
+        String stream = "test-closeableStream";
         int maxAgeSeconds = 5;
         int numVersions = 50;
         store.createStream(stream, -1, maxAgeSeconds);
@@ -371,7 +371,7 @@ public class EventStoreIT {
         int size = 1000000;
 
         System.out.println("Creating entries");
-        String streamName = "test-stream";
+        String streamName = "test-closeableStream";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(streamName, "test", UUID.randomUUID().toString().substring(0, 8)));
         }
@@ -404,7 +404,7 @@ public class EventStoreIT {
         StreamHasher hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
 
         for (int i = 0; i < 10000000; i++) {
-            String value = "test-stream-" + i;
+            String value = "test-closeableStream-" + i;
             long hash = hasher.hash(value);
             if (hashes.containsKey(hash)) {
                 fail("Hash collision: " + hashes.get(hash) + " -> " + value);
@@ -416,7 +416,7 @@ public class EventStoreIT {
     @Test
     public void get() {
         int size = 1000;
-        String streamPrefix = "stream-";
+        String streamPrefix = "closeableStream-";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(streamPrefix + i, "test", "data"));
         }
@@ -445,7 +445,7 @@ public class EventStoreIT {
         IntStream.range(0, numOtherIndexes).forEach(i -> {
             long start = System.currentTimeMillis();
             store.fromStream(allStream).forEach(e -> store.linkTo(String.valueOf(i), e));
-            System.out.println("LinkTo " + size + " events to stream " + i + " in " + (System.currentTimeMillis() - start));
+            System.out.println("LinkTo " + size + " events to closeableStream " + i + " in " + (System.currentTimeMillis() - start));
         });
 
 
@@ -470,7 +470,7 @@ public class EventStoreIT {
             }
         }
 
-        //some other stream we don't care about
+        //some other closeableStream we don't care about
         for (int version = 1; version <= numVersions; version++) {
             store.append(EventRecord.create("someOtherStream", String.valueOf("type"), "data-" + version));
         }
@@ -493,7 +493,7 @@ public class EventStoreIT {
     public void poller_returns_all_items() throws IOException, InterruptedException {
 
         int items = 1000000;
-        String stream = "stream-123";
+        String stream = "closeableStream-123";
         for (int i = 0; i < items; i++) {
             store.append(EventRecord.create(stream, "type", "data"));
             if (i % 10000 == 0) {
@@ -520,7 +520,7 @@ public class EventStoreIT {
         int items = 1000000;
         Set<String> allStreams = new HashSet<>();
         for (int i = 0; i < items; i++) {
-            String stream = "stream-" + i;
+            String stream = "closeableStream-" + i;
             allStreams.add(stream);
             store.append(EventRecord.create(stream, "type", "data"));
             if (i % 10000 == 0) {
@@ -550,8 +550,8 @@ public class EventStoreIT {
     @Test
     public void linkTo_events_are_resolved_on_get() {
 
-        var original = "stream-1";
-        var linkToStream = "stream-2";
+        var original = "closeableStream-1";
+        var linkToStream = "closeableStream-2";
         var created = store.append(EventRecord.create(original, "type", "data"));
 
         store.linkTo(linkToStream, created);
@@ -567,7 +567,7 @@ public class EventStoreIT {
     public void index_is_loaded_with_not_persisted_entries() {
 
         //given
-        String stream = "stream-1";
+        String stream = "closeableStream-1";
         //1 segment + in memory
         int size = TableIndex.DEFAULT_FLUSH_THRESHOLD + (TableIndex.DEFAULT_FLUSH_THRESHOLD / 2);
         for (int i = 0; i < size; i++) {
@@ -585,7 +585,7 @@ public class EventStoreIT {
     public void index_flush_generates_INDEX_FLUSHED_event() {
 
         //given
-        String stream = "stream-1";
+        String stream = "closeableStream-1";
         int size = TableIndex.DEFAULT_FLUSH_THRESHOLD + (TableIndex.DEFAULT_FLUSH_THRESHOLD / 2);
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "type-1", "data-" + 1));
@@ -600,12 +600,12 @@ public class EventStoreIT {
 
     @Test(expected = IllegalArgumentException.class)
     public void stream_name_cannot_start_with_system_reserved_prefix() {
-        store.append(EventRecord.create(Constant.SYSTEM_PREFIX + "stream", "a", "asa"));
+        store.append(EventRecord.create(Constant.SYSTEM_PREFIX + "closeableStream", "a", "asa"));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void event_type_is_mandatory() {
-        store.append(EventRecord.create("stream", null, "asa"));
+        store.append(EventRecord.create("closeableStream", null, "asa"));
     }
 
     @Test
@@ -614,7 +614,7 @@ public class EventStoreIT {
         int size = 3000000;
         var createdStreams = new HashSet<String>();
         for (int i = 0; i < size; i++) {
-            var stream = "stream-" + i;
+            var stream = "closeableStream-" + i;
             createdStreams.add(stream);
             store.append(EventRecord.create(stream, "test", "data"));
         }
@@ -625,7 +625,7 @@ public class EventStoreIT {
 
         List<EventRecord> foundStreams = store.fromStream(SystemStreams.STREAMS).collect(Collectors.toList());
 
-        //stream also contains the stream definition itself
+        //closeableStream also contains the closeableStream definition itself
         assertTrue(foundStreams.size() >= createdStreams.size());
 
         int hits = 0;
@@ -642,7 +642,7 @@ public class EventStoreIT {
     private void testWith(int streams, int numVersionPerStream) {
         long start = System.currentTimeMillis();
 
-        String streamPrefix = "test-stream-";
+        String streamPrefix = "test-closeableStream-";
 
         for (int stream = 0; stream < streams; stream++) {
             for (int version = 1; version <= numVersionPerStream; version++) {
@@ -650,7 +650,7 @@ public class EventStoreIT {
                 try {
                     store.append(EventRecord.create(streamName, "" + stream, "data-" + stream));
                 } catch (Exception e) {
-                    throw new RuntimeException("Failed on stream " + streamName, e);
+                    throw new RuntimeException("Failed on closeableStream " + streamName, e);
                 }
             }
         }
@@ -680,7 +680,7 @@ public class EventStoreIT {
 
 
             } catch (Exception e) {
-                throw new RuntimeException("Failed on stream " + streamName, e);
+                throw new RuntimeException("Failed on closeableStream " + streamName, e);
             }
         }
         System.out.println("READ: " + (System.currentTimeMillis() - start));

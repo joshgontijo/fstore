@@ -1,6 +1,5 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.IOUtils;
 
 import java.io.IOException;
@@ -94,11 +93,11 @@ public class Iterators {
         return copy;
     }
 
-    public static <T> Stream<T> stream(LogIterator<T> iterator) {
-        return stream(iterator, Spliterator.ORDERED, false);
+    public static <T> Stream<T> closeableStream(LogIterator<T> iterator) {
+        return closeableStream(iterator, Spliterator.ORDERED, false);
     }
 
-    public static <T> Stream<T> stream(LogIterator<T> iterator, int characteristics, boolean parallel) {
+    public static <T> Stream<T> closeableStream(LogIterator<T> iterator, int characteristics, boolean parallel) {
         Stream<T> delegate = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, characteristics), parallel);
         return new CloseableStream<>(iterator, delegate);
     }

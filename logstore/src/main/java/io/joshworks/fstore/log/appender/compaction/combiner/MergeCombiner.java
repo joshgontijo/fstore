@@ -8,10 +8,9 @@ import io.joshworks.fstore.log.segment.Log;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
-public abstract class MergeCombiner<T extends Comparable<T>> implements SegmentCombiner<T> {
+public abstract class MergeCombiner<T> implements SegmentCombiner<T> {
 
     @Override
     public void merge(List<? extends Log<T>> segments, Log<T> output) {

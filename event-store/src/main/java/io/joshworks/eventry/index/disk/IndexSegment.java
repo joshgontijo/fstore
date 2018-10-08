@@ -110,7 +110,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
 
     @Override
     public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.stream(iterator(direction, range));
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
     @Override

@@ -297,7 +297,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public Stream<T> stream(Direction direction) {
-        return Iterators.stream(iterator(direction));
+        return Iterators.closeableStream(iterator(direction));
     }
 
     public LogIterator<T> iterator(long position, Direction direction) {
@@ -342,11 +342,11 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public long size() {
-        return Iterators.stream(segments(Direction.BACKWARD)).mapToLong(Log::size).sum();
+        return Iterators.closeableStream(segments(Direction.BACKWARD)).mapToLong(Log::size).sum();
     }
 
     public Stream<L> streamSegments(Direction direction) {
-        return Iterators.stream(segments(direction));
+        return Iterators.closeableStream(segments(direction));
     }
 
     public long size(int level) {

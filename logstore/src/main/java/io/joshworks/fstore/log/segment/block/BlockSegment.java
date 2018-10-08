@@ -77,7 +77,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public Stream<T> stream(Direction direction) {
-        return Iterators.stream(iterator(direction));
+        return Iterators.closeableStream(iterator(direction));
     }
 
     @Override

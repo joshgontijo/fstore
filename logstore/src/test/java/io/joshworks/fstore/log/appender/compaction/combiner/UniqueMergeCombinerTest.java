@@ -43,7 +43,7 @@ public class UniqueMergeCombinerTest {
 
         combiner.merge(Arrays.asList(seg1, seg2, seg3), out);
 
-        List<String> result = Iterators.stream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+        List<String> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
 
         assertEquals("a", result.get(0));
         assertEquals("b", result.get(1));
@@ -65,7 +65,7 @@ public class UniqueMergeCombinerTest {
 
         combiner.merge(Arrays.asList(seg1, seg2, seg3, seg4), out);
 
-        List<String> result = Iterators.stream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+        List<String> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
 
         assertEquals("a", result.get(0));
         assertEquals("b", result.get(1));
@@ -86,7 +86,7 @@ public class UniqueMergeCombinerTest {
 
         combiner.merge(Arrays.asList(seg1, seg2), out);
 
-        List<String> result = Iterators.stream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+        List<String> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
 
         assertEquals("a", result.get(0));
         assertEquals("b", result.get(1));
@@ -105,7 +105,7 @@ public class UniqueMergeCombinerTest {
 
         combiner.merge(Arrays.asList(seg1, seg2), out);
 
-        List<String> result = Iterators.stream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+        List<String> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
 
         assertEquals("a", result.get(0));
         assertEquals("b", result.get(1));
