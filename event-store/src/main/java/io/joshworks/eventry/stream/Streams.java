@@ -1,8 +1,8 @@
 package io.joshworks.eventry.stream;
 
 import io.joshworks.eventry.LRUCache;
-import io.joshworks.eventry.hash.Murmur3Hash;
-import io.joshworks.eventry.hash.XXHash;
+import io.joshworks.fstore.core.hash.Murmur3Hash;
+import io.joshworks.fstore.core.hash.XXHash;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.utils.StringUtils;
@@ -28,7 +28,7 @@ import static io.joshworks.eventry.stream.StreamMetadata.STREAM_ACTIVE;
 public class Streams implements Closeable {
 
     public static final String STREAM_WILDCARD = "*";
-    //TODO LRU cache ? there's no way of getting item by stream name, need to use an indexed lsm-tree
+    //TODO LRU cache ? there's no way of getting item by closeableStream name, need to use an indexed lsm-tree
     //LRU map that reads the last version from the index
     private final LRUCache<Long, AtomicInteger> versions;
     private final Map<Long, StreamMetadata> streamsMap = new ConcurrentHashMap<>();
@@ -60,7 +60,7 @@ public class Streams implements Closeable {
         StringUtils.requireNonBlank(metadata.name, "Stream name was not empty");
         StreamMetadata existing = streamsMap.putIfAbsent(metadata.hash, metadata);
         if (existing != null) {
-            throw new IllegalStateException("Stream '" + metadata.name + "' already exist");
+//            throw new IllegalStateException("Stream '" + metadata.name + "' already exist");
         }
     }
 
@@ -122,7 +122,7 @@ public class Streams implements Closeable {
         }
         int newValue = expected + 1;
         if (!versionCounter.compareAndSet(expected, newValue)) {
-            throw new IllegalArgumentException("Version mismatch: expected stream " + stream + " version is higher than expected: " + expected);
+            throw new IllegalArgumentException("Version mismatch: expected closeableStream " + stream + " version is higher than expected: " + expected);
         }
         return newValue;
     }

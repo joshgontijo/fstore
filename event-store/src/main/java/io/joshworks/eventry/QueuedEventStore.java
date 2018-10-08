@@ -2,8 +2,8 @@ package io.joshworks.eventry;
 
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.projections.ExecutionStatus;
 import io.joshworks.eventry.projections.Projection;
+import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
@@ -89,13 +89,13 @@ public class QueuedEventStore implements IEventStore {
     }
 
     @Override
-    public Projection createProjection(String name, String script, Projection.Type type, boolean enabled) {
-        return delegate.createProjection(name, script, type, enabled);
+    public Projection createProjection(String script) {
+        return delegate.createProjection(script);
     }
 
     @Override
-    public Projection updateProjection(String name, String script, Projection.Type type, Boolean enabled) {
-        return delegate.updateProjection(name, script, type, enabled);
+    public Projection updateProjection(String name, String script) {
+        return delegate.updateProjection(name, script);
     }
 
     @Override
@@ -109,12 +109,12 @@ public class QueuedEventStore implements IEventStore {
     }
 
     @Override
-    public ExecutionStatus projectionExecutionStatus(String name) {
+    public Map<String, Metrics> projectionExecutionStatus(String name) {
         return delegate.projectionExecutionStatus(name);
     }
 
     @Override
-    public Collection<ExecutionStatus> projectionExecutionStatuses() {
+    public Collection<Metrics> projectionExecutionStatuses() {
         return delegate.projectionExecutionStatuses();
     }
 

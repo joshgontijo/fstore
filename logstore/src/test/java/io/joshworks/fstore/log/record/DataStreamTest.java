@@ -14,8 +14,11 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class DataStreamTest {
 
@@ -67,6 +70,95 @@ public class DataStreamTest {
 
     @Test
     public void reading_forward_with_data_bigger_than_page_returns_all_data() {
+
+        int numItems = 10;
+        for (int i = 0; i < numItems; i++) {
+            stream.write(storage, pool, Serializers.INTEGER.toBytes(i));
+        }
+
+        List<Integer> found = new ArrayList<>();
+        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
+            ref.readAllInto(found, Serializers.INTEGER);
+            assertEquals(numItems, found.size());
+
+            for (int i = 0; i < numItems; i++) {
+                assertEquals(Integer.valueOf(i), found.get(i));
+
+            }
+        }
+    }
+
+    @Test
+    public void readAllInto_backward_with_data_bigger_than_page_returns_all_data() {
+
+        int numItems = 10;
+        for (long i = 0; i < numItems; i++) {
+            stream.write(storage, pool, Serializers.LONG.toBytes(i));
+        }
+
+        List<Long> found = new ArrayList<>();
+        try (BufferRef ref = stream.read(storage, pool, Direction.BACKWARD, storage.position())) {
+            ref.readAllInto(found, Serializers.LONG);
+            assertEquals(numItems, found.size());
+
+            for (int i = 0; i > numItems; i++) {
+                assertEquals(Long.valueOf(i), found.get(i));
+
+            }
+        }
+    }
+
+    @Test
+    public void reading_allInto_size() {
+
+        int numItems = 10;
+        for (int i = 0; i < numItems; i++) {
+            stream.write(storage, pool, Serializers.INTEGER.toBytes(i));
+        }
+
+        List<Integer> found = new ArrayList<>();
+        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
+            int[] read = ref.readAllInto(found, Serializers.INTEGER);
+            assertEquals((numItems * (Integer.BYTES + RecordHeader.HEADER_OVERHEAD)), read);
+        }
+    }
+
+    @Test
+    public void read_forward_returns_only_whole_entry_data() {
+
+        String first = ofSize(Memory.PAGE_SIZE / 2);
+        stream.write(storage, pool, Serializers.STRING.toBytes(first));
+
+        String second = ofSize(Memory.PAGE_SIZE / 2);
+        stream.write(storage, pool, Serializers.STRING.toBytes(second));
+
+        List<String> found = new ArrayList<>();
+        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
+            ref.readAllInto(found, Serializers.STRING);
+            assertEquals(1, found.size());
+            assertEquals(first, found.get(0));
+        }
+    }
+
+    @Test
+    public void read_backward_returns_only_whole_entry_data() {
+
+        String first = ofSize(Memory.PAGE_SIZE / 2);
+        stream.write(storage, pool, Serializers.STRING.toBytes(first));
+
+        String second = ofSize(Memory.PAGE_SIZE / 2);
+        stream.write(storage, pool, Serializers.STRING.toBytes(second));
+
+        List<String> found = new ArrayList<>();
+        try (BufferRef ref = stream.read(storage, pool, Direction.BACKWARD, storage.position())) {
+            ref.readAllInto(found, Serializers.STRING);
+            assertEquals(1, found.size());
+            assertEquals(second, found.get(0));
+        }
+    }
+
+    @Test
+    public void many_items() {
 
         String content = ofSize(Memory.PAGE_SIZE + 1);
         ByteBuffer data = Serializers.STRING.toBytes(content);

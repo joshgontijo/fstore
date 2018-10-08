@@ -50,16 +50,12 @@ public class Server {
 
         group("/projections", () -> {
             get(projections::getAll);
-            post(projections::create);
+            post(projections::create, consumes("application/javascript"));
             post("AD-HOC-QUERY-TODO", projections::create);
             group("{name}", () -> {
-                put(projections::update);
+                put(projections::update, consumes("application/javascript"));
                 get(projections::get);
                 delete(projections::delete);
-                group("/script", () -> {
-                    put(projections::updateScript, consumes("application/javascript"));
-                    get(projections::getScript, produces("application/javascript"));
-                });
                 group("/executions", () -> {
                     post(projections::run);
                     get(projections::executionStatus);

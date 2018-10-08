@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 
 public class SubscriptionEndpoint {
 
-    public static final String PATH_PARAM_STREAM = "stream";
+    public static final String PATH_PARAM_STREAM = "closeableStream";
 
     private final IEventStore store;
     private final EventBroadcaster broadcast;

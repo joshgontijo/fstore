@@ -1,9 +1,10 @@
 package io.joshworks.eventry;
 
-import io.joshworks.eventry.projections.ExecutionStatus;
 import io.joshworks.eventry.projections.Projection;
+import io.joshworks.eventry.projections.result.Metrics;
 
 import java.util.Collection;
+import java.util.Map;
 
 public interface IProjection {
 
@@ -12,16 +13,16 @@ public interface IProjection {
 
     Projection projection(String name);
 
-    Projection createProjection(String name, String script, Projection.Type type, boolean enabled);
+    Projection createProjection(String script);
 
-    Projection updateProjection(String name, String script, Projection.Type type, Boolean enabled);
+    Projection updateProjection(String name, String script);
 
     void deleteProjection(String name);
 
     void runProjection(String name);
 
-    ExecutionStatus projectionExecutionStatus(String name);
+    Map<String, Metrics> projectionExecutionStatus(String name);
 
-    Collection<ExecutionStatus> projectionExecutionStatuses();
+    Collection<Metrics> projectionExecutionStatuses();
 
 }

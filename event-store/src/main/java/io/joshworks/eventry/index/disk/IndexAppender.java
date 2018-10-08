@@ -47,7 +47,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.stream(iterator(direction, range));
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
     @Override

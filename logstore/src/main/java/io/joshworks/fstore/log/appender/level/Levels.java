@@ -76,7 +76,7 @@ public class Levels<T, L extends Log<T>> {
 
     //TODO testing atomic acquiring of readers without the risk of closing the segment in between
     public synchronized List<LogIterator<T>> select(Direction direction, Function<L, LogIterator<T>> mapper) {
-        return Iterators.stream(segments(direction)).map(mapper).collect(Collectors.toList());
+        return Iterators.closeableStream(segments(direction)).map(mapper).collect(Collectors.toList());
     }
 
     public synchronized int size(int level) {
@@ -89,9 +89,30 @@ public class Levels<T, L extends Log<T>> {
         return segments(level).size();
     }
 
-   public int compactionThreshold() {
+    public int compactionThreshold() {
         return maxItemsPerLevel;
-   }
+    }
+
+    public synchronized void remove(List<L> segments) {
+
+        List<L> copy = new ArrayList<>(this.segments);
+
+        int latestIndex = -1;
+        for (L seg : segments) {
+            int i = copy.indexOf(seg);
+            if (i < 0) {
+                throw new IllegalStateException("Segment not found: " + seg.name());
+            }
+            if (latestIndex >= 0 && latestIndex + 1 != i) {
+                throw new IllegalArgumentException("Segments to be deleted must be contiguous");
+            }
+            latestIndex = i;
+        }
+        for (L seg : segments) {
+            copy.remove(seg);
+        }
+        this.segments = copy;
+    }
 
     public synchronized void merge(List<L> segments, L merged) {
         if (segments.isEmpty() || merged == null) {

@@ -1,6 +1,5 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.IOUtils;
 
 import java.io.IOException;
@@ -54,6 +53,7 @@ public class Iterators {
         return new IteratorIterator<>(original);
     }
 
+    @SafeVarargs
     public static <T> LogIterator<T> concat(LogIterator<T>... originals) {
         return new IteratorIterator<>(Arrays.asList(originals));
     }
@@ -93,11 +93,11 @@ public class Iterators {
         return copy;
     }
 
-    public static <T> Stream<T> stream(LogIterator<T> iterator) {
-        return stream(iterator, Spliterator.ORDERED, false);
+    public static <T> Stream<T> closeableStream(LogIterator<T> iterator) {
+        return closeableStream(iterator, Spliterator.ORDERED, false);
     }
 
-    public static <T> Stream<T> stream(LogIterator<T> iterator, int characteristics, boolean parallel) {
+    public static <T> Stream<T> closeableStream(LogIterator<T> iterator, int characteristics, boolean parallel) {
         Stream<T> delegate = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, characteristics), parallel);
         return new CloseableStream<>(iterator, delegate);
     }
@@ -152,9 +152,6 @@ public class Iterators {
         @Override
         public T next() {
             T next = source.next();
-            if (next == null) {
-                throw new NoSuchElementException();
-            }
             position++;
             return next;
         }
@@ -193,54 +190,63 @@ public class Iterators {
 
     private static class IteratorIterator<T> implements LogIterator<T> {
 
-        private final List<LogIterator<T>> is;
-        private int current;
+        private final Iterator<LogIterator<T>> it;
+        private LogIterator<T> current;
 
         private IteratorIterator(List<LogIterator<T>> iterators) {
-            this.is = iterators;
-            this.current = 0;
+            this.it = iterators.iterator();
+            nextIterator();
         }
 
         @Override
         public boolean hasNext() {
-            while (current < is.size() && !is.get(current).hasNext())
-                current++;
-
-            boolean hasNext = current < is.size();
+            nextIterator();
+            boolean hasNext = current != null && current.hasNext();
             if (!hasNext) {
                 this.close();
             }
             return hasNext;
         }
 
+        private void nextIterator() {
+            while ((current == null || !current.hasNext()) && it.hasNext()) {
+                closeIterator(current);
+                current = it.next();
+            }
+        }
+
         @Override
         public T next() {
-            while (current < is.size() && !is.get(current).hasNext())
-                current++;
-
-            if (current >= is.size()) {
+            if (!hasNext()) {
                 close();
                 throw new NoSuchElementException();
             }
 
-            return is.get(current).next();
+            return current.next();
         }
 
         @Override
         public long position() {
-            return is.get(current).position();
+            return current.position();
         }
 
         @Override
         public void close() {
-            try {
-                for (LogIterator<T> iterator : is) {
-                    iterator.close();
-                }
-            } catch (IOException e) {
-                throw RuntimeIOException.of(e);
+            closeIterator(current);
+            while (it.hasNext()) {
+                closeIterator(it.next());
             }
+        }
 
+        private void closeIterator(LogIterator<T> it) {
+            if (it == null) {
+                return;
+            }
+            try {
+                it.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -420,7 +426,7 @@ public class Iterators {
 
         @Override
         public boolean hasNext() {
-            if(processed.get() >= limit) {
+            if (processed.get() >= limit) {
                 IOUtils.closeQuietly(delegate);
                 return false;
             }
@@ -461,7 +467,7 @@ public class Iterators {
 
         @Override
         public boolean hasNext() {
-            if(skipped.get() < skips) {
+            if (skipped.get() < skips) {
                 skip();
             }
             return delegate.hasNext();
@@ -469,14 +475,14 @@ public class Iterators {
 
         @Override
         public T next() {
-            if(skipped.get() < skips) {
+            if (skipped.get() < skips) {
                 skip();
             }
             return delegate.next();
         }
 
         private void skip() {
-            while(skipped.get() < skips && delegate.hasNext()) {
+            while (skipped.get() < skips && delegate.hasNext()) {
                 delegate.next();
                 skipped.incrementAndGet();
             }
