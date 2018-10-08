@@ -15,10 +15,12 @@ import io.joshworks.fstore.lsm.sstable.Entry;
 import io.joshworks.fstore.lsm.sstable.EntrySerializer;
 import io.joshworks.fstore.lsm.sstable.SSTable;
 import io.joshworks.fstore.lsm.sstable.SSTables;
-import io.joshworks.fstore.lsm.sstable.merge.IndexCompactor;
+import io.joshworks.fstore.lsm.sstable.IndexCompactor;
 
 import java.io.Closeable;
 import java.io.File;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
@@ -52,6 +54,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         log.append(Record.add(key, value));
         if(memTable.add(key, value)) {
             flushMemTable();
+            log.markFlushed();
         }
     }
 
@@ -85,7 +88,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         memTable.sorted().forEach(sstables::append);
         sstables.roll();
         memTable.clear();
-        log.markFlushed();
     }
 
     @Override

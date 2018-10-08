@@ -37,11 +37,6 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
 
     @Override
     public String toString() {
-        final StringBuffer sb = new StringBuffer("Entry{");
-        sb.append("type=").append(type);
-        sb.append(", key=").append(key);
-        sb.append(", value=").append(value);
-        sb.append('}');
-        return sb.toString();
+        return type + ":" + key + "=" + value;
     }
 }

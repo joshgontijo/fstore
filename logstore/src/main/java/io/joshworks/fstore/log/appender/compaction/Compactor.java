@@ -125,21 +125,32 @@ public class Compactor<T, L extends Log<T>> {
 
     private void cleanup(EventContext<CompactionResult<T, L>> context) {
         CompactionResult<T, L> result = context.data;
+        L target = result.target;
+        int level = result.level;
+        List<L> sources = result.sources;
+
         if (!result.successful()) {
             //TODO
             logger.error("Compaction error", result.exception);
             logger.info("Deleting failed merge result segment");
-            result.target.delete();
+            target.delete();
             return;
         }
 
-        levels.merge(result.sources, result.target);
-        compacting.removeAll(result.sources);
+        //TODO test
+        if (target.entries() == 0) {
+            logger.info("No entries were found in the result segment {}, deleting", target.name());
+            target.delete();
+        } else {
+            levels.merge(sources, target);
+        }
 
-        context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level, false));
-        context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level + 1, false));
+        compacting.removeAll(sources);
 
-        deleteAll(result.sources);
+        context.submit(COMPACTION_MANAGER, new CompactionRequest(level, false));
+        context.submit(COMPACTION_MANAGER, new CompactionRequest(level + 1, false));
+
+        deleteAll(sources);
     }
 
     private synchronized boolean requiresCompaction(int level) {
