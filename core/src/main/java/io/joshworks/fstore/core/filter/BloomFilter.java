@@ -1,4 +1,4 @@
-package io.joshworks.eventry.index.filter;
+package io.joshworks.fstore.core.filter;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.Mode;

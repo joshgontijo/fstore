@@ -302,7 +302,7 @@ public class Segment<T> implements Log<T> {
 
         writeEndOfLog();
         long endOfLog = storage.position();
-        FooterInfo footerInfo = footer != null ? writeFooter(footer) : new FooterInfo(endOfLog, 0);
+        FooterInfo footerInfo = footer != null ? writeFooter(footer) : FooterInfo.emptyFooter(endOfLog);
         this.header = writeHeader(level, footerInfo);
 
         boolean hasFooter = header.footerStart > 0;
@@ -346,7 +346,7 @@ public class Segment<T> implements Log<T> {
     }
 
     private LogHeader writeHeader(int level, FooterInfo footerInfo) {
-        long segmentSize = footerInfo.start + footerInfo.end;
+        long segmentSize = footerInfo.end;
         long logEnd = footerInfo.start - EOL.length;
         LogHeader newHeader = new LogHeader(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, Log.START, logEnd, footerInfo.start, footerInfo.end);
         storage.position(0);
@@ -431,6 +431,11 @@ public class Segment<T> implements Log<T> {
             this.start = start;
             this.end = end;
         }
+
+        private static FooterInfo emptyFooter(long start) {
+            return new FooterInfo(start, start);
+        }
+
     }
 
     //NOT THREAD SAFE
@@ -528,13 +533,14 @@ public class Segment<T> implements Log<T> {
         }
     }
 
-    //tODO add bulkRead like SegmentReader
     private class SegmentPoller extends TimeoutReader implements PollingSubscriber<T> {
 
         private static final int VERIFICATION_INTERVAL_MILLIS = 500;
 
         private final IDataStream dataStream;
         private final Serializer<T> serializer;
+        private final Queue<T> pageQueue = new LinkedList<>();
+        private final Queue<Integer> entriesSizes = new LinkedList<>();
         private long readPosition;
 
         SegmentPoller(IDataStream dataStream, Serializer<T> serializer, long initialPosition) {
@@ -546,18 +552,30 @@ public class Segment<T> implements Log<T> {
         }
 
         private T read(boolean advance) {
-            try (BufferRef ref = dataStream.read(storage, bufferPool, Direction.FORWARD, readPosition)) {
-                ByteBuffer bb = ref.get();
-                if (bb.remaining() == 0) { //EOF
-                    close();
-                    return null;
-                }
-                if (advance) {
-                    readPosition += bb.remaining() + RecordHeader.HEADER_OVERHEAD;
-                }
-                return serializer.fromBytes(bb);
+            T val = readCached(advance);
+            if(val != null) {
+                return val;
             }
 
+            try (BufferRef ref = dataStream.bulkRead(storage, bufferPool, Direction.FORWARD, readPosition)) {
+                int[] entriesLength = ref.readAllInto(pageQueue, serializer);
+                for (int length : entriesLength) {
+                    entriesSizes.add(length);
+                }
+
+                return entriesLength.length > 0 ? readCached(advance) : null;
+            }
+        }
+
+        private T readCached(boolean advance) {
+            T val = advance ? pageQueue.poll() : pageQueue.peek();
+            if(val != null) {
+                int len = advance ? entriesSizes.poll() : entriesSizes.peek();
+                if (advance) {
+                    readPosition += len;
+                }
+            }
+            return val;
         }
 
         private synchronized T tryTake(long sleepInterval, TimeUnit timeUnit, boolean advance) throws InterruptedException {
@@ -571,6 +589,9 @@ public class Segment<T> implements Log<T> {
         }
 
         private boolean hasDataAvailable() {
+            if(!pageQueue.isEmpty()) {
+                return true;
+            }
             if (Segment.this.readOnly()) {
                 return readPosition < Segment.this.header.logEnd;
             }

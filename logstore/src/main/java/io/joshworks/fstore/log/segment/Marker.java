@@ -7,7 +7,6 @@ public class Marker {
     public final long footerStart;
     public final long footerEnd;
 
-
     Marker(long logStart, long head, long footerStart, long footerEnd) {
         this.logStart = logStart;
         this.head = head;

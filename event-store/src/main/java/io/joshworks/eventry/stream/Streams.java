@@ -1,8 +1,8 @@
 package io.joshworks.eventry.stream;
 
 import io.joshworks.eventry.LRUCache;
-import io.joshworks.eventry.hash.Murmur3Hash;
-import io.joshworks.eventry.hash.XXHash;
+import io.joshworks.fstore.core.hash.Murmur3Hash;
+import io.joshworks.fstore.core.hash.XXHash;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.utils.StringUtils;

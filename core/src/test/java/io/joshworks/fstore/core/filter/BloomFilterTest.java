@@ -1,12 +1,13 @@
-package io.joshworks.eventry.index.filter;
+package io.joshworks.fstore.core.filter;
 
-import io.joshworks.eventry.Utils;
-import io.joshworks.fstore.serializer.Serializers;
+import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.utils.Utils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
@@ -32,7 +33,7 @@ public class BloomFilterTest {
     }
 
     private BloomFilter<Long> openFilter() {
-        return BloomFilter.openOrCreate(testFolder, "segmentA", 100, 0.01, BloomFilterHasher.Murmur64(Serializers.LONG));
+        return BloomFilter.openOrCreate(testFolder, "segmentA", 100, 0.01, BloomFilterHasher.Murmur64(new LongSerializer()));
     }
 
     @Test
@@ -61,5 +62,22 @@ public class BloomFilterTest {
         assertFalse(loaded.contains(2L));
     }
 
+    private static class LongSerializer implements Serializer<Long> {
+
+        @Override
+        public ByteBuffer toBytes(Long data) {
+           return ByteBuffer.allocate(Long.BYTES).putLong(data).flip();
+        }
+
+        @Override
+        public void writeTo(Long data, ByteBuffer dest) {
+            dest.putLong(data);
+        }
+
+        @Override
+        public Long fromBytes(ByteBuffer buffer) {
+            return buffer.getLong();
+        }
+    }
 
 }

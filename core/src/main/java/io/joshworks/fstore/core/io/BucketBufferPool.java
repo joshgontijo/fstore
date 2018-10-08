@@ -5,13 +5,14 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BufferPool2 implements BufferPool{
+//TODO implement
+public class BucketBufferPool implements BufferPool{
 
     private static int LARGE_SIZE = 1024 * 1024;
     private ByteBuffer largeBuffer = malloc(LARGE_SIZE);
     private final List<ByteBuffer>[] potBuffers;
 
-    public BufferPool2() {
+    public BucketBufferPool() {
         potBuffers = (List<ByteBuffer>[]) new List[32];
         for (int i = 0; i < potBuffers.length; i++) {
             potBuffers[i] = new ArrayList<>();

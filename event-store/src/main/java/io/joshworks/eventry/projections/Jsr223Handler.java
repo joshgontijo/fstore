@@ -122,12 +122,7 @@ public class Jsr223Handler implements EventStreamHandler {
             if (type == null || StringUtils.isBlank(String.valueOf(type))) {
                 throw new RuntimeException("No source stream provided");
             }
-            Projection.Type theType;
-            try {
-                theType = Projection.Type.valueOf(String.valueOf(type));
-            } catch (Exception e) {
-                throw new RuntimeException("Invalid projection type '" + type + "'");
-            }
+            Projection.Type theType = getType(type);
 
             boolean isParallel = parallel != null && ((Boolean) parallel);
             boolean isEnabled = enabled == null || ((Boolean) enabled);
@@ -136,6 +131,14 @@ public class Jsr223Handler implements EventStreamHandler {
 
         } catch (Exception e) {
             throw new RuntimeException("Script compilation error: " + e.getMessage(), e);
+        }
+    }
+
+    private static Projection.Type getType(Object type) {
+        try {
+            return Projection.Type.valueOf(String.valueOf(type));
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid projection type '" + type + "'");
         }
     }
 

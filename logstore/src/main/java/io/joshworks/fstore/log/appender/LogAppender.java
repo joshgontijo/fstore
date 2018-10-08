@@ -2,7 +2,6 @@ package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.seda.SedaContext;
@@ -16,6 +15,7 @@ import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.record.DataStream;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 import org.slf4j.Logger;
@@ -36,7 +36,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -262,16 +261,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     private void addToPollers(L newSegment) {
         for (LogPoller poller : pollers) {
             poller.addSegment(newSegment);
-        }
-    }
-
-    private class WriteItem {
-        private final T data;
-        private final Consumer<Long> completionHandler;
-
-        private WriteItem(T data, Consumer<Long> completionHandler) {
-            this.data = data;
-            this.completionHandler = completionHandler;
         }
     }
 

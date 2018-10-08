@@ -1,4 +1,4 @@
-package io.joshworks.eventry.hash;
+package io.joshworks.fstore.core.hash;
 
 import java.nio.ByteBuffer;
 

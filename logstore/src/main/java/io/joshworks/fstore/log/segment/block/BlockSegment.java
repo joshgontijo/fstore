@@ -233,7 +233,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
         @Override
         public T next() {
-            if (entries.isEmpty()) {
+            if (!hasNext()) {
                 throw new NoSuchElementException();
             }
             return entries.poll();
