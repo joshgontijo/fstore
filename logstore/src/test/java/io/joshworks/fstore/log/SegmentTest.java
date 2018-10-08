@@ -4,8 +4,8 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
-import io.joshworks.fstore.log.segment.LogHeader;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.LogHeader;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.serializer.StringSerializer;
@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -147,7 +148,7 @@ public abstract class SegmentTest {
     @Test
     public void big_entry() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i <  DataStream.MAX_ENTRY_SIZE - RecordHeader.HEADER_OVERHEAD; i++) {
+        for (int i = 0; i < DataStream.MAX_ENTRY_SIZE - RecordHeader.HEADER_OVERHEAD; i++) {
             sb.append("a");
         }
         String data = sb.toString();
@@ -323,6 +324,43 @@ public abstract class SegmentTest {
             }
         }
         assertEquals(-1, current);
+    }
+
+    @Test
+    public void reader_forward_maintain_correct_position() throws IOException {
+        int entries = 1000000;
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < entries; i++) {
+            long pos = segment.append(String.valueOf(i));
+            positions.add(pos);
+        }
+
+        try (LogIterator<String> iterator = segment.iterator(Direction.FORWARD)) {
+            int idx = 0;
+            while (iterator.hasNext()) {
+                assertEquals(positions.get(idx++), Long.valueOf(iterator.position()));
+                iterator.next();
+            }
+        }
+    }
+
+    @Test
+    public void reader_backward_maintain_correct_position() throws IOException {
+        int entries = 1000000;
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < entries; i++) {
+            long pos = segment.append(String.valueOf(i));
+            positions.add(pos);
+        }
+
+        Collections.reverse(positions);
+        try (LogIterator<String> iterator = segment.iterator(Direction.BACKWARD)) {
+            int idx = 0;
+            while (iterator.hasNext()) {
+                iterator.next();
+                assertEquals(positions.get(idx++), Long.valueOf(iterator.position()));
+            }
+        }
     }
 
     @Test

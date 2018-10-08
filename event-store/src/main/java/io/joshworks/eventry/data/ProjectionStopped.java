@@ -10,18 +10,20 @@ public class ProjectionStopped {
     public final String name;
     public final String reason;
     public final long processedItems;
+    public final long logPosition;
 
     public static final String TYPE = Constant.SYSTEM_PREFIX + "PROJECTION_RUN_STOPPED";
     private static final JsonSerializer<ProjectionStopped> serializer = JsonSerializer.of(ProjectionStopped.class);
 
-    public ProjectionStopped(String name, String reason, long processedItems) {
+    public ProjectionStopped(String name, String reason, long processedItems, long logPosition) {
         this.name = name;
         this.reason = reason;
         this.processedItems = processedItems;
+        this.logPosition = logPosition;
     }
 
-    public static EventRecord create(String name, String reason, long processedItems) {
-        var data = serializer.toBytes(new ProjectionStopped(name, reason, processedItems));
+    public static EventRecord create(String name, String reason, long processedItems, long logPosition) {
+        var data = serializer.toBytes(new ProjectionStopped(name, reason, processedItems, logPosition));
         return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data.array());
     }
 

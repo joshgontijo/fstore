@@ -8,6 +8,7 @@ import io.joshworks.fstore.core.io.BufferPool;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
@@ -21,17 +22,16 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.util.Objects.requireNonNull;
 
@@ -170,6 +170,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public PollingSubscriber<T> poller(long position) {
+        checkClosed();
         SegmentPoller segmentPoller = new SegmentPoller(dataStream, serializer, position);
         return addToReaders(segmentPoller);
     }
@@ -213,7 +214,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public Stream<T> stream(Direction direction) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(direction), Spliterator.ORDERED), false);
+        return Iterators.closeableStream(iterator(direction));
     }
 
     @Override
@@ -230,6 +231,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public LogIterator<T> iterator(long position, Direction direction) {
+        checkClosed();
         return newLogReader(position, direction);
     }
 
@@ -238,6 +240,7 @@ public class Segment<T> implements Log<T> {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
+        readers.clear();
         IOUtils.closeQuietly(storage);
     }
 
@@ -284,6 +287,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void delete() {
+        close();
         storage.delete();
     }
 
@@ -300,7 +304,7 @@ public class Segment<T> implements Log<T> {
 
         writeEndOfLog();
         long endOfLog = storage.position();
-        FooterInfo footerInfo = footer != null ? writeFooter(footer) : new FooterInfo(endOfLog, 0);
+        FooterInfo footerInfo = footer != null ? writeFooter(footer) : FooterInfo.emptyFooter(endOfLog);
         this.header = writeHeader(level, footerInfo);
 
         boolean hasFooter = header.footerStart > 0;
@@ -344,7 +348,7 @@ public class Segment<T> implements Log<T> {
     }
 
     private LogHeader writeHeader(int level, FooterInfo footerInfo) {
-        long segmentSize = footerInfo.start + footerInfo.end;
+        long segmentSize = footerInfo.end;
         long logEnd = footerInfo.start - EOL.length;
         LogHeader newHeader = new LogHeader(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, Log.START, logEnd, footerInfo.start, footerInfo.end);
         storage.position(0);
@@ -353,17 +357,17 @@ public class Segment<T> implements Log<T> {
         return newHeader;
     }
 
-    //TODO properly implement dataStream pool
     //TODO implement race condition on acquiring readers and closing / deleting segment
-    protected SegmentReader newLogReader(long pos, Direction direction) {
+    //TODO readers limit ?
+    private SegmentReader newLogReader(long pos, Direction direction) {
 
         while (readers.size() >= 10) {
             try {
                 Thread.sleep(1000);
-                logger.info("Waiting to acquire dataStream");
+                logger.info("Waiting to acquire reader");
             } catch (InterruptedException e) {
-                e.printStackTrace();
                 Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
             }
         }
 
@@ -420,6 +424,12 @@ public class Segment<T> implements Log<T> {
                 '}';
     }
 
+    private void checkClosed() {
+        if (closed.get()) {
+            throw new IllegalStateException("Segment " + name() + "is closed");
+        }
+    }
+
     private static class FooterInfo {
 
         private final long start;
@@ -429,6 +439,11 @@ public class Segment<T> implements Log<T> {
             this.start = start;
             this.end = end;
         }
+
+        private static FooterInfo emptyFooter(long start) {
+            return new FooterInfo(start, start);
+        }
+
     }
 
     //NOT THREAD SAFE
@@ -437,11 +452,11 @@ public class Segment<T> implements Log<T> {
         private final IDataStream dataStream;
         private final Serializer<T> serializer;
 
-        private T data;
         protected long position;
         private long readAheadPosition;
-        private int lastReadSize;
         private final Direction direction;
+        private final Queue<T> pageQueue = new LinkedList<>();
+        private final Queue<Integer> entriesSizes = new LinkedList<>();
 
         SegmentReader(IDataStream dataStream, Serializer<T> serializer, long initialPosition, Direction direction) {
             this.dataStream = dataStream;
@@ -450,7 +465,7 @@ public class Segment<T> implements Log<T> {
             this.serializer = serializer;
             this.position = initialPosition;
             this.readAheadPosition = initialPosition;
-            this.data = readAhead();
+            readAhead();
             this.lastReadTs = System.currentTimeMillis();
         }
 
@@ -461,45 +476,52 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public boolean hasNext() {
-            return data != null;
+            return !pageQueue.isEmpty();
         }
 
         @Override
         public T next() {
-            if (data == null) {
+            if (pageQueue.isEmpty()) {
                 close();
                 throw new NoSuchElementException();
             }
             lastReadTs = System.currentTimeMillis();
 
-            T current = data;
-            //tODO check if backwards requite any additional offset addition
-            position = Direction.FORWARD.equals(direction) ? position + lastReadSize : position - lastReadSize;
-            data = readAhead();
+            T current = pageQueue.poll();
+            int recordSize = entriesSizes.poll();
+            if (pageQueue.isEmpty()) {
+                readAhead();
+            }
+
+            position = Direction.FORWARD.equals(direction) ? position + recordSize : position - recordSize;
             return current;
         }
 
-        private T readAhead() {
+        private void readAhead() {
             if (Direction.FORWARD.equals(direction)) {
                 if (Segment.this.readOnly() && readAheadPosition >= Segment.this.header.logEnd) {
-                    return null;
+                    return;
                 }
                 if (!Segment.this.readOnly() && readAheadPosition >= Segment.this.position()) {
-                    return null;
+                    return;
                 }
             }
             if (Direction.BACKWARD.equals(direction) && readAheadPosition <= Log.START) {
-                return null;
+                return;
             }
-            try (BufferRef ref = dataStream.read(storage, bufferPool, direction, readAheadPosition)) {
-                ByteBuffer bb = ref.get();
-                if (bb.remaining() == 0) { //EOF
-                    close();
-                    return null;
+            int totalRead = 0;
+            try (BufferRef ref = dataStream.bulkRead(storage, bufferPool, direction, readAheadPosition)) {
+                int[] entriesLength = ref.readAllInto(pageQueue, serializer);
+                for (int length : entriesLength) {
+                    entriesSizes.add(length);
+                    totalRead += length;
                 }
-                lastReadSize = bb.remaining() + RecordHeader.HEADER_OVERHEAD;
-                readAheadPosition = Direction.FORWARD.equals(direction) ? readAheadPosition + lastReadSize : readAheadPosition - lastReadSize;
-                return serializer.fromBytes(bb);
+
+                if (entriesLength.length == 0) {
+                    close();
+                    return;
+                }
+                readAheadPosition = Direction.FORWARD.equals(direction) ? readAheadPosition + totalRead : readAheadPosition - totalRead;
             }
 
         }
@@ -511,7 +533,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public String toString() {
-            return "SegmentReader{ readPosition=" + position +
+            return "SegmentReader{ readPosition=" + readAheadPosition +
                     ", order=" + direction +
                     ", readAheadPosition=" + readAheadPosition +
                     ", lastReadTs=" + lastReadTs +
@@ -525,6 +547,8 @@ public class Segment<T> implements Log<T> {
 
         private final IDataStream dataStream;
         private final Serializer<T> serializer;
+        private final Queue<T> pageQueue = new LinkedList<>();
+        private final Queue<Integer> entriesSizes = new LinkedList<>();
         private long readPosition;
 
         SegmentPoller(IDataStream dataStream, Serializer<T> serializer, long initialPosition) {
@@ -536,18 +560,30 @@ public class Segment<T> implements Log<T> {
         }
 
         private T read(boolean advance) {
-            try (BufferRef ref = dataStream.read(storage, bufferPool, Direction.FORWARD, readPosition)) {
-                ByteBuffer bb = ref.get();
-                if (bb.remaining() == 0) { //EOF
-                    close();
-                    return null;
-                }
-                if (advance) {
-                    readPosition += bb.remaining() + RecordHeader.HEADER_OVERHEAD;
-                }
-                return serializer.fromBytes(bb);
+            T val = readCached(advance);
+            if (val != null) {
+                return val;
             }
 
+            try (BufferRef ref = dataStream.bulkRead(storage, bufferPool, Direction.FORWARD, readPosition)) {
+                int[] entriesLength = ref.readAllInto(pageQueue, serializer);
+                for (int length : entriesLength) {
+                    entriesSizes.add(length);
+                }
+
+                return entriesLength.length > 0 ? readCached(advance) : null;
+            }
+        }
+
+        private T readCached(boolean advance) {
+            T val = advance ? pageQueue.poll() : pageQueue.peek();
+            if (val != null) {
+                int len = advance ? entriesSizes.poll() : entriesSizes.peek();
+                if (advance) {
+                    readPosition += len;
+                }
+            }
+            return val;
         }
 
         private synchronized T tryTake(long sleepInterval, TimeUnit timeUnit, boolean advance) throws InterruptedException {
@@ -561,6 +597,9 @@ public class Segment<T> implements Log<T> {
         }
 
         private boolean hasDataAvailable() {
+            if (!pageQueue.isEmpty()) {
+                return true;
+            }
             if (Segment.this.readOnly()) {
                 return readPosition < Segment.this.header.logEnd;
             }

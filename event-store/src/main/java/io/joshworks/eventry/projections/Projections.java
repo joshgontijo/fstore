@@ -1,81 +1,81 @@
 package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.utils.StringUtils;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Consumer;
 
-public class Projections {
+public class Projections implements Closeable  {
 
     private static final Map<String, Projection> items = new HashMap<>();
-    //TODO externalize
-    private final ProjectionsExecutor executor = new ProjectionsExecutor(10);
-    private final Map<String, ExecutionStatus> taskTracker = new HashMap<>();
+    private final ProjectionManager manager;
+
+    public Projections(ProjectionManager manager) {
+        this.manager = manager;
+    }
 
     public void add(Projection projection) {
         items.put(projection.name, projection);
     }
 
-    public Projection create(String name, String script, Projection.Type type, boolean enabled) {
-        StringUtils.requireNonBlank(name, "name");
+    public Projection create(String script) {
         StringUtils.requireNonBlank(script, "script");
-        Objects.requireNonNull(type, "Type must be provided");
 
-        name = name.trim().replaceAll("\\s+", "");
+        Projection projection = Jsr223Handler.compile(script, "nashorn");
 
-        Projection projection = new Projection(script, name, type, enabled);
-        if (items.containsKey(name)) {
-            throw new IllegalArgumentException("Projection with name '" + name + "' already exist");
+        if (items.containsKey(projection.name)) {
+            throw new IllegalArgumentException("Projection with name '" + projection.name + "' already exist");
         }
 
-        items.put(name, projection);
+        items.put(projection.name, projection);
         return projection;
     }
 
-    public void runAdHoc(String script, IEventStore store, Consumer<EventRecord> systemRecordAppender) {
+    public void runAdHoc(String script, IEventStore store) {
         //TODO
     }
 
-    public void run(String name, IEventStore store, Consumer<EventRecord> systemRecordAppender) {
+    public void run(String name, IEventStore store) {
         Projection projection = get(name);
-        ProjectionTask projectionTask = new ProjectionTask(projection, store, systemRecordAppender, taskTracker);
-        executor.execute(projectionTask);
+        if(!projection.enabled) {
+            throw new RuntimeException("Projection is not enabled");
+        }
+        manager.run(projection, store);
     }
 
     public void stop(String name) {
-        Projection projection = get(name);
+        manager.stop(name);
     }
 
     public void stopAll() {
-        executor.runningTasks().forEach(ProjectionTask::stop);
+        manager.stopAll();
     }
 
     public Collection<Projection> all() {
         return new ArrayList<>(items.values());
     }
 
-    public Collection<ExecutionStatus> executionStatuses() {
-        return new ArrayList<>(taskTracker.values());
+    public Collection<Metrics> executionStatuses() {
+        throw new UnsupportedOperationException("TODO");
     }
 
-    public ExecutionStatus executionStatus(String name) {
-        return taskTracker.get(name);
+    public Map<String, Metrics> executionStatus(String name) {
+        return manager.status(name);
     }
 
-    public Projection update(String name, String script, Projection.Type type, Boolean enabled) {
-        Projection projection = get(name);
+    public Projection update(String name, String script) {
+        Projection found = get(name);
+        if(found == null) {
+            throw new IllegalArgumentException("No projection found for name " + name);
+        }
 
-        boolean isEnabled = enabled == null ? projection.enabled : enabled;
-        Projection.Type newType = type == null ? projection.type : type;
-        String newScript = StringUtils.isBlank(script) ? projection.script : script;
-
-        Projection updated = new Projection(newScript, projection.name, newType, isEnabled);
+        items.remove(name);
+        Projection updated = Jsr223Handler.compile(script, "nashorn");
         items.put(updated.name, updated);
 
         return updated;
@@ -100,4 +100,8 @@ public class Projections {
         return projection;
     }
 
+    @Override
+    public void close() {
+        stopAll();
+    }
 }

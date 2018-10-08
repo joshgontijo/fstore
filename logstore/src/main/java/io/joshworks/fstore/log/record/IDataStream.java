@@ -12,4 +12,6 @@ public interface IDataStream {
 
     BufferRef read(Storage storage, BufferPool bufferPool, Direction direction, long position);
 
+    BufferRef bulkRead(Storage storage, BufferPool bufferPool, Direction direction, long position);
+
 }

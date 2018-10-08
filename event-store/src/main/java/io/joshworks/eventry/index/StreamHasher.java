@@ -1,6 +1,6 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.hash.Hash;
+import io.joshworks.fstore.core.hash.Hash;
 
 import java.nio.charset.StandardCharsets;
 

@@ -3,14 +3,14 @@ package io.joshworks.eventry.index.disk;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
-import io.joshworks.eventry.index.filter.BloomFilter;
+import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.eventry.index.midpoint.Midpoints;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.eventry.index.filter.BloomFilterHasher;
+import io.joshworks.fstore.core.filter.BloomFilterHasher;
 import io.joshworks.eventry.index.midpoint.Midpoint;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -110,7 +110,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
 
     @Override
     public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.stream(iterator(direction, range));
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
     @Override
