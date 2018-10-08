@@ -49,7 +49,7 @@ public class EventLog implements Closeable {
     }
 
     public Stream<EventRecord> stream(Direction direction) {
-        return Iterators.stream(iterator(direction));
+        return Iterators.closeableStream(iterator(direction));
     }
 
     public PollingSubscriber<EventRecord> poller() {

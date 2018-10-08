@@ -140,7 +140,8 @@ public class Compactor<T, L extends Log<T>> {
         //TODO test
         if (target.entries() == 0) {
             logger.info("No entries were found in the result segment {}, deleting", target.name());
-            target.delete();
+            deleteAll(List.of(target));
+            levels.remove(sources);
         } else {
             levels.merge(sources, target);
         }

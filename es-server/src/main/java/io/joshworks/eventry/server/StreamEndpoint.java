@@ -82,7 +82,7 @@ public class StreamEndpoint {
             throw new HttpException(400, QUERY_PARAM_ZIP + " and " + QUERY_PARAM_ZIP_PREFIX + " cannot be used together");
         }
 
-        //TODO check access to the stream
+        //TODO check access to the closeableStream
         List<EventBody> events = new ArrayList<>();
         if (!streams.isEmpty()) {
             try (Stream<EventRecord> recordStream = store.zipStreams(streams)) {

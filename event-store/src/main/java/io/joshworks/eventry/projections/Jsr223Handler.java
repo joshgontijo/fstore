@@ -108,19 +108,19 @@ public class Jsr223Handler implements EventStreamHandler {
             Object enabled = options.get(ENABLED_FIELD_NAME);
 
             if (sourceStreams == null) {
-                throw new RuntimeException("No source stream provided");
+                throw new RuntimeException("No source closeableStream provided");
             }
             Set<String> streams = new HashSet<>(((Map<String, String>) sourceStreams).values());
             streams.removeIf(String::isEmpty);
             if (streams.isEmpty()) {
-                throw new RuntimeException("No source stream provided");
+                throw new RuntimeException("No source closeableStream provided");
             }
 
             if (projectionName == null || StringUtils.isBlank(String.valueOf(projectionName))) {
                 throw new RuntimeException("No projection name provided");
             }
             if (type == null || StringUtils.isBlank(String.valueOf(type))) {
-                throw new RuntimeException("No source stream provided");
+                throw new RuntimeException("No source closeableStream provided");
             }
             Projection.Type theType = getType(type);
 

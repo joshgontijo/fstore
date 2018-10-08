@@ -68,7 +68,7 @@ public class RecordCleanupTest {
     @Test
     public void obsolete_entries_are_removed() {
 
-        var stream = "stream-1";
+        var stream = "closeableStream-1";
         var maxCount = 2;
 
         streams.create(stream, NO_MAX_AGE, maxCount);
@@ -91,7 +91,7 @@ public class RecordCleanupTest {
     @Test
     public void expired_entries_are_removed() {
 
-        var stream = "stream-1";
+        var stream = "closeableStream-1";
         var maxAge = 10;
         var now = System.currentTimeMillis();
         streams.create(stream, maxAge, NO_MAX_COUNT);

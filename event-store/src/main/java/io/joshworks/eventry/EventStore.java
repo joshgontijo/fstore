@@ -286,13 +286,13 @@ public class EventStore implements IEventStore {
     @Override
     public Stream<EventRecord> fromStream(String stream, int versionInclusive) {
         LogIterator<EventRecord> iterator = fromStreamIter(stream, versionInclusive);
-        return Iterators.stream(iterator);
+        return Iterators.closeableStream(iterator);
     }
 
     @Override
     public Stream<EventRecord> zipStreams(Set<String> streams) {
         LogIterator<EventRecord> iterator = zipStreamsIter(streams);
-        return Iterators.stream(iterator);
+        return Iterators.closeableStream(iterator);
     }
 
     @Override
@@ -306,7 +306,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public Stream<EventRecord> zipStreams(String streamPrefix) {
-        return Iterators.stream(zipStreamsIter(streamPrefix));
+        return Iterators.closeableStream(zipStreamsIter(streamPrefix));
     }
 
     @Override
@@ -351,7 +351,7 @@ public class EventStore implements IEventStore {
         return eventLog.iterator(Direction.FORWARD);
     }
 
-    //Won't return the stream in the event !
+    //Won't return the closeableStream in the event !
     @Override
     public Stream<EventRecord> fromAll() {
         return eventLog.stream(Direction.FORWARD);
@@ -410,7 +410,7 @@ public class EventStore implements IEventStore {
 
     private void validateEvent(EventRecord event) {
         Objects.requireNonNull(event, "Event must be provided");
-        StringUtils.requireNonBlank(event.stream, "stream must be provided");
+        StringUtils.requireNonBlank(event.stream, "closeableStream must be provided");
         StringUtils.requireNonBlank(event.type, "Type must be provided");
         if (event.stream.startsWith(Constant.SYSTEM_PREFIX)) {
             throw new IllegalArgumentException("Stream cannot start with " + Constant.SYSTEM_PREFIX);
@@ -442,7 +442,7 @@ public class EventStore implements IEventStore {
         long streamHash = streams.hashOf(event.stream);
         if (streamMetadata.name.equals(event.stream) && streamMetadata.hash != streamHash) {
             //TODO improve ??
-            throw new IllegalStateException("Hash collision of stream: " + event.stream + " with existing name: " + streamMetadata.name);
+            throw new IllegalStateException("Hash collision of closeableStream: " + event.stream + " with existing name: " + streamMetadata.name);
         }
 
         int version = streams.tryIncrementVersion(streamHash, expectedVersion);
@@ -493,8 +493,8 @@ public class EventStore implements IEventStore {
         return new IndexedLogPoller(index.poller(hashes), this);
     }
 
-//    public PollingSubscriber<Event> poller(String stream, int version) {
-//        long streamHash = streams.hashOf(stream);
+//    public PollingSubscriber<Event> poller(String closeableStream, int version) {
+//        long streamHash = streams.hashOf(closeableStream);
 //        return new IndexedLogPoller(index.poller(streamHash, version), eventLog);
 //    }
 

@@ -8,6 +8,7 @@ import io.joshworks.fstore.core.io.BufferPool;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
@@ -26,14 +27,11 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.util.Objects.requireNonNull;
 
@@ -172,6 +170,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public PollingSubscriber<T> poller(long position) {
+        checkClosed();
         SegmentPoller segmentPoller = new SegmentPoller(dataStream, serializer, position);
         return addToReaders(segmentPoller);
     }
@@ -215,7 +214,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public Stream<T> stream(Direction direction) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(direction), Spliterator.ORDERED), false);
+        return Iterators.closeableStream(iterator(direction));
     }
 
     @Override
@@ -232,6 +231,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public LogIterator<T> iterator(long position, Direction direction) {
+        checkClosed();
         return newLogReader(position, direction);
     }
 
@@ -240,6 +240,7 @@ public class Segment<T> implements Log<T> {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
+        readers.clear();
         IOUtils.closeQuietly(storage);
     }
 
@@ -286,6 +287,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void delete() {
+        close();
         storage.delete();
     }
 
@@ -355,17 +357,17 @@ public class Segment<T> implements Log<T> {
         return newHeader;
     }
 
-    //TODO properly implement dataStream pool
     //TODO implement race condition on acquiring readers and closing / deleting segment
-    protected SegmentReader newLogReader(long pos, Direction direction) {
+    //TODO readers limit ?
+    private SegmentReader newLogReader(long pos, Direction direction) {
 
         while (readers.size() >= 10) {
             try {
                 Thread.sleep(1000);
-                logger.info("Waiting to acquire dataStream");
+                logger.info("Waiting to acquire reader");
             } catch (InterruptedException e) {
-                e.printStackTrace();
                 Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
             }
         }
 
@@ -420,6 +422,12 @@ public class Segment<T> implements Log<T> {
                 ", header=" + header +
                 ", readers=" + Arrays.toString(readers.toArray()) +
                 '}';
+    }
+
+    private void checkClosed() {
+        if (closed.get()) {
+            throw new IllegalStateException("Segment " + name() + "is closed");
+        }
     }
 
     private static class FooterInfo {
@@ -481,7 +489,7 @@ public class Segment<T> implements Log<T> {
 
             T current = pageQueue.poll();
             int recordSize = entriesSizes.poll();
-            if(pageQueue.isEmpty()) {
+            if (pageQueue.isEmpty()) {
                 readAhead();
             }
 
@@ -509,7 +517,7 @@ public class Segment<T> implements Log<T> {
                     totalRead += length;
                 }
 
-                if(entriesLength.length == 0) {
+                if (entriesLength.length == 0) {
                     close();
                     return;
                 }
@@ -553,7 +561,7 @@ public class Segment<T> implements Log<T> {
 
         private T read(boolean advance) {
             T val = readCached(advance);
-            if(val != null) {
+            if (val != null) {
                 return val;
             }
 
@@ -569,7 +577,7 @@ public class Segment<T> implements Log<T> {
 
         private T readCached(boolean advance) {
             T val = advance ? pageQueue.poll() : pageQueue.peek();
-            if(val != null) {
+            if (val != null) {
                 int len = advance ? entriesSizes.poll() : entriesSizes.peek();
                 if (advance) {
                     readPosition += len;
@@ -589,7 +597,7 @@ public class Segment<T> implements Log<T> {
         }
 
         private boolean hasDataAvailable() {
-            if(!pageQueue.isEmpty()) {
+            if (!pageQueue.isEmpty()) {
                 return true;
             }
             if (Segment.this.readOnly()) {
