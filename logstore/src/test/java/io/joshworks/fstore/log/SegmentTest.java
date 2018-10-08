@@ -4,8 +4,8 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
-import io.joshworks.fstore.log.segment.LogHeader;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.LogHeader;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.serializer.StringSerializer;
@@ -24,7 +24,6 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -149,7 +148,7 @@ public abstract class SegmentTest {
     @Test
     public void big_entry() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i <  DataStream.MAX_ENTRY_SIZE - RecordHeader.HEADER_OVERHEAD; i++) {
+        for (int i = 0; i < DataStream.MAX_ENTRY_SIZE - RecordHeader.HEADER_OVERHEAD; i++) {
             sb.append("a");
         }
         String data = sb.toString();
@@ -363,7 +362,6 @@ public abstract class SegmentTest {
             }
         }
     }
-
 
     @Test
     public void segment_read_backwards_returns_false_when_empty_log() throws IOException {

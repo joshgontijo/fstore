@@ -1,4 +1,4 @@
-package io.joshworks.eventry.hash;
+package io.joshworks.fstore.core.hash;
 
 import net.jpountz.xxhash.XXHash32;
 import net.jpountz.xxhash.XXHash64;

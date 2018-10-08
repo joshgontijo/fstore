@@ -1,7 +1,7 @@
-package io.joshworks.eventry.index.filter;
+package io.joshworks.fstore.core.filter;
 
-import io.joshworks.eventry.hash.Murmur3;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.hash.Murmur3;
 
 import java.nio.ByteBuffer;
 
