@@ -45,6 +45,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -59,6 +64,13 @@ public class EventStore implements IEventStore {
     private final Streams streams;
     private final EventLog eventLog;
     private final Projections projections;
+
+    private final AtomicBoolean closed = new AtomicBoolean();
+    private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r);
+        t.setName("writer");
+        return t;
+    });
 
     private EventStore(File rootDir) {
         this.index = new TableIndex(rootDir);
@@ -426,8 +438,20 @@ public class EventStore implements IEventStore {
     public EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
 
-        StreamMetadata metadata = getOrCreateStream(event.stream);
-        return append(metadata, event, expectedVersion);
+        try {
+            Future<EventRecord> task = executor.submit(() -> {
+                StreamMetadata metadata = getOrCreateStream(event.stream);
+                return append(metadata, event, expectedVersion);
+            });
+            return task.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+
+
     }
 
     private synchronized EventRecord appendSystemEvent(EventRecord event) {
@@ -523,6 +547,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public void close() {
+        executor.shutdown();
         index.close();
         eventLog.close();
         streams.close();
