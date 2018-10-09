@@ -1,17 +1,37 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.IOUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.Queue;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.function.ToDoubleFunction;
+import java.util.function.ToIntFunction;
+import java.util.function.ToLongFunction;
+import java.util.stream.Collector;
+import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -33,8 +53,29 @@ public class Iterators {
         return new IteratorIterator<>(original);
     }
 
+    @SafeVarargs
     public static <T> LogIterator<T> concat(LogIterator<T>... originals) {
         return new IteratorIterator<>(Arrays.asList(originals));
+    }
+
+    public static <T, R> LogIterator<R> mapping(LogIterator<T> iterator, Function<T, R> mapper) {
+        return new MappingIterator<>(iterator, mapper);
+    }
+
+    public static <T> LogIterator<T> filtering(LogIterator<T> iterator, Predicate<? super T> predicate) {
+        return new FilteringIterator<>(iterator, predicate);
+    }
+
+    public static <T> LogIterator<T> buffering(LogIterator<T> iterator, int bufferSize) {
+        return new BufferingIterator<>(iterator, bufferSize);
+    }
+
+    public static <T> LogIterator<T> limiting(LogIterator<T> iterator, int limit) {
+        return new LimitIterator<>(iterator, limit);
+    }
+
+    public static <T> LogIterator<T> skipping(LogIterator<T> iterator, int skips) {
+        return new SkippingIterator<>(iterator, skips);
     }
 
     public static <T> PeekingIterator<T> peekingIterator(LogIterator<T> iterator) {
@@ -52,12 +93,13 @@ public class Iterators {
         return copy;
     }
 
-    public static <T> Stream<T> stream(LogIterator<T> iterator) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+    public static <T> Stream<T> closeableStream(LogIterator<T> iterator) {
+        return closeableStream(iterator, Spliterator.ORDERED, false);
     }
 
-    public static <T> Stream<T> stream(LogIterator<T> iterator, int characteristics, boolean parallel) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, characteristics), parallel);
+    public static <T> Stream<T> closeableStream(LogIterator<T> iterator, int characteristics, boolean parallel) {
+        Stream<T> delegate = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, characteristics), parallel);
+        return new CloseableStream<>(iterator, delegate);
     }
 
     private static class EmptyIterator<T> implements LogIterator<T> {
@@ -110,9 +152,6 @@ public class Iterators {
         @Override
         public T next() {
             T next = source.next();
-            if(next == null) {
-                throw new NoSuchElementException();
-            }
             position++;
             return next;
         }
@@ -151,54 +190,63 @@ public class Iterators {
 
     private static class IteratorIterator<T> implements LogIterator<T> {
 
-        private final List<LogIterator<T>> is;
-        private int current;
+        private final Iterator<LogIterator<T>> it;
+        private LogIterator<T> current;
 
         private IteratorIterator(List<LogIterator<T>> iterators) {
-            this.is = iterators;
-            this.current = 0;
+            this.it = iterators.iterator();
+            nextIterator();
         }
 
         @Override
         public boolean hasNext() {
-            while (current < is.size() && !is.get(current).hasNext())
-                current++;
-
-            boolean hasNext = current < is.size();
+            nextIterator();
+            boolean hasNext = current != null && current.hasNext();
             if (!hasNext) {
                 this.close();
             }
             return hasNext;
         }
 
+        private void nextIterator() {
+            while ((current == null || !current.hasNext()) && it.hasNext()) {
+                closeIterator(current);
+                current = it.next();
+            }
+        }
+
         @Override
         public T next() {
-            while (current < is.size() && !is.get(current).hasNext())
-                current++;
-
-            if(current >= is.size()) {
+            if (!hasNext()) {
                 close();
                 throw new NoSuchElementException();
             }
 
-            return is.get(current).next();
+            return current.next();
         }
 
         @Override
         public long position() {
-            return is.get(current).position();
+            return current.position();
         }
 
         @Override
         public void close() {
-            try {
-                for (LogIterator<T> iterator : is) {
-                    iterator.close();
-                }
-            } catch (IOException e) {
-                throw RuntimeIOException.of(e);
+            closeIterator(current);
+            while (it.hasNext()) {
+                closeIterator(it.next());
             }
+        }
 
+        private void closeIterator(LogIterator<T> it) {
+            if (it == null) {
+                return;
+            }
+            try {
+                it.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -254,5 +302,454 @@ public class Iterators {
             iterator.close();
         }
     }
+
+    private static final class FilteringIterator<T> implements LogIterator<T> {
+
+        private final LogIterator<T> delegate;
+        private Predicate<? super T> predicate;
+        private T entry;
+
+        private FilteringIterator(LogIterator<T> delegate, Predicate<? super T> predicate) {
+            this.delegate = delegate;
+            this.predicate = predicate;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (entry == null) {
+                entry = takeWhile();
+                return entry != null;
+            }
+            return true;
+        }
+
+        @Override
+        public T next() {
+            if (entry == null) {
+                entry = takeWhile();
+                if (entry == null) {
+                    throw new NoSuchElementException();
+                }
+            }
+            T tmp = entry;
+            entry = null;
+            return tmp;
+        }
+
+        private T takeWhile() {
+            T match = null;
+            do {
+                if (delegate.hasNext()) {
+                    T next = delegate.next();
+                    match = predicate.test(next) ? next : null;
+
+                }
+            } while (match == null && delegate.hasNext());
+            return match;
+        }
+    }
+
+    private static final class BufferingIterator<T> implements LogIterator<T> {
+
+        private final LogIterator<T> delegate;
+        private final int bufferSize;
+        private final Queue<T> buffer = new LinkedList<>();
+
+        private BufferingIterator(LogIterator<T> delegate, int bufferSize) {
+            this.delegate = delegate;
+            this.bufferSize = bufferSize;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return !buffer.isEmpty() || buffer();
+        }
+
+        @Override
+        public T next() {
+            if (buffer.isEmpty() && !buffer()) {
+                throw new NoSuchElementException();
+            }
+            return buffer.poll();
+        }
+
+        private boolean buffer() {
+            int buffered = 0;
+            while (buffered <= bufferSize && delegate.hasNext()) {
+                buffer.add(delegate.next());
+                buffered++;
+            }
+            return buffered > 0;
+        }
+    }
+
+    private static final class LimitIterator<T> implements LogIterator<T> {
+
+        private final LogIterator<T> delegate;
+        private final int limit;
+        private final AtomicInteger processed = new AtomicInteger();
+
+        private LimitIterator(LogIterator<T> delegate, int limit) {
+            this.delegate = delegate;
+            this.limit = limit;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (processed.get() >= limit) {
+                IOUtils.closeQuietly(delegate);
+                return false;
+            }
+            return delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            if (!hasNext()) {
+                IOUtils.closeQuietly(delegate);
+                throw new NoSuchElementException();
+            }
+            processed.incrementAndGet();
+            return delegate.next();
+        }
+    }
+
+    private static final class SkippingIterator<T> implements LogIterator<T> {
+
+        private final LogIterator<T> delegate;
+        private final int skips;
+        private final AtomicInteger skipped = new AtomicInteger();
+
+        private SkippingIterator(LogIterator<T> delegate, int skips) {
+            this.delegate = delegate;
+            this.skips = skips;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (skipped.get() < skips) {
+                skip();
+            }
+            return delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            if (skipped.get() < skips) {
+                skip();
+            }
+            return delegate.next();
+        }
+
+        private void skip() {
+            while (skipped.get() < skips && delegate.hasNext()) {
+                delegate.next();
+                skipped.incrementAndGet();
+            }
+        }
+
+
+    }
+
+    private static final class MappingIterator<R, T> implements LogIterator<R> {
+
+        private final LogIterator<T> delegate;
+        private Function<T, R> mapper;
+
+        private MappingIterator(LogIterator<T> delegate, Function<T, R> mapper) {
+            this.delegate = delegate;
+            this.mapper = mapper;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public R next() {
+            T entry = delegate.next();
+            return mapper.apply(entry);
+        }
+
+    }
+
+
+    private static final class CloseableStream<T> implements Stream<T> {
+
+        private final Stream<T> delegate;
+        private final CloseableIterator<T> iterator;
+
+        private CloseableStream(CloseableIterator<T> iterator, Stream<T> delegate) {
+            this.iterator = iterator;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Stream<T> filter(Predicate<? super T> predicate) {
+            return delegate.filter(predicate);
+        }
+
+        @Override
+        public <R> Stream<R> map(Function<? super T, ? extends R> mapper) {
+            return delegate.map(mapper);
+        }
+
+        @Override
+        public IntStream mapToInt(ToIntFunction<? super T> mapper) {
+            return delegate.mapToInt(mapper);
+        }
+
+        @Override
+        public LongStream mapToLong(ToLongFunction<? super T> mapper) {
+            return delegate.mapToLong(mapper);
+        }
+
+        @Override
+        public DoubleStream mapToDouble(ToDoubleFunction<? super T> mapper) {
+            return delegate.mapToDouble(mapper);
+        }
+
+        @Override
+        public <R> Stream<R> flatMap(Function<? super T, ? extends Stream<? extends R>> mapper) {
+            return delegate.flatMap(mapper);
+        }
+
+        @Override
+        public IntStream flatMapToInt(Function<? super T, ? extends IntStream> mapper) {
+            return delegate.flatMapToInt(mapper);
+        }
+
+        @Override
+        public LongStream flatMapToLong(Function<? super T, ? extends LongStream> mapper) {
+            return delegate.flatMapToLong(mapper);
+        }
+
+        @Override
+        public DoubleStream flatMapToDouble(Function<? super T, ? extends DoubleStream> mapper) {
+            return delegate.flatMapToDouble(mapper);
+        }
+
+        @Override
+        public Stream<T> distinct() {
+            return delegate.distinct();
+        }
+
+        @Override
+        public Stream<T> sorted() {
+            return delegate.sorted();
+        }
+
+        @Override
+        public Stream<T> sorted(Comparator<? super T> comparator) {
+            return delegate.sorted(comparator);
+        }
+
+        @Override
+        public Stream<T> peek(Consumer<? super T> action) {
+            return delegate.peek(action);
+        }
+
+        @Override
+        public Stream<T> limit(long maxSize) {
+            return delegate.limit(maxSize);
+        }
+
+        @Override
+        public Stream<T> skip(long n) {
+            return delegate.skip(n);
+        }
+
+        @Override
+        public Stream<T> takeWhile(Predicate<? super T> predicate) {
+            return delegate.takeWhile(predicate);
+        }
+
+        @Override
+        public Stream<T> dropWhile(Predicate<? super T> predicate) {
+            return delegate.dropWhile(predicate);
+        }
+
+        @Override
+        public void forEach(Consumer<? super T> action) {
+            delegate.forEach(action);
+        }
+
+        @Override
+        public void forEachOrdered(Consumer<? super T> action) {
+            delegate.forEachOrdered(action);
+        }
+
+        @Override
+        public Object[] toArray() {
+            return delegate.toArray();
+        }
+
+        @Override
+        public <A> A[] toArray(IntFunction<A[]> generator) {
+            return delegate.toArray(generator);
+        }
+
+        @Override
+        public T reduce(T identity, BinaryOperator<T> accumulator) {
+            return delegate.reduce(identity, accumulator);
+        }
+
+        @Override
+        public Optional<T> reduce(BinaryOperator<T> accumulator) {
+            return delegate.reduce(accumulator);
+        }
+
+        @Override
+        public <U> U reduce(U identity, BiFunction<U, ? super T, U> accumulator, BinaryOperator<U> combiner) {
+            return delegate.reduce(identity, accumulator, combiner);
+        }
+
+        @Override
+        public <R> R collect(Supplier<R> supplier, BiConsumer<R, ? super T> accumulator, BiConsumer<R, R> combiner) {
+            return delegate.collect(supplier, accumulator, combiner);
+        }
+
+        @Override
+        public <R, A> R collect(Collector<? super T, A, R> collector) {
+            return delegate.collect(collector);
+        }
+
+        @Override
+        public Optional<T> min(Comparator<? super T> comparator) {
+            return delegate.min(comparator);
+        }
+
+        @Override
+        public Optional<T> max(Comparator<? super T> comparator) {
+            return delegate.max(comparator);
+        }
+
+        @Override
+        public long count() {
+            return delegate.count();
+        }
+
+        @Override
+        public boolean anyMatch(Predicate<? super T> predicate) {
+            return delegate.anyMatch(predicate);
+        }
+
+        @Override
+        public boolean allMatch(Predicate<? super T> predicate) {
+            return delegate.allMatch(predicate);
+        }
+
+        @Override
+        public boolean noneMatch(Predicate<? super T> predicate) {
+            return delegate.noneMatch(predicate);
+        }
+
+        @Override
+        public Optional<T> findFirst() {
+            return delegate.findFirst();
+        }
+
+        @Override
+        public Optional<T> findAny() {
+            return delegate.findAny();
+        }
+
+        @Override
+        public Iterator<T> iterator() {
+            return delegate.iterator();
+        }
+
+        @Override
+        public Spliterator<T> spliterator() {
+            return delegate.spliterator();
+        }
+
+        @Override
+        public boolean isParallel() {
+            return delegate.isParallel();
+        }
+
+        @Override
+        public Stream<T> sequential() {
+            return delegate.sequential();
+        }
+
+        @Override
+        public Stream<T> parallel() {
+            return delegate.parallel();
+        }
+
+        @Override
+        public Stream<T> unordered() {
+            return delegate.unordered();
+        }
+
+        @Override
+        public Stream<T> onClose(Runnable closeHandler) {
+            return delegate.onClose(closeHandler);
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+            try {
+                iterator.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
 
 }

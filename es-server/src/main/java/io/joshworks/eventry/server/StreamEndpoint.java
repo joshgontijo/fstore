@@ -1,11 +1,19 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamInfo;
+import io.joshworks.eventry.stream.Streams;
+import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.snappy.http.HttpException;
 import io.joshworks.snappy.http.HttpExchange;
+import io.joshworks.snappy.http.MediaType;
+import io.undertow.util.HeaderValues;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
@@ -13,15 +21,21 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class StreamEndpoint {
 
+    public static final MediaType EVENTS_MEDIA_TYPE = MediaType.valueOf("applications/vnd.eventry.events+json");
     public static final String QUERY_PARAM_ZIP = "zip";
+    public static final String EVENT_TYPE_HEADER = "Event-Type";
     public static final String QUERY_PARAM_ZIP_PREFIX = "prefix";
     public static final String PATH_PARAM_STREAM = "streamId";
-    private final EventStore store;
+    private final IEventStore store;
 
-    public StreamEndpoint(EventStore store) {
+    public static final int DEFAULT_LIMIT = 100;
+    public static final int DEFAULT_VERSION = 0;
+
+    public StreamEndpoint(IEventStore store) {
         this.store = store;
     }
 
@@ -31,40 +45,116 @@ public class StreamEndpoint {
         exchange.send(201);
     }
 
-    public void fetchStreams(HttpExchange exchange) {
-        String stream = exchange.pathParameter(PATH_PARAM_STREAM);
+    public void fetchStream(HttpExchange exchange) {
+        String streamName = exchange.pathParameter(PATH_PARAM_STREAM);
+        int limit = exchange.queryParameterVal("limit").asInt().orElse(DEFAULT_LIMIT);
+        int startVersion = exchange.queryParameterVal("startVersion").asInt().orElse(Range.START_VERSION);
 
+        if (SystemStreams.ALL.equals(streamName)) {
+            //startVersion doesnt apply to _all
+            try (Stream<EventRecord> stream = store.fromAll()) {
+                List<EventBody> all = stream.filter(ev -> !ev.isLinkToEvent())
+                        .limit(limit)
+                        .map(EventBody::from)
+                        .collect(Collectors.toList());
+                exchange.send(all);
+                return;
+            }
+        }
+
+        try (Stream<EventRecord> stream = store.fromStream(streamName, startVersion)) {
+            List<EventBody> streamEvents = stream.filter(ev -> !ev.isLinkToEvent())
+                    .limit(limit)
+                    .map(EventBody::from)
+                    .collect(Collectors.toList());
+            exchange.send(streamEvents);
+        }
+
+    }
+
+    public void streamsQuery(HttpExchange exchange) {
 
         String zipWithPrefix = extractZipStartingWith(exchange);
         Set<String> streams = extractZipParams(exchange);
+        int limit = exchange.queryParameterVal("limit").asInt().orElse(DEFAULT_LIMIT);
 
         if (!streams.isEmpty() && zipWithPrefix != null) {
             throw new HttpException(400, QUERY_PARAM_ZIP + " and " + QUERY_PARAM_ZIP_PREFIX + " cannot be used together");
         }
 
-        List<EventBody> events;
+        //TODO check access to the closeableStream
+        List<EventBody> events = new ArrayList<>();
         if (!streams.isEmpty()) {
-            events = store.zipStreams(streams).map(EventBody::from).collect(Collectors.toList());
-        } else if (zipWithPrefix != null) {
-            events = store.zipStreams(zipWithPrefix).map(EventBody::from).collect(Collectors.toList());
-        } else {
-            events = store.fromStream(stream).map(EventBody::from).collect(Collectors.toList());
-        }
+            try (Stream<EventRecord> recordStream = store.zipStreams(streams)) {
+                events = recordStream
+                        .map(EventBody::from)
+                        .limit(limit)
+                        .collect(Collectors.toList());
+            }
 
+
+        } else if (zipWithPrefix != null) {
+            try (Stream<EventRecord> recordStream = store.zipStreams(zipWithPrefix + Streams.STREAM_WILDCARD)) {
+                events = recordStream.limit(limit)
+                        .map(EventBody::from)
+                        .collect(Collectors.toList());
+            }
+
+        }
         exchange.send(events);
     }
 
     //TODO json parsing should be avoided
     public void append(HttpExchange exchange) {
         String stream = exchange.pathParameter(PATH_PARAM_STREAM);
+        if (MediaType.APPLICATION_OCTET_STREAM_TYPE.isCompatible(exchange.type())) {
+            //simple json body, header must be present
+            HeaderValues header = exchange.header(EVENT_TYPE_HEADER);
+            if (header == null || header.isEmpty()) {
+                //header must be provided
+                //TODO add message
+                exchange.status(400);
+                return;
+            }
+            String eventType = header.get(0);
+            if (StringUtils.isBlank(eventType)) {
+                //TODO add message
+                exchange.status(400);
+                return;
+            }
+
+            byte[] eventBody = toBytes(exchange.body().asBinary());
+
+            EventRecord record = EventRecord.create(stream, eventType, eventBody);
+            store.append(record);
+
+            exchange.status(201).end();
+            return;
+        }
+
         EventBody eventBody = exchange.body().asObject(EventBody.class);
 
         //TODO fix toEvent metadata when is empty
         EventRecord event = eventBody.toEvent(stream);
-        EventRecord result = store.append(event);
+        store.append(event);
 
-        exchange.send(EventBody.from(result));
+        exchange.status(201).end();
     }
+
+    private static byte[] toBytes(InputStream is) {
+        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
+            int nRead;
+            byte[] data = new byte[8192];
+
+            while ((nRead = is.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, nRead);
+            }
+            return buffer.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     public void delete(HttpExchange exchange) {
 
@@ -73,25 +163,6 @@ public class StreamEndpoint {
     public void listStreams(HttpExchange exchange) {
         List<StreamInfo> streamsMetadata = store.streamsMetadata();
         exchange.send(streamsMetadata);
-    }
-
-    public void streamsQuery(HttpExchange exchange) {
-
-        String zipWithPrefix = extractZipStartingWith(exchange);
-        Set<String> streams = extractZipParams(exchange);
-
-        if (!streams.isEmpty() && zipWithPrefix != null) {
-            throw new HttpException(400, QUERY_PARAM_ZIP + " and " + QUERY_PARAM_ZIP_PREFIX + " cannot be used together");
-        }
-
-        //TODO check access to the stream
-        List<EventBody> events = new ArrayList<>();
-        if (!streams.isEmpty()) {
-            events = store.zipStreams(streams).map(EventBody::from).collect(Collectors.toList());
-        } else if (zipWithPrefix != null) {
-            events = store.zipStreams(zipWithPrefix).map(EventBody::from).collect(Collectors.toList());
-        }
-        exchange.send(events);
     }
 
     public void metadata(HttpExchange exchange) {

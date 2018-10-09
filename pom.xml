@@ -16,6 +16,8 @@
         <module>codec</module>
         <module>event-store</module>
         <module>es-server</module>
+        <module>tools</module>
+        <module>lsmtree</module>
     </modules>
 
     <properties>

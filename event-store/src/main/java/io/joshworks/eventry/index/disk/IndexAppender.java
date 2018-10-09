@@ -5,7 +5,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -47,7 +47,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.stream(iterator(direction, range));
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
     @Override
@@ -96,7 +96,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
         }
 
         @Override
-        public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, DataReader reader, String magic, Type type) {
+        public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, IDataStream reader, String magic, Type type) {
             return new IndexSegment(storage, new IndexBlockSerializer(codec), reader, magic, type, directory, numElements);
         }
     }

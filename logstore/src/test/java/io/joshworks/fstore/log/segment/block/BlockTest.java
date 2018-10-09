@@ -2,6 +2,7 @@ package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
@@ -137,7 +138,7 @@ public class BlockTest {
 
         //given
         int numEntries = 100000;
-        int blockSize = 4096;
+        int blockSize = Memory.PAGE_SIZE;
 
         //when
         Block<String> block = Block.newBlock(Serializers.STRING, blockSize);

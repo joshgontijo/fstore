@@ -1,7 +1,7 @@
 package io.joshworks.eventry.log;
 
+import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.SystemStreams;
-import io.joshworks.eventry.data.SystemTypes;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;
@@ -68,7 +68,7 @@ public class RecordCleanupTest {
     @Test
     public void obsolete_entries_are_removed() {
 
-        var stream = "stream-1";
+        var stream = "closeableStream-1";
         var maxCount = 2;
 
         streams.create(stream, NO_MAX_AGE, maxCount);
@@ -91,7 +91,7 @@ public class RecordCleanupTest {
     @Test
     public void expired_entries_are_removed() {
 
-        var stream = "stream-1";
+        var stream = "closeableStream-1";
         var maxAge = 10;
         var now = System.currentTimeMillis();
         streams.create(stream, maxAge, NO_MAX_COUNT);
@@ -116,7 +116,7 @@ public class RecordCleanupTest {
     }
 
     private EventRecord systemRecord() {
-        return new EventRecord(SystemStreams.STREAMS, SystemTypes.LINKTO_TYPE,  0, 0, new byte[0], new byte[0]);
+        return new EventRecord(SystemStreams.STREAMS, LinkTo.TYPE,  0, 0, new byte[0], new byte[0]);
     }
 
     private void appendTo(Log<EventRecord> segment, EventRecord record) {

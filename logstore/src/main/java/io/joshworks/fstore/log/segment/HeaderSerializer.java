@@ -5,18 +5,18 @@ import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
 
-public class HeaderSerializer implements Serializer<Header> {
+public class HeaderSerializer implements Serializer<LogHeader> {
 
     @Override
-    public ByteBuffer toBytes(Header data) {
-        ByteBuffer bb = ByteBuffer.allocate(Header.BYTES);
+    public ByteBuffer toBytes(LogHeader data) {
+        ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
         writeTo(data, bb);
         return (ByteBuffer) bb.position(0); //do not flip, the header will always have the fixed size
 
     }
 
     @Override
-    public void writeTo(Header data, ByteBuffer dest) {
+    public void writeTo(LogHeader data, ByteBuffer dest) {
 
 
         dest.putLong(data.created);
@@ -34,15 +34,15 @@ public class HeaderSerializer implements Serializer<Header> {
     }
 
     @Override
-    public Header fromBytes(ByteBuffer buffer) {
-        if (buffer.remaining() != Header.BYTES) {
-            throw new IllegalStateException("Expected " + Header.BYTES + " header length");
+    public LogHeader fromBytes(ByteBuffer buffer) {
+        if (buffer.remaining() != LogHeader.BYTES) {
+            throw new IllegalStateException("Expected " + LogHeader.BYTES + " header length");
         }
 
         long created = buffer.getLong();
         int type = buffer.getInt();
         if(created == 0 || type == 0) { //empty
-            return Header.EMPTY;
+            return LogHeader.EMPTY;
         }
         String magic = Serializers.VSTRING.fromBytes(buffer);
         int level = buffer.getInt();
@@ -55,7 +55,7 @@ public class HeaderSerializer implements Serializer<Header> {
         long footerStart = buffer.getLong();
         long footerEnd = buffer.getLong();
 
-        return new Header(magic, entries, created, level, Type.of(type), segmentSize, logStart, logEnd, footerStart, footerEnd);
+        return new LogHeader(magic, entries, created, level, Type.of(type), segmentSize, logStart, logEnd, footerStart, footerEnd);
 
     }
 }

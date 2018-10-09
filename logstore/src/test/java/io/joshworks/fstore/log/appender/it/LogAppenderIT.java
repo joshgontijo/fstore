@@ -6,15 +6,17 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -50,7 +52,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         appendN(value, items);
         appender.flush();
 
-        scanAllAssertingSameValue(value);
+        scanAllAssertingSameValue(value, Direction.FORWARD);
     }
 
     @Test
@@ -93,7 +95,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
             fail("File " + f + " doesn't exist");
         }
 
-        assertEquals(position, f.length());
+        assertEquals(position + RecordHeader.HEADER_OVERHEAD, f.length());
 
         try (LogAppender<String, L> appender = appender(testDirectory)) {
             LogIterator<String> logIterator = appender.iterator(Direction.FORWARD);
@@ -112,7 +114,17 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
         appender = appender(testDirectory);
 
-        scanAllAssertingSameValue(value);
+        scanAllAssertingSameValue(value, Direction.FORWARD);
+    }
+
+    @Test
+    public void insert_1M_with_1kb_entries() {
+        String value = stringOfLength(1024);
+
+        appendN(value, 1000000);
+        appender.flush();
+
+        scanAllAssertingSameValue(value, Direction.FORWARD);
     }
 
     @Test
@@ -122,28 +134,77 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         appendN(value, 1000000);
         appender.flush();
 
-        scanAllAssertingSameValue(value);
+        scanAllAssertingSameValue(value, Direction.FORWARD);
     }
 
     @Test
-    public void insert_5M_with_2kb_entries() {
+    public void insert_5M_with_512b_entries() {
+
+        String value = stringOfLength(512);
+
+        appendN(value, 5000000);
+        scanAllAssertingSameValue(value, Direction.FORWARD);
+    }
+
+    @Test
+    public void insert_5M_with_512b_entries_backwards_scan() {
+
+        String value = stringOfLength(512);
+
+        appendN(value, 5000000);
+        scanAllAssertingSameValue(value, Direction.BACKWARD);
+    }
+
+    @Test
+    public void insert_5M_with_1kb_entries() {
 
         String value = stringOfLength(1024);
 
         appendN(value, 5000000);
-        scanAllAssertingSameValue(value);
+        scanAllAssertingSameValue(value, Direction.FORWARD);
     }
 
-    //TODO refactor
     @Test
-    @Ignore
-    public void insert_10M_with_2kb_entries() {
-        String value = stringOfLength(2048);
+    public void insert_5M_with_1kb_entries_backwards_scan() {
 
-        appendN(value, 10000000);
-        appender.flush();
+        String value = stringOfLength(1024);
 
-        scanAllAssertingSameValue(value);
+        appendN(value, 5000000);
+        scanAllAssertingSameValue(value, Direction.BACKWARD);
+    }
+
+    @Test
+    public void random_access_5M_with_1kb_entries() {
+
+        String value = stringOfLength(1024).intern();
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < 5000000; i++) {
+            long pos = appender.append(value);
+            positions.add(pos);
+        }
+
+        long start = System.currentTimeMillis();
+        long avg = 0;
+        long lastUpdate = System.currentTimeMillis();
+        long read = 0;
+        long totalRead = 0;
+
+        for (Long position : positions) {
+
+            String val = appender.get(position);
+            assertEquals(val, val);
+
+            if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
+                avg = (avg + read) / 2;
+                System.out.println("TOTAL READ: " + totalRead + " - LAST SECOND: " + read + " - AVG: " + avg);
+                read = 0;
+                lastUpdate = System.currentTimeMillis();
+            }
+
+            read++;
+            totalRead++;
+        }
+        System.out.println("APPENDER_READ -  READ " + totalRead + " ENTRIES IN " + (System.currentTimeMillis() - start) + "ms");
     }
 
     @Test
@@ -180,9 +241,9 @@ public abstract class LogAppenderIT<L extends Log<String>> {
             }
         }).start();
 
-        try(PollingSubscriber<String> poller = appender.poller()) {
+        try (PollingSubscriber<String> poller = appender.poller()) {
             for (int i = 0; i < totalEntries; i++) {
-                String poll = poller.poll();
+                String poll = poller.poll(1, TimeUnit.MINUTES);
 //                System.out.println(poll);
                 assertEquals(String.valueOf(i), poll);
             }
@@ -192,7 +253,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     private static String stringOfLength(int length) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < length / Character.BYTES; i++)
+        for (int i = 0; i < length; i++)
             sb.append("A");
         return sb.toString();
     }
@@ -221,9 +282,9 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
 
-    private void scanAllAssertingSameValue(String expected) {
+    private void scanAllAssertingSameValue(String expected, Direction direction) {
         long start = System.currentTimeMillis();
-        try(LogIterator<String> logIterator = appender.iterator(Direction.FORWARD)) {
+        try (LogIterator<String> logIterator = appender.iterator(direction)) {
 
             long avg = 0;
             long lastUpdate = System.currentTimeMillis();
@@ -249,8 +310,6 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-
     }
 
 }

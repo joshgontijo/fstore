@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.snappy.sse.SseBroadcaster;
@@ -21,16 +21,16 @@ import java.util.stream.Collectors;
 
 public class SubscriptionEndpoint {
 
-    public static final String PATH_PARAM_STREAM = "stream";
+    public static final String PATH_PARAM_STREAM = "closeableStream";
 
-    private final EventStore store;
+    private final IEventStore store;
     private final EventBroadcaster broadcast;
 
     private static final Logger logger = LoggerFactory.getLogger(SubscriptionEndpoint.class);
 
     private Map<ServerSentEventConnection, PollingSubscriber<EventRecord>> pollers = new HashMap<>();
 
-    public SubscriptionEndpoint(EventStore store, EventBroadcaster broadcast) {
+    public SubscriptionEndpoint(IEventStore store, EventBroadcaster broadcast) {
         this.store = store;
         this.broadcast = broadcast;
     }

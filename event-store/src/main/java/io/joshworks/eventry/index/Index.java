@@ -19,7 +19,7 @@ public interface Index extends Closeable {
 
     Optional<IndexEntry> get(long stream, int version);
 
-//    void delete(long stream);
+//    void delete(long closeableStream);
 
     int version(long stream);
 
