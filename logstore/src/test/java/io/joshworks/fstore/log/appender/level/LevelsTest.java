@@ -33,7 +33,7 @@ public class LevelsTest {
         DummySegment seg2 = new DummySegment(2);
         DummySegment seg3 = new DummySegment(3);
 
-        Levels<String, DummySegment> levels = Levels.create(3,
+        Levels<String> levels = Levels.create(3,
                 Arrays.asList(
                         zero,
                         seg1,
@@ -42,7 +42,7 @@ public class LevelsTest {
                         seg3));
 
 
-        List<DummySegment> segments = levels.segments(1);
+        List<Log<String>> segments = levels.segments(1);
         assertEquals(2, segments.size());
         assertEquals(seg1, segments.get(0));
         assertEquals(seg11, segments.get(1));
@@ -66,14 +66,14 @@ public class LevelsTest {
         DummySegment seg2 = new DummySegment(1);
         DummySegment seg3 = new DummySegment(1);
 
-        Levels<String, DummySegment> levels = Levels.create(3,
+        Levels<String> levels = Levels.create(3,
                 Arrays.asList(
                         zero,
                         seg1,
                         seg2,
                         seg3));
 
-        List<DummySegment> segments = levels.segments(1);
+        List<Log<String>> segments = levels.segments(1);
         assertEquals(3, segments.size());
 
         assertEquals(seg1, segments.get(0));
@@ -88,7 +88,7 @@ public class LevelsTest {
         DummySegment seg2 = new DummySegment(2);
         DummySegment seg3 = new DummySegment(3);
 
-        Levels<String, DummySegment> levels = Levels.create(3,
+        Levels<String> levels = Levels.create(3,
                 Arrays.asList(
                         zero,
                         seg1,
@@ -96,9 +96,9 @@ public class LevelsTest {
                         seg3));
 
 
-        Iterator<DummySegment> it = levels.segments(Direction.FORWARD);
+        Iterator<Log<String>> it = levels.segments(Direction.FORWARD);
 
-        List<DummySegment> segments = Iterators.toList(it);
+        List<Log<String>> segments = Iterators.toList(it);
 
         assertEquals(4, segments.size()); //zero included
 
@@ -118,7 +118,7 @@ public class LevelsTest {
         DummySegment seg31 = new DummySegment("seg31", 3);
         DummySegment seg32 = new DummySegment("seg32", 3);
 
-        Levels<String, DummySegment> levels = Levels.create(3,
+        Levels<String> levels = Levels.create(3,
                 Arrays.asList(
                         zero,
                         seg11,
@@ -128,9 +128,9 @@ public class LevelsTest {
                         seg31,
                         seg32));
 
-        Iterator<DummySegment> it = levels.segments(Direction.FORWARD);
+        Iterator<Log<String>> it = levels.segments(Direction.FORWARD);
 
-        List<DummySegment> segments = Iterators.toList(it);
+        List<Log<String>> segments = Iterators.toList(it);
 
         assertEquals(7, segments.size()); //zero included
 
@@ -153,7 +153,7 @@ public class LevelsTest {
         DummySegment seg31 = new DummySegment("seg31", 3);
         DummySegment seg32 = new DummySegment("seg32", 3);
 
-        Levels<String, DummySegment> levels = Levels.create(3,
+        Levels<String> levels = Levels.create(3,
                 Arrays.asList(
                         zero,
                         seg11,
@@ -163,9 +163,9 @@ public class LevelsTest {
                         seg31,
                         seg32));
 
-        Iterator<DummySegment> it = levels.segments(Direction.BACKWARD);
+        Iterator<Log<String>> it = levels.segments(Direction.BACKWARD);
 
-        List<DummySegment> segments = Iterators.toList(it);
+        List<Log<String>> segments = Iterators.toList(it);
 
         assertEquals(7, segments.size()); //zero included
 
@@ -188,7 +188,7 @@ public class LevelsTest {
         DummySegment seg31 = new DummySegment("seg31", 3);
         DummySegment seg32 = new DummySegment("seg32", 3);
 
-        Levels<String, DummySegment> levels = Levels.create(3,
+        Levels<String> levels = Levels.create(3,
                 Arrays.asList(
                         zero,
                         seg11,
@@ -211,7 +211,7 @@ public class LevelsTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void exception_is_thrown_when_new_segment_is_not_level_zero() {
-        Levels<String, DummySegment> levels = Levels.create(3, Arrays.asList(new DummySegment(0)));
+        Levels<String> levels = Levels.create(3, Arrays.asList(new DummySegment(0)));
         levels.appendSegment(new DummySegment(1));
     }
 
@@ -221,29 +221,29 @@ public class LevelsTest {
         DummySegment seg2 = new DummySegment("seg2", 0);
         DummySegment seg3 = new DummySegment("seg3", 0);
 
-        Levels<String, DummySegment> levels = Levels.create(3, Arrays.asList(seg1));
+        Levels<String> levels = Levels.create(3, Arrays.asList(seg1));
 
         levels.appendSegment(seg2);
 
         assertEquals(seg1, levels.get(0));
-        assertEquals(1, levels.get(0).level);
+        assertEquals(1, ((DummySegment) levels.get(0)).level);
 
         //the new level zero
         assertEquals(seg2, levels.get(1));
-        assertEquals(0, levels.get(1).level);
+        assertEquals(0, ((DummySegment) levels.get(1)).level);
 
 
         levels.appendSegment(seg3);
 
         assertEquals(seg1, levels.get(0));
-        assertEquals(1, levels.get(0).level);
+        assertEquals(1, ((DummySegment) levels.get(0)).level);
 
         assertEquals(seg2, levels.get(1));
-        assertEquals(1, levels.get(1).level);
+        assertEquals(1, ((DummySegment) levels.get(1)).level);
 
         //the new level zero
         assertEquals(seg3, levels.get(2));
-        assertEquals(0, levels.get(2).level);
+        assertEquals(0, ((DummySegment) levels.get(2)).level);
 
     }
 
@@ -256,7 +256,7 @@ public class LevelsTest {
 
         DummySegment seg5 = new DummySegment("seg5", 2);
 
-        Levels<String, DummySegment> levels = Levels.create(3, Arrays.asList(seg1));
+        Levels<String> levels = Levels.create(3, Arrays.asList(seg1));
 
         levels.appendSegment(seg2);
         levels.appendSegment(seg3);
@@ -266,10 +266,10 @@ public class LevelsTest {
 
 
         assertEquals(seg5, levels.get(0));
-        assertEquals(2, levels.get(0).level);
+        assertEquals(2, ((DummySegment) levels.get(0)).level);
 
         assertEquals(seg4, levels.get(1));
-        assertEquals(0, levels.get(1).level);
+        assertEquals(0, ((DummySegment) levels.get(1)).level);
 
     }
 

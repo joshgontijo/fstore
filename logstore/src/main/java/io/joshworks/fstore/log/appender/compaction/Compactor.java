@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class Compactor<T, L extends Log<T>> {
+public class Compactor<T> {
 
     private static final Logger logger = LoggerFactory.getLogger(Compactor.class);
 
@@ -33,31 +33,31 @@ public class Compactor<T, L extends Log<T>> {
     private File directory;
     private final SegmentCombiner<T> segmentCombiner;
 
-    private final SegmentFactory<T, L> segmentFactory;
+    private final SegmentFactory<T> segmentFactory;
     private final StorageProvider storageProvider;
     private Serializer<T> serializer;
     private IDataStream dataStream;
     private NamingStrategy namingStrategy;
     private final int maxSegmentsPerLevel;
     private final String magic;
-    private Levels<T, L> levels;
+    private Levels<T> levels;
     private final SedaContext sedaContext;
     private final boolean threadPerLevel;
 
-    private final Set<L> compacting = new HashSet<>();
+    private final Set<Log<T>> compacting = new HashSet<>();
 
-    private final CompactionTask<T, L> compactionTask = new CompactionTask<>();
+    private final CompactionTask<T> compactionTask = new CompactionTask<>();
 
     public Compactor(File directory,
                      SegmentCombiner<T> segmentCombiner,
-                     SegmentFactory<T, L> segmentFactory,
+                     SegmentFactory<T> segmentFactory,
                      StorageProvider storageProvider,
                      Serializer<T> serializer,
                      IDataStream dataStream,
                      NamingStrategy namingStrategy,
                      int maxSegmentsPerLevel,
                      String magic,
-                     Levels<T, L> levels,
+                     Levels<T> levels,
                      SedaContext sedaContext,
                      boolean threadPerLevel) {
         this.directory = directory;
@@ -99,7 +99,7 @@ public class Compactor<T, L extends Log<T>> {
             if (!requiresCompaction(level) && !force) {
                 return;
             }
-            List<L> segmentsForCompaction = segmentsForCompaction(level);
+            List<Log<T>> segmentsForCompaction = segmentsForCompaction(level);
             //TODO investigate if is actually needed
             if (segmentsForCompaction.isEmpty()) {
                 logger.warn("Level {} is empty, nothing to compact", level);
@@ -123,11 +123,11 @@ public class Compactor<T, L extends Log<T>> {
         return threadPerLevel ? "compaction-level-" + level : "compaction";
     }
 
-    private void cleanup(EventContext<CompactionResult<T, L>> context) {
-        CompactionResult<T, L> result = context.data;
-        L target = result.target;
+    private void cleanup(EventContext<CompactionResult<T>> context) {
+        CompactionResult<T> result = context.data;
+        Log<T> target = result.target;
         int level = result.level;
-        List<L> sources = result.sources;
+        List<Log<T>> sources = result.sources;
 
         if (!result.successful()) {
             //TODO
@@ -164,12 +164,12 @@ public class Compactor<T, L extends Log<T>> {
         return levelSize - compactingForLevel >= levels.compactionThreshold();
     }
 
-    private List<L> segmentsForCompaction(int level) {
-        List<L> toBeCompacted = new ArrayList<>();
+    private List<Log<T>> segmentsForCompaction(int level) {
+        List<Log<T>> toBeCompacted = new ArrayList<>();
         if (level <= 0) {
             throw new IllegalArgumentException("Level must be greater than zero");
         }
-        for (L segment : levels.segments(level)) {
+        for (Log<T> segment : levels.segments(level)) {
             if (!compacting.contains(segment)) {
                 toBeCompacted.add(segment);
             }
@@ -181,7 +181,7 @@ public class Compactor<T, L extends Log<T>> {
     }
 
     //delete all source segments only if all of them are not being used
-    private static <T, L extends Log<T>> void deleteAll(List<L> segments) {
+    private static <T> void deleteAll(List<Log<T>> segments) {
         int pendingReaders = 0;
         do {
             if (pendingReaders > 0) {
@@ -189,7 +189,7 @@ public class Compactor<T, L extends Log<T>> {
                 sleep(10000);
             }
             pendingReaders = 0;
-            for (L segment : segments) {
+            for (Log<T> segment : segments) {
                 Set<TimeoutReader> readers = segment.readers();
                 if (!readers.isEmpty()) {
                     logger.info("Pending segment: {}", segment);
@@ -207,7 +207,7 @@ public class Compactor<T, L extends Log<T>> {
             }
         } while (pendingReaders > 0);
 
-        for (L segment : segments) {
+        for (Log<T> segment : segments) {
             logger.info("Deleting {}", segment.name());
             segment.delete();
             logger.info("Deleted {}", segment.name());

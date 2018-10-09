@@ -9,10 +9,8 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
-import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
@@ -44,7 +42,7 @@ public class LogAppenderTest {
     private static final int SEGMENT_SIZE = (int) Size.MEGABYTE.toBytes(10);//64kb
 
     private Config<String> config;
-    private LogAppender<String, Segment<String>> appender;
+    private LogAppender<String> appender;
     private File testDirectory;
 
     @Before
@@ -53,7 +51,7 @@ public class LogAppenderTest {
         testDirectory.deleteOnExit();
 
         config = LogAppender.builder(testDirectory, new StringSerializer()).segmentSize(SEGMENT_SIZE).disableCompaction();
-        appender = new SimpleLogAppender<>(config);
+        appender = config.open();
     }
 
     @After
@@ -124,7 +122,7 @@ public class LogAppenderTest {
         long pos = appender.position();
         appender.close();
 
-        appender = new SimpleLogAppender<>(config);
+        appender = config.open();
 
         assertEquals(pos, appender.position());
 
@@ -212,15 +210,15 @@ public class LogAppenderTest {
         long pos3;
         long pos4;
 
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             pos1 = testAppender.append("1");
             pos2 = testAppender.append("2");
             pos3 = testAppender.append("3");
         }
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             pos4 = testAppender.append("4");
         }
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             assertEquals("1", testAppender.get(pos1));
             assertEquals("2", testAppender.get(pos2));
             assertEquals("3", testAppender.get(pos3));
@@ -243,7 +241,7 @@ public class LogAppenderTest {
 
         appender.close();
 
-        appender = new SimpleLogAppender<>(config);
+        appender = config.open();
         assertEquals(2, appender.entries());
         assertEquals(2, appender.stream(Direction.FORWARD).count());
     }
@@ -258,7 +256,7 @@ public class LogAppenderTest {
 
         appender.close();
 
-        appender = new SimpleLogAppender<>(config);
+        appender = config.open();
 
         Stream<String> stream = appender.stream(Direction.FORWARD);
         assertEquals(entries, stream.count());
@@ -269,7 +267,7 @@ public class LogAppenderTest {
         appender.close();
 
         String segmentName;
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             testAppender.append("1");
             testAppender.append("2");
             testAppender.append("3");
@@ -292,14 +290,14 @@ public class LogAppenderTest {
             storage.write(broken);
         }
 
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             testAppender.append("4");
         }
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             testAppender.append("5");
         }
 
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             Set<String> values = testAppender.stream(Direction.FORWARD).collect(Collectors.toSet());
             assertThat(values, hasItem("4"));
             assertThat(values, hasItem("5"));
@@ -344,7 +342,7 @@ public class LogAppenderTest {
         appender.close();
 
         //create
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             Log<String> testSegment = testAppender.current();
 
             assertTrue(testSegment.created() > 0);
@@ -355,7 +353,7 @@ public class LogAppenderTest {
 
         //duplicated code, part of the test, do not delete
         //open
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             Log<String> testSegment = testAppender.current();
 
             assertTrue(testSegment.created() > 0);
@@ -365,7 +363,7 @@ public class LogAppenderTest {
         }
 
         //open
-        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+        try (LogAppender<String> testAppender = config.open()) {
             Log<String> testSegment = testAppender.current();
             testSegment.append("a");
             testSegment.roll(1);
@@ -381,7 +379,7 @@ public class LogAppenderTest {
     public void get_return_all_items() {
 
         File location = Utils.testFolder();
-        try (SimpleLogAppender<String> testAppender = new SimpleLogAppender<>(new Config<>(location, Serializers.STRING).segmentSize(209715200))) {
+        try (LogAppender<String> testAppender = new Config<>(location, Serializers.STRING).segmentSize(209715200).open()) {
             List<Long> positions = new ArrayList<>();
             int size = 500000;
             for (int i = 0; i < size; i++) {
@@ -563,7 +561,7 @@ public class LogAppenderTest {
         }
 
         for (int i = 0; i < entries; i++) {
-            if(1999999 == i) {
+            if (1999999 == i) {
                 System.out.println("as");
             }
 
@@ -678,7 +676,7 @@ public class LogAppenderTest {
         }
 
         appender.close();
-        appender = new SimpleLogAppender<>(config);
+        appender = config.open();
 
         try (LogIterator<String> iterator = appender.iterator(Direction.BACKWARD)) {
             for (int i = entries; i > 0; i--) {
@@ -701,7 +699,7 @@ public class LogAppenderTest {
         }
 
         appender.close();
-        appender = new SimpleLogAppender<>(config);
+        appender = config.open();
 
         try (LogIterator<String> iterator = appender.iterator(Direction.FORWARD)) {
             for (int i = 0; i < entries; i++) {
@@ -723,7 +721,7 @@ public class LogAppenderTest {
 
         long prev = appender.position();
         appender.close();
-        appender = new SimpleLogAppender<>(config);
+        appender = config.open();
 
         assertEquals(prev, appender.position());
     }

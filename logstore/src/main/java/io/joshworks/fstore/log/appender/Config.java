@@ -7,6 +7,7 @@ import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
+import io.joshworks.fstore.log.segment.Segment;
 
 import java.io.File;
 import java.util.Objects;
@@ -20,6 +21,7 @@ public class Config<T> {
     public final Serializer<T> serializer;
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
+    SegmentFactory<T> segmentFactory = Segment::new;
 
     int segmentBitShift = Long.SIZE - SEGMENT_BITS;
     int segmentSize = (int) Size.MEGABYTE.toBytes(10);
@@ -71,6 +73,12 @@ public class Config<T> {
         return this;
     }
 
+    public Config<T> segmentFactory(SegmentFactory<T> factory) {
+        Objects.requireNonNull(factory, "SegmentFactory must be provided");
+        this.segmentFactory = factory;
+        return this;
+    }
+
     public Config<T> compactionStrategy(SegmentCombiner<T> combiner) {
         Objects.requireNonNull(combiner, "SegmentCombiner must be provided");
         this.combiner = combiner;
@@ -96,6 +104,10 @@ public class Config<T> {
     public Config<T> asyncFlush() {
         this.asyncFlush = true;
         return this;
+    }
+
+    public LogAppender<T> open() {
+        return new LogAppender<>(this);
     }
 
 }

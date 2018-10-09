@@ -31,7 +31,6 @@ public class TableIndex implements Index {
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
     public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
     public static final boolean DEFAULT_USE_COMPRESSION = true;
-    private static final String INDEX_DIR = "index";
     private static final String INDEX_WRITER = "index-writer";
     private final int flushThreshold; //TODO externalize
 
@@ -50,14 +49,7 @@ public class TableIndex implements Index {
             throw new IllegalArgumentException("Flush threshold must be at least 1000");
         }
 
-        Codec codec = useCompression ? new SnappyCodec() : Codec.noCompression();
-        diskIndex = new IndexAppender(LogAppender
-                .builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer())
-                .compactionStrategy(new IndexCompactor())
-                .maxSegmentsPerLevel(2)
-                .segmentSize(flushThreshold * IndexEntry.BYTES)
-                .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold, codec);
-
+        diskIndex = new IndexAppender(rootDirectory, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
         this.flushThreshold = flushThreshold;
     }
 

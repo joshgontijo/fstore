@@ -23,11 +23,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public abstract class LogAppenderIT<L extends Log<String>> {
+public abstract class LogAppenderIT {
 
-    private LogAppender<String, L> appender;
+    private LogAppender<String> appender;
 
-    protected abstract LogAppender<String, L> appender(File testDirectory);
+    protected abstract LogAppender<String> appender(File testDirectory);
 
     private File testDirectory;
 
@@ -97,7 +97,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
         assertEquals(position + RecordHeader.HEADER_OVERHEAD, f.length());
 
-        try (LogAppender<String, L> appender = appender(testDirectory)) {
+        try (LogAppender<String> appender = appender(testDirectory)) {
             LogIterator<String> logIterator = appender.iterator(Direction.FORWARD);
             assertTrue(logIterator.hasNext());
             assertEquals(data, logIterator.next());
@@ -215,7 +215,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
         Long lastPosition = null;
         for (int i = 0; i < iterations; i++) {
-            try (LogAppender<String, L> appender = appender(testDirectory)) {
+            try (LogAppender<String> appender = appender(testDirectory)) {
                 if (lastPosition != null) {
                     assertEquals(lastPosition, Long.valueOf(appender.position()));
                 }
@@ -225,7 +225,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
             }
         }
 
-        try (LogAppender<String, L> appender = appender(testDirectory)) {
+        try (LogAppender<String> appender = appender(testDirectory)) {
             assertEquals(iterations, appender.stream(Direction.FORWARD).count());
             assertEquals(iterations, appender.entries());
         }
