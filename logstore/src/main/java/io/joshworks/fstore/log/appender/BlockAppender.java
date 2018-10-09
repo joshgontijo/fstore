@@ -5,7 +5,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.block.Block;
 
 import java.io.IOException;
@@ -14,7 +13,7 @@ import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
+public class BlockAppender<T> extends LogAppender<Block<T>> {
 
     private final int blockSize;
     private final Serializer<T> serializer;

@@ -10,18 +10,18 @@ import io.joshworks.fstore.log.segment.Log;
 import java.io.File;
 import java.util.List;
 
-class CompactionEvent<T, L extends Log<T>> {
-    final List<L> segments;
+class CompactionEvent<T> {
+    final List<Log<T>> segments;
     final SegmentCombiner<T> combiner;
     final File segmentFile;
-    final SegmentFactory<T, L> segmentFactory;
+    final SegmentFactory<T> segmentFactory;
     final StorageProvider storageProvider;
     final Serializer<T> serializer;
     final IDataStream dataStream;
     final int level;
     final String magic;
 
-    CompactionEvent(List<L> segments, SegmentCombiner<T> combiner, File segmentFile, SegmentFactory<T, L> segmentFactory, StorageProvider storageProvider, Serializer<T> serializer, IDataStream dataStream, int level, String magic) {
+    CompactionEvent(List<Log<T>> segments, SegmentCombiner<T> combiner, File segmentFile, SegmentFactory<T> segmentFactory, StorageProvider storageProvider, Serializer<T> serializer, IDataStream dataStream, int level, String magic) {
         this.segments = segments;
         this.combiner = combiner;
         this.segmentFile = segmentFile;

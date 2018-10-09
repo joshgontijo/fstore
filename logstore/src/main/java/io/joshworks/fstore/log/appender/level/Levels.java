@@ -11,12 +11,12 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class Levels<T, L extends Log<T>> {
+public class Levels<T> {
 
     private final int maxItemsPerLevel;
-    private List<L> segments = new ArrayList<>();
+    private List<Log<T>> segments = new ArrayList<>();
 
-    private Levels(int maxItemsPerLevel, List<L> segments) {
+    private Levels(int maxItemsPerLevel, List<Log<T>> segments) {
         this.maxItemsPerLevel = maxItemsPerLevel;
 
         this.segments.addAll(segments);
@@ -35,11 +35,11 @@ public class Levels<T, L extends Log<T>> {
         }
     }
 
-    public synchronized List<L> segments(int level) {
+    public synchronized List<Log<T>> segments(int level) {
         return segments.stream().filter(seg -> seg.level() == level).collect(Collectors.toList());
     }
 
-    public L get(int segmentIdx) {
+    public Log<T> get(int segmentIdx) {
         return segments.get(segmentIdx);
     }
 
@@ -47,11 +47,11 @@ public class Levels<T, L extends Log<T>> {
         return segments.stream().mapToInt(Log::level).max().orElse(0);
     }
 
-    public static <T, L extends Log<T>> Levels<T, L> create(int maxItemsPerLevel, List<L> segments) {
+    public static <T> Levels<T> create(int maxItemsPerLevel, List<Log<T>> segments) {
         return new Levels<>(maxItemsPerLevel, segments);
     }
 
-    public synchronized void appendSegment(L segment) {
+    public synchronized void appendSegment(Log<T> segment) {
         if (segment.level() != 0) {
             throw new IllegalArgumentException("New segment must be level zero");
         }
@@ -60,7 +60,7 @@ public class Levels<T, L extends Log<T>> {
             segments.add(segment);
             return;
         }
-        L prevHead = segments.get(size - 1);
+        Log<T> prevHead = segments.get(size - 1);
 
         prevHead.roll(1);
         if (!prevHead.readOnly()) {
@@ -75,7 +75,7 @@ public class Levels<T, L extends Log<T>> {
     }
 
     //TODO testing atomic acquiring of readers without the risk of closing the segment in between
-    public synchronized List<LogIterator<T>> select(Direction direction, Function<L, LogIterator<T>> mapper) {
+    public synchronized List<LogIterator<T>> select(Direction direction, Function<Log<T>, LogIterator<T>> mapper) {
         return Iterators.closeableStream(segments(direction)).map(mapper).collect(Collectors.toList());
     }
 
@@ -93,12 +93,12 @@ public class Levels<T, L extends Log<T>> {
         return maxItemsPerLevel;
     }
 
-    public synchronized void remove(List<L> segments) {
+    public synchronized void remove(List<Log<T>> segments) {
 
-        List<L> copy = new ArrayList<>(this.segments);
+        List<Log<T>> copy = new ArrayList<>(this.segments);
 
         int latestIndex = -1;
-        for (L seg : segments) {
+        for (Log<T> seg : segments) {
             int i = copy.indexOf(seg);
             if (i < 0) {
                 throw new IllegalStateException("Segment not found: " + seg.name());
@@ -108,21 +108,21 @@ public class Levels<T, L extends Log<T>> {
             }
             latestIndex = i;
         }
-        for (L seg : segments) {
+        for (Log<T> seg : segments) {
             copy.remove(seg);
         }
         this.segments = copy;
     }
 
-    public synchronized void merge(List<L> segments, L merged) {
+    public synchronized void merge(List<Log<T>> segments, Log<T> merged) {
         if (segments.isEmpty() || merged == null) {
             return;
         }
 
-        List<L> copy = new ArrayList<>(this.segments);
+        List<Log<T>> copy = new ArrayList<>(this.segments);
 
         int latestIndex = -1;
-        for (L seg : segments) {
+        for (Log<T> seg : segments) {
             int i = copy.indexOf(seg);
             if (i < 0) {
                 throw new IllegalStateException("Segment not found: " + seg.name());
@@ -142,12 +142,12 @@ public class Levels<T, L extends Log<T>> {
 
     }
 
-    public L current() {
+    public Log<T> current() {
         return segments.get(segments.size() - 1);
     }
 
-    public LogIterator<L> segments(Direction direction) {
-        ArrayList<L> copy = new ArrayList<>(segments);
+    public LogIterator<Log<T>> segments(Direction direction) {
+        ArrayList<Log<T>> copy = new ArrayList<>(segments);
         return Direction.FORWARD.equals(direction) ? Iterators.of(copy) : Iterators.reversed(copy);
     }
 

@@ -3,8 +3,10 @@ package io.joshworks.eventry.index.disk;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
@@ -14,26 +16,45 @@ import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> implements Index {
+public class IndexAppender implements Index {
 
-    public IndexAppender(Config<IndexEntry> config, int numElements, Codec codec) {
-        super(config, new IndexSegmentFactory(config.directory, numElements, codec));
+    private static final String INDEX_DIR = "index";
+    private final LogAppender<IndexEntry> appender;
+
+
+    public IndexAppender(File rootDir, int segmentSize, int numElements, boolean useCompression) {
+        Codec codec = useCompression ? new SnappyCodec() : Codec.noCompression();
+        this.appender = LogAppender.builder(new File(rootDir, INDEX_DIR), new IndexEntrySerializer())
+                .compactionStrategy(new IndexCompactor())
+                .maxSegmentsPerLevel(2)
+                .segmentSize(segmentSize)
+                .segmentFactory(new IndexSegmentFactory(rootDir, numElements, codec))
+                .namingStrategy(new IndexNaming())
+                .open();
     }
 
+
+    @Override
+    public LogIterator<IndexEntry> iterator(Direction direction) {
+        return appender.iterator(direction);
+    }
 
     //FIXME not releasing readers
     @Override
     public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
-        List<LogIterator<IndexEntry>> iterators = streamSegments(direction)
+        List<LogIterator<IndexEntry>> iterators = appender.streamSegments(direction)
+                .map(seg -> (IndexSegment) seg)
                 .map(idxSeg -> idxSeg.iterator(direction, range))
                 .collect(Collectors.toList());
 
@@ -52,9 +73,9 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
-        Iterator<IndexSegment> segments = segments(Direction.BACKWARD);
+        LogIterator<Log<IndexEntry>> segments = appender.segments(Direction.BACKWARD);
         while (segments.hasNext()) {
-            IndexSegment next = segments.next();
+            IndexSegment next = (IndexSegment) segments.next();
             Optional<IndexEntry> fromDisk = next.get(stream, version);
             if (fromDisk.isPresent()) {
                 return fromDisk;
@@ -65,9 +86,9 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public int version(long stream) {
-        LogIterator<IndexSegment> segments = segments(Direction.BACKWARD);
+        LogIterator<Log<IndexEntry>> segments = appender.segments(Direction.BACKWARD);
         while (segments.hasNext()) {
-            IndexSegment segment = segments.next();
+            IndexSegment segment = (IndexSegment) segments.next();
             int version = segment.version(stream);
             if (version >= 0) {
                 return version;
@@ -76,6 +97,28 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
         return IndexEntry.NO_VERSION;
     }
 
+    @Override
+    public void close() {
+        appender.close();
+    }
+
+    public void append(IndexEntry indexEntry) {
+        appender.append(indexEntry);
+    }
+
+    public void roll() {
+        appender.roll();
+    }
+
+    public long entries() {
+        return appender.entries();
+    }
+
+    public PollingSubscriber<IndexEntry> poller() {
+        return appender.poller();
+    }
+
+
     public static class IndexNaming extends ShortUUIDNamingStrategy {
         @Override
         public String prefix() {
@@ -83,7 +126,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
         }
     }
 
-    private static class IndexSegmentFactory implements SegmentFactory<IndexEntry, IndexSegment> {
+    private static class IndexSegmentFactory implements SegmentFactory<IndexEntry> {
 
         private final File directory;
         private final int numElements;

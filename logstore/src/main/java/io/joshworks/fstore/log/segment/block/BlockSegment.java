@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.segment.block;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.IOUtils;
@@ -29,12 +30,12 @@ import java.util.stream.Stream;
 public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     private final int maxBlockSize;
-    private final Segment<B> delegate;
+    private final Log<B> delegate;
     private final Serializer<T> serializer;
     private B block;
 
-    public BlockSegment(Storage storage, Serializer<T> serializer, Serializer<B> blockSerializer, int maxBlockSize, IDataStream reader, String magic, Type type) {
-        delegate = new Segment<>(storage, blockSerializer, reader, magic, type);
+    public BlockSegment(Storage storage, Serializer<T> serializer, Serializer<B> blockSerializer, int maxBlockSize, IDataStream dataStream, String magic, Type type) {
+        delegate = new Segment<>(storage, blockSerializer, dataStream, magic, type);
         this.serializer = serializer;
         this.maxBlockSize = maxBlockSize;
         this.block = createBlock(serializer, maxBlockSize);
@@ -64,7 +65,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     }
 
     @Override
-    public void flush() {
+    public void flush() throws IOException {
         writeBlock();
         delegate.flush();
     }
@@ -151,8 +152,13 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public void roll(int level) {
-        flush();
-        delegate.roll(level);
+        try {
+            flush();
+            delegate.roll(level);
+
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
     }
 
     @Override
@@ -172,7 +178,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         flush();
         delegate.close();
     }
@@ -198,14 +204,14 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         private final LogIterator<B> segmentIterator;
         private Queue<T> entries = new LinkedList<>();
 
-        public BlockIterator(LogIterator<B> segmentIterator,  Direction direction) {
+        public BlockIterator(LogIterator<B> segmentIterator, Direction direction) {
             this.segmentIterator = segmentIterator;
             this.direction = direction;
         }
 
         private List<T> readBlockEntries(B block) {
             List<T> blockEntries = block.entries();
-            if(Direction.BACKWARD.equals(direction)) {
+            if (Direction.BACKWARD.equals(direction)) {
                 Collections.reverse(blockEntries);
             }
             return blockEntries;
@@ -256,9 +262,9 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
         @Override
         public synchronized T peek() throws InterruptedException {
-            if(entries.isEmpty()) {
+            if (entries.isEmpty()) {
                 B polled = segmentPoller.poll();
-                if(polled != null) {
+                if (polled != null) {
                     entries.addAll(polled.entries());
                 }
             }
@@ -267,9 +273,9 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
         @Override
         public synchronized T poll() throws InterruptedException {
-            if(entries.isEmpty()) {
+            if (entries.isEmpty()) {
                 B polled = segmentPoller.poll();
-                if(polled != null) {
+                if (polled != null) {
                     entries.addAll(polled.entries());
                 }
             }
@@ -278,9 +284,9 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
         @Override
         public synchronized T poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            if(entries.isEmpty()) {
+            if (entries.isEmpty()) {
                 B polled = segmentPoller.poll(limit, timeUnit);
-                if(polled != null) {
+                if (polled != null) {
                     entries.addAll(polled.entries());
                 }
             }
@@ -289,9 +295,9 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
         @Override
         public synchronized T take() throws InterruptedException {
-            if(entries.isEmpty()) {
+            if (entries.isEmpty()) {
                 B polled = segmentPoller.take();
-                if(polled != null) {
+                if (polled != null) {
                     entries.addAll(polled.entries());
                 }
             }

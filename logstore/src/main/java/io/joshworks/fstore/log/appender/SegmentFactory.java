@@ -6,9 +6,9 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 
-public interface SegmentFactory<T, L extends Log<T>> {
+public interface SegmentFactory<T> {
 
-    L createOrOpen(Storage storage, Serializer<T> serializer, IDataStream reader, String magic, Type type);
+    Log<T> createOrOpen(Storage storage, Serializer<T> serializer, IDataStream reader, String magic, Type type);
 
 
 }
