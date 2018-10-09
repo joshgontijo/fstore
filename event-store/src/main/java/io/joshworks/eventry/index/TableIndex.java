@@ -55,7 +55,6 @@ public class TableIndex implements Index {
                 .builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor())
                 .maxSegmentsPerLevel(2)
-                .maxRecordSize(4096 * 4)
                 .segmentSize(flushThreshold * IndexEntry.BYTES)
                 .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold, codec);
 
@@ -140,12 +139,12 @@ public class TableIndex implements Index {
 
     @Override
     public Stream<IndexEntry> stream(Direction direction) {
-        return Iterators.stream(iterator(direction));
+        return Iterators.closeableStream(iterator(direction));
     }
 
     @Override
     public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.stream(iterator(direction, range));
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
     @Override
@@ -173,10 +172,10 @@ public class TableIndex implements Index {
     }
 
     //TODO how to mark last read indexEntry ?
-    //timestamp / position (how about the mem items ?) / version (of each stream individually, then crash could cause repeated)
+    //timestamp / position (how about the mem items ?) / version (of each closeableStream individually, then crash could cause repeated)
     public PollingSubscriber<IndexEntry> poller(long stream, int lastVersion) {
         throw new UnsupportedOperationException("Implement me");
-//        return poller(Set.of(stream));
+//        return poller(Set.of(closeableStream));
     }
 
     public PollingSubscriber<IndexEntry> poller(Set<Long> streams) {

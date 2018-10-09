@@ -7,10 +7,11 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.stream.Stream;
 
-public class EventLog {
+public class EventLog implements Closeable {
 
     private final SimpleLogAppender<EventRecord> appender;
 
@@ -30,7 +31,7 @@ public class EventLog {
         return event;
     }
 
-    public long size() {
+    public long entries() {
         return appender.entries();
     }
 
@@ -38,6 +39,7 @@ public class EventLog {
         return appender.position();
     }
 
+    @Override
     public void close() {
         appender.close();
     }
@@ -47,7 +49,7 @@ public class EventLog {
     }
 
     public Stream<EventRecord> stream(Direction direction) {
-        return Iterators.stream(iterator(direction));
+        return Iterators.closeableStream(iterator(direction));
     }
 
     public PollingSubscriber<EventRecord> poller() {

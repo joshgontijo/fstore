@@ -2,7 +2,6 @@ package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.seda.SedaContext;
@@ -15,7 +14,8 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
-import io.joshworks.fstore.log.reader.FixedBufferDataReader;
+import io.joshworks.fstore.log.record.DataStream;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 import org.slf4j.Logger;
@@ -36,7 +36,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,7 +52,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     private final File directory;
     private final Serializer<T> serializer;
     private final Metadata metadata;
-    private final DataReader dataReader;
+    private final IDataStream dataStream;
     private final NamingStrategy namingStrategy;
     private final SegmentFactory<T, L> factory;
     private final StorageProvider storageProvider;
@@ -85,7 +84,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         this.serializer = config.serializer;
         this.factory = factory;
         this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
-        this.dataReader = new FixedBufferDataReader(config.maxRecordSize);
+        this.dataStream = new DataStream();
         this.namingStrategy = config.namingStrategy;
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
@@ -97,7 +96,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             this.metadata = Metadata.create(
                     directory,
                     config.segmentSize,
-                    config.maxRecordSize,
                     config.segmentBitShift,
                     config.maxSegmentsPerLevel,
                     config.mmap,
@@ -132,7 +130,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         this.compactionDisabled = config.compactionDisabled;
         logger.info("Compaction is {}", this.compactionDisabled ? "DISABLED" : "ENABLED");
 
-        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, levels, sedaContext, config.threadPerLevel);
+        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, levels, sedaContext, config.threadPerLevel);
 
         logger.info("SEGMENT BIT SHIFT: {}", metadata.segmentBitShift);
         logger.info("MAX SEGMENTS: {} ({} bits)", maxSegments, Long.SIZE - metadata.segmentBitShift);
@@ -158,7 +156,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
         Storage storage = storageProvider.create(segmentFile, size + (size / 10));
 
-        return factory.createOrOpen(storage, serializer, dataReader, metadata.magic, Type.LOG_HEAD);
+        return factory.createOrOpen(storage, serializer, dataStream, metadata.magic, Type.LOG_HEAD);
     }
 
     private Levels<T, L> loadSegments() {
@@ -194,7 +192,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         try {
             File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
             storage = storageProvider.open(segmentFile);
-            L segment = factory.createOrOpen(storage, serializer, dataReader, metadata.magic, null);
+            L segment = factory.createOrOpen(storage, serializer, dataStream, metadata.magic, null);
             logger.info("Loaded segment {}", segment);
             return segment;
         } catch (Exception e) {
@@ -266,16 +264,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         }
     }
 
-    private class WriteItem {
-        private final T data;
-        private final Consumer<Long> completionHandler;
-
-        private WriteItem(T data, Consumer<Long> completionHandler) {
-            this.data = data;
-            this.completionHandler = completionHandler;
-        }
-    }
-
     public long append(T data) {
         L current = levels.current();
         long positionOnSegment = current.append(data);
@@ -309,7 +297,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public Stream<T> stream(Direction direction) {
-        return Iterators.stream(iterator(direction));
+        return Iterators.closeableStream(iterator(direction));
     }
 
     public LogIterator<T> iterator(long position, Direction direction) {
@@ -354,11 +342,11 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public long size() {
-        return Iterators.stream(segments(Direction.BACKWARD)).mapToLong(Log::size).sum();
+        return Iterators.closeableStream(segments(Direction.BACKWARD)).mapToLong(Log::size).sum();
     }
 
     public Stream<L> streamSegments(Direction direction) {
-        return Iterators.stream(segments(direction));
+        return Iterators.closeableStream(segments(direction));
     }
 
     public long size(int level) {
@@ -380,7 +368,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             state.position(this.position());
         }
 
-        state.flush();
+//        state.flush();
         state.close();
 
         streamSegments(Direction.FORWARD).forEach(segment -> {

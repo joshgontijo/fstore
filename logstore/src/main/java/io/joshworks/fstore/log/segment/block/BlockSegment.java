@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
@@ -33,7 +33,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     private final Serializer<T> serializer;
     private B block;
 
-    public BlockSegment(Storage storage, Serializer<T> serializer, Serializer<B> blockSerializer, int maxBlockSize, DataReader reader, String magic, Type type) {
+    public BlockSegment(Storage storage, Serializer<T> serializer, Serializer<B> blockSerializer, int maxBlockSize, IDataStream reader, String magic, Type type) {
         delegate = new Segment<>(storage, blockSerializer, reader, magic, type);
         this.serializer = serializer;
         this.maxBlockSize = maxBlockSize;
@@ -77,7 +77,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public Stream<T> stream(Direction direction) {
-        return Iterators.stream(iterator(direction));
+        return Iterators.closeableStream(iterator(direction));
     }
 
     @Override
@@ -233,7 +233,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
         @Override
         public T next() {
-            if (entries.isEmpty()) {
+            if (!hasNext()) {
                 throw new NoSuchElementException();
             }
             return entries.poll();

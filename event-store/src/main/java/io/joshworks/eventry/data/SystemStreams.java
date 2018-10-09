@@ -6,5 +6,6 @@ public class SystemStreams {
     public static final String INDEX = Constant.SYSTEM_PREFIX + "index";
     public static final String STREAMS = Constant.SYSTEM_PREFIX + "streams";
     public static final String PROJECTIONS = Constant.SYSTEM_PREFIX + "projections";
+    public static final String ALL = Constant.SYSTEM_PREFIX + "all";
 
 }

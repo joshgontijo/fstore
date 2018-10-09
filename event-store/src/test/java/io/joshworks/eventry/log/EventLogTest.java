@@ -30,15 +30,15 @@ public class EventLogTest {
 
 //    @Test
 //    public void get_returns_event_with_position() {
-//        long pos = eventLog.append(EventRecord.create("stream", "type", "data"));
+//        long pos = eventLog.append(EventRecord.create("closeableStream", "type", "data"));
 //        EventRecord event = eventLog.get(pos);
 //        assertEquals(pos, event.position);
 //    }
 //
 //    @Test
 //    public void scanner_returns_events_with_position() {
-//        long pos1 = eventLog.append(EventRecord.create("stream", "type", "data"));
-//        long pos2 = eventLog.append(EventRecord.create("stream", "type", "data"));
+//        long pos1 = eventLog.append(EventRecord.create("closeableStream", "type", "data"));
+//        long pos2 = eventLog.append(EventRecord.create("closeableStream", "type", "data"));
 //
 //        LogIterator<EventRecord> scanner = eventLog.scanner();
 //        assertEquals(pos1, scanner.next().position());
@@ -48,10 +48,10 @@ public class EventLogTest {
 //    @Test
 //    public void stream_returns_events_with_position() {
 //
-//        long pos1 = eventLog.append(EventRecord.create("stream", "type", "data"));
-//        long pos2 = eventLog.append(EventRecord.create("stream", "type", "data"));
+//        long pos1 = eventLog.append(EventRecord.create("closeableStream", "type", "data"));
+//        long pos2 = eventLog.append(EventRecord.create("closeableStream", "type", "data"));
 //
-//        List<Long> positions = eventLog.stream().map(EventRecord::position).collect(Collectors.toList());
+//        List<Long> positions = eventLog.closeableStream().map(EventRecord::position).collect(Collectors.toList());
 //        assertEquals(Long.valueOf(pos1), positions.get(0));
 //        assertEquals(Long.valueOf(pos2), positions.get(1));
 //    }

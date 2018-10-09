@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.seda.EventContext;
 import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.seda.Stage;
@@ -36,7 +36,7 @@ public class Compactor<T, L extends Log<T>> {
     private final SegmentFactory<T, L> segmentFactory;
     private final StorageProvider storageProvider;
     private Serializer<T> serializer;
-    private DataReader dataReader;
+    private IDataStream dataStream;
     private NamingStrategy namingStrategy;
     private final int maxSegmentsPerLevel;
     private final String magic;
@@ -53,7 +53,7 @@ public class Compactor<T, L extends Log<T>> {
                      SegmentFactory<T, L> segmentFactory,
                      StorageProvider storageProvider,
                      Serializer<T> serializer,
-                     DataReader dataReader,
+                     IDataStream dataStream,
                      NamingStrategy namingStrategy,
                      int maxSegmentsPerLevel,
                      String magic,
@@ -65,7 +65,7 @@ public class Compactor<T, L extends Log<T>> {
         this.segmentFactory = segmentFactory;
         this.storageProvider = storageProvider;
         this.serializer = serializer;
-        this.dataReader = dataReader;
+        this.dataStream = dataStream;
         this.namingStrategy = namingStrategy;
         this.maxSegmentsPerLevel = maxSegmentsPerLevel;
         this.magic = magic;
@@ -115,7 +115,7 @@ public class Compactor<T, L extends Log<T>> {
             if (!sedaContext.stages().contains(stageName)) {
                 sedaContext.addStage(stageName, compactionTask, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
             }
-            event.submit(stageName, new CompactionEvent<>(segmentsForCompaction, segmentCombiner, targetFile, segmentFactory, storageProvider, serializer, dataReader, level, magic));
+            event.submit(stageName, new CompactionEvent<>(segmentsForCompaction, segmentCombiner, targetFile, segmentFactory, storageProvider, serializer, dataStream, level, magic));
         }
     }
 
@@ -125,21 +125,33 @@ public class Compactor<T, L extends Log<T>> {
 
     private void cleanup(EventContext<CompactionResult<T, L>> context) {
         CompactionResult<T, L> result = context.data;
+        L target = result.target;
+        int level = result.level;
+        List<L> sources = result.sources;
+
         if (!result.successful()) {
             //TODO
             logger.error("Compaction error", result.exception);
             logger.info("Deleting failed merge result segment");
-            result.target.delete();
+            target.delete();
             return;
         }
 
-        levels.merge(result.sources, result.target);
-        compacting.removeAll(result.sources);
+        //TODO test
+        if (target.entries() == 0) {
+            logger.info("No entries were found in the result segment {}, deleting", target.name());
+            deleteAll(List.of(target));
+            levels.remove(sources);
+        } else {
+            levels.merge(sources, target);
+        }
 
-        context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level, false));
-        context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level + 1, false));
+        compacting.removeAll(sources);
 
-        deleteAll(result.sources);
+        context.submit(COMPACTION_MANAGER, new CompactionRequest(level, false));
+        context.submit(COMPACTION_MANAGER, new CompactionRequest(level + 1, false));
+
+        deleteAll(sources);
     }
 
     private synchronized boolean requiresCompaction(int level) {
@@ -174,7 +186,7 @@ public class Compactor<T, L extends Log<T>> {
         do {
             if (pendingReaders > 0) {
                 logger.info("Awaiting {} readers to be released", pendingReaders);
-                sleep();
+                sleep(10000);
             }
             pendingReaders = 0;
             for (L segment : segments) {
@@ -183,8 +195,8 @@ public class Compactor<T, L extends Log<T>> {
                     logger.info("Pending segment: {}", segment);
                 }
                 for (TimeoutReader logReader : readers) {
-                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.MINUTES.toMillis(10)) {
-                        logger.warn("Removing reader after 10s of inactivity");
+                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.HOURS.toMillis(1)) {
+                        logger.warn("Removing reader after 10 minutes of inactivity");
                         readers.remove(logReader);
                     } else {
                         pendingReaders += readers.size();
@@ -202,9 +214,9 @@ public class Compactor<T, L extends Log<T>> {
         }
     }
 
-    private static void sleep() {
+    private static void sleep(long millis) {
         try {
-            Thread.sleep(1000);
+            Thread.sleep(millis);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

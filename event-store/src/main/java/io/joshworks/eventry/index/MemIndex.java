@@ -95,12 +95,12 @@ public class MemIndex implements Index {
 
     @Override
     public Stream<IndexEntry> stream(Direction direction) {
-        return Iterators.stream(iterator(direction));
+        return Iterators.closeableStream(iterator(direction));
     }
 
     @Override
     public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.stream(iterator(direction, range));
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
     @Override
@@ -116,7 +116,7 @@ public class MemIndex implements Index {
             return Optional.empty();
         }
         if (entries.size() > 1) {
-            throw new IllegalStateException("Found more than one index entry for stream " + stream + ", version " + version);
+            throw new IllegalStateException("Found more than one index entry for closeableStream " + stream + ", version " + version);
         }
         return Optional.of(entries.first());
     }

@@ -66,11 +66,11 @@ public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
     }
 
     public Stream<T> entryStream(long position, Direction direction) {
-        return Iterators.stream(entryIterator(position, direction));
+        return Iterators.closeableStream(entryIterator(position, direction));
     }
 
     public Stream<T> entryStream(Direction direction) {
-        return Iterators.stream(entryIterator(direction));
+        return Iterators.closeableStream(entryIterator(direction));
     }
 
     @Override

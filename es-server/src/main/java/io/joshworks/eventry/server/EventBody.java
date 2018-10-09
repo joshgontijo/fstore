@@ -2,8 +2,8 @@ package io.joshworks.eventry.server;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
@@ -15,13 +15,12 @@ public class EventBody {
     private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>(){}.getType());
 
     public final String type;
-    public final Map<String, Object> data;
-    //TODO metadata will be empty on response, change this class to fit better
-    public final Map<String, Object> metadata;
-
     public final long timestamp;
     public final String stream;
     public final int version;
+    //TODO metadata will be empty on response, change this class to fit better
+    public final Map<String, Object> data;
+    public final Map<String, Object> metadata;
 
 
     private EventBody(EventRecord event) {

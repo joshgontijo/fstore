@@ -10,6 +10,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.serializer.Serializers;
@@ -30,12 +31,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class LogAppenderTest {
 
@@ -81,13 +83,14 @@ public class LogAppenderTest {
 
     @Test
     public void roll_size_based() {
-        StringBuilder sb = new StringBuilder();
-        while (sb.length() <= SEGMENT_SIZE) {
-            sb.append(UUID.randomUUID().toString());
-        }
-        appender.append(sb.toString());
-        appender.append("new-segment");
+        int written = 0;
+        while (written <= SEGMENT_SIZE) {
+            String data = UUID.randomUUID().toString();
+            appender.append(data);
+            written += data.length();
 
+        }
+        appender.append("new-segment");
         assertEquals(2, appender.levels.numSegments());
     }
 
@@ -262,7 +265,7 @@ public class LogAppenderTest {
     }
 
     @Test
-    public void reopen_brokenEntry() throws IOException {
+    public void bad_log_data_is_ignored_when_opening_current_log() throws IOException {
         appender.close();
 
         String segmentName;
@@ -276,38 +279,31 @@ public class LogAppenderTest {
         }
 
         //write broken data
-
         File file = new File(testDirectory, segmentName);
         try (Storage storage = new RafStorage(file, file.length(), Mode.READ_WRITE)) {
             storage.position(Log.START);
-            ByteBuffer broken = ByteBuffer.allocate(Log.HEADER_OVERHEAD + 4);
+            ByteBuffer broken = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD + 4);
             broken.putInt(444); //expected length
-            broken.putInt(123); // broken checksum
+            broken.putInt(123456); // broken checksum
             broken.putChar('A'); // broken data
+            broken.putInt(444); //expected length
+            broken.flip();
+
             storage.write(broken);
         }
 
         try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
             testAppender.append("4");
         }
+        try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
+            testAppender.append("5");
+        }
 
         try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
             Set<String> values = testAppender.stream(Direction.FORWARD).collect(Collectors.toSet());
-            assertTrue(values.contains("1"));
-            assertTrue(values.contains("2"));
-            assertTrue(values.contains("3"));
-            assertTrue(values.contains("4"));
+            assertThat(values, hasItem("4"));
+            assertThat(values, hasItem("5"));
         }
-    }
-
-    @Test
-    public void bad_header_throws_exception() {
-        fail("TODO");
-    }
-
-    @Test
-    public void bad_log_data_is_ignored_when_opening_current_log() {
-        fail("TODO");
     }
 
     @Test
@@ -398,44 +394,6 @@ public class LogAppenderTest {
                 assertEquals(String.valueOf(i), val);
             }
         }
-    }
-
-    @Test
-    @Ignore("Relies on time")
-    public void compact() {
-        appender.append("SEGMENT-A");
-        appender.roll();
-
-        appender.append("SEGMENT-B");
-        appender.roll();
-
-        assertEquals(3, appender.levels.numSegments());
-        assertEquals(2, appender.entries());
-
-        appender.compact();
-
-        assertEquals(2, appender.levels.numSegments());
-        assertEquals(2, appender.levels.depth());
-        assertEquals(2, appender.entries());
-
-        List<String> found = appender.stream(Direction.FORWARD).collect(Collectors.toList());
-        assertEquals("SEGMENT-A", found.get(0));
-        assertEquals("SEGMENT-B", found.get(1));
-    }
-
-    @Test
-    @Ignore("Compact is async")
-    public void depth_is_correct_after_merge() {
-
-        appender.append("SEGMENT-A");
-        appender.roll();
-
-        appender.append("SEGMENT-B");
-        appender.roll();
-
-        appender.compact();
-
-        assertEquals(3, appender.depth());
     }
 
     @Test

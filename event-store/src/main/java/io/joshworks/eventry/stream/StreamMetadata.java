@@ -75,7 +75,18 @@ public class StreamMetadata {
     }
 
 
-
-
+    @Override
+    public String toString() {
+        return "StreamMetadata{" +
+                "name='" + name + '\'' +
+                ", hash=" + hash +
+                ", created=" + created +
+                ", maxAge=" + maxAge +
+                ", maxCount=" + maxCount +
+                ", state=" + state +
+                ", permissions=" + permissions +
+                ", metadata=" + metadata +
+                '}';
+    }
 }
 
