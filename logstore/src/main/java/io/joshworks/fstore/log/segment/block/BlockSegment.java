@@ -280,18 +280,30 @@ public class BlockSegment<T> implements Log<T> {
             this.entryIdx = entryIdx(position);
             this.segmentIterator = delegate.iterator(currentBlockPos, direction);
             this.direction = direction;
-            if (Direction.BACKWARD.equals(direction) && entryIdx > 0) {
-                //we need to read forward the first since blockPosition() returns the start of the block
-                try (LogIterator<ByteBuffer> fit = delegate.iterator(currentBlockPos, Direction.FORWARD)) {
-                    ByteBuffer blockData = fit.next();
-                    block = factory.load(serializer, codec, blockData);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+            if(entryIdx > 0) {
+                if (Direction.BACKWARD.equals(direction)) {
+                    //we need to read forward the first since blockPosition() returns the start of the block
+                    try (LogIterator<ByteBuffer> fit = delegate.iterator(currentBlockPos, Direction.FORWARD)) {
+                        ByteBuffer blockData = fit.next();
+                        block = factory.load(serializer, codec, blockData);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                if (Direction.FORWARD.equals(direction)) {
+                    int idx = entryIdx;
+                    readBlock();
+                    this.entryIdx = idx;
                 }
             }
+
         }
 
         private void readBlock() {
+            if (Direction.FORWARD.equals(direction)) {
+                currentBlockPos = segmentIterator.position();
+                entryIdx = 0;
+            }
             ByteBuffer blockData = segmentIterator.next();
             if (blockData == null) {
                 throw new NoSuchElementException();
@@ -299,7 +311,7 @@ public class BlockSegment<T> implements Log<T> {
             block = factory.load(serializer, codec, blockData);
             if (Direction.BACKWARD.equals(direction)) {
                 currentBlockPos = segmentIterator.position();
-                entryIdx = block.entryCount() - 1;
+                entryIdx = block.entryCount();
             }
 
         }
@@ -326,12 +338,18 @@ public class BlockSegment<T> implements Log<T> {
             if (block == null) {
                 readBlock();
             }
-            entryIdx = Direction.FORWARD.equals(direction) ? entryIdx : entryIdx - 1;
+
+            if(Direction.BACKWARD.equals(direction)) {
+                entryIdx--;
+            }
             T polled = block.get(entryIdx);
             if (polled == null) {
                 readBlock();
-                entryIdx = Direction.FORWARD.equals(direction) ? entryIdx + 1 : entryIdx - 1;
                 polled = block.get(entryIdx);
+            }
+
+            if(Direction.FORWARD.equals(direction)) {
+                entryIdx++;
             }
 
             if(Direction.BACKWARD.equals(direction) && entryIdx == 0) {
@@ -339,8 +357,7 @@ public class BlockSegment<T> implements Log<T> {
                 currentBlockPos = segmentIterator.position();
             }
 
-            int nextIdx = Direction.FORWARD.equals(direction) ? entryIdx + 1 : entryIdx - 1;
-            if (!hasEntriesOnBlock(nextIdx)) {
+            if (!hasEntriesOnBlock(entryIdx)) {
                 entryIdx = 0;
                 block = null;
                 currentBlockPos = segmentIterator.position();

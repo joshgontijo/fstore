@@ -109,12 +109,12 @@ public class BlockSegmentTest {
             assertTrue(iterator.hasNext());
             assertEquals(pos1, iterator.position());
 
-            iterator.next();
+            assertEquals(Integer.valueOf(1), iterator.next());
 
             assertTrue(iterator.hasNext());
             assertEquals(pos2, iterator.position());
 
-            iterator.next();
+            assertEquals(Integer.valueOf(2), iterator.next());
 
             assertFalse(iterator.hasNext());
             assertEquals(pos3, iterator.position());
@@ -157,13 +157,12 @@ public class BlockSegmentTest {
 
 
     @Test
-    public void block_backward_iterator_starts_from_block_start_position() throws IOException {
+    public void block_backward_iterator_starts_from_block_end_position() throws IOException {
         long pos1 = segment.append(1);
         long pos2 = segment.append(2);
         segment.flush();
 
         long pos3 = segment.position();
-
         try(LogIterator<Integer> iterator = segment.iterator(pos3, Direction.BACKWARD)) {
 
             assertEquals(pos3, iterator.position());
@@ -213,20 +212,6 @@ public class BlockSegmentTest {
             iterator.next();
             assertEquals(pos1, iterator.position());
         }
-    }
-
-    @Test
-    public void add_returns_same_position_for_same_block() {
-        int entriesPerBlock = blockSize / Integer.BYTES;
-
-        long pos = Log.START;
-        for (int i = 0; i < entriesPerBlock; i++) {
-            long entryPos = segment.append(i);
-            assertEquals("Failed on " + i, pos, entryPos);
-        }
-
-        long entryPos = segment.append(123);
-        assertTrue(entryPos > pos);
     }
 
     @Test
@@ -303,11 +288,6 @@ public class BlockSegmentTest {
             Integer poll = poller.poll();
             assertNull(poll);
         }
-    }
-
-    @Test(expected = UnsupportedOperationException.class)
-    public void get_is_not_supported() {
-        segment.get(123);
     }
 
     @Test
