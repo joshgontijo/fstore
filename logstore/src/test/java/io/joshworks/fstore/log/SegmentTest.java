@@ -50,21 +50,13 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void writePosition() {
-        String data = "hello";
-        segment.append(data);
-
-        assertEquals(LogHeader.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), segment.position()); // 4 + 4 (header) + data length
-    }
-
-    @Test
     public void segment_position_is_the_same_as_append_position() {
         String data = "hello";
 
         for (int i = 0; i < 1000; i++) {
             long segPos = segment.position();
             long pos = segment.append(data);
-            assertEquals(pos, segPos);
+            assertEquals("Failed on " + i, pos, segPos);
         }
     }
 
@@ -72,6 +64,7 @@ public abstract class SegmentTest {
     public void writePosition_reopen() throws IOException {
         String data = "hello";
         segment.append(data);
+        segment.flush();
 
         long position = segment.position();
         segment.close();
@@ -85,17 +78,18 @@ public abstract class SegmentTest {
     public void write() {
         String data = "hello";
         segment.append(data);
+        segment.flush();
 
         LogIterator<String> logIterator = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(LogHeader.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
     public void reader_reopen() throws IOException {
         String data = "hello";
         segment.append(data);
+        segment.flush();
 
         LogIterator<String> logIterator = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator.hasNext());
@@ -110,23 +104,21 @@ public abstract class SegmentTest {
         assertEquals(position, segment.position());
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(LogHeader.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
     public void multiple_readers() {
         String data = "hello";
         segment.append(data);
+        segment.flush();
 
         LogIterator<String> logIterator1 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(LogHeader.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
         LogIterator<String> logIterator2 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator2.hasNext());
         assertEquals(data, logIterator2.next());
-        assertEquals(LogHeader.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -141,7 +133,6 @@ public abstract class SegmentTest {
         LogIterator<String> logIterator1 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(LogHeader.BYTES + RecordHeader.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -152,6 +143,7 @@ public abstract class SegmentTest {
         }
         String data = sb.toString();
         segment.append(data);
+        segment.flush();
     }
 
     @Test
@@ -214,32 +206,13 @@ public abstract class SegmentTest {
         for (int i = 0; i < numEntries; i++) {
             segment.append(String.valueOf(i));
         }
+        segment.flush();
 
         //footer
         byte[] fData = new byte[100];
         Arrays.fill(fData, (byte) 1);
 
         segment.roll(1, ByteBuffer.wrap(fData));
-
-
-        Stream<String> stream = segment.stream(Direction.FORWARD);
-        assertEquals(numEntries, stream.count());
-    }
-
-    @Test
-    public void get_data_from_footer_is_not_allowed() {
-
-        int numEntries = 10;
-        for (int i = 0; i < numEntries; i++) {
-            segment.append(String.valueOf(i));
-        }
-
-        //footer
-        byte[] fData = new byte[100];
-        Arrays.fill(fData, (byte) 1);
-
-        segment.roll(1, ByteBuffer.wrap(fData));
-
 
         Stream<String> stream = segment.stream(Direction.FORWARD);
         assertEquals(numEntries, stream.count());
@@ -300,6 +273,8 @@ public abstract class SegmentTest {
             segment.append(String.valueOf(i));
         }
 
+        segment.flush();
+
         int current = entries - 1;
         try (LogIterator<String> iterator = segment.iterator(Direction.BACKWARD)) {
             while (iterator.hasNext()) {
@@ -318,6 +293,7 @@ public abstract class SegmentTest {
             long pos = segment.append(String.valueOf(i));
             positions.add(pos);
         }
+        segment.flush();
 
         try (LogIterator<String> iterator = segment.iterator(Direction.FORWARD)) {
             int idx = 0;
@@ -336,6 +312,8 @@ public abstract class SegmentTest {
             long pos = segment.append(String.valueOf(i));
             positions.add(pos);
         }
+
+        segment.flush();
 
         Collections.reverse(positions);
         try (LogIterator<String> iterator = segment.iterator(Direction.BACKWARD)) {
@@ -375,20 +353,6 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void size() throws IOException {
-        segment.append("a");
-        segment.append("b");
-
-        assertEquals(LogHeader.BYTES + (RecordHeader.HEADER_OVERHEAD + 1) * 2, segment.size());
-
-        segment.position();
-        segment.close();
-
-        segment = open(testFile);
-        assertEquals(LogHeader.BYTES + (RecordHeader.HEADER_OVERHEAD + 1) * 2, segment.size());
-    }
-
-    @Test
     public void writeFooter() {
         segment.append("a");
 
@@ -418,16 +382,18 @@ public abstract class SegmentTest {
                     if (polled != null)
                         captured.add(polled);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    throw new RuntimeException(e);
                 }
             });
         }
 
         executor.shutdown();
 
-        Thread.sleep(3000);
+        Thread.sleep(4000);
 
         segment.append(value);
+        segment.flush();
+
         executor.awaitTermination(5, TimeUnit.SECONDS);
 
         assertEquals(numOfSubscribers, captured.size());
@@ -439,6 +405,7 @@ public abstract class SegmentTest {
         final String value = "yolo";
 
         segment.append(value);
+        segment.flush();
 
         PollingSubscriber<String> poller = segment.poller();
         String polled = poller.poll(3, TimeUnit.SECONDS);
@@ -453,6 +420,7 @@ public abstract class SegmentTest {
         final AtomicReference<String> captured = new AtomicReference<>("NON-NULL");
 
         segment.append("value");
+        segment.flush();
         long position = segment.position();
 
         new Thread(() -> {
@@ -507,6 +475,7 @@ public abstract class SegmentTest {
         PollingSubscriber<String> poller = segment.poller();
         assertTrue(poller.headOfLog());
         segment.append("a");
+        segment.flush();
         assertFalse(poller.headOfLog());
     }
 
@@ -524,6 +493,5 @@ public abstract class SegmentTest {
 
         poller.poll();
         assertTrue(poller.endOfLog());
-
     }
 }

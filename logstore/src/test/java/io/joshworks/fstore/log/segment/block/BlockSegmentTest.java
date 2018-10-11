@@ -9,8 +9,10 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
+import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
@@ -23,6 +25,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static io.joshworks.fstore.log.segment.block.BlockSegment.blockPosition;
+import static io.joshworks.fstore.log.segment.block.BlockSegment.entryIdx;
+import static io.joshworks.fstore.log.segment.block.BlockSegment.withBlockIndex;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -31,7 +36,7 @@ import static org.junit.Assert.assertTrue;
 
 public class BlockSegmentTest {
 
-    private BlockSegment<Integer> segment;
+    private BlockSegment<String> segment;
     private File testFile;
     private final int blockSize = 4096;
 
@@ -40,7 +45,7 @@ public class BlockSegmentTest {
         testFile = Utils.testFile();
         segment = new BlockSegment<>(
                 new RafStorage(testFile, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE),
-                Serializers.INTEGER,
+                Serializers.STRING,
                 new DataStream(),
                 "abc",
                 Type.LOG_HEAD,
@@ -57,55 +62,74 @@ public class BlockSegmentTest {
 
     @Test
     public void block_get() {
-        long pos1 = segment.append(1);
-        long pos2 = segment.append(2);
+        long pos1 = segment.append("a");
+        long pos2 = segment.append("b");
 
         segment.flush();
 
-        assertEquals(Integer.valueOf(1), segment.get(pos1));
-        assertEquals(Integer.valueOf(2), segment.get(pos2));
+        assertEquals("a", segment.get(pos1));
+        assertEquals("b", segment.get(pos2));
     }
 
     @Test
     public void block_iterator() {
-        segment.append(1);
-        segment.append(2);
+        segment.append("a");
+        segment.append("b");
 
         segment.flush();
 
-        List<Integer> found = segment.stream(Direction.FORWARD).collect(Collectors.toList());
+        List<String> found = segment.stream(Direction.FORWARD).collect(Collectors.toList());
         assertEquals(2, found.size());
 
-        assertEquals(Integer.valueOf(1), found.get(0));
-        assertEquals(Integer.valueOf(2), found.get(1));
+        assertEquals("a", found.get(0));
+        assertEquals("b", found.get(1));
+    }
+
+    @Test
+    public void position() {
+        for (int segPos = 0; segPos < LogAppender.MAX_SEGMENT_ADDRESS; segPos++) {
+            for (int blocEntryIdx = 0; blocEntryIdx < LogAppender.MAX_BLOCK_ENTRIES; blocEntryIdx++) {
+
+                long position = withBlockIndex(blocEntryIdx, segPos);
+                int entryIdx = entryIdx(position);
+                long pos = blockPosition(position);
+
+                System.out.println(Long.toBinaryString(pos));
+                System.out.println(Long.toBinaryString(entryIdx));
+                System.out.println(Long.toBinaryString(position));
+
+                assertEquals("[" + segPos + "][" + blocEntryIdx + "]", blocEntryIdx, entryIdx);
+                assertEquals("[" + segPos + "][" + blocEntryIdx + "]", segPos, pos);
+            }
+        }
     }
 
     @Test
     public void get_and_append_position_are_the_same() {
 
         long logPos = segment.position();
-        long pos1 = segment.append(1);
+        long pos1 = segment.append("a");
         assertEquals(pos1, logPos);
 
         logPos = segment.position();
-        long pos2 = segment.append(2);
+        long pos2 = segment.append("b");
         assertEquals(pos2, logPos);
 
         logPos = segment.position();
-        long pos3 = segment.append(3);
+        long pos3 = segment.append("c");
         assertEquals(pos3, logPos);
     }
 
     @Test
     public void block_forward_iterator_return_correct_position() throws IOException {
-        long pos1 = segment.append(1);
-        long pos2 = segment.append(2);
+        long pos1 = segment.append("a");
+        long pos2 = segment.append("b");
 
         segment.flush();
 
         long pos3 = segment.position();
 
-        try(LogIterator<Integer> iterator = segment.iterator(Direction.FORWARD)) {
+        try (LogIterator<String> iterator = segment.iterator(Direction.FORWARD)) {
             assertTrue(iterator.hasNext());
             assertEquals(pos1, iterator.position());
 
@@ -123,13 +147,13 @@ public class BlockSegmentTest {
 
     @Test
     public void block_forward_iterator_starts_from_position_at_beginning_of_block() throws IOException {
-        long pos1 = segment.append(1);
-        long pos2 = segment.append(2);
+        long pos1 = segment.append("a");
+        long pos2 = segment.append("b");
         segment.flush();
 
         long pos3 = segment.position();
 
-        try(LogIterator<Integer> iterator = segment.iterator(pos1, Direction.FORWARD)) {
+        try (LogIterator<String> iterator = segment.iterator(pos1, Direction.FORWARD)) {
             assertTrue(iterator.hasNext());
             assertEquals(pos1, iterator.position());
             assertEquals(Integer.valueOf(1), iterator.next());
@@ -139,13 +163,13 @@ public class BlockSegmentTest {
 
     @Test
     public void block_forward_iterator_with_position_starting_at_the_middle_of_block() throws IOException {
-        long pos1 = segment.append(1);
-        long pos2 = segment.append(2);
+        long pos1 = segment.append("a");
+        long pos2 = segment.append("b");
         segment.flush();
 
         long pos3 = segment.position();
 
-        try(LogIterator<Integer> iterator = segment.iterator(pos2, Direction.FORWARD)) {
+        try (LogIterator<String> iterator = segment.iterator(pos2, Direction.FORWARD)) {
             assertTrue(iterator.hasNext());
             assertEquals(pos2, iterator.position());
             assertEquals(Integer.valueOf(2), iterator.next());
@@ -158,12 +182,12 @@ public class BlockSegmentTest {
 
     @Test
     public void block_backward_iterator_starts_from_block_end_position() throws IOException {
-        long pos1 = segment.append(1);
-        long pos2 = segment.append(2);
+        long pos1 = segment.append("a");
+        long pos2 = segment.append("b");
         segment.flush();
 
         long pos3 = segment.position();
-        try(LogIterator<Integer> iterator = segment.iterator(pos3, Direction.BACKWARD)) {
+        try (LogIterator<String> iterator = segment.iterator(pos3, Direction.BACKWARD)) {
 
             assertEquals(pos3, iterator.position());
 
@@ -178,13 +202,13 @@ public class BlockSegmentTest {
 
     @Test
     public void block_backward_iterator_starts_from_position_in_middle_of_block() throws IOException {
-        long pos1 = segment.append(1);
-        long pos2 = segment.append(2);
+        long pos1 = segment.append("a");
+        long pos2 = segment.append("b");
         segment.flush();
 
         long pos4 = segment.position();
 
-        try(LogIterator<Integer> iterator = segment.iterator(pos2, Direction.BACKWARD)) {
+        try (LogIterator<String> iterator = segment.iterator(pos2, Direction.BACKWARD)) {
             assertEquals(pos2, iterator.position());
             assertTrue(iterator.hasNext());
             assertEquals(Integer.valueOf(1), iterator.next());
@@ -196,14 +220,14 @@ public class BlockSegmentTest {
 
     @Test
     public void block_backward_iterator_return_correct_position() throws IOException {
-        long pos1 = segment.append(1);
-        long pos2 = segment.append(2);
+        long pos1 = segment.append("a");
+        long pos2 = segment.append("b");
 
         segment.flush();
 
         long pos3 = segment.position();
 
-        try(LogIterator<Integer> iterator = segment.iterator(Direction.BACKWARD)) {
+        try (LogIterator<String> iterator = segment.iterator(Direction.BACKWARD)) {
             assertEquals(pos3, iterator.position());
 
             iterator.next();
@@ -217,7 +241,7 @@ public class BlockSegmentTest {
     @Test
     public void entries_returns_flushed_blocks() {
         assertEquals(0, segment.entries());
-        segment.append(123);
+        segment.append("a");
         segment.flush();
         assertEquals(1, segment.entries());
     }
@@ -225,7 +249,7 @@ public class BlockSegmentTest {
     @Test
     public void stream_returns_all_data() {
         int entriesPerBlock = blockSize / Integer.BYTES;
-        IntStream.range(0, entriesPerBlock).forEach(segment::append);
+        IntStream.range(0, entriesPerBlock).mapToObj(String::valueOf).forEach(segment::append);
 
         segment.flush();
 
@@ -240,26 +264,26 @@ public class BlockSegmentTest {
 
     @Test
     public void getBlock_returns_correct_block() {
-        long position = segment.append(123);
+        long position = segment.append("a");
         segment.flush();
 
-        Block<Integer> found = segment.getBlock(position);
+        Block<String> found = segment.getBlock(position);
         assertNotNull(found);
         assertEquals(1, found.entryCount());
-        assertEquals(Integer.valueOf(123), found.get(0));
+        assertEquals("a", found.get(0));
     }
 
     @Test
     public void poller_take_returns_all_persisted_data() throws IOException, InterruptedException {
         int entriesPerBlock = blockSize / Integer.BYTES;
-        IntStream.range(0, entriesPerBlock).forEach(segment::append);
+        IntStream.range(0, entriesPerBlock).mapToObj(String::valueOf).forEach(segment::append);
 
         segment.flush();
 
-        try (PollingSubscriber<Integer> poller = segment.poller()) {
+        try (PollingSubscriber<String> poller = segment.poller()) {
             for (int i = 0; i < entriesPerBlock; i++) {
-                int val = poller.take();
-                assertEquals(i, val);
+                String val = poller.take();
+                assertEquals(String.valueOf(i), val);
             }
         }
     }
@@ -267,35 +291,35 @@ public class BlockSegmentTest {
     @Test
     public void poller_poll_returns_all_persisted_data() throws IOException, InterruptedException {
         int entriesPerBlock = blockSize / Integer.BYTES;
-        IntStream.range(0, entriesPerBlock).forEach(segment::append);
+        IntStream.range(0, entriesPerBlock).mapToObj(String::valueOf).forEach(segment::append);
 
         segment.flush();
 
-        try (PollingSubscriber<Integer> poller = segment.poller()) {
+        try (PollingSubscriber<String> poller = segment.poller()) {
             for (int i = 0; i < entriesPerBlock; i++) {
-                int val = poller.poll();
-                assertEquals(i, val);
+                String val = poller.poll();
+                assertEquals(String.valueOf(i), val);
             }
         }
     }
 
     @Test
     public void poller_poll_doesnt_return_non_persisted_data() throws IOException, InterruptedException {
-        segment.append(123);
-        segment.append(456);
+        segment.append("a");
+        segment.append("b");
 
-        try (PollingSubscriber<Integer> poller = segment.poller()) {
-            Integer poll = poller.poll();
+        try (PollingSubscriber<String> poller = segment.poller()) {
+            String poll = poller.poll();
             assertNull(poll);
         }
     }
 
     @Test
     public void endOfLog_only_when_queue_is_empty_and_closed_was_called() throws IOException, InterruptedException {
-        segment.append(123);
-        segment.append(456);
+        segment.append("a");
+        segment.append("b");
 
-        PollingSubscriber<Integer> poller = segment.poller();
+        PollingSubscriber<String> poller = segment.poller();
         poller.close();
         assertFalse(poller.endOfLog());
         poller.poll();
