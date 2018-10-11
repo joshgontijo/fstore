@@ -44,10 +44,26 @@ import java.util.stream.Stream;
  * <p>
  * |------------ 64bits -------------|
  * [SEGMENT_IDX] [POSITION_ON_SEGMENT]
+ * <p>
+ * *
+ * Position address schema (BLock)
+ * <p>
+ * |------------------ 64bits -------------------|
+ * [SEGMENT_IDX] [POSITION_ON_SEGMENT] [BLOCK_POS]
  */
+
 public class LogAppender<T> implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
+
+
+    public static final int SEGMENT_BITS = 16;
+    public static final int BLOCK_BITS = 12;
+    public static final int SEGMENT_ADDRESS_BITS = Long.SIZE - SEGMENT_BITS;
+
+    public static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
+    public static final long MAX_SEGMENT_ADDRESS = BitUtil.maxValueForBits(SEGMENT_ADDRESS_BITS);
+    public static final long MAX_BLOCK_ENTRIES = BitUtil.maxValueForBits(BLOCK_BITS) + 1;
 
     private final File directory;
     private final Serializer<T> serializer;
@@ -56,9 +72,6 @@ public class LogAppender<T> implements Closeable {
     private final NamingStrategy namingStrategy;
     private final SegmentFactory<T> factory;
     private final StorageProvider storageProvider;
-
-    final long maxSegments;
-    final long maxAddressPerSegment;
 
     //LEVEL0 [CURRENT_SEGMENT]
     //LEVEL1 [SEG1][SEG2]
@@ -96,12 +109,16 @@ public class LogAppender<T> implements Closeable {
         if (!metadataExists) {
             logger.info("Creating LogAppender");
 
+            if (config.segmentSize > MAX_SEGMENT_ADDRESS) {
+                throw new IllegalArgumentException("Maximum segment size allowed is " + MAX_SEGMENT_ADDRESS);
+            }
+
             LogFileUtils.createRoot(directory);
             this.metadata = Metadata.create(
                     directory,
                     config.segmentSize,
-                    config.segmentBitShift,
                     config.maxSegmentsPerLevel,
+                    config.blockSize,
                     config.mmap,
                     config.flushAfterWrite,
                     config.asyncFlush);
@@ -111,15 +128,6 @@ public class LogAppender<T> implements Closeable {
             logger.info("Opening LogAppender");
             this.metadata = Metadata.readFrom(directory);
             this.state = State.readFrom(directory);
-        }
-
-        this.maxSegments = BitUtil.maxValueForBits(Long.SIZE - metadata.segmentBitShift);
-        this.maxAddressPerSegment = BitUtil.maxValueForBits(metadata.segmentBitShift);
-
-        if (metadata.segmentBitShift >= Long.SIZE || metadata.segmentBitShift < 0) {
-            //just a numeric validation, values near 64 and 0 are still nonsense
-            IOUtils.closeQuietly(state);
-            throw new IllegalArgumentException("segmentBitShift must be between 0 and " + Long.SIZE);
         }
 
         try {
@@ -132,14 +140,19 @@ public class LogAppender<T> implements Closeable {
         }
 
         this.compactionDisabled = config.compactionDisabled;
-        logger.info("Compaction is {}", this.compactionDisabled ? "DISABLED" : "ENABLED");
+        logger.info("Compaction is: {}", this.compactionDisabled ? "DISABLED" : "ENABLED");
+        logger.info("Segment type: {}", metadata.blockSize > 0 ? "BLOCK" : "DEFAULT");
 
         this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, levels, sedaContext, config.threadPerLevel);
 
-        logger.info("SEGMENT BIT SHIFT: {}", metadata.segmentBitShift);
-        logger.info("MAX SEGMENTS: {} ({} bits)", maxSegments, Long.SIZE - metadata.segmentBitShift);
-        logger.info("MAX ADDRESS PER SEGMENT: {} ({} bits)", maxAddressPerSegment, metadata.segmentBitShift);
+        logger.info("SEGMENT BITS : {}", SEGMENT_BITS);
+        logger.info("BLOCK BIT SHIFT: {}", BLOCK_BITS);
+        logger.info("MAX SEGMENTS: {} ({} bits)", MAX_SEGMENTS, SEGMENT_BITS);
+        logger.info("MAX SEGMENT ADDRESS: {} ({} bits)", MAX_SEGMENT_ADDRESS, SEGMENT_ADDRESS_BITS);
+        if (metadata.blockSize > 0) {
+            logger.info("MAX BLOCK ENTRIES: {} ({} bits)", MAX_BLOCK_ENTRIES, BLOCK_BITS);
 
+        }
     }
 
     private void restoreState(Log<T> current) {
@@ -226,9 +239,9 @@ public class LogAppender<T> implements Closeable {
     }
 
     int getSegment(long position) {
-        long segmentIdx = (position >>> metadata.segmentBitShift);
-        if (segmentIdx > maxSegments) {
-            throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + maxSegments);
+        long segmentIdx = (position >>> SEGMENT_ADDRESS_BITS);
+        if (segmentIdx > MAX_SEGMENTS) {
+            throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + MAX_SEGMENTS);
         }
 
         return (int) segmentIdx;
@@ -238,14 +251,14 @@ public class LogAppender<T> implements Closeable {
         if (segmentIdx < 0) {
             throw new IllegalArgumentException("Segment index must be greater than zero");
         }
-        if (segmentIdx > maxSegments) {
-            throw new IllegalArgumentException("Segment index cannot be greater than " + maxSegments);
+        if (segmentIdx > MAX_SEGMENTS) {
+            throw new IllegalArgumentException("Segment index cannot be greater than " + MAX_SEGMENTS);
         }
-        return (segmentIdx << metadata.segmentBitShift) | position;
+        return (segmentIdx << SEGMENT_ADDRESS_BITS) | position;
     }
 
     long getPositionOnSegment(long position) {
-        long mask = (1L << metadata.segmentBitShift) - 1;
+        long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
         return (position & mask);
     }
 
@@ -364,7 +377,7 @@ public class LogAppender<T> implements Closeable {
 
         Log<T> currentSegment = levels.current();
         if (currentSegment != null) {
-            IOUtils.flush(currentSegment);
+            currentSegment.flush();
             state.position(this.position());
         }
 
@@ -397,13 +410,9 @@ public class LogAppender<T> implements Closeable {
         if (closed.get()) {
             return;
         }
-        try {
 //            long start = System.currentTimeMillis();
-            levels.current().flush();
+        levels.current().flush();
 //            logger.info("Flush took {}ms", System.currentTimeMillis() - start);
-        } catch (IOException e) {
-            throw RuntimeIOException.of(e);
-        }
     }
 
     public List<String> segmentsNames() {
@@ -582,7 +591,7 @@ public class LogAppender<T> implements Closeable {
                 current = segmentsIterators.next();
                 segmentIdx--;
             }
-            if(current == null || !hasNext()) {
+            if (current == null || !hasNext()) {
                 return null; //TODO throw nosuchelementexception
             }
             return current.next();

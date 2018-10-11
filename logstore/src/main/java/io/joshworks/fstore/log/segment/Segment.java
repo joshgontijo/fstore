@@ -72,7 +72,7 @@ public class Segment<T> implements Log<T> {
 
         LogHeader readHeader = readHeader(storage);
 
-        if (LogHeader.EMPTY.equals(readHeader)) { //new segment
+        if (LogHeader.noHeader().equals(readHeader)) { //new segment
             if (type == null) {
                 IOUtils.closeQuietly(storage);
                 throw new SegmentException("Segment type must be provided when creating a new segment");
@@ -105,7 +105,7 @@ public class Segment<T> implements Log<T> {
         storage.read(0, bb);
         bb.flip();
         if (bb.remaining() == 0) {
-            return LogHeader.EMPTY;
+            return LogHeader.noHeader();
         }
         return headerSerializer.fromBytes(bb);
 
@@ -113,7 +113,7 @@ public class Segment<T> implements Log<T> {
 
     private LogHeader createNewHeader(Storage storage, Type type, String magic) {
         validateTypeProvided(type);
-        LogHeader newHeader = new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, 0, 0, 0, 0, 0);
+        LogHeader newHeader = LogHeader.create(magic, type);
         ByteBuffer headerData = headerSerializer.toBytes(newHeader);
         if (storage.write(headerData) != LogHeader.BYTES) {
             throw new SegmentException("Failed to create header");
@@ -350,7 +350,7 @@ public class Segment<T> implements Log<T> {
     private LogHeader writeHeader(int level, FooterInfo footerInfo) {
         long segmentSize = footerInfo.end;
         long logEnd = footerInfo.start - EOL.length;
-        LogHeader newHeader = new LogHeader(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, Log.START, logEnd, footerInfo.start, footerInfo.end);
+        LogHeader newHeader = LogHeader.create(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, Log.START, logEnd, footerInfo.start, footerInfo.end);
         storage.position(0);
         ByteBuffer headerData = headerSerializer.toBytes(newHeader);
         storage.write(headerData);

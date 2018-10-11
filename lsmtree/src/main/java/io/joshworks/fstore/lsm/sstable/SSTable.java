@@ -8,9 +8,10 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Type;
-import io.joshworks.fstore.log.segment.block.Block;
+import io.joshworks.fstore.log.segment.block.VLenBlock;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
+import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.lsm.sstable.index.Index;
 import io.joshworks.fstore.lsm.sstable.index.IndexEntry;
 
@@ -18,7 +19,7 @@ import java.io.File;
 import java.util.Collections;
 import java.util.List;
 
-public class SSTable<K extends Comparable<K>, V> extends BlockSegment<Entry<K, V>, Block<Entry<K, V>>> {
+public class SSTable<K extends Comparable<K>, V> extends BlockSegment<Entry<K, V>, VLenBlock<Entry<K, V>>> {
 
     private BloomFilter<K> filter;
     private final Index<K> index;
@@ -65,7 +66,7 @@ public class SSTable<K extends Comparable<K>, V> extends BlockSegment<Entry<K, V
         }
         //TODO ideally, block position would be used, which required the block.add to return a position
         //within the block, which also requires a moderate refactoring on BlockAppender / LogAppender
-        Block<Entry<K, V>> block = super.getBlock(indexEntry.position);
+        Block<Entry<K,V>> block = super.getBlock(indexEntry.position);
 
         List<Entry<K, V>> entries = block.entries();
         int idx = Collections.binarySearch(entries, Entry.keyOf(key));
@@ -98,8 +99,8 @@ public class SSTable<K extends Comparable<K>, V> extends BlockSegment<Entry<K, V
 
 
     @Override
-    protected Block<Entry<K, V>> createBlock(Serializer<Entry<K, V>> serializer, int maxBlockSize) {
-        return new Block<>(serializer, maxBlockSize);
+    protected Block<Entry<K,V>> createBlock(Serializer<Entry<K, V>> serializer, int maxBlockSize) {
+        return new VLenBlock<>(serializer, maxBlockSize);
     }
 
 }

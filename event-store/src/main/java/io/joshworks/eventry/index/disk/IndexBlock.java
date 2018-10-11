@@ -6,27 +6,28 @@ import io.joshworks.fstore.log.segment.block.Block;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 //Format:
 //streamHash-qtd-version1|pos1-version2|pos2-versionN|posN
-public class IndexBlock extends Block<IndexEntry> {
+public class IndexBlock implements Block<IndexEntry> {
 
     private final List<IndexEntry> cached = new ArrayList<>();
+    private final int maxSize;
 
     public IndexBlock(int maxSize) {
-        super(null, maxSize);
+        this.maxSize = maxSize;
     }
 
     protected IndexBlock(ByteBuffer data) {
-        super(null, new ArrayList<>(), data);
         this.cached.addAll(unpack(data));
+        this.maxSize = -1;
     }
 
     @Override
     public boolean add(IndexEntry data) {
-        if (readOnly) {
+        if (readOnly()) {
             throw new IllegalStateException("Block is read only");
         }
         cached.add(data);
@@ -122,13 +123,17 @@ public class IndexBlock extends Block<IndexEntry> {
     }
 
     @Override
-    public Iterator<IndexEntry> iterator() {
-        return entries().iterator();
+    public boolean readOnly() {
+        return false;
     }
-
 
     @Override
     public boolean isEmpty() {
         return cached.isEmpty();
+    }
+
+    @Override
+    public List<Integer> entriesLength() {
+        return cached.stream().map(i -> IndexEntry.BYTES).collect(Collectors.toList());
     }
 }
