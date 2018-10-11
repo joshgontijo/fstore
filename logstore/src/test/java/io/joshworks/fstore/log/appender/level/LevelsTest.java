@@ -409,7 +409,7 @@ public class LevelsTest {
         }
 
         @Override
-        public void flush() throws IOException {
+        public void flush() {
 
         }
 

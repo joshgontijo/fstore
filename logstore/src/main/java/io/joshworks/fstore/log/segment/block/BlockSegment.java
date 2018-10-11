@@ -1,8 +1,7 @@
 package io.joshworks.fstore.log.segment.block;
 
-import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
@@ -10,62 +9,100 @@ import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
+import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.LogHeader;
 import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.serializer.ByteBufferCopy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
+public class BlockSegment<T> implements Log<T> {
+
+    private static final Logger logger = LoggerFactory.getLogger(BlockSegment.class);
 
     private final int maxBlockSize;
-    private final Log<B> delegate;
+    private final Log<ByteBuffer> delegate;
     private final Serializer<T> serializer;
-    private B block;
+    private final BlockFactory<T> factory;
+    private final Codec codec;
 
-    public BlockSegment(Storage storage, Serializer<T> serializer, Serializer<B> blockSerializer, int maxBlockSize, IDataStream dataStream, String magic, Type type) {
-        delegate = new Segment<>(storage, blockSerializer, dataStream, magic, type);
+    //TODO add block cached
+
+    private Block<T> block;
+    private long entries;
+
+    public BlockSegment(Storage storage, Serializer<T> serializer, IDataStream dataStream, String magic, Type type, BlockFactory<T> factory, Codec codec, int maxBlockSize) {
+        //Direct serializer must not be used in the delegate segment
+        this.delegate = new Segment<>(storage, new ByteBufferCopy(), dataStream, magic, type);
+        this.codec = codec;
+        this.factory = factory;
         this.serializer = serializer;
         this.maxBlockSize = maxBlockSize;
-        this.block = createBlock(serializer, maxBlockSize);
+        this.block = factory.create(serializer, maxBlockSize);
     }
-
-    protected abstract B createBlock(Serializer<T> serializer, int maxBlockSize);
 
     @Override
     public long append(T data) {
+        int blockEntries = block.entryCount();
+        if (blockEntries >= LogAppender.MAX_BLOCK_ENTRIES) {
+            writeBlock();
+        }
         if (block.add(data)) {
-            return writeBlock();
+            writeBlock();
         }
-        return delegate.position();
+        entries++;
+        return withBlockIndex(blockEntries, delegate.position());
     }
 
-    protected long writeBlock() {
+    private long withBlockIndex(long entryIdx, long position) {
+        if (entryIdx < 0) {
+            throw new IllegalArgumentException("Segment index must be greater than zero");
+        }
+        if (entryIdx > LogAppender.MAX_BLOCK_ENTRIES) {
+            throw new IllegalArgumentException("Segment index cannot be greater than " + LogAppender.MAX_BLOCK_ENTRIES);
+        }
+        return (entryIdx << LogAppender.BLOCK_BITS) | position;
+    }
+
+    private int entryIdx(long position) {
+        return (int) (position >>> LogAppender.BLOCK_BITS);
+    }
+
+    private long blockPosition(long position) {
+        long mask = (1L << LogAppender.BLOCK_BITS) - 1;
+        return (position & mask);
+    }
+
+
+    private void writeBlock() {
         if (block.isEmpty()) {
-            return delegate.position();
+            return;
         }
-        long position = delegate.append(block);
-        block = createBlock(serializer, maxBlockSize);
-        return position;
+        ByteBuffer blockData = block.pack(codec);
+        delegate.append(blockData);
+        this.block = factory.create(serializer, maxBlockSize);
     }
 
-    protected B currentBlock() {
+    protected Block<T> currentBlock() {
         return block;
     }
 
     @Override
-    public void flush() throws IOException {
+    public void flush() {
         writeBlock();
         delegate.flush();
     }
@@ -93,20 +130,31 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public long position() {
-        return delegate.position();
+        return withBlockIndex(block.entryCount(), delegate.position());
     }
 
     @Override
     public T get(long position) {
-        throw new UnsupportedOperationException("Block segment cannot get single item");
+        long blockPos = blockPosition(position);
+        int idx = entryIdx(position);
+        if (idx < 0) {
+            throw new IllegalArgumentException("Invalid block entry index: " + idx);
+        }
+
+        ByteBuffer blockData = delegate.get(blockPos);
+        if (blockData == null) {
+            return null;
+        }
+        Block<T> loadedBlock = factory.load(serializer, codec, blockData);
+        return loadedBlock.get(idx);
     }
 
-    public B getBlock(long position) {
-        B found = delegate.get(position);
-        if (found == null) {
-            throw new IllegalStateException("Block not found on address " + position);
+    public Block<T> getBlock(long position) {
+        ByteBuffer data = delegate.get(position);
+        if (data == null) {
+            throw new IllegalStateException("Block not data on address " + position);
         }
-        return found;
+        return factory.load(serializer, codec, data);
     }
 
     @Override
@@ -121,12 +169,37 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public SegmentState rebuildState(long lastKnownPosition) {
-        return delegate.rebuildState(lastKnownPosition);
+        if (lastKnownPosition < START) {
+            throw new IllegalStateException("Invalid lastKnownPosition: " + lastKnownPosition + ",value must be at least " + START);
+        }
+        long position = lastKnownPosition;
+        int foundEntries = 0;
+        long start = System.currentTimeMillis();
+        try {
+            logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
+
+            try (LogIterator<ByteBuffer> iterator = delegate.iterator(Direction.FORWARD)) {
+                while (iterator.hasNext()) {
+                    position = iterator.position();
+                    ByteBuffer blockData = iterator.next();
+                    Block<T> blockRead = factory.load(serializer, codec, blockData);
+                    foundEntries += blockRead.entryCount();
+                }
+            }
+
+        } catch (Exception e) {
+            logger.warn("Found inconsistent entry on position {}, segment '{}': {}", position, name(), e.getMessage());
+        }
+        logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
+        if (position < LogHeader.BYTES) {
+            throw new IllegalStateException("Initial log state position must be at least " + LogHeader.BYTES);
+        }
+        return new SegmentState(foundEntries, position);
     }
 
     @Override
     public void delete() {
-        block = createBlock(serializer, maxBlockSize);
+        block = factory.create(serializer, maxBlockSize);
         delegate.delete();
     }
 
@@ -152,13 +225,8 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public void roll(int level) {
-        try {
-            flush();
-            delegate.roll(level);
-
-        } catch (IOException e) {
-            throw RuntimeIOException.of(e);
-        }
+        flush();
+        delegate.roll(level);
     }
 
     @Override
@@ -168,8 +236,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public long entries() {
-        //TODO this will return the number of blocks
-        return delegate.entries();
+        return entries;
     }
 
     @Override
@@ -185,12 +252,13 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public LogIterator<T> iterator(Direction direction) {
-        return new BlockIterator<>(delegate.iterator(direction), direction);
+        long position = Direction.FORWARD.equals(direction) ? Log.START : delegate.position();
+        return iterator(position, direction);
     }
 
     @Override
     public LogIterator<T> iterator(long position, Direction direction) {
-        return new BlockIterator<>(delegate.iterator(position, direction), direction);
+        return new BlockIterator(position, direction);
     }
 
     @Override
@@ -198,43 +266,56 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         return delegate.toString();
     }
 
-    private static class BlockIterator<T, B extends Block<T>> implements LogIterator<T> {
+    private class BlockIterator implements LogIterator<T> {
 
         private final Direction direction;
-        private final LogIterator<B> segmentIterator;
-        private Queue<T> entries = new LinkedList<>();
+        private final LogIterator<ByteBuffer> segmentIterator;
 
-        public BlockIterator(LogIterator<B> segmentIterator, Direction direction) {
-            this.segmentIterator = segmentIterator;
+        private Block<T> block;
+        private int entryIdx;
+        private long currentBlockPos;
+
+        private BlockIterator(long position, Direction direction) {
+            this.currentBlockPos = blockPosition(position);
+            this.entryIdx = entryIdx(position);
+            this.segmentIterator = delegate.iterator(currentBlockPos, direction);
             this.direction = direction;
+            if (Direction.BACKWARD.equals(direction) && entryIdx > 0) {
+                //we need to read forward the first since blockPosition() returns the start of the block
+                try (LogIterator<ByteBuffer> fit = delegate.iterator(currentBlockPos, Direction.FORWARD)) {
+                    ByteBuffer blockData = fit.next();
+                    block = factory.load(serializer, codec, blockData);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
 
-        private List<T> readBlockEntries(B block) {
-            List<T> blockEntries = block.entries();
-            if (Direction.BACKWARD.equals(direction)) {
-                Collections.reverse(blockEntries);
+        private void readBlock() {
+            ByteBuffer blockData = segmentIterator.next();
+            if (blockData == null) {
+                throw new NoSuchElementException();
             }
-            return blockEntries;
+            block = factory.load(serializer, codec, blockData);
+            if (Direction.BACKWARD.equals(direction)) {
+                currentBlockPos = segmentIterator.position();
+                entryIdx = block.entryCount() - 1;
+            }
+
         }
 
         @Override
         public long position() {
-            return segmentIterator.position();
+            return withBlockIndex(entryIdx, currentBlockPos);
         }
 
         @Override
         public boolean hasNext() {
-            if (!entries.isEmpty()) {
+            if (segmentIterator.hasNext()) {
                 return true;
             }
-            if (!segmentIterator.hasNext()) {
-                IOUtils.closeQuietly(segmentIterator);
-                return false;
-            }
-            B block = segmentIterator.next();
-            entries.addAll(readBlockEntries(block));
-
-            return !entries.isEmpty();
+            IOUtils.closeQuietly(segmentIterator);
+            return hasEntriesOnBlock(entryIdx);
         }
 
         @Override
@@ -242,81 +323,123 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
             if (!hasNext()) {
                 throw new NoSuchElementException();
             }
-            return entries.poll();
+            if (block == null) {
+                readBlock();
+            }
+            entryIdx = Direction.FORWARD.equals(direction) ? entryIdx : entryIdx - 1;
+            T polled = block.get(entryIdx);
+            if (polled == null) {
+                readBlock();
+                entryIdx = Direction.FORWARD.equals(direction) ? entryIdx + 1 : entryIdx - 1;
+                polled = block.get(entryIdx);
+            }
+
+            if(Direction.BACKWARD.equals(direction) && entryIdx == 0) {
+                block = null;
+                currentBlockPos = segmentIterator.position();
+            }
+
+            int nextIdx = Direction.FORWARD.equals(direction) ? entryIdx + 1 : entryIdx - 1;
+            if (!hasEntriesOnBlock(nextIdx)) {
+                entryIdx = 0;
+                block = null;
+                currentBlockPos = segmentIterator.position();
+            }
+            return polled;
         }
 
         @Override
         public void close() {
             IOUtils.closeQuietly(segmentIterator);
         }
+
+        private boolean hasEntriesOnBlock(int idx) {
+            return block != null && idx >= 0 && idx < block.entryCount();
+        }
     }
 
     private final class BlockPoller implements PollingSubscriber<T> {
 
-        private final PollingSubscriber<B> segmentPoller;
-        private Queue<T> entries = new LinkedList<>();
+        private final PollingSubscriber<ByteBuffer> segmentPoller;
+        private Queue<T> cachedBlockEntries = new LinkedList<>();
+        private int blockRead = 0;
 
-        public BlockPoller(PollingSubscriber<B> segmentPoller) {
+        private BlockPoller(PollingSubscriber<ByteBuffer> segmentPoller) {
             this.segmentPoller = segmentPoller;
         }
 
         @Override
         public synchronized T peek() throws InterruptedException {
-            if (entries.isEmpty()) {
-                B polled = segmentPoller.poll();
-                if (polled != null) {
-                    entries.addAll(polled.entries());
-                }
-            }
-            return entries.peek();
+            tryPoolFromDisk();
+            return cachedBlockEntries.peek();
         }
 
         @Override
         public synchronized T poll() throws InterruptedException {
-            if (entries.isEmpty()) {
-                B polled = segmentPoller.poll();
-                if (polled != null) {
-                    entries.addAll(polled.entries());
-                }
+            tryPoolFromDisk();
+            return cachedBlockEntries.poll();
+        }
+
+        private T tryReadCached() {
+            T polled = cachedBlockEntries.poll();
+            if (polled != null) {
+                blockRead++;
             }
-            return entries.poll();
+            return polled;
+        }
+
+        private void tryPoolFromDisk() throws InterruptedException {
+            tryPoolFromDisk(-1, TimeUnit.MILLISECONDS);
+        }
+
+        private void tryPoolFromDisk(long limit, TimeUnit timeUnit) throws InterruptedException {
+            ByteBuffer polled = segmentPoller.poll(limit, timeUnit);
+            if (polled != null) {
+                Block<T> blockData = factory.load(serializer, codec, polled);
+                cachedBlockEntries.addAll(blockData.entries());
+            }
+            blockRead = 0;
         }
 
         @Override
         public synchronized T poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            if (entries.isEmpty()) {
-                B polled = segmentPoller.poll(limit, timeUnit);
-                if (polled != null) {
-                    entries.addAll(polled.entries());
-                }
+            T pooled = tryReadCached();
+            if (pooled != null) {
+                return pooled;
             }
-            return entries.poll();
+            tryPoolFromDisk(limit, timeUnit);
+            return tryReadCached();
         }
 
         @Override
         public synchronized T take() throws InterruptedException {
-            if (entries.isEmpty()) {
-                B polled = segmentPoller.take();
-                if (polled != null) {
-                    entries.addAll(polled.entries());
-                }
+            T pooled = tryReadCached();
+            if (pooled != null) {
+                return pooled;
             }
-            return entries.poll();
+
+            ByteBuffer data = segmentPoller.take();
+            if (data != null) {
+                Block<T> blockData = factory.load(serializer, codec, data);
+                cachedBlockEntries.addAll(blockData.entries());
+            }
+            blockRead = 0;
+            return cachedBlockEntries.poll();
         }
 
         @Override
         public synchronized boolean headOfLog() {
-            return entries.isEmpty() && segmentPoller.headOfLog();
+            return cachedBlockEntries.isEmpty() && segmentPoller.headOfLog();
         }
 
         @Override
         public synchronized boolean endOfLog() {
-            return entries.isEmpty() && segmentPoller.endOfLog();
+            return cachedBlockEntries.isEmpty() && segmentPoller.endOfLog();
         }
 
         @Override
         public long position() {
-            return 0;
+            return withBlockIndex(blockRead, segmentPoller.position());
         }
 
         @Override

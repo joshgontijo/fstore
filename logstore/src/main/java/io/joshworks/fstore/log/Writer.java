@@ -1,9 +1,9 @@
 package io.joshworks.fstore.log;
 
-import java.io.Flushable;
-
-public interface Writer<T> extends Flushable {
+public interface Writer<T> {
 
     long append(T data);
+
+    void flush();
 
 }

@@ -51,7 +51,7 @@ public class LogAppenderTest {
         testDirectory.deleteOnExit();
 
         config = LogAppender.builder(testDirectory, new StringSerializer()).segmentSize(SEGMENT_SIZE).disableCompaction();
-        appender = config.open();
+        appender = config.openBlockAppender();
     }
 
     @After
@@ -306,7 +306,7 @@ public class LogAppenderTest {
 
     @Test
     public void segmentBitShift() {
-        for (int i = 0; i < appender.maxSegments; i++) {
+        for (int i = 0; i < appender.MAX_SEGMENTS; i++) {
             long position = appender.toSegmentedPosition(i, 0);
             long foundSegment = appender.getSegment(position);
             assertEquals("Failed on segIdx " + i + " - position: " + position + " - foundSegment: " + foundSegment, i, foundSegment);
@@ -315,7 +315,7 @@ public class LogAppenderTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void toSegmentedPosition_invalid() {
-        long invalidAddress = appender.maxSegments + 1;
+        long invalidAddress = appender.MAX_SEGMENTS + 1;
         appender.toSegmentedPosition(invalidAddress, 0);
 
     }
@@ -327,11 +327,11 @@ public class LogAppenderTest {
         long position = appender.getPositionOnSegment(1);
         assertEquals("Failed on position: " + position, value, position);
 
-        value = appender.maxAddressPerSegment / 2;
+        value = appender.MAX_SEGMENT_ADDRESS / 2;
         position = appender.getPositionOnSegment(value);
         assertEquals("Failed on position: " + position, value, position);
 
-        value = appender.maxAddressPerSegment;
+        value = appender.MAX_SEGMENT_ADDRESS;
         position = appender.getPositionOnSegment(value);
         assertEquals("Failed on position: " + position, value, position);
     }
@@ -405,6 +405,8 @@ public class LogAppenderTest {
                 appender.roll();
             }
         }
+
+        appender.flush();
 
         assertEquals(size, appender.stream(Direction.FORWARD).count());
         assertEquals(size, appender.entries());
@@ -517,10 +519,16 @@ public class LogAppenderTest {
 
     @Test
     public void backwards_scanner_returns_all_records() throws IOException {
-        int entries = 3000000;
+        int entries = 10;
         for (int i = 0; i < entries; i++) {
-            appender.append(String.valueOf(i));
+            long pos = appender.append(String.valueOf(i));
+            System.out.println(pos);
         }
+
+        appender.flush();
+
+        long position = appender.position();
+        System.out.println("POS: " + position);
 
         int current = entries - 1;
         try (LogIterator<String> iterator = appender.iterator(Direction.BACKWARD)) {
@@ -534,7 +542,7 @@ public class LogAppenderTest {
 
     @Test
     public void backwards_scanner_with_position_returns_all_records() throws IOException {
-        int entries = 3000000;
+        int entries = 1000000;
         for (int i = 0; i < entries; i++) {
             appender.append(String.valueOf(i));
         }
@@ -554,17 +562,13 @@ public class LogAppenderTest {
 
     @Test
     public void forward_scanner_with_position_returns_all_records() throws IOException {
-        int entries = 2000000;
+        int entries = 1000000;
         long position = appender.position();
         for (int i = 0; i < entries; i++) {
             appender.append(String.valueOf(i));
         }
 
         for (int i = 0; i < entries; i++) {
-            if (1999999 == i) {
-                System.out.println("as");
-            }
-
             try (LogIterator<String> iterator = appender.iterator(position, Direction.FORWARD)) {
                 assertTrue("Failed on position " + position, iterator.hasNext());
 
@@ -578,7 +582,7 @@ public class LogAppenderTest {
 
     @Test
     public void position_is_consistent_on_multiple_segments() {
-        int entries = 3000000; //do not change
+        int entries = 1000000; //do not change
         for (int i = 0; i < entries; i++) {
             long position = appender.position();
             long entryPos = appender.append("value-" + i);
@@ -588,7 +592,7 @@ public class LogAppenderTest {
 
     @Test
     public void forward_iterator_position_returns_correct_values() throws IOException {
-        int entries = 3000000; //do not change
+        int entries = 1000000; //do not change
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < entries; i++) {
             long pos = appender.append(String.valueOf(i));

@@ -42,7 +42,7 @@ public class HeaderSerializer implements Serializer<LogHeader> {
         long created = buffer.getLong();
         int type = buffer.getInt();
         if(created == 0 || type == 0) { //empty
-            return LogHeader.EMPTY;
+            return LogHeader.noHeader();
         }
         String magic = Serializers.VSTRING.fromBytes(buffer);
         int level = buffer.getInt();
@@ -55,7 +55,7 @@ public class HeaderSerializer implements Serializer<LogHeader> {
         long footerStart = buffer.getLong();
         long footerEnd = buffer.getLong();
 
-        return new LogHeader(magic, entries, created, level, Type.of(type), segmentSize, logStart, logEnd, footerStart, footerEnd);
+        return LogHeader.create(magic, entries, created, level, Type.of(type), segmentSize, logStart, logEnd, footerStart, footerEnd);
 
     }
 }

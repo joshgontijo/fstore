@@ -4,8 +4,6 @@ import java.util.Objects;
 
 public class LogHeader {
 
-    public static final LogHeader EMPTY = new LogHeader("NO-MAGIC", 0, -1, -1, Type.EMPTY, -1, -1, -1, -1, -1);
-
     public static final int BYTES = 1024;
 
     //segment info
@@ -24,7 +22,7 @@ public class LogHeader {
     public final long footerStart;
     public final long footerEnd;
 
-    LogHeader(String magic, long entries, long created, int level, Type type, long segmentSize, long logStart, long logEnd, long footerStart, long footerEnd) {
+    private LogHeader(String magic, long entries, long created, int level, Type type, long segmentSize, long logStart, long logEnd, long footerStart, long footerEnd) {
         this.magic = magic;
         this.entries = entries;
         this.created = created;
@@ -35,6 +33,18 @@ public class LogHeader {
         this.logEnd = logEnd;
         this.footerStart = footerStart;
         this.footerEnd = footerEnd;
+    }
+
+    public static LogHeader noHeader() {
+        return new LogHeader("NO-MAGIC", 0, -1, -1, Type.EMPTY, -1, -1, -1, -1, -1);
+    }
+
+    public static LogHeader create(String magic, Type type) {
+        return new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, 0, 0, 0, 0, 0);
+    }
+
+    public static LogHeader create(String magic, long entries, long created, int level, Type type, long segmentSize, long logStart, long logEnd, long footerStart, long footerEnd) {
+        return new LogHeader(magic, entries, created, level, type, segmentSize, logStart, logEnd, footerStart, footerEnd);
     }
 
     @Override

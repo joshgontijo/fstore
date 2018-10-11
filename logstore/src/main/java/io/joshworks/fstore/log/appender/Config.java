@@ -1,13 +1,18 @@
 package io.joshworks.fstore.log.appender;
 
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.segment.Segment;
+import io.joshworks.fstore.log.segment.block.BlockFactory;
+import io.joshworks.fstore.log.segment.block.BlockSegmentFactory;
+import io.joshworks.fstore.log.segment.block.VLenBlock;
 
 import java.io.File;
 import java.util.Objects;
@@ -15,15 +20,14 @@ import java.util.Objects;
 public class Config<T> {
 
     //How many bits a segment index can hold
-    private static final int SEGMENT_BITS = 18;
+
 
     public final File directory;
     public final Serializer<T> serializer;
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
-    SegmentFactory<T> segmentFactory = Segment::new;
+    SegmentFactory<T> segmentFactory;
 
-    int segmentBitShift = Long.SIZE - SEGMENT_BITS;
     int segmentSize = (int) Size.MEGABYTE.toBytes(10);
     boolean mmap;
     boolean asyncFlush;
@@ -33,6 +37,9 @@ public class Config<T> {
     boolean threadPerLevel;
     boolean compactionDisabled;
 
+    //block
+    int blockSize = 0;
+
     Config(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
         Objects.requireNonNull(serializer, "serializer cannot be null");
@@ -41,16 +48,12 @@ public class Config<T> {
     }
 
     public Config<T> segmentSize(int size) {
-        long maxAddress = BitUtil.maxValueForBits(segmentBitShift);
-        if (size > maxAddress) {
-            throw new IllegalArgumentException("Maximum position allowed is " + maxAddress);
-        }
         this.segmentSize = size;
         return this;
     }
 
     public Config<T> maxSegmentsPerLevel(int maxSegmentsPerLevel) {
-        if(maxSegmentsPerLevel <= 0) {
+        if (maxSegmentsPerLevel <= 0) {
             throw new IllegalArgumentException("maxSegmentsPerLevel must be greater than zero");
         }
         this.maxSegmentsPerLevel = maxSegmentsPerLevel;
@@ -107,6 +110,35 @@ public class Config<T> {
     }
 
     public LogAppender<T> open() {
+        return open(Segment::new);
+    }
+
+    public LogAppender<T> open(SegmentFactory<T> segmentFactory) {
+        Objects.requireNonNull(segmentFactory, "SegmentFactory must be provided");
+        this.segmentFactory = segmentFactory;
+        return new LogAppender<>(this);
+    }
+
+    public LogAppender<T> openBlockAppender() {
+       return openBlockAppender(VLenBlock.factory());
+    }
+
+    public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory) {
+        return openBlockAppender(blockFactory, new SnappyCodec(), Memory.PAGE_SIZE);
+    }
+
+    public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory, int maxBlockSize) {
+        return openBlockAppender(blockFactory, new SnappyCodec(), maxBlockSize);
+    }
+
+    public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory, Codec codec, int maxBlockSize) {
+        Objects.requireNonNull(blockFactory, "BlockFactory must be provided");
+        Objects.requireNonNull(codec, "Codec must be provided");
+        if (maxBlockSize < Memory.PAGE_SIZE) {
+            throw new IllegalArgumentException("Block must be at least " + Memory.PAGE_SIZE);
+        }
+        this.blockSize = maxBlockSize;
+        this.segmentFactory = new BlockSegmentFactory<>(blockFactory, codec, maxBlockSize);
         return new LogAppender<>(this);
     }
 

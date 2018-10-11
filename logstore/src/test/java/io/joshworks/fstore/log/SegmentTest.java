@@ -1,14 +1,10 @@
 package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.LogHeader;
-import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.Type;
-import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,27 +32,15 @@ import static org.junit.Assert.fail;
 
 public abstract class SegmentTest {
 
-    private Segment<String> segment;
+    private Log<String> segment;
     private File testFile;
 
-    private long FILE_SIZE = 10485760; //10mb
-
-    abstract Storage getStorage(File file, long size);
-
-    private Segment<String> create(File theFile) {
-        Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new StringSerializer(), new DataStream(), "magic", Type.LOG_HEAD);
-    }
-
-    private Segment<String> open(File theFile) {
-        Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new StringSerializer(), new DataStream(), "magic");
-    }
+    abstract Log<String> open(File file);
 
     @Before
     public void setUp() {
         testFile = Utils.testFile();
-        segment = create(testFile);
+        segment = open(testFile);
     }
 
     @After
@@ -85,7 +69,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void writePosition_reopen() {
+    public void writePosition_reopen() throws IOException {
         String data = "hello";
         segment.append(data);
 
@@ -109,7 +93,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void reader_reopen() {
+    public void reader_reopen() throws IOException {
         String data = "hello";
         segment.append(data);
 
@@ -192,7 +176,7 @@ public abstract class SegmentTest {
         Log<String> testSegment = null;
         try {
 
-            testSegment = create(file);
+            testSegment = open(file);
             assertTrue(testSegment.created() > 0);
             assertEquals(0, testSegment.entries());
             assertEquals(0, testSegment.level());
@@ -284,7 +268,7 @@ public abstract class SegmentTest {
     @Test
     public void segment_is_only_deleted_when_no_readers_are_active() {
         File file = Utils.testFile();
-        try (Log<String> testSegment = create(file)) {
+        try (Log<String> testSegment = open(file)) {
 
             for (int i = 0; i < 100; i++) {
                 testSegment.append("a");
@@ -391,7 +375,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void size() {
+    public void size() throws IOException {
         segment.append("a");
         segment.append("b");
 
@@ -492,7 +476,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void poll_returns_null_when_segment_is_closed() throws InterruptedException {
+    public void poll_returns_null_when_segment_is_closed() throws InterruptedException, IOException {
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<String> captured = new AtomicReference<>("NON-NULL");
