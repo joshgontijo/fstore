@@ -44,6 +44,8 @@ public class Segment<T> implements Log<T> {
 
     private static final Logger logger = LoggerFactory.getLogger(Segment.class);
 
+    public static long START = LogHeader.BYTES;
+    
     private final Serializer<LogHeader> headerSerializer = new HeaderSerializer();
     private final Serializer<T> serializer;
     private final Storage storage;
@@ -58,10 +60,6 @@ public class Segment<T> implements Log<T> {
 
     private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
 
-    public Segment(Storage storage, Serializer<T> serializer, IDataStream dataStream, String magic) {
-        this(storage, serializer, dataStream, magic, null);
-    }
-
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
     public Segment(Storage storage, Serializer<T> serializer, IDataStream dataStream, String magic, Type type) {
@@ -73,12 +71,12 @@ public class Segment<T> implements Log<T> {
         LogHeader readHeader = readHeader(storage);
 
         if (LogHeader.noHeader().equals(readHeader)) { //new segment
-            if (type == null) {
+            if (Type.OPEN.equals(type)) {
                 IOUtils.closeQuietly(storage);
-                throw new SegmentException("Segment type must be provided when creating a new segment");
+                throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
             }
             this.header = createNewHeader(storage, type, magic);
-            this.position(Log.START);
+            this.position(START);
             return;
         }
         this.header = readHeader;
@@ -182,10 +180,10 @@ public class Segment<T> implements Log<T> {
 
     private void checkBounds(long position) {
         if (position < START) {
-            throw new IllegalArgumentException("Position must be greater or equals to " + START);
+            throw new IllegalArgumentException("Position must be greater or equals to " + START + ", got: " + position);
         }
         if (readOnly() && position > header.logEnd) {
-            throw new IllegalArgumentException("Position must be less than " + header.logEnd);
+            throw new IllegalArgumentException("Position must be less than " + header.logEnd + ", got " + position);
         }
     }
 
@@ -220,7 +218,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public LogIterator<T> iterator(Direction direction) {
         if (Direction.FORWARD.equals(direction)) {
-            return iterator(Log.START, direction);
+            return iterator(START, direction);
         }
         if (readOnly()) {
             return iterator(header.logEnd, direction);
@@ -350,7 +348,7 @@ public class Segment<T> implements Log<T> {
     private LogHeader writeHeader(int level, FooterInfo footerInfo) {
         long segmentSize = footerInfo.end;
         long logEnd = footerInfo.start - EOL.length;
-        LogHeader newHeader = LogHeader.create(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, Log.START, logEnd, footerInfo.start, footerInfo.end);
+        LogHeader newHeader = LogHeader.create(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, START, logEnd, footerInfo.start, footerInfo.end);
         storage.position(0);
         ByteBuffer headerData = headerSerializer.toBytes(newHeader);
         storage.write(headerData);
@@ -506,7 +504,7 @@ public class Segment<T> implements Log<T> {
                     return;
                 }
             }
-            if (Direction.BACKWARD.equals(direction) && readAheadPosition <= Log.START) {
+            if (Direction.BACKWARD.equals(direction) && readAheadPosition <= START) {
                 return;
             }
             int totalRead = 0;

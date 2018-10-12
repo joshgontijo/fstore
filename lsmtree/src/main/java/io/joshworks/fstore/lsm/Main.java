@@ -7,14 +7,17 @@ import java.io.File;
 public class Main {
 
     public static void main(String[] args) throws InterruptedException {
-        LsmTree<Long, String> lsmTree = LsmTree.of(new File("C:\\Users\\jgontijo\\lsmtree"), Serializers.LONG, Serializers.STRING, 50);
+        LsmTree<Long, String> lsmTree = LsmTree.of(new File("J:\\lsmtree"), Serializers.LONG, Serializers.STRING, 5);
 
-//        for (long i = 0; i < 10; i++) {
-//            lsmTree.put(i, String.valueOf(i + "-1"));
-//        }
-//        for (long i = 0; i < 10; i++) {
-//            lsmTree.put(i, String.valueOf(i + "-2"));
-//        }
+        for (long i = 0; i < 10; i++) {
+            lsmTree.put(i, String.valueOf(i + "-1"));
+        }
+        for (long i = 0; i < 10; i++) {
+            lsmTree.put(i, String.valueOf(i + "-2"));
+        }
+
+        System.out.println("aaaaa");
+        Thread.sleep(30000);
         for (long i = 0; i < 10; i++) {
             String val = lsmTree.get(i);
             System.out.println(val);

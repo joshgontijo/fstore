@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.TimeoutReader;
-import io.joshworks.fstore.log.appender.SegmentFactory;
+import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.appender.StorageProvider;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.level.Levels;

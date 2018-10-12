@@ -116,7 +116,7 @@ public class MemIndex implements Index {
             return Optional.empty();
         }
         if (entries.size() > 1) {
-            throw new IllegalStateException("Found more than one index entry for closeableStream " + stream + ", version " + version);
+            throw new IllegalStateException("Found more than one index entry for stream " + stream + ", version " + version);
         }
         return Optional.of(entries.first());
     }

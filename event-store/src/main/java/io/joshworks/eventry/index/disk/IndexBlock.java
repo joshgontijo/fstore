@@ -20,8 +20,8 @@ public class IndexBlock implements Block<IndexEntry> {
         this.maxSize = maxSize;
     }
 
-    protected IndexBlock(ByteBuffer data) {
-        this.cached.addAll(unpack(data));
+    protected IndexBlock(ByteBuffer data, Codec codec) {
+        this.cached.addAll(unpack(data, codec));
         this.maxSize = -1;
     }
 
@@ -77,14 +77,15 @@ public class IndexBlock implements Block<IndexEntry> {
         }
     }
 
-    private List<IndexEntry> unpack(ByteBuffer readBuffer) {
+    private List<IndexEntry> unpack(ByteBuffer readBuffer, Codec codec) {
+        ByteBuffer decompressed = codec.decompress(readBuffer);
         List<IndexEntry> entries = new ArrayList<>();
-        while (readBuffer.hasRemaining()) {
-            long stream = readBuffer.getLong();
-            int numVersions = readBuffer.getInt();
+        while (decompressed.hasRemaining()) {
+            long stream = decompressed.getLong();
+            int numVersions = decompressed.getInt();
             for (int i = 0; i < numVersions; i++) {
-                int version = readBuffer.getInt();
-                long position = readBuffer.getLong();
+                int version = decompressed.getInt();
+                long position = decompressed.getLong();
                 entries.add(IndexEntry.of(stream, version, position));
             }
         }

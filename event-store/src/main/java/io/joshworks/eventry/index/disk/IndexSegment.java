@@ -3,18 +3,18 @@ package io.joshworks.eventry.index.disk;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
-import io.joshworks.fstore.core.filter.BloomFilter;
-import io.joshworks.eventry.index.midpoint.Midpoints;
-import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.util.Memory;
-import io.joshworks.fstore.log.record.IDataStream;
-import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.filter.BloomFilterHasher;
 import io.joshworks.eventry.index.midpoint.Midpoint;
+import io.joshworks.eventry.index.midpoint.Midpoints;
+import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.filter.BloomFilter;
+import io.joshworks.fstore.core.filter.BloomFilterHasher;
+import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.serializer.Serializers;
@@ -27,7 +27,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implements Index {
+public class IndexSegment extends BlockSegment<IndexEntry> implements Index {
 
     BloomFilter<Long> filter;
     final Midpoints midpoints;
@@ -37,13 +37,13 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
     private static final double FALSE_POSITIVE_PROB = 0.01;
 
     IndexSegment(Storage storage,
-                        Serializer<IndexBlock> serializer,
                         IDataStream reader,
                         String magic,
                         Type type,
                         File directory,
+                        Codec codec,
                         int numElements) {
-        super(storage, new IndexEntrySerializer(), serializer, MAX_BLOCK_SIZE, reader, magic, type);
+        super(storage, new IndexEntrySerializer(),reader, magic, type, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.Murmur64(Serializers.LONG));
@@ -51,17 +51,18 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
 
     @Override
     protected synchronized long writeBlock() {
-        IndexBlock block = currentBlock();
-        long position = position();
+        IndexBlock block = (IndexBlock) currentBlock();
         if (block.isEmpty()) {
-            return position;
+            return position();
         }
 
-        Midpoint head = new Midpoint(block.first(), position);
-        Midpoint tail = new Midpoint(block.last(), position);
+        long blockPos = super.writeBlock();
+
+        Midpoint head = new Midpoint(block.first(), blockPos);
+        Midpoint tail = new Midpoint(block.last(), blockPos);
         midpoints.add(head, tail);
 
-        return super.writeBlock();
+        return blockPos;
     }
 
     @Override
@@ -126,17 +127,8 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
             return Optional.empty();
         }
 
-        IndexBlock block = getBlock(lowBound.position);
-        List<IndexEntry> entries = block.entries();
-        int idx = Collections.binarySearch(entries, start);
-        if(idx < 0) { //if not exact match, wasn't found
-            return Optional.empty();
-        }
-        IndexEntry found = entries.get(idx);
-        if (found == null || found.stream != stream && found.version != version) { //sanity check
-            throw new IllegalStateException("Inconsistent index");
-        }
-        return Optional.of(found);
+        IndexEntry found = get(lowBound.position);
+        return Optional.ofNullable(found);
 
     }
 
@@ -153,7 +145,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
             return IndexEntry.NO_VERSION;
         }
 
-        IndexBlock block = getBlock(lowBound.position);
+        IndexBlock block = (IndexBlock) getBlock(lowBound.position);
         List<IndexEntry> entries = block.entries();
         int idx = Collections.binarySearch(entries, end);
         idx = idx >= 0 ? idx : Math.abs(idx) - 2;
@@ -162,11 +154,6 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
             return IndexEntry.NO_VERSION;
         }
         return lastVersion.version;
-    }
-
-    @Override
-    protected IndexBlock createBlock(Serializer<IndexEntry> serializer, int maxBlockSize) {
-        return new IndexBlock(maxBlockSize);
     }
 
     @Override

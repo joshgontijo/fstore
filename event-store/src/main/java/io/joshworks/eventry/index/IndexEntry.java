@@ -55,7 +55,7 @@ public class IndexEntry implements Comparable<IndexEntry> {
 
     @Override
     public String toString() {
-        return "IndexEntry{" + "closeableStream=" + stream +
+        return "IndexEntry{" + "stream=" + stream +
                 ", version=" + version +
                 ", position=" + position +
                 '}';

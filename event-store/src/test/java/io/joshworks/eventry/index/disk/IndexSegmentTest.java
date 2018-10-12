@@ -1,9 +1,8 @@
 package io.joshworks.eventry.index.disk;
 
-import io.joshworks.eventry.Utils;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
-import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
@@ -11,11 +10,14 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.block.BlockSegment;
+import io.joshworks.fstore.testutils.Utils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.Optional;
@@ -51,11 +53,11 @@ public class IndexSegmentTest {
         long size = location.length() == 0 ? 1048576 : location.length();
         return new IndexSegment(
                 new RafStorage(location, size, Mode.READ_WRITE),
-                new IndexBlockSerializer(Codec.noCompression()),
-                new DataStream(),
+                new DataStream(BlockSegment.START),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,
+                new SnappyCodec(),
                 NUMBER_OF_ELEMENTS);
     }
 
@@ -73,7 +75,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void loaded_segmentIndex_has_the_same_10_midpoints() {
+    public void loaded_segmentIndex_has_the_same_10_midpoints() throws IOException {
         //given
         IndexSegment diskIndex = indexWithStreamRanging(1, 10);
 
@@ -93,7 +95,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void loaded_segmentIndex_has_the_same_1000000_midpoints() {
+    public void loaded_segmentIndex_has_the_same_1000000_midpoints() throws IOException {
         //given
         IndexSegment diskIndex = indexWithStreamRanging(1, 1000000);
 
@@ -108,7 +110,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void loaded_segmentIndex_has_the_same_filter_items() {
+    public void loaded_segmentIndex_has_the_same_filter_items() throws IOException {
         //given
 
         IndexSegment diskIndex = indexWithStreamRanging(1, 1000000);
@@ -132,7 +134,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void reopen_loads_all_four_entries() {
+    public void reopen_loads_all_four_entries() throws IOException {
 
         //given
         segment.append(IndexEntry.of(1L, 1, 0));
@@ -152,7 +154,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void reopened_segment_returns_correct_data() {
+    public void reopened_segment_returns_correct_data() throws IOException {
 
         //given
         IndexEntry e1 = IndexEntry.of(1L, 1, 0);

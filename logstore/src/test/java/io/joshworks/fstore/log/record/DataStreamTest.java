@@ -6,9 +6,8 @@ import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Utils;
-import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.serializer.Serializers;
+import io.joshworks.fstore.testutils.Utils;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -18,21 +17,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 public class DataStreamTest {
 
     private File file;
     private Storage storage;
 
-    private final IDataStream stream = new DataStream();
+    private static final int START = 0;
+
+    private final IDataStream stream = new DataStream(START);
     private final BufferPool pool = new FixedPageSizeBuffer();
 
     @Before
     public void setUp() {
         file = Utils.testFile();
         storage = new RafStorage(file, 1024 * 1024, Mode.READ_WRITE);
-        storage.position(Log.START); //Reader doesn't read entries less than Log.START
     }
 
     @Test
@@ -40,7 +39,7 @@ public class DataStreamTest {
         ByteBuffer data1 = Serializers.STRING.toBytes("1");
         long write1 = stream.write(storage, pool, data1);
 
-        assertEquals(Log.START, write1);
+        assertEquals(START, write1);
     }
 
     @Test
@@ -77,7 +76,7 @@ public class DataStreamTest {
         }
 
         List<Integer> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
+        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, START)) {
             ref.readAllInto(found, Serializers.INTEGER);
             assertEquals(numItems, found.size());
 
@@ -117,7 +116,7 @@ public class DataStreamTest {
         }
 
         List<Integer> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
+        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, START)) {
             int[] read = ref.readAllInto(found, Serializers.INTEGER);
             assertEquals((numItems * (Integer.BYTES + RecordHeader.HEADER_OVERHEAD)), read);
         }
@@ -133,7 +132,7 @@ public class DataStreamTest {
         stream.write(storage, pool, Serializers.STRING.toBytes(second));
 
         List<String> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
+        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, START)) {
             ref.readAllInto(found, Serializers.STRING);
             assertEquals(1, found.size());
             assertEquals(first, found.get(0));

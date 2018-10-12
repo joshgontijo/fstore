@@ -5,7 +5,7 @@ import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.Config;
-import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
+import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -13,10 +13,10 @@ import java.util.stream.Stream;
 
 public class EventLog implements Closeable {
 
-    private final SimpleLogAppender<EventRecord> appender;
+    private final LogAppender<EventRecord> appender;
 
     public EventLog(Config<EventRecord> config) {
-        this.appender = new SimpleLogAppender<>(config);
+        this.appender = config.open();
     }
 
     public long append(EventRecord event) {

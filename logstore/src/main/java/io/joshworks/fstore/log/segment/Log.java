@@ -15,7 +15,6 @@ import java.util.stream.Stream;
 public interface Log<T> extends Writer<T>, Closeable {
 
     byte[] EOL = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD).putInt(0).putInt(0).array(); //eof header, -1 length, 0 crc
-    long START = LogHeader.BYTES;
 
     String name();
 

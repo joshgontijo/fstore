@@ -1,8 +1,8 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.Utils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.testutils.Utils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

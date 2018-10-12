@@ -1,12 +1,10 @@
 package io.joshworks.eventry.index.disk;
 
-import io.joshworks.eventry.Utils;
 import io.joshworks.eventry.index.IndexEntry;
-import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.appender.Config;
-import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.testutils.Utils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,8 +23,7 @@ public class IndexAppenderTest {
     @Before
     public void setUp() {
         location = new File("J:\\EVENT-STORE\\" + UUID.randomUUID().toString().substring(0, 8));
-        Config<IndexEntry> config = LogAppender.builder(location, new IndexEntrySerializer()).disableCompaction();
-        appender = new IndexAppender(config, 10000, Codec.noCompression());
+        appender = new IndexAppender(location, (int) Size.MEGABYTE.toBytes(10), 10000, true);
     }
 
     @After

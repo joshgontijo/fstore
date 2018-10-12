@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.Utils;
+import io.joshworks.fstore.testutils.Utils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,7 +18,7 @@ public class StateTest {
     @Before
     public void setUp() {
         testFile = Utils.testFolder();
-        state = State.empty(testFile);
+        state = State.empty(testFile, 0);
     }
 
     @After

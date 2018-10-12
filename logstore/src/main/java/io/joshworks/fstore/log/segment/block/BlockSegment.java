@@ -34,6 +34,7 @@ import java.util.stream.Stream;
 
 public class BlockSegment<T> implements Log<T> {
 
+    public static final long START = withBlockIndex(0, Segment.START);
     private static final Logger logger = LoggerFactory.getLogger(BlockSegment.class);
 
     private final int maxBlockSize;
@@ -42,7 +43,7 @@ public class BlockSegment<T> implements Log<T> {
     private final BlockFactory<T> factory;
     private final Codec codec;
 
-    //TODO add block cached
+    //TODO add block cache
 
     private Block<T> block;
     private long entries;
@@ -61,42 +62,44 @@ public class BlockSegment<T> implements Log<T> {
     public long append(T data) {
         int blockEntries = block.entryCount();
         long logPos = delegate.position();
-        if (blockEntries >= LogAppender.MAX_BLOCK_ENTRIES) {
-            writeBlock();
+        if (blockEntries >= LogAppender.MAX_BLOCK_VALUE) {
+            writeBlock(); //must not return the block position
         }
         if (block.add(data)) {
-            writeBlock();
+            writeBlock();//must not return the block position
         }
         entries++;
         return withBlockIndex(blockEntries, logPos);
     }
 
-    static long withBlockIndex(long entryIdx, long position) {
+    public static long withBlockIndex(long entryIdx, long position) {
         if (entryIdx < 0) {
             throw new IllegalArgumentException("Segment index must be greater than zero");
         }
-        if (entryIdx > LogAppender.MAX_BLOCK_ENTRIES) {
-            throw new IllegalArgumentException("Segment index cannot be greater than " + LogAppender.MAX_BLOCK_ENTRIES);
+        if (entryIdx > LogAppender.MAX_BLOCK_VALUE) {
+            throw new IllegalArgumentException("Segment index cannot be greater than " + LogAppender.MAX_BLOCK_VALUE);
         }
-        return (entryIdx << LogAppender.BLOCK_BITS) | position;
+        return (position << LogAppender.BLOCK_BITS) | entryIdx;
     }
 
-    static long blockPosition(long position) {
-        return  (position >>> LogAppender.BLOCK_BITS);
+    public static long blockPosition(long position) {
+        return (position >>> LogAppender.BLOCK_BITS);
     }
 
-    static int entryIdx(long position) {
+    public static int entryIdx(long position) {
         long mask = (1L << LogAppender.BLOCK_BITS) - 1;
         return (int) (position & mask);
     }
 
-    private void writeBlock() {
+    //returns the block position
+    protected long writeBlock() {
         if (block.isEmpty()) {
-            return;
+            return position();
         }
         ByteBuffer blockData = block.pack(codec);
-        delegate.append(blockData);
+        long blockPos = delegate.append(blockData);
         this.block = factory.create(serializer, maxBlockSize);
+        return withBlockIndex(0, blockPos);
     }
 
     protected Block<T> currentBlock() {
@@ -137,9 +140,10 @@ public class BlockSegment<T> implements Log<T> {
 
     @Override
     public T get(long position) {
+        validateBlockPosition(position);
         long blockPos = blockPosition(position);
         int idx = entryIdx(position);
-        if (idx < 0) {
+        if (idx < 0 || idx > LogAppender.MAX_BLOCK_VALUE) {
             throw new IllegalArgumentException("Invalid block entry index: " + idx);
         }
 
@@ -152,9 +156,10 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     public Block<T> getBlock(long position) {
-        ByteBuffer data = delegate.get(position);
+        long bPos = blockPosition(position);
+        ByteBuffer data = delegate.get(bPos);
         if (data == null) {
-            throw new IllegalStateException("Block not data on address " + position);
+            throw new IllegalStateException("No block on address " + position);
         }
         return factory.load(serializer, codec, data);
     }
@@ -217,12 +222,13 @@ public class BlockSegment<T> implements Log<T> {
 
     @Override
     public PollingSubscriber<T> poller(long position) {
-        return new BlockPoller(delegate.poller(position));
+        validateBlockPosition(position);
+        return new BlockPoller<>(delegate, factory, serializer, codec, position);
     }
 
     @Override
     public PollingSubscriber<T> poller() {
-        return new BlockPoller(delegate.poller());
+        return new BlockPoller<>(delegate, factory, serializer, codec);
     }
 
     @Override
@@ -254,18 +260,34 @@ public class BlockSegment<T> implements Log<T> {
 
     @Override
     public LogIterator<T> iterator(Direction direction) {
-        long position = Direction.FORWARD.equals(direction) ? Log.START : delegate.position();
+        long position = Direction.FORWARD.equals(direction) ? START : withBlockIndex(0, delegate.position());
         return iterator(position, direction);
     }
 
     @Override
     public LogIterator<T> iterator(long position, Direction direction) {
+        validateBlockPosition(position);
         return new BlockIterator<>(delegate, factory, serializer, codec, position, direction);
     }
 
     @Override
     public String toString() {
         return delegate.toString();
+    }
+
+    private void validateBlockPosition(long position) {
+        if(position < START) {
+            throw new IllegalArgumentException("Block Position must be at least: " + START + ", got: " + position);
+        }
+        long bPos = blockPosition(position);
+        long entryIdx = entryIdx(position);
+        if(bPos < Segment.START || bPos > LogAppender.MAX_SEGMENT_ADDRESS) {
+            throw new IllegalArgumentException("Invalid block position: " + bPos);
+        }
+        if(entryIdx < 0 || entryIdx > LogAppender.MAX_BLOCK_VALUE) {
+            throw new IllegalArgumentException("Invalid entry index: " + entryIdx);
+
+        }
     }
 
     private static class BlockIterator<T> implements LogIterator<T> {
@@ -328,10 +350,12 @@ public class BlockSegment<T> implements Log<T> {
                 Collections.reverse(entries);
             }
             blockSize = entries.size();
+            blockRead = 0;
             cached.addAll(entries);
         }
 
         private void readBlock() {
+            currentBlockPos = segmentIterator.position();
             ByteBuffer blockData = segmentIterator.next();
             if (blockData == null) {
                 throw new NoSuchElementException();
@@ -348,7 +372,7 @@ public class BlockSegment<T> implements Log<T> {
                 return withBlockIndex(blockRead, currentBlockPos);
             } else {
                 int idx = blockSize - blockRead;
-                if(blockRead == 0) {
+                if (blockRead == 0) {
                     return withBlockIndex(0, segmentIterator.position());
                 }
                 return withBlockIndex(idx, segmentIterator.position());
@@ -357,7 +381,7 @@ public class BlockSegment<T> implements Log<T> {
 
         @Override
         public boolean hasNext() {
-            if(!cached.isEmpty()) {
+            if (!cached.isEmpty()) {
                 return true;
             }
             if (segmentIterator.hasNext()) {
@@ -372,7 +396,7 @@ public class BlockSegment<T> implements Log<T> {
             if (!hasNext()) {
                 throw new NoSuchElementException();
             }
-            if(cached.isEmpty()) {
+            if (cached.isEmpty()) {
                 readBlock();
             }
 
@@ -390,14 +414,40 @@ public class BlockSegment<T> implements Log<T> {
 
     }
 
-    private final class BlockPoller implements PollingSubscriber<T> {
+    private static final class BlockPoller<T> implements PollingSubscriber<T> {
 
         private final PollingSubscriber<ByteBuffer> segmentPoller;
+        private final BlockFactory<T> factory;
+        private final Serializer<T> serializer;
+        private final Codec codec;
         private Queue<T> cachedBlockEntries = new LinkedList<>();
         private int blockRead = 0;
 
-        private BlockPoller(PollingSubscriber<ByteBuffer> segmentPoller) {
-            this.segmentPoller = segmentPoller;
+        public BlockPoller(Log<ByteBuffer> delegate, BlockFactory<T> factory, Serializer<T> serializer, Codec codec, long position) {
+            int entryIdx = entryIdx(position);
+            long logPos = blockPosition(position);
+            this.serializer = serializer;
+            this.codec = codec;
+            this.segmentPoller = delegate.poller(logPos);
+            this.factory = factory;
+            if (entryIdx > 0) {
+                for (int i = 0; i < entryIdx; i++) {
+                    try {
+                        segmentPoller.poll(); //skip
+                    } catch (Exception e) {
+                        IOUtils.closeQuietly(segmentPoller);
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+
+        }
+
+        private BlockPoller(Log<ByteBuffer> delegate, BlockFactory<T> factory, Serializer<T> serializer, Codec codec) {
+            this.serializer = serializer;
+            this.codec = codec;
+            this.segmentPoller = delegate.poller();
+            this.factory = factory;
         }
 
         @Override

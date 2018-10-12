@@ -12,16 +12,13 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.appender.SegmentFactory;
+import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 
 import java.io.File;
-import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -39,9 +36,8 @@ public class IndexAppender implements Index {
                 .compactionStrategy(new IndexCompactor())
                 .maxSegmentsPerLevel(2)
                 .segmentSize(segmentSize)
-                .segmentFactory(new IndexSegmentFactory(rootDir, numElements, codec))
                 .namingStrategy(new IndexNaming())
-                .open();
+                .openBlockAppender(new IndexSegmentFactory(rootDir, numElements, codec));
     }
 
 
@@ -118,6 +114,10 @@ public class IndexAppender implements Index {
         return appender.poller();
     }
 
+    public void flush() {
+        appender.flush();
+    }
+
 
     public static class IndexNaming extends ShortUUIDNamingStrategy {
         @Override
@@ -140,7 +140,7 @@ public class IndexAppender implements Index {
 
         @Override
         public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, IDataStream reader, String magic, Type type) {
-            return new IndexSegment(storage, new IndexBlockSerializer(codec), reader, magic, type, directory, numElements);
+            return new IndexSegment(storage, reader, magic, type, directory, codec, numElements);
         }
     }
 
