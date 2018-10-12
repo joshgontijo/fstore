@@ -33,7 +33,7 @@ public class BloomFilterTest {
     }
 
     private BloomFilter<Long> openFilter() {
-        return BloomFilter.openOrCreate(testFolder, "segmentA", 100, 0.01, BloomFilterHasher.Murmur64(new LongSerializer()));
+        return BloomFilter.openOrCreate(testFolder, "segmentA", 100, 0.01, BloomFilterHasher.murmur64(new LongSerializer()));
     }
 
     @Test

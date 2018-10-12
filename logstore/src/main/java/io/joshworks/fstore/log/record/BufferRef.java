@@ -5,12 +5,10 @@ import io.joshworks.fstore.core.io.BufferPool;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
 
@@ -83,28 +81,6 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
         }
         return len;
     }
-
-//    public static ByteBuffer[] toBuffers(BufferRef... refs) {
-//        ByteBuffer[] bufs = new ByteBuffer[refs.length];
-//        for (int i = 0; i < refs.length; i++) {
-//            bufs[i] = refs[i].get();
-//        }
-//        return bufs;
-//    }
-//
-//    public static BufferRef[] toReferences(ByteBuffer... buffers) {
-//        BufferRef[] refs = new BufferRef[buffers.length];
-//        for (int i = 0; i < buffers.length; i++) {
-//            refs[i] = of(buffers[i]);
-//        }
-//        return refs;
-//    }
-//
-//    public static void clear(BufferRef[] refs) {
-//        for (BufferRef ref : refs) {
-//            ref.clear();
-//        }
-//    }
 
     @Override
     public ByteBuffer get() {

@@ -10,7 +10,7 @@ public interface BloomFilterHasher<T> {
 
     int[] hash(int maximum, int k, T val);
 
-    static <T> BloomFilterHasher<T> Murmur64(Serializer<T> serializer) {
+    static <T> BloomFilterHasher<T> murmur64(Serializer<T> serializer) {
         return new Murmur64<>(serializer);
     }
 
@@ -30,12 +30,10 @@ public interface BloomFilterHasher<T> {
                 throw new IllegalStateException("ByteBuffer must be backed by array");
             }
             long bitSize = m;
-//            Hashing.murmur3_128().hashObject(object, funnel).asLong();
             long hash64 = Murmur3.hash64(bb.array());
             int hash1 = (int) hash64;
             int hash2 = (int) (hash64 >>> 32);
 
-            boolean bitsChanged = false;
             int[] result = new int[k];
             for (int i = 1; i <= k; i++) {
                 int combinedHash = hash1 + (i * hash2);
@@ -44,7 +42,6 @@ public interface BloomFilterHasher<T> {
                     combinedHash = ~combinedHash;
                 }
                 result[i - 1] = (int) (combinedHash % bitSize);
-//                bitsChanged |= bits.set(combinedHash % bitSize);
             }
             return result;
         }

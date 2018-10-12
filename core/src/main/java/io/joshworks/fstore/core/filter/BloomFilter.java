@@ -4,8 +4,6 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,6 +13,8 @@ import java.util.BitSet;
 import java.util.Objects;
 
 public class BloomFilter<T> {
+
+    private static final int HEADER_SIZE = Integer.BYTES * 3;
     private final File handler;
 
     BitSet hashes;
@@ -23,8 +23,6 @@ public class BloomFilter<T> {
     private int k; // Number of hash functions
 
     private boolean dirty;
-
-    private static final Logger logger = LoggerFactory.getLogger(BloomFilter.class);
 
     /**
      * @param handler The target file
@@ -153,7 +151,7 @@ public class BloomFilter<T> {
         return (int) (Math.abs(n * Math.log(p)) / (Math.pow(Math.log(2), 2)));
     }
 
-    private static int HEADER_SIZE = Integer.BYTES * 3;
+
     public synchronized void write() {
         if (!dirty) {
             return;

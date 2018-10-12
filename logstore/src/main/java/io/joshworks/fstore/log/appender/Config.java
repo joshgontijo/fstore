@@ -20,9 +20,6 @@ import java.util.Objects;
 
 public class Config<T> {
 
-    //How many bits a segment index can hold
-
-
     public final File directory;
     public final Serializer<T> serializer;
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();

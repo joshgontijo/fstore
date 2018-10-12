@@ -10,8 +10,6 @@ public class AdaptiveBufferPool implements BufferPool {
     private final boolean direct;
     private int activeBuffers;
     private final BlockingQueue<ByteBuffer> buffers = new LinkedBlockingQueue<>();
-//    private final ThreadLocal<Cache> threadLocalCache = ThreadLocal.withInitial(this::getDefaultCache);
-//    private final Cache defaultCache = new DefaultCache();
 
     public AdaptiveBufferPool(int maxNumBuffers, boolean direct) {
         this.numBuffers = maxNumBuffers;
@@ -43,16 +41,5 @@ public class AdaptiveBufferPool implements BufferPool {
     public void free(ByteBuffer buffer) {
         buffer.clear();
         buffers.add(buffer);
-    }
-
-    private static void zero(ByteBuffer buffer) {
-        buffer.clear();
-        while (buffer.remaining() >= 8) {
-            buffer.putLong(0L);
-        }
-        while (buffer.hasRemaining()) {
-            buffer.put((byte) 0);
-        }
-        buffer.clear();
     }
 }

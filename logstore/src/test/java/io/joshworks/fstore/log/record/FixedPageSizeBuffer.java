@@ -1,7 +1,6 @@
 package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.io.BufferPool;
-import io.joshworks.fstore.core.util.Memory;
 
 import java.nio.ByteBuffer;
 
@@ -13,6 +12,6 @@ public class FixedPageSizeBuffer implements BufferPool {
 
     @Override
     public void free(ByteBuffer buffer) {
-
+        //do nothing
     }
 }
