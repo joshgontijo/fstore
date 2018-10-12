@@ -551,9 +551,6 @@ public class EventStoreIT {
             }
         }
 
-//        LogDump.dumpLog(new File("J:\\event-store-debug\\log.txt"), store);
-//        LogDump.dumpIndex(new File("J:\\event-store-debug\\idx.txt"), store);
-
         System.out.println("Write completed");
         //Orders of events is not guaranteed across streams
         try (PollingSubscriber<EventRecord> poller = store.poller(allStreams)) {

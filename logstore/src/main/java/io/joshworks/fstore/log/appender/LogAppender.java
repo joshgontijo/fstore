@@ -138,7 +138,6 @@ public class LogAppender<T> implements Closeable {
         }
         this.dataStream = new DataStream(logStart);
 
-
         try {
             this.levels = loadSegments();
             restoreState(levels.current());

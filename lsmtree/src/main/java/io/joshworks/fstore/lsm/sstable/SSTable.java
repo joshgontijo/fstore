@@ -39,7 +39,7 @@ public class SSTable<K extends Comparable<K>, V> extends BlockSegment<Entry<K, V
 
         this.index = new Index<>(directory, storage.name(), keySerializer, dataStream, magic);
         this.directory = directory;
-        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.Murmur64(keySerializer));
+        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(keySerializer));
     }
 
 
@@ -77,7 +77,7 @@ public class SSTable<K extends Comparable<K>, V> extends BlockSegment<Entry<K, V
     }
 
     public void newBloomFilter(long numElements) {
-        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.Murmur64(keySerializer));
+        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(keySerializer));
     }
 
     private boolean mightHaveEntry(K key) {

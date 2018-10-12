@@ -8,7 +8,7 @@ import java.util.List;
 //TODO implement
 public class BucketBufferPool implements BufferPool{
 
-    private static int LARGE_SIZE = 1024 * 1024;
+    private static final int LARGE_SIZE = 1024 * 1024;
     private ByteBuffer largeBuffer = malloc(LARGE_SIZE);
     private final List<ByteBuffer>[] potBuffers;
 

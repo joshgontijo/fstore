@@ -46,7 +46,7 @@ public class IndexSegment extends BlockSegment<IndexEntry> implements Index {
         super(storage, new IndexEntrySerializer(),reader, magic, type, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
-        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.Murmur64(Serializers.LONG));
+        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
     }
 
     @Override
@@ -86,7 +86,7 @@ public class IndexSegment extends BlockSegment<IndexEntry> implements Index {
     }
 
     void newBloomFilter(long numElements) {
-        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.Murmur64(Serializers.LONG));
+        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
     }
 
     private boolean mightHaveEntries(Range range) {
