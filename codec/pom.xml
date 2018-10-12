@@ -13,7 +13,7 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>snappy</module>
+        <module>snappy-codec</module>
     </modules>
 
     <dependencies>

@@ -10,6 +10,7 @@ import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.segment.Segment;
+import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockSegmentFactory;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
@@ -28,6 +29,7 @@ public class Config<T> {
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
     SegmentFactory<T> segmentFactory;
 
+    String name = "default";
     int segmentSize = (int) Size.MEGABYTE.toBytes(10);
     boolean mmap;
     boolean asyncFlush;
@@ -52,6 +54,11 @@ public class Config<T> {
         return this;
     }
 
+    public Config<T> name(String name) {
+        this.name = name;
+        return this;
+    }
+
     public Config<T> maxSegmentsPerLevel(int maxSegmentsPerLevel) {
         if (maxSegmentsPerLevel <= 0) {
             throw new IllegalArgumentException("maxSegmentsPerLevel must be greater than zero");
@@ -73,12 +80,6 @@ public class Config<T> {
     public Config<T> namingStrategy(NamingStrategy strategy) {
         Objects.requireNonNull(strategy, "NamingStrategy must be provided");
         this.namingStrategy = strategy;
-        return this;
-    }
-
-    public Config<T> segmentFactory(SegmentFactory<T> factory) {
-        Objects.requireNonNull(factory, "SegmentFactory must be provided");
-        this.segmentFactory = factory;
         return this;
     }
 
@@ -120,7 +121,7 @@ public class Config<T> {
     }
 
     public LogAppender<T> openBlockAppender() {
-       return openBlockAppender(VLenBlock.factory());
+        return openBlockAppender(VLenBlock.factory());
     }
 
     public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory) {
@@ -138,7 +139,16 @@ public class Config<T> {
             throw new IllegalArgumentException("Block must be at least " + Memory.PAGE_SIZE);
         }
         this.blockSize = maxBlockSize;
-        this.segmentFactory = new BlockSegmentFactory<>(blockFactory, codec, maxBlockSize);
+        return openBlockAppender(new BlockSegmentFactory<>(blockFactory, codec, maxBlockSize), maxBlockSize);
+    }
+
+    public LogAppender<T> openBlockAppender(SegmentFactory<T> segmentFactory) {
+        return openBlockAppender(segmentFactory, Memory.PAGE_SIZE);
+    }
+
+    public LogAppender<T> openBlockAppender(SegmentFactory<T> segmentFactory, int maxBlockSize) {
+        this.segmentFactory = segmentFactory;
+        this.blockSize = maxBlockSize;
         return new LogAppender<>(this);
     }
 

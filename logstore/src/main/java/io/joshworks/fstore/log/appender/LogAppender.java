@@ -17,7 +17,10 @@ import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.Segment;
+import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.block.BlockSegment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,7 +57,7 @@ import java.util.stream.Stream;
 
 public class LogAppender<T> implements Closeable {
 
-    private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
+    private final Logger logger;
 
 
     public static final int SEGMENT_BITS = 16;
@@ -63,7 +66,7 @@ public class LogAppender<T> implements Closeable {
 
     public static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
     public static final long MAX_SEGMENT_ADDRESS = BitUtil.maxValueForBits(SEGMENT_ADDRESS_BITS);
-    public static final long MAX_BLOCK_ENTRIES = BitUtil.maxValueForBits(BLOCK_BITS) + 1;
+    public static final long MAX_BLOCK_VALUE = BitUtil.maxValueForBits(BLOCK_BITS);
 
     private final File directory;
     private final Serializer<T> serializer;
@@ -90,19 +93,21 @@ public class LogAppender<T> implements Closeable {
     private final Set<LogPoller> pollers = new HashSet<>();
 
     private final Compactor<T> compactor;
+    private final long logStart;
+    private final String name;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
         return new Config<>(directory, serializer);
     }
 
     LogAppender(Config<T> config) {
-
         this.directory = config.directory;
         this.serializer = config.serializer;
         this.factory = config.segmentFactory;
         this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
-        this.dataStream = new DataStream();
         this.namingStrategy = config.namingStrategy;
+        this.name = config.name;
+        this.logger = LoggerFactory.getLogger("appender [" + name + "]");
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
 
@@ -123,12 +128,16 @@ public class LogAppender<T> implements Closeable {
                     config.flushAfterWrite,
                     config.asyncFlush);
 
-            this.state = State.empty(directory);
+            this.logStart = metadata.blockSize > 0 ? BlockSegment.START : Segment.START;
+            this.state = State.empty(directory, logStart);
         } else {
             logger.info("Opening LogAppender");
             this.metadata = Metadata.readFrom(directory);
+            this.logStart = metadata.blockSize > 0 ? BlockSegment.START : Segment.START;
             this.state = State.readFrom(directory);
         }
+        this.dataStream = new DataStream(logStart);
+
 
         try {
             this.levels = loadSegments();
@@ -150,7 +159,7 @@ public class LogAppender<T> implements Closeable {
         logger.info("MAX SEGMENTS: {} ({} bits)", MAX_SEGMENTS, SEGMENT_BITS);
         logger.info("MAX SEGMENT ADDRESS: {} ({} bits)", MAX_SEGMENT_ADDRESS, SEGMENT_ADDRESS_BITS);
         if (metadata.blockSize > 0) {
-            logger.info("MAX BLOCK ENTRIES: {} ({} bits)", MAX_BLOCK_ENTRIES, BLOCK_BITS);
+            logger.info("MAX BLOCK ENTRY INDEX: {} ({} bits)", MAX_BLOCK_VALUE, BLOCK_BITS);
 
         }
     }
@@ -205,7 +214,7 @@ public class LogAppender<T> implements Closeable {
         try {
             File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
             storage = storageProvider.open(segmentFile);
-            Log<T> segment = factory.createOrOpen(storage, serializer, dataStream, metadata.magic, null);
+            Log<T> segment = factory.createOrOpen(storage, serializer, dataStream, metadata.magic, Type.OPEN);
             logger.info("Loaded segment {}", segment);
             return segment;
         } catch (Exception e) {
@@ -305,7 +314,7 @@ public class LogAppender<T> implements Closeable {
 
     //TODO implement reader pool, instead using a new instance of reader, provide a pool of reader to better performance
     public LogIterator<T> iterator(Direction direction) {
-        long startPosition = Direction.FORWARD.equals(direction) ? Log.START : Math.max(position(), Log.START);
+        long startPosition = Direction.FORWARD.equals(direction) ? logStart : Math.max(position(), logStart);
         return iterator(startPosition, direction);
     }
 
@@ -313,12 +322,16 @@ public class LogAppender<T> implements Closeable {
         return Iterators.closeableStream(iterator(direction));
     }
 
+    public long tailPosition() {
+        return logStart;
+    }
+
     public LogIterator<T> iterator(long position, Direction direction) {
         return Direction.FORWARD.equals(direction) ? new ForwardLogReader(position) : new BackwardLogReader(position);
     }
 
     public PollingSubscriber<T> poller() {
-        return createPoller(Log.START);
+        return createPoller(logStart);
     }
 
     public PollingSubscriber<T> poller(long position) {

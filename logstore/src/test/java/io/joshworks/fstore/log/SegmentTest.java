@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.LogHeader;
+import io.joshworks.fstore.testutils.Utils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,7 +32,7 @@ import static org.junit.Assert.fail;
 
 public abstract class SegmentTest {
 
-    private Log<String> segment;
+    protected Log<String> segment;
     private File testFile;
 
     abstract Log<String> open(File file);
@@ -135,16 +135,6 @@ public abstract class SegmentTest {
         assertEquals(data, logIterator1.next());
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void inserting_record_bigger_than_MAX_RECORD_SIZE_throws_exception() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < DataStream.MAX_ENTRY_SIZE + 1; i++) {
-            sb.append("a");
-        }
-        String data = sb.toString();
-        segment.append(data);
-        segment.flush();
-    }
 
     @Test
     public void get() {
@@ -298,7 +288,10 @@ public abstract class SegmentTest {
         try (LogIterator<String> iterator = segment.iterator(Direction.FORWARD)) {
             int idx = 0;
             while (iterator.hasNext()) {
-                assertEquals(positions.get(idx++), Long.valueOf(iterator.position()));
+                if(idx == 1302) {
+                    System.out.println("as");
+                }
+                assertEquals("Failed at " + idx, positions.get(idx++), Long.valueOf(iterator.position()));
                 iterator.next();
             }
         }
@@ -320,7 +313,7 @@ public abstract class SegmentTest {
             int idx = 0;
             while (iterator.hasNext()) {
                 iterator.next();
-                assertEquals(positions.get(idx++), Long.valueOf(iterator.position()));
+                assertEquals("Failed on " + idx, positions.get(idx++), Long.valueOf(iterator.position()));
             }
         }
     }

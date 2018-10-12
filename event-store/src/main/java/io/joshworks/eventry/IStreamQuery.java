@@ -35,6 +35,6 @@ public interface IStreamQuery {
 
     LogIterator<EventRecord> fromAllIter();
 
-    //Won't return the closeableStream in the event !
+    //Won't return the stream in the event !
     Stream<EventRecord> fromAll();
 }

@@ -18,6 +18,8 @@
         <module>es-server</module>
         <module>tools</module>
         <module>lsmtree</module>
+        <module>test-utils</module>
+        <module>event-store-it</module>
     </modules>
 
     <properties>
@@ -57,7 +59,7 @@
             <!-- Codecs -->
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>snappy</artifactId>
+                <artifactId>snappy-codec</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -70,6 +72,12 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>event-store</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>test-utils</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

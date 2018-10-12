@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index.disk;
 
 import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import org.junit.Test;
 
@@ -43,11 +44,10 @@ public class IndexBlockTest {
         } while (!limitReached);
 
 
-        ByteBuffer packed = block.pack(Codec.noCompression());
+        Codec codec = new SnappyCodec();
+        ByteBuffer packed = block.pack(codec);
 
-        var unpacked = new IndexBlock(packed);
-        System.out.println(unpacked);
-
+        var unpacked = new IndexBlock(packed, codec);
 
         assertThat(block.entries(), is(unpacked.entries()));
     }

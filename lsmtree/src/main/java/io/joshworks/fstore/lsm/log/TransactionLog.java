@@ -4,26 +4,23 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.appender.compaction.combiner.NoOpCombiner;
-import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.lsm.EntryType;
 
 import java.io.File;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.LinkedList;
-import java.util.Stack;
 import java.util.function.Consumer;
 
 public class TransactionLog<K extends Comparable<K>, V> {
 
-    private final SimpleLogAppender<Record<K, V>> appender;
-    private long lastFlush = Log.START;
+    private final LogAppender<Record<K, V>> appender;
+    private long lastFlush;
 
     public TransactionLog(File root, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        this.appender = new SimpleLogAppender<>(LogAppender.builder(new File(root, "log"), new RecordSerializer<>(keySerializer, valueSerializer))
-                .compactionStrategy(new NoOpCombiner<>()));
+        this.appender = LogAppender.builder(new File(root, "log"), new RecordSerializer<>(keySerializer, valueSerializer))
+                .compactionStrategy(new NoOpCombiner<>()).open();
+        this.lastFlush = appender.tailPosition();
     }
 
     public long append(Record<K, V> record) {

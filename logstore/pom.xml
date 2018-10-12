@@ -20,15 +20,12 @@
             <artifactId>standard-serializer</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>snappy-codec</artifactId>
         </dependency>
-
-
         <dependency>
             <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>1.7.25</version>
+            <artifactId>slf4j-api</artifactId>
         </dependency>
 
         <dependency>
@@ -38,7 +35,14 @@
         </dependency>
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
-            <artifactId>snappy</artifactId>
+            <artifactId>test-utils</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>1.7.25</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

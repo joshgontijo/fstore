@@ -6,7 +6,6 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Checksum;
 import io.joshworks.fstore.log.ChecksumException;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.segment.Log;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
@@ -25,6 +24,7 @@ public class DataStream implements IDataStream {
     //hard limit is required to memory issues in case of broken record
     public static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
 
+    private final long logStart;
     private final double checksumProb;
     private final Random rand = new Random();
     private final RecordReader forwardReader = new ForwardRecordReader();
@@ -32,11 +32,12 @@ public class DataStream implements IDataStream {
     private final RecordReader bulkBackwardReader = new BulkBackwardRecordReader();
     private final RecordReader backwardReader = new BackwardRecordReader();
 
-    public DataStream() {
-        this(DEFAULT_CHECKUM_PROB);
+    public DataStream(long logStart) {
+        this(logStart, DEFAULT_CHECKUM_PROB);
     }
 
-    public DataStream(double checksumProb) {
+    public DataStream(long logStart, double checksumProb) {
+        this.logStart = logStart;
         this.checksumProb = (int) (checksumProb * 100);
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
@@ -191,8 +192,8 @@ public class DataStream implements IDataStream {
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
             ByteBuffer buffer = bufferPool.allocate(BULK_READ_BUFFER_SIZE);
             int limit = buffer.limit();
-            if (position - limit < Log.START) {
-                int available = (int) (position - Log.START);
+            if (position - limit < logStart) {
+                int available = (int) (position - logStart);
                 if (available == 0) {
                     return BufferRef.ofEmpty();
                 }
@@ -283,8 +284,8 @@ public class DataStream implements IDataStream {
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
             ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
             int limit = buffer.limit();
-            if (position - limit < Log.START) {
-                int available = (int) (position - Log.START);
+            if (position - limit < logStart) {
+                int available = (int) (position - logStart);
                 if (available == 0) {
                     return BufferRef.ofEmpty();
                 }

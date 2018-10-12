@@ -1,16 +1,11 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
-import io.joshworks.fstore.core.Codec;
-import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.eventry.index.disk.IndexAppender;
-import io.joshworks.eventry.index.disk.IndexCompactor;
-import io.joshworks.eventry.index.disk.IndexEntrySerializer;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -164,10 +159,10 @@ public class TableIndex implements Index {
     }
 
     //TODO how to mark last read indexEntry ?
-    //timestamp / position (how about the mem items ?) / version (of each closeableStream individually, then crash could cause repeated)
+    //timestamp / position (how about the mem items ?) / version (of each stream individually, then crash could cause repeated)
     public PollingSubscriber<IndexEntry> poller(long stream, int lastVersion) {
         throw new UnsupportedOperationException("Implement me");
-//        return poller(Set.of(closeableStream));
+//        return poller(Set.of(stream));
     }
 
     public PollingSubscriber<IndexEntry> poller(Set<Long> streams) {

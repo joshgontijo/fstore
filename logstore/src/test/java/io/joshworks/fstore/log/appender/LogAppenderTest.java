@@ -8,11 +8,12 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.StringSerializer;
+import io.joshworks.fstore.testutils.Utils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -155,7 +156,7 @@ public class LogAppenderTest {
 
     @Test
     public void empty_appender_return_LOG_START_position() {
-        assertEquals(Log.START, appender.position());
+        assertEquals(appender.tailPosition(), appender.position());
     }
 
     @Test
@@ -279,7 +280,7 @@ public class LogAppenderTest {
         //write broken data
         File file = new File(testDirectory, segmentName);
         try (Storage storage = new RafStorage(file, file.length(), Mode.READ_WRITE)) {
-            storage.position(Log.START);
+            storage.position(Segment.START);
             ByteBuffer broken = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD + 4);
             broken.putInt(444); //expected length
             broken.putInt(123456); // broken checksum

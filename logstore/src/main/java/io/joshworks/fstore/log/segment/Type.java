@@ -1,10 +1,11 @@
 package io.joshworks.fstore.log.segment;
 
 public enum Type {
-    EMPTY(0),
-    LOG_HEAD(1),
-    MERGE_OUT(2),
-    READ_ONLY(3);
+    OPEN(0),
+    EMPTY(1),
+    LOG_HEAD(2),
+    MERGE_OUT(3),
+    READ_ONLY(4);
 
     final int val;
 

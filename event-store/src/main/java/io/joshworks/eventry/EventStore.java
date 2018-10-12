@@ -517,7 +517,7 @@ public class EventStore implements IEventStore {
         return new IndexedLogPoller(index.poller(hashes), this);
     }
 
-//    public PollingSubscriber<Event> poller(String closeableStream, int version) {
+//    public PollingSubscriber<Event> poller(String stream, int version) {
 //        long streamHash = streams.hashOf(closeableStream);
 //        return new IndexedLogPoller(index.poller(streamHash, version), eventLog);
 //    }
