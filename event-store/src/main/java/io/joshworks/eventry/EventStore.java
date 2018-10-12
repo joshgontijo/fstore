@@ -55,7 +55,7 @@ import java.util.stream.Stream;
 
 public class EventStore implements IEventStore {
 
-    private static final Logger logger = LoggerFactory.getLogger(EventStore.class);
+    private static final Logger logger = LoggerFactory.getLogger("event-store");
 
     //TODO expose
     private static final int LRU_CACHE_SIZE = 1000000;

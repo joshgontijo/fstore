@@ -695,7 +695,6 @@ public class EventStoreIT {
                     for (int version = 0; version < numVersionPerStream; version++) {
                         //GET
                         EventRecord event = store.get(streamName, version);
-                        System.out.println(event);
                         assertNotNull(event);
                         assertEquals(streamName, event.stream);
                         assertEquals(version, event.version);
