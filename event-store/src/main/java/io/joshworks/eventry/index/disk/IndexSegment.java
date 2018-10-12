@@ -127,8 +127,17 @@ public class IndexSegment extends BlockSegment<IndexEntry> implements Index {
             return Optional.empty();
         }
 
-        IndexEntry found = get(lowBound.position);
-        return Optional.ofNullable(found);
+        IndexBlock block = (IndexBlock) getBlock(lowBound.position);
+        List<IndexEntry> entries = block.entries();
+        int idx = Collections.binarySearch(entries, start);
+        if(idx < 0) { //if not exact match, wasn't found
+            return Optional.empty();
+        }
+        IndexEntry found = entries.get(idx);
+        if (found == null || found.stream != stream && found.version != version) { //sanity check
+            throw new IllegalStateException("Inconsistent index");
+        }
+        return Optional.of(found);
 
     }
 
