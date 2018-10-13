@@ -11,8 +11,6 @@ import java.nio.channels.FileChannel;
 
 public class MMapStorage extends DiskStorage {
 
-    private static final int NO_BUFFER = -1;
-
     private final int bufferSize;
     MappedByteBuffer[] buffers;
     private int writeBufferIdx;
@@ -220,41 +218,24 @@ public class MMapStorage extends DiskStorage {
         }
     }
 
-    //TODO just set the position to newPos and remove 'truncated' buffers ?
     @Override
     public void truncate(long pos) {
         if (Mode.READ.equals(mode)) {
             throw new StorageException("Cannot truncate read only file");
         }
-//        int idx = bufferIdx(pos);
-//        int bPos = posOnBuffer(pos);
-//        MappedByteBuffer buffer = buffers[idx];
-//        buffer.position(bPos);
-//
-//        int clearBufferSize = 4096;
-//        if (buffer == current) {
-//            while (buffer.hasRemaining()) {
-//                int min = Math.min(buffer.remaining(), clearBufferSize);
-//                ByteBuffer clear = ByteBuffer.allocate(clearBufferSize);
-//                clear.limit(min);
-//                buffer.put(clear);
-//            }
-//            buffer.position(bPos);
-//        }
-//
-////        for (int i = idx + 1; i < writeBufferIdx; i++) {
-////            MappedByteBuffer toUnmap = buffers.remove(i);
-////            unmap(toUnmap);
-////        }
-////        current = buffers.get(writeBufferIdx - 1);
-//        int fileSize = writeBufferIdx * bufferSize;
-//        unmapAll();
-//
-//        super.truncate(fileSize);
-//
-//        current = map(0, bufferSize);
-////        buffers.add(current);
-//        writeBufferIdx = 0;
+        this.position(position);
+        int idx = bufferIdx(pos);
+        for (int i = idx + 1; i < buffers.length; i++) {
+            MappedByteBuffer buffer = buffers[i];
+            if(buffer != null) {
+                unmap(buffer);
+                buffers[i] = null;
+            }
+        }
+        int bPos = posOnBuffer(pos);
+        MappedByteBuffer latest = buffers[idx];
+        latest.position(bPos);
+        super.truncate(pos); //TODO might fail because of unreleased buffers, just leave it out ?
     }
 
     @Override

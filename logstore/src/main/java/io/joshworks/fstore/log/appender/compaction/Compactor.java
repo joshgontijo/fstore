@@ -100,7 +100,6 @@ public class Compactor<T> {
                 return;
             }
             List<Log<T>> segmentsForCompaction = segmentsForCompaction(level);
-            //TODO investigate if is actually needed
             if (segmentsForCompaction.isEmpty()) {
                 logger.warn("Level {} is empty, nothing to compact", level);
                 return;
@@ -137,7 +136,6 @@ public class Compactor<T> {
             return;
         }
 
-        //TODO test
         if (target.entries() == 0) {
             logger.info("No entries were found in the result segment {}, deleting", target.name());
             deleteAll(List.of(target));
