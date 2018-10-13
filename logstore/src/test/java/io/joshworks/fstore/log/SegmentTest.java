@@ -288,9 +288,6 @@ public abstract class SegmentTest {
         try (LogIterator<String> iterator = segment.iterator(Direction.FORWARD)) {
             int idx = 0;
             while (iterator.hasNext()) {
-                if(idx == 1302) {
-                    System.out.println("as");
-                }
                 assertEquals("Failed at " + idx, positions.get(idx++), Long.valueOf(iterator.position()));
                 iterator.next();
             }

@@ -6,7 +6,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -158,34 +157,6 @@ public abstract class DiskStorageTest {
     }
 
     @Test
-    public void providing_buffer_bigger_than_available_data_read_only_available() throws IOException {
-
-        //given
-        int size = 8;
-        File temp = Utils.testFile();
-        try (Storage store = store(temp, size)) {
-            ByteBuffer data = ByteBuffer.allocate(size);
-            data.putInt(1);
-            data.putInt(2);
-            data.flip();
-
-            store.write(data);
-
-            ByteBuffer result = ByteBuffer.allocate(500);
-
-            //when
-            int read = store.read(0, result);
-            result.flip();
-
-            //then
-            assertEquals(size, read);
-            assertEquals(size, result.remaining());
-        } finally {
-            Utils.tryDelete(temp);
-        }
-    }
-
-    @Test
     public void position_is_updated_after_insert() {
         ByteBuffer bb = ByteBuffer.wrap("a".getBytes(StandardCharsets.UTF_8));
 
@@ -202,5 +173,21 @@ public abstract class DiskStorageTest {
     public void truncate_readonly_throws_exception() {
         storage.markAsReadOnly();
         storage.truncate(10);
+    }
+
+    @Test
+    public void reading_unwritten_data_returns_zeroes() {
+        int writeSize = 16;
+        int readSize = 32;
+        byte[] write = new byte[writeSize];
+        Arrays.fill(write, (byte) 1);
+
+        storage.write(ByteBuffer.wrap(write));
+
+        ByteBuffer read = ByteBuffer.allocate(readSize);
+        storage.read(0, read);
+        read.flip();
+
+        assertEquals(readSize, read.remaining());
     }
 }

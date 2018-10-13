@@ -160,7 +160,7 @@ public class DataStream implements IDataStream {
             while (buffer.hasRemaining() && buffer.remaining() > RecordHeader.MAIN_HEADER && i < MAX_CACHE_RESULT) {
                 int pos = buffer.position();
                 int len = buffer.getInt();
-                checkRecordLength(len, pos);
+                checkRecordLength(len, position);
                 if (len == 0) {
                     return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
                 }

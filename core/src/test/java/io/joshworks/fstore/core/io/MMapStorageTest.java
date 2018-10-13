@@ -16,7 +16,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
 @Ignore
-public class MMapBaseStorageTest extends DiskStorageTest {
+public class MMapStorageTest extends DiskStorageTest {
 
     private File mmapFile;
     private static final int BUFFER_SIZE = 5408192;
@@ -75,19 +75,28 @@ public class MMapBaseStorageTest extends DiskStorageTest {
             var bb2 = ofSize(entrySize + 1);
             storage.write(bb2);
 
-            assertEquals(2, storage.buffers.size());
+            assertEquals(2, storage.buffers.length);
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void read_is_limited_by_remaining_buffer_size() {
+    @Test
+    public void correctly_write_data_bigger_than_buffer() {
         int entrySize = 4096;
         int bufferSize = entrySize * 2;
         long fileSize = (long) bufferSize * 2;
         try (var storage = new MMapStorage(mmapFile, fileSize, Mode.READ_WRITE, bufferSize)) {
+            int dataLen = bufferSize + 1;
+            var bb = ofSize(dataLen);
+            int written = storage.write(bb);
 
-            var bb = ofSize(bufferSize + 1);
-            storage.write(bb);
+            assertEquals(dataLen, written);
+
+            var readBuffer = ByteBuffer.allocate(dataLen);
+            int read = storage.read(0, readBuffer);
+            readBuffer.flip();
+
+            assertEquals(dataLen, read);
+            assertEquals(dataLen, readBuffer.remaining());
 
         }
     }
@@ -131,23 +140,6 @@ public class MMapBaseStorageTest extends DiskStorageTest {
             storage.read(0, read);
 
             assertArrayEquals(bb.array(), read.flip().array());
-        }
-    }
-
-    @Test
-    public void entry_cannot_be_greater_than_buffer_size() {
-        int entrySize = 4096;
-        int bufferSize = entrySize * 2;
-        long fileSize = (long) bufferSize * 2;
-        try (var storage = new MMapStorage(mmapFile, fileSize, Mode.READ_WRITE, bufferSize)) {
-
-            var bb = ofSize(entrySize);
-            storage.write(bb);
-
-            var read = ByteBuffer.allocate(bufferSize + 1);
-            storage.read(0, read);
-
-            assertEquals(entrySize, read.flip().remaining());
         }
     }
 
