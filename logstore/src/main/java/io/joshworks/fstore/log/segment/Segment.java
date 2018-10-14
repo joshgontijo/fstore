@@ -91,11 +91,6 @@ public class Segment<T> implements Log<T> {
         this.position(LogHeader.BYTES);
 
         entries.set(header.entries);
-        if (Type.LOG_HEAD.equals(header.type)) { //reopening log head
-            SegmentState result = rebuildState(Segment.START);
-            this.position(result.position);
-            entries.set(result.entries);
-        }
     }
 
     private LogHeader readHeader(Storage storage) {
@@ -252,7 +247,7 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
-    public SegmentState rebuildState(long lastKnownPosition) {
+    public void rebuildState(long lastKnownPosition) {
         if (lastKnownPosition < START) {
             throw new IllegalStateException("Invalid lastKnownPosition: " + lastKnownPosition + ",value must be at least " + START);
         }
@@ -280,7 +275,8 @@ public class Segment<T> implements Log<T> {
         if (position < LogHeader.BYTES) {
             throw new IllegalStateException("Initial log state position must be at least " + LogHeader.BYTES);
         }
-        return new SegmentState(foundEntries, position);
+        this.entries.set(foundEntries);
+        this.position(position);
     }
 
     @Override
@@ -308,6 +304,7 @@ public class Segment<T> implements Log<T> {
         boolean hasFooter = header.footerStart > 0;
         long endOfSegment = hasFooter ? header.footerStart + header.footerEnd : endOfLog;
         storage.truncate(endOfSegment);
+        storage.markAsReadOnly();
     }
 
     @Override

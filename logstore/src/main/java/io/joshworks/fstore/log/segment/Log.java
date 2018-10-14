@@ -38,7 +38,7 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     Set<TimeoutReader> readers();
 
-    SegmentState rebuildState(long lastKnownPosition);
+    void rebuildState(long lastKnownPosition);
 
     void delete();
 

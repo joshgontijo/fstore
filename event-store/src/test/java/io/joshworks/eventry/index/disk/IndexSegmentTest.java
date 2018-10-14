@@ -11,7 +11,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
-import io.joshworks.fstore.testutils.Utils;
+import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,7 +38,7 @@ public class IndexSegmentTest {
 
     @Before
     public void setUp() {
-        indexDir = Utils.testFolder();
+        indexDir = FileUtils.testFolder();
         segmentFile = new File(indexDir, "test-index");
         segment = open(segmentFile);
     }

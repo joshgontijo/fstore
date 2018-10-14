@@ -14,7 +14,7 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.testutils.Utils;
+import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -46,16 +46,16 @@ public class EventStoreIT {
 
     @Before
     public void setUp() {
-        directory = Utils.testFolder();
+        directory = FileUtils.testFolder();
         store = EventStore.open(directory);
     }
 
     @After
     public void tearDown() {
         store.close();
-        Utils.tryDelete(new File(directory, "index"));
-        Utils.tryDelete(new File(directory, "projections"));
-        Utils.tryDelete(directory);
+        FileUtils.tryDelete(new File(directory, "index"));
+        FileUtils.tryDelete(new File(directory, "projections"));
+        FileUtils.tryDelete(directory);
     }
 
     @Test

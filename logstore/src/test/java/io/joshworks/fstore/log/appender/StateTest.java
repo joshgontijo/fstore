@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.testutils.Utils;
+import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -17,14 +17,14 @@ public class StateTest {
 
     @Before
     public void setUp() {
-        testFile = Utils.testFolder();
+        testFile = FileUtils.testFolder();
         state = State.empty(testFile, 0);
     }
 
     @After
     public void tearDown() {
         IOUtils.closeQuietly(state);
-        Utils.tryDelete(testFile);
+        FileUtils.tryDelete(testFile);
     }
 
     @Test

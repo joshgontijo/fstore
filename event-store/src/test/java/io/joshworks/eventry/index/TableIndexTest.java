@@ -2,7 +2,7 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.testutils.Utils;
+import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,15 +31,15 @@ public class TableIndexTest {
 
     @Before
     public void setUp() {
-        testDirectory = Utils.testFolder();
+        testDirectory = FileUtils.testFolder();
         tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD, USE_COMPRESSION);
     }
 
     @After
     public void tearDown() {
         tableIndex.close();
-        Utils.tryDelete(new File(testDirectory, "index"));
-        Utils.tryDelete(testDirectory);
+        FileUtils.tryDelete(new File(testDirectory, "index"));
+        FileUtils.tryDelete(testDirectory);
     }
 
     @Test

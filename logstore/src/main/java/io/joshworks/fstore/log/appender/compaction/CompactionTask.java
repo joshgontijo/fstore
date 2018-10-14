@@ -62,7 +62,7 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
 
             target.roll(nextLevel);
 
-            logger.info("Result Segment {} - size: {}, entries: {}", target.name(), target.size(), target.entries());
+            logger.info("Result Segment {} - size: {}, entries: {}", target.name(), totalSize, target.entries());
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
             context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.success(segments, target, level));

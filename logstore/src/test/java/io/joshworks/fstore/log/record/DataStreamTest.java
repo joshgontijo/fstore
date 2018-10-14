@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.testutils.Utils;
+import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -30,7 +30,7 @@ public class DataStreamTest {
 
     @Before
     public void setUp() {
-        file = Utils.testFile();
+        file = FileUtils.testFile();
         storage = new RafStorage(file, 1024 * 1024, Mode.READ_WRITE);
     }
 

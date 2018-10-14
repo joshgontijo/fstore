@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.UUID;
 
-public class Utils {
+public class FileUtils {
 
     //terrible work around for waiting the mapped data to release file lock
     public static void tryDelete(File file) {
@@ -92,32 +92,4 @@ public class Utils {
             throw new RuntimeException(e);
         }
     }
-
-//    private static void deleteDirectory(File dir) throws IOException {
-//        Files.walkFileTree(dir.toPath(), new SimpleFileVisitor<>() {
-//
-//            @Override
-//            public FileVisitResult visitFile(Path file,
-//                                             BasicFileAttributes attrs) throws IOException {
-//
-//                System.out.println("Deleting file: " + file);
-//                Files.delete(file);
-//                return CONTINUE;
-//            }
-//
-//            @Override
-//            public FileVisitResult postVisitDirectory(Path dir,
-//                                                      IOException exc) throws IOException {
-//
-//                System.out.println("Deleting dir: " + dir);
-//                if (exc == null) {
-//                    Files.delete(dir);
-//                    return CONTINUE;
-//                } else {
-//                    throw exc;
-//                }
-//            }
-//
-//        });
-//    }
 }

@@ -93,7 +93,7 @@ public class LogAppender<T> implements Closeable {
     private final Set<LogPoller> pollers = new HashSet<>();
 
     private final Compactor<T> compactor;
-    private final long logStart;
+    private final long segmentStart;
     private final String name;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
@@ -106,6 +106,7 @@ public class LogAppender<T> implements Closeable {
         this.factory = config.segmentFactory;
         this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
         this.namingStrategy = config.namingStrategy;
+        this.dataStream = new DataStream();
         this.name = config.name;
         this.logger = LoggerFactory.getLogger("appender [" + name + "]");
 
@@ -128,15 +129,14 @@ public class LogAppender<T> implements Closeable {
                     config.flushAfterWrite,
                     config.asyncFlush);
 
-            this.logStart = metadata.blockSize > 0 ? BlockSegment.START : Segment.START;
-            this.state = State.empty(directory, logStart);
+            this.segmentStart = metadata.blockSize > 0 ? BlockSegment.START : Segment.START;
+            this.state = State.empty(directory, segmentStart);
         } else {
             logger.info("Opening LogAppender");
             this.metadata = Metadata.readFrom(directory);
-            this.logStart = metadata.blockSize > 0 ? BlockSegment.START : Segment.START;
+            this.segmentStart = metadata.blockSize > 0 ? BlockSegment.START : Segment.START;
             this.state = State.readFrom(directory);
         }
-        this.dataStream = new DataStream(logStart);
 
         try {
             this.levels = loadSegments();
@@ -165,6 +165,7 @@ public class LogAppender<T> implements Closeable {
 
     private void restoreState(Log<T> current) {
         logger.info("Restoring state");
+        current.rebuildState(segmentStart);
         long segmentPosition = current.position();
         long position = toSegmentedPosition(levels.numSegments() - 1L, segmentPosition);
         state.position(position);
@@ -313,7 +314,7 @@ public class LogAppender<T> implements Closeable {
 
     //TODO implement reader pool, instead using a new instance of reader, provide a pool of reader to better performance
     public LogIterator<T> iterator(Direction direction) {
-        long startPosition = Direction.FORWARD.equals(direction) ? logStart : Math.max(position(), logStart);
+        long startPosition = Direction.FORWARD.equals(direction) ? segmentStart : Math.max(position(), segmentStart);
         return iterator(startPosition, direction);
     }
 
@@ -322,7 +323,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     public long tailPosition() {
-        return logStart;
+        return segmentStart;
     }
 
     public LogIterator<T> iterator(long position, Direction direction) {
@@ -330,7 +331,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     public PollingSubscriber<T> poller() {
-        return createPoller(logStart);
+        return createPoller(segmentStart);
     }
 
     public PollingSubscriber<T> poller(long position) {
