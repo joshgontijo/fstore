@@ -31,8 +31,8 @@ import static org.junit.Assert.assertTrue;
 
 public class BlockSegmentTest extends SegmentTest {
 
-    private final int blockSize = 4096;
-    private static final int START = 0;
+    protected final int blockSize = 4096;
+    protected static final int START = 0;
 
     @Override
     Log<String> open(File file) {
@@ -241,9 +241,9 @@ public class BlockSegmentTest extends SegmentTest {
         assertEquals(entriesPerBlock, count);
     }
 
-    @Test(expected = IllegalStateException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void getBlock_throws_exception_of_no_block_is_present() {
-        ((BlockSegment<String>) segment).getBlock(START);
+        ((BlockSegment<String>) segment).getBlock(BlockSegment.START);
     }
 
     @Test
@@ -251,9 +251,7 @@ public class BlockSegmentTest extends SegmentTest {
         long position = segment.append("a");
         segment.flush();
 
-        long blockPos = blockPosition(position);
-
-        Block<String> found = ((BlockSegment<String>) segment).getBlock(blockPos);
+        Block<String> found = ((BlockSegment<String>) segment).getBlock(position);
         assertNotNull(found);
         assertEquals(1, found.entryCount());
         assertEquals("a", found.get(0));

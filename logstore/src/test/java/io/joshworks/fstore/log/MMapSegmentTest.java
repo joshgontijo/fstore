@@ -11,7 +11,7 @@ import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 
-public class MMapSegmentTest extends SegmentTest {
+public class MMapSegmentTest extends DefaultSegmentTest {
 
     @Override
     Log<String> open(File file) {

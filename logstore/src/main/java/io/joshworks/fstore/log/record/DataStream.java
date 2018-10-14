@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Checksum;
 import io.joshworks.fstore.log.ChecksumException;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.segment.Segment;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
@@ -24,7 +25,6 @@ public class DataStream implements IDataStream {
     //hard limit is required to memory issues in case of broken record
     public static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
 
-    private final long logStart;
     private final double checksumProb;
     private final Random rand = new Random();
     private final RecordReader forwardReader = new ForwardRecordReader();
@@ -32,12 +32,11 @@ public class DataStream implements IDataStream {
     private final RecordReader bulkBackwardReader = new BulkBackwardRecordReader();
     private final RecordReader backwardReader = new BackwardRecordReader();
 
-    public DataStream(long logStart) {
-        this(logStart, DEFAULT_CHECKUM_PROB);
+    public DataStream() {
+        this(DEFAULT_CHECKUM_PROB);
     }
 
-    public DataStream(long logStart, double checksumProb) {
-        this.logStart = logStart;
+    public DataStream(double checksumProb) {
         this.checksumProb = (int) (checksumProb * 100);
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
@@ -72,14 +71,23 @@ public class DataStream implements IDataStream {
 
     @Override
     public BufferRef read(Storage storage, BufferPool bufferPool, Direction direction, long position) {
-        RecordReader reader = Direction.FORWARD.equals(direction) ? forwardReader : backwardReader;
-        return reader.read(storage, bufferPool, position);
+        try {
+            RecordReader reader = Direction.FORWARD.equals(direction) ? forwardReader : backwardReader;
+            return reader.read(storage, bufferPool, position);
+
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to read at position " + position, e);
+        }
     }
 
     @Override
     public BufferRef bulkRead(Storage storage, BufferPool bufferPool, Direction direction, long position) {
-        RecordReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : bulkBackwardReader;
-        return reader.read(storage, bufferPool, position);
+        try {
+            RecordReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : bulkBackwardReader;
+            return reader.read(storage, bufferPool, position);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to bulk read at position " + position, e);
+        }
     }
 
     private void checksum(int expected, ByteBuffer data, long position) {
@@ -192,8 +200,11 @@ public class DataStream implements IDataStream {
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
             ByteBuffer buffer = bufferPool.allocate(BULK_READ_BUFFER_SIZE);
             int limit = buffer.limit();
-            if (position - limit < logStart) {
-                int available = (int) (position - logStart);
+            if(position == 3964786) {
+                System.out.println();
+            }
+            if (position - limit < Segment.START) {
+                int available = (int) (position - Segment.START);
                 if (available == 0) {
                     return BufferRef.ofEmpty();
                 }
@@ -284,8 +295,8 @@ public class DataStream implements IDataStream {
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
             ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
             int limit = buffer.limit();
-            if (position - limit < logStart) {
-                int available = (int) (position - logStart);
+            if (position - limit < Segment.START) {
+                int available = (int) (position - Segment.START);
                 if (available == 0) {
                     return BufferRef.ofEmpty();
                 }

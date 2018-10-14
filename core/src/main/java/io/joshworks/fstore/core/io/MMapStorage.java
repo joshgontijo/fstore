@@ -1,9 +1,10 @@
 package io.joshworks.fstore.core.io;
 
 
+import io.joshworks.fstore.core.util.MappedByteBuffers;
+
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -13,7 +14,6 @@ public class MMapStorage extends DiskStorage {
 
     private final int bufferSize;
     MappedByteBuffer[] buffers;
-    private int writeBufferIdx;
 
     private final boolean isWindows;
 
@@ -30,8 +30,8 @@ public class MMapStorage extends DiskStorage {
             this.buffers = new MappedByteBuffer[totalBuffers];
 
             if (Mode.READ_WRITE.equals(mode)) {
-                MappedByteBuffer initialBuffer = map(writeBufferIdx);
-                buffers[writeBufferIdx] = initialBuffer;
+                MappedByteBuffer initialBuffer = map(0);
+                buffers[0] = initialBuffer;
             }
 
         } catch (IOException e) {
@@ -40,28 +40,32 @@ public class MMapStorage extends DiskStorage {
     }
 
     @Override
-    public int write(ByteBuffer data) {
-        ensureNonEmpty(data);
+    public int write(ByteBuffer src) {
+        ensureNonEmpty(src);
         checkWritable();
 
-        int dataSize = data.remaining();
-
-        MappedByteBuffer current = getOrAllocate(writeBufferIdx);
-
-        int dstRemaining = current.remaining();
-        if (dstRemaining < dataSize) {
-            allocateNextWriteBuffer();
-            int srcLimit = data.limit();
-            data.limit(data.position() + dstRemaining);
-            current.put(data);
-            current.flip();
-            data.limit(srcLimit);
-            position += dstRemaining;
-            return write(data) + dstRemaining;
+        if (position == 10485758) {
+            System.out.println();
         }
 
-        int srcRemaining = data.remaining();
-        current.put(data);
+        int dataSize = src.remaining();
+
+        int idx = bufferIdx(this.position);
+        MappedByteBuffer dst = getOrAllocate(idx, true);
+
+        int dstRemaining = dst.remaining();
+        if (dstRemaining < dataSize) {
+            int srcLimit = src.limit();
+            src.limit(src.position() + dstRemaining);
+            dst.put(src);
+            dst.flip();
+            src.limit(srcLimit);
+            position += dstRemaining;
+            return write(src) + dstRemaining;
+        }
+
+        int srcRemaining = src.remaining();
+        dst.put(src);
         position += srcRemaining;
         return srcRemaining;
     }
@@ -69,35 +73,31 @@ public class MMapStorage extends DiskStorage {
     @Override
     public int read(long position, ByteBuffer dst) {
         int idx = bufferIdx(position);
-        if (idx > writeBufferIdx) {
-            return -1;
-        }
-        if (position == 36864) {
-            System.out.println();
-        }
-        MappedByteBuffer buffer = buffers[idx];
-        if (buffer == null) {
-            buffers[writeBufferIdx] = map(idx);
-            buffer = buffers[idx];
-        }
         int bufferAddress = posOnBuffer(position);
-        if (bufferAddress > buffer.limit()) {
+        if (idx >= buffers.length) {
             return -1;
+        }
+
+        MappedByteBuffer buffer = getOrAllocate(idx, false);
+
+        int srcCapacity = buffer.capacity();
+        if (bufferAddress > srcCapacity) {
+            throw new IllegalArgumentException("Invalid position " + position + ", buffer idx " + idx + ", buffer capacity " + srcCapacity);
+        }
+
+        if (position == 10485758) {
+            System.out.println();
         }
 
         ByteBuffer src = buffer.asReadOnlyBuffer();
-        if (bufferAddress > src.capacity() && idx >= writeBufferIdx) {
-            throw new StorageException("Position " + position + " is out of limit (" + src.capacity() + ")");
-        }
-
+        src.clear();
         src.position(bufferAddress);
-        src.limit(src.capacity());
 
         int dstRemaining = dst.remaining();
         int srcRemaining = src.remaining();
         if (dstRemaining > srcRemaining) {
             dst.put(src);
-            if (!readOnly() && idx == writeBufferIdx) {
+            if (idx + 1 >= buffers.length) { //no more buffers
                 return srcRemaining;
             }
             int read = read(position + srcRemaining, dst);
@@ -109,13 +109,20 @@ public class MMapStorage extends DiskStorage {
         return dstRemaining;
     }
 
-    private MappedByteBuffer allocateNextWriteBuffer() {
-        writeBufferIdx++;
-        if (writeBufferIdx >= buffers.length) {
-            extendBufferArray();
+    private MappedByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
+        if (idx >= buffers.length) {
+            if (expandBuffers) {
+                extendBufferArray();
+            } else {
+                throw new IllegalStateException("Invalid buffer index " + idx + " buffers length: " + buffers.length);
+            }
         }
-        buffers[writeBufferIdx] = map(writeBufferIdx);
-        return buffers[writeBufferIdx];
+        MappedByteBuffer current = buffers[idx];
+        if (current == null) {
+            buffers[idx] = map(idx);
+            current = buffers[idx];
+        }
+        return current;
     }
 
     private void extendBufferArray() {
@@ -124,27 +131,13 @@ public class MMapStorage extends DiskStorage {
         buffers = copy;
     }
 
-    private MappedByteBuffer getOrAllocate(int idx) {
-        MappedByteBuffer current = buffers[idx];
-        if (current == null) {
-            buffers[writeBufferIdx] = map(idx);
-            current = buffers[idx];
-        }
-        return current;
-    }
-
     @Override
-    public void position(long position) {
+    public void position(long pos) {
         int idx = bufferIdx(position);
-        MappedByteBuffer buffer = buffers[idx];
-        if (buffer == null) {
-            buffers[idx] = map(idx);
-            buffer = buffers[idx];
-        }
-        writeBufferIdx = idx;
-        int bufferAddress = posOnBuffer(position);
+        MappedByteBuffer buffer = getOrAllocate(idx, true);
+        int bufferAddress = posOnBuffer(pos);
         buffer.position(bufferAddress);
-        this.position = position;
+        this.position = pos;
     }
 
     private int posOnBuffer(long pos) {
@@ -184,63 +177,57 @@ public class MMapStorage extends DiskStorage {
 
     @Override
     public void close() {
-        flush();
         unmapAll();
         super.close();
     }
 
-    private boolean readOnly() {
-        return Mode.READ.equals(mode);
-    }
-
     private void unmapAll() {
-        for (MappedByteBuffer buffer : buffers) {
-            unmap(buffer);
-        }
         for (int i = 0; i < buffers.length; i++) {
-            buffers[i] = null;
-        }
-    }
-
-    private void unmap(MappedByteBuffer buffer) {
-        if (buffer == null) {
-            return;
-        }
-        try {
-            flush();
-            Class<?> fcClass = channel.getClass();
-            Method unmapMethod = fcClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
-            unmapMethod.setAccessible(true);
-            unmapMethod.invoke(null, buffer);
-
-        } catch (Exception e) {
-            throw new StorageException(e);
-        }
-    }
-
-    @Override
-    public void truncate(long pos) {
-        if (Mode.READ.equals(mode)) {
-            throw new StorageException("Cannot truncate read only file");
-        }
-        this.position(position);
-        int idx = bufferIdx(pos);
-        for (int i = idx + 1; i < buffers.length; i++) {
             MappedByteBuffer buffer = buffers[i];
             if(buffer != null) {
+                buffer.force();
                 unmap(buffer);
                 buffers[i] = null;
             }
         }
-        int bPos = posOnBuffer(pos);
-        MappedByteBuffer latest = buffers[idx];
-        latest.position(bPos);
-        super.truncate(pos); //TODO might fail because of unreleased buffers, just leave it out ?
+    }
+
+    private void unmap(MappedByteBuffer buffer) {
+        try {
+            MappedByteBuffers.unmap(buffer);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public void truncate(long newPos) {
+        if (Mode.READ.equals(mode)) {
+            throw new StorageException("Cannot truncate read only file");
+        }
+
+        int idx = bufferIdx(newPos);
+        int bPos = posOnBuffer(newPos);
+        for (int i = idx + 1; i < buffers.length; i++) {
+            MappedByteBuffer buffer = buffers[i];
+            if (buffer != null) {
+                unmap(buffer);
+                buffers[i] = null;
+            }
+        }
+        MappedByteBuffer current = getOrAllocate(idx, true);
+        current.clear().position(bPos);
+
+//        super.truncate(newPos); //TODO might fail because of unreleased buffers, just leave it out ?
     }
 
     @Override
     public void flush() {
-        MappedByteBuffer buffer = buffers[writeBufferIdx];
+        int idx = bufferIdx(this.position);
+        if(idx > buffers.length) {
+            return;
+        }
+        MappedByteBuffer buffer = buffers[idx];
         if (buffer != null && Mode.READ_WRITE.equals(mode) && !isWindows) {
             //caused by https://bugs.openjdk.java.net/browse/JDK-6539707
             buffer.force();

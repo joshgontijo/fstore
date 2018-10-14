@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.testutils.Utils;
+import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,14 +39,14 @@ public abstract class SegmentTest {
 
     @Before
     public void setUp() {
-        testFile = Utils.testFile();
+        testFile = FileUtils.testFile();
         segment = open(testFile);
     }
 
     @After
     public void cleanup() {
         IOUtils.closeQuietly(segment);
-        Utils.tryDelete(testFile);
+        FileUtils.tryDelete(testFile);
     }
 
     @Test
@@ -154,7 +154,7 @@ public abstract class SegmentTest {
 
     @Test
     public void header_is_stored() throws IOException {
-        File file = Utils.testFile();
+        File file = FileUtils.testFile();
         Log<String> testSegment = null;
         try {
 
@@ -185,7 +185,7 @@ public abstract class SegmentTest {
             if (testSegment != null) {
                 testSegment.close();
             }
-            Utils.tryDelete(file);
+            FileUtils.tryDelete(file);
         }
     }
 
@@ -230,7 +230,7 @@ public abstract class SegmentTest {
 
     @Test
     public void segment_is_only_deleted_when_no_readers_are_active() {
-        File file = Utils.testFile();
+        File file = FileUtils.testFile();
         try (Log<String> testSegment = open(file)) {
 
             for (int i = 0; i < 100; i++) {
@@ -252,7 +252,7 @@ public abstract class SegmentTest {
             testSegment.delete();
 
         } catch (Exception e) {
-            Utils.tryDelete(file);
+            FileUtils.tryDelete(file);
         }
     }
 

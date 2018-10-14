@@ -15,7 +15,6 @@ import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.LogHeader;
 import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.serializer.ByteBufferCopy;
 import org.slf4j.Logger;
@@ -56,6 +55,9 @@ public class BlockSegment<T> implements Log<T> {
         this.serializer = serializer;
         this.maxBlockSize = maxBlockSize;
         this.block = factory.create(serializer, maxBlockSize);
+        if(!delegate.readOnly()) {
+            this.rebuildState(START);
+        }
     }
 
     @Override
@@ -83,7 +85,7 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     public static long blockPosition(long position) {
-        return (position >>> LogAppender.BLOCK_BITS);
+        return  (position >>> LogAppender.BLOCK_BITS);
     }
 
     public static int entryIdx(long position) {
@@ -156,10 +158,11 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     public Block<T> getBlock(long position) {
+        validateBlockPosition(position);
         long bPos = blockPosition(position);
         ByteBuffer data = delegate.get(bPos);
         if (data == null) {
-            throw new IllegalStateException("No block on address " + position);
+            throw new IllegalArgumentException("No block on address " + position);
         }
         return factory.load(serializer, codec, data);
     }
@@ -175,15 +178,18 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     @Override
-    public SegmentState rebuildState(long lastKnownPosition) {
+    public void rebuildState(long lastKnownPosition) {
         if (lastKnownPosition < START) {
             throw new IllegalStateException("Invalid lastKnownPosition: " + lastKnownPosition + ",value must be at least " + START);
         }
-        long position = lastKnownPosition;
+        long lPos = blockPosition(lastKnownPosition);
+        delegate.rebuildState(lPos);
+
+        long position = lPos;
         int foundEntries = 0;
         long start = System.currentTimeMillis();
         try {
-            logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
+            logger.info("Retrieving block entries count");
 
             try (LogIterator<ByteBuffer> iterator = delegate.iterator(Direction.FORWARD)) {
                 while (iterator.hasNext()) {
@@ -197,11 +203,11 @@ public class BlockSegment<T> implements Log<T> {
         } catch (Exception e) {
             logger.warn("Found inconsistent entry on position {}, segment '{}': {}", position, name(), e.getMessage());
         }
-        logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
+        logger.info("Entry count completed in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
         if (position < LogHeader.BYTES) {
             throw new IllegalStateException("Initial log state position must be at least " + LogHeader.BYTES);
         }
-        return new SegmentState(foundEntries, position);
+        this.entries = foundEntries;
     }
 
     @Override
@@ -276,15 +282,15 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     private void validateBlockPosition(long position) {
-        if(position < START) {
+        if (position < START) {
             throw new IllegalArgumentException("Block Position must be at least: " + START + ", got: " + position);
         }
         long bPos = blockPosition(position);
         long entryIdx = entryIdx(position);
-        if(bPos < Segment.START || bPos > LogAppender.MAX_SEGMENT_ADDRESS) {
+        if (bPos < Segment.START || bPos > LogAppender.MAX_SEGMENT_ADDRESS) {
             throw new IllegalArgumentException("Invalid block position: " + bPos);
         }
-        if(entryIdx < 0 || entryIdx > LogAppender.MAX_BLOCK_VALUE) {
+        if (entryIdx < 0 || entryIdx > LogAppender.MAX_BLOCK_VALUE) {
             throw new IllegalArgumentException("Invalid entry index: " + entryIdx);
 
         }
@@ -316,11 +322,13 @@ public class BlockSegment<T> implements Log<T> {
                 if (Direction.BACKWARD.equals(direction)) {
                     //we need to read forward the first since blockPosition() returns the start of the block
                     try (LogIterator<ByteBuffer> fit = delegate.iterator(currentBlockPos, Direction.FORWARD)) {
+                        if(fit.hasNext()) {
                         ByteBuffer blockData = fit.next();
-                        parseBlock(blockData);
-                        int skip = cached.size() - entryIdx;
-                        for (int i = 0; i < skip; i++) {
-                            readCached();
+                            parseBlock(blockData);
+                            int skip = cached.size() - entryIdx;
+                            for (int i = 0; i < skip; i++) {
+                                readCached();
+                            }
                         }
                     } catch (Exception e) {
                         throw new RuntimeException(e);

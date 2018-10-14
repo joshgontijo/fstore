@@ -4,7 +4,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.testutils.Utils;
+import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,7 +29,7 @@ public class IndexAppenderTest {
     @After
     public void tearDown() {
         appender.close();
-        Utils.tryDelete(location);
+        FileUtils.tryDelete(location);
     }
 
     @Test
