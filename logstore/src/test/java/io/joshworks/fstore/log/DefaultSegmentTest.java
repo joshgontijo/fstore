@@ -16,7 +16,7 @@ public class DefaultSegmentTest extends SegmentTest {
 
     @Override
     Log<String> open(File file) {
-        return new Segment<>(new RafStorage(file, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.STRING, new DataStream(Segment.START), "magic", Type.LOG_HEAD);
+        return new Segment<>(new RafStorage(file, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.STRING, new DataStream(Log.START), "magic", Type.LOG_HEAD);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -28,5 +28,11 @@ public class DefaultSegmentTest extends SegmentTest {
         String data = sb.toString();
         segment.append(data);
         segment.flush();
+    }
+
+    @Test
+    public void name() {
+        Segment<String> seg = (Segment<String>) segment;
+
     }
 }

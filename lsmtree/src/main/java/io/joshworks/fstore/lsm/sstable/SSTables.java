@@ -1,5 +1,6 @@
 package io.joshworks.fstore.lsm.sstable;
 
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
@@ -7,8 +8,11 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.block.Block;
+import io.joshworks.fstore.log.segment.block.BlockSerializer;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
 
 import java.io.File;
@@ -16,12 +20,13 @@ import java.io.IOException;
 
 public class SSTables<K extends Comparable<K>, V> {
 
-    private final LogAppender<Entry<K, V>> appender;
+    private final LogAppender<Block<Entry<K, V>>> appender;
 
     public SSTables(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold) {
-        this.appender = LogAppender.builder(dir, new EntrySerializer<>(keySerializer, valueSerializer))
+        this.appender = LogAppender.builder(dir, new BlockSerializer<>(new SnappyCodec(), new EntrySerializer<>(keySerializer, valueSerializer), VLenBlock.factory()))
                 .compactionStrategy(new SSTableCompactor<>())
-                .openBlockAppender(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold));
+                .segmentFactory(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold))
+                .open();
     }
 
     public void append(Entry<K, V> entry) {

@@ -18,6 +18,6 @@ public class MMapSegmentTest extends DefaultSegmentTest {
         return new Segment<>(
                 new MMapStorage(file, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE, 4096),
                 Serializers.STRING,
-                new DataStream(Segment.START), "magic", Type.LOG_HEAD);
+                new DataStream(Log.START), "magic", Type.LOG_HEAD);
     }
 }

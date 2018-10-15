@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.LogFileUtils;
+import io.joshworks.fstore.log.segment.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,9 +103,9 @@ public class State implements Closeable {
         }
     }
 
-    public static State empty(File directory, long logStart) {
+    public static State empty(File directory) {
         Storage storage = createStorage(directory);
-        return new State(storage, logStart, 0L, System.currentTimeMillis());
+        return new State(storage, Log.START, 0L, System.currentTimeMillis());
     }
 
     public synchronized void flush() {

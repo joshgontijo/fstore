@@ -44,8 +44,6 @@ public class Segment<T> implements Log<T> {
 
     private static final Logger logger = LoggerFactory.getLogger(Segment.class);
 
-    public static long START = LogHeader.BYTES;
-    
     private final Serializer<LogHeader> headerSerializer = new HeaderSerializer();
     private final Serializer<T> serializer;
     private final Storage storage;
@@ -91,6 +89,11 @@ public class Segment<T> implements Log<T> {
         this.position(LogHeader.BYTES);
 
         entries.set(header.entries);
+        if (Type.LOG_HEAD.equals(header.type)) { //reopening log head
+            SegmentState result = rebuildState(Log.START);
+            this.position(result.position);
+            entries.set(result.entries);
+        }
     }
 
     private LogHeader readHeader(Storage storage) {
@@ -170,7 +173,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public PollingSubscriber<T> poller() {
-        return poller(Segment.START);
+        return poller(Log.START);
     }
 
     private void checkBounds(long position) {
@@ -247,7 +250,7 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
-    public void rebuildState(long lastKnownPosition) {
+    public SegmentState rebuildState(long lastKnownPosition) {
         if (lastKnownPosition < START) {
             throw new IllegalStateException("Invalid lastKnownPosition: " + lastKnownPosition + ",value must be at least " + START);
         }
@@ -275,8 +278,7 @@ public class Segment<T> implements Log<T> {
         if (position < LogHeader.BYTES) {
             throw new IllegalStateException("Initial log state position must be at least " + LogHeader.BYTES);
         }
-        this.entries.set(foundEntries);
-        this.position(position);
+        return new SegmentState(foundEntries, position);
     }
 
     @Override

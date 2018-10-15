@@ -10,10 +10,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public abstract class MergeCombiner<T> implements SegmentCombiner<T> {
+public abstract class MergeCombiner<T, L extends Log<T>> implements SegmentCombiner<T, L> {
 
     @Override
-    public void merge(List<? extends Log<T>> segments, Log<T> output) {
+    public void merge(List<L> segments, L output) {
 
         List<Iterators.PeekingIterator<T>> iterators = segments.stream()
                 .map(s -> s.iterator(Direction.FORWARD))
@@ -27,5 +27,5 @@ public abstract class MergeCombiner<T> implements SegmentCombiner<T> {
         }
     }
 
-    public abstract void mergeItems(List<Iterators.PeekingIterator<T>> items, Log<T> output);
+    public abstract void mergeItems(List<Iterators.PeekingIterator<T>> items, L output);
 }

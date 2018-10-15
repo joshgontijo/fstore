@@ -14,27 +14,38 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.IDataStream;
+import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.Marker;
+import io.joshworks.fstore.log.segment.Segment;
+import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.Type;
-import io.joshworks.fstore.log.segment.block.BlockSegment;
+import io.joshworks.fstore.serializer.ByteBufferCopy;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
-public class IndexSegment extends BlockSegment<IndexEntry> implements Index {
+public class IndexSegment implements Log<IndexBlock>, Index {
 
     BloomFilter<Long> filter;
     final Midpoints midpoints;
     final File directory;
+    private final Segment<ByteBuffer> delegate;
+
     private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
 
     private static final double FALSE_POSITIVE_PROB = 0.01;
+    private final Codec codec;
 
     IndexSegment(Storage storage,
                         IDataStream reader,
@@ -43,13 +54,13 @@ public class IndexSegment extends BlockSegment<IndexEntry> implements Index {
                         File directory,
                         Codec codec,
                         int numElements) {
-        super(storage, new IndexEntrySerializer(),reader, magic, type, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE);
+        this.codec = codec;
+        this.delegate = new Segment<>(storage, new ByteBufferCopy(), reader, magic, type);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
     }
 
-    @Override
     protected synchronized long writeBlock() {
         IndexBlock block = (IndexBlock) currentBlock();
         if (block.isEmpty()) {
@@ -66,8 +77,10 @@ public class IndexSegment extends BlockSegment<IndexEntry> implements Index {
     }
 
     @Override
-    public long append(IndexEntry data) {
-        filter.add(data.stream);
+    public long append(IndexBlock data) {
+        for (IndexEntry entry : data.entries()) {
+            filter.add(entry.stream);
+        }
         return super.append(data);
     }
 
@@ -79,10 +92,105 @@ public class IndexSegment extends BlockSegment<IndexEntry> implements Index {
     }
 
     @Override
+    public String name() {
+        return null;
+    }
+
+    @Override
+    public Stream<IndexBlock> stream(Direction direction) {
+        return null;
+    }
+
+    @Override
+    public LogIterator<IndexBlock> iterator(long position, Direction direction) {
+        return null;
+    }
+
+    @Override
+    public LogIterator<IndexBlock> iterator(Direction direction) {
+        return null;
+    }
+
+    @Override
+    public long position() {
+        return 0;
+    }
+
+    @Override
+    public Marker marker() {
+        return null;
+    }
+
+    @Override
+    public IndexBlock get(long position) {
+        return null;
+    }
+
+    @Override
+    public PollingSubscriber<IndexBlock> poller(long position) {
+        return null;
+    }
+
+    @Override
+    public PollingSubscriber<IndexBlock> poller() {
+        return null;
+    }
+
+    @Override
+    public long size() {
+        return 0;
+    }
+
+    @Override
+    public Set<TimeoutReader> readers() {
+        return null;
+    }
+
+    @Override
+    public SegmentState rebuildState(long lastKnownPosition) {
+        return null;
+    }
+
+    @Override
     public void delete() {
         super.delete();
         filter.delete();
         midpoints.delete();
+    }
+
+    @Override
+    public void roll(int level) {
+
+    }
+
+    @Override
+    public void roll(int level, ByteBuffer footer) {
+
+    }
+
+    @Override
+    public ByteBuffer readFooter() {
+        return null;
+    }
+
+    @Override
+    public boolean readOnly() {
+        return false;
+    }
+
+    @Override
+    public long entries() {
+        return 0;
+    }
+
+    @Override
+    public int level() {
+        return 0;
+    }
+
+    @Override
+    public long created() {
+        return 0;
     }
 
     void newBloomFilter(long numElements) {
@@ -168,6 +276,11 @@ public class IndexSegment extends BlockSegment<IndexEntry> implements Index {
     @Override
     public String toString() {
         return super.toString();
+    }
+
+    @Override
+    public void close() throws IOException {
+
     }
 
     private static final class RangeIndexEntryIterator implements LogIterator<IndexEntry> {

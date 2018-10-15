@@ -7,6 +7,8 @@ import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.appender.BlockAppender;
+import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
@@ -27,17 +29,20 @@ import java.util.stream.Stream;
 public class IndexAppender implements Index {
 
     private static final String INDEX_DIR = "index";
-    private final LogAppender<IndexEntry> appender;
+    private final BlockAppender<IndexEntry, IndexBlock> appender;
 
 
     public IndexAppender(File rootDir, int segmentSize, int numElements, boolean useCompression) {
         Codec codec = useCompression ? new SnappyCodec() : Codec.noCompression();
-        this.appender = LogAppender.builder(new File(rootDir, INDEX_DIR), new IndexEntrySerializer())
+        Config<IndexEntry> config = LogAppender.builder(new File(rootDir, INDEX_DIR), new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor())
                 .maxSegmentsPerLevel(2)
                 .segmentSize(segmentSize)
                 .namingStrategy(new IndexNaming())
-                .openBlockAppender(new IndexSegmentFactory(rootDir, numElements, codec));
+                .segmentFactory(new IndexSegmentFactory(rootDir, numElements, codec));
+
+        this.appender = new BlockAppender<>(config, new IndexBlockFactory(), codec, 4096);
+
     }
 
 
@@ -69,7 +74,7 @@ public class IndexAppender implements Index {
 
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
-        LogIterator<Log<IndexEntry>> segments = appender.segments(Direction.BACKWARD);
+        LogIterator<IndexSegment> segments = appender.segments(Direction.BACKWARD);
         while (segments.hasNext()) {
             IndexSegment next = (IndexSegment) segments.next();
             Optional<IndexEntry> fromDisk = next.get(stream, version);
@@ -82,7 +87,7 @@ public class IndexAppender implements Index {
 
     @Override
     public int version(long stream) {
-        LogIterator<Log<IndexEntry>> segments = appender.segments(Direction.BACKWARD);
+        LogIterator<IndexSegment> segments = appender.segments(Direction.BACKWARD);
         while (segments.hasNext()) {
             IndexSegment segment = (IndexSegment) segments.next();
             int version = segment.version(stream);

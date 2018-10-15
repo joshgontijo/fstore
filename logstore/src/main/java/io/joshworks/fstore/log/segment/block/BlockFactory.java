@@ -5,10 +5,10 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 
-public interface BlockFactory<T> {
+public interface BlockFactory<T, B extends Block<T>> {
 
-    Block<T> create(Serializer<T> serializer, int maxBlockSize);
+    B create(Serializer<T> serializer, int maxBlockSize);
 
-    Block<T> load(Serializer<T> serializer, Codec codec, ByteBuffer data);
+    B load(Serializer<T> serializer, Codec codec, ByteBuffer data);
 
 }
