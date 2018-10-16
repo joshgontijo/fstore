@@ -175,7 +175,7 @@ public class RecordCleanupTest {
         }
 
         @Override
-        public long size() {
+        public long fileSize() {
             return 0;
         }
 

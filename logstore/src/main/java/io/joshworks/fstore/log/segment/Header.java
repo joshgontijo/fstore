@@ -70,7 +70,7 @@ public class Header {
                 ", size=" + logEnd +
                 ", entries=" + entries +
                 ", footerPos=" + footerStart +
-                ", footerSize=" + footerEnd +
+                ", footerEnd=" + footerEnd +
                 '}';
     }
 }

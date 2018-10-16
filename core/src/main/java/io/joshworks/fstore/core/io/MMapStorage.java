@@ -2,13 +2,13 @@ package io.joshworks.fstore.core.io;
 
 
 import io.joshworks.fstore.core.util.MappedByteBuffers;
+import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-
 
 public class MMapStorage extends DiskStorage {
 
@@ -18,27 +18,46 @@ public class MMapStorage extends DiskStorage {
     private final boolean isWindows;
 
     public MMapStorage(File file, long length, Mode mode, int bufferSize) {
-        super(file, length, mode);
-        this.bufferSize = bufferSize;
+        super(file, alignWithBuffer(length, bufferSize), mode);
+        this.bufferSize = getBufferSize(bufferSize);
         isWindows = System.getProperty("os.name").toLowerCase().startsWith("win");
 
         try {
             long fileLength = raf.length();
-            //TODO buffer bigger than file, and try to optimize buffer usage
-            int numFullBuffers = (int) (fileLength / bufferSize);
-            long diff = fileLength % bufferSize;
-            int totalBuffers = diff == 0 ? numFullBuffers : numFullBuffers + 1;
+            int totalBuffers = getTotalBuffers(fileLength, this.bufferSize);
             this.buffers = new MappedByteBuffer[totalBuffers];
-
             if (Mode.READ_WRITE.equals(mode)) {
                 MappedByteBuffer initialBuffer = map(0);
                 buffers[0] = initialBuffer;
             }
-
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
+
+    private static long alignWithBuffer(long fileSize, int bufferSize) {
+        int alignedBufferSize = getBufferSize(bufferSize);
+        if(fileSize % alignedBufferSize > 0) {
+            long fullPages = fileSize / alignedBufferSize;
+            return fullPages + alignedBufferSize;
+        }
+        return fileSize;
+    }
+
+    private static int getBufferSize(int size) {
+        if(size % Memory.PAGE_SIZE > 0) {
+            int fullPages = size / Memory.PAGE_SIZE;
+            return fullPages + Memory.PAGE_SIZE;
+        }
+        return size;
+    }
+
+    private static int getTotalBuffers(long fileLength, int bufferSize) {
+        int numFullBuffers = (int) (fileLength / bufferSize);
+        long diff = fileLength % bufferSize;
+        return diff == 0 ? numFullBuffers : numFullBuffers + 1;
+    }
+
 
     @Override
     public int write(ByteBuffer src) {

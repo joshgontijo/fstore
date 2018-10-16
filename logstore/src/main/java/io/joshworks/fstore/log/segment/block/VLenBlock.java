@@ -45,23 +45,6 @@ public class VLenBlock<T> implements Block<T> {
         return totalSize >= maxSize;
     }
 
-    static <T> T readEntry(ByteBuffer data, Serializer<T> serializer, int length) {
-        if (data.remaining() == 0 || data.remaining() < length) {
-            return null;
-        }
-        int original = data.limit();
-        data.limit(data.position() + length);
-        T entry = serializer.fromBytes(data);
-        data.limit(original);
-        return entry;
-    }
-
-//    ByteBuffer readOnlyBuffer() {
-//        ByteBuffer readOnlyBuffer = buffer.asReadOnlyBuffer();
-//        //if not readonly, this block is being written to, flip it
-//        return readOnly ? readOnlyBuffer : readOnlyBuffer.flip();
-//    }
-
     @Override
     public ByteBuffer pack(Codec codec) {
         if (readOnly()) {

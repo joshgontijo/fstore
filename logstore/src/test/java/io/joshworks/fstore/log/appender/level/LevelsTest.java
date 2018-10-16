@@ -342,7 +342,12 @@ public class LevelsTest {
         }
 
         @Override
-        public long size() {
+        public long fileSize() {
+            return 0;
+        }
+
+        @Override
+        public long actualSize() {
             return 0;
         }
 

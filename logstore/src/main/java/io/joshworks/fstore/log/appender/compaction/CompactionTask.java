@@ -10,8 +10,8 @@ import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.Arrays;
@@ -29,6 +29,7 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
 
         String magic = data.magic;
         int level = data.level;
+        String name = data.name;
         int nextLevel = data.level + 1;
         File segmentFile = data.segmentFile;
         SegmentCombiner<T> combiner = data.combiner;
@@ -38,19 +39,19 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
         StorageProvider storageProvider = data.storageProvider;
         SegmentFactory<T> segmentFactory = data.segmentFactory;
 
-        final Logger logger = LoggerFactory.getLogger("compaction-task-" + level);
+        final Logger logger = Logging.namedLogger(name, "compaction-task-" + level);
 
         Log<T> target = null;
         try {
 
-            long totalSize = segments.stream().mapToLong(log -> log.marker().footerEnd).sum();
+            long totalSize = segments.stream().mapToLong(Log::actualSize).sum();
 
             String names = Arrays.toString(segments.stream().map(Log::name).toArray());
             logger.info("Compacting {} from level {} using {}, new segment size: {}", names, level, combiner.getClass().getSimpleName(), totalSize);
 
             for (int i = 0; i < segments.size(); i++) {
                 Log<T> segment = segments.get(i);
-                logger.info("Segment[{}] {} - size: {}, entries: {}", i, segment.name(), segment.size(), segment.entries());
+                logger.info("Segment[{}] {} - size: {}, entries: {}", i, segment.name(), segment.fileSize(), segment.entries());
             }
 
             long start = System.currentTimeMillis();

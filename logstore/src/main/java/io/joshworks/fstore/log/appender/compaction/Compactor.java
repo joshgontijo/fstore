@@ -13,6 +13,7 @@ import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 public class Compactor<T> {
 
-    private static final Logger logger = LoggerFactory.getLogger(Compactor.class);
+    private final Logger logger;
 
     static final String COMPACTION_CLEANUP_STAGE = "compaction-cleanup";
     static final String COMPACTION_MANAGER = "compaction-manager";
@@ -40,6 +41,7 @@ public class Compactor<T> {
     private NamingStrategy namingStrategy;
     private final int maxSegmentsPerLevel;
     private final String magic;
+    private final String name;
     private Levels<T> levels;
     private final SedaContext sedaContext;
     private final boolean threadPerLevel;
@@ -57,6 +59,7 @@ public class Compactor<T> {
                      NamingStrategy namingStrategy,
                      int maxSegmentsPerLevel,
                      String magic,
+                     String name,
                      Levels<T> levels,
                      SedaContext sedaContext,
                      boolean threadPerLevel) {
@@ -69,9 +72,11 @@ public class Compactor<T> {
         this.namingStrategy = namingStrategy;
         this.maxSegmentsPerLevel = maxSegmentsPerLevel;
         this.magic = magic;
+        this.name = name;
         this.levels = levels;
         this.sedaContext = sedaContext;
         this.threadPerLevel = threadPerLevel;
+        this.logger = Logging.namedLogger(name, "compactor");
 
         sedaContext.addStage(COMPACTION_CLEANUP_STAGE, this::cleanup, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
         sedaContext.addStage(COMPACTION_MANAGER, this::compact, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
@@ -114,7 +119,7 @@ public class Compactor<T> {
             if (!sedaContext.stages().contains(stageName)) {
                 sedaContext.addStage(stageName, compactionTask, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
             }
-            event.submit(stageName, new CompactionEvent<>(segmentsForCompaction, segmentCombiner, targetFile, segmentFactory, storageProvider, serializer, dataStream, level, magic));
+            event.submit(stageName, new CompactionEvent<>(segmentsForCompaction, segmentCombiner, targetFile, segmentFactory, storageProvider, serializer, dataStream, name, level, magic));
         }
     }
 
@@ -179,7 +184,7 @@ public class Compactor<T> {
     }
 
     //delete all source segments only if all of them are not being used
-    private static <T> void deleteAll(List<Log<T>> segments) {
+    private void deleteAll(List<Log<T>> segments) {
         int pendingReaders = 0;
         do {
             if (pendingReaders > 0) {
