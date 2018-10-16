@@ -19,8 +19,8 @@ import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
@@ -89,7 +89,6 @@ public class LogAppender<T> implements Closeable {
     private final Set<LogPoller> pollers = new HashSet<>();
 
     private final Compactor<T> compactor;
-    private final String name;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
         return new Config<>(directory, serializer);
@@ -100,11 +99,10 @@ public class LogAppender<T> implements Closeable {
         this.serializer = config.serializer;
         this.factory = config.segmentFactory;
         int mmapSize = config.mmap ? StorageProvider.mmapBufferSize(config.mmapBufferSize, config.segmentSize) : -1;
-        this.storageProvider = config.mmap ? StorageProvider.mmap(mmapSize) : StorageProvider.raf();
+        this.storageProvider = config.mmap ? StorageProvider.mmap(mmapSize) : StorageProvider.raf(config.storageCacheSize);
         this.namingStrategy = config.namingStrategy;
         this.dataStream = new DataStream();
-        this.name = config.name;
-        this.logger = LoggerFactory.getLogger("appender [" + name + "]");
+        this.logger = Logging.namedLogger(config.name, "appender");
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
 
@@ -143,7 +141,7 @@ public class LogAppender<T> implements Closeable {
         this.compactionDisabled = config.compactionDisabled;
         logger.info("Compaction is: {}", this.compactionDisabled ? "DISABLED" : "ENABLED");
 
-        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, levels, sedaContext, config.threadPerLevel);
+        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, config.name, levels, sedaContext, config.threadPerLevel);
 
         logger.info("SEGMENT BITS : {}", SEGMENT_BITS);
         logger.info("MAX SEGMENTS: {} ({} bits)", MAX_SEGMENTS, SEGMENT_BITS);
@@ -268,7 +266,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     private boolean shouldRoll(Log<T> currentSegment) {
-        long segmentSize = currentSegment.size();
+        long segmentSize = currentSegment.actualSize();
         return segmentSize >= metadata.segmentSize && segmentSize > 0;
     }
 
@@ -284,6 +282,10 @@ public class LogAppender<T> implements Closeable {
 
     public long append(T data) {
         Log<T> current = levels.current();
+        if (shouldRoll(current)) {
+            roll();
+            current = levels.current();
+        }
         long positionOnSegment = current.append(data);
         if (metadata.flushAfterWrite) {
             flushInternal();
@@ -291,11 +293,6 @@ public class LogAppender<T> implements Closeable {
         long entryPosition = toSegmentedPosition(levels.numSegments() - 1L, positionOnSegment);
         if (positionOnSegment < 0) {
             throw new IllegalStateException("Invalid address " + positionOnSegment);
-        }
-
-        if (shouldRoll(current)) {
-            roll();
-            current = levels.current();
         }
 
         long currentPosition = toSegmentedPosition(levels.numSegments() - 1L, current.position());
@@ -360,7 +357,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     public long size() {
-        return Iterators.closeableStream(segments(Direction.BACKWARD)).mapToLong(Log::size).sum();
+        return Iterators.closeableStream(segments(Direction.BACKWARD)).mapToLong(Log::fileSize).sum();
     }
 
     public Stream<Log<T>> streamSegments(Direction direction) {
@@ -368,7 +365,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     public long size(int level) {
-        return segments(level).stream().mapToLong(Log::size).sum();
+        return segments(level).stream().mapToLong(Log::fileSize).sum();
     }
 
     public void close() {

@@ -20,8 +20,6 @@ public class State implements Closeable {
 
     private static final int SIZE = Memory.PAGE_SIZE;
 
-    private static final Logger logger = LoggerFactory.getLogger(State.class);
-
     private final Storage storage;
 
     private long position;
@@ -93,9 +91,7 @@ public class State implements Closeable {
             long entryCount = data.getLong();
             long lastRollTime = data.getLong();
 
-            State state = new State(storage, lastPosition, entryCount, lastRollTime);
-            logger.info("Reading state {}", state);
-            return state;
+            return new State(storage, lastPosition, entryCount, lastRollTime);
 
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
@@ -112,7 +108,6 @@ public class State implements Closeable {
         if (!dirty) {
             return;
         }
-        logger.info("Writing state {}", this);
 
         int length = Integer.BYTES + (Long.BYTES * 3);
         ByteBuffer bb = ByteBuffer.allocate(length);
@@ -149,7 +144,6 @@ public class State implements Closeable {
     @Override
     public void close() {
         try {
-            logger.info("Closing state file handler");
             storage.close();
         } catch (IOException e) {
             throw RuntimeIOException.of(e);

@@ -35,7 +35,9 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     PollingSubscriber<T> poller();
 
-    long size();
+    long fileSize();
+
+    long actualSize();
 
     Set<TimeoutReader> readers();
 

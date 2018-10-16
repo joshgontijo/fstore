@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.AdaptiveBufferPool;
 import io.joshworks.fstore.core.io.BufferPool;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -15,6 +16,7 @@ import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.BufferRef;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
+import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +44,7 @@ import static java.util.Objects.requireNonNull;
  */
 public class Segment<T> implements Log<T> {
 
-    private static final Logger logger = LoggerFactory.getLogger(Segment.class);
+    private final Logger logger;
 
     private final Serializer<LogHeader> headerSerializer = new HeaderSerializer();
     private final Serializer<T> serializer;
@@ -65,6 +67,7 @@ public class Segment<T> implements Log<T> {
         this.storage = requireNonNull(storage, "Storage must be provided");
         this.dataStream = requireNonNull(dataStream, "Reader must be provided");
         this.magic = requireNonNull(magic, "Magic must be provided");
+        this.logger = Logging.namedLogger(storage.name(), "segment");
 
         LogHeader readHeader = readHeader(storage);
 
@@ -186,8 +189,13 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
-    public long size() {
-        return storage.position();
+    public long fileSize() {
+        return storage.length();
+    }
+
+    @Override
+    public long actualSize() {
+        return readOnly() ? header.footerEnd : position();
     }
 
     @Override

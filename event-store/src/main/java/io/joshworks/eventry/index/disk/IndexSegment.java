@@ -151,8 +151,13 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     }
 
     @Override
-    public long size() {
-        return delegate.size();
+    public long fileSize() {
+        return delegate.fileSize();
+    }
+
+    @Override
+    public long actualSize() {
+        return delegate.actualSize();
     }
 
     @Override
