@@ -7,6 +7,7 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Marker;
+import io.joshworks.fstore.log.segment.SegmentState;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -351,7 +352,8 @@ public class LevelsTest {
         }
 
         @Override
-        public void rebuildState(long lastKnownPosition) {
+        public SegmentState rebuildState(long lastKnownPosition) {
+            return null;
         }
 
         @Override

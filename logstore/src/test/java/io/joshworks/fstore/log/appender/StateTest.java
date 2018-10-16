@@ -18,7 +18,7 @@ public class StateTest {
     @Before
     public void setUp() {
         testFile = FileUtils.testFolder();
-        state = State.empty(testFile, 0);
+        state = State.empty(testFile);
     }
 
     @After

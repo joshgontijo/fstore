@@ -12,11 +12,11 @@ import org.junit.Test;
 
 import java.io.File;
 
-public class DefaultSegmentTest extends SegmentTest {
+public class RafSegmentTest extends SegmentTest {
 
     @Override
     Log<String> open(File file) {
-        return new Segment<>(new RafStorage(file, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.STRING, new DataStream(Segment.START), "magic", Type.LOG_HEAD);
+        return new Segment<>(new RafStorage(file, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.STRING, new DataStream(), "magic", Type.LOG_HEAD);
     }
 
     @Test(expected = IllegalArgumentException.class)

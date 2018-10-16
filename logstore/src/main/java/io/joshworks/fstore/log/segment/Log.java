@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 
 public interface Log<T> extends Writer<T>, Closeable {
 
+    long START = LogHeader.BYTES;
     byte[] EOL = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD).putInt(0).putInt(0).array(); //eof header, -1 length, 0 crc
 
     String name();
@@ -38,7 +39,7 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     Set<TimeoutReader> readers();
 
-    void rebuildState(long lastKnownPosition);
+    SegmentState rebuildState(long lastKnownPosition);
 
     void delete();
 

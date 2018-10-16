@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.io.MMapStorage;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.util.Objects;
@@ -19,7 +20,17 @@ public class StorageProvider {
     }
 
     static StorageProvider mmap(int bufferSize) {
+        if(bufferSize < Memory.PAGE_SIZE) {
+            throw new IllegalArgumentException("MMap buffer size must be at least " + Memory.PAGE_SIZE + ", got " + bufferSize);
+        }
         return new StorageProvider(true, bufferSize);
+    }
+
+    static int mmapBufferSize(int bufferSize, long segmentSize) {
+        if(bufferSize < 0) { // not provided
+            return segmentSize > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) segmentSize;
+        }
+        return bufferSize;
     }
 
     static StorageProvider raf() {

@@ -112,7 +112,7 @@ public class MMapStorage extends DiskStorage {
     private MappedByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
         if (idx >= buffers.length) {
             if (expandBuffers) {
-                extendBufferArray();
+                growBuffersToAccommodateIdx(idx);
             } else {
                 throw new IllegalStateException("Invalid buffer index " + idx + " buffers length: " + buffers.length);
             }
@@ -125,8 +125,8 @@ public class MMapStorage extends DiskStorage {
         return current;
     }
 
-    private void extendBufferArray() {
-        MappedByteBuffer[] copy = new MappedByteBuffer[buffers.length + 1];
+    private void growBuffersToAccommodateIdx(int newNumBuffers) {
+        MappedByteBuffer[] copy = new MappedByteBuffer[newNumBuffers + 1]; //idx + 1 = number of required buffers
         System.arraycopy(buffers, 0, copy, 0, buffers.length);
         buffers = copy;
     }

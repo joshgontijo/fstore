@@ -1,9 +1,6 @@
 package io.joshworks.fstore.log.appender;
 
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
-import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -11,14 +8,16 @@ import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.segment.block.BlockFactory;
-import io.joshworks.fstore.log.segment.block.BlockSegmentFactory;
-import io.joshworks.fstore.log.segment.block.VLenBlock;
 
 import java.io.File;
 import java.util.Objects;
 
 public class Config<T> {
+
+    public static final int NO_MMAP_BUFFER_SIZE = -1;
+    public static final String DEFAULT_APPENDER_NAME = "default";
+    public static final int DEFAULT_MAX_SEGMENT_PER_LEVEL = 3;
+    public static final int DEFAULT_SEGMENT_SIZE = (int) Size.MEGABYTE.toBytes(200);
 
     public final File directory;
     public final Serializer<T> serializer;
@@ -26,18 +25,15 @@ public class Config<T> {
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
     SegmentFactory<T> segmentFactory;
 
-    String name = "default";
-    int segmentSize = (int) Size.MEGABYTE.toBytes(10);
+    String name = DEFAULT_APPENDER_NAME;
+    int segmentSize = DEFAULT_SEGMENT_SIZE;
     boolean mmap;
     boolean asyncFlush;
-    int maxSegmentsPerLevel = 3;
-    int mmapBufferSize = segmentSize;
+    int maxSegmentsPerLevel = DEFAULT_MAX_SEGMENT_PER_LEVEL;
+    int mmapBufferSize = NO_MMAP_BUFFER_SIZE;
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
-
-    //block
-    int blockSize = 0;
 
     Config(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -117,36 +113,36 @@ public class Config<T> {
         return new LogAppender<>(this);
     }
 
-    public LogAppender<T> openBlockAppender() {
-        return openBlockAppender(VLenBlock.factory());
-    }
-
-    public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory) {
-        return openBlockAppender(blockFactory, new SnappyCodec(), Memory.PAGE_SIZE);
-    }
-
-    public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory, int maxBlockSize) {
-        return openBlockAppender(blockFactory, new SnappyCodec(), maxBlockSize);
-    }
-
-    public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory, Codec codec, int maxBlockSize) {
-        Objects.requireNonNull(blockFactory, "BlockFactory must be provided");
-        Objects.requireNonNull(codec, "Codec must be provided");
-        if (maxBlockSize < Memory.PAGE_SIZE) {
-            throw new IllegalArgumentException("Block must be at least " + Memory.PAGE_SIZE);
-        }
-        this.blockSize = maxBlockSize;
-        return openBlockAppender(new BlockSegmentFactory<>(blockFactory, codec, maxBlockSize), maxBlockSize);
-    }
-
-    public LogAppender<T> openBlockAppender(SegmentFactory<T> segmentFactory) {
-        return openBlockAppender(segmentFactory, Memory.PAGE_SIZE);
-    }
-
-    public LogAppender<T> openBlockAppender(SegmentFactory<T> segmentFactory, int maxBlockSize) {
-        this.segmentFactory = segmentFactory;
-        this.blockSize = maxBlockSize;
-        return new LogAppender<>(this);
-    }
+//    public LogAppender<T> openBlockAppender() {
+//        return openBlockAppender(VLenBlock.factory());
+//    }
+//
+//    public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory) {
+//        return openBlockAppender(blockFactory, new SnappyCodec(), Memory.PAGE_SIZE);
+//    }
+//
+//    public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory, int maxBlockSize) {
+//        return openBlockAppender(blockFactory, new SnappyCodec(), maxBlockSize);
+//    }
+//
+//    public LogAppender<T> openBlockAppender(BlockFactory<T> blockFactory, Codec codec, int maxBlockSize) {
+//        Objects.requireNonNull(blockFactory, "BlockFactory must be provided");
+//        Objects.requireNonNull(codec, "Codec must be provided");
+//        if (maxBlockSize < Memory.PAGE_SIZE) {
+//            throw new IllegalArgumentException("Block must be at least " + Memory.PAGE_SIZE);
+//        }
+//        this.blockSize = maxBlockSize;
+//        return openBlockAppender(new BlockSegmentFactory<>(blockFactory, codec, maxBlockSize), maxBlockSize);
+//    }
+//
+//    public LogAppender<T> openBlockAppender(SegmentFactory<T> segmentFactory) {
+//        return openBlockAppender(segmentFactory, Memory.PAGE_SIZE);
+//    }
+//
+//    public LogAppender<T> openBlockAppender(SegmentFactory<T> segmentFactory, int maxBlockSize) {
+//        this.segmentFactory = segmentFactory;
+//        this.blockSize = maxBlockSize;
+//        return new LogAppender<>(this);
+//    }
 
 }

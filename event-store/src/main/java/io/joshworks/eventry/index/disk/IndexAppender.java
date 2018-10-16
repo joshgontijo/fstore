@@ -37,7 +37,7 @@ public class IndexAppender implements Index {
                 .maxSegmentsPerLevel(2)
                 .segmentSize(segmentSize)
                 .namingStrategy(new IndexNaming())
-                .openBlockAppender(new IndexSegmentFactory(rootDir, numElements, codec));
+                .open(new IndexSegmentFactory(rootDir, numElements, codec));
     }
 
 
