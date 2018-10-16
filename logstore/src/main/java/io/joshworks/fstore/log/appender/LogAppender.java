@@ -17,10 +17,8 @@ import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.Type;
-import io.joshworks.fstore.log.segment.block.BlockSegment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,12 +59,10 @@ public class LogAppender<T> implements Closeable {
 
 
     public static final int SEGMENT_BITS = 16;
-    public static final int BLOCK_BITS = 12;
     public static final int SEGMENT_ADDRESS_BITS = Long.SIZE - SEGMENT_BITS;
 
     public static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
     public static final long MAX_SEGMENT_ADDRESS = BitUtil.maxValueForBits(SEGMENT_ADDRESS_BITS);
-    public static final long MAX_BLOCK_VALUE = BitUtil.maxValueForBits(BLOCK_BITS);
 
     private final File directory;
     private final Serializer<T> serializer;
@@ -93,7 +89,6 @@ public class LogAppender<T> implements Closeable {
     private final Set<LogPoller> pollers = new HashSet<>();
 
     private final Compactor<T> compactor;
-    private final long segmentStart;
     private final String name;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
@@ -104,7 +99,8 @@ public class LogAppender<T> implements Closeable {
         this.directory = config.directory;
         this.serializer = config.serializer;
         this.factory = config.segmentFactory;
-        this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
+        int mmapSize = config.mmap ? StorageProvider.mmapBufferSize(config.mmapBufferSize, config.segmentSize) : -1;
+        this.storageProvider = config.mmap ? StorageProvider.mmap(mmapSize) : StorageProvider.raf();
         this.namingStrategy = config.namingStrategy;
         this.dataStream = new DataStream();
         this.name = config.name;
@@ -124,17 +120,14 @@ public class LogAppender<T> implements Closeable {
                     directory,
                     config.segmentSize,
                     config.maxSegmentsPerLevel,
-                    config.blockSize,
                     config.mmap,
                     config.flushAfterWrite,
                     config.asyncFlush);
 
-            this.segmentStart = metadata.blockSize > 0 ? BlockSegment.START : Segment.START;
-            this.state = State.empty(directory, segmentStart);
+            this.state = State.empty(directory);
         } else {
             logger.info("Opening LogAppender");
             this.metadata = Metadata.readFrom(directory);
-            this.segmentStart = metadata.blockSize > 0 ? BlockSegment.START : Segment.START;
             this.state = State.readFrom(directory);
         }
 
@@ -149,23 +142,26 @@ public class LogAppender<T> implements Closeable {
 
         this.compactionDisabled = config.compactionDisabled;
         logger.info("Compaction is: {}", this.compactionDisabled ? "DISABLED" : "ENABLED");
-        logger.info("Segment type: {}", metadata.blockSize > 0 ? "BLOCK" : "DEFAULT");
 
         this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, levels, sedaContext, config.threadPerLevel);
 
         logger.info("SEGMENT BITS : {}", SEGMENT_BITS);
-        logger.info("BLOCK BIT SHIFT: {}", BLOCK_BITS);
         logger.info("MAX SEGMENTS: {} ({} bits)", MAX_SEGMENTS, SEGMENT_BITS);
         logger.info("MAX SEGMENT ADDRESS: {} ({} bits)", MAX_SEGMENT_ADDRESS, SEGMENT_ADDRESS_BITS);
-        if (metadata.blockSize > 0) {
-            logger.info("MAX BLOCK ENTRY INDEX: {} ({} bits)", MAX_BLOCK_VALUE, BLOCK_BITS);
 
+        logger.info("SEGMENT SIZE: {}", config.segmentSize);
+        logger.info("ASYNC FLUSH: {}", config.asyncFlush);
+        logger.info("COMPACTION ENABLED: {}", !this.compactionDisabled);
+        logger.info("MAX SEGMENTS PER LEVEL: {}", config.maxSegmentsPerLevel);
+        logger.info("MMAP ENABLED: {}", config.mmap);
+        if(config.mmap) {
+            logger.info("MMAP BUFFER SIZE : {}", mmapSize);
         }
+
     }
 
     private void restoreState(Log<T> current) {
         logger.info("Restoring state");
-        current.rebuildState(segmentStart);
         long segmentPosition = current.position();
         long position = toSegmentedPosition(levels.numSegments() - 1L, segmentPosition);
         state.position(position);
@@ -314,7 +310,7 @@ public class LogAppender<T> implements Closeable {
 
     //TODO implement reader pool, instead using a new instance of reader, provide a pool of reader to better performance
     public LogIterator<T> iterator(Direction direction) {
-        long startPosition = Direction.FORWARD.equals(direction) ? segmentStart : Math.max(position(), segmentStart);
+        long startPosition = Direction.FORWARD.equals(direction) ? Log.START : Math.max(position(), Log.START);
         return iterator(startPosition, direction);
     }
 
@@ -322,16 +318,12 @@ public class LogAppender<T> implements Closeable {
         return Iterators.closeableStream(iterator(direction));
     }
 
-    public long tailPosition() {
-        return segmentStart;
-    }
-
     public LogIterator<T> iterator(long position, Direction direction) {
         return Direction.FORWARD.equals(direction) ? new ForwardLogReader(position) : new BackwardLogReader(position);
     }
 
     public PollingSubscriber<T> poller() {
-        return createPoller(segmentStart);
+        return createPoller(Log.START);
     }
 
     public PollingSubscriber<T> poller(long position) {

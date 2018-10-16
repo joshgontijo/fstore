@@ -4,7 +4,7 @@ import io.joshworks.fstore.serializer.StringSerializer;
 
 import java.io.File;
 
-public class BlockLogAppenderTest extends LogAppenderTest {
+public class RafLogAppenderTest extends LogAppenderTest {
 
 
     @Override
@@ -12,6 +12,6 @@ public class BlockLogAppenderTest extends LogAppenderTest {
         return LogAppender.builder(testDirectory, new StringSerializer())
                 .segmentSize(segmentSize)
                 .disableCompaction()
-                .openBlockAppender();
+                .open();
     }
 }

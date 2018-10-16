@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Checksum;
 import io.joshworks.fstore.log.ChecksumException;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.segment.Segment;
+import io.joshworks.fstore.log.segment.Log;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
@@ -203,8 +203,8 @@ public class DataStream implements IDataStream {
             if(position == 3964786) {
                 System.out.println();
             }
-            if (position - limit < Segment.START) {
-                int available = (int) (position - Segment.START);
+            if (position - limit < Log.START) {
+                int available = (int) (position - Log.START);
                 if (available == 0) {
                     return BufferRef.ofEmpty();
                 }
@@ -295,8 +295,8 @@ public class DataStream implements IDataStream {
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
             ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
             int limit = buffer.limit();
-            if (position - limit < Segment.START) {
-                int available = (int) (position - Segment.START);
+            if (position - limit < Log.START) {
+                int available = (int) (position - Log.START);
                 if (available == 0) {
                     return BufferRef.ofEmpty();
                 }

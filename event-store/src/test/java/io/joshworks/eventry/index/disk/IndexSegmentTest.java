@@ -9,8 +9,8 @@ import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.DataStream;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
-import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -53,7 +53,7 @@ public class IndexSegmentTest {
         long size = location.length() == 0 ? 1048576 : location.length();
         return new IndexSegment(
                 new RafStorage(location, size, Mode.READ_WRITE),
-                new DataStream(BlockSegment.START),
+                new DataStream(),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,

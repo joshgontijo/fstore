@@ -4,7 +4,7 @@ import io.joshworks.fstore.serializer.StringSerializer;
 
 import java.io.File;
 
-public class DefaultLogAppenderTest extends LogAppenderTest {
+public class MMapLogAppenderTest extends LogAppenderTest {
 
 
     @Override
@@ -12,6 +12,7 @@ public class DefaultLogAppenderTest extends LogAppenderTest {
         return LogAppender.builder(testDirectory, new StringSerializer())
                 .segmentSize(segmentSize)
                 .disableCompaction()
+                .mmap()
                 .open();
     }
 }

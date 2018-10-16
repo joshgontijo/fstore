@@ -94,7 +94,6 @@ public class VLenBlock<T> implements Block<T> {
             lengths.add(decompressed.getInt());
         }
 
-        blockData.mark();
         for (Integer length : lengths) {
             //safe to reuse ByteBuffer, since the DirectBuffer is not allowed when using BlockSegment
             int dataEnd = decompressed.position() + length;
@@ -114,15 +113,6 @@ public class VLenBlock<T> implements Block<T> {
     @Override
     public List<T> entries() {
         return new ArrayList<>(cached);
-//        if (!cached.isEmpty()) {
-//            return new ArrayList<>(cached);
-//        }
-//        ByteBuffer readBuffer = readOnly ? buffer : buffer.asReadOnlyBuffer();
-//        for (Integer length : lengths) {
-//            T entry = readEntry(readBuffer, serializer, length);
-//            cached.add(entry);
-//        }
-//        return new ArrayList<>(cached);
     }
 
     @Override

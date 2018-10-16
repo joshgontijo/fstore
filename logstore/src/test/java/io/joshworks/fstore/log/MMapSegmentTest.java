@@ -11,13 +11,13 @@ import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 
-public class MMapSegmentTest extends DefaultSegmentTest {
+public class MMapSegmentTest extends RafSegmentTest {
 
     @Override
     Log<String> open(File file) {
         return new Segment<>(
                 new MMapStorage(file, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE, 4096),
                 Serializers.STRING,
-                new DataStream(Segment.START), "magic", Type.LOG_HEAD);
+                new DataStream(), "magic", Type.LOG_HEAD);
     }
 }

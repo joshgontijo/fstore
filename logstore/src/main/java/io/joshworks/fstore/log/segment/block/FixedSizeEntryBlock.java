@@ -14,7 +14,6 @@ public class FixedSizeEntryBlock<T> implements Block<T> {
     private final Serializer<T> serializer;
     private boolean readOnly;
     private final List<T> cached = new ArrayList<>();
-    private final List<ByteBuffer> buffers = new ArrayList<>();
     private final int entrySize;
     private final int maxEntries;
 
@@ -43,9 +42,8 @@ public class FixedSizeEntryBlock<T> implements Block<T> {
         if (readOnly) {
             throw new IllegalStateException("Block is read only");
         }
-        ByteBuffer bb = serializer.toBytes(data);
-        buffers.add(bb);
-        return buffers.size() >= maxEntries;
+        cached.add(data);
+        return cached.size() >= maxEntries;
     }
 
     @Override
@@ -54,17 +52,18 @@ public class FixedSizeEntryBlock<T> implements Block<T> {
             throw new IllegalStateException("Block is read only");
         }
         readOnly = true;
-        int entryCount = buffers.size();
+        int entryCount = cached.size();
         int totalSize = entryCount * entrySize;
 
         ByteBuffer withHeader = ByteBuffer.allocate(Integer.BYTES + Integer.BYTES + totalSize);
         withHeader.putInt(entryCount);
         withHeader.putInt(entrySize);
-        for (ByteBuffer buffer : buffers) {
-            if (buffer.remaining() == 0) {
-                throw new IllegalStateException("Block is empty");
+        for (T entry : cached) {
+            ByteBuffer data = serializer.toBytes(entry);
+            if (data.limit() != entrySize) {
+                throw new IllegalStateException("Invalid entry size, expected " + entrySize + ", got " + data.limit());
             }
-            withHeader.put(buffer);
+            withHeader.put(data);
         }
 
         withHeader.flip();
@@ -76,18 +75,19 @@ public class FixedSizeEntryBlock<T> implements Block<T> {
         int entryCount = decompressed.getInt();
         int entriesSize = decompressed.getInt();
         for (int i = 0; i < entryCount; i++) {
-            //copy, so avoid shared data on BufferRef
-            //an off heap buffer could also be used
-            byte[] copy = new byte[entriesSize];
-            decompressed.get(copy);
-            buffers.add(ByteBuffer.wrap(copy));
+
+            int dataEnd = decompressed.position() + entriesSize;
+            decompressed.limit(dataEnd);
+
+            T data = serializer.fromBytes(decompressed);
+            cached.add(data);
         }
         return new HeaderInfo(entryCount, entriesSize);
     }
 
     @Override
     public int entryCount() {
-        return buffers.size();
+        return cached.size();
     }
 
     @Override
@@ -118,12 +118,12 @@ public class FixedSizeEntryBlock<T> implements Block<T> {
 
     @Override
     public boolean isEmpty() {
-        return buffers.isEmpty();
+        return cached.isEmpty();
     }
 
     @Override
     public List<Integer> entriesLength() {
-        return buffers.stream().map(i -> entrySize).collect(Collectors.toList());
+        return cached.stream().map(i -> entrySize).collect(Collectors.toList());
     }
 
     @Override

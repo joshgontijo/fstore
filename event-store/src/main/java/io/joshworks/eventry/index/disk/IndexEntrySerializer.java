@@ -11,7 +11,7 @@ public class IndexEntrySerializer implements Serializer<IndexEntry> {
     public ByteBuffer toBytes(IndexEntry data) {
         ByteBuffer bb = ByteBuffer.allocate(Long.BYTES + Integer.BYTES + Long.BYTES);//20
         writeTo(data, bb);
-        return (ByteBuffer) bb.flip();
+        return bb.flip();
     }
 
     @Override

@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.record.DataStream;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.serializer.Serializers;
@@ -116,7 +117,7 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> segmentWith(String... values) {
         File file = FileUtils.testFile();
-        Segment<String> segment = new Segment<>(new RafStorage(file, 4096, Mode.READ_WRITE), Serializers.VSTRING, new DataStream(Segment.START), "magic", Type.LOG_HEAD);
+        Segment<String> segment = new Segment<>(new RafStorage(file, 4096, Mode.READ_WRITE), Serializers.VSTRING, new DataStream(), "magic", Type.LOG_HEAD);
         segments.add(segment);
 
         for (String value : values) {
@@ -128,7 +129,7 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> outputSegment() {
         File file = FileUtils.testFile();
-        Segment<String> segment = new Segment<>(new RafStorage(file, 4096, Mode.READ_WRITE), Serializers.VSTRING, new DataStream(Segment.START), "magic", Type.LOG_HEAD);
+        Segment<String> segment = new Segment<>(new RafStorage(file, 4096, Mode.READ_WRITE), Serializers.VSTRING, new DataStream(), "magic", Type.LOG_HEAD);
         segments.add(segment);
         return segment;
     }

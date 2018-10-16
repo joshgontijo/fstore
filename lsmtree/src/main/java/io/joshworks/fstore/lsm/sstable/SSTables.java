@@ -9,7 +9,6 @@ import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.Type;
-import io.joshworks.fstore.log.segment.block.VLenBlock;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,7 +20,7 @@ public class SSTables<K extends Comparable<K>, V> {
     public SSTables(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold) {
         this.appender = LogAppender.builder(dir, new EntrySerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new SSTableCompactor<>())
-                .openBlockAppender(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold));
+                .open(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold));
     }
 
     public void append(Entry<K, V> entry) {
@@ -71,7 +70,7 @@ public class SSTables<K extends Comparable<K>, V> {
 
         @Override
         public Log<Entry<K, V>> createOrOpen(Storage storage, Serializer<Entry<K, V>> serializer, IDataStream reader, String magic, Type type) {
-            return new SSTable<>(storage, keySerializer, valueSerializer, reader, magic, type, VLenBlock.factory(), directory, flushThreshold);
+            return new SSTable<>(storage, keySerializer, valueSerializer, reader, magic, type, directory, flushThreshold);
         }
     }
 }
