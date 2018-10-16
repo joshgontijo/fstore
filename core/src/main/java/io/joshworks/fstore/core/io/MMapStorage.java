@@ -44,10 +44,6 @@ public class MMapStorage extends DiskStorage {
         ensureNonEmpty(src);
         checkWritable();
 
-        if (position == 10485758) {
-            System.out.println();
-        }
-
         int dataSize = src.remaining();
 
         int idx = bufferIdx(this.position);
@@ -83,10 +79,6 @@ public class MMapStorage extends DiskStorage {
         int srcCapacity = buffer.capacity();
         if (bufferAddress > srcCapacity) {
             throw new IllegalArgumentException("Invalid position " + position + ", buffer idx " + idx + ", buffer capacity " + srcCapacity);
-        }
-
-        if (position == 10485758) {
-            System.out.println();
         }
 
         ByteBuffer src = buffer.asReadOnlyBuffer();
