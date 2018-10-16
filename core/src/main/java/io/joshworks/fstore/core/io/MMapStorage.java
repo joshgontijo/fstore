@@ -24,6 +24,7 @@ public class MMapStorage extends DiskStorage {
 
         try {
             long fileLength = raf.length();
+            //TODO buffer bigger than file, and try to optimize buffer usage
             int numFullBuffers = (int) (fileLength / bufferSize);
             long diff = fileLength % bufferSize;
             int totalBuffers = diff == 0 ? numFullBuffers : numFullBuffers + 1;
