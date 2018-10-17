@@ -11,7 +11,7 @@ public class RafLogAppenderIT extends LogAppenderIT {
     @Override
     protected LogAppender<String> appender(File testDirectory) {
         return LogAppender.builder(testDirectory, Serializers.STRING)
-                .logSize((int) Size.MEGABYTE.toBytes(500))
+                .logSize((int) Size.MB.of(500))
                 .threadPerLevelCompaction()
                 .disableCompaction()
                 .open();

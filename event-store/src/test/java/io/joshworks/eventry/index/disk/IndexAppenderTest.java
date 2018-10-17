@@ -23,7 +23,7 @@ public class IndexAppenderTest {
     @Before
     public void setUp() {
         location = new File("J:\\EVENT-STORE\\" + UUID.randomUUID().toString().substring(0, 8));
-        appender = new IndexAppender(location, (int) Size.MEGABYTE.toBytes(10), 10000, true);
+        appender = new IndexAppender(location, (int) Size.MB.of(10), 10000, true);
     }
 
     @After

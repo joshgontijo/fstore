@@ -14,7 +14,6 @@ import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.BufferRef;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
-import io.joshworks.fstore.log.segment.header.InvalidMagic;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.utils.Logging;
@@ -22,7 +21,6 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
@@ -62,36 +60,24 @@ public class Segment<T> implements Log<T> {
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
     public Segment(Storage storage, Serializer<T> serializer, IDataStream dataStream, String magic, Type type) {
-        this.serializer = requireNonNull(serializer, "Serializer must be provided");
-        this.storage = requireNonNull(storage, "Storage must be provided");
-        this.dataStream = requireNonNull(dataStream, "Reader must be provided");
-        this.magic = requireNonNull(magic, "Magic must be provided");
-        this.logger = Logging.namedLogger(storage.name(), "segment");
+        try {
+            this.serializer = requireNonNull(serializer, "Serializer must be provided");
+            this.storage = requireNonNull(storage, "Storage must be provided");
+            this.dataStream = requireNonNull(dataStream, "Reader must be provided");
+            this.magic = requireNonNull(magic, "Magic must be provided");
+            this.logger = Logging.namedLogger(storage.name(), "segment");
+            this.header = LogHeader.getOrCreate(storage, magic, type);
 
-        LogHeader readHeader = LogHeader.read(storage.handler());
-        if (readHeader == null) {
-            if (Type.OPEN.equals(type)) {
-                IOUtils.closeQuietly(storage);
-                throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
+            this.position(Log.START);
+            entries.set(this.header.entries);
+            if (Type.LOG_HEAD.equals(this.header.type)) { //reopening log head
+                SegmentState result = rebuildState(Segment.START);
+                this.position(result.position);
+                entries.set(result.entries);
             }
-            readHeader = LogHeader.write(storage.handler(), magic, type);
-        }
-        this.header = readHeader;
-
-        byte[] expected = this.header.magic.getBytes(StandardCharsets.UTF_8);
-        byte[] actual = magic.getBytes(StandardCharsets.UTF_8);
-
-        if (!Arrays.equals(expected, actual)) {
+        } catch (Exception e) {
             IOUtils.closeQuietly(storage);
-            throw new InvalidMagic(this.header.magic, magic);
-        }
-
-        this.position(Log.START);
-        entries.set(this.header.entries);
-        if (Type.LOG_HEAD.equals(this.header.type)) { //reopening log head
-            SegmentState result = rebuildState(Segment.START);
-            this.position(result.position);
-            entries.set(result.entries);
+            throw new SegmentException("Failed to construct segment", e);
         }
     }
 
@@ -318,9 +304,7 @@ public class Segment<T> implements Log<T> {
         long segmentSize = footerInfo.end;
         long logEnd = footerInfo.start - EOL.length;
         LogHeader newHeader = LogHeader.create(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, START, logEnd, footerInfo.start, footerInfo.end);
-        storage.position(0);
-        ByteBuffer headerData = headerSerializer.toBytes(newHeader);
-        storage.write(headerData);
+        LogHeader.write(storage,newHeader);
         return newHeader;
     }
 
@@ -367,19 +351,14 @@ public class Segment<T> implements Log<T> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Segment<?> that = (Segment<?>) o;
-        return entries.equals(that.entries) &&
-                Objects.equals(headerSerializer, that.headerSerializer) &&
-                Objects.equals(serializer, that.serializer) &&
-                Objects.equals(storage, that.storage) &&
-                Objects.equals(dataStream, that.dataStream) &&
-                Objects.equals(header, that.header);
+        Segment<?> segment = (Segment<?>) o;
+        return Objects.equals(storage, segment.storage) &&
+                Objects.equals(magic, segment.magic);
     }
 
     @Override
     public int hashCode() {
-
-        return Objects.hash(headerSerializer, serializer, storage, dataStream, entries, header);
+        return Objects.hash(storage, magic);
     }
 
     @Override

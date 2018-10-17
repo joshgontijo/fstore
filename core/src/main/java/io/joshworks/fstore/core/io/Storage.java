@@ -25,7 +25,7 @@ public interface Storage extends Flushable, Closeable {
 
     void extend(long newLength);
 
-    File handler();
+    File file();
 
     static void ensureNonEmpty(ByteBuffer data) {
         if (data.remaining() == 0) {

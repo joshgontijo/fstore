@@ -3,7 +3,6 @@ package io.joshworks.fstore.core.io;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
@@ -17,9 +16,9 @@ public abstract class DiskStorage implements Storage {
     protected FileLock lock;
     protected long position;
 
-    DiskStorage(File target) {
+    DiskStorage(File target, RandomAccessFile raf) {
         Objects.requireNonNull(target, "File must specified");
-        this.raf = IOUtils.randomAccessFile(target);
+        this.raf = raf;
         try {
             this.file = target;
             this.channel = raf.getChannel();
@@ -93,7 +92,7 @@ public abstract class DiskStorage implements Storage {
 
     @Override
     public void truncate(long newLength) {
-        if(newLength < length()) {
+        if(newLength > length()) {
             return;
         }
         try {
@@ -117,7 +116,7 @@ public abstract class DiskStorage implements Storage {
     }
 
     @Override
-    public File handler() {
+    public File file() {
         return file;
     }
 }

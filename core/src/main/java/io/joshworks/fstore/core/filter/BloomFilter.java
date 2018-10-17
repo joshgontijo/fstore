@@ -1,9 +1,8 @@
 package io.joshworks.fstore.core.filter;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageProvider;
 
 import java.io.File;
 import java.io.IOException;
@@ -160,7 +159,7 @@ public class BloomFilter<T> {
         long[] items = hashes.toLongArray();
         int dataLength = items.length * Long.BYTES;
         int totalSize = dataLength + HEADER_SIZE;
-        try (Storage storage = new RafStorage(handler, totalSize, Mode.READ_WRITE)) {
+        try (Storage storage = StorageProvider.raf().create(handler, totalSize)) {
 
             //Format
             //Length -> 4bytes
@@ -184,8 +183,8 @@ public class BloomFilter<T> {
         }
     }
 
-    private static <T> BloomFilter<T> load(File handler, BloomFilterHasher<T> hash) {
-        try (Storage storage = new RafStorage(handler, handler.length(), Mode.READ_WRITE)) {
+    private static <T> BloomFilter<T> load(File file, BloomFilterHasher<T> hash) {
+        try (Storage storage = StorageProvider.raf().open(file)) {
             ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
             storage.read(0, header);
             header.flip();
@@ -202,14 +201,14 @@ public class BloomFilter<T> {
 
             long[] longs = new long[data.remaining() / Long.BYTES];
             int i = 0;
-            while(data.hasRemaining()) {
-                longs[i++]= data.getLong();
+            while (data.hasRemaining()) {
+                longs[i++] = data.getLong();
             }
 
             BitSet bitSet = new BitSet(m);
             bitSet.or(BitSet.valueOf(longs));
 
-            return new BloomFilter<>(handler, bitSet, hash, m, k);
+            return new BloomFilter<>(file, bitSet, hash, m, k);
 
         } catch (IOException e) {
             throw RuntimeIOException.of("Failed to write filter", e);

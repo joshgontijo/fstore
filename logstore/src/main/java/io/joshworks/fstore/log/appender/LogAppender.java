@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.StorageProvider;
+import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.Direction;
@@ -74,11 +74,8 @@ public class LogAppender<T> implements Closeable {
     private final NamingStrategy namingStrategy;
     private final SegmentFactory<T> factory;
     private final StorageProvider storageProvider;
+    private final long segmentSize;
 
-    //LEVEL0 [CURRENT_SEGMENT]
-    //LEVEL1 [SEG1][SEG2]
-    //LEVEL2 [SEG3][SEG4]
-    //LEVEL3 ...
     final Levels<T> levels;
 
     //state
@@ -91,7 +88,6 @@ public class LogAppender<T> implements Closeable {
     private final SedaContext sedaContext = new SedaContext();
     private final Set<LogPoller> pollers = new HashSet<>();
     private final CacheManager cacheManager;
-
     private final Compactor<T> compactor;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
@@ -99,8 +95,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     LogAppender(Config<T> config) {
-        long totalSegmentSize = LogHeader.BYTES + config.logSize + config.footerSize;
-
+        this.segmentSize = LogHeader.BYTES + config.logSize + config.footerSize;
         this.directory = config.directory;
         this.serializer = config.serializer;
         this.cacheManager = new CacheManager(config.cacheSize, config.cacheMaxAge);
@@ -200,7 +195,7 @@ public class LogAppender<T> implements Closeable {
 
             if (levelZeroSegments == 0) {
                 //create current segment
-                Log<T> currentSegment = createCurrentSegment(metadata.logSize);
+                Log<T> currentSegment = createCurrentSegment(segmentSize);
                 segments.add(currentSegment);
             }
             if (levelZeroSegments > 1) {
@@ -236,7 +231,7 @@ public class LogAppender<T> implements Closeable {
             logger.info("Rolling appender");
             flush();
 
-            Log<T> newSegment = createCurrentSegment(metadata.logSize);
+            Log<T> newSegment = createCurrentSegment(segmentSize);
             levels.appendSegment(newSegment);
 
             addToPollers(newSegment);
@@ -279,8 +274,8 @@ public class LogAppender<T> implements Closeable {
     }
 
     private boolean shouldRoll(Log<T> currentSegment) {
-        long segmentSize = currentSegment.actualSize();
-        return segmentSize >= metadata.logSize && segmentSize > 0;
+        long actualSize = currentSegment.actualSize();
+        return actualSize >= metadata.logSize && actualSize > 0;
     }
 
     public void compact() {

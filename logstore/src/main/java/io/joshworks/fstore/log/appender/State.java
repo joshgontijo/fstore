@@ -2,14 +2,10 @@ package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.segment.Log;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
@@ -18,7 +14,7 @@ import java.nio.ByteBuffer;
 
 public class State implements Closeable {
 
-    private static final int SIZE = Memory.PAGE_SIZE;
+    private static final int BYTES = Long.BYTES * 3;
 
     private final Storage storage;
 
@@ -33,10 +29,6 @@ public class State implements Closeable {
         this.position = position;
         this.entryCount = entryCount;
         this.lastRollTime = lastRollTime;
-    }
-
-    private static Storage createStorage(File directory) {
-        return new RafStorage(new File(directory, LogFileUtils.STATE_FILE), SIZE, Mode.READ_WRITE);
     }
 
     public void position(long position) {
@@ -72,20 +64,14 @@ public class State implements Closeable {
     }
 
     public static State readFrom(File directory) {
+        File file = new File(directory, LogFileUtils.STATE_FILE);
         Storage storage = null;
         try {
-            storage = createStorage(directory);
-            ByteBuffer data = ByteBuffer.allocate(74);
+            storage = StorageProvider.raf().open(file);
+            ByteBuffer data = ByteBuffer.allocate(BYTES);
             storage.read(0, data);
 
             data.flip();
-
-            int length = data.getInt();
-            if (length > data.capacity()) {
-                data = ByteBuffer.allocate(length);
-                storage.read(0, data);
-                data.getInt(); //ignore
-            }
 
             long lastPosition = data.getLong();
             long entryCount = data.getLong();
@@ -100,7 +86,8 @@ public class State implements Closeable {
     }
 
     public static State empty(File directory) {
-        Storage storage = createStorage(directory);
+        File file = new File(directory, LogFileUtils.STATE_FILE);
+        Storage storage = StorageProvider.raf().create(file, BYTES);
         return new State(storage, Log.START, 0L, System.currentTimeMillis());
     }
 
@@ -109,17 +96,13 @@ public class State implements Closeable {
             return;
         }
 
-        int length = Integer.BYTES + (Long.BYTES * 3);
-        ByteBuffer bb = ByteBuffer.allocate(length);
-        bb.putInt(length);
+        ByteBuffer bb = ByteBuffer.allocate(BYTES);
         bb.putLong(position);
         bb.putLong(entryCount);
         bb.putLong(lastRollTime);
-
         bb.flip();
 
         write(bb);
-
     }
 
     private void write(ByteBuffer data) {

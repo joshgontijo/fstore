@@ -1,9 +1,8 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -37,7 +36,7 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class LogAppenderTest {
 
-    private static final int SEGMENT_SIZE = (int) Size.MEGABYTE.toBytes(10);//64kb
+    private static final int SEGMENT_SIZE = (int) Size.MB.of(10);//64kb
 
     private LogAppender<String> appender;
     private File testDirectory;
@@ -250,7 +249,7 @@ public abstract class LogAppenderTest {
 
         //write broken data
         File file = new File(testDirectory, segmentName);
-        try (Storage storage = new RafStorage(file, file.length(), Mode.READ_WRITE)) {
+        try (Storage storage = StorageProvider.raf().open(file)) {
             storage.position(Log.START);
             ByteBuffer broken = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD + 4);
             broken.putInt(444); //expected length
@@ -569,7 +568,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void position_is_consistent_on_multiple_segments() {
-        int entries = 1000000; //do not change
+        int entries = 2000000; //do not change
         for (int i = 0; i < entries; i++) {
             long position = appender.position();
             long entryPos = appender.append("value-" + i);

@@ -5,12 +5,13 @@ import io.joshworks.fstore.core.RuntimeIOException;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 
 public class RafStorage extends DiskStorage {
 
-    public RafStorage(File target) {
-        super(target);
+    public RafStorage(File target, RandomAccessFile raf) {
+        super(target, raf);
     }
 
     /**

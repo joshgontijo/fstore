@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -13,13 +14,12 @@ import java.nio.channels.FileChannel;
 public class MMapStorage extends DiskStorage {
 
     private final int bufferSize;
-    MappedByteBuffer[] buffers;
+    MappedByteBuffer[] buffers = new MappedByteBuffer[1];
 
     private final boolean isWindows;
 
-    public MMapStorage(File file, int bufferSize) {
-        super(file);
-        long alined = alignWithBuffer(length, bufferSize);
+    public MMapStorage(File file, RandomAccessFile raf, int bufferSize) {
+        super(file, raf);
         this.bufferSize = getBufferSize(bufferSize);
         isWindows = System.getProperty("os.name").toLowerCase().startsWith("win");
         try {
@@ -31,14 +31,14 @@ public class MMapStorage extends DiskStorage {
         }
     }
 
-    private static long alignWithBuffer(long fileSize, int bufferSize) {
-        int alignedBufferSize = getBufferSize(bufferSize);
-        if(fileSize % alignedBufferSize > 0) {
-            long fullPages = fileSize / alignedBufferSize;
-            return fullPages + alignedBufferSize;
-        }
-        return fileSize;
-    }
+//    private static long alignWithBuffer(long fileSize, int bufferSize) {
+//        int alignedBufferSize = getBufferSize(bufferSize);
+//        if(fileSize % alignedBufferSize > 0) {
+//            long fullPages = fileSize / alignedBufferSize;
+//            return fullPages + alignedBufferSize;
+//        }
+//        return fileSize;
+//    }
 
     private static int getBufferSize(int size) {
         if(size % Memory.PAGE_SIZE > 0) {
@@ -155,7 +155,6 @@ public class MMapStorage extends DiskStorage {
         return (int) (pos / bufferSize);
     }
 
-
     private MappedByteBuffer map(int idx) {
         long from = ((long) idx) * bufferSize;
         return map(from, bufferSize);
@@ -220,7 +219,15 @@ public class MMapStorage extends DiskStorage {
 
     @Override
     public void extend(long newLength) {
+        if(newLength < length()) {
+            return;
+        }
         super.extend(newLength);
+
+        int totalBuffers = getTotalBuffers(newLength, this.bufferSize);
+        if(totalBuffers > buffers.length) {
+            growBuffersToAccommodateIdx(totalBuffers);
+        }
     }
 
     @Override

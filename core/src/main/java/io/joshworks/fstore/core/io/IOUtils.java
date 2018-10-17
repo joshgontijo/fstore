@@ -73,6 +73,16 @@ public final class IOUtils {
         return randomAccessFile(file, "rw");
     }
 
+    public static RandomAccessFile randomAccessFile(File file, long size) {
+        try {
+            RandomAccessFile raf = new RandomAccessFile(file, "rw");
+            raf.setLength(size);
+            return raf;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static RandomAccessFile randomAccessFile(File file, String mode) {
         try {
             return new RandomAccessFile(file, mode);

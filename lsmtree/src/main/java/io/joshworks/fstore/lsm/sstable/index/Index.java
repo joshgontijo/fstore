@@ -2,8 +2,8 @@ package io.joshworks.fstore.lsm.sstable.index;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
+import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -20,7 +20,7 @@ import java.util.Objects;
 
 public class Index<K extends Comparable<K>> {
 
-    private static final long DEFAULT_FILE_SIZE = Size.MEGABYTE.toBytes(5);
+    private static final long DEFAULT_FILE_SIZE = Size.MB.of(5);
 
     private final Serializer<IndexEntry<K>> serializer;
     private final List<IndexEntry<K>> entries;
@@ -32,8 +32,9 @@ public class Index<K extends Comparable<K>> {
     public Index(File indexDir, String segmentFileName, Serializer<K> keySerializer, IDataStream dataStream, String magic) {
         this.serializer = new IndexEntrySerializer<>(keySerializer);
         this.handler = getFile(indexDir, segmentFileName);
+        Storage storage = StorageProvider.raf().create(handler, DEFAULT_FILE_SIZE);
         this.dataFile = new Segment<>(
-                new RafStorage(getFile(indexDir, segmentFileName), DEFAULT_FILE_SIZE, Mode.READ_WRITE),
+                storage,
                 new IndexEntrySerializer<>(keySerializer),
                 dataStream,
                 magic,

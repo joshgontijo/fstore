@@ -1,9 +1,8 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.serializer.Serializers;
 
@@ -36,7 +35,8 @@ public class Metadata {
     }
 
     public static Metadata readFrom(File directory) {
-        try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE, Mode.READ_WRITE)) {
+        File file = new File(directory, LogFileUtils.METADATA_FILE);
+        try (Storage storage = StorageProvider.raf().open(file)) {
             ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
             storage.read(0, bb);
             bb.flip();
@@ -57,7 +57,8 @@ public class Metadata {
     }
 
     public static Metadata create(File directory, long logSize, int footerSize, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
-        try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE, Mode.READ_WRITE)) {
+        File file = new File(directory, LogFileUtils.METADATA_FILE);
+        try (Storage storage = StorageProvider.raf().create(file, METADATA_SIZE)) {
             ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
 
             String magic = createMagic();

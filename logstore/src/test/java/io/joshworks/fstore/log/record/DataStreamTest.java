@@ -1,10 +1,10 @@
 package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.io.BufferPool;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -22,8 +22,9 @@ public class DataStreamTest {
 
     private File file;
     private Storage storage;
-
+    private static final long FILE_SIZE = Size.MB.of(10);
     private static final int START = 0;
+
 
     private final IDataStream stream = new DataStream(START);
     private final BufferPool pool = new FixedPageSizeBuffer();
@@ -31,7 +32,7 @@ public class DataStreamTest {
     @Before
     public void setUp() {
         file = FileUtils.testFile();
-        storage = new RafStorage(file, 1024 * 1024, Mode.READ_WRITE);
+        this.storage = StorageProvider.raf().create(file, FILE_SIZE);
     }
 
     @Test

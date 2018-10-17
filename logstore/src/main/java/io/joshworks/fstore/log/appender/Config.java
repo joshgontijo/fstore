@@ -18,7 +18,7 @@ public class Config<T> {
     public static final int NO_MMAP_BUFFER_SIZE = -1;
     public static final String DEFAULT_APPENDER_NAME = "default";
     public static final int DEFAULT_MAX_SEGMENT_PER_LEVEL = 3;
-    public static final int DEFAULT_LOG_SIZE = (int) Size.MEGABYTE.toBytes(200);
+    public static final int DEFAULT_LOG_SIZE = (int) Size.MB.of(200);
     public static final int DEFAULT_FOOTER_SIZE = 0;
 
     public final File directory;
