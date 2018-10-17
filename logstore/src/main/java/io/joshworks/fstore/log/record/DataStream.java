@@ -14,8 +14,6 @@ import java.util.Random;
 //THREAD SAFE
 public class DataStream implements IDataStream {
 
-    public static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
-
     private static final double DEFAULT_CHECKUM_PROB = 1;
     private static final int MAX_CACHE_RESULT = 100;
 

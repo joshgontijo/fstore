@@ -387,8 +387,12 @@ public abstract class LogAppenderTest {
 
         int val = 0;
         while (scanner.hasNext()) {
+            long pos = scanner.position();
+            if(pos == 1024) {
+                System.out.println("");
+            }
             String next = scanner.next();
-            assertEquals(String.valueOf(val++), next);
+            assertEquals("Failed on " + pos, String.valueOf(val++), next);
         }
     }
 

@@ -16,6 +16,7 @@ public class Config<T> {
 
     public static final int NO_MMAP_BUFFER_SIZE = -1;
     public static final int NO_CACHING = -1;
+    public static final int CACHING_NO_MAX_AGE = -1;
     public static final String DEFAULT_APPENDER_NAME = "default";
     public static final int DEFAULT_MAX_SEGMENT_PER_LEVEL = 3;
     public static final int DEFAULT_SEGMENT_SIZE = (int) Size.MEGABYTE.toBytes(200);
@@ -35,7 +36,8 @@ public class Config<T> {
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
-    long storageCacheSize = NO_CACHING;
+    long cacheSize = NO_CACHING;
+    int cacheMaxAge = NO_CACHING;
 
     Config(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -54,8 +56,13 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> cacheSize(String name) {
-        this.name = name;
+    public Config<T> enableCaching(long maxSize) {
+        return enableCaching(maxSize, CACHING_NO_MAX_AGE);
+    }
+
+    public Config<T> enableCaching(long maxSize, int maxAge) {
+        this.cacheSize = maxSize;
+        this.cacheMaxAge = maxAge;
         return this;
     }
 
