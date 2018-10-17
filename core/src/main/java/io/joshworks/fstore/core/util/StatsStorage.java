@@ -2,6 +2,7 @@ package io.joshworks.fstore.core.util;
 
 import io.joshworks.fstore.core.io.Storage;
 
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -75,10 +76,14 @@ public class StatsStorage implements Storage {
     }
 
     @Override
-    public void markAsReadOnly() {
-        delegate.markAsReadOnly();
+    public void extend(long newLength) {
+        delegate.extend(newLength);
     }
 
+    @Override
+    public File file() {
+        return delegate.file();
+    }
 
     @Override
     public void close() throws IOException {

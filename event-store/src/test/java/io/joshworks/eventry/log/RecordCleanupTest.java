@@ -180,6 +180,11 @@ public class RecordCleanupTest {
         }
 
         @Override
+        public long actualSize() {
+            return 0;
+        }
+
+        @Override
         public Set<TimeoutReader> readers() {
             return null;
         }

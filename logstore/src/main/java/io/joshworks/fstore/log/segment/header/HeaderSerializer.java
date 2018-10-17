@@ -42,7 +42,7 @@ public class HeaderSerializer implements Serializer<LogHeader> {
         long created = buffer.getLong();
         int type = buffer.getInt();
         if(created == 0 || type == 0) { //empty
-            return LogHeader.noHeader();
+            return null;
         }
         String magic = Serializers.VSTRING.fromBytes(buffer);
         int level = buffer.getInt();

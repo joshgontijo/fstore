@@ -11,6 +11,10 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+//LEVEL0 [CURRENT_SEGMENT]
+//LEVEL1 [SEG1][SEG2]
+//LEVEL2 [SEG3][SEG4]
+//LEVEL3 ...
 public class Levels<T> {
 
     private final int maxItemsPerLevel;

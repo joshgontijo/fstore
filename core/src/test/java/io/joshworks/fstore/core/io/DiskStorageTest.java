@@ -169,12 +169,6 @@ public abstract class DiskStorageTest {
     }
 
 
-    @Test(expected = StorageException.class)
-    public void truncate_readonly_throws_exception() {
-        storage.markAsReadOnly();
-        storage.truncate(10);
-    }
-
     @Test
     public void reading_unwritten_data_returns_zeroes() {
         int writeSize = 16;

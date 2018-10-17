@@ -12,7 +12,7 @@ public class RafBaseStorageTest extends DiskStorageTest {
 
     @Override
     protected Storage store(File file, long size) {
-        return new RafStorage(file, size, Mode.READ_WRITE);
+        return StorageProvider.raf().create(file, size);
     }
 
     @Test

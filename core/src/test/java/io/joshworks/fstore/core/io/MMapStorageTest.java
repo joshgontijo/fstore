@@ -21,12 +21,6 @@ public class MMapStorageTest extends DiskStorageTest {
     private File mmapFile;
     private static final int BUFFER_SIZE = 5408192;
 
-    @Override
-    protected Storage store(File file, long size) {
-        return new MMapStorage(file, size, Mode.READ_WRITE, BUFFER_SIZE);
-    }
-
-
     @Before
     public void setUpMMapFile() {
         mmapFile = Utils.testFile();
@@ -37,11 +31,21 @@ public class MMapStorageTest extends DiskStorageTest {
         Utils.tryDelete(mmapFile);
     }
 
+    @Override
+    protected Storage store(File file, long size) {
+        return create(file, size, BUFFER_SIZE);
+    }
+
+    private MMapStorage create(File file, long fileSize, int bufferSize) {
+        return (MMapStorage) StorageProvider.mmap(bufferSize).create(file, fileSize);
+    }
+
+
     @Test
     public void multiple_buffers() throws IOException {
         long fileSize = 1024;
         int bufferSize = 512;
-        try(Storage storage = create(fileSize, bufferSize, Mode.READ_WRITE)) {
+        try(Storage storage = create(mmapFile, fileSize, bufferSize)) {
 
             int dataSize = bufferSize / 2;
             //first
@@ -66,8 +70,9 @@ public class MMapStorageTest extends DiskStorageTest {
     public void data_is_never_split() {
         int entrySize = 4096;
         int bufferSize = entrySize * 2;
-        long fileSize = (long) bufferSize * 2;
-        try (var storage = new MMapStorage(mmapFile, fileSize, Mode.READ_WRITE, bufferSize)) {
+        long fileSize = bufferSize * 2;
+
+        try (var storage = create(mmapFile, fileSize, bufferSize)) {
 
             var bb = ofSize(entrySize);
             storage.write(bb);
@@ -84,7 +89,7 @@ public class MMapStorageTest extends DiskStorageTest {
         int entrySize = 4096;
         int bufferSize = entrySize * 2;
         long fileSize = (long) bufferSize * 2;
-        try (var storage = new MMapStorage(mmapFile, fileSize, Mode.READ_WRITE, bufferSize)) {
+        try (var storage = create(mmapFile, fileSize, bufferSize)) {
             int dataLen = bufferSize + 1;
             var bb = ofSize(dataLen);
             int written = storage.write(bb);
@@ -106,7 +111,7 @@ public class MMapStorageTest extends DiskStorageTest {
         int entrySize = 4096;
         int bufferSize = entrySize * 2;
         long fileSize = (long) bufferSize * 2;
-        try (var storage = new MMapStorage(mmapFile, fileSize, Mode.READ_WRITE, bufferSize)) {
+        try (var storage = create(mmapFile, fileSize, bufferSize)) {
 
             for (int i = 0; i < 10; i++) {
                 var bb = ofSize(entrySize);
@@ -121,25 +126,6 @@ public class MMapStorageTest extends DiskStorageTest {
                 assertArrayEquals(expected.array(), read.array());
             }
 
-        }
-    }
-
-    @Test
-    public void readonly_file_returns_correct_data() {
-        int entrySize = 1024;
-        int bufferSize = entrySize * 2;
-        long fileSize = (long) bufferSize * 2;
-        try (var storage = new MMapStorage(mmapFile, fileSize, Mode.READ_WRITE, bufferSize)) {
-
-            var bb = ofSize(entrySize);
-            storage.write(bb);
-
-            storage.markAsReadOnly();
-
-            var read = ByteBuffer.allocate(entrySize);
-            storage.read(0, read);
-
-            assertArrayEquals(bb.array(), read.flip().array());
         }
     }
 
@@ -170,7 +156,4 @@ public class MMapStorageTest extends DiskStorageTest {
         return ByteBuffer.wrap(data);
     }
 
-    private Storage create(long fileSize, int bufferSize, Mode mode) {
-        return new MMapStorage(mmapFile, fileSize, mode, bufferSize);
-    }
 }

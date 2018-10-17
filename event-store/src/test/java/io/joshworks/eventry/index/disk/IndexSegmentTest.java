@@ -4,8 +4,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
+import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.DataStream;
@@ -48,10 +47,9 @@ public class IndexSegmentTest {
         Files.delete(segmentFile.toPath());
     }
 
-    public IndexSegment open(File location) {
-        long size = location.length() == 0 ? 1048576 : location.length();
+    private IndexSegment open(File location) {
         return new IndexSegment(
-                new RafStorage(location, size, Mode.READ_WRITE),
+                StorageProvider.raf().open(location),
                 new DataStream(),
                 "magic",
                 Type.LOG_HEAD,

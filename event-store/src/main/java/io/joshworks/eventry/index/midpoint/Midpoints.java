@@ -3,9 +3,8 @@ package io.joshworks.eventry.index.midpoint;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageProvider;
 
 import java.io.File;
 import java.io.IOException;
@@ -54,7 +53,7 @@ public class Midpoints {
 
         long size = Math.max(Midpoint.BYTES * midpoints.size(), handler.length());
 
-        try (Storage storage = new RafStorage(handler, size, Mode.READ_WRITE)) {
+        try (Storage storage = StorageProvider.raf().create(handler, size)) {
             for (Midpoint midpoint : midpoints) {
                 ByteBuffer data = midpointSerializer.toBytes(midpoint);
                 storage.write(data);
@@ -70,7 +69,7 @@ public class Midpoints {
         if (!handler.exists()) {
             return new ArrayList<>();
         }
-        try (Storage storage = new RafStorage(handler, handler.length(), Mode.READ_WRITE)) {
+        try (Storage storage = StorageProvider.raf().open(handler)) {
             long pos = 0;
             ByteBuffer data = ByteBuffer.allocate(Midpoint.BYTES);
 

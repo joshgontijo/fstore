@@ -1,13 +1,13 @@
 package io.joshworks.fstore.log.segment.header;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.segment.SegmentException;
 
-import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class LogHeader {
@@ -44,10 +44,6 @@ public class LogHeader {
         this.footerEnd = footerEnd;
     }
 
-    public static LogHeader noHeader() {
-        return new LogHeader("NO-MAGIC", 0, -1, -1, Type.EMPTY, -1, -1, -1, -1, -1);
-    }
-
     public static LogHeader create(String magic, Type type) {
         return new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, 0, 0, 0, 0, 0);
     }
@@ -56,44 +52,51 @@ public class LogHeader {
         return new LogHeader(magic, entries, created, level, type, segmentSize, logStart, logEnd, footerStart, footerEnd);
     }
 
-
-    public static LogHeader getOrCreate(File file, String magic, Type type) {
-        LogHeader read = read(file);
-        return read != null ? read : write(file, magic, type);
-    }
-
-    public static LogHeader read(File file) {
-        try(Storage storage = new RafStorage(file, 0, Mode.READ)) {
-
-            ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
-            storage.read(0, bb);
-            bb.flip();
-            if (bb.remaining() == 0) {
-                return null;
+    public static LogHeader getOrCreate(Storage storage, String magic, Type type) {
+        LogHeader foundHeader = LogHeader.read(storage);
+        if (foundHeader == null) {
+            if (Type.OPEN.equals(type)) {
+                IOUtils.closeQuietly(storage);
+                throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
             }
-            return headerSerializer.fromBytes(bb);
-
-        }catch (Exception e) {
-            throw new RuntimeException("Failed to read header");
+            foundHeader = LogHeader.create(magic, type);
+            LogHeader.write(storage, foundHeader);
         }
-
+        validateMagic(foundHeader.magic, magic);
+        return foundHeader;
     }
 
-    public static LogHeader write(File file, String magic, Type type) {
-        try(Storage storage = new RafStorage(file, LogHeader.BYTES, Mode.READ)) {
-            validateTypeProvided(type);
-            LogHeader newHeader = LogHeader.create(magic, type);
-            ByteBuffer headerData = headerSerializer.toBytes(newHeader);
+    private static void validateMagic(String actualMagic, String expectedMagic) {
+        byte[] actual = actualMagic.getBytes(StandardCharsets.UTF_8);
+        byte[] expected = expectedMagic.getBytes(StandardCharsets.UTF_8);
+        if (!Arrays.equals(expected, actual)) {
+            throw new InvalidMagic(expectedMagic, actualMagic);
+        }
+    }
+
+    public static LogHeader read(Storage storage) {
+        ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
+        storage.read(0, bb);
+        bb.flip();
+        if (bb.remaining() == 0) {
+            return null;
+        }
+        return headerSerializer.fromBytes(bb);
+    }
+
+    public static void write(Storage storage, LogHeader header) {
+        try {
+            long pos = storage.position();
+            storage.position(0);
+            ByteBuffer headerData = headerSerializer.toBytes(header);
             if (storage.write(headerData) != LogHeader.BYTES) {
-                throw new SegmentException("Failed to create header");
+                throw new IllegalStateException("Unexpected written header length");
             }
+            storage.position(pos);
             storage.flush();
-            return newHeader;
-
-        }catch (Exception e) {
-            throw new RuntimeException("Failed to read header");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to write header");
         }
-
     }
 
     private static void validateTypeProvided(Type type) {
@@ -102,7 +105,7 @@ public class LogHeader {
             throw new IllegalArgumentException("Type must provided when creating a new segment");
         }
         if (!Type.LOG_HEAD.equals(type) && !Type.MERGE_OUT.equals(type)) {
-            throw new IllegalArgumentException("Only Type.LOG_HEAD and Type.MERGE_OUT are accepted when creating a segment");
+            throw new IllegalArgumentException("Only LOG_HEAD and MERGE_OUT are accepted when creating a segment");
         }
     }
 
