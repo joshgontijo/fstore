@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.segment;
+package io.joshworks.fstore.log.segment.header;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.Serializers;
@@ -11,7 +11,7 @@ public class HeaderSerializer implements Serializer<LogHeader> {
     public ByteBuffer toBytes(LogHeader data) {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
         writeTo(data, bb);
-        return (ByteBuffer) bb.position(0); //do not flip, the header will always have the fixed size
+        return bb.position(0); //do not flip, the header will always have the fixed size
 
     }
 

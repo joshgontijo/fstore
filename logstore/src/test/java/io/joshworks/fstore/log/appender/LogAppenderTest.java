@@ -351,7 +351,7 @@ public abstract class LogAppenderTest {
     public void get_return_all_items() {
 
         File location = FileUtils.testFolder();
-        try (LogAppender<String> testAppender = new Config<>(location, Serializers.STRING).segmentSize(209715200).open()) {
+        try (LogAppender<String> testAppender = new Config<>(location, Serializers.STRING).logSize(209715200).open()) {
             List<Long> positions = new ArrayList<>();
             int size = 500000;
             for (int i = 0; i < size; i++) {

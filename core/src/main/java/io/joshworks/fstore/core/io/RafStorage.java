@@ -9,8 +9,8 @@ import java.nio.ByteBuffer;
 
 public class RafStorage extends DiskStorage {
 
-    public RafStorage(File target, long length, Mode mode) {
-        super(target, length, mode);
+    public RafStorage(File target) {
+        super(target);
     }
 
     /**
@@ -18,7 +18,7 @@ public class RafStorage extends DiskStorage {
      */
     @Override
     public int write(ByteBuffer data) {
-        ensureNonEmpty(data);
+        Storage.ensureNonEmpty(data);
         try {
             int written = 0;
             while (data.hasRemaining()) {

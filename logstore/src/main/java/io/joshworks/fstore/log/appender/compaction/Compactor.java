@@ -8,14 +8,13 @@ import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.appender.StorageProvider;
+import io.joshworks.fstore.log.StorageProvider;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;

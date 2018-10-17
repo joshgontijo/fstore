@@ -12,7 +12,7 @@ public class CachedRafLogAppenderTest extends LogAppenderTest {
     @Override
     protected LogAppender<String> appender(File testDirectory, int segmentSize) {
         return LogAppender.builder(testDirectory, new StringSerializer())
-                .segmentSize(segmentSize)
+                .logSize(segmentSize)
                 .enableCaching(CACHE_SIZE)
                 .disableCompaction()
                 .open();

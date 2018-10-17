@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.log.StorageProvider;
 import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.Direction;
@@ -18,9 +19,9 @@ import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.segment.Type;
-import io.joshworks.fstore.log.segment.cache.CacheManager;
-import io.joshworks.fstore.log.segment.cache.CachedSegment;
+import io.joshworks.fstore.log.segment.header.LogHeader;
+import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.cache.CacheManager;
 import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
 
@@ -98,12 +99,13 @@ public class LogAppender<T> implements Closeable {
     }
 
     LogAppender(Config<T> config) {
+        long totalSegmentSize = LogHeader.BYTES + config.logSize + config.footerSize;
+
         this.directory = config.directory;
         this.serializer = config.serializer;
         this.cacheManager = new CacheManager(config.cacheSize, config.cacheMaxAge);
-        this.factory = config.cacheSize == Config.NO_CACHING ? config.segmentFactory : CachedSegment.factory(config.segmentFactory, cacheManager);
-        int mmapSize = config.mmap ? StorageProvider.mmapBufferSize(config.mmapBufferSize, config.segmentSize) : -1;
-        this.storageProvider = config.mmap ? StorageProvider.mmap(mmapSize) : StorageProvider.raf();
+        this.factory = config.segmentFactory;
+        this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
         this.namingStrategy = config.namingStrategy;
         this.dataStream = new DataStream();
         this.logger = Logging.namedLogger(config.name, "appender");
@@ -113,14 +115,15 @@ public class LogAppender<T> implements Closeable {
         if (!metadataExists) {
             logger.info("Creating LogAppender");
 
-            if (config.segmentSize > MAX_SEGMENT_ADDRESS) {
+            if (config.logSize > MAX_SEGMENT_ADDRESS) {
                 throw new IllegalArgumentException("Maximum segment size allowed is " + MAX_SEGMENT_ADDRESS);
             }
 
             LogFileUtils.createRoot(directory);
             this.metadata = Metadata.create(
                     directory,
-                    config.segmentSize,
+                    config.logSize,
+                    config.footerSize,
                     config.maxSegmentsPerLevel,
                     config.mmap,
                     config.flushAfterWrite,
@@ -140,23 +143,20 @@ public class LogAppender<T> implements Closeable {
 
         this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, config.name, levels, sedaContext, config.threadPerLevel);
 
-        logConfig(config, mmapSize);
+        logConfig(config);
 
     }
 
-    private void logConfig(Config<T> config, int mmapSize) {
+    private void logConfig(Config<T> config) {
         logger.info("SEGMENT BITS : {}", SEGMENT_BITS);
         logger.info("MAX SEGMENTS: {} ({} bits)", MAX_SEGMENTS, SEGMENT_BITS);
         logger.info("MAX SEGMENT ADDRESS: {} ({} bits)", MAX_SEGMENT_ADDRESS, SEGMENT_ADDRESS_BITS);
 
-        logger.info("SEGMENT SIZE: {}", config.segmentSize);
+        logger.info("SEGMENT SIZE: {}", config.logSize);
         logger.info("ASYNC FLUSH: {}", config.asyncFlush);
         logger.info("COMPACTION ENABLED: {}", !this.compactionDisabled);
         logger.info("MAX SEGMENTS PER LEVEL: {}", config.maxSegmentsPerLevel);
         logger.info("MMAP ENABLED: {}", config.mmap);
-        if(config.mmap) {
-            logger.info("MMAP BUFFER SIZE : {}", mmapSize);
-        }
     }
 
     private Levels<T> loadLevels() {
@@ -200,7 +200,7 @@ public class LogAppender<T> implements Closeable {
 
             if (levelZeroSegments == 0) {
                 //create current segment
-                Log<T> currentSegment = createCurrentSegment(metadata.segmentSize);
+                Log<T> currentSegment = createCurrentSegment(metadata.logSize);
                 segments.add(currentSegment);
             }
             if (levelZeroSegments > 1) {
@@ -236,7 +236,7 @@ public class LogAppender<T> implements Closeable {
             logger.info("Rolling appender");
             flush();
 
-            Log<T> newSegment = createCurrentSegment(metadata.segmentSize);
+            Log<T> newSegment = createCurrentSegment(metadata.logSize);
             levels.appendSegment(newSegment);
 
             addToPollers(newSegment);
@@ -280,7 +280,7 @@ public class LogAppender<T> implements Closeable {
 
     private boolean shouldRoll(Log<T> currentSegment) {
         long segmentSize = currentSegment.actualSize();
-        return segmentSize >= metadata.segmentSize && segmentSize > 0;
+        return segmentSize >= metadata.logSize && segmentSize > 0;
     }
 
     public void compact() {

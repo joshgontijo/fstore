@@ -6,6 +6,7 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.Writer;
 import io.joshworks.fstore.log.record.RecordHeader;
+import io.joshworks.fstore.log.segment.header.LogHeader;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;

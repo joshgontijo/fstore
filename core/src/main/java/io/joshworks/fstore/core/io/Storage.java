@@ -1,6 +1,7 @@
 package io.joshworks.fstore.core.io;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.Flushable;
 import java.nio.ByteBuffer;
 
@@ -20,8 +21,16 @@ public interface Storage extends Flushable, Closeable {
 
     String name();
 
-    void truncate(long pos);
+    void truncate(long newLength);
 
-    void markAsReadOnly();
+    void extend(long newLength);
+
+    File handler();
+
+    static void ensureNonEmpty(ByteBuffer data) {
+        if (data.remaining() == 0) {
+            throw new IllegalArgumentException("Cannot store empty record");
+        }
+    }
 
 }

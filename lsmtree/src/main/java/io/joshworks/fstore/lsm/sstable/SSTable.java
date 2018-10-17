@@ -16,7 +16,7 @@ import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockIterator;

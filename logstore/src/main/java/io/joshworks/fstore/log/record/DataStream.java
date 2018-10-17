@@ -34,7 +34,7 @@ public class DataStream implements IDataStream {
         this(DEFAULT_CHECKUM_PROB);
     }
 
-    public DataStream(double checksumProb) {
+    DataStream(double checksumProb) {
         this.checksumProb = (int) (checksumProb * 100);
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");

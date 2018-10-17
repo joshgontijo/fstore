@@ -1,4 +1,6 @@
-package io.joshworks.fstore.log.segment;
+package io.joshworks.fstore.log.segment.header;
+
+import io.joshworks.fstore.log.segment.SegmentException;
 
 public class InvalidMagic extends SegmentException {
 
