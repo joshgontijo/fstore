@@ -16,7 +16,7 @@ import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.File;
 import java.util.List;
@@ -35,7 +35,7 @@ public class IndexAppender implements Index {
         this.appender = LogAppender.builder(new File(rootDir, INDEX_DIR), new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor())
                 .maxSegmentsPerLevel(2)
-                .segmentSize(segmentSize)
+                .logSize(segmentSize)
                 .namingStrategy(new IndexNaming())
                 .open(new IndexSegmentFactory(rootDir, numElements, codec));
     }

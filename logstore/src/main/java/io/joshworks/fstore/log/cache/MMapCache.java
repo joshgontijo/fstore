@@ -1,8 +1,13 @@
-package io.joshworks.fstore.core.io;
+package io.joshworks.fstore.log.cache;
 
 
+import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.Mode;
+import io.joshworks.fstore.core.io.RafStorage;
+import io.joshworks.fstore.core.io.StorageException;
 import io.joshworks.fstore.core.util.MappedByteBuffers;
 import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.log.record.DataStream;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,22 +15,28 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
-public class MMapStorage extends DiskStorage {
+public class MMapCache extends RafStorage {
 
     private final int bufferSize;
     MappedByteBuffer[] buffers;
+    private DataStream dataStream;
 
-    private final boolean isWindows;
-
-    public MMapStorage(File file, int bufferSize) {
-        super(file);
-        long alined = alignWithBuffer(length, bufferSize);
+    public MMapCache(File file, long length, Mode mode, int bufferSize) {
+        super(file, alignWithBuffer(length, bufferSize), mode);
         this.bufferSize = getBufferSize(bufferSize);
-        isWindows = System.getProperty("os.name").toLowerCase().startsWith("win");
+
+        if(Mode.READ.equals(mode)) {
+
+        }
+
         try {
             long fileLength = raf.length();
             int totalBuffers = getTotalBuffers(fileLength, this.bufferSize);
             this.buffers = new MappedByteBuffer[totalBuffers];
+            if (Mode.READ_WRITE.equals(mode)) {
+                MappedByteBuffer initialBuffer = map(0);
+                buffers[0] = initialBuffer;
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -56,33 +67,8 @@ public class MMapStorage extends DiskStorage {
 
 
     @Override
-    public int write(ByteBuffer src) {
-        Storage.ensureNonEmpty(src);
-
-        int dataSize = src.remaining();
-
-        int idx = bufferIdx(this.position);
-        MappedByteBuffer dst = getOrAllocate(idx, true);
-
-        int dstRemaining = dst.remaining();
-        if (dstRemaining < dataSize) {
-            int srcLimit = src.limit();
-            src.limit(src.position() + dstRemaining);
-            dst.put(src);
-            dst.flip();
-            src.limit(srcLimit);
-            position += dstRemaining;
-            return write(src) + dstRemaining;
-        }
-
-        int srcRemaining = src.remaining();
-        dst.put(src);
-        position += srcRemaining;
-        return srcRemaining;
-    }
-
-    @Override
     public int read(long position, ByteBuffer dst) {
+
         int idx = bufferIdx(position);
         int bufferAddress = posOnBuffer(position);
         if (idx >= buffers.length) {
@@ -155,6 +141,11 @@ public class MMapStorage extends DiskStorage {
         return (int) (pos / bufferSize);
     }
 
+    private void checkWritable() {
+        if (Mode.READ.equals(mode)) {
+            throw new StorageException("Storage is readonly");
+        }
+    }
 
     private MappedByteBuffer map(int idx) {
         long from = ((long) idx) * bufferSize;
@@ -163,7 +154,8 @@ public class MMapStorage extends DiskStorage {
 
     private MappedByteBuffer map(long from, long size) {
         try {
-            return raf.getChannel().map(FileChannel.MapMode.READ_WRITE, from, size);
+            FileChannel.MapMode mapMode = Mode.READ_WRITE.equals(mode) ? FileChannel.MapMode.READ_WRITE : FileChannel.MapMode.READ_ONLY;
+            return raf.getChannel().map(mapMode, from, size);
         } catch (Exception e) {
             close();
             throw new StorageException(e);
@@ -203,6 +195,10 @@ public class MMapStorage extends DiskStorage {
 
     @Override
     public void truncate(long newPos) {
+        if (Mode.READ.equals(mode)) {
+            throw new StorageException("Cannot truncate read only file");
+        }
+
         int idx = bufferIdx(newPos);
         int bPos = posOnBuffer(newPos);
         for (int i = idx + 1; i < buffers.length; i++) {
@@ -216,23 +212,5 @@ public class MMapStorage extends DiskStorage {
         current.clear().position(bPos);
 
 //        super.truncate(newPos); //TODO might fail because of unreleased buffers, just leave it out ?
-    }
-
-    @Override
-    public void extend(long newLength) {
-        super.extend(newLength);
-    }
-
-    @Override
-    public void flush() {
-        int idx = bufferIdx(this.position);
-        if(idx > buffers.length) {
-            return;
-        }
-        MappedByteBuffer buffer = buffers[idx];
-        if (buffer != null && !isWindows) {
-            //caused by https://bugs.openjdk.java.net/browse/JDK-6539707
-            buffer.force();
-        }
     }
 }

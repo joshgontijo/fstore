@@ -8,7 +8,7 @@ import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.File;
 import java.io.IOException;

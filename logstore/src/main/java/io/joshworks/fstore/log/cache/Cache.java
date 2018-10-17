@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.segment.cache;
+package io.joshworks.fstore.log.cache;
 
 import java.util.function.Predicate;
 

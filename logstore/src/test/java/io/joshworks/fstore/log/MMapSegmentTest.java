@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;

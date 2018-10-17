@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.cache.CacheManager;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -15,11 +16,10 @@ import java.util.Objects;
 public class Config<T> {
 
     public static final int NO_MMAP_BUFFER_SIZE = -1;
-    public static final int NO_CACHING = -1;
-    public static final int CACHING_NO_MAX_AGE = -1;
     public static final String DEFAULT_APPENDER_NAME = "default";
     public static final int DEFAULT_MAX_SEGMENT_PER_LEVEL = 3;
-    public static final int DEFAULT_SEGMENT_SIZE = (int) Size.MEGABYTE.toBytes(200);
+    public static final int DEFAULT_LOG_SIZE = (int) Size.MEGABYTE.toBytes(200);
+    public static final int DEFAULT_FOOTER_SIZE = 0;
 
     public final File directory;
     public final Serializer<T> serializer;
@@ -28,7 +28,8 @@ public class Config<T> {
     SegmentFactory<T> segmentFactory;
 
     String name = DEFAULT_APPENDER_NAME;
-    int segmentSize = DEFAULT_SEGMENT_SIZE;
+    int footerSize = DEFAULT_FOOTER_SIZE;
+    long logSize = DEFAULT_LOG_SIZE;
     boolean mmap;
     boolean asyncFlush;
     int maxSegmentsPerLevel = DEFAULT_MAX_SEGMENT_PER_LEVEL;
@@ -36,8 +37,9 @@ public class Config<T> {
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
-    long cacheSize = NO_CACHING;
-    int cacheMaxAge = NO_CACHING;
+    long cacheSize = CacheManager.NO_CACHING;
+    int cacheMaxAge = CacheManager.NO_CACHING;
+
 
     Config(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -46,8 +48,13 @@ public class Config<T> {
         this.serializer = serializer;
     }
 
-    public Config<T> segmentSize(int size) {
-        this.segmentSize = size;
+    public Config<T> logSize(long logSize) {
+        this.logSize = logSize;
+        return this;
+    }
+
+    public Config<T> footerSize(int footerSize) {
+        this.footerSize = footerSize;
         return this;
     }
 
@@ -57,7 +64,7 @@ public class Config<T> {
     }
 
     public Config<T> enableCaching(long maxSize) {
-        return enableCaching(maxSize, CACHING_NO_MAX_AGE);
+        return enableCaching(maxSize, CacheManager.CACHING_NO_MAX_AGE);
     }
 
     public Config<T> enableCaching(long maxSize, int maxAge) {

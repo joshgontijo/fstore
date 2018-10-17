@@ -1,12 +1,10 @@
 package io.joshworks.fstore.log.segment;
 
-
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.AdaptiveBufferPool;
 import io.joshworks.fstore.core.io.BufferPool;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -16,9 +14,11 @@ import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.BufferRef;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
+import io.joshworks.fstore.log.segment.header.InvalidMagic;
+import io.joshworks.fstore.log.segment.header.LogHeader;
+import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -46,7 +46,6 @@ public class Segment<T> implements Log<T> {
 
     private final Logger logger;
 
-    private final Serializer<LogHeader> headerSerializer = new HeaderSerializer();
     private final Serializer<T> serializer;
     private final Storage storage;
     private final IDataStream dataStream;
@@ -69,69 +68,30 @@ public class Segment<T> implements Log<T> {
         this.magic = requireNonNull(magic, "Magic must be provided");
         this.logger = Logging.namedLogger(storage.name(), "segment");
 
-        LogHeader readHeader = readHeader(storage);
-
-        if (LogHeader.noHeader().equals(readHeader)) { //new segment
+        LogHeader readHeader = LogHeader.read(storage.handler());
+        if (readHeader == null) {
             if (Type.OPEN.equals(type)) {
                 IOUtils.closeQuietly(storage);
                 throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
             }
-            this.header = createNewHeader(storage, type, magic);
-            this.position(START);
-            return;
+            readHeader = LogHeader.write(storage.handler(), magic, type);
         }
         this.header = readHeader;
 
-        byte[] expected = header.magic.getBytes(StandardCharsets.UTF_8);
+        byte[] expected = this.header.magic.getBytes(StandardCharsets.UTF_8);
         byte[] actual = magic.getBytes(StandardCharsets.UTF_8);
 
         if (!Arrays.equals(expected, actual)) {
             IOUtils.closeQuietly(storage);
-            throw new InvalidMagic(header.magic, magic);
+            throw new InvalidMagic(this.header.magic, magic);
         }
-        this.position(LogHeader.BYTES);
 
-        entries.set(header.entries);
-        if (Type.LOG_HEAD.equals(header.type)) { //reopening log head
+        this.position(Log.START);
+        entries.set(this.header.entries);
+        if (Type.LOG_HEAD.equals(this.header.type)) { //reopening log head
             SegmentState result = rebuildState(Segment.START);
             this.position(result.position);
             entries.set(result.entries);
-        }
-    }
-
-    private LogHeader readHeader(Storage storage) {
-        ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
-        storage.read(0, bb);
-        bb.flip();
-        if (bb.remaining() == 0) {
-            return LogHeader.noHeader();
-        }
-        return headerSerializer.fromBytes(bb);
-
-    }
-
-    private LogHeader createNewHeader(Storage storage, Type type, String magic) {
-        validateTypeProvided(type);
-        LogHeader newHeader = LogHeader.create(magic, type);
-        ByteBuffer headerData = headerSerializer.toBytes(newHeader);
-        if (storage.write(headerData) != LogHeader.BYTES) {
-            throw new SegmentException("Failed to create header");
-        }
-        try {
-            storage.flush();
-        } catch (IOException e) {
-            throw RuntimeIOException.of(e);
-        }
-        return newHeader;
-    }
-
-    private void validateTypeProvided(Type type) {
-        //new segment, create a header
-        if (type == null) {
-            throw new IllegalArgumentException("Type must provided when creating a new segment");
-        }
-        if (!Type.LOG_HEAD.equals(type) && !Type.MERGE_OUT.equals(type)) {
-            throw new IllegalArgumentException("Only Type.LOG_HEAD and Type.MERGE_OUT are accepted when creating a segment");
         }
     }
 
@@ -205,6 +165,9 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public long append(T data) {
+        if (readOnly()) {
+            throw new IllegalStateException("Segment is read only");
+        }
         ByteBuffer bytes = serializer.toBytes(data);
         long recordPosition = dataStream.write(storage, bufferPool, bytes);
         entries.incrementAndGet();
@@ -302,7 +265,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void roll(int level, ByteBuffer footer) {
-        if (Type.READ_ONLY.equals(header.type)) {
+        if (readOnly()) {
             throw new IllegalStateException("Cannot roll read only segment");
         }
 
@@ -314,7 +277,6 @@ public class Segment<T> implements Log<T> {
         boolean hasFooter = header.footerStart > 0;
         long endOfSegment = hasFooter ? header.footerStart + header.footerEnd : endOfLog;
         storage.truncate(endOfSegment);
-        storage.markAsReadOnly();
     }
 
     @Override

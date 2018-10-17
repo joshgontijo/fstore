@@ -9,7 +9,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.File;
 import java.io.IOException;

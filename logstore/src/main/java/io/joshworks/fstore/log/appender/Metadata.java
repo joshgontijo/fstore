@@ -15,18 +15,20 @@ import java.util.UUID;
 public class Metadata {
 
     static final int MAGIC_SIZE = 36 + Integer.BYTES; //VSTRING
-    static final int METADATA_SIZE = (Integer.BYTES * 3) + (Byte.BYTES * 3) + MAGIC_SIZE;
+    static final int METADATA_SIZE = (Integer.BYTES * 2) + Long.BYTES + (Byte.BYTES * 3) + MAGIC_SIZE;
 
     final String magic;
-    final int segmentSize;
+    final long logSize;
+    final int footerSize;
     final int maxSegmentsPerLevel;
     final boolean mmap;
     final boolean flushAfterWrite;
     final boolean asyncFlush;
 
-    private Metadata(String magic, int segmentSize, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
+    private Metadata(String magic, long logSize, int footerSize, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
         this.magic = magic;
-        this.segmentSize = segmentSize;
+        this.logSize = logSize;
+        this.footerSize = footerSize;
         this.mmap = mmap;
         this.flushAfterWrite = flushAfterWrite;
         this.asyncFlush = asyncFlush;
@@ -41,26 +43,28 @@ public class Metadata {
 
 
             String magic = Serializers.VSTRING.fromBytes(bb);
-            int segmentSize = bb.getInt();
+            long logSize = bb.getLong();
+            int footerSize = bb.getInt();
             int maxSegmentsPerLevel = bb.getInt();
             boolean mmap = bb.get() == 1;
             boolean flushAfterWrite = bb.get() == 1;
             boolean asyncFlush = bb.get() == 1;
 
-            return new Metadata(magic, segmentSize, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
+            return new Metadata(magic, logSize, footerSize, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
     }
 
-    public static Metadata create(File directory, int segmentSize, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
+    public static Metadata create(File directory, long logSize, int footerSize, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
         try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE, Mode.READ_WRITE)) {
             ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
 
             String magic = createMagic();
 
             bb.put(Serializers.VSTRING.toBytes(magic));
-            bb.putInt(segmentSize);
+            bb.putLong(logSize);
+            bb.putInt(footerSize);
             bb.putInt(maxSegmentsPerLevel);
             bb.put(mmap ? (byte) 1 : 0);
             bb.put(flushAfterWrite ? (byte) 1 : 0);
@@ -68,7 +72,7 @@ public class Metadata {
 
             bb.flip();
             storage.write(bb);
-            return new Metadata(magic, segmentSize, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
+            return new Metadata(magic, logSize, footerSize, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }

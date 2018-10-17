@@ -11,29 +11,16 @@ import java.util.Objects;
 
 public abstract class DiskStorage implements Storage {
 
-    protected Mode mode;
     protected RandomAccessFile raf;
     protected FileChannel channel;
     protected File file;
     protected FileLock lock;
     protected long position;
 
-    public DiskStorage(File target, long length, Mode mode) {
-        this.mode = mode;
+    DiskStorage(File target) {
         Objects.requireNonNull(target, "File must specified");
-        if (length <= 0) {
-            throw new StorageException("File length must be specified");
-        }
-
-        if (length < target.length()) {
-            throw new StorageException("The specified length (" + length + ") is less than the actual file length (" + target.length() + ")");
-        }
-
-        this.raf = IOUtils.randomAccessFile(target, mode);
+        this.raf = IOUtils.randomAccessFile(target);
         try {
-            if (length != target.length() && Mode.READ_WRITE.equals(mode)) {
-                this.raf.setLength(length);
-            }
             this.file = target;
             this.channel = raf.getChannel();
             this.lock = this.channel.lock();
@@ -42,12 +29,6 @@ public abstract class DiskStorage implements Storage {
             IOUtils.closeQuietly(raf);
             IOUtils.closeQuietly(channel);
             throw new StorageException("Failed to open storage of " + target.getName(), e);
-        }
-    }
-
-    protected void ensureNonEmpty(ByteBuffer data) {
-        if (data.remaining() == 0) {
-            throw new IllegalArgumentException("Cannot store empty record");
         }
     }
 
@@ -61,9 +42,6 @@ public abstract class DiskStorage implements Storage {
     }
 
     public void position(long position) {
-        if(Mode.READ.equals(mode)) {
-            throw new IllegalStateException("Cannot update position on read mode");
-        }
         try {
             channel.position(position);
             this.position = position;
@@ -114,21 +92,32 @@ public abstract class DiskStorage implements Storage {
     }
 
     @Override
-    public void truncate(long pos) {
-        if(Mode.READ.equals(mode)) {
-            throw new StorageException("Cannot truncate readonly file");
+    public void truncate(long newLength) {
+        if(newLength < length()) {
+            return;
         }
         try {
-            channel.truncate(pos);
-            this.position = position > pos ? pos : position;
+            channel.truncate(newLength);
+            this.position = position > newLength ? newLength : position;
         } catch (Exception e) {
             throw new StorageException(e);
         }
     }
 
     @Override
-    public void markAsReadOnly() {
-        mode = Mode.READ;
+    public void extend(long newLength) {
+        if(newLength < length()) {
+            return;
+        }
+        try {
+            raf.setLength(newLength);
+        } catch (Exception e) {
+            throw new StorageException(e);
+        }
     }
 
+    @Override
+    public File handler() {
+        return file;
+    }
 }

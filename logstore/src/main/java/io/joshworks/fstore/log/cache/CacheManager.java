@@ -1,9 +1,7 @@
-package io.joshworks.fstore.log.segment.cache;
+package io.joshworks.fstore.log.cache;
 
-import io.joshworks.fstore.log.appender.Config;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -16,6 +14,9 @@ import java.util.function.Predicate;
 
 public class CacheManager implements Closeable {
 
+    public static final int NO_CACHING = -1;
+    public static final int CACHING_NO_MAX_AGE = -1;
+
     private final long maxSize;
     private final int maxAge;
     private final AtomicLong cacheAvailable = new AtomicLong();
@@ -25,15 +26,15 @@ public class CacheManager implements Closeable {
 
 
     public CacheManager(long maxSize, int maxAge) {
-        if (maxSize == Config.NO_CACHING) {
-            this.maxSize = Config.NO_CACHING;
-            this.maxAge = Config.CACHING_NO_MAX_AGE;
+        if (maxSize == NO_CACHING) {
+            this.maxSize = NO_CACHING;
+            this.maxAge = CACHING_NO_MAX_AGE;
             this.executor = null;
             return;
         }
         this.maxAge = maxAge;
         this.maxSize = maxSize;
-        if (maxAge != Config.CACHING_NO_MAX_AGE) {
+        if (maxAge != CACHING_NO_MAX_AGE) {
             this.executor = Executors.newSingleThreadScheduledExecutor();
             this.executor.scheduleAtFixedRate(this::evict, 1, 1, TimeUnit.MINUTES);
             return;
@@ -71,7 +72,7 @@ public class CacheManager implements Closeable {
 
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         if (executor != null) {
             executor.shutdown();
         }

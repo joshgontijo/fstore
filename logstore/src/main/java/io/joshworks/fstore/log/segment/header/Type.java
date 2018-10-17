@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.segment;
+package io.joshworks.fstore.log.segment.header;
 
 public enum Type {
     OPEN(0),

@@ -77,7 +77,7 @@ public class EventStore implements IEventStore {
         this.projections = new Projections(new ProjectionManager(this::appendSystemEvent));
         this.streams = new Streams(LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
-                .segmentSize((int) Size.MEGABYTE.toBytes(200))
+                .logSize((int) Size.MEGABYTE.toBytes(200))
                 .disableCompaction()
                 .compactionStrategy(new RecordCleanup(streams)));
 

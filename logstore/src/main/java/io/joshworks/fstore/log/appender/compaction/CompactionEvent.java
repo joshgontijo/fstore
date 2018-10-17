@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.appender.compaction;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.appender.StorageProvider;
+import io.joshworks.fstore.log.StorageProvider;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.segment.Log;
 

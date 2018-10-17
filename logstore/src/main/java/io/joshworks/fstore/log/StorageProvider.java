@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.appender;
+package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.MMapStorage;
 import io.joshworks.fstore.core.io.Mode;
@@ -8,39 +8,39 @@ import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class StorageProvider {
 
+    private final long segmentSize;
     private final boolean mmap;
     private final int mmapBufferSize;
 
-    private final AtomicLong cacheAvailable = new AtomicLong();
-
-    private StorageProvider(boolean mmap, int mmapBufferSize) {
+    private StorageProvider(long segmentSize, boolean mmap, int mmapBufferSize) {
+        this.segmentSize = segmentSize;
         this.mmap = mmap;
         this.mmapBufferSize = mmapBufferSize;
     }
 
-    static StorageProvider mmap(int bufferSize) {
-        if(bufferSize < Memory.PAGE_SIZE) {
+    public static StorageProvider mmap(long segmentSize, int bufferSize) {
+        if (bufferSize < Memory.PAGE_SIZE) {
             throw new IllegalArgumentException("MMap buffer size must be at least " + Memory.PAGE_SIZE + ", got " + bufferSize);
         }
-        return new StorageProvider(true, bufferSize);
+        return new StorageProvider(segmentSize, true, bufferSize);
     }
 
-    static int mmapBufferSize(int bufferSize, long segmentSize) {
-        if(bufferSize < 0) { // not provided
-            return segmentSize > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) segmentSize;
+    public static StorageProvider raf(long segmentSize) {
+        return new StorageProvider(segmentSize, false, -1);
+    }
+
+    public Storage createOrOpen(File file) { //file length must be provided
+        try (Storage storage = new RafStorage(file) {
+
         }
-        return bufferSize;
+        Objects.requireNonNull(file,"File must be provided") ;
+        return mmap ? new MMapStorage(file, length, Mode.READ_WRITE, mmapBufferSize) : new RafStorage(file, length, Mode.READ_WRITE);
     }
 
-    static StorageProvider raf() {
-        return new StorageProvider(false, -1);
-    }
-
-    public Storage create(File file, long length) {
+    public Storage create(File file) {
         Objects.requireNonNull(file, "File must be provided");
         return mmap ? new MMapStorage(file, length, Mode.READ_WRITE, mmapBufferSize) : new RafStorage(file, length, Mode.READ_WRITE);
     }
