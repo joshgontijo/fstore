@@ -19,6 +19,8 @@ import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.cache.CacheManager;
+import io.joshworks.fstore.log.segment.cache.CachedSegment;
 import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
 
@@ -58,11 +60,11 @@ public class LogAppender<T> implements Closeable {
     private final Logger logger;
 
 
-    public static final int SEGMENT_BITS = 16;
-    public static final int SEGMENT_ADDRESS_BITS = Long.SIZE - SEGMENT_BITS;
+    private static final int SEGMENT_BITS = 16;
+    private static final int SEGMENT_ADDRESS_BITS = Long.SIZE - SEGMENT_BITS;
 
-    public static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
-    public static final long MAX_SEGMENT_ADDRESS = BitUtil.maxValueForBits(SEGMENT_ADDRESS_BITS);
+    static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
+    static final long MAX_SEGMENT_ADDRESS = BitUtil.maxValueForBits(SEGMENT_ADDRESS_BITS);
 
     private final File directory;
     private final Serializer<T> serializer;
@@ -84,9 +86,10 @@ public class LogAppender<T> implements Closeable {
 
     private AtomicBoolean closed = new AtomicBoolean();
 
-    private final ExecutorService executor = Executors.newFixedThreadPool(3);
+    private final ExecutorService flushWorker = Executors.newFixedThreadPool(3);
     private final SedaContext sedaContext = new SedaContext();
     private final Set<LogPoller> pollers = new HashSet<>();
+    private final CacheManager cacheManager;
 
     private final Compactor<T> compactor;
 
@@ -97,9 +100,10 @@ public class LogAppender<T> implements Closeable {
     LogAppender(Config<T> config) {
         this.directory = config.directory;
         this.serializer = config.serializer;
-        this.factory = config.segmentFactory;
+        this.cacheManager = new CacheManager(config.cacheSize, config.cacheMaxAge);
+        this.factory = config.cacheSize == Config.NO_CACHING ? config.segmentFactory : CachedSegment.factory(config.segmentFactory, cacheManager);
         int mmapSize = config.mmap ? StorageProvider.mmapBufferSize(config.mmapBufferSize, config.segmentSize) : -1;
-        this.storageProvider = config.mmap ? StorageProvider.mmap(mmapSize) : StorageProvider.raf(config.storageCacheSize);
+        this.storageProvider = config.mmap ? StorageProvider.mmap(mmapSize) : StorageProvider.raf();
         this.namingStrategy = config.namingStrategy;
         this.dataStream = new DataStream();
         this.logger = Logging.namedLogger(config.name, "appender");
@@ -129,20 +133,18 @@ public class LogAppender<T> implements Closeable {
             this.state = State.readFrom(directory);
         }
 
-        try {
-            this.levels = loadSegments();
-            restoreState(levels.current());
-
-        } catch (Exception e) {
-            IOUtils.closeQuietly(state);
-            throw e;
-        }
+        this.levels = loadLevels();
 
         this.compactionDisabled = config.compactionDisabled;
         logger.info("Compaction is: {}", this.compactionDisabled ? "DISABLED" : "ENABLED");
 
         this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, config.name, levels, sedaContext, config.threadPerLevel);
 
+        logConfig(config, mmapSize);
+
+    }
+
+    private void logConfig(Config<T> config, int mmapSize) {
         logger.info("SEGMENT BITS : {}", SEGMENT_BITS);
         logger.info("MAX SEGMENTS: {} ({} bits)", MAX_SEGMENTS, SEGMENT_BITS);
         logger.info("MAX SEGMENT ADDRESS: {} ({} bits)", MAX_SEGMENT_ADDRESS, SEGMENT_ADDRESS_BITS);
@@ -155,10 +157,21 @@ public class LogAppender<T> implements Closeable {
         if(config.mmap) {
             logger.info("MMAP BUFFER SIZE : {}", mmapSize);
         }
-
     }
 
-    private void restoreState(Log<T> current) {
+    private Levels<T> loadLevels() {
+        try {
+            Levels<T> levels = loadSegments();
+            restoreState(levels);
+            return levels;
+        } catch (Exception e) {
+            IOUtils.closeQuietly(state);
+            throw e;
+        }
+    }
+
+    private void restoreState(Levels<T> levels) {
+        Log<T> current = levels.current();
         logger.info("Restoring state");
         long segmentPosition = current.position();
         long position = toSegmentedPosition(levels.numSegments() - 1L, segmentPosition);
@@ -376,6 +389,7 @@ public class LogAppender<T> implements Closeable {
 //        stateScheduler.shutdown();
 
         sedaContext.shutdown();
+        IOUtils.closeQuietly(cacheManager);
 
         Log<T> currentSegment = levels.current();
         if (currentSegment != null) {
@@ -402,7 +416,7 @@ public class LogAppender<T> implements Closeable {
             return;
         }
         if (metadata.asyncFlush)
-            executor.execute(this::flushInternal);
+            flushWorker.execute(this::flushInternal);
         else
             this.flushInternal();
 
