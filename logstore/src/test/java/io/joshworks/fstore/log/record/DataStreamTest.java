@@ -15,6 +15,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
 
@@ -119,7 +120,7 @@ public class DataStreamTest {
         List<Integer> found = new ArrayList<>();
         try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, START)) {
             int[] read = ref.readAllInto(found, Serializers.INTEGER);
-            assertEquals((numItems * (Integer.BYTES + RecordHeader.HEADER_OVERHEAD)), read);
+            assertEquals((numItems * (Integer.BYTES + RecordHeader.HEADER_OVERHEAD)), IntStream.of(read).sum());
         }
     }
 

@@ -14,7 +14,7 @@ import java.nio.channels.FileChannel;
 public class MMapStorage extends DiskStorage {
 
     private final int bufferSize;
-    MappedByteBuffer[] buffers = new MappedByteBuffer[1];
+    MappedByteBuffer[] buffers;
 
     private final boolean isWindows;
 
