@@ -39,18 +39,7 @@ public class FileUtils {
         }
     }
 
-    public static void removeFiles(File directory) throws IOException {
-        String[] files = directory.list();
-        if (files != null) {
-            for (String s : files) {
-                System.out.println("Deleting " + s);
-                Files.delete(new File(directory, s).toPath());
-            }
-        }
-        Files.delete(directory.toPath());
-    }
-
-    public static void sleep(long millis) {
+    private static void sleep(long millis) {
         try {
             Thread.sleep(millis);
         } catch (InterruptedException e1) {
@@ -59,11 +48,11 @@ public class FileUtils {
     }
 
 
-    public static File TEST_DIR = AppProperties.create().get("test.dir")
+    private static File TEST_DIR = AppProperties.create().get("test.dir")
             .map(File::new)
             .orElse(tempFolder());
 
-    public static File tempFolder() {
+    private static File tempFolder() {
         try {
             return Files.createTempDirectory("fstore-test").toFile();
         } catch (IOException e) {
@@ -75,7 +64,7 @@ public class FileUtils {
         return testFile(UUID.randomUUID().toString().substring(0, 8));
     }
 
-    public static File testFile(String name) {
+    private static File testFile(String name) {
         return new File(testFolder(), name);
     }
 
@@ -83,7 +72,7 @@ public class FileUtils {
         return testFolder(UUID.randomUUID().toString().substring(0, 8));
     }
 
-    public static File testFolder(String name) {
+    private static File testFolder(String name) {
         try {
             File file = new File(TEST_DIR, name);
             Files.createDirectories(file.toPath());

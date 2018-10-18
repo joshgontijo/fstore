@@ -73,7 +73,7 @@ public class BloomFilter<T> {
         try {
             Files.delete(handler.toPath());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to delete bloom filter", e);
         }
     }
 

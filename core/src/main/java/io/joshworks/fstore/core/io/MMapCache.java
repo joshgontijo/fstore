@@ -1,23 +1,25 @@
 package io.joshworks.fstore.core.io;
 
+import io.joshworks.fstore.core.util.MappedByteBuffers;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
 public class MMapCache extends RafStorage {
 
-    private ByteBuffer[] buffers;
+    private MappedByteBuffer[] buffers;
     private final int bufferSize;
 
-    public MMapCache(File target, RandomAccessFile raf) {
+    MMapCache(File target, RandomAccessFile raf) {
         super(target, raf);
         try {
             long length = raf.length();
             int numBuffers = getTotalBuffers(length, Integer.MAX_VALUE);
-            this.buffers = new ByteBuffer[numBuffers];
+            this.buffers = new MappedByteBuffer[numBuffers];
             this.bufferSize = (int) Math.min(length, Integer.MAX_VALUE);
 
         } catch (IOException e) {
@@ -77,7 +79,7 @@ public class MMapCache extends RafStorage {
     }
 
     private void growBuffersToAccommodateIdx(int newNumBuffers) {
-        ByteBuffer[] copy = new ByteBuffer[newNumBuffers + 1]; //idx + 1 = number of required buffers
+        MappedByteBuffer[] copy = new MappedByteBuffer[newNumBuffers + 1]; //idx + 1 = number of required buffers
         System.arraycopy(buffers, 0, copy, 0, buffers.length);
         buffers = copy;
     }
@@ -99,12 +101,12 @@ public class MMapCache extends RafStorage {
         return (int) (pos / bufferSize);
     }
 
-    private ByteBuffer map(int idx) {
+    private MappedByteBuffer map(int idx) {
         long from = ((long) idx) * bufferSize;
         return map(from, bufferSize);
     }
 
-    private ByteBuffer map(long from, long size) {
+    private MappedByteBuffer map(long from, long size) {
         try {
             return raf.getChannel().map(FileChannel.MapMode.READ_ONLY, from, size);
         } catch (Exception e) {
@@ -119,15 +121,33 @@ public class MMapCache extends RafStorage {
         return diff == 0 ? numFullBuffers : numFullBuffers + 1;
     }
 
+    private void unmapAll() {
+        for (int i = 0; i < buffers.length; i++) {
+            MappedByteBuffer buffer = buffers[i];
+            if(buffer != null) {
+                unmap(buffer);
+                buffers[i] = null;
+            }
+        }
+    }
+
+    private void unmap(MappedByteBuffer buffer) {
+        try {
+            MappedByteBuffers.unmap(buffer);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     @Override
     public void delete() {
-        buffers = null;
+        unmapAll();
         super.delete();
     }
 
     @Override
     public void close() {
-        buffers = null;
+        unmapAll();
         super.close();
     }
 

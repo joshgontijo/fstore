@@ -36,6 +36,7 @@ public class IndexAppender implements Index {
                 .compactionStrategy(new IndexCompactor())
                 .maxSegmentsPerLevel(2)
                 .logSize(segmentSize)
+                .enableCaching()
                 .namingStrategy(new IndexNaming())
                 .open(new IndexSegmentFactory(rootDir, numElements, codec));
     }
@@ -59,7 +60,7 @@ public class IndexAppender implements Index {
 
     @Override
     public Stream<IndexEntry> stream(Direction direction) {
-        return null;
+        return Iterators.closeableStream(iterator(direction));
     }
 
     @Override
@@ -108,6 +109,10 @@ public class IndexAppender implements Index {
 
     public long entries() {
         return appender.entries();
+    }
+
+    public List<Log<IndexEntry>> segments(){
+        return Iterators.toList(appender.segments(Direction.FORWARD));
     }
 
     public PollingSubscriber<IndexEntry> poller() {

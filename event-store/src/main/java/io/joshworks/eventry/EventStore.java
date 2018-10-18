@@ -438,18 +438,20 @@ public class EventStore implements IEventStore {
     public EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
 
-        try {
-            Future<EventRecord> task = executor.submit(() -> {
-                StreamMetadata metadata = getOrCreateStream(event.stream);
-                return append(metadata, event, expectedVersion);
-            });
-            return task.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+        StreamMetadata metadata = getOrCreateStream(event.stream);
+        return append(metadata, event, expectedVersion);
+//        try {
+//            Future<EventRecord> task = executor.submit(() -> {
+//                StreamMetadata metadata = getOrCreateStream(event.stream);
+//                return append(metadata, event, expectedVersion);
+//            });
+//            return task.get();
+//        } catch (InterruptedException e) {
+//            Thread.currentThread().interrupt();
+//            throw new RuntimeException(e);
+//        } catch (ExecutionException e) {
+//            throw new RuntimeException(e);
+//        }
 
 
     }

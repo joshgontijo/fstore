@@ -204,17 +204,12 @@ public class TableIndex implements Index {
             if (lastEntry != null) {
                 return lastEntry;
             }
-            while (!poller.headOfLog()) {
-                IndexEntry indexEntry = poller.poll();
-                if (indexEntry == null) {
-                    return null;
-                }
-                if (streamMatch(indexEntry)) {
-                    lastEntry = indexEntry;
-                    return indexEntry;
-                }
+            IndexEntry indexEntry = poller.peek();
+            if (indexEntry == null || !streamMatch(indexEntry)) {
+                return null;
             }
-            return null;
+            lastEntry = indexEntry;
+            return indexEntry;
         }
 
         @Override
@@ -337,7 +332,7 @@ public class TableIndex implements Index {
                     readFromMemory--;
                 }
                 if (!diskPoller.headOfLog()) {
-                    return diskPoller.poll();
+                    return func.apply(diskPoller);
                 }
                 IndexEntry polled = diskPoller.poll(3, TimeUnit.SECONDS);
                 if (polled != null) {

@@ -28,7 +28,7 @@ public class CachedSegmentTest {
     @Before
     public void setUp() {
         testFile = FileUtils.testFile();
-        Storage storage = StorageProvider.raf(false).create(testFile, Size.MB.of(500));
+        Storage storage = StorageProvider.raf(true).create(testFile, Size.MB.of(500));
         segment = new Segment<>(storage, Serializers.STRING, new DataStream(), "magic", Type.LOG_HEAD);
     }
 
@@ -41,7 +41,7 @@ public class CachedSegmentTest {
     @Test
     public void get_cached() {
         List<Long> positions = new ArrayList<>();
-        int items = 3000000;
+        int items = 5000000;
         for (int i = 0; i < items; i++) {
             long pos = segment.append(String.valueOf(i));
             positions.add(pos);

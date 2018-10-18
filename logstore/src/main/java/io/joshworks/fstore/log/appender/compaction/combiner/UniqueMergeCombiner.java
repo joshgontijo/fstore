@@ -15,6 +15,7 @@ import java.util.TreeSet;
  */
 public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<T> {
 
+    //FIXME TEST IT
     @Override
     public void mergeItems(List<Iterators.PeekingIterator<T>> items, Log<T> output) {
 
@@ -25,10 +26,12 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
             Iterator<Iterators.PeekingIterator<T>> itit = Iterators.reversed(items);
             while (itit.hasNext()) {
                 Iterators.PeekingIterator<T> seg = itit.next();
-                set.add(seg.next());
                 if (!seg.hasNext()) {
                     itit.remove();
+                    continue;
                 }
+                T next = seg.next();
+                set.add(next);
             }
 
             T t = set.pollFirst();

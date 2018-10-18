@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.segment.block;
 
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 
@@ -37,10 +38,13 @@ public class BlockIterator<T> implements LogIterator<T> {
     @Override
     public T next() {
         if (cached.isEmpty()) {
-            return cached.poll();
+            readNextBlock();
         }
-        readNextBlock();
-        return cached.poll();
+        T found = cached.poll();
+        if(found == null && !delegate.hasNext()) {
+            IOUtils.closeQuietly(delegate);
+        }
+        return found;
     }
 
     @Override
@@ -50,6 +54,7 @@ public class BlockIterator<T> implements LogIterator<T> {
 
     @Override
     public void close() throws IOException {
+        cached.clear();
         delegate.close();
     }
 
