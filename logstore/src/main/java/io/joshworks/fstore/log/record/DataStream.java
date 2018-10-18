@@ -44,7 +44,10 @@ public class DataStream implements IDataStream {
     @Override
     public long write(Storage storage, BufferPool bufferPool, ByteBuffer bytes) {
         int recordSize = RecordHeader.HEADER_OVERHEAD + bytes.remaining();
-        long entryPos = storage.position();
+        long storagePos = storage.position();
+        if(storagePos < Log.START) {
+            throw new IllegalStateException("storage position is less than " + Log.START);
+        }
 
         if (recordSize > MAX_ENTRY_SIZE) {
             throw new IllegalArgumentException("Record cannot exceed " + MAX_ENTRY_SIZE + " bytes");
@@ -60,7 +63,7 @@ public class DataStream implements IDataStream {
 
             bb.flip();
             storage.write(bb);
-            return entryPos;
+            return storagePos;
 
         } finally {
             bufferPool.free(bb);

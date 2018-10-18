@@ -489,7 +489,7 @@ public class Segment<T> implements Log<T> {
 
     private class SegmentPoller extends TimeoutReader implements PollingSubscriber<T> {
 
-        private static final int VERIFICATION_INTERVAL_MILLIS = 500;
+        private static final int POLL_MS = 500;
 
         private final IDataStream dataStream;
         private final Serializer<T> serializer;
@@ -568,7 +568,7 @@ public class Segment<T> implements Log<T> {
             long elapsed = 0;
             long start = System.currentTimeMillis();
             long maxWaitTime = timeUnit.toMillis(time);
-            long interval = Math.min(maxWaitTime, VERIFICATION_INTERVAL_MILLIS);
+            long interval = Math.min(maxWaitTime, POLL_MS);
             while (!closed.get() && !hasDataAvailable() && elapsed < maxWaitTime) {
                 TimeUnit.MILLISECONDS.sleep(interval);
                 elapsed = System.currentTimeMillis() - start;
@@ -584,7 +584,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public T peek() throws InterruptedException {
-            return tryTake(VERIFICATION_INTERVAL_MILLIS, TimeUnit.MILLISECONDS, false);
+            return tryTake(POLL_MS, TimeUnit.MILLISECONDS, false);
         }
 
         @Override
@@ -599,7 +599,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public T take() throws InterruptedException {
-            return tryTake(VERIFICATION_INTERVAL_MILLIS, TimeUnit.MILLISECONDS, true);
+            return tryTake(POLL_MS, TimeUnit.MILLISECONDS, true);
         }
 
         @Override

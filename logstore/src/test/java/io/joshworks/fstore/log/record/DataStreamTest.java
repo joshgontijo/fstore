@@ -1,19 +1,23 @@
 package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.io.BufferPool;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -24,16 +28,21 @@ public class DataStreamTest {
     private File file;
     private Storage storage;
     private static final long FILE_SIZE = Size.MB.of(10);
-    private static final int START = 0;
 
-
-    private final IDataStream stream = new DataStream(START);
+    private final IDataStream stream = new DataStream();
     private final BufferPool pool = new FixedPageSizeBuffer();
 
     @Before
     public void setUp() {
         file = FileUtils.testFile();
-        this.storage = StorageProvider.raf().create(file, FILE_SIZE);
+        storage = StorageProvider.raf().create(file, FILE_SIZE);
+        storage.position(Log.START);
+    }
+
+    @After
+    public void tearDown() {
+        IOUtils.closeQuietly(storage);
+        FileUtils.tryDelete(file);
     }
 
     @Test
@@ -41,7 +50,7 @@ public class DataStreamTest {
         ByteBuffer data1 = Serializers.STRING.toBytes("1");
         long write1 = stream.write(storage, pool, data1);
 
-        assertEquals(START, write1);
+        assertEquals(Log.START, write1);
     }
 
     @Test
@@ -78,7 +87,7 @@ public class DataStreamTest {
         }
 
         List<Integer> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, START)) {
+        try (BufferRef ref = stream.bulkRead(storage, pool, Direction.FORWARD, Log.START)) {
             ref.readAllInto(found, Serializers.INTEGER);
             assertEquals(numItems, found.size());
 
@@ -98,11 +107,12 @@ public class DataStreamTest {
         }
 
         List<Long> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, pool, Direction.BACKWARD, storage.position())) {
+        try (BufferRef ref = stream.bulkRead(storage, pool, Direction.BACKWARD, storage.position())) {
             ref.readAllInto(found, Serializers.LONG);
             assertEquals(numItems, found.size());
+            Collections.reverse(found);
 
-            for (int i = 0; i > numItems; i++) {
+            for (int i = 0; i < numItems; i++) {
                 assertEquals(Long.valueOf(i), found.get(i));
 
             }
@@ -118,7 +128,7 @@ public class DataStreamTest {
         }
 
         List<Integer> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, START)) {
+        try (BufferRef ref = stream.bulkRead(storage, pool, Direction.FORWARD, Log.START)) {
             int[] read = ref.readAllInto(found, Serializers.INTEGER);
             assertEquals((numItems * (Integer.BYTES + RecordHeader.HEADER_OVERHEAD)), IntStream.of(read).sum());
         }
@@ -134,7 +144,7 @@ public class DataStreamTest {
         stream.write(storage, pool, Serializers.STRING.toBytes(second));
 
         List<String> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, START)) {
+        try (BufferRef ref = stream.read(storage, pool, Direction.FORWARD, Log.START)) {
             ref.readAllInto(found, Serializers.STRING);
             assertEquals(1, found.size());
             assertEquals(first, found.get(0));

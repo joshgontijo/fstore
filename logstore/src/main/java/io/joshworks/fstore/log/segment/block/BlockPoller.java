@@ -23,9 +23,10 @@ public class BlockPoller<T> implements PollingSubscriber<T> {
             Block<T> block = delegate.poll();
             if(block != null) {
                 cached.addAll(block.entries());
+                found = cached.peek();
             }
         }
-        return cached.peek();
+        return found;
     }
 
     @Override
@@ -35,9 +36,11 @@ public class BlockPoller<T> implements PollingSubscriber<T> {
             Block<T> block = delegate.poll();
             if(block != null) {
                 cached.addAll(block.entries());
+                found = cached.poll();
             }
+
         }
-        return cached.poll();
+        return found;
     }
 
     @Override
@@ -47,9 +50,10 @@ public class BlockPoller<T> implements PollingSubscriber<T> {
             Block<T> block = delegate.poll(limit, timeUnit);
             if(block != null) {
                 cached.addAll(block.entries());
+                found = cached.poll();
             }
         }
-        return cached.poll();
+        return found;
     }
 
     @Override
@@ -59,9 +63,10 @@ public class BlockPoller<T> implements PollingSubscriber<T> {
             Block<T> block = delegate.take();
             if(block != null) {
                 cached.addAll(block.entries());
+                found = cached.poll();
             }
         }
-        return cached.poll();
+        return found;
     }
 
     @Override

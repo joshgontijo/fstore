@@ -69,6 +69,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
+        this.block = blockFactory.create(serializer, MAX_BLOCK_SIZE);
     }
 
     protected synchronized long writeBlock() {
@@ -99,6 +100,9 @@ public class IndexSegment implements Log<IndexEntry>, Index {
 
     @Override
     public synchronized void flush() {
+        if(readOnly()) {
+            return;
+        }
         writeBlock();
         delegate.flush();
         midpoints.write();
@@ -179,7 +183,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
 
     @Override
     public void roll(int level) {
-        writeBlock();
+        flush();
         delegate.roll(level);
     }
 
@@ -299,8 +303,9 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     }
 
     @Override
-    public void close() throws IOException {
-
+    public void close() {
+        flush();
+        delegate.close();
     }
 
 

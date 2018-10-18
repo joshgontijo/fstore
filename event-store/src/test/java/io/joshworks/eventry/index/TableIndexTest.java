@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -37,8 +38,7 @@ public class TableIndexTest {
 
     @After
     public void tearDown() {
-        tableIndex.close();
-        FileUtils.tryDelete(new File(testDirectory, "index"));
+        IOUtils.closeQuietly(tableIndex);
         FileUtils.tryDelete(testDirectory);
     }
 
@@ -346,7 +346,6 @@ public class TableIndexTest {
             }
         }
 
-
         try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(versionTracker.keySet())) {
 
             for (long stream = 0; stream < streams; stream++) {
@@ -418,8 +417,7 @@ public class TableIndexTest {
             }
 
             IndexEntry poll = poller.poll();
-            assertEquals(1, poll.version);
-
+            assertEquals(0, poll.version);
         }
     }
 
@@ -439,8 +437,8 @@ public class TableIndexTest {
             }
 
             IndexEntry poll = poller.poll();
-            assertEquals(1, poll.version);
-
+            assertNotNull(poll);
+            assertEquals(0, poll.version);
 
         }
     }

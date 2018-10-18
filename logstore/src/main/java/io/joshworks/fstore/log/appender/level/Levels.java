@@ -8,6 +8,10 @@ import io.joshworks.fstore.log.segment.Log;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,7 +22,10 @@ import java.util.stream.Collectors;
 public class Levels<T> {
 
     private final int maxItemsPerLevel;
-    private List<Log<T>> segments = new ArrayList<>();
+    private volatile List<Log<T>> segments = new CopyOnWriteArrayList<>();
+    private volatile Log<T> current;
+
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     private Levels(int maxItemsPerLevel, List<Log<T>> segments) {
         this.maxItemsPerLevel = maxItemsPerLevel;
@@ -37,9 +44,10 @@ public class Levels<T> {
         if (this.segments.stream().noneMatch(seg -> seg.level() == 0)) {
             throw new IllegalStateException("Level zero must be present");
         }
+        this.current = segments.get(segments.size() - 1);
     }
 
-    public synchronized List<Log<T>> segments(int level) {
+    public List<Log<T>> segments(int level) {
         return segments.stream().filter(seg -> seg.level() == level).collect(Collectors.toList());
     }
 
@@ -51,11 +59,11 @@ public class Levels<T> {
         return segments.stream().mapToInt(Log::level).max().orElse(0);
     }
 
-    public static <T> Levels<T> create(int maxItemsPerLevel, List<Log<T>> segments) {
+    public static synchronized <T> Levels<T> create(int maxItemsPerLevel, List<Log<T>> segments) {
         return new Levels<>(maxItemsPerLevel, segments);
     }
 
-    public synchronized void appendSegment(Log<T> segment) {
+    public void appendSegment(Log<T> segment) {
         if (segment.level() != 0) {
             throw new IllegalArgumentException("New segment must be level zero");
         }
@@ -70,8 +78,8 @@ public class Levels<T> {
         if (!prevHead.readOnly()) {
             throw new IllegalStateException("Segment must be marked as read only after rolling");
         }
-
         segments.add(segment);
+        current = segment;
     }
 
     public int numSegments() {
@@ -147,7 +155,7 @@ public class Levels<T> {
     }
 
     public Log<T> current() {
-        return segments.get(segments.size() - 1);
+        return current;
     }
 
     public LogIterator<Log<T>> segments(Direction direction) {

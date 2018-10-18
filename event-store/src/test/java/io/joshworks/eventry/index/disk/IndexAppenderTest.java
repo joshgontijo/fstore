@@ -1,16 +1,20 @@
 package io.joshworks.eventry.index.disk;
 
 import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
@@ -22,7 +26,7 @@ public class IndexAppenderTest {
 
     @Before
     public void setUp() {
-        location = new File("J:\\EVENT-STORE\\" + UUID.randomUUID().toString().substring(0, 8));
+        location = FileUtils.testFolder();
         appender = new IndexAppender(location, (int) Size.MB.of(10), 10000, true);
     }
 
@@ -33,7 +37,47 @@ public class IndexAppenderTest {
     }
 
     @Test
-    public void entries_are_returned_from_multiple_segments() {
+    public void entry_count() {
+
+        appender.append(IndexEntry.of(1, 0, 0));
+        appender.append(IndexEntry.of(2, 0, 0));
+        appender.append(IndexEntry.of(3, 0, 0));
+
+        long entries = appender.entries();
+        assertEquals(3, entries);
+    }
+
+    @Test
+    public void entry_count_after_flush() {
+
+        appender.append(IndexEntry.of(1, 0, 0));
+        appender.append(IndexEntry.of(2, 0, 0));
+        appender.append(IndexEntry.of(3, 0, 0));
+
+        appender.flush();
+
+        long entries = appender.entries();
+        assertEquals(3, entries);
+    }
+
+    @Test
+    public void entry_count_after_close() {
+
+        appender.append(IndexEntry.of(1, 0, 0));
+        appender.append(IndexEntry.of(2, 0, 0));
+        appender.append(IndexEntry.of(3, 0, 0));
+
+        appender.close();
+
+        appender = new IndexAppender(location, (int) Size.MB.of(10), 10000, true);
+        long entries = appender.entries();
+
+        //FIXME BLOCK SEGMENTS MUST PARSE ALL BLOCKS ON OPEN TO COMPUTE THE ENTRIES, IF ITS LOG_HEAD
+        assertEquals(3, entries);
+    }
+
+    @Test
+    public void all_entries_are_returned_from_multiple_segments() throws InterruptedException {
 
         int entriesPerSegment = 10;
         int numSegments = 10;
@@ -47,21 +91,39 @@ public class IndexAppenderTest {
         }
         appender.flush();
 
-        int found = 0;
-        IndexEntry last = null;
+        long entries = appender.entries();
+        assertEquals(entriesPerSegment * numSegments, entries);
 
-        LogIterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD);
-        while(iterator.hasNext()) {
-            IndexEntry next = iterator.next();
-            found++;
-            if (last != null) {
-                assertEquals(last.stream + 1, next.stream);
+        long count = appender.stream(Direction.FORWARD).count();
+        assertEquals(entriesPerSegment * numSegments, count);
+    }
+
+    @Test
+    public void entries_are_returned_in_order_from_multiple_segments() throws IOException {
+
+        int entriesPerSegment = 10;
+        int numSegments = 10;
+
+        int version = 0;
+        for (int i = 0; i < entriesPerSegment; i++) {
+            for (int x = 0; x < numSegments; x++) {
+                appender.append(IndexEntry.of(0, version++, 0));
             }
-            last = next;
+            appender.roll();
         }
+        appender.flush();
 
-        assertEquals(entriesPerSegment * numSegments, found);
-
+        int found = 0;
+        int expectedVersion = Range.START_VERSION;
+        try(LogIterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD)) {
+            while(iterator.hasNext()) {
+                IndexEntry next = iterator.next();
+                assertEquals(expectedVersion, next.version);
+                found++;
+                expectedVersion++;
+            }
+            assertEquals(entriesPerSegment * numSegments, found);
+        }
     }
 
     @Test
