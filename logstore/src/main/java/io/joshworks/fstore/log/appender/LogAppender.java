@@ -21,7 +21,6 @@ import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
-import io.joshworks.fstore.log.cache.CacheManager;
 import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
 
@@ -87,7 +86,6 @@ public class LogAppender<T> implements Closeable {
     private final ExecutorService flushWorker = Executors.newFixedThreadPool(3);
     private final SedaContext sedaContext = new SedaContext();
     private final Set<LogPoller> pollers = new HashSet<>();
-    private final CacheManager cacheManager;
     private final Compactor<T> compactor;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
@@ -98,9 +96,8 @@ public class LogAppender<T> implements Closeable {
         this.segmentSize = LogHeader.BYTES + config.logSize + config.footerSize;
         this.directory = config.directory;
         this.serializer = config.serializer;
-        this.cacheManager = new CacheManager(config.cacheSize, config.cacheMaxAge);
         this.factory = config.segmentFactory;
-        this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
+        this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf(config.rafCache);
         this.namingStrategy = config.namingStrategy;
         this.dataStream = new DataStream();
         this.logger = Logging.namedLogger(config.name, "appender");
@@ -115,7 +112,7 @@ public class LogAppender<T> implements Closeable {
             }
 
             LogFileUtils.createRoot(directory);
-            this.metadata = Metadata.create(
+            this.metadata = Metadata.write(
                     directory,
                     config.logSize,
                     config.footerSize,
@@ -152,6 +149,7 @@ public class LogAppender<T> implements Closeable {
         logger.info("COMPACTION ENABLED: {}", !this.compactionDisabled);
         logger.info("MAX SEGMENTS PER LEVEL: {}", config.maxSegmentsPerLevel);
         logger.info("MMAP ENABLED: {}", config.mmap);
+        logger.info("CACHE ENABLED: {}", (!config.mmap && config.rafCache));
     }
 
     private Levels<T> loadLevels() {
@@ -384,7 +382,6 @@ public class LogAppender<T> implements Closeable {
 //        stateScheduler.shutdown();
 
         sedaContext.shutdown();
-        IOUtils.closeQuietly(cacheManager);
 
         Log<T> currentSegment = levels.current();
         if (currentSegment != null) {

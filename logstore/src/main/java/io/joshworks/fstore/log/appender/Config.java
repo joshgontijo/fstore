@@ -1,7 +1,6 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.cache.CacheManager;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -37,9 +36,7 @@ public class Config<T> {
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
-    long cacheSize = CacheManager.NO_CACHING;
-    int cacheMaxAge = CacheManager.NO_CACHING;
-
+    boolean rafCache;
 
     Config(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -63,13 +60,8 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> enableCaching(long maxSize) {
-        return enableCaching(maxSize, CacheManager.CACHING_NO_MAX_AGE);
-    }
-
-    public Config<T> enableCaching(long maxSize, int maxAge) {
-        this.cacheSize = maxSize;
-        this.cacheMaxAge = maxAge;
+    public Config<T> enableCaching() {
+        this.rafCache = true;
         return this;
     }
 
@@ -131,6 +123,7 @@ public class Config<T> {
     public LogAppender<T> open(SegmentFactory<T> segmentFactory) {
         Objects.requireNonNull(segmentFactory, "SegmentFactory must be provided");
         this.segmentFactory = segmentFactory;
+        this.mmapBufferSize = mmap && mmapBufferSize == NO_MMAP_BUFFER_SIZE ? (int) Math.min(logSize, Integer.MAX_VALUE) : mmapBufferSize;
         return new LogAppender<>(this);
     }
 

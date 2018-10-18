@@ -56,7 +56,7 @@ public class Metadata {
         }
     }
 
-    public static Metadata create(File directory, long logSize, int footerSize, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
+    public static Metadata write(File directory, long logSize, int footerSize, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
         File file = new File(directory, LogFileUtils.METADATA_FILE);
         try (Storage storage = StorageProvider.raf().create(file, METADATA_SIZE)) {
             ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
