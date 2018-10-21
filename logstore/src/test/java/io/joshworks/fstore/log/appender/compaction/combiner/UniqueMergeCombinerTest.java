@@ -2,6 +2,7 @@ package io.joshworks.fstore.log.appender.compaction.combiner;
 
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
+import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -24,6 +25,7 @@ import static org.junit.Assert.assertEquals;
 public class UniqueMergeCombinerTest {
 
     private final List<Segment> segments = new ArrayList<>();
+    private DataStream dataStream = new DataStream(new SingleBufferThreadCachedPool(false));
 
     @After
     public void tearDown() {
@@ -118,7 +120,8 @@ public class UniqueMergeCombinerTest {
     private Segment<String> segmentWith(String... values) {
         File file = FileUtils.testFile();
         Storage storage = StorageProvider.raf().create(file, Memory.PAGE_SIZE);
-        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, new DataStream(), "magic", Type.LOG_HEAD);
+
+        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", Type.LOG_HEAD);
         segments.add(segment);
 
         for (String value : values) {
@@ -131,7 +134,7 @@ public class UniqueMergeCombinerTest {
     private Segment<String> outputSegment() {
         File file = FileUtils.testFile();
         Storage storage = StorageProvider.raf().create(file, Memory.PAGE_SIZE);
-        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, new DataStream(), "magic", Type.LOG_HEAD);
+        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", Type.LOG_HEAD);
         segments.add(segment);
         return segment;
     }

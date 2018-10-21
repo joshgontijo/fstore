@@ -51,7 +51,7 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
 
             for (int i = 0; i < segments.size(); i++) {
                 Log<T> segment = segments.get(i);
-                logger.info("Segment[{}] {} - size: {}, entries: {}", i, segment.name(), segment.fileSize(), segment.entries());
+                logger.info("Segment[{}] {} - size: {}, entries: {}", i, segment.name(), segment.actualSize(), segment.entries());
             }
 
             long start = System.currentTimeMillis();
@@ -60,8 +60,6 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
             target = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, Type.MERGE_OUT);
 
             combiner.merge(segments, target);
-
-            target.roll(nextLevel);
 
             logger.info("Result Segment {} - size: {}, entries: {}", target.name(), totalSize, target.entries());
 

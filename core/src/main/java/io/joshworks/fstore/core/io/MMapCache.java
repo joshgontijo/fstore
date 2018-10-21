@@ -29,6 +29,10 @@ public class MMapCache extends RafStorage {
 
     @Override
     public int read(long position, ByteBuffer dst) {
+        boolean a = true;
+        if(a) {
+            return super.read(position, dst);
+        }
         int idx = bufferIdx(position);
         int bufferAddress = posOnBuffer(position);
         if (idx >= buffers.length) {
@@ -82,15 +86,6 @@ public class MMapCache extends RafStorage {
         MappedByteBuffer[] copy = new MappedByteBuffer[newNumBuffers + 1]; //idx + 1 = number of required buffers
         System.arraycopy(buffers, 0, copy, 0, buffers.length);
         buffers = copy;
-    }
-
-    @Override
-    public void position(long pos) {
-        int idx = bufferIdx(position);
-        ByteBuffer buffer = getOrAllocate(idx, true);
-        int bufferAddress = posOnBuffer(pos);
-        buffer.position(bufferAddress);
-        this.position = pos;
     }
 
     private int posOnBuffer(long pos) {

@@ -1,54 +1,58 @@
 package io.joshworks.eventry.log;
 
+import io.joshworks.eventry.log.cache.EventRecordCache;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.log.appender.Config;
-import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.util.stream.Stream;
 
-public class EventLog implements IEventLog {
+public class CachedEventLog implements IEventLog {
 
-    private final LogAppender<EventRecord> appender;
+    private final IEventLog delegate;
+    private final EventRecordCache cache;
 
-    public EventLog(Config<EventRecord> config) {
-        this.appender = config.open();
+    public CachedEventLog(IEventLog delegate, long maxSize, int maxAgeSec) {
+        this.delegate = delegate;
+        this.cache = EventRecordCache.instance(maxSize, maxAgeSec);
     }
 
-    @Override
     public long append(EventRecord event) {
-        return appender.append(event);
+        return delegate.append(event);
     }
 
-    @Override
     public EventRecord get(long position) {
-        EventRecord event = appender.get(position);
+        EventRecord cached = cache.get(position);
+        if (cached != null) {
+            return cached;
+        }
+        EventRecord event = delegate.get(position);
         if (event == null) {
             throw new IllegalArgumentException("No event found for " + position);
         }
+        cache.cache(position, event);
         return event;
     }
 
     @Override
     public long entries() {
-        return appender.entries();
+        return delegate.entries();
     }
 
     @Override
     public long position() {
-        return appender.position();
+        return delegate.position();
     }
 
     @Override
     public void close() {
-        appender.close();
+        delegate.close();
     }
 
     @Override
     public LogIterator<EventRecord> iterator(Direction direction) {
-        return appender.iterator(direction);
+        return delegate.iterator(direction);
     }
 
     @Override
@@ -58,17 +62,17 @@ public class EventLog implements IEventLog {
 
     @Override
     public PollingSubscriber<EventRecord> poller() {
-        return appender.poller();
+        return delegate.poller();
     }
 
     @Override
     public PollingSubscriber<EventRecord> poller(long position) {
-        return appender.poller(position);
+        return delegate.poller(position);
     }
 
     @Override
     public void cleanup() {
-        appender.compact();
+        delegate.cleanup();
     }
 
 }

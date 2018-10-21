@@ -11,6 +11,8 @@ public interface IEventStore extends Closeable, IProjection, IStream, IStreamQue
 
     void cleanup();
 
+    void compactIndex();
+
     EventRecord linkTo(String stream, EventRecord event);
 
     void emit(String stream, EventRecord event);

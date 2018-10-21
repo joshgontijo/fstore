@@ -143,12 +143,14 @@ public class BlockSegment<T> implements Log<T> {
 
     @Override
     public void close() {
-        writeBlock();
         delegate.close();
     }
 
     @Override
     public void flush() {
+        if(readOnly()) {
+            return;
+        }
         writeBlock();
         delegate.flush();
     }
@@ -193,6 +195,11 @@ public class BlockSegment<T> implements Log<T> {
     @Override
     public int level() {
         return delegate.level();
+    }
+
+    @Override
+    public Type type() {
+        return delegate.type();
     }
 
     @Override

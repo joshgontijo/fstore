@@ -39,6 +39,11 @@
                 <artifactId>index</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.joshworks.fstore</groupId>
+                <artifactId>lsmtree</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <!-- Serializers -->
             <dependency>
                 <groupId>${project.groupId}</groupId>

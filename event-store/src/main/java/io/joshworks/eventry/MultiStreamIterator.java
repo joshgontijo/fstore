@@ -1,8 +1,8 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.index.IndexEntry;
-import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 
@@ -14,10 +14,10 @@ import java.util.Queue;
 //Ordered by log position multiple streams
 public class MultiStreamIterator implements LogIterator<EventRecord> {
 
-    private final EventLog log;
+    private final IEventLog log;
     private final Queue<Iterators.PeekingIterator<IndexEntry>> queue;
 
-    MultiStreamIterator(Iterable<? extends LogIterator<IndexEntry>> iterators, EventLog log) {
+    MultiStreamIterator(Iterable<? extends LogIterator<IndexEntry>> iterators, IEventLog log) {
         this.log = log;
         this.queue = new PriorityQueue<>(1000, Comparator.comparingLong(o -> o.peek().position));
         for (LogIterator<IndexEntry> iterator : iterators) {

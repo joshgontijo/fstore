@@ -218,17 +218,22 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         return delegate.created();
     }
 
+    @Override
+    public Type type() {
+        return delegate.type();
+    }
+
     void newBloomFilter(long numElements) {
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
     }
 
-    private boolean mightHaveEntries(Range range) {
-        return midpoints.inRange(range) && filter.contains(range.stream);
+    private boolean definitelyNotPresent(Range range) {
+        return !midpoints.inRange(range) || !filter.contains(range.stream);
     }
 
     @Override
     public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
-        if (!mightHaveEntries(range)) {
+        if (definitelyNotPresent(range)) {
             return Iterators.empty();
         }
 
@@ -249,7 +254,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
         Range range = Range.of(stream, version, version + 1);
-        if (!mightHaveEntries(range)) {
+        if (definitelyNotPresent(range)) {
             return Optional.empty();
         }
 
@@ -276,7 +281,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     @Override
     public int version(long stream) {
         Range range = Range.allOf(stream);
-        if (!mightHaveEntries(range)) {
+        if (definitelyNotPresent(range)) {
             return IndexEntry.NO_VERSION;
         }
 
@@ -304,7 +309,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
 
     @Override
     public void close() {
-        flush();
+        //do not flush
         delegate.close();
     }
 

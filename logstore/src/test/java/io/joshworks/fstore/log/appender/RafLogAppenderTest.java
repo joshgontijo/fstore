@@ -10,7 +10,7 @@ public class RafLogAppenderTest extends LogAppenderTest {
     @Override
     protected LogAppender<String> appender(File testDirectory, int segmentSize) {
         return LogAppender.builder(testDirectory, new StringSerializer())
-                .logSize(segmentSize)
+                .segmentSize(segmentSize)
                 .disableCompaction()
                 .open();
     }

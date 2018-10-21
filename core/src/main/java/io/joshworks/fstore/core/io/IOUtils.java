@@ -74,6 +74,9 @@ public final class IOUtils {
     }
 
     public static RandomAccessFile randomAccessFile(File file, long size) {
+        if (size < 0) {
+            throw new IllegalArgumentException("Invalid file size: " + size);
+        }
         try {
             RandomAccessFile raf = new RandomAccessFile(file, "rw");
             raf.setLength(size);

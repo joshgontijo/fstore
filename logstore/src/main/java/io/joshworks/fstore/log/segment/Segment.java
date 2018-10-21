@@ -2,8 +2,6 @@ package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.AdaptiveBufferPool;
-import io.joshworks.fstore.core.io.BufferPool;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
@@ -48,12 +46,13 @@ public class Segment<T> implements Log<T> {
     private final Storage storage;
     private final IDataStream dataStream;
     private final String magic;
-    private final BufferPool bufferPool = new AdaptiveBufferPool(1000, false);
 
     private AtomicLong entries = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
 
     private LogHeader header;
+
+    private final Object READER_LOCK = new Object();
 
     private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
 
@@ -66,15 +65,26 @@ public class Segment<T> implements Log<T> {
             this.dataStream = requireNonNull(dataStream, "Reader must be provided");
             this.magic = requireNonNull(magic, "Magic must be provided");
             this.logger = Logging.namedLogger(storage.name(), "segment");
-            this.header = LogHeader.getOrCreate(storage, magic, type);
 
-            this.position(Log.START);
-            entries.set(this.header.entries);
-            if (Type.LOG_HEAD.equals(this.header.type)) { //reopening log head
+            LogHeader foundHeader = LogHeader.read(storage);
+            if (foundHeader == null) {
+                if (type == null) {
+                    throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
+                }
+                foundHeader = LogHeader.create(magic, type);
+                this.header = LogHeader.write(storage, foundHeader);
+
+                this.position(Log.START);
+                this.entries.set(this.header.entries);
+
+            } else {
+                this.header = foundHeader;
                 SegmentState result = rebuildState(Segment.START);
                 this.position(result.position);
-                entries.set(result.entries);
+                this.entries.set(result.entries);
             }
+            LogHeader.validateMagic(foundHeader.magic, magic);
+
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
             throw new SegmentException("Failed to construct segment", e);
@@ -104,7 +114,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public T get(long position) {
         checkBounds(position);
-        try (BufferRef ref = dataStream.read(storage, bufferPool, Direction.FORWARD, position)) {
+        try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position)) {
             ByteBuffer bb = ref.get();
             if (bb.remaining() == 0) { //EOF
                 return null;
@@ -132,6 +142,9 @@ public class Segment<T> implements Log<T> {
         if (readOnly() && position > header.logEnd) {
             throw new IllegalArgumentException("Position must be less than " + header.logEnd + ", got " + position);
         }
+        if (!readOnly() && position > position()) {
+            throw new IllegalArgumentException("Position must be less than " + position() + ", got " + position);
+        }
     }
 
     @Override
@@ -155,7 +168,7 @@ public class Segment<T> implements Log<T> {
             throw new IllegalStateException("Segment is read only");
         }
         ByteBuffer bytes = serializer.toBytes(data);
-        long recordPosition = dataStream.write(storage, bufferPool, bytes);
+        long recordPosition = dataStream.write(storage, bytes);
         entries.incrementAndGet();
         return recordPosition;
     }
@@ -218,7 +231,7 @@ public class Segment<T> implements Log<T> {
             logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
             int lastRead;
             do {
-                try (BufferRef ref = dataStream.read(storage, bufferPool, Direction.FORWARD, position)) {
+                try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position)) {
                     int entrySize = ref.get().remaining();
                     lastRead = entrySize;
                     if (entrySize > 0) {
@@ -252,7 +265,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public void roll(int level, ByteBuffer footer) {
         if (readOnly()) {
-            throw new IllegalStateException("Cannot roll read only segment");
+            throw new IllegalStateException("Cannot roll read only segment: " + this.toString());
         }
 
         writeEndOfLog();
@@ -260,13 +273,14 @@ public class Segment<T> implements Log<T> {
         FooterInfo footerInfo = footer != null ? writeFooter(footer) : FooterInfo.emptyFooter(endOfLog);
         this.header = writeHeader(level, footerInfo);
 
-        boolean hasFooter = header.footerStart > 0;
-        long endOfSegment = hasFooter ? header.footerStart + header.footerEnd : endOfLog;
+        boolean hasFooter = (header.footerEnd - header.footerStart) > 0;
+        long endOfSegment = hasFooter ? header.footerEnd : endOfLog;
         storage.truncate(endOfSegment);
     }
 
     @Override
     public ByteBuffer readFooter() {
+        checkClosed();
         if (!readOnly()) {
             throw new IllegalStateException("Segment is not read only");
         }
@@ -296,7 +310,9 @@ public class Segment<T> implements Log<T> {
     private FooterInfo writeFooter(ByteBuffer footer) {
         long pos = storage.position();
         int size = footer.remaining();
-        storage.write(footer);
+        if (size > 0) {
+            storage.write(footer);
+        }
         return new FooterInfo(pos, pos + size);
     }
 
@@ -304,24 +320,15 @@ public class Segment<T> implements Log<T> {
         long segmentSize = footerInfo.end;
         long logEnd = footerInfo.start - EOL.length;
         LogHeader newHeader = LogHeader.create(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, START, logEnd, footerInfo.start, footerInfo.end);
-        LogHeader.write(storage,newHeader);
+        LogHeader.write(storage, newHeader);
         return newHeader;
     }
 
     //TODO implement race condition on acquiring readers and closing / deleting segment
-    //TODO readers limit ?
+    //ideally the delete functionality would be moved to inside the segment, instead handling in the Compactor
     private SegmentReader newLogReader(long pos, Direction direction) {
-
-        while (readers.size() >= 10) {
-            try {
-                Thread.sleep(1000);
-                logger.info("Waiting to acquire reader");
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            }
-        }
-
+        checkClosed();
+        checkBounds(pos);
         SegmentReader segmentReader = new SegmentReader(dataStream, serializer, pos, direction);
         return addToReaders(segmentReader);
     }
@@ -344,6 +351,11 @@ public class Segment<T> implements Log<T> {
     @Override
     public long created() {
         return header.created;
+    }
+
+    @Override
+    public Type type() {
+        return header.type;
     }
 
 
@@ -372,7 +384,7 @@ public class Segment<T> implements Log<T> {
 
     private void checkClosed() {
         if (closed.get()) {
-            throw new IllegalStateException("Segment " + name() + "is closed");
+            throw new SegmentClosedException("Segment " + name() + "is closed");
         }
     }
 
@@ -407,7 +419,6 @@ public class Segment<T> implements Log<T> {
         SegmentReader(IDataStream dataStream, Serializer<T> serializer, long initialPosition, Direction direction) {
             this.dataStream = dataStream;
             this.direction = direction;
-            checkBounds(initialPosition);
             this.serializer = serializer;
             this.position = initialPosition;
             this.readAheadPosition = initialPosition;
@@ -444,6 +455,9 @@ public class Segment<T> implements Log<T> {
         }
 
         private void readAhead() {
+            if (closed.get()) {
+                return;
+            }
             if (Direction.FORWARD.equals(direction)) {
                 if (Segment.this.readOnly() && readAheadPosition >= Segment.this.header.logEnd) {
                     return;
@@ -456,7 +470,7 @@ public class Segment<T> implements Log<T> {
                 return;
             }
             int totalRead = 0;
-            try (BufferRef ref = dataStream.bulkRead(storage, bufferPool, direction, readAheadPosition)) {
+            try (BufferRef ref = dataStream.bulkRead(storage, direction, readAheadPosition)) {
                 int[] entriesLength = ref.readAllInto(pageQueue, serializer);
                 for (int length : entriesLength) {
                     entriesSizes.add(length);
@@ -506,12 +520,16 @@ public class Segment<T> implements Log<T> {
         }
 
         private T read(boolean advance) {
+            if (Segment.this.closed.get()) {
+                close();
+                return null;
+            }
             T val = readCached(advance);
             if (val != null) {
                 return val;
             }
 
-            try (BufferRef ref = dataStream.bulkRead(storage, bufferPool, Direction.FORWARD, readPosition)) {
+            try (BufferRef ref = dataStream.bulkRead(storage, Direction.FORWARD, readPosition)) {
                 int[] entriesLength = ref.readAllInto(pageQueue, serializer);
                 for (int length : entriesLength) {
                     entriesSizes.add(length);
@@ -524,7 +542,10 @@ public class Segment<T> implements Log<T> {
         private T readCached(boolean advance) {
             T val = advance ? pageQueue.poll() : pageQueue.peek();
             if (val != null) {
-                int len = advance ? entriesSizes.poll() : entriesSizes.peek();
+                Integer len = advance ? entriesSizes.poll() : entriesSizes.peek();
+                if (len == null) {
+                    throw new IllegalStateException("No length available for entry");
+                }
                 if (advance) {
                     readPosition += len;
                 }

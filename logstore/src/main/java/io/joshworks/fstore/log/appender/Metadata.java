@@ -19,19 +19,19 @@ public class Metadata {
     final String magic;
     final long logSize;
     final int footerSize;
-    final int maxSegmentsPerLevel;
+    final int compactionThreshold;
     final boolean mmap;
     final boolean flushAfterWrite;
     final boolean asyncFlush;
 
-    private Metadata(String magic, long logSize, int footerSize, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
+    private Metadata(String magic, long logSize, int footerSize, int compactionThreshold, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
         this.magic = magic;
         this.logSize = logSize;
         this.footerSize = footerSize;
         this.mmap = mmap;
         this.flushAfterWrite = flushAfterWrite;
         this.asyncFlush = asyncFlush;
-        this.maxSegmentsPerLevel = maxSegmentsPerLevel;
+        this.compactionThreshold = compactionThreshold;
     }
 
     public static Metadata readFrom(File directory) {

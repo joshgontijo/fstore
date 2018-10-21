@@ -3,6 +3,7 @@ package io.joshworks.fstore.log;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
+import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.Log;
@@ -29,7 +30,7 @@ public class CachedSegmentTest {
     public void setUp() {
         testFile = FileUtils.testFile();
         Storage storage = StorageProvider.raf(true).create(testFile, Size.MB.of(500));
-        segment = new Segment<>(storage, Serializers.STRING, new DataStream(), "magic", Type.LOG_HEAD);
+        segment = new Segment<>(storage, Serializers.STRING, new DataStream(new SingleBufferThreadCachedPool(false)), "magic", Type.LOG_HEAD);
     }
 
     @After

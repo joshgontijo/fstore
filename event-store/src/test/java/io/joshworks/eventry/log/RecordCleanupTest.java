@@ -12,6 +12,7 @@ import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -232,6 +233,11 @@ public class RecordCleanupTest {
         @Override
         public long created() {
             return 0;
+        }
+
+        @Override
+        public Type type() {
+            return null;
         }
 
         @Override

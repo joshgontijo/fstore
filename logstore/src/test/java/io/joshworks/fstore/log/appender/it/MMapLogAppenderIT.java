@@ -11,7 +11,7 @@ public class MMapLogAppenderIT extends LogAppenderIT {
     @Override
     protected LogAppender<String> appender(File testDirectory) {
         return LogAppender.builder(testDirectory, Serializers.STRING)
-                .logSize((int) Size.MB.of(500))
+                .segmentSize((int) Size.MB.of(500))
                 .threadPerLevelCompaction()
                 .disableCompaction()
                 .mmap()

@@ -114,7 +114,7 @@ public class Midpoints {
 
     public void delete() {
         try {
-            Files.delete(handler.toPath());
+            Files.deleteIfExists(handler.toPath());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

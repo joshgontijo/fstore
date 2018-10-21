@@ -1,8 +1,5 @@
 package io.joshworks.eventry.stream;
 
-import io.joshworks.eventry.utils.StringUtils;
-
-import java.util.HashMap;
 import java.util.Map;
 
 public class StreamMetadata {
@@ -30,6 +27,7 @@ public class StreamMetadata {
 
     public final int state;
 
+    //TODO lot of memory usage when creating many streams
     final Map<String, Integer> permissions;
     final Map<String, String> metadata;
 
@@ -43,7 +41,6 @@ public class StreamMetadata {
         this.metadata = metadata;
         this.state = state;
     }
-
 
 
     public boolean hasReadPermission(String id) {

@@ -1,8 +1,8 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.index.IndexEntry;
-import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
@@ -10,9 +10,9 @@ import java.io.IOException;
 public class SingleStreamIterator implements LogIterator<EventRecord> {
 
     private final LogIterator<IndexEntry> indexIterator;
-    private final EventLog log;
+    private final IEventLog log;
 
-    public SingleStreamIterator(LogIterator<IndexEntry> indexIterator, EventLog log) {
+    public SingleStreamIterator(LogIterator<IndexEntry> indexIterator, IEventLog log) {
         this.indexIterator = indexIterator;
         this.log = log;
     }

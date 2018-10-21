@@ -1,9 +1,8 @@
 package io.joshworks.fstore.log.segment.header;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.segment.SegmentException;
+import io.joshworks.fstore.log.Checksum;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +13,7 @@ public class LogHeader {
 
     private static final Serializer<LogHeader> headerSerializer = new HeaderSerializer();
     public static final int BYTES = 1024;
+    public static final int ACTUAL_BYTES = 104; //all longs + magic + vlen overhead
 
     //segment info
     public final String magic;
@@ -52,21 +52,7 @@ public class LogHeader {
         return new LogHeader(magic, entries, created, level, type, segmentSize, logStart, logEnd, footerStart, footerEnd);
     }
 
-    public static LogHeader getOrCreate(Storage storage, String magic, Type type) {
-        LogHeader foundHeader = LogHeader.read(storage);
-        if (foundHeader == null) {
-            if (Type.OPEN.equals(type)) {
-                IOUtils.closeQuietly(storage);
-                throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
-            }
-            foundHeader = LogHeader.create(magic, type);
-            LogHeader.write(storage, foundHeader);
-        }
-        validateMagic(foundHeader.magic, magic);
-        return foundHeader;
-    }
-
-    private static void validateMagic(String actualMagic, String expectedMagic) {
+    public static void validateMagic(String actualMagic, String expectedMagic) {
         byte[] actual = actualMagic.getBytes(StandardCharsets.UTF_8);
         byte[] expected = expectedMagic.getBytes(StandardCharsets.UTF_8);
         if (!Arrays.equals(expected, actual)) {
@@ -81,34 +67,48 @@ public class LogHeader {
         if (bb.remaining() == 0) {
             return null;
         }
+        int length = bb.getInt();
+        if (length == 0) {
+            return null;
+        }
+        if (length != ACTUAL_BYTES) {
+            throw new HeaderException("Header must be of size " + ACTUAL_BYTES + ", got " + length);
+        }
+        int checksum = bb.getInt();
+        bb.limit(bb.position() + length); //length + checksum
+        if (Checksum.crc32(bb) != checksum) {
+            throw new IllegalStateException("Log head checksum verification failed");
+        }
+
         return headerSerializer.fromBytes(bb);
     }
 
-    public static void write(Storage storage, LogHeader header) {
+    public static LogHeader write(Storage storage, LogHeader header) {
         try {
-            long pos = storage.position();
-            storage.position(0);
+            ByteBuffer withChecksumAndLength = ByteBuffer.allocate(BYTES);
             ByteBuffer headerData = headerSerializer.toBytes(header);
-            if (storage.write(headerData) != LogHeader.BYTES) {
+
+            int entrySize = headerData.remaining();
+            if (entrySize != ACTUAL_BYTES) {
+                throw new HeaderException("Header must be of size " + ACTUAL_BYTES + ", got " + entrySize);
+            }
+
+            withChecksumAndLength.putInt(entrySize);
+            withChecksumAndLength.putInt(Checksum.crc32(headerData));
+            withChecksumAndLength.put(headerData);
+            withChecksumAndLength.position(0);//do not flip, the header will always have the fixed size
+
+            long prevPos = storage.position();
+            storage.position(0);
+            if (storage.write(withChecksumAndLength) != LogHeader.BYTES) {
                 throw new IllegalStateException("Unexpected written header length");
             }
-            storage.position(pos);
-            storage.flush();
+            storage.position(prevPos);
+            return header;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to write header");
+            throw new RuntimeException("Failed to write header", e);
         }
     }
-
-    private static void validateTypeProvided(Type type) {
-        //new segment, create a header
-        if (type == null) {
-            throw new IllegalArgumentException("Type must provided when creating a new segment");
-        }
-        if (!Type.LOG_HEAD.equals(type) && !Type.MERGE_OUT.equals(type)) {
-            throw new IllegalArgumentException("Only LOG_HEAD and MERGE_OUT are accepted when creating a segment");
-        }
-    }
-
 
     @Override
     public boolean equals(Object o) {

@@ -29,7 +29,9 @@ import io.joshworks.fstore.lsm.sstable.index.IndexEntry;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -42,6 +44,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     private final Segment<Block<Entry<K, V>>> delegate;
     private final BlockFactory<Entry<K, V>> blockFactory;
 
+    private final Map<K, Long> cache = new HashMap<>();
 
     private Block<Entry<K, V>> block;
 
@@ -91,16 +94,23 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         return pos;
     }
 
-    public V get(K key) {
+    V get(K key) {
         if (!mightHaveEntry(key)) {
             return null;
         }
-        IndexEntry indexEntry = index.get(key);
-        if (indexEntry == null) {
-            return null;
+
+        Long pos = cache.get(key);
+        if(pos == null) {
+            IndexEntry indexEntry = index.get(key);
+            if (indexEntry == null) {
+                return null;
+            }
+            pos = indexEntry.position;
+            cache.put(key, pos);
         }
-        Block<Entry<K, V>> block = delegate.get(indexEntry.position);
-        List<Entry<K, V>> entries = block.entries();
+
+        Block<Entry<K, V>> foundBlock = delegate.get(pos);
+        List<Entry<K, V>> entries = foundBlock.entries();
         int idx = Collections.binarySearch(entries, Entry.keyOf(key));
         if (idx < 0) {
             return null;
@@ -160,6 +170,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     @Override
     public long created() {
         return delegate.created();
+    }
+
+    @Override
+    public Type type() {
+        return delegate.type();
     }
 
     public void newBloomFilter(long numElements) {

@@ -5,6 +5,7 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageProvider;
+import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.DataStream;
@@ -50,7 +51,7 @@ public class IndexSegmentTest {
     private IndexSegment open(File location) {
         return new IndexSegment(
                 StorageProvider.raf().open(location),
-                new DataStream(),
+                new DataStream(new SingleBufferThreadCachedPool(false)),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,

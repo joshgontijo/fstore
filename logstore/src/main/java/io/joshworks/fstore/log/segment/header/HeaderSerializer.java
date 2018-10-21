@@ -11,14 +11,12 @@ public class HeaderSerializer implements Serializer<LogHeader> {
     public ByteBuffer toBytes(LogHeader data) {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
         writeTo(data, bb);
-        return bb.position(0); //do not flip, the header will always have the fixed size
+        return bb.flip();
 
     }
 
     @Override
     public void writeTo(LogHeader data, ByteBuffer dest) {
-
-
         dest.putLong(data.created);
         dest.putInt(data.type.val);
         Serializers.VSTRING.writeTo(data.magic, dest);
@@ -35,10 +33,6 @@ public class HeaderSerializer implements Serializer<LogHeader> {
 
     @Override
     public LogHeader fromBytes(ByteBuffer buffer) {
-        if (buffer.remaining() != LogHeader.BYTES) {
-            throw new IllegalStateException("Expected " + LogHeader.BYTES + " header length");
-        }
-
         long created = buffer.getLong();
         int type = buffer.getInt();
         if(created == 0 || type == 0) { //empty
