@@ -22,5 +22,4 @@ public interface Index extends Closeable {
 //    void delete(long stream);
 
     int version(long stream);
-
 }

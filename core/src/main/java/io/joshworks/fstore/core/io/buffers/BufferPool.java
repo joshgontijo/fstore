@@ -1,4 +1,4 @@
-package io.joshworks.fstore.core.io;
+package io.joshworks.fstore.core.io.buffers;
 
 import java.nio.ByteBuffer;
 

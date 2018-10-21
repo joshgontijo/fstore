@@ -6,16 +6,16 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.File;
@@ -29,16 +29,18 @@ public class IndexAppender implements Index {
     private static final String INDEX_DIR = "index";
     private final LogAppender<IndexEntry> appender;
 
-
-    public IndexAppender(File rootDir, int segmentSize, int numElements, boolean useCompression) {
+    public IndexAppender(File rootDir, int logSize, int numElements, boolean useCompression) {
         Codec codec = useCompression ? new SnappyCodec() : Codec.noCompression();
-        this.appender = LogAppender.builder(new File(rootDir, INDEX_DIR), new IndexEntrySerializer())
+        File indexDirectory = new File(rootDir, INDEX_DIR);
+        this.appender = LogAppender.builder(indexDirectory, new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor())
-                .maxSegmentsPerLevel(2)
-                .logSize(segmentSize)
-                .enableCaching()
+                .compactionThreshold(3)
+                .segmentSize(logSize)
+                .name("index-appender")
+//                .mmap()
+//                .disableCompaction()
                 .namingStrategy(new IndexNaming())
-                .open(new IndexSegmentFactory(rootDir, numElements, codec));
+                .open(new IndexSegmentFactory(indexDirectory, numElements, codec));
     }
 
 
@@ -47,7 +49,7 @@ public class IndexAppender implements Index {
         return appender.iterator(direction);
     }
 
-    //FIXME not releasing readers
+    //FIXME not releasing readers ??
     @Override
     public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
         List<LogIterator<IndexEntry>> iterators = appender.streamSegments(direction)
@@ -92,6 +94,10 @@ public class IndexAppender implements Index {
             }
         }
         return IndexEntry.NO_VERSION;
+    }
+
+    public void compact() {
+        appender.compact();
     }
 
     @Override

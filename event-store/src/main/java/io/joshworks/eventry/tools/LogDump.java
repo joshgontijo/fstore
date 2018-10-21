@@ -1,5 +1,6 @@
 package io.joshworks.eventry.tools;
 
+import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
@@ -10,6 +11,12 @@ import java.io.FileWriter;
 import java.io.IOException;
 
 public class LogDump {
+
+    public static void main(String[] args) {
+        IEventStore store = EventStore.open(new File("J:\\event-store\\6e92e040"));
+        dumpLog(new File("J:\\event-store\\log-dump.log"), store);
+//        dumpIndex(new File("J:\\event-store\\idx-dump.log"), store);
+    }
 
     public static void dumpStream(String stream, File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file)) {

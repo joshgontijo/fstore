@@ -20,6 +20,10 @@
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>json-serializer</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>lsmtree</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>io.joshworks.unirest</groupId>

@@ -2,7 +2,6 @@ package io.joshworks.fstore.core.io;
 
 
 import io.joshworks.fstore.core.util.MappedByteBuffers;
-import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,12 +17,12 @@ public class MMapStorage extends DiskStorage {
 
     private final boolean isWindows;
 
-    public MMapStorage(File file, RandomAccessFile raf, int bufferSize) {
+    public MMapStorage(File file, RandomAccessFile raf) {
         super(file, raf);
-        this.bufferSize = getBufferSize(bufferSize);
         isWindows = System.getProperty("os.name").toLowerCase().startsWith("win");
         try {
             long fileLength = raf.length();
+            this.bufferSize = getBufferSize(fileLength);
             int totalBuffers = getTotalBuffers(fileLength, this.bufferSize);
             this.buffers = new MappedByteBuffer[totalBuffers];
         } catch (IOException e) {
@@ -40,12 +39,11 @@ public class MMapStorage extends DiskStorage {
 //        return fileSize;
 //    }
 
-    private static int getBufferSize(int size) {
-        if(size % Memory.PAGE_SIZE > 0) {
-            int fullPages = size / Memory.PAGE_SIZE;
-            return fullPages + Memory.PAGE_SIZE;
+    private static int getBufferSize(long fileLength) {
+        if(fileLength <= Integer.MAX_VALUE) {
+            return (int) fileLength;
         }
-        return size;
+        return Integer.MAX_VALUE;
     }
 
     private static int getTotalBuffers(long fileLength, int bufferSize) {

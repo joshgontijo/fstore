@@ -52,7 +52,7 @@ public class Index<K extends Comparable<K>> {
         if (!dirty) {
             return;
         }
-        for (IndexEntry indexEntry : entries) {
+        for (IndexEntry<K> indexEntry : entries) {
             dataFile.append(indexEntry);
         }
         dataFile.roll(0);

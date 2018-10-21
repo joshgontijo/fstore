@@ -71,7 +71,7 @@ public class BloomFilter<T> {
 
     public void delete() {
         try {
-            Files.delete(handler.toPath());
+            Files.deleteIfExists(handler.toPath());
         } catch (IOException e) {
             throw new RuntimeException("Failed to delete bloom filter", e);
         }

@@ -1,6 +1,8 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -10,43 +12,56 @@ import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 
 import java.io.File;
-import java.util.Objects;
+
+import static java.util.Objects.requireNonNull;
 
 public class Config<T> {
 
-    public static final int NO_MMAP_BUFFER_SIZE = -1;
     public static final String DEFAULT_APPENDER_NAME = "default";
-    public static final int DEFAULT_MAX_SEGMENT_PER_LEVEL = 3;
-    public static final int DEFAULT_LOG_SIZE = (int) Size.MB.of(200);
+    public static final int COMPACTION_THRESHOLD = 3;
+    public static final long DEFAULT_LOG_SIZE = Size.MB.of(200);
     public static final int DEFAULT_FOOTER_SIZE = 0;
+    public static final double DEFAULT_CHECKSUM_PROB = 1.0;
 
     public final File directory;
     public final Serializer<T> serializer;
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
     SegmentFactory<T> segmentFactory;
+    BufferPool bufferPool = new SingleBufferThreadCachedPool(false);
 
     String name = DEFAULT_APPENDER_NAME;
     int footerSize = DEFAULT_FOOTER_SIZE;
     long logSize = DEFAULT_LOG_SIZE;
+    double checksumProbability = DEFAULT_CHECKSUM_PROB;
     boolean mmap;
     boolean asyncFlush;
-    int maxSegmentsPerLevel = DEFAULT_MAX_SEGMENT_PER_LEVEL;
-    int mmapBufferSize = NO_MMAP_BUFFER_SIZE;
+    int compactionThreshold = COMPACTION_THRESHOLD;
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
     boolean rafCache;
 
     Config(File directory, Serializer<T> serializer) {
-        Objects.requireNonNull(directory, "directory cannot be null");
-        Objects.requireNonNull(serializer, "serializer cannot be null");
-        this.directory = directory;
-        this.serializer = serializer;
+        this.directory = requireNonNull(directory, "directory cannot be null");;
+        this.serializer = requireNonNull(serializer, "serializer cannot be null");;
     }
 
-    public Config<T> logSize(long logSize) {
-        this.logSize = logSize;
+    public Config<T> segmentSize(long segmentSize) {
+        this.logSize = segmentSize;
+        return this;
+    }
+
+    public Config<T> checksumProbability(double checksumProbability) {
+        if(checksumProbability < 0 || checksumProbability > 1) {
+            throw new IllegalStateException("Checksum probability must be between 0 and 1");
+        }
+        this.checksumProbability = checksumProbability;
+        return this;
+    }
+
+    public Config<T> bufferPool(BufferPool bufferPool) {
+        this.bufferPool = requireNonNull(bufferPool, "BufferPool cannot be null");
         return this;
     }
 
@@ -65,11 +80,11 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> maxSegmentsPerLevel(int maxSegmentsPerLevel) {
-        if (maxSegmentsPerLevel <= 0) {
-            throw new IllegalArgumentException("maxSegmentsPerLevel must be greater than zero");
+    public Config<T> compactionThreshold(int compactionThreshold) {
+        if (compactionThreshold <= 0) {
+            throw new IllegalArgumentException("compactionThreshold must be greater than zero");
         }
-        this.maxSegmentsPerLevel = maxSegmentsPerLevel;
+        this.compactionThreshold = compactionThreshold;
         return this;
     }
 
@@ -84,13 +99,13 @@ public class Config<T> {
     }
 
     public Config<T> namingStrategy(NamingStrategy strategy) {
-        Objects.requireNonNull(strategy, "NamingStrategy must be provided");
+        requireNonNull(strategy, "NamingStrategy must be provided");
         this.namingStrategy = strategy;
         return this;
     }
 
     public Config<T> compactionStrategy(SegmentCombiner<T> combiner) {
-        Objects.requireNonNull(combiner, "SegmentCombiner must be provided");
+        requireNonNull(combiner, "SegmentCombiner must be provided");
         this.combiner = combiner;
         return this;
     }
@@ -105,12 +120,6 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> mmap(int bufferSize) {
-        this.mmap = true;
-        this.mmapBufferSize = bufferSize;
-        return this;
-    }
-
     public Config<T> asyncFlush() {
         this.asyncFlush = true;
         return this;
@@ -121,9 +130,8 @@ public class Config<T> {
     }
 
     public LogAppender<T> open(SegmentFactory<T> segmentFactory) {
-        Objects.requireNonNull(segmentFactory, "SegmentFactory must be provided");
+        requireNonNull(segmentFactory, "SegmentFactory must be provided");
         this.segmentFactory = segmentFactory;
-        this.mmapBufferSize = mmap && mmapBufferSize == NO_MMAP_BUFFER_SIZE ? (int) Math.min(logSize, Integer.MAX_VALUE) : mmapBufferSize;
         return new LogAppender<>(this);
     }
 

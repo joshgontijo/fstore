@@ -1,10 +1,10 @@
 package io.joshworks.fstore.core.util;
 
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.metric.Average;
 
 import java.io.File;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -12,8 +12,11 @@ public class StatsStorage implements Storage {
 
     private final AtomicLong reads = new AtomicLong();
     private final AtomicLong writes = new AtomicLong();
-    private BigDecimal bytesWritten = BigDecimal.ZERO;
-    private BigDecimal bytesRead = BigDecimal.ZERO;
+    private long lastReadTime;
+    private long lastWriteTime;
+    private long biggestEntry;
+    private Average averageReadTime = new Average();
+    private Average averageWriteTime = new Average();
 
     private final Storage delegate;
 
@@ -31,17 +34,27 @@ public class StatsStorage implements Storage {
 
     @Override
     public int write(ByteBuffer data) {
+        int remaining = data.remaining();
+        if(remaining > biggestEntry) {
+            biggestEntry = remaining;
+        }
         writes.incrementAndGet();
+        long start = System.currentTimeMillis();
         int write = delegate.write(data);
-        bytesWritten = bytesWritten.add(BigDecimal.valueOf(write));
+        long timeTaken = System.currentTimeMillis() - start;
+        lastWriteTime = timeTaken;
+        averageWriteTime.add(timeTaken);
         return write;
     }
 
     @Override
     public int read(long position, ByteBuffer data) {
         reads.incrementAndGet();
+        long start = System.currentTimeMillis();
         int read = delegate.read(position, data);
-        bytesRead = bytesRead.add(BigDecimal.valueOf(read));
+        long timeTaken = System.currentTimeMillis() - start;
+        lastReadTime = timeTaken;
+        averageReadTime.add(timeTaken);
         return read;
     }
 

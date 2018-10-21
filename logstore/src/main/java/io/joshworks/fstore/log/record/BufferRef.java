@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.BufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -30,20 +30,19 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
     }
 
     public static BufferRef ofEmpty() {
-        return withMarker(ByteBuffer.allocate(0), null, new int[0], new int[0], 0);
+        return withMarker(EMPTY, null, new int[0], new int[0], 0);
     }
 
     public static BufferRef of(ByteBuffer buffer, BufferPool pool) {
         Objects.requireNonNull(buffer);
         int position = buffer.position();
         int len = buffer.remaining();
-        return new BufferRef(buffer, pool, new int[]{position}, new int[] {len}, 1);
+        return new BufferRef(buffer, pool, new int[]{position}, new int[]{len}, 1);
     }
 
     public static BufferRef withMarker(ByteBuffer buffer, BufferPool pool, int[] markers, int[] lengths, int entries) {
         Objects.requireNonNull(buffer);
-        BufferRef bufferRef = new BufferRef(buffer, pool, markers, lengths, entries);
-        return bufferRef;
+        return new BufferRef(buffer, pool, markers, lengths, entries);
     }
 
     private ByteBuffer next() {
@@ -84,7 +83,7 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
 
     @Override
     public ByteBuffer get() {
-        if(!hasNext()) {
+        if (!hasNext()) {
             return EMPTY;
         }
         buffer.limit(markers[0] + lengths[0]);
@@ -95,7 +94,7 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
     public void clear() {
         ByteBuffer buf = this.buffer;
         this.buffer = null;
-        if (pool != null) {
+        if (pool != null && !buf.equals(EMPTY)) {
             pool.free(buf);
         }
     }

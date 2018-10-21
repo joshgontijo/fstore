@@ -8,11 +8,11 @@ import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -27,14 +27,14 @@ public class LevelsTest {
     @Test
     public void segments_return_only_level_segments() {
 
-        DummySegment zero = new DummySegment(0);
-        DummySegment seg1 = new DummySegment(1);
-        DummySegment seg11 = new DummySegment(1);
-        DummySegment seg2 = new DummySegment(2);
-        DummySegment seg3 = new DummySegment(3);
+        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
+        DummySegment seg1 = new DummySegment(1, Type.READ_ONLY);
+        DummySegment seg11 = new DummySegment(1, Type.READ_ONLY);
+        DummySegment seg2 = new DummySegment(2, Type.READ_ONLY);
+        DummySegment seg3 = new DummySegment(3, Type.READ_ONLY);
 
-        Levels<String> levels = Levels.create(3,
-                Arrays.asList(
+        Levels<String> levels = Levels.create(
+                List.of(
                         zero,
                         seg1,
                         seg11,
@@ -61,13 +61,13 @@ public class LevelsTest {
     @Test
     public void segments_return_sorted_for_single_level() {
 
-        DummySegment zero = new DummySegment(0);
-        DummySegment seg1 = new DummySegment(1);
-        DummySegment seg2 = new DummySegment(1);
-        DummySegment seg3 = new DummySegment(1);
+        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
+        DummySegment seg1 = new DummySegment(1, Type.READ_ONLY);
+        DummySegment seg2 = new DummySegment(1, Type.READ_ONLY);
+        DummySegment seg3 = new DummySegment(1, Type.READ_ONLY);
 
-        Levels<String> levels = Levels.create(3,
-                Arrays.asList(
+        Levels<String> levels = Levels.create(
+                List.of(
                         zero,
                         seg1,
                         seg2,
@@ -83,13 +83,13 @@ public class LevelsTest {
 
     @Test
     public void segments_return_FORWARD_segments_order_for_multiple_levels() {
-        DummySegment zero = new DummySegment(0);
-        DummySegment seg1 = new DummySegment(1);
-        DummySegment seg2 = new DummySegment(2);
-        DummySegment seg3 = new DummySegment(3);
+        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
+        DummySegment seg1 = new DummySegment(1, Type.READ_ONLY);
+        DummySegment seg2 = new DummySegment(2, Type.READ_ONLY);
+        DummySegment seg3 = new DummySegment(3, Type.READ_ONLY);
 
-        Levels<String> levels = Levels.create(3,
-                Arrays.asList(
+        Levels<String> levels = Levels.create(
+                List.of(
                         zero,
                         seg1,
                         seg2,
@@ -110,16 +110,16 @@ public class LevelsTest {
 
     @Test
     public void segments_return_FORWARD_ordered_segments_on_multiple_levels() {
-        DummySegment zero = new DummySegment(0);
-        DummySegment seg11 = new DummySegment("seg11", 1);
-        DummySegment seg12 = new DummySegment("seg12", 1);
-        DummySegment seg21 = new DummySegment("seg21", 2);
-        DummySegment seg22 = new DummySegment("seg22", 2);
-        DummySegment seg31 = new DummySegment("seg31", 3);
-        DummySegment seg32 = new DummySegment("seg32", 3);
+        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
+        DummySegment seg11 = new DummySegment("seg11", 1, Type.READ_ONLY);
+        DummySegment seg12 = new DummySegment("seg12", 1, Type.READ_ONLY);
+        DummySegment seg21 = new DummySegment("seg21", 2, Type.READ_ONLY);
+        DummySegment seg22 = new DummySegment("seg22", 2, Type.READ_ONLY);
+        DummySegment seg31 = new DummySegment("seg31", 3, Type.READ_ONLY);
+        DummySegment seg32 = new DummySegment("seg32", 3, Type.READ_ONLY);
 
-        Levels<String> levels = Levels.create(3,
-                Arrays.asList(
+        Levels<String> levels = Levels.create(
+                List.of(
                         zero,
                         seg11,
                         seg12,
@@ -145,16 +145,16 @@ public class LevelsTest {
 
     @Test
     public void segments_return_BACKWARD_ordered_segments_on_multiple_levels() {
-        DummySegment zero = new DummySegment(0);
-        DummySegment seg11 = new DummySegment("seg11", 1);
-        DummySegment seg12 = new DummySegment("seg12", 1);
-        DummySegment seg21 = new DummySegment("seg21", 2);
-        DummySegment seg22 = new DummySegment("seg22", 2);
-        DummySegment seg31 = new DummySegment("seg31", 3);
-        DummySegment seg32 = new DummySegment("seg32", 3);
+        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
+        DummySegment seg11 = new DummySegment("seg11", 1, Type.READ_ONLY);
+        DummySegment seg12 = new DummySegment("seg12", 1, Type.READ_ONLY);
+        DummySegment seg21 = new DummySegment("seg21", 2, Type.READ_ONLY);
+        DummySegment seg22 = new DummySegment("seg22", 2, Type.READ_ONLY);
+        DummySegment seg31 = new DummySegment("seg31", 3, Type.READ_ONLY);
+        DummySegment seg32 = new DummySegment("seg32", 3, Type.READ_ONLY);
 
-        Levels<String> levels = Levels.create(3,
-                Arrays.asList(
+        Levels<String> levels = Levels.create(
+                List.of(
                         zero,
                         seg11,
                         seg12,
@@ -180,16 +180,16 @@ public class LevelsTest {
 
     @Test
     public void get_return_segment_for_given_index() {
-        DummySegment zero = new DummySegment(0);
-        DummySegment seg11 = new DummySegment("seg11", 1);
-        DummySegment seg12 = new DummySegment("seg12", 1);
-        DummySegment seg21 = new DummySegment("seg21", 2);
-        DummySegment seg22 = new DummySegment("seg22", 2);
-        DummySegment seg31 = new DummySegment("seg31", 3);
-        DummySegment seg32 = new DummySegment("seg32", 3);
+        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
+        DummySegment seg11 = new DummySegment("seg11", 1, Type.READ_ONLY);
+        DummySegment seg12 = new DummySegment("seg12", 1, Type.READ_ONLY);
+        DummySegment seg21 = new DummySegment("seg21", 2, Type.READ_ONLY);
+        DummySegment seg22 = new DummySegment("seg22", 2, Type.READ_ONLY);
+        DummySegment seg31 = new DummySegment("seg31", 3, Type.READ_ONLY);
+        DummySegment seg32 = new DummySegment("seg32", 3, Type.READ_ONLY);
 
-        Levels<String> levels = Levels.create(3,
-                Arrays.asList(
+        Levels<String> levels = Levels.create(
+                List.of(
                         zero,
                         seg11,
                         seg12,
@@ -208,20 +208,29 @@ public class LevelsTest {
         assertEquals(seg31, levels.get(0));
     }
 
+    @Test(expected = IllegalStateException.class)
+    public void exception_is_thrown_when_creating_levels_without_LOG_HEAD_segment() {
+        Levels.create(List.of(new DummySegment(0, Type.READ_ONLY)));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void exception_is_thrown_when_creating_levels_without_level_zero_segment() {
+        Levels.create(List.of(new DummySegment(1, Type.LOG_HEAD)));
+    }
 
     @Test(expected = IllegalArgumentException.class)
-    public void exception_is_thrown_when_new_segment_is_not_level_zero() {
-        Levels<String> levels = Levels.create(3, Arrays.asList(new DummySegment(0)));
-        levels.appendSegment(new DummySegment(1));
+    public void exception_is_thrown_when_appending_new_segment_that_is_not_level_zero() {
+        Levels<String> levels = Levels.create(List.of(new DummySegment(0, Type.LOG_HEAD)));
+        levels.appendSegment(new DummySegment(1, Type.LOG_HEAD));
     }
 
     @Test
     public void appending_maintains_ordering() {
-        DummySegment seg1 = new DummySegment("seg1", 0);
-        DummySegment seg2 = new DummySegment("seg2", 0);
-        DummySegment seg3 = new DummySegment("seg3", 0);
+        DummySegment seg1 = new DummySegment("seg1", 0, Type.LOG_HEAD);
+        DummySegment seg2 = new DummySegment("seg2", 0, Type.READ_ONLY);
+        DummySegment seg3 = new DummySegment("seg3", 0, Type.READ_ONLY);
 
-        Levels<String> levels = Levels.create(3, Arrays.asList(seg1));
+        Levels<String> levels = Levels.create(List.of(seg1));
 
         levels.appendSegment(seg2);
 
@@ -249,20 +258,20 @@ public class LevelsTest {
 
     @Test
     public void merge_maintains_ordering() {
-        DummySegment seg1 = new DummySegment("seg1", 0);
-        DummySegment seg2 = new DummySegment("seg2", 0);
-        DummySegment seg3 = new DummySegment("seg3", 0);
-        DummySegment seg4 = new DummySegment("seg4", 0);
+        DummySegment seg1 = new DummySegment("seg1", 0, Type.LOG_HEAD);
+        DummySegment seg2 = new DummySegment("seg2", 0, Type.LOG_HEAD);
+        DummySegment seg3 = new DummySegment("seg3", 0, Type.LOG_HEAD);
+        DummySegment seg4 = new DummySegment("seg4", 0, Type.LOG_HEAD);
 
-        DummySegment seg5 = new DummySegment("seg5", 2);
+        DummySegment seg5 = new DummySegment("seg5", 2, Type.READ_ONLY);
 
-        Levels<String> levels = Levels.create(3, Arrays.asList(seg1));
+        Levels<String> levels = Levels.create(List.of(seg1));
 
         levels.appendSegment(seg2);
         levels.appendSegment(seg3);
         levels.appendSegment(seg4);
 
-        levels.merge(Arrays.asList(seg1, seg2, seg3), seg5);
+        levels.merge(List.of(seg1, seg2, seg3), seg5);
 
 
         assertEquals(seg5, levels.get(0));
@@ -278,16 +287,18 @@ public class LevelsTest {
 
         private int level;
         private final String name;
+        private Type type;
         private final long createdDate;
         private boolean readOnly;
 
-        private DummySegment(int level) {
-            this(UUID.randomUUID().toString().substring(0, 8), level);
+        private DummySegment(int level, Type type) {
+            this(UUID.randomUUID().toString().substring(0, 8), level, type);
         }
 
-        private DummySegment(String name, int level) {
+        private DummySegment(String name, int level, Type type) {
             this.level = level;
             this.name = name;
+            this.type = type;
             try {
                 Thread.sleep(1);
             } catch (InterruptedException e) {
@@ -401,6 +412,11 @@ public class LevelsTest {
         @Override
         public long created() {
             return createdDate;
+        }
+
+        @Override
+        public Type type() {
+            return type;
         }
 
         @Override

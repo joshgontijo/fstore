@@ -38,7 +38,7 @@ public class Compactor<T> {
     private Serializer<T> serializer;
     private IDataStream dataStream;
     private NamingStrategy namingStrategy;
-    private final int maxSegmentsPerLevel;
+    private final int compactionThreshold;
     private final String magic;
     private final String name;
     private Levels<T> levels;
@@ -56,7 +56,7 @@ public class Compactor<T> {
                      Serializer<T> serializer,
                      IDataStream dataStream,
                      NamingStrategy namingStrategy,
-                     int maxSegmentsPerLevel,
+                     int compactionThreshold,
                      String magic,
                      String name,
                      Levels<T> levels,
@@ -69,7 +69,7 @@ public class Compactor<T> {
         this.serializer = serializer;
         this.dataStream = dataStream;
         this.namingStrategy = namingStrategy;
-        this.maxSegmentsPerLevel = maxSegmentsPerLevel;
+        this.compactionThreshold = compactionThreshold;
         this.magic = magic;
         this.name = name;
         this.levels = levels;
@@ -106,6 +106,10 @@ public class Compactor<T> {
             List<Log<T>> segmentsForCompaction = segmentsForCompaction(level);
             if (segmentsForCompaction.isEmpty()) {
                 logger.warn("Level {} is empty, nothing to compact", level);
+                return;
+            }
+            if(segmentsForCompaction.size() < compactionThreshold) {
+                logger.warn("Number of segments below threshold on level {}", level);
                 return;
             }
             compacting.addAll(segmentsForCompaction);
@@ -157,13 +161,13 @@ public class Compactor<T> {
     }
 
     private synchronized boolean requiresCompaction(int level) {
-        if (maxSegmentsPerLevel <= 0 || level < 0) {
+        if (compactionThreshold <= 0 || level < 0) {
             return false;
         }
 
         long compactingForLevel = new ArrayList<>(compacting).stream().filter(l -> l.level() == level).count();
         int levelSize = levels.segments(level).size();
-        return levelSize - compactingForLevel >= levels.compactionThreshold();
+        return levelSize - compactingForLevel >= compactionThreshold;
     }
 
     private List<Log<T>> segmentsForCompaction(int level) {
@@ -175,7 +179,7 @@ public class Compactor<T> {
             if (!compacting.contains(segment)) {
                 toBeCompacted.add(segment);
             }
-            if (toBeCompacted.size() >= levels.compactionThreshold()) {
+            if (toBeCompacted.size() >= compactionThreshold) {
                 break;
             }
         }

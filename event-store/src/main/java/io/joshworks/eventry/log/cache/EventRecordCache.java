@@ -5,7 +5,6 @@ import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.fstore.core.Serializer;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -63,7 +62,7 @@ public class EventRecordCache implements Closeable {
         }
         ByteBuffer cacheData = ByteBuffer.allocateDirect(data.limit());
         cacheData.put(data);
-        cache.put(position, new CachedEntry(data));
+        cache.put(position, new CachedEntry(cacheData));
         return true;
     }
 

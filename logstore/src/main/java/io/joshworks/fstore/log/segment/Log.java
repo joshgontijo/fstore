@@ -7,6 +7,7 @@ import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.Writer;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.header.LogHeader;
+import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
@@ -16,7 +17,7 @@ import java.util.stream.Stream;
 public interface Log<T> extends Writer<T>, Closeable {
 
     long START = LogHeader.BYTES;
-    byte[] EOL = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD).putInt(0).putInt(0).array(); //eof header, -1 length, 0 crc
+    byte[] EOL = new byte[RecordHeader.MAIN_HEADER]; //eof header, -1 length, 0 crc
 
     String name();
 
@@ -59,5 +60,7 @@ public interface Log<T> extends Writer<T>, Closeable {
     int level();
 
     long created();
+
+    Type type();
 
 }

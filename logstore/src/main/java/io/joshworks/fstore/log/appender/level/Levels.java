@@ -4,15 +4,12 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.header.Type;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 //LEVEL0 [CURRENT_SEGMENT]
@@ -21,15 +18,10 @@ import java.util.stream.Collectors;
 //LEVEL3 ...
 public class Levels<T> {
 
-    private final int maxItemsPerLevel;
     private volatile List<Log<T>> segments = new CopyOnWriteArrayList<>();
     private volatile Log<T> current;
 
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-
-    private Levels(int maxItemsPerLevel, List<Log<T>> segments) {
-        this.maxItemsPerLevel = maxItemsPerLevel;
-
+    private Levels(List<Log<T>> segments) {
         this.segments.addAll(segments);
         this.segments.sort((o1, o2) -> {
             int levelDiff = o2.level() - o1.level();
@@ -44,7 +36,15 @@ public class Levels<T> {
         if (this.segments.stream().noneMatch(seg -> seg.level() == 0)) {
             throw new IllegalStateException("Level zero must be present");
         }
-        this.current = segments.get(segments.size() - 1);
+
+        long logHeadCount = this.segments.stream().filter(seg -> Type.LOG_HEAD.equals(seg.type())).count();
+        if (logHeadCount != 1) {
+            throw new IllegalStateException("Expected single " + Type.LOG_HEAD + " segment, found " + logHeadCount);
+        }
+        this.current = this.segments.stream()
+                .filter(seg -> Type.LOG_HEAD.equals(seg.type()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No " + Type.LOG_HEAD + " found"));
     }
 
     public List<Log<T>> segments(int level) {
@@ -59,36 +59,31 @@ public class Levels<T> {
         return segments.stream().mapToInt(Log::level).max().orElse(0);
     }
 
-    public static synchronized <T> Levels<T> create(int maxItemsPerLevel, List<Log<T>> segments) {
-        return new Levels<>(maxItemsPerLevel, segments);
+    public static synchronized <T> Levels<T> create(List<Log<T>> segments) {
+        return new Levels<>(segments);
     }
 
-    public void appendSegment(Log<T> segment) {
-        if (segment.level() != 0) {
+    public synchronized void appendSegment(Log<T> newHead) {
+        if (newHead.level() != 0) {
             throw new IllegalArgumentException("New segment must be level zero");
         }
         int size = segments.size();
         if (size == 0) {
-            segments.add(segment);
+            segments.add(newHead);
             return;
         }
-        Log<T> prevHead = segments.get(size - 1);
+        Log<T> currentSegment = current();
 
-        prevHead.roll(1);
-        if (!prevHead.readOnly()) {
+//        prevHead.roll(1);
+        if (!currentSegment.readOnly()) {
             throw new IllegalStateException("Segment must be marked as read only after rolling");
         }
-        segments.add(segment);
-        current = segment;
+        segments.add(newHead);
+        current = newHead;
     }
 
     public int numSegments() {
         return segments.size();
-    }
-
-    //TODO testing atomic acquiring of readers without the risk of closing the segment in between
-    public synchronized List<LogIterator<T>> select(Direction direction, Function<Log<T>, LogIterator<T>> mapper) {
-        return Iterators.closeableStream(segments(direction)).map(mapper).collect(Collectors.toList());
     }
 
     public synchronized int size(int level) {
@@ -99,10 +94,6 @@ public class Levels<T> {
             return 0;
         }
         return segments(level).size();
-    }
-
-    public int compactionThreshold() {
-        return maxItemsPerLevel;
     }
 
     public synchronized void remove(List<Log<T>> segments) {
@@ -145,11 +136,19 @@ public class Levels<T> {
             latestIndex = i;
         }
 
-        int firstIdx = copy.indexOf(segments.get(0));
+        Log<T> first = segments.get(0);
+        int level = first.level(); //safe to assume that there is a segment and all of them are the same level
+        int nextLevel = level + 1;
+        int firstIdx = copy.indexOf(first);
         copy.set(firstIdx, merged);
         for (int i = 1; i < segments.size(); i++) {
             copy.remove(firstIdx + 1);
         }
+        //TODO if the program cash after here, then there could be multiple READ_ONLY segments with same data
+        //ideally segments would have the source segments in their header to flag where they're were created from.
+        //on startup read all the source segments from the header and if there's an existing segment, then delete, either the sources
+        //or the target segment
+        merged.roll(nextLevel);
         this.segments = copy;
 
     }

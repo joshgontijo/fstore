@@ -25,8 +25,7 @@ public class TableIndex implements Index {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
     public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
-    public static final boolean DEFAULT_USE_COMPRESSION = true;
-    private static final String INDEX_WRITER = "index-writer";
+    public static final boolean DEFAULT_USE_COMPRESSION = false;
     private final int flushThreshold; //TODO externalize
 
     //    private final EventLog log;
@@ -39,12 +38,12 @@ public class TableIndex implements Index {
         this(rootDirectory, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
     }
 
-    public TableIndex(File rootDirectory, int flushThreshold, boolean useCompression) {
+    TableIndex(File rootDirectory, int flushThreshold, boolean useCompression) {
         if (flushThreshold < 1000) {//arbitrary number
             throw new IllegalArgumentException("Flush threshold must be at least 1000");
         }
 
-        diskIndex = new IndexAppender(rootDirectory, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
+        this.diskIndex = new IndexAppender(rootDirectory, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
         this.flushThreshold = flushThreshold;
     }
 
@@ -68,7 +67,7 @@ public class TableIndex implements Index {
     }
 
     //only single write can happen at time
-    public FlushInfo writeToDisk() {
+    private FlushInfo writeToDisk() {
         logger.info("Writing index to disk");
         if (memIndex.isEmpty()) {
             return null;
@@ -152,6 +151,10 @@ public class TableIndex implements Index {
         memIndex.close();
         memIndex = new MemIndex();
         return flushInfo;
+    }
+
+    public void compact() {
+        diskIndex.compact();
     }
 
     public PollingSubscriber<IndexEntry> poller(long stream) {

@@ -15,6 +15,7 @@ import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
+import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.log.RecordCleanup;
 import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.ProjectionManager;
@@ -26,6 +27,7 @@ import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.utils.Tuple;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -45,11 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -62,22 +60,19 @@ public class EventStore implements IEventStore {
 
     private final TableIndex index;
     private final Streams streams;
-    private final EventLog eventLog;
+    private final IEventLog eventLog;
     private final Projections projections;
-
-    private final AtomicBoolean closed = new AtomicBoolean();
-    private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r);
-        t.setName("writer");
-        return t;
-    });
 
     private EventStore(File rootDir) {
         this.index = new TableIndex(rootDir);
         this.projections = new Projections(new ProjectionManager(this::appendSystemEvent));
         this.streams = new Streams(LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
-                .logSize((int) Size.MB.of(200))
+                .segmentSize(Size.MB.of(256))
+                .name("event-log")
+                .asyncFlush()
+                .bufferPool(new SingleBufferThreadCachedPool(false))
+                .checksumProbability(0)
                 .disableCompaction()
                 .compactionStrategy(new RecordCleanup(streams)));
 
@@ -102,20 +97,19 @@ public class EventStore implements IEventStore {
     private void loadIndex() {
         logger.info("Loading index");
         long start = System.currentTimeMillis();
+        int loaded = 0;
         try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
-
-            int loaded = 0;
 
             while (iterator.hasNext()) {
                 EventRecord next = iterator.next();
+                if (IndexFlushed.TYPE.equals(next.type)) {
+                    break;
+                }
                 long position = iterator.position();
                 long streamHash = streams.hashOf(next.stream);
                 index.add(streamHash, next.version, position);
                 if (++loaded % 50000 == 0) {
-                    logger.info("Loaded {} entries", loaded);
-                }
-                if (IndexFlushed.TYPE.equals(next.type)) {
-                    break;
+                    logger.info("Loaded {} index entries", loaded);
                 }
             }
 
@@ -123,7 +117,7 @@ public class EventStore implements IEventStore {
             throw new RuntimeException("Failed to load memIndex", e);
         }
 
-        logger.info("Index loaded in {}ms, entries: {}", (System.currentTimeMillis() - start), index.size());
+        logger.info("Loaded {} index entries in {}ms", loaded, (System.currentTimeMillis() - start));
     }
 
     private void loadStreams() {
@@ -133,13 +127,21 @@ public class EventStore implements IEventStore {
         long streamHash = streams.hashOf(SystemStreams.STREAMS);
         LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.allOf(streamHash));
 
+        long elapsed = start;
+        long loaded = 0;
         while (addresses.hasNext()) {
             IndexEntry next = addresses.next();
             EventRecord event = eventLog.get(next.position);
 
+            if (System.currentTimeMillis() - elapsed >= TimeUnit.SECONDS.toMillis(2)) {
+                elapsed = System.currentTimeMillis();
+                logger.info("Loaded {}, last: {}", loaded, event.eventId());
+            }
+
             //pattern matching would be great here
             if (StreamCreated.TYPE.equals(event.type)) {
                 streams.add(StreamCreated.from(event));
+                loaded++;
             } else if (StreamDeleted.TYPE.equals(event.type)) {
                 StreamDeleted deleted = StreamDeleted.from(event);
                 long hash = streams.hashOf(deleted.stream);
@@ -149,7 +151,7 @@ public class EventStore implements IEventStore {
             }
         }
 
-        logger.info("Streams loaded in {}ms", (System.currentTimeMillis() - start));
+        logger.info("Streams loaded {} items in {}ms", loaded, (System.currentTimeMillis() - start));
     }
 
     private void loadProjections() {
@@ -184,6 +186,11 @@ public class EventStore implements IEventStore {
     @Override
     public void cleanup() {
         eventLog.cleanup();
+    }
+
+    @Override
+    public void compactIndex() {
+        index.compact();
     }
 
     @Override
@@ -440,20 +447,6 @@ public class EventStore implements IEventStore {
 
         StreamMetadata metadata = getOrCreateStream(event.stream);
         return append(metadata, event, expectedVersion);
-//        try {
-//            Future<EventRecord> task = executor.submit(() -> {
-//                StreamMetadata metadata = getOrCreateStream(event.stream);
-//                return append(metadata, event, expectedVersion);
-//            });
-//            return task.get();
-//        } catch (InterruptedException e) {
-//            Thread.currentThread().interrupt();
-//            throw new RuntimeException(e);
-//        } catch (ExecutionException e) {
-//            throw new RuntimeException(e);
-//        }
-
-
     }
 
     private synchronized EventRecord appendSystemEvent(EventRecord event) {
@@ -549,7 +542,6 @@ public class EventStore implements IEventStore {
 
     @Override
     public void close() {
-        executor.shutdown();
         index.close();
         eventLog.close();
         streams.close();

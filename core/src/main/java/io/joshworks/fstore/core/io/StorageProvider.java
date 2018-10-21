@@ -1,6 +1,6 @@
 package io.joshworks.fstore.core.io;
 
-import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.core.util.StatsStorage;
 
 import java.io.File;
 import java.io.RandomAccessFile;
@@ -10,19 +10,14 @@ public class StorageProvider {
 
     private final boolean mmap;
     private final boolean rafCached;
-    private final int mmapBufferSize;
 
-    private StorageProvider(boolean mmap, int mmapBufferSize, boolean rafCached) {
+    private StorageProvider(boolean mmap, boolean rafCached) {
         this.mmap = mmap;
-        this.mmapBufferSize = mmapBufferSize;
         this.rafCached = rafCached;
     }
 
-    public static StorageProvider mmap(int bufferSize) {
-        if (bufferSize < Memory.PAGE_SIZE) {
-            throw new IllegalArgumentException("MMap buffer size must be at least " + Memory.PAGE_SIZE + ", got " + bufferSize);
-        }
-        return new StorageProvider(true, bufferSize, false);
+    public static StorageProvider mmap() {
+        return new StorageProvider(true, false);
     }
 
     public static StorageProvider raf() {
@@ -30,19 +25,21 @@ public class StorageProvider {
     }
 
     public static StorageProvider raf(boolean cached) {
-        return new StorageProvider(false, -1, cached);
+        return new StorageProvider(false, cached);
     }
 
     public Storage create(File file, long size) {
         Objects.requireNonNull(file, "File must be provided");
         RandomAccessFile raf = IOUtils.randomAccessFile(file, size);
-        return mmap ? new MMapStorage(file, raf, mmapBufferSize) : getRafStorage(file, raf);
+        Storage storage = mmap ? new MMapStorage(file, raf) : getRafStorage(file, raf);
+        return new StatsStorage(storage);
     }
 
     public Storage open(File file) {
         Objects.requireNonNull(file, "File must be provided");
         RandomAccessFile raf = IOUtils.randomAccessFile(file);
-        return mmap ? new MMapStorage(file, raf, mmapBufferSize) : getRafStorage(file, raf);
+        Storage storage = mmap ? new MMapStorage(file, raf) : getRafStorage(file, raf);
+        return new StatsStorage(storage);
     }
 
     private Storage getRafStorage(File file, RandomAccessFile raf) {
