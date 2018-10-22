@@ -29,10 +29,6 @@ public class MMapCache extends RafStorage {
 
     @Override
     public int read(long position, ByteBuffer dst) {
-        boolean a = true;
-        if(a) {
-            return super.read(position, dst);
-        }
         int idx = bufferIdx(position);
         int bufferAddress = posOnBuffer(position);
         if (idx >= buffers.length) {

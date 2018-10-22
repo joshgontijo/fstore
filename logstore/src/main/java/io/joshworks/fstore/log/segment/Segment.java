@@ -320,8 +320,7 @@ public class Segment<T> implements Log<T> {
         long segmentSize = footerInfo.end;
         long logEnd = footerInfo.start - EOL.length;
         LogHeader newHeader = LogHeader.create(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, START, logEnd, footerInfo.start, footerInfo.end);
-        LogHeader.write(storage, newHeader);
-        return newHeader;
+        return LogHeader.write(storage, newHeader);
     }
 
     //TODO implement race condition on acquiring readers and closing / deleting segment

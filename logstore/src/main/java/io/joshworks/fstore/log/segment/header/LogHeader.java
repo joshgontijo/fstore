@@ -13,7 +13,6 @@ public class LogHeader {
 
     private static final Serializer<LogHeader> headerSerializer = new HeaderSerializer();
     public static final int BYTES = 1024;
-    public static final int ACTUAL_BYTES = 104; //all longs + magic + vlen overhead
 
     //segment info
     public final String magic;
@@ -71,9 +70,6 @@ public class LogHeader {
         if (length == 0) {
             return null;
         }
-        if (length != ACTUAL_BYTES) {
-            throw new HeaderException("Header must be of size " + ACTUAL_BYTES + ", got " + length);
-        }
         int checksum = bb.getInt();
         bb.limit(bb.position() + length); //length + checksum
         if (Checksum.crc32(bb) != checksum) {
@@ -89,10 +85,6 @@ public class LogHeader {
             ByteBuffer headerData = headerSerializer.toBytes(header);
 
             int entrySize = headerData.remaining();
-            if (entrySize != ACTUAL_BYTES) {
-                throw new HeaderException("Header must be of size " + ACTUAL_BYTES + ", got " + entrySize);
-            }
-
             withChecksumAndLength.putInt(entrySize);
             withChecksumAndLength.putInt(Checksum.crc32(headerData));
             withChecksumAndLength.put(headerData);

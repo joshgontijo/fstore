@@ -29,8 +29,9 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
         this.entries = entries;
     }
 
-    public static BufferRef ofEmpty() {
-        return withMarker(EMPTY, null, new int[0], new int[0], 0);
+    public static BufferRef ofEmpty(ByteBuffer buffer, BufferPool pool) {
+        buffer.position(0).limit(0);
+        return withMarker(buffer, pool, new int[0], new int[0], 0);
     }
 
     public static BufferRef of(ByteBuffer buffer, BufferPool pool) {
@@ -91,16 +92,12 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
         return buffer;
     }
 
-    public void clear() {
-        ByteBuffer buf = this.buffer;
-        this.buffer = null;
-        if (pool != null && !buf.equals(EMPTY)) {
-            pool.free(buf);
-        }
-    }
-
     @Override
     public void close() {
-        clear();
+        ByteBuffer buf = this.buffer;
+        this.buffer = null;
+        if (pool != null) {
+            pool.free(buf);
+        }
     }
 }
