@@ -113,15 +113,13 @@ public class DataStream implements IDataStream {
                 buffer.flip();
 
                 if (buffer.remaining() == 0) {
-                    bufferPool.free(buffer);
-                    return BufferRef.ofEmpty();
+                    return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 
                 int length = buffer.getInt();
                 checkRecordLength(length, position);
                 if (length == 0) {
-                    bufferPool.free(buffer);
-                    return BufferRef.ofEmpty();
+                    return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 
                 int recordSize = length + RecordHeader.HEADER_OVERHEAD;
@@ -154,15 +152,13 @@ public class DataStream implements IDataStream {
                 buffer.flip();
 
                 if (buffer.remaining() == 0) {
-                    bufferPool.free(buffer);
-                    return BufferRef.ofEmpty();
+                    return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 
                 int length = buffer.getInt();
                 checkRecordLength(length, position);
                 if (length == 0) {
-                    bufferPool.free(buffer);
-                    return BufferRef.ofEmpty();
+                    return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 
                 int recordSize = length + RecordHeader.HEADER_OVERHEAD;
@@ -222,8 +218,7 @@ public class DataStream implements IDataStream {
                 if (position - limit < Log.START) {
                     int available = (int) (position - Log.START);
                     if (available == 0) {
-                        bufferPool.free(buffer);
-                        return BufferRef.ofEmpty();
+                        return BufferRef.ofEmpty(buffer, bufferPool);
                     }
                     buffer.limit(available);
                     limit = available;
@@ -232,16 +227,14 @@ public class DataStream implements IDataStream {
                 storage.read(position - limit, buffer);
                 buffer.flip();
                 if (buffer.remaining() == 0) {
-                    bufferPool.free(buffer);
-                    return BufferRef.ofEmpty();
+                    return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 
                 int recordDataEnd = buffer.limit() - RecordHeader.SECONDARY_HEADER;
                 int length = buffer.getInt(recordDataEnd);
                 checkRecordLength(length, position);
                 if (length == 0) {
-                    bufferPool.free(buffer);
-                    return BufferRef.ofEmpty();
+                    return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 
                 int recordSize = length + RecordHeader.HEADER_OVERHEAD;
@@ -322,8 +315,7 @@ public class DataStream implements IDataStream {
                 if (position - limit < Log.START) {
                     int available = (int) (position - Log.START);
                     if (available == 0) {
-                        bufferPool.free(buffer);
-                        return BufferRef.ofEmpty();
+                        return BufferRef.ofEmpty(buffer, bufferPool);
                     }
                     buffer.limit(available);
                     limit = available;
@@ -332,16 +324,14 @@ public class DataStream implements IDataStream {
                 storage.read(position - limit, buffer);
                 buffer.flip();
                 if (buffer.remaining() == 0) {
-                    bufferPool.free(buffer);
-                    return BufferRef.ofEmpty();
+                    return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 
                 int recordDataEnd = buffer.limit() - RecordHeader.SECONDARY_HEADER;
                 int length = buffer.getInt(recordDataEnd);
                 checkRecordLength(length, position);
                 if (length == 0) {
-                    bufferPool.free(buffer);
-                    return BufferRef.ofEmpty();
+                    return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 
                 int recordSize = length + RecordHeader.HEADER_OVERHEAD;

@@ -202,7 +202,7 @@ public class LogAppender<T> implements Closeable {
                 segments.add(currentSegment);
             }
             if (levelZeroSegments > 1) {
-                throw new IllegalStateException("TODO - Multiple level zero segments");
+                throw new IllegalStateException("Multiple level zero segments");
             }
 
         } catch (Exception e) {
