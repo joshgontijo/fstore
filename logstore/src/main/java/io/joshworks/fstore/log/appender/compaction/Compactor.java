@@ -39,7 +39,7 @@ public class Compactor<T> {
     private IDataStream dataStream;
     private NamingStrategy namingStrategy;
     private final int compactionThreshold;
-    private final String magic;
+    private final long magic;
     private final String name;
     private Levels<T> levels;
     private final SedaContext sedaContext;
@@ -57,7 +57,7 @@ public class Compactor<T> {
                      IDataStream dataStream,
                      NamingStrategy namingStrategy,
                      int compactionThreshold,
-                     String magic,
+                     long magic,
                      String name,
                      Levels<T> levels,
                      SedaContext sedaContext,

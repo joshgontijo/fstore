@@ -7,7 +7,7 @@ import io.joshworks.fstore.log.segment.header.Type;
 
 public interface SegmentFactory<T> {
 
-    Log<T> createOrOpen(Storage storage, Serializer<T> serializer, IDataStream reader, String magic, Type type);
+    Log<T> createOrOpen(Storage storage, Serializer<T> serializer, IDataStream dataStream, long magic, Type type, long logSize);
 
 
 }

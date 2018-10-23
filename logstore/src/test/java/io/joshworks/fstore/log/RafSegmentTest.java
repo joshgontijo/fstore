@@ -16,12 +16,15 @@ public class RafSegmentTest extends SegmentTest {
 
     @Override
     Log<String> open(File file) {
+        long logSize = Size.MB.of(10);
+        long fileSize = Log.totalSizeOf(logSize);
         return new Segment<>(
-                StorageProvider.raf().create(file, Size.MB.of(10)),
+                StorageProvider.raf().create(file, fileSize),
                 Serializers.STRING,
                 new DataStream(new SingleBufferThreadCachedPool(false)),
-                "magic",
-                Type.LOG_HEAD);
+                1234,
+                Type.LOG_HEAD,
+                logSize);
     }
 
     @Test(expected = IllegalArgumentException.class)

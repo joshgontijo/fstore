@@ -12,6 +12,8 @@ import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.BufferRef;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
+import io.joshworks.fstore.log.segment.footer.LogFooter;
+import io.joshworks.fstore.log.segment.header.InvalidMagic;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.utils.Logging;
@@ -22,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,12 +46,14 @@ public class Segment<T> implements Log<T> {
     private final Serializer<T> serializer;
     private final Storage storage;
     private final IDataStream dataStream;
-    private final String magic;
+    private final long logSize;
+    private final long logEnd;
 
     private AtomicLong entries = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
 
-    private LogHeader header;
+    private final LogHeader header;
+    private LogFooter footer;
 
     private final Object READER_LOCK = new Object();
 
@@ -58,36 +61,48 @@ public class Segment<T> implements Log<T> {
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
-    public Segment(Storage storage, Serializer<T> serializer, IDataStream dataStream, String magic, Type type) {
+    public Segment(Storage storage, Serializer<T> serializer, IDataStream dataStream, long magic, Type type, long logSize) {
         try {
             this.serializer = requireNonNull(serializer, "Serializer must be provided");
             this.storage = requireNonNull(storage, "Storage must be provided");
             this.dataStream = requireNonNull(dataStream, "Reader must be provided");
-            this.magic = requireNonNull(magic, "Magic must be provided");
             this.logger = Logging.namedLogger(storage.name(), "segment");
+            this.logSize = logSize;
+            this.logEnd = LogHeader.BYTES + logSize;
 
             LogHeader foundHeader = LogHeader.read(storage);
             if (foundHeader == null) {
                 if (type == null) {
                     throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
                 }
-                foundHeader = LogHeader.create(magic, type);
-                this.header = LogHeader.write(storage, foundHeader);
+                long footerPos = LogHeader.BYTES + logSize + EOL.length;
+                this.header = LogHeader.write(storage, magic, System.currentTimeMillis(), logSize, footerPos, type);
 
                 this.position(Log.START);
-                this.entries.set(this.header.entries);
+                this.entries.set(0);
 
             } else {
                 this.header = foundHeader;
-                SegmentState result = rebuildState(Segment.START);
-                this.position(result.position);
-                this.entries.set(result.entries);
+                validateMagic(header.magic, magic);
+                this.footer = LogFooter.read(storage, header.footerPos);
+                if (footer == null) {
+                    SegmentState result = rebuildState(Segment.START);
+                    this.position(result.position);
+                    this.entries.set(result.entries);
+                } else {
+                    this.entries.set(footer.entries);
+                }
             }
-            LogHeader.validateMagic(foundHeader.magic, magic);
 
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
             throw new SegmentException("Failed to construct segment", e);
+        }
+    }
+
+    private void validateMagic(long expected, long actual) {
+        if (expected != actual) {
+            throw new InvalidMagic(expected, actual);
         }
     }
 
@@ -101,14 +116,6 @@ public class Segment<T> implements Log<T> {
     @Override
     public long position() {
         return storage.position();
-    }
-
-    @Override
-    public Marker marker() {
-        if (readOnly()) {
-            return new Marker(header.logStart, header.logEnd, header.footerStart, header.footerEnd);
-        }
-        return new Marker(header.logStart, -1, -1, -1);
     }
 
     @Override
@@ -139,8 +146,8 @@ public class Segment<T> implements Log<T> {
         if (position < START) {
             throw new IllegalArgumentException("Position must be greater or equals to " + START + ", got: " + position);
         }
-        if (readOnly() && position > header.logEnd) {
-            throw new IllegalArgumentException("Position must be less than " + header.logEnd + ", got " + position);
+        if (position > logEnd) {
+            throw new IllegalArgumentException("Position must be less than " + logEnd + ", got " + position);
         }
         if (!readOnly() && position > position()) {
             throw new IllegalArgumentException("Position must be less than " + position() + ", got " + position);
@@ -154,7 +161,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public long actualSize() {
-        return readOnly() ? header.footerEnd : position();
+        return readOnly() ? footer.logEnd : position();
     }
 
     @Override
@@ -189,7 +196,7 @@ public class Segment<T> implements Log<T> {
             return iterator(START, direction);
         }
         if (readOnly()) {
-            return iterator(header.logEnd, direction);
+            return iterator(footer.logEnd, direction);
         }
         return iterator(position(), direction);
 
@@ -259,39 +266,15 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void roll(int level) {
-        roll(level, null);
-    }
-
-    @Override
-    public void roll(int level, ByteBuffer footer) {
         if (readOnly()) {
             throw new IllegalStateException("Cannot roll read only segment: " + this.toString());
         }
 
-        writeEndOfLog();
         long endOfLog = storage.position();
-        FooterInfo footerInfo = footer != null ? writeFooter(footer) : FooterInfo.emptyFooter(endOfLog);
-        this.header = writeHeader(level, footerInfo);
-
-        boolean hasFooter = (header.footerEnd - header.footerStart) > 0;
-        long endOfSegment = hasFooter ? header.footerEnd : endOfLog;
-        storage.truncate(endOfSegment);
-    }
-
-    @Override
-    public ByteBuffer readFooter() {
-        checkClosed();
-        if (!readOnly()) {
-            throw new IllegalStateException("Segment is not read only");
-        }
-        if (header.footerStart <= 0 || header.footerEnd <= 0) {
-            return ByteBuffer.allocate(0);
-        }
-
-        ByteBuffer footer = ByteBuffer.allocate((int) (header.footerEnd - header.footerStart));
-        storage.read(header.footerStart, footer);
-        footer.flip();
-        return footer;
+        writeEndOfLog();
+        storage.position(logEnd + EOL.length);
+        long actualLogSize = endOfLog - LogHeader.BYTES;
+        this.footer = LogFooter.write(storage, logEnd, System.currentTimeMillis(), actualLogSize, entries.get(), level);
     }
 
     private <R extends TimeoutReader> R addToReaders(R reader) {
@@ -307,21 +290,6 @@ public class Segment<T> implements Log<T> {
         storage.write(ByteBuffer.wrap(Log.EOL));
     }
 
-    private FooterInfo writeFooter(ByteBuffer footer) {
-        long pos = storage.position();
-        int size = footer.remaining();
-        if (size > 0) {
-            storage.write(footer);
-        }
-        return new FooterInfo(pos, pos + size);
-    }
-
-    private LogHeader writeHeader(int level, FooterInfo footerInfo) {
-        long segmentSize = footerInfo.end;
-        long logEnd = footerInfo.start - EOL.length;
-        LogHeader newHeader = LogHeader.create(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, START, logEnd, footerInfo.start, footerInfo.end);
-        return LogHeader.write(storage, newHeader);
-    }
 
     //TODO implement race condition on acquiring readers and closing / deleting segment
     //ideally the delete functionality would be moved to inside the segment, instead handling in the Compactor
@@ -334,7 +302,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public boolean readOnly() {
-        return Type.READ_ONLY.equals(header.type);
+        return footer != null;
     }
 
     @Override
@@ -344,7 +312,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public int level() {
-        return header.level;
+        return readOnly() ? footer.level : 0;
     }
 
     @Override
@@ -352,31 +320,13 @@ public class Segment<T> implements Log<T> {
         return header.created;
     }
 
-    @Override
-    public Type type() {
-        return header.type;
-    }
-
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Segment<?> segment = (Segment<?>) o;
-        return Objects.equals(storage, segment.storage) &&
-                Objects.equals(magic, segment.magic);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(storage, magic);
-    }
 
     @Override
     public String toString() {
         return "LogSegment{" + "handler=" + storage.name() +
                 ", entries=" + entries +
                 ", header=" + header +
+                ", footer=" + footer +
                 ", readers=" + Arrays.toString(readers.toArray()) +
                 '}';
     }
@@ -385,22 +335,6 @@ public class Segment<T> implements Log<T> {
         if (closed.get()) {
             throw new SegmentClosedException("Segment " + name() + "is closed");
         }
-    }
-
-    private static class FooterInfo {
-
-        private final long start;
-        private final long end;
-
-        private FooterInfo(long start, long end) {
-            this.start = start;
-            this.end = end;
-        }
-
-        private static FooterInfo emptyFooter(long start) {
-            return new FooterInfo(start, start);
-        }
-
     }
 
     //NOT THREAD SAFE
@@ -458,7 +392,7 @@ public class Segment<T> implements Log<T> {
                 return;
             }
             if (Direction.FORWARD.equals(direction)) {
-                if (Segment.this.readOnly() && readAheadPosition >= Segment.this.header.logEnd) {
+                if (Segment.this.readOnly() && readAheadPosition >= Segment.this.logEnd) {
                     return;
                 }
                 if (!Segment.this.readOnly() && readAheadPosition >= Segment.this.position()) {
@@ -567,7 +501,7 @@ public class Segment<T> implements Log<T> {
                 return true;
             }
             if (Segment.this.readOnly()) {
-                return readPosition < Segment.this.header.logEnd;
+                return readPosition < Segment.this.logEnd;
             }
             return readPosition < Segment.this.position();
         }
@@ -625,14 +559,14 @@ public class Segment<T> implements Log<T> {
         @Override
         public boolean headOfLog() {
             if (Segment.this.readOnly()) {
-                return readPosition >= Segment.this.header.logEnd;
+                return readPosition >= Segment.this.logEnd;
             }
             return readPosition == Segment.this.position();
         }
 
         @Override
         public boolean endOfLog() {
-            return readOnly() && readPosition >= header.logEnd;
+            return readOnly() && readPosition >= logEnd;
 
         }
 

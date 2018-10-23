@@ -4,7 +4,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.header.Type;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,14 +36,14 @@ public class Levels<T> {
             throw new IllegalStateException("Level zero must be present");
         }
 
-        long logHeadCount = this.segments.stream().filter(seg -> Type.LOG_HEAD.equals(seg.type())).count();
+        long logHeadCount = this.segments.stream().filter(seg -> !seg.readOnly()).count();
         if (logHeadCount != 1) {
-            throw new IllegalStateException("Expected single " + Type.LOG_HEAD + " segment, found " + logHeadCount);
+            throw new IllegalStateException("Expected single log segment head, found " + logHeadCount);
         }
         this.current = this.segments.stream()
-                .filter(seg -> Type.LOG_HEAD.equals(seg.type()))
+                .filter(seg -> !seg.readOnly() && seg.level() == 0)
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No " + Type.LOG_HEAD + " found"));
+                .orElseThrow(() -> new IllegalStateException("No log head found"));
     }
 
     public List<Log<T>> segments(int level) {

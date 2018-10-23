@@ -6,13 +6,10 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -27,11 +24,11 @@ public class LevelsTest {
     @Test
     public void segments_return_only_level_segments() {
 
-        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
-        DummySegment seg1 = new DummySegment(1, Type.READ_ONLY);
-        DummySegment seg11 = new DummySegment(1, Type.READ_ONLY);
-        DummySegment seg2 = new DummySegment(2, Type.READ_ONLY);
-        DummySegment seg3 = new DummySegment(3, Type.READ_ONLY);
+        DummySegment zero = new DummySegment(0, false);
+        DummySegment seg1 = new DummySegment(1, true);
+        DummySegment seg11 = new DummySegment(1, true);
+        DummySegment seg2 = new DummySegment(2, true);
+        DummySegment seg3 = new DummySegment(3, true);
 
         Levels<String> levels = Levels.create(
                 List.of(
@@ -61,10 +58,10 @@ public class LevelsTest {
     @Test
     public void segments_return_sorted_for_single_level() {
 
-        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
-        DummySegment seg1 = new DummySegment(1, Type.READ_ONLY);
-        DummySegment seg2 = new DummySegment(1, Type.READ_ONLY);
-        DummySegment seg3 = new DummySegment(1, Type.READ_ONLY);
+        DummySegment zero = new DummySegment(0, false);
+        DummySegment seg1 = new DummySegment(1, true);
+        DummySegment seg2 = new DummySegment(1, true);
+        DummySegment seg3 = new DummySegment(1, true);
 
         Levels<String> levels = Levels.create(
                 List.of(
@@ -83,10 +80,10 @@ public class LevelsTest {
 
     @Test
     public void segments_return_FORWARD_segments_order_for_multiple_levels() {
-        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
-        DummySegment seg1 = new DummySegment(1, Type.READ_ONLY);
-        DummySegment seg2 = new DummySegment(2, Type.READ_ONLY);
-        DummySegment seg3 = new DummySegment(3, Type.READ_ONLY);
+        DummySegment zero = new DummySegment(0, false);
+        DummySegment seg1 = new DummySegment(1, true);
+        DummySegment seg2 = new DummySegment(2, true);
+        DummySegment seg3 = new DummySegment(3, true);
 
         Levels<String> levels = Levels.create(
                 List.of(
@@ -110,13 +107,13 @@ public class LevelsTest {
 
     @Test
     public void segments_return_FORWARD_ordered_segments_on_multiple_levels() {
-        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
-        DummySegment seg11 = new DummySegment("seg11", 1, Type.READ_ONLY);
-        DummySegment seg12 = new DummySegment("seg12", 1, Type.READ_ONLY);
-        DummySegment seg21 = new DummySegment("seg21", 2, Type.READ_ONLY);
-        DummySegment seg22 = new DummySegment("seg22", 2, Type.READ_ONLY);
-        DummySegment seg31 = new DummySegment("seg31", 3, Type.READ_ONLY);
-        DummySegment seg32 = new DummySegment("seg32", 3, Type.READ_ONLY);
+        DummySegment zero = new DummySegment(0, false);
+        DummySegment seg11 = new DummySegment("seg11", 1, true);
+        DummySegment seg12 = new DummySegment("seg12", 1, true);
+        DummySegment seg21 = new DummySegment("seg21", 2, true);
+        DummySegment seg22 = new DummySegment("seg22", 2, true);
+        DummySegment seg31 = new DummySegment("seg31", 3, true);
+        DummySegment seg32 = new DummySegment("seg32", 3, true);
 
         Levels<String> levels = Levels.create(
                 List.of(
@@ -145,13 +142,13 @@ public class LevelsTest {
 
     @Test
     public void segments_return_BACKWARD_ordered_segments_on_multiple_levels() {
-        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
-        DummySegment seg11 = new DummySegment("seg11", 1, Type.READ_ONLY);
-        DummySegment seg12 = new DummySegment("seg12", 1, Type.READ_ONLY);
-        DummySegment seg21 = new DummySegment("seg21", 2, Type.READ_ONLY);
-        DummySegment seg22 = new DummySegment("seg22", 2, Type.READ_ONLY);
-        DummySegment seg31 = new DummySegment("seg31", 3, Type.READ_ONLY);
-        DummySegment seg32 = new DummySegment("seg32", 3, Type.READ_ONLY);
+        DummySegment zero = new DummySegment(0, false);
+        DummySegment seg11 = new DummySegment("seg11", 1, true);
+        DummySegment seg12 = new DummySegment("seg12", 1, true);
+        DummySegment seg21 = new DummySegment("seg21", 2, true);
+        DummySegment seg22 = new DummySegment("seg22", 2, true);
+        DummySegment seg31 = new DummySegment("seg31", 3, true);
+        DummySegment seg32 = new DummySegment("seg32", 3, true);
 
         Levels<String> levels = Levels.create(
                 List.of(
@@ -180,13 +177,13 @@ public class LevelsTest {
 
     @Test
     public void get_return_segment_for_given_index() {
-        DummySegment zero = new DummySegment(0, Type.LOG_HEAD);
-        DummySegment seg11 = new DummySegment("seg11", 1, Type.READ_ONLY);
-        DummySegment seg12 = new DummySegment("seg12", 1, Type.READ_ONLY);
-        DummySegment seg21 = new DummySegment("seg21", 2, Type.READ_ONLY);
-        DummySegment seg22 = new DummySegment("seg22", 2, Type.READ_ONLY);
-        DummySegment seg31 = new DummySegment("seg31", 3, Type.READ_ONLY);
-        DummySegment seg32 = new DummySegment("seg32", 3, Type.READ_ONLY);
+        DummySegment zero = new DummySegment(0, false);
+        DummySegment seg11 = new DummySegment("seg11", 1, true);
+        DummySegment seg12 = new DummySegment("seg12", 1, true);
+        DummySegment seg21 = new DummySegment("seg21", 2, true);
+        DummySegment seg22 = new DummySegment("seg22", 2, true);
+        DummySegment seg31 = new DummySegment("seg31", 3, true);
+        DummySegment seg32 = new DummySegment("seg32", 3, true);
 
         Levels<String> levels = Levels.create(
                 List.of(
@@ -210,25 +207,25 @@ public class LevelsTest {
 
     @Test(expected = IllegalStateException.class)
     public void exception_is_thrown_when_creating_levels_without_LOG_HEAD_segment() {
-        Levels.create(List.of(new DummySegment(0, Type.READ_ONLY)));
+        Levels.create(List.of(new DummySegment(0, true)));
     }
 
     @Test(expected = IllegalStateException.class)
     public void exception_is_thrown_when_creating_levels_without_level_zero_segment() {
-        Levels.create(List.of(new DummySegment(1, Type.LOG_HEAD)));
+        Levels.create(List.of(new DummySegment(1, false)));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void exception_is_thrown_when_appending_new_segment_that_is_not_level_zero() {
-        Levels<String> levels = Levels.create(List.of(new DummySegment(0, Type.LOG_HEAD)));
-        levels.appendSegment(new DummySegment(1, Type.LOG_HEAD));
+        Levels<String> levels = Levels.create(List.of(new DummySegment(0, false)));
+        levels.appendSegment(new DummySegment(1, false));
     }
 
     @Test
     public void appending_maintains_ordering() {
-        DummySegment seg1 = new DummySegment("seg1", 0, Type.LOG_HEAD);
-        DummySegment seg2 = new DummySegment("seg2", 0, Type.READ_ONLY);
-        DummySegment seg3 = new DummySegment("seg3", 0, Type.READ_ONLY);
+        DummySegment seg1 = new DummySegment("seg1", 0, true);
+        DummySegment seg2 = new DummySegment("seg2", 0, true);
+        DummySegment seg3 = new DummySegment("seg3", 0, true);
 
         Levels<String> levels = Levels.create(List.of(seg1));
 
@@ -258,18 +255,14 @@ public class LevelsTest {
 
     @Test
     public void merge_maintains_ordering() {
-        DummySegment seg1 = new DummySegment("seg1", 0, Type.LOG_HEAD);
-        DummySegment seg2 = new DummySegment("seg2", 0, Type.LOG_HEAD);
-        DummySegment seg3 = new DummySegment("seg3", 0, Type.LOG_HEAD);
-        DummySegment seg4 = new DummySegment("seg4", 0, Type.LOG_HEAD);
+        DummySegment seg1 = new DummySegment("seg1", 1, true);
+        DummySegment seg2 = new DummySegment("seg2", 1, true);
+        DummySegment seg3 = new DummySegment("seg3", 1, true);
+        DummySegment seg4 = new DummySegment("seg4", 0, false);
 
-        DummySegment seg5 = new DummySegment("seg5", 2, Type.READ_ONLY);
+        DummySegment seg5 = new DummySegment("seg5", 2, true);
 
-        Levels<String> levels = Levels.create(List.of(seg1));
-
-        levels.appendSegment(seg2);
-        levels.appendSegment(seg3);
-        levels.appendSegment(seg4);
+        Levels<String> levels = Levels.create(List.of(seg1, seg2, seg3, seg4));
 
         levels.merge(List.of(seg1, seg2, seg3), seg5);
 
@@ -287,23 +280,17 @@ public class LevelsTest {
 
         private int level;
         private final String name;
-        private Type type;
-        private final long createdDate;
         private boolean readOnly;
+        private final long createdDate;
 
-        private DummySegment(int level, Type type) {
-            this(UUID.randomUUID().toString().substring(0, 8), level, type);
+        private DummySegment(int level, boolean readOnly) {
+            this(UUID.randomUUID().toString().substring(0, 8), level, readOnly);
         }
 
-        private DummySegment(String name, int level, Type type) {
+        private DummySegment(String name, int level, boolean readOnly) {
             this.level = level;
             this.name = name;
-            this.type = type;
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            this.readOnly = readOnly;
             this.createdDate = System.currentTimeMillis();
         }
 
@@ -330,11 +317,6 @@ public class LevelsTest {
         @Override
         public long position() {
             return 0;
-        }
-
-        @Override
-        public Marker marker() {
-            return null;
         }
 
         @Override
@@ -382,17 +364,7 @@ public class LevelsTest {
             this.level = level;
             this.readOnly = true;
         }
-
-        @Override
-        public void roll(int level, ByteBuffer footer) {
-            this.level = level;
-            this.readOnly = true;
-        }
-
-        @Override
-        public ByteBuffer readFooter() {
-            return ByteBuffer.allocate(0);
-        }
+        
 
         @Override
         public boolean readOnly() {
@@ -412,11 +384,6 @@ public class LevelsTest {
         @Override
         public long created() {
             return createdDate;
-        }
-
-        @Override
-        public Type type() {
-            return type;
         }
 
         @Override

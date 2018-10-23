@@ -4,19 +4,17 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.log.LogFileUtils;
-import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Metadata {
 
-    static final int MAGIC_SIZE = 36 + Integer.BYTES; //VSTRING
-    static final int METADATA_SIZE = (Integer.BYTES * 2) + Long.BYTES + (Byte.BYTES * 3) + MAGIC_SIZE;
+    private static final int METADATA_SIZE = (Integer.BYTES * 2) + (Long.BYTES * 2)+ (Byte.BYTES * 3);
 
-    final String magic;
+    final long magic;
     final long logSize;
     final int footerSize;
     final int compactionThreshold;
@@ -24,7 +22,7 @@ public class Metadata {
     final boolean flushAfterWrite;
     final boolean asyncFlush;
 
-    private Metadata(String magic, long logSize, int footerSize, int compactionThreshold, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
+    private Metadata(long magic, long logSize, int footerSize, int compactionThreshold, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
         this.magic = magic;
         this.logSize = logSize;
         this.footerSize = footerSize;
@@ -42,7 +40,7 @@ public class Metadata {
             bb.flip();
 
 
-            String magic = Serializers.VSTRING.fromBytes(bb);
+            long magic = bb.getLong();
             long logSize = bb.getLong();
             int footerSize = bb.getInt();
             int maxSegmentsPerLevel = bb.getInt();
@@ -61,9 +59,9 @@ public class Metadata {
         try (Storage storage = StorageProvider.raf().create(file, METADATA_SIZE)) {
             ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
 
-            String magic = createMagic();
+            long magic = createMagic();
 
-            bb.put(Serializers.VSTRING.toBytes(magic));
+            bb.putLong(magic);
             bb.putLong(logSize);
             bb.putInt(footerSize);
             bb.putInt(maxSegmentsPerLevel);
@@ -80,8 +78,8 @@ public class Metadata {
 
     }
 
-    private static String createMagic() {
-        return UUID.randomUUID().toString();
+    private static long createMagic() {
+        return ThreadLocalRandom.current().nextLong();
     }
 
 }

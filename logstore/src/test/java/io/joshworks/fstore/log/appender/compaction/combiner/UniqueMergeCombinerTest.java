@@ -3,10 +3,10 @@ package io.joshworks.fstore.log.appender.compaction.combiner;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.record.DataStream;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
@@ -119,9 +119,11 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> segmentWith(String... values) {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.raf().create(file, Memory.PAGE_SIZE);
 
-        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", Type.LOG_HEAD);
+        long logSize = 1024;
+        Storage storage = StorageProvider.raf().create(file, Log.totalSizeOf(logSize));
+
+        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, 1234L, Type.LOG_HEAD, logSize);
         segments.add(segment);
 
         for (String value : values) {
@@ -132,9 +134,10 @@ public class UniqueMergeCombinerTest {
     }
 
     private Segment<String> outputSegment() {
+        long logSize = 1024;
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.raf().create(file, Memory.PAGE_SIZE);
-        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", Type.LOG_HEAD);
+        Storage storage = StorageProvider.raf().create(file,Log.totalSizeOf(logSize));
+        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, 1234, Type.LOG_HEAD, logSize);
         segments.add(segment);
         return segment;
     }

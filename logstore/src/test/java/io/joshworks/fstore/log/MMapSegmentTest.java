@@ -15,9 +15,11 @@ public class MMapSegmentTest extends RafSegmentTest {
 
     @Override
     Log<String> open(File file) {
+        long logSize = Size.MB.of(10);
+        long fileSize = Log.totalSizeOf(logSize);
         return new Segment<>(
-                StorageProvider.mmap().create(file, Size.MB.of(10)),
+                StorageProvider.mmap().create(file, fileSize),
                 Serializers.STRING,
-                new DataStream(new SingleBufferThreadCachedPool(false)), "magic", Type.LOG_HEAD);
+                new DataStream(new SingleBufferThreadCachedPool(false)), 1234, Type.LOG_HEAD, logSize);
     }
 }

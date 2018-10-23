@@ -6,7 +6,6 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.seda.SedaContext;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -174,10 +173,10 @@ public class LogAppender<T> implements Closeable {
 
     private Log<T> createCurrentSegment(long logSize) {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
-        long totalFileSize = LogHeader.BYTES + logSize + Log.EOL.length + Memory.PAGE_SIZE;
+        long totalFileSize = Log.totalSizeOf(logSize);
         Storage storage = storageProvider.create(segmentFile, totalFileSize);
 
-        return factory.createOrOpen(storage, serializer, dataStream, metadata.magic, Type.LOG_HEAD);
+        return factory.createOrOpen(storage, serializer, dataStream, metadata.magic, Type.LOG_HEAD, logSize);
     }
 
     private Levels<T> loadSegments() {
@@ -186,11 +185,12 @@ public class LogAppender<T> implements Closeable {
         try {
             for (String segmentName : LogFileUtils.findSegments(directory)) {
                 Log<T> segment = loadSegment(segmentName);
-                if(Type.MERGE_OUT.equals(segment.type())) {
-                    logger.info("Deleting incomplete merge output segment");
-                    segment.delete();
-                    continue;
-                }
+                //TODO implement
+//                if(Type.MERGE_OUT.equals(segment.type())) {
+//                    logger.info("Deleting incomplete merge output segment");
+//                    segment.delete();
+//                    continue;
+//                }
                 segments.add(segment);
             }
 
@@ -219,7 +219,7 @@ public class LogAppender<T> implements Closeable {
         try {
             File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
             storage = storageProvider.open(segmentFile);
-            Log<T> segment = factory.createOrOpen(storage, serializer, dataStream, metadata.magic, null);
+            Log<T> segment = factory.createOrOpen(storage, serializer, dataStream, metadata.magic, null, metadata.logSize);
             logger.info("Loaded segment {}", segment);
             return segment;
         } catch (Exception e) {

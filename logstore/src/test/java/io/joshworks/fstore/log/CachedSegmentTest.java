@@ -29,8 +29,9 @@ public class CachedSegmentTest {
     @Before
     public void setUp() {
         testFile = FileUtils.testFile();
-        Storage storage = StorageProvider.raf(true).create(testFile, Size.MB.of(500));
-        segment = new Segment<>(storage, Serializers.STRING, new DataStream(new SingleBufferThreadCachedPool(false)), "magic", Type.LOG_HEAD);
+        long logSize = Size.MB.of(500);
+        Storage storage = StorageProvider.raf(true).create(testFile, Log.totalSizeOf(logSize));
+        segment = new Segment<>(storage, Serializers.STRING, new DataStream(new SingleBufferThreadCachedPool(false)), 1234, Type.LOG_HEAD, logSize);
     }
 
     @After

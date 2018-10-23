@@ -1,62 +1,26 @@
 package io.joshworks.fstore.log.segment.header;
 
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Checksum;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Objects;
 
 public class LogHeader {
 
-    private static final Serializer<LogHeader> headerSerializer = new HeaderSerializer();
     public static final int BYTES = 1024;
 
-    //segment info
-    public final String magic;
-    public final int level;
+    public final long magic;
     public final long created;
+    public final long logSize;
+    public final long footerPos;
     public final Type type;
-    public final long segmentSize;
 
-    //log info
-    public final long logStart;
-    public final long logEnd;
-    public final long entries;
-
-    //footer info
-    public final long footerStart;
-    public final long footerEnd;
-
-    private LogHeader(String magic, long entries, long created, int level, Type type, long segmentSize, long logStart, long logEnd, long footerStart, long footerEnd) {
+    private LogHeader(long magic, long created,  long logSize, long footerPos, Type type) {
         this.magic = magic;
-        this.entries = entries;
         this.created = created;
-        this.level = level;
+        this.logSize = logSize;
+        this.footerPos = footerPos;
         this.type = type;
-        this.segmentSize = segmentSize;
-        this.logStart = logStart;
-        this.logEnd = logEnd;
-        this.footerStart = footerStart;
-        this.footerEnd = footerEnd;
-    }
-
-    public static LogHeader create(String magic, Type type) {
-        return new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, 0, 0, 0, 0, 0);
-    }
-
-    public static LogHeader create(String magic, long entries, long created, int level, Type type, long segmentSize, long logStart, long logEnd, long footerStart, long footerEnd) {
-        return new LogHeader(magic, entries, created, level, type, segmentSize, logStart, logEnd, footerStart, footerEnd);
-    }
-
-    public static void validateMagic(String actualMagic, String expectedMagic) {
-        byte[] actual = actualMagic.getBytes(StandardCharsets.UTF_8);
-        byte[] expected = expectedMagic.getBytes(StandardCharsets.UTF_8);
-        if (!Arrays.equals(expected, actual)) {
-            throw new InvalidMagic(expectedMagic, actualMagic);
-        }
     }
 
     public static LogHeader read(Storage storage) {
@@ -76,66 +40,43 @@ public class LogHeader {
             throw new IllegalStateException("Log head checksum verification failed");
         }
 
-        return headerSerializer.fromBytes(bb);
+        long magic = bb.getLong();
+        long created = bb.getLong();
+        long logSize = bb.getLong();
+        long footerPos = bb.getLong();
+        int typeCode = bb.getInt();
+
+        return new LogHeader(magic, created, logSize, footerPos, Type.of(typeCode));
     }
 
-    public static LogHeader write(Storage storage, LogHeader header) {
+    public static LogHeader write(Storage storage, long magic, long created, long logSize, long footerPos, Type type) {
         try {
-            ByteBuffer withChecksumAndLength = ByteBuffer.allocate(BYTES);
-            ByteBuffer headerData = headerSerializer.toBytes(header);
+            ByteBuffer headerData = ByteBuffer.allocate(BYTES);
+            headerData.putLong(magic);
+            headerData.putLong(logSize);
+            headerData.putLong(footerPos);
+            headerData.putInt(type.val);
+            headerData.flip();
 
             int entrySize = headerData.remaining();
+
+            ByteBuffer withChecksumAndLength = ByteBuffer.allocate(BYTES);
             withChecksumAndLength.putInt(entrySize);
             withChecksumAndLength.putInt(Checksum.crc32(headerData));
             withChecksumAndLength.put(headerData);
             withChecksumAndLength.position(0);//do not flip, the header will always have the fixed size
 
-            long prevPos = storage.position();
-            storage.position(0);
+            if (storage.position() != 0) {
+                throw new IllegalStateException("Storage position is not at the beginning of the log");
+            }
             if (storage.write(withChecksumAndLength) != LogHeader.BYTES) {
                 throw new IllegalStateException("Unexpected written header length");
             }
-            storage.position(prevPos);
-            return header;
+            return new LogHeader(magic, created, logSize, footerPos, type);
         } catch (Exception e) {
             throw new RuntimeException("Failed to write header", e);
         }
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        LogHeader header = (LogHeader) o;
-        return created == header.created &&
-                level == header.level &&
-                segmentSize == header.segmentSize &&
-                logStart == header.logStart &&
-                logEnd == header.logEnd &&
-                entries == header.entries &&
-                footerStart == header.footerStart &&
-                footerEnd == header.footerEnd &&
-                Objects.equals(magic, header.magic) &&
-                type == header.type;
-    }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(magic, created, level, type, segmentSize, logStart, logEnd, entries, footerStart, footerEnd);
-    }
-
-    @Override
-    public String toString() {
-        return "Header{" + "magic='" + magic + '\'' +
-                ", created=" + created +
-                ", level=" + level +
-                ", type=" + type +
-                ", segmentSize=" + segmentSize +
-                ", logStart=" + logStart +
-                ", size=" + logEnd +
-                ", entries=" + entries +
-                ", footerPos=" + footerStart +
-                ", footerEnd=" + footerEnd +
-                '}';
-    }
 }

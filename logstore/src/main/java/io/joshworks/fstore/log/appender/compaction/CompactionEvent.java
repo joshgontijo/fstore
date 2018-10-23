@@ -1,11 +1,11 @@
 package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.record.IDataStream;
-import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.SegmentFactory;
 
 import java.io.File;
 import java.util.List;
@@ -20,9 +20,19 @@ class CompactionEvent<T> {
     final IDataStream dataStream;
     final String name;
     final int level;
-    final String magic;
+    final long magic;
 
-    CompactionEvent(List<Log<T>> segments, SegmentCombiner<T> combiner, File segmentFile, SegmentFactory<T> segmentFactory, StorageProvider storageProvider, Serializer<T> serializer, IDataStream dataStream, String name, int level, String magic) {
+    CompactionEvent(List<Log<T>> segments,
+                    SegmentCombiner<T> combiner,
+                    File segmentFile,
+                    SegmentFactory<T> segmentFactory,
+                    StorageProvider storageProvider,
+                    Serializer<T> serializer,
+                    IDataStream dataStream,
+                    String name,
+                    int level,
+                    long magic) {
+
         this.segments = segments;
         this.combiner = combiner;
         this.segmentFile = segmentFile;

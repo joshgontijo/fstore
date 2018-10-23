@@ -10,12 +10,10 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.header.Type;
 
-import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -31,7 +29,8 @@ public class BlockSegment<T> implements Log<T> {
 
     public BlockSegment(Storage storage,
                         DataStream dataStream,
-                        String magic,
+                        long magic,
+                        long logSize,
                         Type type,
                         Serializer<T> serializer,
                         BlockFactory<T> blockFactory,
@@ -41,18 +40,13 @@ public class BlockSegment<T> implements Log<T> {
         this.blockFactory = blockFactory;
         this.blockSize = blockSize;
         this.blockSerializer = new BlockSerializer<>(codec, blockFactory, serializer);
-        this.delegate = new Segment<>(storage, blockSerializer, dataStream, magic, type);
+        this.delegate = new Segment<>(storage, blockSerializer, dataStream, magic, type, logSize);
         this.block = blockFactory.create(serializer, blockSize);
     }
 
     @Override
     public long position() {
         return delegate.position();
-    }
-
-    @Override
-    public Marker marker() {
-        return delegate.marker();
     }
 
     @Override
@@ -171,16 +165,6 @@ public class BlockSegment<T> implements Log<T> {
         delegate.roll(level);
     }
 
-    @Override
-    public void roll(int level, ByteBuffer footer) {
-        flush();
-        delegate.roll(level, footer);
-    }
-
-    @Override
-    public ByteBuffer readFooter() {
-        return delegate.readFooter();
-    }
 
     @Override
     public boolean readOnly() {
@@ -195,11 +179,6 @@ public class BlockSegment<T> implements Log<T> {
     @Override
     public int level() {
         return delegate.level();
-    }
-
-    @Override
-    public Type type() {
-        return delegate.type();
     }
 
     @Override

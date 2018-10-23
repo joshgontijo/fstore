@@ -11,9 +11,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -198,33 +196,29 @@ public abstract class SegmentTest {
         }
         segment.flush();
 
-        //footer
-        byte[] fData = new byte[100];
-        Arrays.fill(fData, (byte) 1);
-
-        segment.roll(1, ByteBuffer.wrap(fData));
+        segment.roll(1);
 
         Stream<String> stream = segment.stream(Direction.FORWARD);
         assertEquals(numEntries, stream.count());
     }
 
     @Test
-    public void scanner_0() throws IOException {
+    public void scanner_0() {
         testScanner(0);
     }
 
     @Test
-    public void scanner_1() throws IOException {
+    public void scanner_1() {
         testScanner(1);
     }
 
     @Test
-    public void scanner_10() throws IOException {
+    public void scanner_10() {
         testScanner(10);
     }
 
     @Test
-    public void scanner_1000() throws IOException {
+    public void scanner_1000() {
         testScanner(1000);
     }
 
@@ -340,20 +334,6 @@ public abstract class SegmentTest {
             i++;
         }
         assertEquals(items, i);
-    }
-
-    @Test
-    public void writeFooter() {
-        segment.append("a");
-
-        byte[] fData = new byte[100];
-        Arrays.fill(fData, (byte) 1);
-
-        segment.roll(1, ByteBuffer.wrap(fData));
-
-        ByteBuffer read = segment.readFooter();
-
-        assertTrue(Arrays.equals(fData, read.array()));
     }
 
     @Test

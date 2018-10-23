@@ -27,7 +27,7 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
 
         CompactionEvent<T> data = context.data;
 
-        String magic = data.magic;
+        long magic = data.magic;
         int level = data.level;
         String name = data.name;
         int nextLevel = data.level + 1;
@@ -44,10 +44,10 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
         Log<T> target = null;
         try {
 
-            long totalSize = segments.stream().mapToLong(Log::actualSize).sum();
+            long totalLogSize = segments.stream().mapToLong(Log::actualSize).sum();
 
             String names = Arrays.toString(segments.stream().map(Log::name).toArray());
-            logger.info("Compacting {} from level {} using {}, new segment size: {}", names, level, combiner.getClass().getSimpleName(), totalSize);
+            logger.info("Compacting {} from level {} using {}, new segment size: {}", names, level, combiner.getClass().getSimpleName(), totalLogSize);
 
             for (int i = 0; i < segments.size(); i++) {
                 Log<T> segment = segments.get(i);
@@ -56,12 +56,13 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
 
             long start = System.currentTimeMillis();
 
-            Storage storage = storageProvider.create(segmentFile, totalSize);
-            target = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, Type.MERGE_OUT);
+            long segmentFileSize = Log.totalSizeOf(totalLogSize);
+            Storage storage = storageProvider.create(segmentFile, segmentFileSize);
+            target = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, Type.MERGE_OUT, totalLogSize);
 
             combiner.merge(segments, target);
 
-            logger.info("Result Segment {} - size: {}, entries: {}", target.name(), totalSize, target.entries());
+            logger.info("Result Segment {} - size: {}, entries: {}", target.name(), segmentFileSize, target.entries());
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
             context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.success(segments, target, level));
