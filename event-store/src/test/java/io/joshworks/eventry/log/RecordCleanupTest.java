@@ -181,7 +181,7 @@ public class RecordCleanupTest {
         }
 
         @Override
-        public long actualSize() {
+        public long logicalSize() {
             return 0;
         }
 

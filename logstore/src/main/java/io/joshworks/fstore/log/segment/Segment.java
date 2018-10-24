@@ -71,8 +71,7 @@ public class Segment<T> implements Log<T> {
                 if (type == null) {
                     throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
                 }
-                foundHeader = LogHeader.create(magic, type);
-                this.header = LogHeader.write(storage, foundHeader);
+                this.header = LogHeader.writeNew(storage, magic, type);
 
                 this.position(Log.START);
                 this.entries.set(this.header.entries);
@@ -83,7 +82,7 @@ public class Segment<T> implements Log<T> {
                 this.position(result.position);
                 this.entries.set(result.entries);
             }
-            LogHeader.validateMagic(foundHeader.magic, magic);
+            LogHeader.validateMagic(this.header.magic, magic);
 
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
@@ -101,14 +100,6 @@ public class Segment<T> implements Log<T> {
     @Override
     public long position() {
         return storage.position();
-    }
-
-    @Override
-    public Marker marker() {
-        if (readOnly()) {
-            return new Marker(header.logStart, header.logEnd, header.footerStart, header.footerEnd);
-        }
-        return new Marker(header.logStart, -1, -1, -1);
     }
 
     @Override
@@ -153,8 +144,8 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
-    public long actualSize() {
-        return readOnly() ? header.footerEnd : position();
+    public long logicalSize() {
+        return readOnly() ? header.logicalSize : position();
     }
 
     @Override
@@ -259,39 +250,14 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void roll(int level) {
-        roll(level, null);
-    }
-
-    @Override
-    public void roll(int level, ByteBuffer footer) {
         if (readOnly()) {
             throw new IllegalStateException("Cannot roll read only segment: " + this.toString());
         }
 
+        long currPos = storage.position();
         writeEndOfLog();
-        long endOfLog = storage.position();
-        FooterInfo footerInfo = footer != null ? writeFooter(footer) : FooterInfo.emptyFooter(endOfLog);
-        this.header = writeHeader(level, footerInfo);
+        this.header = LogHeader.writeCompleted(storage, this.header, entries.get(), level, currPos);
 
-        boolean hasFooter = (header.footerEnd - header.footerStart) > 0;
-        long endOfSegment = hasFooter ? header.footerEnd : endOfLog;
-        storage.truncate(endOfSegment);
-    }
-
-    @Override
-    public ByteBuffer readFooter() {
-        checkClosed();
-        if (!readOnly()) {
-            throw new IllegalStateException("Segment is not read only");
-        }
-        if (header.footerStart <= 0 || header.footerEnd <= 0) {
-            return ByteBuffer.allocate(0);
-        }
-
-        ByteBuffer footer = ByteBuffer.allocate((int) (header.footerEnd - header.footerStart));
-        storage.read(header.footerStart, footer);
-        footer.flip();
-        return footer;
     }
 
     private <R extends TimeoutReader> R addToReaders(R reader) {
@@ -305,22 +271,6 @@ public class Segment<T> implements Log<T> {
 
     private void writeEndOfLog() {
         storage.write(ByteBuffer.wrap(Log.EOL));
-    }
-
-    private FooterInfo writeFooter(ByteBuffer footer) {
-        long pos = storage.position();
-        int size = footer.remaining();
-        if (size > 0) {
-            storage.write(footer);
-        }
-        return new FooterInfo(pos, pos + size);
-    }
-
-    private LogHeader writeHeader(int level, FooterInfo footerInfo) {
-        long segmentSize = footerInfo.end;
-        long logEnd = footerInfo.start - EOL.length;
-        LogHeader newHeader = LogHeader.create(this.magic, entries.get(), this.header.created, level, Type.READ_ONLY, segmentSize, START, logEnd, footerInfo.start, footerInfo.end);
-        return LogHeader.write(storage, newHeader);
     }
 
     //TODO implement race condition on acquiring readers and closing / deleting segment
@@ -385,22 +335,6 @@ public class Segment<T> implements Log<T> {
         if (closed.get()) {
             throw new SegmentClosedException("Segment " + name() + "is closed");
         }
-    }
-
-    private static class FooterInfo {
-
-        private final long start;
-        private final long end;
-
-        private FooterInfo(long start, long end) {
-            this.start = start;
-            this.end = end;
-        }
-
-        private static FooterInfo emptyFooter(long start) {
-            return new FooterInfo(start, start);
-        }
-
     }
 
     //NOT THREAD SAFE

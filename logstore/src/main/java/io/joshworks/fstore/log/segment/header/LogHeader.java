@@ -14,42 +14,31 @@ public class LogHeader {
     private static final Serializer<LogHeader> headerSerializer = new HeaderSerializer();
     public static final int BYTES = 1024;
 
-    //segment info
+    //newHeader
     public final String magic;
-    public final int level;
     public final long created;
     public final Type type;
-    public final long segmentSize;
-
-    //log info
-    public final long logStart;
     public final long logEnd;
+    public final long fileSize;
+
+    //completed info
+    public final int level; //segments created are implicit level zero
     public final long entries;
+    public final long logicalSize; //actual written bytes, including header
+    public final long rolled;
 
-    //footer info
-    public final long footerStart;
-    public final long footerEnd;
-
-    private LogHeader(String magic, long entries, long created, int level, Type type, long segmentSize, long logStart, long logEnd, long footerStart, long footerEnd) {
+    private LogHeader(String magic, long entries, long created, int level, Type type, long logEnd, long rolled, long fileSize, long logicalSize) {
         this.magic = magic;
         this.entries = entries;
         this.created = created;
         this.level = level;
         this.type = type;
-        this.segmentSize = segmentSize;
-        this.logStart = logStart;
         this.logEnd = logEnd;
-        this.footerStart = footerStart;
-        this.footerEnd = footerEnd;
+        this.rolled = rolled;
+        this.fileSize = fileSize;
+        this.logicalSize = logicalSize;
     }
 
-    public static LogHeader create(String magic, Type type) {
-        return new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, 0, 0, 0, 0, 0);
-    }
-
-    public static LogHeader create(String magic, long entries, long created, int level, Type type, long segmentSize, long logStart, long logEnd, long footerStart, long footerEnd) {
-        return new LogHeader(magic, entries, created, level, type, segmentSize, logStart, logEnd, footerStart, footerEnd);
-    }
 
     public static void validateMagic(String actualMagic, String expectedMagic) {
         byte[] actual = actualMagic.getBytes(StandardCharsets.UTF_8);
@@ -79,7 +68,29 @@ public class LogHeader {
         return headerSerializer.fromBytes(bb);
     }
 
-    public static LogHeader write(Storage storage, LogHeader header) {
+    public static LogHeader writeNew(Storage storage, String magic, Type type, long logEnd, long fileSize) {
+        LogHeader newHeader = new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, logEnd, 0, fileSize, BYTES);
+        write(storage, newHeader);
+        return newHeader;
+    }
+
+    public static LogHeader writeCompleted(Storage storage, LogHeader initialHeader, long entries, int level, long logicalSize) {
+        LogHeader newHeader = new LogHeader(
+                initialHeader.magic,
+                entries,
+                initialHeader.created,
+                level,
+                Type.READ_ONLY,
+                initialHeader.logEnd,
+                System.currentTimeMillis(),
+                initialHeader.fileSize,
+                logicalSize);
+        write(storage, newHeader);
+        return newHeader;
+
+    }
+
+    private static LogHeader write(Storage storage, LogHeader header) {
         try {
             ByteBuffer withChecksumAndLength = ByteBuffer.allocate(BYTES);
             ByteBuffer headerData = headerSerializer.toBytes(header);
@@ -106,22 +117,20 @@ public class LogHeader {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        LogHeader header = (LogHeader) o;
-        return created == header.created &&
-                level == header.level &&
-                segmentSize == header.segmentSize &&
-                logStart == header.logStart &&
-                logEnd == header.logEnd &&
-                entries == header.entries &&
-                footerStart == header.footerStart &&
-                footerEnd == header.footerEnd &&
-                Objects.equals(magic, header.magic) &&
-                type == header.type;
+        LogHeader logHeader = (LogHeader) o;
+        return level == logHeader.level &&
+                created == logHeader.created &&
+                segmentSize == logHeader.segmentSize &&
+                logStart == logHeader.logStart &&
+                logEnd == logHeader.logEnd &&
+                entries == logHeader.entries &&
+                Objects.equals(magic, logHeader.magic) &&
+                type == logHeader.type;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(magic, created, level, type, segmentSize, logStart, logEnd, entries, footerStart, footerEnd);
+        return Objects.hash(magic, level, created, type, segmentSize, logStart, logEnd, entries);
     }
 
     @Override
@@ -134,8 +143,6 @@ public class LogHeader {
                 ", logStart=" + logStart +
                 ", size=" + logEnd +
                 ", entries=" + entries +
-                ", footerPos=" + footerStart +
-                ", footerEnd=" + footerEnd +
                 '}';
     }
 }

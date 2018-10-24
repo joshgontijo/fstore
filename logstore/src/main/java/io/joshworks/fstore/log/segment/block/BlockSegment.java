@@ -213,8 +213,8 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     @Override
-    public long actualSize() {
-        return delegate.actualSize();
+    public long logicalSize() {
+        return delegate.logicalSize();
     }
 
 }
