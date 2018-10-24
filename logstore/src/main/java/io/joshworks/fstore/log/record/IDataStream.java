@@ -9,8 +9,8 @@ public interface IDataStream {
 
     long write(Storage storage, ByteBuffer data);
 
-    BufferRef read(Storage storage, Direction direction, long position);
+    BufferRef read(Storage storage, Direction direction, long position, long logEnd);
 
-    BufferRef bulkRead(Storage storage, Direction direction, long position);
+    BufferRef bulkRead(Storage storage, Direction direction, long position, long logEnd);
 
 }

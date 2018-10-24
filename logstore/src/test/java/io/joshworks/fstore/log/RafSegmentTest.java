@@ -16,7 +16,7 @@ public class RafSegmentTest extends SegmentTest {
 
     @Override
     Log<String> open(File file) {
-        long logSize = Size.MB.of(10);
+        long logSize = Size.MB.of(100);
         long fileSize = Log.totalSizeOf(logSize);
         return new Segment<>(
                 StorageProvider.raf().create(file, fileSize),

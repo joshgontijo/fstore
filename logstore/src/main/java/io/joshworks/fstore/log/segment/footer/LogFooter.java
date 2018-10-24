@@ -11,12 +11,14 @@ public class LogFooter {
 
     public final long sealedDate;
     public final long logEnd;
+    public final long logSize;
     public final long entries;
     public final int level;
 
-    private LogFooter(long sealedDate, long logEnd, long entries, int level) {
+    private LogFooter(long sealedDate, long logEnd, long logSize, long entries, int level) {
         this.sealedDate = sealedDate;
         this.logEnd = logEnd;
+        this.logSize = logSize;
         this.entries = entries;
         this.level = level;
     }
@@ -39,19 +41,20 @@ public class LogFooter {
         }
 
         long sealedDate = bb.getLong();
+        long logEnd = bb.getLong();
         long actualLogSize = bb.getLong();
         long entries = bb.getLong();
         int level = bb.getInt();
 
-        return new LogFooter(sealedDate, actualLogSize, entries, level);
+        return new LogFooter(sealedDate, logEnd, actualLogSize, entries, level);
     }
 
     public static LogFooter write(Storage storage, long logEnd, long sealedDate, long actualLogSize, long entries, int level) {
         try {
-            LogFooter header = new LogFooter(sealedDate, actualLogSize, entries, level);
 
             ByteBuffer headerData = ByteBuffer.allocate(BYTES);
             headerData.putLong(sealedDate);
+            headerData.putLong(logEnd);
             headerData.putLong(actualLogSize);
             headerData.putLong(entries);
             headerData.putInt(level);
@@ -66,14 +69,14 @@ public class LogFooter {
             withChecksumAndLength.position(0);//do not flip, the header will always have the fixed size
 
             long pos = storage.position();
-            if(pos > logEnd) {
-                throw new IllegalStateException("Current log position is greater than logEnd");
+            if(pos < logEnd) {
+                throw new IllegalStateException("Current log position is less than logEnd");
             }
             storage.position(logEnd);
             if (storage.write(withChecksumAndLength) != LogFooter.BYTES) {
                 throw new IllegalStateException("Unexpected written header length");
             }
-            return header;
+            return new LogFooter(sealedDate, logEnd, actualLogSize, entries, level);
         } catch (Exception e) {
             throw new RuntimeException("Failed to write header", e);
         }

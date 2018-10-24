@@ -74,10 +74,10 @@ public class DataStream implements IDataStream {
     }
 
     @Override
-    public BufferRef read(Storage storage, Direction direction, long position) {
+    public BufferRef read(Storage storage, Direction direction, long position, long logEnd) {
         try {
             RecordReader reader = Direction.FORWARD.equals(direction) ? forwardReader : backwardReader;
-            return reader.read(storage, bufferPool, position);
+            return reader.read(storage, bufferPool, position, logEnd);
 
         } catch (Exception e) {
             throw new IllegalStateException("Failed to read at position " + position, e);
@@ -85,10 +85,10 @@ public class DataStream implements IDataStream {
     }
 
     @Override
-    public BufferRef bulkRead(Storage storage, Direction direction, long position) {
+    public BufferRef bulkRead(Storage storage, Direction direction, long position, long logEnd) {
         try {
             RecordReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : bulkBackwardReader;
-            return reader.read(storage, bufferPool, position);
+            return reader.read(storage, bufferPool, position, logEnd);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to bulk read at position " + position, e);
         }
@@ -106,8 +106,9 @@ public class DataStream implements IDataStream {
     private final class ForwardRecordReader implements RecordReader {
 
         @Override
-        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-            ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
+        public BufferRef read(Storage storage, BufferPool bufferPool, long position, long logEnd) {
+            int bufferSize = (int) Math.min(READ_BUFFER_SIZE, (logEnd - position));
+            ByteBuffer buffer = bufferPool.allocate(bufferSize);
             try {
                 storage.read(position, buffer);
                 buffer.flip();
@@ -145,8 +146,9 @@ public class DataStream implements IDataStream {
     private final class BulkForwardRecordReader implements RecordReader {
 
         @Override
-        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-            ByteBuffer buffer = bufferPool.allocate(BULK_READ_BUFFER_SIZE);
+        public BufferRef read(Storage storage, BufferPool bufferPool, long position, long logEnd) {
+            int bufferSize = (int) Math.min(READ_BUFFER_SIZE, (logEnd - position));
+            ByteBuffer buffer = bufferPool.allocate(bufferSize);
             try {
                 storage.read(position, buffer);
                 buffer.flip();
@@ -210,10 +212,12 @@ public class DataStream implements IDataStream {
     private final class BulkBackwardRecordReader implements RecordReader {
 
         @Override
-        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-            ByteBuffer buffer = bufferPool.allocate(BULK_READ_BUFFER_SIZE);
+        public BufferRef read(Storage storage, BufferPool bufferPool, long position, long logEnd) {
+            ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
             try {
-
+                if (position > logEnd) {
+                    return BufferRef.ofEmpty(buffer, bufferPool);
+                }
                 int limit = buffer.limit();
                 if (position - limit < Log.START) {
                     int available = (int) (position - Log.START);
@@ -308,9 +312,12 @@ public class DataStream implements IDataStream {
     private final class BackwardRecordReader implements RecordReader {
 
         @Override
-        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
+        public BufferRef read(Storage storage, BufferPool bufferPool, long position, long logEnd) {
             ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
             try {
+                if (position > logEnd) {
+                    return BufferRef.ofEmpty(buffer, bufferPool);
+                }
                 int limit = buffer.limit();
                 if (position - limit < Log.START) {
                     int available = (int) (position - Log.START);

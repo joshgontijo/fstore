@@ -121,7 +121,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public T get(long position) {
         checkBounds(position);
-        try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position)) {
+        try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position, logEnd)) {
             ByteBuffer bb = ref.get();
             if (bb.remaining() == 0) { //EOF
                 return null;
@@ -175,6 +175,11 @@ public class Segment<T> implements Log<T> {
             throw new IllegalStateException("Segment is read only");
         }
         ByteBuffer bytes = serializer.toBytes(data);
+        long currPos = position();
+        if(currPos + bytes.remaining() > logEnd) {
+            throw new IllegalStateException("Entry cannot exceed logEnd bound. Pos: " + currPos + ", logEnd: " + logEnd + " entry size: " + bytes.remaining());
+        }
+
         long recordPosition = dataStream.write(storage, bytes);
         entries.incrementAndGet();
         return recordPosition;
@@ -238,7 +243,7 @@ public class Segment<T> implements Log<T> {
             logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
             int lastRead;
             do {
-                try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position)) {
+                try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position, logEnd)) {
                     int entrySize = ref.get().remaining();
                     lastRead = entrySize;
                     if (entrySize > 0) {
@@ -274,7 +279,8 @@ public class Segment<T> implements Log<T> {
         writeEndOfLog();
         storage.position(logEnd + EOL.length);
         long actualLogSize = endOfLog - LogHeader.BYTES;
-        this.footer = LogFooter.write(storage, logEnd, System.currentTimeMillis(), actualLogSize, entries.get(), level);
+        long now = System.currentTimeMillis();
+        this.footer = LogFooter.write(storage, endOfLog, now, actualLogSize, entries.get(), level);
     }
 
     private <R extends TimeoutReader> R addToReaders(R reader) {
@@ -403,7 +409,7 @@ public class Segment<T> implements Log<T> {
                 return;
             }
             int totalRead = 0;
-            try (BufferRef ref = dataStream.bulkRead(storage, direction, readAheadPosition)) {
+            try (BufferRef ref = dataStream.bulkRead(storage, direction, readAheadPosition, logEnd)) {
                 int[] entriesLength = ref.readAllInto(pageQueue, serializer);
                 for (int length : entriesLength) {
                     entriesSizes.add(length);
@@ -462,7 +468,7 @@ public class Segment<T> implements Log<T> {
                 return val;
             }
 
-            try (BufferRef ref = dataStream.bulkRead(storage, Direction.FORWARD, readPosition)) {
+            try (BufferRef ref = dataStream.bulkRead(storage, Direction.FORWARD, readPosition, logEnd)) {
                 int[] entriesLength = ref.readAllInto(pageQueue, serializer);
                 for (int length : entriesLength) {
                     entriesSizes.add(length);
@@ -566,7 +572,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public boolean endOfLog() {
-            return readOnly() && readPosition >= logEnd;
+            return readOnly() && readPosition >= footer.logEnd;
 
         }
 

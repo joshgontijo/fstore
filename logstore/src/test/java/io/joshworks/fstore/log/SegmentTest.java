@@ -407,7 +407,7 @@ public abstract class SegmentTest {
 
         segment.roll(1);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (!latch.await(5, TimeUnit.DAYS)) {
             fail("Thread was not released");
         }
         assertNull(captured.get());

@@ -53,6 +53,7 @@ public class LogHeader {
         try {
             ByteBuffer headerData = ByteBuffer.allocate(BYTES);
             headerData.putLong(magic);
+            headerData.putLong(created);
             headerData.putLong(logSize);
             headerData.putLong(footerPos);
             headerData.putInt(type.val);

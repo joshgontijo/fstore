@@ -5,6 +5,6 @@ import io.joshworks.fstore.core.io.Storage;
 
 public interface RecordReader {
 
-    BufferRef read(Storage storage, BufferPool bufferPool, long position);
+    BufferRef read(Storage storage, BufferPool bufferPool, long position, long logEnd);
 
 }
