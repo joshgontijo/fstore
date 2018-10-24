@@ -358,7 +358,7 @@ public class LevelsTest {
         }
 
         @Override
-        public long actualSize() {
+        public long logicalSize() {
             return 0;
         }
 

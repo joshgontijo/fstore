@@ -284,7 +284,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     private boolean shouldRoll(Log<T> currentSegment) {
-        long actualSize = currentSegment.actualSize();
+        long actualSize = currentSegment.logicalSize();
         return actualSize >= metadata.logSize && actualSize > 0;
     }
 

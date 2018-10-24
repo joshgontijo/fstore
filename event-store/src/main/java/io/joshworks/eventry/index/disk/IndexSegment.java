@@ -160,8 +160,8 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     }
 
     @Override
-    public long actualSize() {
-        return delegate.actualSize();
+    public long logicalSize() {
+        return delegate.logicalSize();
     }
 
     @Override

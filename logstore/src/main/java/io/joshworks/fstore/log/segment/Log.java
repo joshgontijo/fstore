@@ -29,8 +29,6 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     long position();
 
-    Marker marker();
-
     T get(long position);
 
     PollingSubscriber<T> poller(long position);
@@ -39,7 +37,7 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     long fileSize();
 
-    long actualSize();
+    long logicalSize();
 
     Set<TimeoutReader> readers();
 
@@ -48,10 +46,6 @@ public interface Log<T> extends Writer<T>, Closeable {
     void delete();
 
     void roll(int level);
-
-    void roll(int level, ByteBuffer footer);
-
-    ByteBuffer readFooter();
 
     boolean readOnly();
 
