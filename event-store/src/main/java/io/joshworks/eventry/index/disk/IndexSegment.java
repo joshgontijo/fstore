@@ -19,20 +19,18 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
 import io.joshworks.fstore.log.segment.block.BlockPoller;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
+import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -56,14 +54,14 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     private static final double FALSE_POSITIVE_PROB = 0.01;
 
     IndexSegment(Storage storage,
-                        IDataStream reader,
-                        String magic,
-                        Type type,
-                        File directory,
-                        Codec codec,
-                        int numElements) {
+                 IDataStream reader,
+                 String magic,
+                 Type type,
+                 File directory,
+                 Codec codec,
+                 int numElements) {
 
-        BlockSerializer<IndexEntry> blockSerializer = new BlockSerializer<>(codec, blockFactory,serializer);
+        BlockSerializer<IndexEntry> blockSerializer = new BlockSerializer<>(codec, blockFactory, serializer);
 
         this.delegate = new Segment<>(storage, blockSerializer, reader, magic, type);
         this.directory = directory;
@@ -92,7 +90,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     public long append(IndexEntry data) {
         filter.add(data.stream);
         long pos = delegate.position();
-        if(block.add(data)) {
+        if (block.add(data)) {
             writeBlock();
         }
         return pos;
@@ -100,7 +98,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
 
     @Override
     public synchronized void flush() {
-        if(readOnly()) {
+        if (readOnly()) {
             return;
         }
         writeBlock();
@@ -132,11 +130,6 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     @Override
     public long position() {
         return delegate.position();
-    }
-
-    @Override
-    public Marker marker() {
-        return delegate.marker();
     }
 
     @Override
@@ -187,16 +180,6 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         delegate.roll(level);
     }
 
-    @Override
-    public void roll(int level, ByteBuffer footer) {
-        writeBlock();
-        delegate.roll(level, footer);
-    }
-
-    @Override
-    public ByteBuffer readFooter() {
-        return delegate.readFooter();
-    }
 
     @Override
     public boolean readOnly() {
@@ -267,7 +250,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
         List<IndexEntry> entries = foundBlock.entries();
         int idx = Collections.binarySearch(entries, start);
-        if(idx < 0) { //if not exact match, wasn't found
+        if (idx < 0) { //if not exact match, wasn't found
             return Optional.empty();
         }
         IndexEntry found = entries.get(idx);
@@ -339,7 +322,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         @Override
         public boolean hasNext() {
             boolean hasNext = current != null && current.lessThan(end);
-            if(!hasNext) {
+            if (!hasNext) {
                 close();
             }
             return hasNext;
