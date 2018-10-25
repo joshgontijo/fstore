@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Size;
@@ -263,7 +264,7 @@ public abstract class LogAppenderTest {
 
         //write broken data
         File file = new File(testDirectory, segmentName);
-        try (Storage storage = StorageProvider.raf().open(file)) {
+        try (Storage storage = StorageProvider.of(Mode.RAF).open(file)) {
             storage.position(Log.START);
             ByteBuffer broken = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD + 4);
             broken.putInt(444); //expected length
@@ -362,20 +363,16 @@ public abstract class LogAppenderTest {
 
     @Test
     public void get_return_all_items() {
+        List<Long> positions = new ArrayList<>();
+        int size = 500000;
+        for (int i = 0; i < size; i++) {
+            long pos = appender.append(String.valueOf(i));
+            positions.add(pos);
+        }
 
-        File location = FileUtils.testFolder();
-        try (LogAppender<String> testAppender = new Config<>(location, Serializers.STRING).segmentSize(209715200).open()) {
-            List<Long> positions = new ArrayList<>();
-            int size = 500000;
-            for (int i = 0; i < size; i++) {
-                long pos = testAppender.append(String.valueOf(i));
-                positions.add(pos);
-            }
-
-            for (int i = 0; i < size; i++) {
-                String val = testAppender.get(positions.get(i));
-                assertEquals(String.valueOf(i), val);
-            }
+        for (int i = 0; i < size; i++) {
+            String val = appender.get(positions.get(i));
+            assertEquals(String.valueOf(i), val);
         }
     }
 

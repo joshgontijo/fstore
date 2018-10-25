@@ -75,7 +75,6 @@ public abstract class SegmentTest {
         segment.append(data);
         segment.flush();
 
-
         long position = segment.position();
         segment.close();
 
@@ -151,7 +150,9 @@ public abstract class SegmentTest {
 
         int items = 10;
         for (int i = 0; i < items; i++) {
-            positions.add(segment.append(String.valueOf(i)));
+            long pos = segment.append(String.valueOf(i));
+            assertTrue("Unexpected end of segment", pos > 0);
+            positions.add(pos);
         }
         segment.flush();
 

@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.appender.compaction.combiner;
 
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
@@ -119,7 +120,7 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> segmentWith(String... values) {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.raf().create(file, Memory.PAGE_SIZE);
+        Storage storage = StorageProvider.of(Mode.RAF).create(file, Memory.PAGE_SIZE);
 
         Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", Type.LOG_HEAD);
         segments.add(segment);
@@ -133,7 +134,7 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> outputSegment() {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.raf().create(file, Memory.PAGE_SIZE);
+        Storage storage = StorageProvider.of(Mode.RAF).create(file, Memory.PAGE_SIZE);
         Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", Type.LOG_HEAD);
         segments.add(segment);
         return segment;

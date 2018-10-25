@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.appender;
 
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.serializer.StringSerializer;
 
 import java.io.File;
@@ -12,7 +13,7 @@ public class MMapLogAppenderTest extends LogAppenderTest {
         return LogAppender.builder(testDirectory, new StringSerializer())
                 .segmentSize(segmentSize)
                 .disableCompaction()
-                .mmap()
+                .storageMode(Mode.MMAP)
                 .open();
     }
 }

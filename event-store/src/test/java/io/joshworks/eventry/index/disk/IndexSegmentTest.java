@@ -4,6 +4,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.log.Direction;
@@ -50,7 +51,7 @@ public class IndexSegmentTest {
 
     private IndexSegment open(File location) {
         return new IndexSegment(
-                StorageProvider.raf().open(location),
+                StorageProvider.of(Mode.RAF).open(location),
                 new DataStream(new SingleBufferThreadCachedPool(false)),
                 "magic",
                 Type.LOG_HEAD,
@@ -73,7 +74,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void loaded_segmentIndex_has_the_same_10_midpoints() throws IOException {
+    public void loaded_segmentIndex_has_the_same_10_midpoints() {
         //given
         IndexSegment diskIndex = indexWithStreamRanging(1, 10);
 
@@ -93,7 +94,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void loaded_segmentIndex_has_the_same_1000000_midpoints() throws IOException {
+    public void loaded_segmentIndex_has_the_same_1000000_midpoints() {
         //given
         IndexSegment diskIndex = indexWithStreamRanging(1, 1000000);
 
@@ -108,7 +109,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void loaded_segmentIndex_has_the_same_filter_items() throws IOException {
+    public void loaded_segmentIndex_has_the_same_filter_items() {
         //given
 
         IndexSegment diskIndex = indexWithStreamRanging(1, 1000000);
@@ -132,7 +133,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void reopen_loads_all_four_entries() throws IOException {
+    public void reopen_loads_all_four_entries() {
 
         //given
         segment.append(IndexEntry.of(1L, 1, 0));
@@ -152,7 +153,7 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void reopened_segment_returns_correct_data() throws IOException {
+    public void reopened_segment_returns_correct_data() {
 
         //given
         IndexEntry e1 = IndexEntry.of(1L, 1, 0);

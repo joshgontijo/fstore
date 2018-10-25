@@ -10,7 +10,7 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
-public class MMapStorage extends DiskStorage {
+public class MMapStorage extends RafStorage {
 
     private final int bufferSize;
     MappedByteBuffer[] buffers;
@@ -43,6 +43,9 @@ public class MMapStorage extends DiskStorage {
         return diff == 0 ? numFullBuffers : numFullBuffers + 1;
     }
 
+    protected int writeDirect(ByteBuffer src) {
+       return super.write(src);
+    }
 
     @Override
     public int write(ByteBuffer src) {
@@ -193,7 +196,7 @@ public class MMapStorage extends DiskStorage {
     @Override
     public void flush() {
         int idx = bufferIdx(this.position);
-        if(idx > buffers.length) {
+        if(idx >= buffers.length) {
             return;
         }
         MappedByteBuffer buffer = buffers[idx];

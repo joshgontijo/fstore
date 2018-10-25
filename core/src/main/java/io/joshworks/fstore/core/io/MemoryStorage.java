@@ -1,7 +1,9 @@
 package io.joshworks.fstore.core.io;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class MemoryStorage implements Storage {
 
@@ -9,6 +11,8 @@ public abstract class MemoryStorage implements Storage {
     private final long length;
     protected ByteBuffer[] buffers;
     protected long position;
+    private final String name;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     protected abstract ByteBuffer create(int bufferSize);
 
@@ -17,6 +21,7 @@ public abstract class MemoryStorage implements Storage {
         this.length = length;
         int totalBuffers = getTotalBuffers(length, bufferSize);
         this.buffers = new ByteBuffer[totalBuffers];
+        this.name = "mem-" + length + "-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     private static int getBufferSize(long fileLength) {
@@ -34,6 +39,7 @@ public abstract class MemoryStorage implements Storage {
 
     @Override
     public int write(ByteBuffer src) {
+        checkClosed();
         Storage.ensureNonEmpty(src);
 
         int dataSize = src.remaining();
@@ -60,6 +66,7 @@ public abstract class MemoryStorage implements Storage {
 
     @Override
     public int read(long position, ByteBuffer dst) {
+        checkClosed();
         int idx = bufferIdx(position);
         int bufferAddress = posOnBuffer(position);
         if (idx >= buffers.length) {
@@ -93,6 +100,21 @@ public abstract class MemoryStorage implements Storage {
         return dstRemaining;
     }
 
+    @Override
+    public void position(long pos) {
+        int idx = bufferIdx(position);
+        ByteBuffer buffer = getOrAllocate(idx, true);
+        int bufferAddress = posOnBuffer(pos);
+        buffer.position(bufferAddress);
+        this.position = pos;
+    }
+
+
+    @Override
+    public void delete() {
+        buffers = new ByteBuffer[buffers.length];
+    }
+
     private ByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
         if (idx >= buffers.length) {
             if (expandBuffers) {
@@ -110,18 +132,9 @@ public abstract class MemoryStorage implements Storage {
     }
 
     private void growBuffersToAccommodateIdx(int newNumBuffers) {
-        MappedByteBuffer[] copy = new MappedByteBuffer[newNumBuffers + 1]; //idx + 1 = number of required buffers
+        ByteBuffer[] copy = new ByteBuffer[newNumBuffers + 1]; //idx + 1 = number of required buffers
         System.arraycopy(buffers, 0, copy, 0, buffers.length);
         buffers = copy;
-    }
-
-    @Override
-    public void position(long pos) {
-        int idx = bufferIdx(position);
-        ByteBuffer buffer = getOrAllocate(idx, true);
-        int bufferAddress = posOnBuffer(pos);
-        buffer.position(bufferAddress);
-        this.position = pos;
     }
 
     @Override
@@ -132,6 +145,27 @@ public abstract class MemoryStorage implements Storage {
     @Override
     public long length() {
         return length;
+    }
+
+    @Override
+    public String name() {
+        return name;
+    }
+
+    @Override
+    public void close() throws IOException {
+        closed.set(true);
+    }
+
+    @Override
+    public void flush() throws IOException {
+        //do nothing
+    }
+
+    private void checkClosed() {
+        if(closed.get()) {
+            throw new IllegalStateException("Closed storage");
+        }
     }
 
     protected int posOnBuffer(long pos) {

@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.appender;
 
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.serializer.StringSerializer;
 
 import java.io.File;
@@ -10,7 +11,7 @@ public class CachedRafLogAppenderTest extends LogAppenderTest {
     protected LogAppender<String> appender(File testDirectory, int segmentSize) {
         return LogAppender.builder(testDirectory, new StringSerializer())
                 .segmentSize(segmentSize)
-                .enableCaching()
+                .storageMode(Mode.RAF_CACHED)
                 .disableCompaction()
                 .open();
     }

@@ -9,51 +9,70 @@ import java.util.Objects;
 
 public class StorageProvider {
 
-    private final boolean mmap;
-    private final boolean rafCached;
+    private final Mode mode;
 
-    private StorageProvider(boolean mmap, boolean rafCached) {
-        this.mmap = mmap;
-        this.rafCached = rafCached;
+    private StorageProvider(Mode mode) {
+        this.mode = mode;
     }
 
-    public static StorageProvider mmap() {
-        return new StorageProvider(true, false);
-    }
-
-    public static StorageProvider raf() {
-        return raf(false);
-    }
-
-    public static StorageProvider raf(boolean cached) {
-        return new StorageProvider(false, cached);
+    public static StorageProvider of(Mode mode) {
+        return new StorageProvider(mode);
     }
 
     public Storage create(File file, long size) {
+        if (Mode.OFF_HEAP.equals(mode)) {
+            return new OffHeapStorage(size);
+        }
         Objects.requireNonNull(file, "File must be provided");
         long alignedSize = align(size);
-        RandomAccessFile raf = IOUtils.randomAccessFile(file, alignedSize);
-        Storage storage = getStorage(file, raf);
+        Storage storage = createStorage(file, alignedSize);
         return new StatsStorage(storage);
     }
 
     public Storage open(File file) {
         Objects.requireNonNull(file, "File must be provided");
-        RandomAccessFile raf = IOUtils.randomAccessFile(file);
-        Storage storage = getStorage(file, raf);
+        Storage storage = openStorage(file);
         return new StatsStorage(storage);
     }
 
-    private Storage getStorage(File file, RandomAccessFile raf) {
-        return mmap ? new MMapStorage2(file, raf) : getRafStorage(file, raf);
+    private Storage createStorage(File file, long size) {
+        RandomAccessFile raf;
+        switch (mode) {
+            case MMAP:
+                raf = IOUtils.randomAccessFile(file, size);
+                return new MMapStorage(file, raf);
+            case RAF:
+                raf = IOUtils.randomAccessFile(file, size);
+                return new RafStorage(file, raf);
+            case OFF_HEAP:
+                return new OffHeapStorage(size);
+            case RAF_CACHED:
+                raf = IOUtils.randomAccessFile(file, size);
+                return new MMapCache(file, raf);
+        }
+        throw new IllegalArgumentException("No valid storage mode " + mode);
     }
 
-    private Storage getRafStorage(File file, RandomAccessFile raf) {
-        return rafCached ? new MMapCache(file, raf) : new RafStorage(file, raf);
+    private Storage openStorage(File file) {
+        RandomAccessFile raf;
+        switch (mode) {
+            case MMAP:
+                raf = IOUtils.randomAccessFile(file);
+                return new MMapStorage(file, raf);
+            case RAF:
+                raf = IOUtils.randomAccessFile(file);
+                return new RafStorage(file, raf);
+            case OFF_HEAP:
+                return new OffHeapStorage(file.length());
+            case RAF_CACHED:
+                raf = IOUtils.randomAccessFile(file);
+                return new MMapCache(file, raf);
+        }
+        throw new IllegalArgumentException("No valid storage mode " + mode);
     }
 
     private static long align(long fileSize) {
-        if(fileSize % Memory.PAGE_SIZE == 0) {
+        if (fileSize % Memory.PAGE_SIZE == 0) {
             return fileSize;
         }
         return Memory.PAGE_SIZE * ((fileSize / Memory.PAGE_SIZE) + 1);
