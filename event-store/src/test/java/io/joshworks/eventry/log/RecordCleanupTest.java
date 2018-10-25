@@ -10,13 +10,11 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -156,11 +154,6 @@ public class RecordCleanupTest {
         }
 
         @Override
-        public Marker marker() {
-            return null;
-        }
-
-        @Override
         public EventRecord get(long position) {
             return null;
         }
@@ -203,16 +196,6 @@ public class RecordCleanupTest {
         @Override
         public void roll(int level) {
 
-        }
-
-        @Override
-        public void roll(int level, ByteBuffer footer) {
-
-        }
-
-        @Override
-        public ByteBuffer readFooter() {
-            return null;
         }
 
         @Override

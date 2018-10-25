@@ -13,21 +13,19 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
 import io.joshworks.fstore.log.segment.block.BlockPoller;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
+import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.lsm.sstable.index.Index;
 import io.joshworks.fstore.lsm.sstable.index.IndexEntry;
 
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -142,15 +140,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         delegate.roll(level);
     }
 
-    @Override
-    public void roll(int level, ByteBuffer footer) {
-        delegate.roll(level, footer);
-    }
-
-    @Override
-    public ByteBuffer readFooter() {
-        return delegate.readFooter();
-    }
 
     @Override
     public boolean readOnly() {
@@ -190,10 +179,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         return delegate.position();
     }
 
-    @Override
-    public Marker marker() {
-        return delegate.marker();
-    }
 
     @Override
     public Entry<K, V> get(long position) {
