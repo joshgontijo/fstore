@@ -171,4 +171,26 @@ public abstract class StorageTest {
 
         assertEquals(readSize, read.remaining());
     }
+
+    @Test
+    public void position_is_updated() {
+        long position = 10;
+        storage.position(position);
+
+        long found = storage.position();
+        assertEquals(position, found);
+
+        int value = 123;
+        var data = ByteBuffer.allocate(Integer.BYTES).putInt(value).flip();
+        storage.write(data);
+
+        var read = ByteBuffer.allocate(Integer.BYTES);
+        storage.read(position, read);
+
+        assertEquals(value, read.flip().getInt());
+
+    }
+
+
+
 }
