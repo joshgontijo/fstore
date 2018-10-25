@@ -18,7 +18,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public abstract class DiskStorageTest {
+public abstract class StorageTest {
 
     protected static final int DEFAULT_LENGTH = 5242880;
     protected static final String TEST_DATA = "TEST-DATA";
@@ -155,19 +155,6 @@ public abstract class DiskStorageTest {
         assertEquals(dataLength, read);
         assertTrue(Arrays.equals(data, found.array()));
     }
-
-    @Test
-    public void position_is_updated_after_insert() {
-        ByteBuffer bb = ByteBuffer.wrap("a".getBytes(StandardCharsets.UTF_8));
-
-        assertEquals(0, storage.position());
-
-        storage.write(bb);
-        long pos = storage.position();
-
-        assertEquals(bb.capacity(), pos);
-    }
-
 
     @Test
     public void reading_unwritten_data_returns_zeroes() {

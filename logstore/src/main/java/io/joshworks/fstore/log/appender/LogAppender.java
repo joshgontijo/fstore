@@ -94,7 +94,7 @@ public class LogAppender<T> implements Closeable {
         this.directory = config.directory;
         this.serializer = config.serializer;
         this.factory = config.segmentFactory;
-        this.storageProvider = config.mmap ? StorageProvider.mmap() : StorageProvider.raf(config.rafCache);
+        this.storageProvider = StorageProvider.of(config.mode);
         this.namingStrategy = config.namingStrategy;
         this.dataStream = new DataStream(config.bufferPool, config.checksumProbability);
         this.compactionDisabled = config.compactionDisabled;
@@ -114,7 +114,6 @@ public class LogAppender<T> implements Closeable {
                     directory,
                     config.segmentSize,
                     config.compactionThreshold,
-                    config.mmap,
                     config.flushAfterWrite,
                     config.asyncFlush);
 
@@ -141,8 +140,7 @@ public class LogAppender<T> implements Closeable {
         logger.info("ASYNC FLUSH: {}", config.asyncFlush);
         logger.info("COMPACTION ENABLED: {}", !this.compactionDisabled);
         logger.info("COMPACTION THRESHOLD: {}", config.compactionThreshold);
-        logger.info("MMAP ENABLED: {}", config.mmap);
-        logger.info("READ CACHE ENABLED: {}", (!config.mmap && config.rafCache));
+        logger.info("STORAGE MODE: {}", config.mode);
     }
 
     private Levels<T> loadLevels() {
@@ -224,7 +222,7 @@ public class LogAppender<T> implements Closeable {
     public synchronized void roll() {
         try {
 
-            logger.info("Rolling appender");
+            logger.info("Rolling appender: " + state);
 
             Log<T> current = levels.current();
             if(current.entries() == 0) {
