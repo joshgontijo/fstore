@@ -3,7 +3,6 @@ package io.joshworks.fstore.core.util;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.metric.Average;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,21 +80,6 @@ public class StatsStorage implements Storage {
     @Override
     public String name() {
         return delegate.name();
-    }
-
-    @Override
-    public void truncate(long pos) {
-        delegate.truncate(pos);
-    }
-
-    @Override
-    public void extend(long newLength) {
-        delegate.extend(newLength);
-    }
-
-    @Override
-    public File file() {
-        return delegate.file();
     }
 
     @Override

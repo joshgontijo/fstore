@@ -10,12 +10,10 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.header.Type;
 
-import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -50,10 +48,6 @@ public class BlockSegment<T> implements Log<T> {
         return delegate.position();
     }
 
-    @Override
-    public Marker marker() {
-        return delegate.marker();
-    }
 
     @Override
     public T get(long position) {
@@ -169,17 +163,6 @@ public class BlockSegment<T> implements Log<T> {
     public void roll(int level) {
         writeBlock();
         delegate.roll(level);
-    }
-
-    @Override
-    public void roll(int level, ByteBuffer footer) {
-        flush();
-        delegate.roll(level, footer);
-    }
-
-    @Override
-    public ByteBuffer readFooter() {
-        return delegate.readFooter();
     }
 
     @Override

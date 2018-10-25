@@ -7,7 +7,6 @@ import io.joshworks.fstore.log.Checksum;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Objects;
 
 public class LogHeader {
 
@@ -18,7 +17,6 @@ public class LogHeader {
     public final String magic;
     public final long created;
     public final Type type;
-    public final long logEnd;
     public final long fileSize;
 
     //completed info
@@ -27,13 +25,12 @@ public class LogHeader {
     public final long logicalSize; //actual written bytes, including header
     public final long rolled;
 
-    private LogHeader(String magic, long entries, long created, int level, Type type, long logEnd, long rolled, long fileSize, long logicalSize) {
+    LogHeader(String magic, long entries, long created, int level, Type type, long rolled, long fileSize, long logicalSize) {
         this.magic = magic;
         this.entries = entries;
         this.created = created;
         this.level = level;
         this.type = type;
-        this.logEnd = logEnd;
         this.rolled = rolled;
         this.fileSize = fileSize;
         this.logicalSize = logicalSize;
@@ -68,8 +65,8 @@ public class LogHeader {
         return headerSerializer.fromBytes(bb);
     }
 
-    public static LogHeader writeNew(Storage storage, String magic, Type type, long logEnd, long fileSize) {
-        LogHeader newHeader = new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, logEnd, 0, fileSize, BYTES);
+    public static LogHeader writeNew(Storage storage, String magic, Type type,  long fileSize) {
+        LogHeader newHeader = new LogHeader(magic, 0, System.currentTimeMillis(), 0, type,  0, fileSize, BYTES);
         write(storage, newHeader);
         return newHeader;
     }
@@ -81,7 +78,6 @@ public class LogHeader {
                 initialHeader.created,
                 level,
                 Type.READ_ONLY,
-                initialHeader.logEnd,
                 System.currentTimeMillis(),
                 initialHeader.fileSize,
                 logicalSize);
@@ -113,36 +109,5 @@ public class LogHeader {
         }
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        LogHeader logHeader = (LogHeader) o;
-        return level == logHeader.level &&
-                created == logHeader.created &&
-                segmentSize == logHeader.segmentSize &&
-                logStart == logHeader.logStart &&
-                logEnd == logHeader.logEnd &&
-                entries == logHeader.entries &&
-                Objects.equals(magic, logHeader.magic) &&
-                type == logHeader.type;
-    }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(magic, level, created, type, segmentSize, logStart, logEnd, entries);
-    }
-
-    @Override
-    public String toString() {
-        return "Header{" + "magic='" + magic + '\'' +
-                ", created=" + created +
-                ", level=" + level +
-                ", type=" + type +
-                ", segmentSize=" + segmentSize +
-                ", logStart=" + logStart +
-                ", size=" + logEnd +
-                ", entries=" + entries +
-                '}';
-    }
 }

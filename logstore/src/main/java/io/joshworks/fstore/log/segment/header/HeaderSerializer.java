@@ -15,41 +15,42 @@ public class HeaderSerializer implements Serializer<LogHeader> {
 
     }
 
+    // public final String magic;
+    //    public final long created;
+    //    public final Type type;
+    //    public final long fileSize;
+    //
+    //    //completed info
+    //    public final int level; //segments created are implicit level zero
+    //    public final long entries;
+    //    public final long logicalSize; //actual written bytes, including header
+    //    public final long rolled;
+
     @Override
     public void writeTo(LogHeader data, ByteBuffer dest) {
+        Serializers.VSTRING.writeTo(data.magic, dest);
         dest.putLong(data.created);
         dest.putInt(data.type.val);
-        Serializers.VSTRING.writeTo(data.magic, dest);
+        dest.putLong(data.fileSize);
+
         dest.putInt(data.level);
-        dest.putLong(data.segmentSize);
-
-        dest.putLong(data.logStart);
-        dest.putLong(data.logEnd);
         dest.putLong(data.entries);
-
-        dest.putLong(data.footerStart);
-        dest.putLong(data.footerEnd);
+        dest.putLong(data.logicalSize);
+        dest.putLong(data.rolled);
     }
 
     @Override
     public LogHeader fromBytes(ByteBuffer buffer) {
+        String magic = Serializers.VSTRING.fromBytes(buffer);
         long created = buffer.getLong();
         int type = buffer.getInt();
-        if(created == 0 || type == 0) { //empty
-            return null;
-        }
-        String magic = Serializers.VSTRING.fromBytes(buffer);
+        long fileSize = buffer.getLong();
+
         int level = buffer.getInt();
-        long segmentSize = buffer.getLong();
-
-        long logStart = buffer.getLong();
-        long logEnd = buffer.getLong();
         long entries = buffer.getLong();
+        long logicalSize = buffer.getLong();
+        long rolled = buffer.getLong();
 
-        long footerStart = buffer.getLong();
-        long footerEnd = buffer.getLong();
-
-        return LogHeader.create(magic, entries, created, level, Type.of(type), segmentSize, logStart, logEnd, footerStart, footerEnd);
-
+        return new LogHeader(magic, entries, created, level, Type.of(type), rolled, fileSize, logicalSize);
     }
 }

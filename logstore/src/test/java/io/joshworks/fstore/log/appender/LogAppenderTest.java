@@ -46,7 +46,7 @@ public abstract class LogAppenderTest {
     public LogAppender<String> appender() {
         return appender(testDirectory, SEGMENT_SIZE);
     }
-    
+
     @Before
     public void setUp() {
         testDirectory = FileUtils.testFolder();
@@ -112,7 +112,7 @@ public abstract class LogAppenderTest {
     }
 
     @Test
-    public void get() {
+    public void get_returns_correct_data_on_single_segment() {
         long pos1 = appender.append("1");
         long pos2 = appender.append("2");
 
@@ -120,6 +120,20 @@ public abstract class LogAppenderTest {
 
         assertEquals("1", appender.get(pos1));
         assertEquals("2", appender.get(pos2));
+    }
+
+    @Test
+    public void get_returns_correct_data_on_multiple_segments() {
+        int entries = 2000000; //do not change
+        long[] positions = new long[entries];
+        for (int i = 0; i < entries; i++) {
+            positions[i] = appender.append(String.valueOf(i));
+        }
+
+        for (int i = 0; i < entries; i++) {
+            String found = appender.get(positions[i]);
+            assertEquals(String.valueOf(i), found);
+        }
     }
 
     @Test
@@ -387,7 +401,7 @@ public abstract class LogAppenderTest {
         int val = 0;
         while (scanner.hasNext()) {
             long pos = scanner.position();
-            if(pos == 1024) {
+            if (pos == 1024) {
                 System.out.println("");
             }
             String next = scanner.next();
@@ -563,16 +577,6 @@ public abstract class LogAppenderTest {
                 System.err.println("Failed on " + i);
                 throw e;
             }
-        }
-    }
-
-    @Test
-    public void position_is_consistent_on_multiple_segments() {
-        int entries = 2000000; //do not change
-        for (int i = 0; i < entries; i++) {
-            long position = appender.position();
-            long entryPos = appender.append("value-" + i);
-            assertEquals("Failed on " + i, entryPos, position);
         }
     }
 

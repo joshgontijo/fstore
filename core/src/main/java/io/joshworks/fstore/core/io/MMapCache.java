@@ -142,32 +142,4 @@ public class MMapCache extends RafStorage {
         super.close();
     }
 
-
-    @Override
-    public void truncate(long newPos) {
-        int idx = bufferIdx(newPos);
-        int bPos = posOnBuffer(newPos);
-        for (int i = idx + 1; i < buffers.length; i++) {
-            ByteBuffer buffer = buffers[i];
-            if (buffer != null) {
-                buffers[i] = null;
-            }
-        }
-        ByteBuffer current = getOrAllocate(idx, true);
-        current.clear().limit(bPos);
-    }
-
-    @Override
-    public void extend(long newLength) {
-        if(newLength < length()) {
-            return;
-        }
-        super.extend(newLength);
-
-        int totalBuffers = getTotalBuffers(newLength, this.bufferSize);
-        if(totalBuffers > buffers.length) {
-            growBuffersToAccommodateIdx(totalBuffers);
-        }
-    }
-
 }

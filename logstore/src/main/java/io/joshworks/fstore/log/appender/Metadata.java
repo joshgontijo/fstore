@@ -17,17 +17,15 @@ public class Metadata {
     static final int METADATA_SIZE = (Integer.BYTES * 2) + Long.BYTES + (Byte.BYTES * 3) + MAGIC_SIZE;
 
     final String magic;
-    final long logSize;
-    final int footerSize;
+    final long segmentSize;
     final int compactionThreshold;
     final boolean mmap;
     final boolean flushAfterWrite;
     final boolean asyncFlush;
 
-    private Metadata(String magic, long logSize, int footerSize, int compactionThreshold, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
+    private Metadata(String magic, long segmentSize, int compactionThreshold, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
         this.magic = magic;
-        this.logSize = logSize;
-        this.footerSize = footerSize;
+        this.segmentSize = segmentSize;
         this.mmap = mmap;
         this.flushAfterWrite = flushAfterWrite;
         this.asyncFlush = asyncFlush;
@@ -44,19 +42,18 @@ public class Metadata {
 
             String magic = Serializers.VSTRING.fromBytes(bb);
             long logSize = bb.getLong();
-            int footerSize = bb.getInt();
             int maxSegmentsPerLevel = bb.getInt();
             boolean mmap = bb.get() == 1;
             boolean flushAfterWrite = bb.get() == 1;
             boolean asyncFlush = bb.get() == 1;
 
-            return new Metadata(magic, logSize, footerSize, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
+            return new Metadata(magic, logSize,  maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
     }
 
-    public static Metadata write(File directory, long logSize, int footerSize, int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
+    public static Metadata write(File directory, long segmentSize,  int maxSegmentsPerLevel, boolean mmap, boolean flushAfterWrite, boolean asyncFlush) {
         File file = new File(directory, LogFileUtils.METADATA_FILE);
         try (Storage storage = StorageProvider.raf().create(file, METADATA_SIZE)) {
             ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
@@ -64,8 +61,7 @@ public class Metadata {
             String magic = createMagic();
 
             bb.put(Serializers.VSTRING.toBytes(magic));
-            bb.putLong(logSize);
-            bb.putInt(footerSize);
+            bb.putLong(segmentSize);
             bb.putInt(maxSegmentsPerLevel);
             bb.put(mmap ? (byte) 1 : 0);
             bb.put(flushAfterWrite ? (byte) 1 : 0);
@@ -73,7 +69,7 @@ public class Metadata {
 
             bb.flip();
             storage.write(bb);
-            return new Metadata(magic, logSize, footerSize, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
+            return new Metadata(magic, segmentSize, maxSegmentsPerLevel, mmap, flushAfterWrite, asyncFlush);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }

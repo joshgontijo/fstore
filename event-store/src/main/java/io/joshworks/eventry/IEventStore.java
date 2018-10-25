@@ -21,8 +21,6 @@ public interface IEventStore extends Closeable, IProjection, IStream, IStreamQue
 
     EventRecord append(EventRecord event, int expectedVersion);
 
-    long logPosition();
-
     @Override
     void close();
 }

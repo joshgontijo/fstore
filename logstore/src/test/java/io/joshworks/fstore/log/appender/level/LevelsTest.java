@@ -6,13 +6,11 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -333,11 +331,6 @@ public class LevelsTest {
         }
 
         @Override
-        public Marker marker() {
-            return null;
-        }
-
-        @Override
         public String get(long position) {
             return null;
         }
@@ -381,17 +374,6 @@ public class LevelsTest {
         public void roll(int level) {
             this.level = level;
             this.readOnly = true;
-        }
-
-        @Override
-        public void roll(int level, ByteBuffer footer) {
-            this.level = level;
-            this.readOnly = true;
-        }
-
-        @Override
-        public ByteBuffer readFooter() {
-            return ByteBuffer.allocate(0);
         }
 
         @Override

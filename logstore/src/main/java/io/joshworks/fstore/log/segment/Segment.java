@@ -36,7 +36,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * File format:
  * <p>
- * |---- HEADER ----|----- LOG -----|--- END OF LOG (8bytes) ---|---- FOOTER ----|
+ * |---- HEADER ----|----- LOG -----|--- END OF LOG (8bytes) ---|
  */
 public class Segment<T> implements Log<T> {
 
@@ -71,7 +71,7 @@ public class Segment<T> implements Log<T> {
                 if (type == null) {
                     throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
                 }
-                this.header = LogHeader.writeNew(storage, magic, type);
+                this.header = LogHeader.writeNew(storage, magic, type, storage.length());
 
                 this.position(Log.START);
                 this.entries.set(this.header.entries);
@@ -98,8 +98,22 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
-    public long position() {
-        return storage.position();
+    public long append(T data) {
+        if (readOnly()) {
+            throw new IllegalStateException("Segment is read only");
+        }
+        ByteBuffer bytes = serializer.toBytes(data);
+        long position = position();
+        if (!hasAvailableSpace(bytes, position)) {
+            return -1;
+        }
+        long recordPosition = dataStream.write(storage, bytes);
+        entries.incrementAndGet();
+        return recordPosition;
+    }
+
+    private boolean hasAvailableSpace(ByteBuffer bytes, long position) {
+        return LogHeader.BYTES + Log.EOL.length + position + bytes.remaining() <= header.fileSize;
     }
 
     @Override
@@ -130,11 +144,9 @@ public class Segment<T> implements Log<T> {
         if (position < START) {
             throw new IllegalArgumentException("Position must be greater or equals to " + START + ", got: " + position);
         }
-        if (readOnly() && position > header.logEnd) {
-            throw new IllegalArgumentException("Position must be less than " + header.logEnd + ", got " + position);
-        }
-        if (!readOnly() && position > position()) {
-            throw new IllegalArgumentException("Position must be less than " + position() + ", got " + position);
+        long logicalSize = logicalSize();
+        if (position > logicalSize) {
+            throw new IllegalArgumentException("Position must be less than logicalSize " + logicalSize + ", got " + position);
         }
     }
 
@@ -154,17 +166,6 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
-    public long append(T data) {
-        if (readOnly()) {
-            throw new IllegalStateException("Segment is read only");
-        }
-        ByteBuffer bytes = serializer.toBytes(data);
-        long recordPosition = dataStream.write(storage, bytes);
-        entries.incrementAndGet();
-        return recordPosition;
-    }
-
-    @Override
     public String name() {
         return storage.name();
     }
@@ -179,10 +180,8 @@ public class Segment<T> implements Log<T> {
         if (Direction.FORWARD.equals(direction)) {
             return iterator(START, direction);
         }
-        if (readOnly()) {
-            return iterator(header.logEnd, direction);
-        }
-        return iterator(position(), direction);
+        long startPos = readOnly() ? header.logicalSize : position();
+        return iterator(startPos, direction);
 
     }
 
@@ -190,6 +189,11 @@ public class Segment<T> implements Log<T> {
     public LogIterator<T> iterator(long position, Direction direction) {
         checkClosed();
         return newLogReader(position, direction);
+    }
+
+    @Override
+    public long position() {
+        return storage.position();
     }
 
     @Override
@@ -391,13 +395,8 @@ public class Segment<T> implements Log<T> {
             if (closed.get()) {
                 return;
             }
-            if (Direction.FORWARD.equals(direction)) {
-                if (Segment.this.readOnly() && readAheadPosition >= Segment.this.header.logEnd) {
-                    return;
-                }
-                if (!Segment.this.readOnly() && readAheadPosition >= Segment.this.position()) {
-                    return;
-                }
+            if (Direction.FORWARD.equals(direction) && Segment.this.readOnly() && readAheadPosition >= Segment.this.logicalSize()) {
+                return;
             }
             if (Direction.BACKWARD.equals(direction) && readAheadPosition <= START) {
                 return;
@@ -501,7 +500,7 @@ public class Segment<T> implements Log<T> {
                 return true;
             }
             if (Segment.this.readOnly()) {
-                return readPosition < Segment.this.header.logEnd;
+                return readPosition < Segment.this.logicalSize();
             }
             return readPosition < Segment.this.position();
         }
@@ -558,15 +557,12 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public boolean headOfLog() {
-            if (Segment.this.readOnly()) {
-                return readPosition >= Segment.this.header.logEnd;
-            }
-            return readPosition == Segment.this.position();
+            return readPosition >= Segment.this.logicalSize();
         }
 
         @Override
         public boolean endOfLog() {
-            return readOnly() && readPosition >= header.logEnd;
+            return readOnly() && readPosition >= Segment.this.logicalSize();
 
         }
 
