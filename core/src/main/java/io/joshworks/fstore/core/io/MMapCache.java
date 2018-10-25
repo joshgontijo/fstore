@@ -14,4 +14,14 @@ public class MMapCache extends MMapStorage {
     public int write(ByteBuffer src) {
         return super.writeDirect(src);
     }
+
+    @Override
+    public void position(long position) {
+        try {
+            channel.position(position);
+            super.position(position);
+        } catch (Exception e) {
+            throw new StorageException(e);
+        }
+    }
 }
