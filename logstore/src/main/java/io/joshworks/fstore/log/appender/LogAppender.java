@@ -6,7 +6,6 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.seda.SedaContext;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -20,7 +19,6 @@ import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
@@ -74,7 +72,6 @@ public class LogAppender<T> implements Closeable {
     private final NamingStrategy namingStrategy;
     private final SegmentFactory<T> factory;
     private final StorageProvider storageProvider;
-    private final long segmentSize;
 
     final Levels<T> levels;
 
@@ -94,7 +91,6 @@ public class LogAppender<T> implements Closeable {
     }
 
     LogAppender(Config<T> config) {
-        this.segmentSize = LogHeader.BYTES + config.logSize + config.footerSize;
         this.directory = config.directory;
         this.serializer = config.serializer;
         this.factory = config.segmentFactory;
@@ -109,15 +105,14 @@ public class LogAppender<T> implements Closeable {
         if (!metadataExists) {
             logger.info("Creating LogAppender");
 
-            if (config.logSize > MAX_SEGMENT_ADDRESS) {
+            if (config.segmentSize > MAX_SEGMENT_ADDRESS) {
                 throw new IllegalArgumentException("Maximum segment size allowed is " + MAX_SEGMENT_ADDRESS);
             }
 
             LogFileUtils.createRoot(directory);
             this.metadata = Metadata.write(
                     directory,
-                    config.logSize,
-                    config.footerSize,
+                    config.segmentSize,
                     config.compactionThreshold,
                     config.mmap,
                     config.flushAfterWrite,
@@ -142,12 +137,12 @@ public class LogAppender<T> implements Closeable {
         logger.info("MAX SEGMENT ADDRESS: {} ({} bits)", MAX_SEGMENT_ADDRESS, SEGMENT_ADDRESS_BITS);
 
         logger.info("BUFFER POOL: {}", config.bufferPool.getClass().getSimpleName());
-        logger.info("SEGMENT SIZE: {}", config.logSize);
+        logger.info("SEGMENT SIZE: {}", config.segmentSize);
         logger.info("ASYNC FLUSH: {}", config.asyncFlush);
         logger.info("COMPACTION ENABLED: {}", !this.compactionDisabled);
         logger.info("COMPACTION THRESHOLD: {}", config.compactionThreshold);
         logger.info("MMAP ENABLED: {}", config.mmap);
-        logger.info("CACHE ENABLED: {}", (!config.mmap && config.rafCache));
+        logger.info("READ CACHE ENABLED: {}", (!config.mmap && config.rafCache));
     }
 
     private Levels<T> loadLevels() {
@@ -172,11 +167,9 @@ public class LogAppender<T> implements Closeable {
         logger.info("State restored: {}", state);
     }
 
-    private Log<T> createCurrentSegment(long logSize) {
+    private Log<T> createCurrentSegment() {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
-        long totalFileSize = LogHeader.BYTES + logSize + Log.EOL.length + Memory.PAGE_SIZE;
-        Storage storage = storageProvider.create(segmentFile, totalFileSize);
-
+        Storage storage = storageProvider.create(segmentFile, metadata.segmentSize);
         return factory.createOrOpen(storage, serializer, dataStream, metadata.magic, Type.LOG_HEAD);
     }
 
@@ -198,7 +191,7 @@ public class LogAppender<T> implements Closeable {
 
             if (levelZeroSegments == 0) {
                 //create current segment
-                Log<T> currentSegment = createCurrentSegment(segmentSize);
+                Log<T> currentSegment = createCurrentSegment();
                 segments.add(currentSegment);
             }
             if (levelZeroSegments > 1) {
@@ -241,7 +234,7 @@ public class LogAppender<T> implements Closeable {
             current.roll(1);
             flush();
 
-            Log<T> newSegment = createCurrentSegment(segmentSize);
+            Log<T> newSegment = createCurrentSegment();
             levels.appendSegment(newSegment);
 
             notifyPollers(newSegment);
@@ -285,7 +278,7 @@ public class LogAppender<T> implements Closeable {
 
     private boolean shouldRoll(Log<T> currentSegment) {
         long actualSize = currentSegment.logicalSize();
-        return actualSize >= metadata.logSize && actualSize > 0;
+        return actualSize >= metadata.segmentSize && actualSize > 0;
     }
 
     public void compact() {
@@ -300,18 +293,20 @@ public class LogAppender<T> implements Closeable {
 
     public long append(T data) {
         Log<T> current = levels.current();
-        if (shouldRoll(current)) {
+
+        long positionOnSegment = current.append(data);
+        if(positionOnSegment < 0) { //no space left, roll
             roll();
             current = levels.current();
+            positionOnSegment = current.append(data);
+            if(positionOnSegment < 0) {
+                throw new IllegalStateException("Failed to insert entry");
+            }
         }
-        long positionOnSegment = current.append(data);
         if (metadata.flushAfterWrite) {
             flushInternal();
         }
         long entryPosition = toSegmentedPosition(levels.numSegments() - 1L, positionOnSegment);
-        if (positionOnSegment < 0) {
-            throw new IllegalStateException("Invalid address " + positionOnSegment);
-        }
 
         long currentPosition = toSegmentedPosition(levels.numSegments() - 1L, current.position());
         state.position(currentPosition);

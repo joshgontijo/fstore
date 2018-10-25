@@ -90,33 +90,4 @@ public abstract class DiskStorage implements Storage {
         return file.getName();
     }
 
-    @Override
-    public void truncate(long newLength) {
-        if(newLength > length()) {
-            return;
-        }
-        try {
-            channel.truncate(newLength);
-            this.position = position > newLength ? newLength : position;
-        } catch (Exception e) {
-            throw new StorageException(e);
-        }
-    }
-
-    @Override
-    public void extend(long newLength) {
-        if(newLength < length()) {
-            return;
-        }
-        try {
-            raf.setLength(newLength);
-        } catch (Exception e) {
-            throw new StorageException(e);
-        }
-    }
-
-    @Override
-    public File file() {
-        return file;
-    }
 }

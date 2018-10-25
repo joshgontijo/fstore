@@ -19,8 +19,7 @@ public class Config<T> {
 
     public static final String DEFAULT_APPENDER_NAME = "default";
     public static final int COMPACTION_THRESHOLD = 3;
-    public static final long DEFAULT_LOG_SIZE = Size.MB.of(200);
-    public static final int DEFAULT_FOOTER_SIZE = 0;
+    public static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(200);
     public static final double DEFAULT_CHECKSUM_PROB = 1.0;
 
     public final File directory;
@@ -31,8 +30,7 @@ public class Config<T> {
     BufferPool bufferPool = new SingleBufferThreadCachedPool(false);
 
     String name = DEFAULT_APPENDER_NAME;
-    int footerSize = DEFAULT_FOOTER_SIZE;
-    long logSize = DEFAULT_LOG_SIZE;
+    long segmentSize = DEFAULT_SEGMENT_SIZE;
     double checksumProbability = DEFAULT_CHECKSUM_PROB;
     boolean mmap;
     boolean asyncFlush;
@@ -48,7 +46,7 @@ public class Config<T> {
     }
 
     public Config<T> segmentSize(long segmentSize) {
-        this.logSize = segmentSize;
+        this.segmentSize = segmentSize;
         return this;
     }
 
@@ -62,11 +60,6 @@ public class Config<T> {
 
     public Config<T> bufferPool(BufferPool bufferPool) {
         this.bufferPool = requireNonNull(bufferPool, "BufferPool cannot be null");
-        return this;
-    }
-
-    public Config<T> footerSize(int footerSize) {
-        this.footerSize = footerSize;
         return this;
     }
 

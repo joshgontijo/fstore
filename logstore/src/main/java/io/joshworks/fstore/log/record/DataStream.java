@@ -107,12 +107,15 @@ public class DataStream implements IDataStream {
 
         @Override
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
+            if(position == 10485758) {
+                System.out.println();
+            }
             ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
             try {
                 storage.read(position, buffer);
                 buffer.flip();
 
-                if (buffer.remaining() == 0) {
+                if (buffer.remaining() < RecordHeader.MAIN_HEADER) {
                     return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 
@@ -151,7 +154,7 @@ public class DataStream implements IDataStream {
                 storage.read(position, buffer);
                 buffer.flip();
 
-                if (buffer.remaining() == 0) {
+                if (buffer.remaining() < RecordHeader.MAIN_HEADER) {
                     return BufferRef.ofEmpty(buffer, bufferPool);
                 }
 

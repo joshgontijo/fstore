@@ -535,10 +535,6 @@ public class EventStore implements IEventStore {
         return new MaxAgeFilteringIterator(metadataMap, iterator);
     }
 
-    @Override
-    public long logPosition() {
-        return eventLog.position();
-    }
 
     @Override
     public void close() {

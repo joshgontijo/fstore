@@ -1,37 +1,26 @@
 package io.joshworks.fstore.core.io;
 
-
-import io.joshworks.fstore.core.util.MappedByteBuffers;
-
-import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 
-public class MMapStorage extends DiskStorage {
+public abstract class MemoryStorage implements Storage {
 
     private final int bufferSize;
-    MappedByteBuffer[] buffers;
+    private final long length;
+    protected ByteBuffer[] buffers;
+    protected long position;
 
-    private final boolean isWindows;
+    protected abstract ByteBuffer create(int bufferSize);
 
-    public MMapStorage(File file, RandomAccessFile raf) {
-        super(file, raf);
-        isWindows = System.getProperty("os.name").toLowerCase().startsWith("win");
-        try {
-            long fileLength = raf.length();
-            this.bufferSize = getBufferSize(fileLength);
-            int totalBuffers = getTotalBuffers(fileLength, this.bufferSize);
-            this.buffers = new MappedByteBuffer[totalBuffers];
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public MemoryStorage(long length) {
+        this.bufferSize = getBufferSize(length);
+        this.length = length;
+        int totalBuffers = getTotalBuffers(length, bufferSize);
+        this.buffers = new ByteBuffer[totalBuffers];
     }
 
     private static int getBufferSize(long fileLength) {
-        if(fileLength <= Integer.MAX_VALUE) {
+        if (fileLength <= Integer.MAX_VALUE) {
             return (int) fileLength;
         }
         return Integer.MAX_VALUE;
@@ -43,7 +32,6 @@ public class MMapStorage extends DiskStorage {
         return diff == 0 ? numFullBuffers : numFullBuffers + 1;
     }
 
-
     @Override
     public int write(ByteBuffer src) {
         Storage.ensureNonEmpty(src);
@@ -51,7 +39,7 @@ public class MMapStorage extends DiskStorage {
         int dataSize = src.remaining();
 
         int idx = bufferIdx(this.position);
-        MappedByteBuffer dst = getOrAllocate(idx, true);
+        ByteBuffer dst = getOrAllocate(idx, true);
 
         int dstRemaining = dst.remaining();
         if (dstRemaining < dataSize) {
@@ -78,7 +66,7 @@ public class MMapStorage extends DiskStorage {
             return -1;
         }
 
-        MappedByteBuffer buffer = getOrAllocate(idx, false);
+        ByteBuffer buffer = getOrAllocate(idx, false);
 
         int srcCapacity = buffer.capacity();
         if (bufferAddress > srcCapacity) {
@@ -105,7 +93,7 @@ public class MMapStorage extends DiskStorage {
         return dstRemaining;
     }
 
-    private MappedByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
+    private ByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
         if (idx >= buffers.length) {
             if (expandBuffers) {
                 growBuffersToAccommodateIdx(idx);
@@ -113,9 +101,9 @@ public class MMapStorage extends DiskStorage {
                 throw new IllegalStateException("Invalid buffer index " + idx + " buffers length: " + buffers.length);
             }
         }
-        MappedByteBuffer current = buffers[idx];
+        ByteBuffer current = buffers[idx];
         if (current == null) {
-            buffers[idx] = map(idx);
+            buffers[idx] = create(bufferSize);
             current = buffers[idx];
         }
         return current;
@@ -130,76 +118,29 @@ public class MMapStorage extends DiskStorage {
     @Override
     public void position(long pos) {
         int idx = bufferIdx(position);
-        MappedByteBuffer buffer = getOrAllocate(idx, true);
+        ByteBuffer buffer = getOrAllocate(idx, true);
         int bufferAddress = posOnBuffer(pos);
         buffer.position(bufferAddress);
         this.position = pos;
     }
 
-    private int posOnBuffer(long pos) {
+    @Override
+    public long position() {
+        return position;
+    }
+
+    @Override
+    public long length() {
+        return length;
+    }
+
+    protected int posOnBuffer(long pos) {
         return (int) (pos % bufferSize);
     }
 
-    private int bufferIdx(long pos) {
+    protected int bufferIdx(long pos) {
         return (int) (pos / bufferSize);
     }
 
-    private MappedByteBuffer map(int idx) {
-        long from = ((long) idx) * bufferSize;
-        return map(from, bufferSize);
-    }
 
-    private MappedByteBuffer map(long from, long size) {
-        try {
-            return raf.getChannel().map(FileChannel.MapMode.READ_WRITE, from, size);
-        } catch (Exception e) {
-            close();
-            throw new StorageException(e);
-        }
-    }
-
-    @Override
-    public void delete() {
-        unmapAll();
-        super.delete();
-    }
-
-    @Override
-    public void close() {
-        unmapAll();
-        super.close();
-    }
-
-    private void unmapAll() {
-        for (int i = 0; i < buffers.length; i++) {
-            MappedByteBuffer buffer = buffers[i];
-            if(buffer != null) {
-                buffer.force();
-                unmap(buffer);
-                buffers[i] = null;
-            }
-        }
-    }
-
-    private void unmap(MappedByteBuffer buffer) {
-        try {
-            MappedByteBuffers.unmap(buffer);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-
-    @Override
-    public void flush() {
-        int idx = bufferIdx(this.position);
-        if(idx > buffers.length) {
-            return;
-        }
-        MappedByteBuffer buffer = buffers[idx];
-        if (buffer != null && !isWindows) {
-            //caused by https://bugs.openjdk.java.net/browse/JDK-6539707
-            buffer.force();
-        }
-    }
 }

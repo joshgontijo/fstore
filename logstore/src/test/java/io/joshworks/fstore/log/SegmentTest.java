@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -11,9 +12,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -22,7 +21,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -61,10 +59,22 @@ public abstract class SegmentTest {
     }
 
     @Test
+    public void segment_returns_negative_position_when_is_fill() {
+        do {
+            long pos = segment.append("a");
+            assertTrue("Failed with " + pos, pos > 0);
+        } while (LogHeader.BYTES + segment.position() + Log.EOL.length + 1 < segment.fileSize());
+
+        long pos = segment.append("a");
+        assertTrue("Failed with " + pos, pos < 0);
+    }
+
+    @Test
     public void writePosition_reopen() throws IOException {
         String data = "hello";
         segment.append(data);
         segment.flush();
+
 
         long position = segment.position();
         segment.close();
@@ -135,7 +145,6 @@ public abstract class SegmentTest {
         assertEquals(data, logIterator1.next());
     }
 
-
     @Test
     public void get() {
         List<Long> positions = new ArrayList<>();
@@ -190,41 +199,22 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void scanner_ends_before_footer() {
-
-        int numEntries = 10;
-        for (int i = 0; i < numEntries; i++) {
-            segment.append(String.valueOf(i));
-        }
-        segment.flush();
-
-        //footer
-        byte[] fData = new byte[100];
-        Arrays.fill(fData, (byte) 1);
-
-        segment.roll(1, ByteBuffer.wrap(fData));
-
-        Stream<String> stream = segment.stream(Direction.FORWARD);
-        assertEquals(numEntries, stream.count());
-    }
-
-    @Test
-    public void scanner_0() throws IOException {
+    public void scanner_0() {
         testScanner(0);
     }
 
     @Test
-    public void scanner_1() throws IOException {
+    public void scanner_1() {
         testScanner(1);
     }
 
     @Test
-    public void scanner_10() throws IOException {
+    public void scanner_10() {
         testScanner(10);
     }
 
     @Test
-    public void scanner_1000() throws IOException {
+    public void scanner_1000() {
         testScanner(1000);
     }
 
@@ -258,9 +248,10 @@ public abstract class SegmentTest {
 
     @Test
     public void segment_read_backwards() throws IOException {
-        int entries = 1000000;
+        int entries = 100000;
         for (int i = 0; i < entries; i++) {
-            segment.append(String.valueOf(i));
+            long pos = segment.append(String.valueOf(i));
+            assertTrue("Entry was not inserted", pos > 0);
         }
 
         segment.flush();
@@ -277,7 +268,7 @@ public abstract class SegmentTest {
 
     @Test
     public void reader_forward_maintain_correct_position() throws IOException {
-        int entries = 1000000;
+        int entries = 300000;
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < entries; i++) {
             long pos = segment.append(String.valueOf(i));
@@ -296,10 +287,11 @@ public abstract class SegmentTest {
 
     @Test
     public void reader_backward_maintain_correct_position() throws IOException {
-        int entries = 1000000;
+        int entries = 300000;
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < entries; i++) {
             long pos = segment.append(String.valueOf(i));
+            assertTrue("Entry was not inserted", pos > 0);
             positions.add(pos);
         }
 
@@ -343,34 +335,21 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void writeFooter() {
-        segment.append("a");
-
-        byte[] fData = new byte[100];
-        Arrays.fill(fData, (byte) 1);
-
-        segment.roll(1, ByteBuffer.wrap(fData));
-
-        ByteBuffer read = segment.readFooter();
-
-        assertTrue(Arrays.equals(fData, read.array()));
-    }
-
-    @Test
     public void poller_notifies_awaiting_consumers() throws InterruptedException {
         final String value = "yolo";
         int numOfSubscribers = 3;
         ExecutorService executor = Executors.newFixedThreadPool(numOfSubscribers);
 
-        final List<String> captured = new ArrayList<>();
+        CountDownLatch notifyLatch = new CountDownLatch(numOfSubscribers);
 
         for (int i = 0; i < numOfSubscribers; i++) {
             executor.submit(() -> {
                 try {
                     PollingSubscriber<String> poller = segment.poller();
                     String polled = poller.take();
-                    if (polled != null)
-                        captured.add(polled);
+                    if (polled != null) {
+                        notifyLatch.countDown();
+                    }
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -384,10 +363,9 @@ public abstract class SegmentTest {
         segment.append(value);
         segment.flush();
 
-        executor.awaitTermination(5, TimeUnit.SECONDS);
-
-        assertEquals(numOfSubscribers, captured.size());
-
+        if (!notifyLatch.await(5, TimeUnit.SECONDS)) {
+            fail("Failed to notify " + numOfSubscribers + " pollers, got: " + notifyLatch.getCount());
+        }
     }
 
     @Test
