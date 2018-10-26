@@ -7,7 +7,6 @@ import io.joshworks.eventry.index.midpoint.Midpoint;
 import io.joshworks.eventry.index.midpoint.Midpoints;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.fstore.core.filter.BloomFilterHasher;
 import io.joshworks.fstore.core.io.Storage;
@@ -19,13 +18,11 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.block.Block;
-import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
 import io.joshworks.fstore.log.segment.block.BlockPoller;
-import io.joshworks.fstore.log.segment.block.BlockSerializer;
+import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 
@@ -42,13 +39,11 @@ public class IndexSegment implements Log<IndexEntry>, Index {
 
     BloomFilter<Long> filter;
     final Midpoints midpoints;
-    final File directory;
+    private final File directory;
     private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
 
-    private final Segment<Block<IndexEntry>> delegate;
-    private final BlockFactory<IndexEntry> blockFactory = new IndexBlockFactory();
-    private final Serializer<IndexEntry> serializer = new IndexEntrySerializer();
-    private Block<IndexEntry> block;
+    private final BlockSegment<IndexEntry> delegate;
+
 
 
     private static final double FALSE_POSITIVE_PROB = 0.01;
@@ -61,39 +56,22 @@ public class IndexSegment implements Log<IndexEntry>, Index {
                  Codec codec,
                  int numElements) {
 
-        BlockSerializer<IndexEntry> blockSerializer = new BlockSerializer<>(codec, blockFactory, serializer);
-
-        this.delegate = new Segment<>(storage, blockSerializer, reader, magic, type);
+        this.delegate = new BlockSegment<>(storage, reader, magic, type,  new IndexEntrySerializer(), new IndexBlockFactory(), codec,MAX_BLOCK_SIZE, this::onBlockWrite);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
-        this.block = blockFactory.create(serializer, MAX_BLOCK_SIZE);
     }
 
-    protected synchronized long writeBlock() {
-        if (block.isEmpty()) {
-            return position();
-        }
-
-        long blockPos = delegate.append(block);
-
+    protected synchronized void onBlockWrite(Long blockPos, Block<IndexEntry> block) {
         Midpoint head = new Midpoint(block.first(), blockPos);
         Midpoint tail = new Midpoint(block.last(), blockPos);
         midpoints.add(head, tail);
-
-        block = blockFactory.create(serializer, MAX_BLOCK_SIZE);
-
-        return blockPos;
     }
 
     @Override
     public long append(IndexEntry data) {
         filter.add(data.stream);
-        long pos = delegate.position();
-        if (block.add(data)) {
-            writeBlock();
-        }
-        return pos;
+        return delegate.add(data);
     }
 
     @Override
@@ -101,7 +79,6 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         if (readOnly()) {
             return;
         }
-        writeBlock();
         delegate.flush();
         midpoints.write();
         filter.write();
@@ -214,8 +191,14 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         return !midpoints.inRange(range) || !filter.contains(range.stream);
     }
 
+
     @Override
-    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
+    public LogIterator<IndexEntry> indexIterator(Direction direction) {
+        return null;
+    }
+
+    @Override
+    public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
         if (definitelyNotPresent(range)) {
             return Iterators.empty();
         }
@@ -230,8 +213,13 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     }
 
     @Override
-    public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.closeableStream(iterator(direction, range));
+    public Stream<IndexEntry> indexStream(Direction direction) {
+        return Iterators.closeableStream(indexIterator(direction));
+    }
+
+    @Override
+    public Stream<IndexEntry> indexStream(Direction direction, Range range) {
+        return Iterators.closeableStream(indexIterator(direction, range));
     }
 
     @Override

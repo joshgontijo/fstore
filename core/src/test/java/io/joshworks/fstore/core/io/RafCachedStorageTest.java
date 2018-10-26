@@ -6,7 +6,7 @@ public class RafCachedStorageTest extends StorageTest {
 
     @Override
     protected Storage store(File file, long size) {
-        return StorageProvider.of(Mode.RAF_CACHED).create(file, size);
+        return StorageProvider.of(StorageMode.RAF_CACHED).create(file, size);
     }
 
 }

@@ -70,7 +70,7 @@ public class MemIndex implements Index {
     }
 
     @Override
-    public LogIterator<IndexEntry> iterator(Direction direction) {
+    public LogIterator<IndexEntry> indexIterator(Direction direction) {
         List<IndexEntry> ordered = index.entrySet().stream()
                 .sorted(Comparator.comparingLong(Map.Entry::getKey))
                 .map(Map.Entry::getValue)
@@ -81,7 +81,7 @@ public class MemIndex implements Index {
     }
 
     @Override
-    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
+    public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
         SortedSet<IndexEntry> entries = index.get(range.stream);
         if (entries == null || entries.isEmpty()) {
             return Iterators.empty();
@@ -94,13 +94,13 @@ public class MemIndex implements Index {
     }
 
     @Override
-    public Stream<IndexEntry> stream(Direction direction) {
-        return Iterators.closeableStream(iterator(direction));
+    public Stream<IndexEntry> indexStream(Direction direction) {
+        return Iterators.closeableStream(indexIterator(direction));
     }
 
     @Override
-    public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.closeableStream(iterator(direction, range));
+    public Stream<IndexEntry> indexStream(Direction direction, Range range) {
+        return Iterators.closeableStream(indexIterator(direction, range));
     }
 
     @Override

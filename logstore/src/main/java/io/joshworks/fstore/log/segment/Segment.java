@@ -11,7 +11,6 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.record.BufferRef;
 import io.joshworks.fstore.log.record.IDataStream;
-import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.utils.Logging;
@@ -19,8 +18,10 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Queue;
@@ -29,6 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
@@ -227,23 +229,31 @@ public class Segment<T> implements Log<T> {
             int lastRead;
             do {
                 try (BufferRef ref = dataStream.bulkRead(storage, Direction.FORWARD, position)) {
-                    int entrySize = ref.get().remaining();
-                    lastRead = entrySize;
-                    if (entrySize > 0) {
-                        position += entrySize + RecordHeader.HEADER_OVERHEAD;
-                        foundEntries++;
+                    List<T> items = new ArrayList<>();
+                    int[] recordSizes = ref.readAllInto(items, serializer);
+                    if (!items.isEmpty()) {
+                        foundEntries += processEntries(items);
                     }
+                    lastRead = IntStream.of(recordSizes).sum();
+                    position += lastRead;
                 }
             } while (lastRead > 0);
 
         } catch (Exception e) {
             logger.warn("Found inconsistent entry on position {}, segment '{}': {}", position, name(), e.getMessage());
+            storage.position(position);
+            dataStream.write(storage, ByteBuffer.wrap(EOL));
+            storage.position(position);
         }
         logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
-        if (position < LogHeader.BYTES) {
-            throw new IllegalStateException("Initial log state position must be at least " + LogHeader.BYTES);
+        if (position < Log.START) {
+            throw new IllegalStateException("Initial log state position must be at least " + Log.START);
         }
         return new SegmentState(foundEntries, position);
+    }
+
+    protected long processEntries(List<T> items) {
+        return items.size();
     }
 
     @Override
@@ -359,8 +369,8 @@ public class Segment<T> implements Log<T> {
             this.serializer = serializer;
             this.position = initialPosition;
             this.readAheadPosition = initialPosition;
-            readAhead();
             this.lastReadTs = System.currentTimeMillis();
+            readAhead();
         }
 
         @Override
@@ -385,6 +395,10 @@ public class Segment<T> implements Log<T> {
             int recordSize = entriesSizes.poll();
             if (pageQueue.isEmpty()) {
                 readAhead();
+                if (pageQueue.isEmpty()) {
+                    close();
+                }
+
             }
 
             position = Direction.FORWARD.equals(direction) ? position + recordSize : position - recordSize;
@@ -392,7 +406,7 @@ public class Segment<T> implements Log<T> {
         }
 
         private void readAhead() {
-            if (closed.get()) {
+            if (Segment.this.closed.get()) {
                 return;
             }
             if (Direction.FORWARD.equals(direction) && Segment.this.readOnly() && readAheadPosition >= Segment.this.logicalSize()) {
@@ -410,7 +424,6 @@ public class Segment<T> implements Log<T> {
                 }
 
                 if (entriesLength.length == 0) {
-                    close();
                     return;
                 }
                 readAheadPosition = Direction.FORWARD.equals(direction) ? readAheadPosition + totalRead : readAheadPosition - totalRead;

@@ -30,7 +30,6 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
         String magic = data.magic;
         int level = data.level;
         String name = data.name;
-        int nextLevel = data.level + 1;
         File segmentFile = data.segmentFile;
         SegmentCombiner<T> combiner = data.combiner;
         List<Log<T>> segments = data.segments;
@@ -41,7 +40,7 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
 
         final Logger logger = Logging.namedLogger(name, "compaction-task-" + level);
 
-        Log<T> target = null;
+        Log<T> output = null;
         try {
 
             long totalSize = segments.stream().mapToLong(Log::logicalSize).sum();
@@ -57,18 +56,19 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
             long start = System.currentTimeMillis();
 
             Storage storage = storageProvider.create(segmentFile, totalSize);
-            target = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, Type.MERGE_OUT);
+            output = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, Type.MERGE_OUT);
 
-            combiner.merge(segments, target);
+            combiner.merge(segments, output);
+            output.flush();
 
-            logger.info("Result Segment {} - size: {}, entries: {}", target.name(), totalSize, target.entries());
+            logger.info("Result Segment {} - size: {}, entries: {}", output.name(), totalSize, output.entries());
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
-            context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.success(segments, target, level));
+            context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.success(segments, output, level));
 
         } catch (Exception e) {
             logger.error("Failed to compact", e);
-            context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.failure(segments, target, level, e));
+            context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.failure(segments, output, level, e));
         }
     }
 }

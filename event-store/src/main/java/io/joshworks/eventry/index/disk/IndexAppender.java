@@ -6,6 +6,7 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
@@ -37,7 +38,7 @@ public class IndexAppender implements Index {
                 .compactionThreshold(3)
                 .segmentSize(logSize)
                 .name("index-appender")
-//                .mmap()
+                .storageMode(StorageMode.MMAP)
 //                .disableCompaction()
                 .namingStrategy(new IndexNaming())
                 .open(new IndexSegmentFactory(indexDirectory, numElements, codec));
@@ -45,29 +46,29 @@ public class IndexAppender implements Index {
 
 
     @Override
-    public LogIterator<IndexEntry> iterator(Direction direction) {
+    public LogIterator<IndexEntry> indexIterator(Direction direction) {
         return appender.iterator(direction);
     }
 
     //FIXME not releasing readers ??
     @Override
-    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
+    public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
         List<LogIterator<IndexEntry>> iterators = appender.streamSegments(direction)
                 .map(seg -> (IndexSegment) seg)
-                .map(idxSeg -> idxSeg.iterator(direction, range))
+                .map(idxSeg -> idxSeg.indexIterator(direction, range))
                 .collect(Collectors.toList());
 
         return Iterators.concat(iterators);
     }
 
     @Override
-    public Stream<IndexEntry> stream(Direction direction) {
-        return Iterators.closeableStream(iterator(direction));
+    public Stream<IndexEntry> indexStream(Direction direction) {
+        return Iterators.closeableStream(indexIterator(direction));
     }
 
     @Override
-    public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.closeableStream(iterator(direction, range));
+    public Stream<IndexEntry> indexStream(Direction direction, Range range) {
+        return Iterators.closeableStream(indexIterator(direction, range));
     }
 
     @Override
