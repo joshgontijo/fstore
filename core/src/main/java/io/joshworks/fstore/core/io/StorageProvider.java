@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.util.StatsStorage;
 
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
 import java.util.Objects;
 
 public class StorageProvider {
@@ -30,6 +31,12 @@ public class StorageProvider {
     }
 
     public Storage open(File file) {
+        if (!Files.exists(file.toPath())) {
+            throw new IllegalStateException("File " + file.getName() + " doesn't exist");
+        }
+        if (file.length() <= 0) {
+            throw new IllegalStateException("File " + file.getName() + " has length equals to zero");
+        }
         Objects.requireNonNull(file, "File must be provided");
         Storage storage = openStorage(file);
         return new StatsStorage(storage);

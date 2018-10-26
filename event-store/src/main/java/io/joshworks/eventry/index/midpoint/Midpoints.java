@@ -2,6 +2,7 @@ package io.joshworks.eventry.index.midpoint;
 
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
+import io.joshworks.eventry.utils.Memory;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.Storage;
@@ -52,9 +53,13 @@ public class Midpoints {
             return;
         }
 
-        long size = Math.max(Midpoint.BYTES * midpoints.size(), handler.length());
+        int totalRecordSize = Integer.BYTES;
+        long size = Math.max((long) Midpoint.BYTES * midpoints.size(), handler.length()) + totalRecordSize;
 
         try (Storage storage = StorageProvider.of(Mode.RAF).create(handler, size)) {
+            var sizeMarker = ByteBuffer.allocate(Integer.BYTES);
+            sizeMarker.putInt(midpoints.size()).flip();
+            storage.write(sizeMarker);
             for (Midpoint midpoint : midpoints) {
                 ByteBuffer data = midpointSerializer.toBytes(midpoint);
                 storage.write(data);
@@ -72,17 +77,34 @@ public class Midpoints {
         }
         try (Storage storage = StorageProvider.of(Mode.RAF).open(handler)) {
             long pos = 0;
-            ByteBuffer data = ByteBuffer.allocate(Midpoint.BYTES);
+            var data = ByteBuffer.allocate((Memory.PAGE_SIZE / Midpoint.BYTES) * Midpoint.BYTES);
 
-            List<Midpoint> loaded = new ArrayList<>();
-            while (storage.read(pos, data) > 0) {
-                data.flip();
-                Midpoint midpoint = midpointSerializer.fromBytes(data);
-                loaded.add(midpoint);
-                pos += Midpoint.BYTES;
+            var sizeData = ByteBuffer.allocate(Integer.BYTES);
+            storage.read(pos, sizeData);
+            pos += Integer.BYTES;
+            int entries = sizeData.flip().getInt();
+
+            List<Midpoint> loadedMidpoints = new ArrayList<>(entries);
+            int loaded = 0;
+            while (loaded < entries) {
                 data.clear();
+                int read = storage.read(pos, data);
+                if (read <= 0) {
+                    break;
+                }
+                data.flip();
+                while (data.remaining() >= Midpoint.BYTES) {
+                    Midpoint midpoint = midpointSerializer.fromBytes(data);
+                    loadedMidpoints.add(midpoint);
+                    pos += Midpoint.BYTES;
+                    loaded++;
+                    if(loaded >= entries) {
+                        break;
+                    }
+                }
             }
-            return loaded;
+
+            return loadedMidpoints;
         } catch (Exception e) {
             throw new RuntimeException("Failed to load midpoints", e);
         }

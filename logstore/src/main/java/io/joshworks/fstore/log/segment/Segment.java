@@ -226,7 +226,7 @@ public class Segment<T> implements Log<T> {
             logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
             int lastRead;
             do {
-                try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position)) {
+                try (BufferRef ref = dataStream.bulkRead(storage, Direction.FORWARD, position)) {
                     int entrySize = ref.get().remaining();
                     lastRead = entrySize;
                     if (entrySize > 0) {

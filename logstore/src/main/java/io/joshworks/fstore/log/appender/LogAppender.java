@@ -177,7 +177,7 @@ public class LogAppender<T> implements Closeable {
         try {
             for (String segmentName : LogFileUtils.findSegments(directory)) {
                 Log<T> segment = loadSegment(segmentName);
-                if(Type.MERGE_OUT.equals(segment.type())) {
+                if (Type.MERGE_OUT.equals(segment.type())) {
                     logger.info("Deleting incomplete merge output segment");
                     segment.delete();
                     continue;
@@ -221,16 +221,15 @@ public class LogAppender<T> implements Closeable {
 
     public synchronized void roll() {
         try {
-
-            logger.info("Rolling appender: " + state);
-
             Log<T> current = levels.current();
-            if(current.entries() == 0) {
-                logger.warn("No entries in the segment");
+            current.flush();
+            logger.info("Rolling segment: {}", current);
+            if (current.entries() == 0) {
+                logger.warn("No entries in the current segment");
                 return;
             }
+
             current.roll(1);
-            flush();
 
             Log<T> newSegment = createCurrentSegment();
             levels.appendSegment(newSegment);
@@ -293,11 +292,11 @@ public class LogAppender<T> implements Closeable {
         Log<T> current = levels.current();
 
         long positionOnSegment = current.append(data);
-        if(positionOnSegment < 0) { //no space left, roll
+        if (positionOnSegment < 0) { //no space left, roll
             roll();
             current = levels.current();
             positionOnSegment = current.append(data);
-            if(positionOnSegment < 0) {
+            if (positionOnSegment < 0) {
                 throw new IllegalStateException("Failed to insert entry");
             }
         }
