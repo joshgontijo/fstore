@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.DataStream;
@@ -17,7 +18,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.Optional;
@@ -40,13 +40,24 @@ public class IndexSegmentTest {
     public void setUp() {
         indexDir = FileUtils.testFolder();
         segmentFile = new File(indexDir, "test-index");
-        segment = open(segmentFile);
+        segment = create(segmentFile);
     }
 
     @After
     public void tearDown() throws Exception {
         IOUtils.closeQuietly(segment);
         Files.delete(segmentFile.toPath());
+    }
+
+    private IndexSegment create(File location) {
+        return new IndexSegment(
+                StorageProvider.of(Mode.RAF).create(location, Size.MB.of(100)),
+                new DataStream(new SingleBufferThreadCachedPool(false)),
+                "magic",
+                Type.LOG_HEAD,
+                indexDir,
+                new SnappyCodec(),
+                NUMBER_OF_ELEMENTS);
     }
 
     private IndexSegment open(File location) {
@@ -133,22 +144,35 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void reopen_loads_all_four_entries() {
-
+    public void closing_does_not_flush_entries_to_disk() {
         //given
         segment.append(IndexEntry.of(1L, 1, 0));
-        segment.append(IndexEntry.of(1L, 2, 0));
-        segment.append(IndexEntry.of(1L, 3, 0));
-        segment.append(IndexEntry.of(1L, 4, 0));
-
 
         //when
         segment.close();
         try (IndexSegment opened = open(segmentFile)) {
             //then
             long items = opened.stream(Direction.FORWARD).count();
-            assertEquals(4, items);
+            assertEquals(0, items);
+        }
+    }
 
+    @Test
+    public void reopen_loads_all_four_entries() {
+        //given
+        segment.append(IndexEntry.of(1L, 1, 0));
+        segment.append(IndexEntry.of(1L, 2, 0));
+        segment.append(IndexEntry.of(1L, 3, 0));
+        segment.append(IndexEntry.of(1L, 4, 0));
+
+        //when
+        segment.flush();
+        segment.close();
+        try (IndexSegment opened = open(segmentFile)) {
+
+            //then
+            long items = opened.stream(Direction.FORWARD).count();
+            assertEquals(4, items);
         }
     }
 

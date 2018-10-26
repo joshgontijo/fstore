@@ -15,7 +15,7 @@ public class MidpointSerializer implements Serializer<Midpoint> {
         ByteBuffer bb = ByteBuffer.allocate(Midpoint.BYTES);
         writeTo(data, bb);
 
-        return (ByteBuffer) bb.flip();
+        return bb.flip();
     }
 
     @Override
