@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 
 public class BlockIterator<T> implements LogIterator<T> {
@@ -22,6 +23,10 @@ public class BlockIterator<T> implements LogIterator<T> {
     }
 
     private void readNextBlock() {
+        if(!delegate.hasNext()) {
+            IOUtils.closeQuietly(this);
+            return;
+        }
         Block<T> block = delegate.next();
         List<T> entries = block.entries();
         if (Direction.BACKWARD.equals(direction)) {
@@ -32,7 +37,14 @@ public class BlockIterator<T> implements LogIterator<T> {
 
     @Override
     public boolean hasNext() {
-        return !cached.isEmpty() || delegate.hasNext();
+        if(!cached.isEmpty()) {
+            return true;
+        }
+        if(delegate.hasNext()) {
+            return true;
+        }
+        IOUtils.closeQuietly(this);
+        return false;
     }
 
     @Override
@@ -43,6 +55,7 @@ public class BlockIterator<T> implements LogIterator<T> {
         T found = cached.poll();
         if(found == null && !delegate.hasNext()) {
             IOUtils.closeQuietly(delegate);
+            throw new NoSuchElementException();
         }
         return found;
     }

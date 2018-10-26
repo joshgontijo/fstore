@@ -6,7 +6,7 @@ public class MMapStorageTest extends StorageTest {
 
     @Override
     protected Storage store(File file, long size) {
-        return StorageProvider.of(Mode.MMAP).create(file, size);
+        return StorageProvider.of(StorageMode.MMAP).create(file, size);
     }
 
 }

@@ -5,7 +5,6 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -14,8 +13,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
-import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 
@@ -77,7 +75,7 @@ public class IndexAppenderTest {
     }
 
     @Test
-    public void all_entries_are_returned_from_multiple_segments() throws InterruptedException {
+    public void all_entries_are_returned_from_multiple_segments() {
 
         int entriesPerSegment = 10;
         int numSegments = 10;
@@ -85,7 +83,7 @@ public class IndexAppenderTest {
         int stream = 0;
         for (int i = 0; i < entriesPerSegment; i++) {
             for (int x = 0; x < numSegments; x++) {
-                appender.append(IndexEntry.of(stream++, 1, 0));
+                appender.append(IndexEntry.of(stream++, 0, 0));
             }
             appender.roll();
         }
@@ -94,8 +92,10 @@ public class IndexAppenderTest {
         long entries = appender.entries();
         assertEquals(entriesPerSegment * numSegments, entries);
 
-        long count = appender.stream(Direction.FORWARD).count();
-        assertEquals(entriesPerSegment * numSegments, count);
+        try (Stream<IndexEntry> items = appender.indexStream(Direction.FORWARD)) {
+            assertEquals(entriesPerSegment * numSegments, items.count());
+
+        }
     }
 
     @Test
@@ -115,8 +115,8 @@ public class IndexAppenderTest {
 
         int found = 0;
         int expectedVersion = Range.START_VERSION;
-        try(LogIterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD)) {
-            while(iterator.hasNext()) {
+        try (LogIterator<IndexEntry> iterator = appender.indexIterator(Direction.FORWARD)) {
+            while (iterator.hasNext()) {
                 IndexEntry next = iterator.next();
                 assertEquals(expectedVersion, next.version);
                 found++;
@@ -140,7 +140,7 @@ public class IndexAppenderTest {
         start = System.currentTimeMillis();
         int count = 0;
         IndexEntry last = null;
-        Iterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD);
+        Iterator<IndexEntry> iterator = appender.indexIterator(Direction.FORWARD);
         while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             last = next;
@@ -162,7 +162,7 @@ public class IndexAppenderTest {
         int itemsPerSegment = streams / numSegments;
         for (int i = 0; i < streams; i++) {
             appender.append(IndexEntry.of(i, 1, 0));
-            if(i % itemsPerSegment == 0) {
+            if (i % itemsPerSegment == 0) {
                 appender.roll();
             }
         }
@@ -172,7 +172,7 @@ public class IndexAppenderTest {
         for (int i = 0; i < streams; i++) {
 
             int version = appender.version(i);
-            if(i % 100000 == 0) {
+            if (i % 100000 == 0) {
                 System.out.println((System.currentTimeMillis() - start));
                 start = System.currentTimeMillis();
             }

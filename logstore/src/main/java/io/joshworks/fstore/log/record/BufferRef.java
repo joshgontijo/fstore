@@ -73,7 +73,6 @@ public class BufferRef implements Supplier<ByteBuffer>, AutoCloseable {
         return i < markers.length;
     }
 
-    //TODO list can be avoided
     public List<Integer> lengths() {
         List<Integer> len = new ArrayList<>();
         for (int j = 0; j < entries; j++) {

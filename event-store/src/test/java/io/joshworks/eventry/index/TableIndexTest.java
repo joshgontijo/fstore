@@ -55,7 +55,7 @@ public class TableIndexTest {
         tableIndex.flush();
         tableIndex.add(stream, 3, 0); //memory
 
-        Iterator<IndexEntry> it = tableIndex.iterator(Direction.FORWARD);
+        Iterator<IndexEntry> it = tableIndex.indexIterator(Direction.FORWARD);
 
         assertEquals(0, it.next().version);
         assertEquals(1, it.next().version);
@@ -139,7 +139,7 @@ public class TableIndexTest {
 
         tableIndex.add(stream, 2, 0);
 
-        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD);
+        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD);
 
         assertEquals(2, dataStream.count());
     }
@@ -152,7 +152,7 @@ public class TableIndexTest {
         tableIndex.flush();
         tableIndex.add(stream, 1, 0);
 
-        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD, Range.allOf(stream));
+        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD, Range.allOf(stream));
 
         assertEquals(2, dataStream.count());
     }
@@ -168,7 +168,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD);
+        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD);
 
         assertEquals(size, dataStream.count());
     }
@@ -184,7 +184,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        Iterator<IndexEntry> it = tableIndex.iterator(Direction.FORWARD);
+        Iterator<IndexEntry> it = tableIndex.indexIterator(Direction.FORWARD);
 
         int expectedVersion = 0;
         while (it.hasNext()) {
@@ -205,7 +205,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        Iterator<IndexEntry> it = tableIndex.iterator(Direction.FORWARD, Range.allOf(stream));
+        Iterator<IndexEntry> it = tableIndex.indexIterator(Direction.FORWARD, Range.allOf(stream));
 
         int expectedVersion = 0;
         while (it.hasNext()) {
@@ -226,7 +226,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD, Range.allOf(stream));
+        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD, Range.allOf(stream));
         assertEquals(size, dataStream.count());
     }
 
@@ -246,11 +246,11 @@ public class TableIndexTest {
 
         tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD, USE_COMPRESSION);
 
-        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD, Range.of(stream, 1, 11));
+        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD, Range.of(stream, 1, 11));
 
         assertEquals(10, dataStream.count());
 
-        Iterator<IndexEntry> it = tableIndex.stream(Direction.FORWARD, Range.of(stream, 1, 11)).iterator();
+        Iterator<IndexEntry> it = tableIndex.indexStream(Direction.FORWARD, Range.of(stream, 1, 11)).iterator();
 
         assertEquals(1, it.next().version);
         assertEquals(2, it.next().version);

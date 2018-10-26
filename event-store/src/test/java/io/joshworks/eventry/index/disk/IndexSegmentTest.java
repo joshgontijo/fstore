@@ -4,7 +4,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.Mode;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
@@ -51,7 +51,7 @@ public class IndexSegmentTest {
 
     private IndexSegment create(File location) {
         return new IndexSegment(
-                StorageProvider.of(Mode.RAF).create(location, Size.MB.of(100)),
+                StorageProvider.of(StorageMode.RAF).create(location, Size.MB.of(100)),
                 new DataStream(new SingleBufferThreadCachedPool(false)),
                 "magic",
                 Type.LOG_HEAD,
@@ -62,7 +62,7 @@ public class IndexSegmentTest {
 
     private IndexSegment open(File location) {
         return new IndexSegment(
-                StorageProvider.of(Mode.RAF).open(location),
+                StorageProvider.of(StorageMode.RAF).open(location),
                 new DataStream(new SingleBufferThreadCachedPool(false)),
                 "magic",
                 Type.LOG_HEAD,
@@ -78,7 +78,7 @@ public class IndexSegmentTest {
         IndexSegment diskIndex = indexWithStreamRanging(0, 1000000);
 
         //when
-        long size = diskIndex.stream(Direction.FORWARD, Range.allOf(0)).count();
+        long size = diskIndex.indexStream(Direction.FORWARD, Range.allOf(0)).count();
 
         //then
         assertEquals(1L, size);
@@ -207,7 +207,7 @@ public class IndexSegmentTest {
             assertTrue(found.isPresent());
             assertEquals(e1, found.get());
 
-            Stream<IndexEntry> stream = opened.stream(Direction.FORWARD, Range.allOf(1L));
+            Stream<IndexEntry> stream = opened.indexStream(Direction.FORWARD, Range.allOf(1L));
             assertEquals(4, stream.count());
         }
     }
@@ -218,7 +218,7 @@ public class IndexSegmentTest {
         IndexSegment diskIndex = indexWithStreamRanging(-5, 0);
 
         //when
-        long size = diskIndex.stream(Direction.FORWARD, Range.allOf(-5)).count();
+        long size = diskIndex.indexStream(Direction.FORWARD, Range.allOf(-5)).count();
 
         //then
         assertEquals(1, size);
@@ -234,7 +234,7 @@ public class IndexSegmentTest {
         IndexSegment diskIndex = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
 
         //when
-        long size = diskIndex.stream(Direction.FORWARD, Range.allOf(stream)).count();
+        long size = diskIndex.indexStream(Direction.FORWARD, Range.allOf(stream)).count();
 
         //then
         assertEquals(10, size);
@@ -264,7 +264,7 @@ public class IndexSegmentTest {
 
         //when
         for (int i = startStream; i < endStream; i++) {
-            long size = diskIndex.stream(Direction.FORWARD, Range.allOf(i)).count();
+            long size = diskIndex.indexStream(Direction.FORWARD, Range.allOf(i)).count();
 
             //then
             assertEquals("Failed on position " + i, 1, size);
@@ -281,7 +281,7 @@ public class IndexSegmentTest {
 
         //when
         for (int i = startStream; i < endStream; i++) {
-            long count = diskIndex.stream(Direction.FORWARD, Range.allOf(i)).count();
+            long count = diskIndex.indexStream(Direction.FORWARD, Range.allOf(i)).count();
 
             //then
             assertEquals("Failed on position " + i, endVersion + 1, count);
@@ -330,7 +330,7 @@ public class IndexSegmentTest {
 
         for (int i = 0; i < endVersion; i++) {
             //when
-            Iterator<IndexEntry> iterator = diskIndex.iterator(Direction.FORWARD, Range.allOf(stream));
+            Iterator<IndexEntry> iterator = diskIndex.indexIterator(Direction.FORWARD, Range.allOf(stream));
 
             //then
             assertIteratorHasAllEntries(stream, endVersion, iterator);
@@ -345,7 +345,7 @@ public class IndexSegmentTest {
 
         for (int stream = 1; stream < numStreams; stream++) {
             //when
-            Iterator<IndexEntry> iterator = diskIndex.iterator(Direction.FORWARD, Range.allOf(stream));
+            Iterator<IndexEntry> iterator = diskIndex.indexIterator(Direction.FORWARD, Range.allOf(stream));
 
             //then
             assertTrue(iterator.hasNext());
@@ -366,7 +366,7 @@ public class IndexSegmentTest {
         IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(numStreams, endVersion);
 
         for (int stream = 0; stream < numStreams; stream++) {
-            Iterator<IndexEntry> iterator = diskIndex.iterator(Direction.FORWARD, Range.allOf(stream));
+            Iterator<IndexEntry> iterator = diskIndex.indexIterator(Direction.FORWARD, Range.allOf(stream));
             assertIteratorHasAllEntries(stream, endVersion, iterator);
         }
     }
@@ -409,7 +409,7 @@ public class IndexSegmentTest {
 
         //when
         Range range = Range.of(streamQuery, 1);
-        Stream<IndexEntry> items = segment.stream(Direction.FORWARD, range);
+        Stream<IndexEntry> items = segment.indexStream(Direction.FORWARD, range);
 
         //then
         assertEquals(0, items.count());
@@ -429,7 +429,7 @@ public class IndexSegmentTest {
 
         Range range = Range.of(stream, 1);
 
-        assertEquals(4, segment.stream(Direction.FORWARD, range).count());
+        assertEquals(4, segment.indexStream(Direction.FORWARD, range).count());
 
         LogIterator<IndexEntry> iterator = segment.iterator(Direction.FORWARD);
 
@@ -457,7 +457,7 @@ public class IndexSegmentTest {
 
         Range range = Range.of(streamQuery, 1);
 
-        assertEquals(0, segment.stream(Direction.FORWARD, range).count());
+        assertEquals(0, segment.indexStream(Direction.FORWARD, range).count());
     }
 
     @Test
@@ -474,7 +474,7 @@ public class IndexSegmentTest {
 
         Range range = Range.of(stream, 1, 3);
 
-        Iterator<IndexEntry> it = segment.iterator(Direction.FORWARD, range);
+        Iterator<IndexEntry> it = segment.indexIterator(Direction.FORWARD, range);
 
         assertTrue(it.hasNext());
         IndexEntry next = it.next();

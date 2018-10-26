@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log.appender.it;
 
-import io.joshworks.fstore.core.io.Mode;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.serializer.Serializers;
@@ -15,7 +15,7 @@ public class MMapLogAppenderIT extends LogAppenderIT {
                 .segmentSize((int) Size.MB.of(500))
                 .threadPerLevelCompaction()
                 .disableCompaction()
-                .storageMode(Mode.MMAP)
+                .storageMode(StorageMode.MMAP)
                 .open();
     }
 }

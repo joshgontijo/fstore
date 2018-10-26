@@ -1,12 +1,11 @@
 package io.joshworks.fstore.log.appender.compaction.combiner;
 
 import io.joshworks.fstore.log.Iterators;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Log;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.TreeSet;
 
 /**
  * For <b>UNIQUE</b> and <b>SORTED</b> segments only
@@ -15,13 +14,11 @@ import java.util.TreeSet;
  */
 public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<T> {
 
-    //FIXME TEST IT
     @Override
     public void mergeItems(List<Iterators.PeekingIterator<T>> items, Log<T> output) {
 
-        TreeSet<T> set = new TreeSet<>();
-
         while (!items.isEmpty()) {
+            List<Iterators.PeekingIterator<T>> segmentIterators = new ArrayList<>();
             //reversed guarantees that the most recent data is kept when duplicate keys are found
             Iterator<Iterators.PeekingIterator<T>> itit = Iterators.reversed(items);
             while (itit.hasNext()) {
@@ -30,17 +27,39 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
                     itit.remove();
                     continue;
                 }
-                T next = seg.next();
-                set.add(next);
+                segmentIterators.add(seg);
             }
 
-            T t = set.pollFirst();
-            output.append(t);
+            T nextEntry = getNextEntry(segmentIterators);
+            if (nextEntry != null) {
+                output.append(nextEntry);
+            }
         }
-        while (!set.isEmpty()) {
-            T t = set.pollFirst();
-            output.append(t);
+    }
+
+    private T getNextEntry(List<Iterators.PeekingIterator<T>> segmentIterators) {
+        if (!segmentIterators.isEmpty()) {
+            Iterators.PeekingIterator<T> prev = null;
+            for (Iterators.PeekingIterator<T> curr : segmentIterators) {
+                if (prev == null) {
+                    prev = curr;
+                    continue;
+                }
+                T prevItem = prev.peek();
+                T currItem = curr.peek();
+                int c = prevItem.compareTo(currItem);
+                if (c == 0) { //duplicate remove form oldest entry
+                    prev.next();
+                }
+                if (c >= 0) {
+                    prev = curr;
+                }
+            }
+            if (prev != null) {
+                return prev.next();
+            }
         }
+        return null;
     }
 
     /**

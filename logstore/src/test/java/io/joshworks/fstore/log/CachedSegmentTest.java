@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.core.io.Mode;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
@@ -17,7 +17,7 @@ public class CachedSegmentTest extends SegmentTest {
     @Override
     Log<String> open(File file) {
         return new Segment<>(
-                StorageProvider.of(Mode.RAF_CACHED).create(file, Size.MB.of(10)),
+                StorageProvider.of(StorageMode.RAF_CACHED).create(file, Size.MB.of(10)),
                 Serializers.STRING,
                 new DataStream(new SingleBufferThreadCachedPool(false)),
                 "magic",

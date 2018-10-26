@@ -371,7 +371,7 @@ public class DataStream implements IDataStream {
 
     private void checkRecordLength(int length, long position) {
         if (length < 0 || length > MAX_ENTRY_SIZE) {
-            throw new IllegalStateException("Invalid length " + length + " at position " + position);
+            throw new IllegalStateException("Invalid record length " + length + " at position " + position);
         }
     }
 

@@ -74,7 +74,7 @@ public class TableIndex implements Index {
         }
 
         long start = System.currentTimeMillis();
-        memIndex.stream(Direction.FORWARD).forEach(diskIndex::append);
+        memIndex.indexStream(Direction.FORWARD).forEach(diskIndex::append);
         diskIndex.roll();
         long timeTaken = System.currentTimeMillis() - start;
         logger.info("Flush completed in {}ms", timeTaken);
@@ -108,29 +108,29 @@ public class TableIndex implements Index {
     }
 
     @Override
-    public LogIterator<IndexEntry> iterator(Direction direction) {
-        LogIterator<IndexEntry> cacheIterator = memIndex.iterator(direction);
-        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(direction);
+    public LogIterator<IndexEntry> indexIterator(Direction direction) {
+        LogIterator<IndexEntry> cacheIterator = memIndex.indexIterator(direction);
+        LogIterator<IndexEntry> diskIterator = diskIndex.indexIterator(direction);
 
         return joiningDiskAndMem(diskIterator, cacheIterator);
     }
 
     @Override
-    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
-        LogIterator<IndexEntry> cacheIterator = memIndex.iterator(direction, range);
-        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(direction, range);
+    public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
+        LogIterator<IndexEntry> cacheIterator = memIndex.indexIterator(direction, range);
+        LogIterator<IndexEntry> diskIterator = diskIndex.indexIterator(direction, range);
 
         return joiningDiskAndMem(diskIterator, cacheIterator);
     }
 
     @Override
-    public Stream<IndexEntry> stream(Direction direction) {
-        return Iterators.closeableStream(iterator(direction));
+    public Stream<IndexEntry> indexStream(Direction direction) {
+        return Iterators.closeableStream(indexIterator(direction));
     }
 
     @Override
-    public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.closeableStream(iterator(direction, range));
+    public Stream<IndexEntry> indexStream(Direction direction, Range range) {
+        return Iterators.closeableStream(indexIterator(direction, range));
     }
 
     @Override

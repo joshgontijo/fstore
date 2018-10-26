@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Mode;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
@@ -33,7 +33,7 @@ public class Config<T> {
     String name = DEFAULT_APPENDER_NAME;
     long segmentSize = DEFAULT_SEGMENT_SIZE;
     double checksumProbability = DEFAULT_CHECKSUM_PROB;
-    Mode mode = Mode.RAF;
+    StorageMode mode = StorageMode.RAF;
     boolean asyncFlush;
     int compactionThreshold = COMPACTION_THRESHOLD;
     boolean flushAfterWrite;
@@ -51,7 +51,7 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> storageMode(Mode mode) {
+    public Config<T> storageMode(StorageMode mode) {
         this.mode = requireNonNull(mode);
         return this;
     }

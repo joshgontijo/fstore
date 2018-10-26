@@ -109,5 +109,16 @@ public class LogHeader {
         }
     }
 
-
+    @Override
+    public String toString() {
+        return "LogHeader{" + "magic='" + magic + '\'' +
+                ", created=" + created +
+                ", type=" + type +
+                ", fileSize=" + fileSize +
+                ", level=" + level +
+                ", entries=" + entries +
+                ", logicalSize=" + logicalSize +
+                ", rolled=" + rolled +
+                '}';
+    }
 }

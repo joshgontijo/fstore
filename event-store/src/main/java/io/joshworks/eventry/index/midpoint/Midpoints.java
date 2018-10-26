@@ -4,7 +4,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.utils.Memory;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Mode;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 
@@ -56,7 +56,7 @@ public class Midpoints {
         int totalRecordSize = Integer.BYTES;
         long size = Math.max((long) Midpoint.BYTES * midpoints.size(), handler.length()) + totalRecordSize;
 
-        try (Storage storage = StorageProvider.of(Mode.RAF).create(handler, size)) {
+        try (Storage storage = StorageProvider.of(StorageMode.RAF).create(handler, size)) {
             var sizeMarker = ByteBuffer.allocate(Integer.BYTES);
             sizeMarker.putInt(midpoints.size()).flip();
             storage.write(sizeMarker);
@@ -75,7 +75,7 @@ public class Midpoints {
         if (!handler.exists()) {
             return new ArrayList<>();
         }
-        try (Storage storage = StorageProvider.of(Mode.RAF).open(handler)) {
+        try (Storage storage = StorageProvider.of(StorageMode.RAF).open(handler)) {
             long pos = 0;
             var data = ByteBuffer.allocate((Memory.PAGE_SIZE / Midpoint.BYTES) * Midpoint.BYTES);
 

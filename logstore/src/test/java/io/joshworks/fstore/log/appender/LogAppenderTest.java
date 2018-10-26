@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.Mode;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Size;
@@ -10,7 +10,6 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -264,7 +263,7 @@ public abstract class LogAppenderTest {
 
         //write broken data
         File file = new File(testDirectory, segmentName);
-        try (Storage storage = StorageProvider.of(Mode.RAF).open(file)) {
+        try (Storage storage = StorageProvider.of(StorageMode.RAF).open(file)) {
             storage.position(Log.START);
             ByteBuffer broken = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD + 4);
             broken.putInt(444); //expected length
