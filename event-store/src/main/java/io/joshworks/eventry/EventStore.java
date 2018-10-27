@@ -27,7 +27,6 @@ import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.utils.Tuple;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -39,7 +38,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -61,7 +59,7 @@ public class EventStore implements IEventStore {
 
     private final TableIndex index;
     private final Streams streams;
-    private final IEventLog eventLog;
+    public final IEventLog eventLog;
     private final Projections projections;
 
     private EventStore(File rootDir) {
@@ -73,8 +71,8 @@ public class EventStore implements IEventStore {
                 .name("event-log")
                 .asyncFlush()
                 .bufferPool(new SingleBufferThreadCachedPool(false))
-                .checksumProbability(0)
-                .storageMode(StorageMode.MMAP)
+//                .checksumProbability(1)
+//                .storageMode(StorageMode.MMAP)
                 .disableCompaction()
                 .compactionStrategy(new RecordCleanup(streams)));
 
@@ -91,7 +89,7 @@ public class EventStore implements IEventStore {
         }
     }
 
-    public static IEventStore open(File rootDir) {
+    public static EventStore open(File rootDir) {
         return new EventStore(rootDir);
     }
 
@@ -100,23 +98,31 @@ public class EventStore implements IEventStore {
         logger.info("Loading index");
         long start = System.currentTimeMillis();
         int loaded = 0;
-        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
+        long p = 0;
+
+//        EventRecord record = eventLog.get(281474976752294L);
+
+        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.FORWARD)) {
 
             while (iterator.hasNext()) {
+                p = iterator.position();
+//                if(p == 281474976752294L) {
+//                    System.out.println("aaaaa");
+//                }
                 EventRecord next = iterator.next();
-                if (IndexFlushed.TYPE.equals(next.type)) {
-                    break;
-                }
+//                if (IndexFlushed.TYPE.equals(next.type)) {
+//                    break;
+//                }
                 long position = iterator.position();
-                long streamHash = streams.hashOf(next.stream);
-                index.add(streamHash, next.version, position);
+//                long streamHash = streams.hashOf(next.stream);
+//                index.add(streamHash, next.version, position);
                 if (++loaded % 50000 == 0) {
                     logger.info("Loaded {} index entries", loaded);
                 }
             }
 
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to load memIndex", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load memIndex on position " + p, e);
         }
 
         logger.info("Loaded {} index entries in {}ms", loaded, (System.currentTimeMillis() - start));
@@ -444,7 +450,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventRecord append(EventRecord event, int expectedVersion) {
+    public synchronized EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
 
         StreamMetadata metadata = getOrCreateStream(event.stream);
@@ -456,7 +462,7 @@ public class EventStore implements IEventStore {
         return append(metadata, event, IndexEntry.NO_VERSION);
     }
 
-    private EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
+    private synchronized EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
         if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
         }
