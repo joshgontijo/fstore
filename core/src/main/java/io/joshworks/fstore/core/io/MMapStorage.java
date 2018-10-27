@@ -9,13 +9,17 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MMapStorage extends RafStorage {
 
     private final int bufferSize;
-    MappedByteBuffer[] buffers;
-
+    private MappedByteBuffer[] buffers;
     private final boolean isWindows;
+    private final AtomicBoolean closed = new AtomicBoolean();
+
+    private final Object LOCK = new Object();
+
 
     public MMapStorage(File file, RandomAccessFile raf) {
         super(file, raf);
@@ -31,7 +35,7 @@ public class MMapStorage extends RafStorage {
     }
 
     private static int getBufferSize(long fileLength) {
-        if(fileLength <= Integer.MAX_VALUE) {
+        if (fileLength <= Integer.MAX_VALUE) {
             return (int) fileLength;
         }
         return Integer.MAX_VALUE;
@@ -44,7 +48,7 @@ public class MMapStorage extends RafStorage {
     }
 
     protected int writeDirect(ByteBuffer src) {
-       return super.write(src);
+        return super.write(src);
     }
 
     @Override
@@ -111,15 +115,28 @@ public class MMapStorage extends RafStorage {
     private MappedByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
         if (idx >= buffers.length) {
             if (expandBuffers) {
-                growBuffersToAccommodateIdx(idx);
+                synchronized (LOCK) {
+                    if (idx >= buffers.length && !closed.get()) {
+                        growBuffersToAccommodateIdx(idx);
+                    }
+                }
+
             } else {
                 throw new IllegalStateException("Invalid buffer index " + idx + " buffers length: " + buffers.length);
             }
         }
         MappedByteBuffer current = buffers[idx];
         if (current == null) {
-            buffers[idx] = map(idx);
-            current = buffers[idx];
+            synchronized (LOCK) {
+                if (buffers[idx] == null && !closed.get()) {
+                    buffers[idx] = map(idx);
+                    current = buffers[idx];
+                }
+            }
+
+        }
+        if (current == null) {
+            throw new StorageException("Could not acquire buffer page");
         }
         return current;
     }
@@ -149,34 +166,37 @@ public class MMapStorage extends RafStorage {
 
     private MappedByteBuffer map(int idx) {
         long from = ((long) idx) * bufferSize;
-        return map(from, bufferSize);
-    }
-
-    private MappedByteBuffer map(long from, long size) {
         try {
-            return raf.getChannel().map(FileChannel.MapMode.READ_WRITE, from, size);
+            return raf.getChannel().map(FileChannel.MapMode.READ_WRITE, from, bufferSize);
         } catch (Exception e) {
             close();
             throw new StorageException(e);
         }
     }
 
+
     @Override
     public void delete() {
-        unmapAll();
-        super.delete();
+        synchronized (LOCK) {
+            closed.set(true);
+            unmapAll();
+            super.delete();
+        }
     }
 
     @Override
     public void close() {
-        unmapAll();
-        super.close();
+        synchronized (LOCK) {
+            closed.set(true);
+            unmapAll();
+            super.close();
+        }
     }
 
     private void unmapAll() {
         for (int i = 0; i < buffers.length; i++) {
             MappedByteBuffer buffer = buffers[i];
-            if(buffer != null) {
+            if (buffer != null) {
                 buffer.force();
                 unmap(buffer);
                 buffers[i] = null;
@@ -196,7 +216,7 @@ public class MMapStorage extends RafStorage {
     @Override
     public void flush() {
         int idx = bufferIdx(this.position);
-        if(idx >= buffers.length) {
+        if (idx >= buffers.length) {
             return;
         }
         MappedByteBuffer buffer = buffers[idx];

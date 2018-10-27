@@ -83,8 +83,23 @@ public class LogHeader {
                 logicalSize);
         write(storage, newHeader);
         return newHeader;
-
     }
+
+    public static LogHeader writeDeleted(Storage storage, LogHeader initialHeader) {
+        LogHeader newHeader = new LogHeader(
+                initialHeader.magic,
+                -1,
+                initialHeader.created,
+                -1,
+                Type.READ_ONLY,
+                System.currentTimeMillis(),
+                initialHeader.fileSize,
+                -1);
+
+        write(storage, newHeader);
+        return newHeader;
+    }
+
 
     private static LogHeader write(Storage storage, LogHeader header) {
         try {

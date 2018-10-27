@@ -258,7 +258,7 @@ public abstract class LogAppenderTest {
             testAppender.append("3");
 
             //get last segment (in this case there will be always one)
-            segmentName = testAppender.segmentsNames().get(testAppender.segmentsNames().size() - 1);
+            segmentName = testAppender.currentSegment();
         }
 
         //write broken data

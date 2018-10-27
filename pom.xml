@@ -20,6 +20,7 @@
         <module>lsmtree</module>
         <module>test-utils</module>
         <module>event-store-it</module>
+        <module>logstore-it</module>
     </modules>
 
     <properties>

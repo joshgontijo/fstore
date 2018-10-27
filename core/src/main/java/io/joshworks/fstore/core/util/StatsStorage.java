@@ -1,7 +1,6 @@
 package io.joshworks.fstore.core.util;
 
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.metric.Average;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -14,8 +13,6 @@ public class StatsStorage implements Storage {
     private long lastReadTime;
     private long lastWriteTime;
     private long biggestEntry;
-    private Average averageReadTime = new Average();
-    private Average averageWriteTime = new Average();
 
     private final Storage delegate;
 
@@ -42,7 +39,6 @@ public class StatsStorage implements Storage {
         int write = delegate.write(data);
         long timeTaken = System.currentTimeMillis() - start;
         lastWriteTime = timeTaken;
-        averageWriteTime.add(timeTaken);
         return write;
     }
 
@@ -53,7 +49,6 @@ public class StatsStorage implements Storage {
         int read = delegate.read(position, data);
         long timeTaken = System.currentTimeMillis() - start;
         lastReadTime = timeTaken;
-        averageReadTime.add(timeTaken);
         return read;
     }
 
