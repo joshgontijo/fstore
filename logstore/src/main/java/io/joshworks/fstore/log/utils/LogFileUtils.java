@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log;
+package io.joshworks.fstore.log.utils;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;

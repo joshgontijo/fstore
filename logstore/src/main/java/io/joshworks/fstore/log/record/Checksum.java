@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log;
+package io.joshworks.fstore.log.record;
 
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32;

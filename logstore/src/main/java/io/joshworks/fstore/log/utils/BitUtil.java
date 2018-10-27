@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log;
+package io.joshworks.fstore.log.utils;
 
 import java.math.BigInteger;
 import java.util.BitSet;

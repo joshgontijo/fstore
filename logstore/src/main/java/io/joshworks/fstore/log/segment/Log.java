@@ -3,14 +3,12 @@ package io.joshworks.fstore.log.segment;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.Writer;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.Closeable;
-import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.stream.Stream;
 
