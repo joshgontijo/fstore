@@ -390,7 +390,7 @@ public class Segment<T> implements Log<T> {
 
         private final IDataStream dataStream;
         private final Serializer<T> serializer;
-        private final long longEnd;
+        private final long logEnd;
         private final Direction direction;
         private final Queue<T> pageQueue = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
         private final Queue<Integer> entriesSizes = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
@@ -398,9 +398,9 @@ public class Segment<T> implements Log<T> {
         protected long position;
         private long readAheadPosition;
 
-        SegmentReader(IDataStream dataStream, Serializer<T> serializer, long initialPosition, long longEnd, Direction direction) {
+        SegmentReader(IDataStream dataStream, Serializer<T> serializer, long initialPosition, long logEnd, Direction direction) {
             this.dataStream = dataStream;
-            this.longEnd = longEnd;
+            this.logEnd = logEnd;
             this.direction = direction;
             this.serializer = serializer;
             this.position = initialPosition;
@@ -434,7 +434,6 @@ public class Segment<T> implements Log<T> {
                 if (pageQueue.isEmpty()) {
                     close();
                 }
-
             }
 
             position = Direction.FORWARD.equals(direction) ? position + recordSize : position - recordSize;
@@ -445,10 +444,10 @@ public class Segment<T> implements Log<T> {
             if (Segment.this.closed.get()) {
                 throw new RuntimeException("Closed segment");
             }
-            if (Direction.FORWARD.equals(direction) && readAheadPosition >= longEnd) {
+            if (Direction.FORWARD.equals(direction) && readAheadPosition >= logEnd) {
                 return;
             }
-            if (Direction.BACKWARD.equals(direction) && readAheadPosition <= longEnd) {
+            if (Direction.BACKWARD.equals(direction) && readAheadPosition <= logEnd) {
                 return;
             }
             int totalRead = 0;

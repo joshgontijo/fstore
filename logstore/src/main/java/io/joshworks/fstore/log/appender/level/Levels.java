@@ -52,6 +52,10 @@ public class Levels<T> {
     }
 
     public Log<T> get(int segmentIdx) {
+        int size = segments.size();
+        if (segmentIdx < 0 || segmentIdx >= size) {
+            throw new IllegalArgumentException("Invalid segment idx: " + segmentIdx + ", size: " + size);
+        }
         return segments.get(segmentIdx);
     }
 

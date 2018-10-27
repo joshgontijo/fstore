@@ -7,7 +7,6 @@ import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -37,7 +36,7 @@ public class IndexAppender implements Index {
                 .compactionThreshold(3)
                 .segmentSize(logSize)
                 .name("index-appender")
-                .storageMode(StorageMode.MMAP)
+//                .storageMode(StorageMode.MMAP)
                 .disableCompaction()
                 .namingStrategy(new IndexNaming())
                 .open(new IndexSegmentFactory(indexDirectory, numElements, codec));

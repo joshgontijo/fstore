@@ -13,8 +13,8 @@ import java.io.IOException;
 public class LogDump {
 
     public static void main(String[] args) {
-        IEventStore store = EventStore.open(new File("J:\\event-store\\6e92e040"));
-        dumpLog(new File("J:\\event-store\\log-dump.log"), store);
+        IEventStore store = EventStore.open(new File("J:\\event-store-github"));
+        dumpLog(new File("J:\\event-store-github\\log-dump.log"), store);
 //        dumpIndex(new File("J:\\event-store\\idx-dump.log"), store);
     }
 
