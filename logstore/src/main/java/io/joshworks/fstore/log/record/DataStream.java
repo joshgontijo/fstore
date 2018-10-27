@@ -110,9 +110,6 @@ public class DataStream implements IDataStream {
 
         @Override
         public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-            if(position == 41638) {
-                System.out.println();
-            }
             ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
             try {
                 storage.read(position, buffer);

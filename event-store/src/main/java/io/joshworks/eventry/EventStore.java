@@ -100,22 +100,16 @@ public class EventStore implements IEventStore {
         int loaded = 0;
         long p = 0;
 
-//        EventRecord record = eventLog.get(281474976752294L);
-
-        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.FORWARD)) {
+        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
 
             while (iterator.hasNext()) {
-                p = iterator.position();
-//                if(p == 281474976752294L) {
-//                    System.out.println("aaaaa");
-//                }
                 EventRecord next = iterator.next();
-//                if (IndexFlushed.TYPE.equals(next.type)) {
-//                    break;
-//                }
+                if (IndexFlushed.TYPE.equals(next.type)) {
+                    break;
+                }
                 long position = iterator.position();
-//                long streamHash = streams.hashOf(next.stream);
-//                index.add(streamHash, next.version, position);
+                long streamHash = streams.hashOf(next.stream);
+                index.add(streamHash, next.version, position);
                 if (++loaded % 50000 == 0) {
                     logger.info("Loaded {} index entries", loaded);
                 }
