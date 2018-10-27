@@ -1,18 +1,17 @@
 package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.record.IDataStream;
+import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.seda.EventContext;
 import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.log.LogFileUtils;
-import io.joshworks.fstore.log.TimeoutReader;
-import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
 
@@ -21,7 +20,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 public class Compactor<T> {
 
@@ -95,7 +93,7 @@ public class Compactor<T> {
         sedaContext.submit(COMPACTION_MANAGER, new CompactionRequest(level, false));
     }
 
-    private void compact(EventContext<CompactionRequest> event) {
+    private synchronized void compact(EventContext<CompactionRequest> event) {
         int level = event.data.level;
         boolean force = event.data.force;
 
@@ -108,7 +106,7 @@ public class Compactor<T> {
                 logger.warn("Level {} is empty, nothing to compact", level);
                 return;
             }
-            if(segmentsForCompaction.size() < compactionThreshold) {
+            if (segmentsForCompaction.size() < compactionThreshold) {
                 logger.warn("Number of segments below threshold on level {}", level);
                 return;
             }
@@ -130,7 +128,7 @@ public class Compactor<T> {
         return threadPerLevel ? "compaction-level-" + level : "compaction";
     }
 
-    private void cleanup(EventContext<CompactionResult<T>> context) {
+    private synchronized void cleanup(EventContext<CompactionResult<T>> context) {
         CompactionResult<T> result = context.data;
         Log<T> target = result.target;
         int level = result.level;
@@ -170,7 +168,7 @@ public class Compactor<T> {
         return levelSize - compactingForLevel >= compactionThreshold;
     }
 
-    private List<Log<T>> segmentsForCompaction(int level) {
+    private synchronized List<Log<T>> segmentsForCompaction(int level) {
         List<Log<T>> toBeCompacted = new ArrayList<>();
         if (level <= 0) {
             throw new IllegalArgumentException("Level must be greater than zero");
@@ -188,43 +186,13 @@ public class Compactor<T> {
 
     //delete all source segments only if all of them are not being used
     private void deleteAll(List<Log<T>> segments) {
-        int pendingReaders = 0;
-        do {
-            if (pendingReaders > 0) {
-                logger.info("Awaiting {} readers to be released", pendingReaders);
-                sleep(10000);
-            }
-            pendingReaders = 0;
-            for (Log<T> segment : segments) {
-                Set<TimeoutReader> readers = segment.readers();
-                if (!readers.isEmpty()) {
-                    logger.info("Pending segment: {}", segment);
-                }
-                for (TimeoutReader logReader : readers) {
-                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.HOURS.toMillis(1)) {
-                        logger.warn("Removing reader after 10 minutes of inactivity");
-                        readers.remove(logReader);
-                    } else {
-                        pendingReaders += readers.size();
-
-                    }
-                }
-
-            }
-        } while (pendingReaders > 0);
-
         for (Log<T> segment : segments) {
-            logger.info("Deleting {}", segment.name());
-            segment.delete();
-            logger.info("Deleted {}", segment.name());
-        }
-    }
-
-    private static void sleep(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            String segmentName = segment.name();
+            try {
+                segment.delete();
+            } catch (Exception e) {
+                logger.error("Failed to delete " + segmentName, e);
+            }
         }
     }
 

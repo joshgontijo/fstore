@@ -2,7 +2,7 @@ package io.joshworks.eventry.stream.disk;
 
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.StreamMetadataSerializer;
-import io.joshworks.fstore.lsm.LsmTree;
+import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;

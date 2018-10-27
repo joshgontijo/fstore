@@ -10,13 +10,14 @@ import io.joshworks.fstore.log.segment.Log;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
 
 //THREAD SAFE
 public class DataStream implements IDataStream {
 
-    private static final double DEFAULT_CHECKUM_PROB = 1;
-    private static final int MAX_CACHE_RESULT = 100;
+    private static final double DEFAULT_CHECKSUM_PROB = 1;
+    public static final int MAX_BULK_READ_RESULT = 100;
 
     private static final int READ_BUFFER_SIZE = Memory.PAGE_SIZE;
     private static final int BULK_READ_BUFFER_SIZE = Memory.PAGE_SIZE * 2;
@@ -25,15 +26,17 @@ public class DataStream implements IDataStream {
     public static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
 
     private final double checksumProb;
-    private final Random rand = new Random();
+    private final ThreadLocalRandom rand = ThreadLocalRandom.current();
     private final RecordReader forwardReader = new ForwardRecordReader();
     private final RecordReader bulkForwardReader = new BulkForwardRecordReader();
     private final RecordReader bulkBackwardReader = new BulkBackwardRecordReader();
     private final RecordReader backwardReader = new BackwardRecordReader();
     private final BufferPool bufferPool;
 
+    private final AtomicLong sampler = new AtomicLong();
+
     public DataStream(BufferPool bufferPool) {
-        this(bufferPool, DEFAULT_CHECKUM_PROB);
+        this(bufferPool, DEFAULT_CHECKSUM_PROB);
     }
 
     public DataStream(BufferPool bufferPool, double checksumProb) {
@@ -97,6 +100,9 @@ public class DataStream implements IDataStream {
     private void checksum(int expected, ByteBuffer data, long position) {
         if (checksumProb == 0) {
             return;
+        }
+        if(checksumProb == 1 && Checksum.crc32(data) != expected) {
+            throw new ChecksumException(position);
         }
         if (rand.nextInt(100) < checksumProb && Checksum.crc32(data) != expected) {
             throw new ChecksumException(position);
@@ -174,10 +180,10 @@ public class DataStream implements IDataStream {
                 }
 
                 buffer.position(buffer.position() - Integer.BYTES);
-                int[] markers = new int[MAX_CACHE_RESULT];
-                int[] lengths = new int[MAX_CACHE_RESULT];
+                int[] markers = new int[MAX_BULK_READ_RESULT];
+                int[] lengths = new int[MAX_BULK_READ_RESULT];
                 int i = 0;
-                while (buffer.hasRemaining() && buffer.remaining() > RecordHeader.MAIN_HEADER && i < MAX_CACHE_RESULT) {
+                while (buffer.hasRemaining() && buffer.remaining() > RecordHeader.MAIN_HEADER && i < MAX_BULK_READ_RESULT) {
                     int pos = buffer.position();
                     int len = buffer.getInt();
                     checkRecordLength(len, position);
@@ -252,11 +258,11 @@ public class DataStream implements IDataStream {
                     buffer.flip();
                 }
 
-                int[] markers = new int[MAX_CACHE_RESULT];
-                int[] lengths = new int[MAX_CACHE_RESULT];
+                int[] markers = new int[MAX_BULK_READ_RESULT];
+                int[] lengths = new int[MAX_BULK_READ_RESULT];
                 int i = 0;
                 int lastRecordPos = buffer.limit();
-                while (i < MAX_CACHE_RESULT) {
+                while (i < MAX_BULK_READ_RESULT) {
 
                     buffer.limit(buffer.capacity());
                     buffer.position(lastRecordPos);

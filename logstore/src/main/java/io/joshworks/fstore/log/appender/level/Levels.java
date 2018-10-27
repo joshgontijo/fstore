@@ -157,7 +157,7 @@ public class Levels<T> {
         return current;
     }
 
-    public LogIterator<Log<T>> segments(Direction direction) {
+    public synchronized LogIterator<Log<T>> segments(Direction direction) {
         ArrayList<Log<T>> copy = new ArrayList<>(segments);
         return Direction.FORWARD.equals(direction) ? Iterators.of(copy) : Iterators.reversed(copy);
     }

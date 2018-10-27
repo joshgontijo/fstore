@@ -230,6 +230,7 @@ public class LevelsTest {
 
         Levels<String> levels = Levels.create(List.of(seg1));
 
+        seg1.roll(1);
         levels.appendSegment(seg2);
 
         assertEquals(seg1, levels.get(0));
@@ -240,6 +241,7 @@ public class LevelsTest {
         assertEquals(0, ((DummySegment) levels.get(1)).level);
 
 
+        levels.current().roll(1);
         levels.appendSegment(seg3);
 
         assertEquals(seg1, levels.get(0));
@@ -265,8 +267,13 @@ public class LevelsTest {
 
         Levels<String> levels = Levels.create(List.of(seg1));
 
+        seg1.roll(1);
         levels.appendSegment(seg2);
+
+        seg2.roll(1);
         levels.appendSegment(seg3);
+
+        seg3.roll(1);
         levels.appendSegment(seg4);
 
         levels.merge(List.of(seg1, seg2, seg3), seg5);

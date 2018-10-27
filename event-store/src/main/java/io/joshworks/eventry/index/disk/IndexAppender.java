@@ -6,8 +6,8 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -15,7 +15,6 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.record.IDataStream;
-import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
 
@@ -50,15 +49,15 @@ public class IndexAppender implements Index {
         return appender.iterator(direction);
     }
 
-    //FIXME not releasing readers ??
     @Override
     public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
-        List<LogIterator<IndexEntry>> iterators = appender.streamSegments(direction)
-                .map(seg -> (IndexSegment) seg)
-                .map(idxSeg -> idxSeg.indexIterator(direction, range))
-                .collect(Collectors.toList());
-
-        return Iterators.concat(iterators);
+        return appender.acquireSegments(direction, segs -> {
+            List<LogIterator<IndexEntry>> iterators = Iterators.closeableStream(segs)
+                    .map(seg -> (IndexSegment) seg)
+                    .map(idxSeg -> idxSeg.indexIterator(direction, range))
+                    .collect(Collectors.toList());
+            return Iterators.concat(iterators);
+        });
     }
 
     @Override
@@ -73,28 +72,31 @@ public class IndexAppender implements Index {
 
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
-        LogIterator<Log<IndexEntry>> segments = appender.segments(Direction.BACKWARD);
-        while (segments.hasNext()) {
-            IndexSegment next = (IndexSegment) segments.next();
-            Optional<IndexEntry> fromDisk = next.get(stream, version);
-            if (fromDisk.isPresent()) {
-                return fromDisk;
+        return appender.acquireSegments(Direction.BACKWARD, segments -> {
+            while (segments.hasNext()) {
+                IndexSegment next = (IndexSegment) segments.next();
+                Optional<IndexEntry> fromDisk = next.get(stream, version);
+                if (fromDisk.isPresent()) {
+                    return fromDisk;
+                }
             }
-        }
-        return Optional.empty();
+            return Optional.empty();
+        });
+
     }
 
     @Override
     public int version(long stream) {
-        LogIterator<Log<IndexEntry>> segments = appender.segments(Direction.BACKWARD);
-        while (segments.hasNext()) {
-            IndexSegment segment = (IndexSegment) segments.next();
-            int version = segment.version(stream);
-            if (version >= 0) {
-                return version;
+        return appender.acquireSegments(Direction.BACKWARD, segments -> {
+            while (segments.hasNext()) {
+                IndexSegment segment = (IndexSegment) segments.next();
+                int version = segment.version(stream);
+                if (version >= 0) {
+                    return version;
+                }
             }
-        }
-        return IndexEntry.NO_VERSION;
+            return IndexEntry.NO_VERSION;
+        });
     }
 
     public void compact() {
@@ -116,10 +118,6 @@ public class IndexAppender implements Index {
 
     public long entries() {
         return appender.entries();
-    }
-
-    public List<Log<IndexEntry>> segments(){
-        return Iterators.toList(appender.segments(Direction.FORWARD));
     }
 
     public PollingSubscriber<IndexEntry> poller() {

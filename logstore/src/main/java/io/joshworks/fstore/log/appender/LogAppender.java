@@ -38,7 +38,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -177,8 +177,8 @@ public class LogAppender<T> implements Closeable {
         try {
             for (String segmentName : LogFileUtils.findSegments(directory)) {
                 Log<T> segment = loadSegment(segmentName);
-                if (Type.MERGE_OUT.equals(segment.type())) {
-                    logger.info("Deleting incomplete merge output segment");
+                if (Type.MERGE_OUT.equals(segment.type()) || Type.DELETED.equals(segment.type())) {
+                    logger.info("Deleting dangling segment: {}", segment);
                     segment.delete();
                     continue;
                 }
@@ -273,11 +273,6 @@ public class LogAppender<T> implements Closeable {
         return (position & mask);
     }
 
-    private boolean shouldRoll(Log<T> currentSegment) {
-        long actualSize = currentSegment.logicalSize();
-        return actualSize >= metadata.segmentSize && actualSize > 0;
-    }
-
     public void compact() {
         compactor.forceCompaction(1);
     }
@@ -315,7 +310,6 @@ public class LogAppender<T> implements Closeable {
         return directory.getName();
     }
 
-    //TODO implement reader pool, instead using a new instance of reader, provide a pool of reader to better performance
     public LogIterator<T> iterator(Direction direction) {
         long startPosition = Direction.FORWARD.equals(direction) ? Log.START : Math.max(position(), Log.START);
         return iterator(startPosition, direction);
@@ -367,12 +361,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     public long size() {
-        return Iterators.closeableStream(segments(Direction.BACKWARD)).mapToLong(Log::fileSize).sum();
-    }
-
-    //TODO Should be internalized to handle closed or merge errors
-    public Stream<Log<T>> streamSegments(Direction direction) {
-        return Iterators.closeableStream(segments(direction));
+        return Iterators.closeableStream(levels.segments(Direction.FORWARD)).mapToLong(Log::fileSize).sum();
     }
 
     public long size(int level) {
@@ -396,16 +385,23 @@ public class LogAppender<T> implements Closeable {
 
 //        state.flush();
         state.close();
-
-        streamSegments(Direction.FORWARD).forEach(segment -> {
-            logger.info("Closing segment {}", segment.name());
-            IOUtils.closeQuietly(segment);
-        });
+        closeSegments();
 
         for (LogPoller poller : pollers) {
             poller.close();
         }
+    }
 
+    private void closeSegments() {
+        try (LogIterator<Log<T>> segments = levels.segments(Direction.FORWARD)) {
+            while (segments.hasNext()) {
+                Log<T> segment = segments.next();
+                logger.info("Closing segment {}", segment.name());
+                IOUtils.closeQuietly(segment);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to close log appender", e);
+        }
     }
 
     public void flush() {
@@ -423,14 +419,9 @@ public class LogAppender<T> implements Closeable {
         if (closed.get()) {
             return;
         }
-//            long start = System.currentTimeMillis();
         levels.current().flush();
-//            logger.info("Flush took {}ms", System.currentTimeMillis() - start);
     }
 
-    public List<String> segmentsNames() {
-        return streamSegments(Direction.FORWARD).map(Log::name).collect(Collectors.toList());
-    }
 
     public long entries() {
         return this.state.entryCount();
@@ -444,8 +435,20 @@ public class LogAppender<T> implements Closeable {
         return levels.current();
     }
 
-    public LogIterator<Log<T>> segments(Direction direction) {
-        return levels.segments(direction);
+    public <R> R acquireSegments(Direction direction, Function<LogIterator<Log<T>>, R> function) {
+        int retries = 0;
+        do {
+            try {
+                LogIterator<Log<T>> segments = levels.segments(direction);
+                return function.apply(segments);
+            } catch (Exception e) {
+                logger.warn("Failed to acquire segments", e);
+            }
+            retries++;
+
+        } while (retries < 10);
+
+        throw new RuntimeException("Failed to acquire segment after " + retries + " retries");
     }
 
     private List<Log<T>> segments(int level) {
@@ -478,7 +481,8 @@ public class LogAppender<T> implements Closeable {
         private int segmentIdx;
 
         ForwardLogReader(long startPosition) {
-            Iterator<Log<T>> segments = segments(Direction.FORWARD);
+            //TODO this might throw exception on acquiring a reader
+            Iterator<Log<T>> segments = levels.segments(Direction.FORWARD);
             this.segmentIdx = getSegment(startPosition);
 
             validateSegmentIdx(segmentIdx, startPosition);
@@ -558,7 +562,7 @@ public class LogAppender<T> implements Closeable {
 
         BackwardLogReader(long startPosition) {
             int numSegments = levels.numSegments();
-            Iterator<Log<T>> segments = segments(Direction.BACKWARD);
+            Iterator<Log<T>> segments = levels.segments(Direction.BACKWARD);
             int segIdx = getSegment(startPosition);
 
             this.segmentIdx = numSegments - (numSegments - segIdx);
@@ -635,7 +639,7 @@ public class LogAppender<T> implements Closeable {
         LogPoller(long startPosition) {
             this.segmentIdx = getSegment(startPosition);
             validateSegmentIdx(segmentIdx, startPosition);
-            Iterator<Log<T>> segments = segments(Direction.FORWARD);
+            Iterator<Log<T>> segments = levels.segments(Direction.FORWARD);
             long positionOnSegment = getPositionOnSegment(startPosition);
 
             // skip

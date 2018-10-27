@@ -84,10 +84,7 @@ public class Iterators {
 
     public static <T> Stream<T> closeableStream(LogIterator<T> iterator, int characteristics, boolean parallel) {
         Stream<T> delegate = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, characteristics), parallel);
-        return delegate.onClose(() -> {
-            System.out.println("Closing -----> " + iterator);
-            IOUtils.closeQuietly(iterator);
-        });
+        return delegate.onClose(() -> IOUtils.closeQuietly(iterator));
     }
 
     private static class EmptyIterator<T> implements LogIterator<T> {

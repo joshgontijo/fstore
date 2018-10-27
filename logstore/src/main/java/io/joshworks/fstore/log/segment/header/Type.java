@@ -3,7 +3,8 @@ package io.joshworks.fstore.log.segment.header;
 public enum Type {
     LOG_HEAD(2),
     MERGE_OUT(3),
-    READ_ONLY(4);
+    READ_ONLY(4),
+    DELETED(5);
 
     final int val;
 
