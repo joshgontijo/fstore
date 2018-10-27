@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.segment.header;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.Checksum;
+import io.joshworks.fstore.log.record.Checksum;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

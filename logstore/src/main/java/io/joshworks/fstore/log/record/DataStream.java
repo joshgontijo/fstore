@@ -3,8 +3,6 @@ package io.joshworks.fstore.log.record;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
-import io.joshworks.fstore.log.Checksum;
-import io.joshworks.fstore.log.ChecksumException;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.Log;
 

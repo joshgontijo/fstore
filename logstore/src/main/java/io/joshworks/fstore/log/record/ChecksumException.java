@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log;
+package io.joshworks.fstore.log.record;
 
 public class ChecksumException extends RuntimeException {
 

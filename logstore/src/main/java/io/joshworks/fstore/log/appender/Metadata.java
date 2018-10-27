@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.log.LogFileUtils;
+import io.joshworks.fstore.log.utils.LogFileUtils;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
