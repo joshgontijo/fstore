@@ -1,5 +1,7 @@
 package io.joshworks.eventry.projections;
 
+import io.joshworks.eventry.stream.Streams;
+
 import java.util.Set;
 
 public class ByType extends JavaHandler {
@@ -20,7 +22,7 @@ public class ByType extends JavaHandler {
 
     @Override
     public StreamSource source() {
-        return new StreamSource(Set.of("_all"), false);
+        return new StreamSource(Set.of(Streams.ALL_STREAM), false);
     }
 
 }

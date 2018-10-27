@@ -38,7 +38,7 @@ public class IndexAppender implements Index {
                 .segmentSize(logSize)
                 .name("index-appender")
                 .storageMode(StorageMode.MMAP)
-//                .disableCompaction()
+                .disableCompaction()
                 .namingStrategy(new IndexNaming())
                 .open(new IndexSegmentFactory(indexDirectory, numElements, codec));
     }

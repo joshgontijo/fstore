@@ -18,7 +18,7 @@ import java.util.stream.Stream;
 
 public class GithubPump {
 
-    private static final File directory = new File("J:\\GithubArchive\\parsed");
+    private static final File directory = new File("J:\\GithubArchive\\");
     private static final ExecutorService executor = Executors.newFixedThreadPool(50);
 
     public static void main(String[] args) throws Exception {

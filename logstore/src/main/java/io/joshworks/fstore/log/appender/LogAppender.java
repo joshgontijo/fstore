@@ -628,6 +628,7 @@ public class LogAppender<T> implements Closeable {
     }
 
 
+
     private class LogPoller implements PollingSubscriber<T> {
 
         private final BlockingQueue<PollingSubscriber<T>> segmentPollers = new LinkedBlockingQueue<>();

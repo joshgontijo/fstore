@@ -27,6 +27,7 @@ import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.utils.Tuple;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -68,11 +69,12 @@ public class EventStore implements IEventStore {
         this.projections = new Projections(new ProjectionManager(this::appendSystemEvent));
         this.streams = new Streams(LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
-                .segmentSize(Size.MB.of(256))
+                .segmentSize(Size.MB.of(512))
                 .name("event-log")
                 .asyncFlush()
                 .bufferPool(new SingleBufferThreadCachedPool(false))
                 .checksumProbability(0)
+                .storageMode(StorageMode.MMAP)
                 .disableCompaction()
                 .compactionStrategy(new RecordCleanup(streams)));
 
