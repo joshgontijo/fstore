@@ -2,15 +2,15 @@ package io.joshworks.fstore.lsmtree.mem;
 
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 
 public class MemTable<K extends Comparable<K>, V> {
 
     public final int flushThreshold;
-    private final Map<K, Entry<K, V>> table = new HashMap<>();
+    private final SortedMap<K, Entry<K, V>> table = new TreeMap<>();
 
     public MemTable(int flushThreshold) {
         this.flushThreshold = flushThreshold;
@@ -32,8 +32,12 @@ public class MemTable<K extends Comparable<K>, V> {
         return found != null ? found.value : null;
     }
 
-    public Stream<Entry<K, V>> sorted() {
-        return table.values().stream().sorted(Comparator.comparing(e -> e.key));
+    public Stream<Entry<K, V>> streamSorted() {
+        return table.values().stream();
+    }
+
+    public Map<K, Entry<K, V>> copy() {
+        return new TreeMap<>(table);
     }
 
     public void clear() {

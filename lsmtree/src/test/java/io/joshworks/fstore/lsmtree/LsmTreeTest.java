@@ -1,7 +1,5 @@
 package io.joshworks.fstore.lsmtree;
 
-import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -10,12 +8,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 public class LsmTreeTest {
 
@@ -26,7 +21,7 @@ public class LsmTreeTest {
     @Before
     public void setUp() {
         file = FileUtils.testFolder();
-        lsmtree = LsmTree.of(file, Serializers.INTEGER, Serializers.VSTRING, 100);
+        lsmtree = LsmTree.open(file, Serializers.INTEGER, Serializers.VSTRING, 100);
     }
 
     @After
@@ -59,25 +54,32 @@ public class LsmTreeTest {
     public void delete() {
         lsmtree.put(1, "a");
         lsmtree.put(2, "b");
-        lsmtree.delete(2);
+        lsmtree.remove(2);
 
         assertEquals("a", lsmtree.get(1));
         assertNull(lsmtree.get(2));
     }
 
     @Test
-    public void iterator_deleted_entries() throws IOException {
-        lsmtree.put(1, "a");
-        lsmtree.put(2, "b");
-        lsmtree.delete(2);
+    public void iterator_deleted_entries() throws Exception {
+        int items = 10000;
+        for (int i = 0; i < items; i++) {
+            lsmtree.put(i, String.valueOf(i));
+        }
 
+        for (int i = items - 100; i < items; i++) {
+            lsmtree.remove(i);
+        }
 
+        for (int i = 0; i < items; i++) {
+            lsmtree.remove(i);
+        }
 
-        try (LogIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.FORWARD)) {
-            assertTrue(iterator.hasNext());
-            assertEquals("a", iterator.next());
-
-            assertFalse(iterator.hasNext());
+        try (EntryIterator<Integer, String> iterator = lsmtree.iterator()) {
+            while(iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                System.out.println(entry);
+            }
         }
     }
 

@@ -19,7 +19,7 @@ public class RecordSerializer<K, V> implements Serializer<Record<K, V>> {
     @Override
     public ByteBuffer toBytes(Record<K, V> data) {
         ByteBuffer key = data.key != null ? keySerializer.toBytes(data.key) : EMPTY;
-        ByteBuffer value = data.key != null ? valueSerializer.toBytes(data.value) : EMPTY;
+        ByteBuffer value = data.value != null ? valueSerializer.toBytes(data.value) : EMPTY;
 
         ByteBuffer rec = ByteBuffer.allocate(Integer.BYTES + key.limit() + value.limit());
 
