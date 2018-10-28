@@ -55,7 +55,6 @@ public class Index<K extends Comparable<K>> implements Closeable {
         for (IndexEntry<K> indexEntry : entries) {
             dataFile.append(indexEntry);
         }
-        dataFile.roll(0);
         dirty = false;
     }
 

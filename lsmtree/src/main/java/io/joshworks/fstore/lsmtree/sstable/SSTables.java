@@ -11,6 +11,8 @@ import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 public class SSTables<K extends Comparable<K>, V> {
 
@@ -51,6 +53,16 @@ public class SSTables<K extends Comparable<K>, V> {
 
     public LogIterator<Entry<K, V>> iterator(Direction direction) {
         return appender.iterator(direction);
+    }
+
+    public List<LogIterator<Entry<K, V>>> segmentsIterator() {
+        return appender.acquireSegments(Direction.FORWARD, segs -> {
+            List<LogIterator<Entry<K, V>>> iterators = new ArrayList<>();
+            while(segs.hasNext()) {
+                iterators.add(segs.next().iterator(Direction.FORWARD));
+            }
+            return iterators;
+        });
     }
 
     private static class SSTableFactory<K extends Comparable<K>, V> implements SegmentFactory<Entry<K, V>> {
