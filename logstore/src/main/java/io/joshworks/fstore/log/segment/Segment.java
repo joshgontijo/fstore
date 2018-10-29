@@ -81,9 +81,13 @@ public class Segment<T> implements Log<T> {
 
             } else {
                 this.header = foundHeader;
-                SegmentState result = rebuildState(Segment.START);
-                this.position(result.position);
-                this.entries.set(result.entries);
+                this.entries.set(foundHeader.entries);
+                if(Type.LOG_HEAD.equals(foundHeader.type)) {
+                    SegmentState result = rebuildState(Segment.START);
+                    this.position(result.position);
+                    this.entries.set(result.entries);
+                }
+
             }
             LogHeader.validateMagic(this.header.magic, magic);
 
@@ -99,6 +103,21 @@ public class Segment<T> implements Log<T> {
         }
         this.storage.position(position);
     }
+
+//    @Override
+//    public long append(T data) {
+//        if (readOnly()) {
+//            throw new IllegalStateException("Segment is read only");
+//        }
+//        ByteBuffer bytes = serializer.toBytes(data);
+//        long position = position();
+//        if (!hasAvailableSpace(bytes, position)) {
+//            return -1;
+//        }
+//        long recordPosition = dataStream.write(storage, bytes);
+//        entries.incrementAndGet();
+//        return recordPosition;
+//    }
 
     @Override
     public long append(T data) {
@@ -297,8 +316,11 @@ public class Segment<T> implements Log<T> {
 
     private <R extends TimeoutReader> R acquireReader(R reader) {
         synchronized (READER_LOCK) {
-            if (markedForDeletion.get() || closed.get()) {
-                throw new RuntimeException("Could not acquire reader");
+            if(closed.get()) {
+                throw new RuntimeException("Could not acquire segment reader: Closed");
+            }
+            if (markedForDeletion.get()) {
+                throw new RuntimeException("Could not acquire segment reader: Marked for deletion");
             }
             readers.add(reader);
             return reader;

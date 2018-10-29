@@ -601,6 +601,7 @@ public class EventStoreIT {
         assertEquals(size, dataStream.count());
     }
 
+
     @Test
     public void index_flush_generates_INDEX_FLUSHED_event() {
 

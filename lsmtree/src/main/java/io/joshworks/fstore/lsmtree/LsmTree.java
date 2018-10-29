@@ -2,6 +2,7 @@ package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.lsmtree.log.Record;
@@ -12,11 +13,13 @@ import io.joshworks.fstore.lsmtree.sstable.SSTables;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
@@ -65,11 +68,16 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         return found;
     }
 
-    public EntryIterator<K, V> iterator() {
+    public CloseableIterator<Entry<K, V>> iterator() {
         List<LogIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator();
         Collection<Entry<K, V>> memItems = memTable.copy().values();
         return new LsmTreeIterator<>(segmentsIterators, memItems);
     }
+
+    public Stream<Entry<K, V>> stream() {
+        return Iterators.closeableStream(iterator());
+    }
+
 
     @Override
     public void close() {
@@ -92,7 +100,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
     }
 
-    private static class LsmTreeIterator<K extends Comparable<K>, V> implements EntryIterator<K, V> {
+    private static class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
 
         private final List<Iterators.PeekingIterator<Entry<K, V>>> segments;
 
@@ -132,7 +140,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
 
         @Override
-        public void close() throws Exception {
+        public void close() throws IOException {
             for (Iterators.PeekingIterator<Entry<K, V>> availableSegment : segments) {
                 availableSegment.close();
             }

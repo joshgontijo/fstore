@@ -7,7 +7,6 @@ import io.joshworks.eventry.data.ProjectionCreated;
 import io.joshworks.eventry.data.ProjectionDeleted;
 import io.joshworks.eventry.data.ProjectionUpdated;
 import io.joshworks.eventry.data.StreamCreated;
-import io.joshworks.eventry.data.StreamDeleted;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
@@ -46,7 +45,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -65,20 +63,19 @@ public class EventStore implements IEventStore {
     private EventStore(File rootDir) {
         this.index = new TableIndex(rootDir);
         this.projections = new Projections(new ProjectionManager(this::appendSystemEvent));
-        this.streams = new Streams(LRU_CACHE_SIZE, index::version);
+        this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
                 .name("event-log")
                 .asyncFlush()
                 .bufferPool(new SingleBufferThreadCachedPool(false))
-//                .checksumProbability(1)
-//                .storageMode(StorageMode.MMAP)
+                .checksumProbability(1)
                 .disableCompaction()
                 .compactionStrategy(new RecordCleanup(streams)));
 
         try {
             this.loadIndex();
-            this.loadStreams();
+//            this.loadStreams();
             this.loadProjections();
         } catch (Exception e) {
             IOUtils.closeQuietly(index);
@@ -122,39 +119,39 @@ public class EventStore implements IEventStore {
         logger.info("Loaded {} index entries in {}ms", loaded, (System.currentTimeMillis() - start));
     }
 
-    private void loadStreams() {
-        logger.info("Loading streams");
-        long start = System.currentTimeMillis();
-
-        long streamHash = streams.hashOf(SystemStreams.STREAMS);
-        LogIterator<IndexEntry> addresses = index.indexIterator(Direction.FORWARD, Range.allOf(streamHash));
-
-        long elapsed = start;
-        long loaded = 0;
-        while (addresses.hasNext()) {
-            IndexEntry next = addresses.next();
-            EventRecord event = eventLog.get(next.position);
-
-            if (System.currentTimeMillis() - elapsed >= TimeUnit.SECONDS.toMillis(2)) {
-                elapsed = System.currentTimeMillis();
-                logger.info("Loaded {}, last: {}", loaded, event.eventId());
-            }
-
-            //pattern matching would be great here
-            if (StreamCreated.TYPE.equals(event.type)) {
-                streams.add(StreamCreated.from(event));
-                loaded++;
-            } else if (StreamDeleted.TYPE.equals(event.type)) {
-                StreamDeleted deleted = StreamDeleted.from(event);
-                long hash = streams.hashOf(deleted.stream);
-                streams.remove(hash);
-            } else {
-                //unrecognized event
-            }
-        }
-
-        logger.info("Streams loaded {} items in {}ms", loaded, (System.currentTimeMillis() - start));
-    }
+//    private void loadStreams() {
+//        logger.info("Loading streams");
+//        long start = System.currentTimeMillis();
+//
+//        long streamHash = streams.hashOf(SystemStreams.STREAMS);
+//        LogIterator<IndexEntry> addresses = index.indexIterator(Direction.FORWARD, Range.allOf(streamHash));
+//
+//        long elapsed = start;
+//        long loaded = 0;
+//        while (addresses.hasNext()) {
+//            IndexEntry next = addresses.next();
+//            EventRecord event = eventLog.get(next.position);
+//
+//            if (System.currentTimeMillis() - elapsed >= TimeUnit.SECONDS.toMillis(2)) {
+//                elapsed = System.currentTimeMillis();
+//                logger.info("Loaded {}, last: {}", loaded, event.eventId());
+//            }
+//
+//            //pattern matching would be great here
+//            if (StreamCreated.TYPE.equals(event.type)) {
+//                streams.add(StreamCreated.from(event));
+//                loaded++;
+//            } else if (StreamDeleted.TYPE.equals(event.type)) {
+//                StreamDeleted deleted = StreamDeleted.from(event);
+//                long hash = streams.hashOf(deleted.stream);
+//                streams.remove(hash);
+//            } else {
+//                //unrecognized event
+//            }
+//        }
+//
+//        logger.info("Streams loaded {} items in {}ms", loaded, (System.currentTimeMillis() - start));
+//    }
 
     private void loadProjections() {
         logger.info("Loading projections");
@@ -444,19 +441,20 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized EventRecord append(EventRecord event, int expectedVersion) {
+    public EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
 
         StreamMetadata metadata = getOrCreateStream(event.stream);
         return append(metadata, event, expectedVersion);
     }
 
-    private synchronized EventRecord appendSystemEvent(EventRecord event) {
+    private EventRecord appendSystemEvent(EventRecord event) {
         StreamMetadata metadata = getOrCreateStream(event.stream);
         return append(metadata, event, IndexEntry.NO_VERSION);
     }
 
-    private synchronized EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
+    //TODO synchronize on stream
+    private EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
         if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
         }

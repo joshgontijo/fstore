@@ -21,7 +21,14 @@ public class StreamMetadataSerializer implements Serializer<StreamMetadata> {
         int metadataSize = MapSerializer.sizeOfMap(data.metadata, VStringSerializer::sizeOf, VStringSerializer::sizeOf);
         int permissionsMapLength = Integer.BYTES;
         int metadataMapLength = Integer.BYTES;
-        ByteBuffer bb = ByteBuffer.allocate(nameSize + (Long.BYTES * 3) + Integer.BYTES + permissionsSize + metadataSize + permissionsMapLength + metadataMapLength);
+        ByteBuffer bb = ByteBuffer.allocate(
+                        nameSize +
+                        (Long.BYTES * 3) +
+                        Integer.BYTES +
+                        permissionsSize +
+                        metadataSize +
+                        permissionsMapLength +
+                        metadataMapLength);
 
         writeTo(data, bb);
         return bb.flip();

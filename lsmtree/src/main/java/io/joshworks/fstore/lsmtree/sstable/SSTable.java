@@ -224,4 +224,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         index.close();
     }
 
+    @Override
+    public String toString() {
+        return delegate.toString();
+    }
 }

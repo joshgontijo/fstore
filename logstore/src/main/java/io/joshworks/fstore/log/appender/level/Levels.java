@@ -47,7 +47,8 @@ public class Levels<T> {
                 .orElseThrow(() -> new IllegalStateException("No " + Type.LOG_HEAD + " found"));
     }
 
-    public List<Log<T>> segments(int level) {
+    public synchronized List<Log<T>> segments(int level) {
+        //FIXME java.util.ConcurrentModificationException
         return segments.stream().filter(seg -> seg.level() == level).collect(Collectors.toList());
     }
 

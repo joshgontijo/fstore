@@ -6,10 +6,8 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.seda.SedaContext;
-import io.joshworks.fstore.log.utils.BitUtil;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
-import io.joshworks.fstore.log.utils.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
@@ -20,6 +18,8 @@ import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.utils.BitUtil;
+import io.joshworks.fstore.log.utils.LogFileUtils;
 import io.joshworks.fstore.log.utils.Logging;
 import org.slf4j.Logger;
 
@@ -438,8 +438,7 @@ public class LogAppender<T> implements Closeable {
     public <R> R acquireSegments(Direction direction, Function<LogIterator<Log<T>>, R> function) {
         int retries = 0;
         do {
-            try {
-                LogIterator<Log<T>> segments = levels.segments(direction);
+            try (LogIterator<Log<T>> segments = levels.segments(direction)) {
                 return function.apply(segments);
             } catch (Exception e) {
                 logger.warn("Failed to acquire segments", e);
@@ -626,7 +625,6 @@ public class LogAppender<T> implements Closeable {
             }
         }
     }
-
 
 
     private class LogPoller implements PollingSubscriber<T> {

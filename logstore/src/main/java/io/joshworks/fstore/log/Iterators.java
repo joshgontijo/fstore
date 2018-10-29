@@ -43,6 +43,10 @@ public class Iterators {
         return new IteratorIterator<>(Arrays.asList(originals));
     }
 
+    public static <T> LogIterator<T> concatList(List<LogIterator<T>> originals) {
+        return new IteratorIterator<>(originals);
+    }
+
     public static <T, R> LogIterator<R> mapping(LogIterator<T> iterator, Function<T, R> mapper) {
         return new MappingIterator<>(iterator, mapper);
     }
@@ -78,11 +82,11 @@ public class Iterators {
         return copy;
     }
 
-    public static <T> Stream<T> closeableStream(LogIterator<T> iterator) {
+    public static <T> Stream<T> closeableStream(CloseableIterator<T> iterator) {
         return closeableStream(iterator, Spliterator.ORDERED, false);
     }
 
-    public static <T> Stream<T> closeableStream(LogIterator<T> iterator, int characteristics, boolean parallel) {
+    public static <T> Stream<T> closeableStream(CloseableIterator<T> iterator, int characteristics, boolean parallel) {
         Stream<T> delegate = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, characteristics), parallel);
         return delegate.onClose(() -> IOUtils.closeQuietly(iterator));
     }
@@ -127,6 +131,11 @@ public class Iterators {
         @Override
         public void close() {
             //do nothing
+        }
+
+        @Override
+        public void remove() {
+            source.remove();
         }
 
         @Override

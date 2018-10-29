@@ -1,11 +1,13 @@
 package io.joshworks.fstore.log.record;
 
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.Log;
 
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
@@ -44,11 +46,10 @@ public class DataStream implements IDataStream {
 
     @Override
     public long write(Storage storage, ByteBuffer bytes) {
-        int recordSize = RecordHeader.HEADER_OVERHEAD + bytes.remaining();
         long storagePos = storage.position();
-        if (storagePos < Log.START) {
-            throw new IllegalStateException("storage position is less than " + Log.START);
-        }
+        validateStoragePosition(storagePos);
+
+        int recordSize = RecordHeader.HEADER_OVERHEAD + bytes.remaining();
 
         if (recordSize > MAX_ENTRY_SIZE) {
             throw new IllegalArgumentException("Record cannot exceed " + MAX_ENTRY_SIZE + " bytes");
@@ -68,6 +69,53 @@ public class DataStream implements IDataStream {
 
         } finally {
             bufferPool.free(bb);
+        }
+    }
+
+    @Override
+    public <T> long write(Storage storage, T data, Serializer<T> serializer) {
+        long storagePos = storage.position();
+        validateStoragePosition(storagePos);
+
+        ByteBuffer writeBuffer = bufferPool.allocate(Memory.PAGE_SIZE);
+        writeBuffer.limit(writeBuffer.capacity());
+        writeBuffer.position(RecordHeader.MAIN_HEADER);
+
+        try {
+            serializer.writeTo(data, writeBuffer);
+
+            int entrySize = writeBuffer.position() - RecordHeader.MAIN_HEADER;
+            writeBuffer.limit(writeBuffer.position());
+            writeBuffer.position(RecordHeader.MAIN_HEADER);
+            int checksum = Checksum.crc32(writeBuffer);
+            writeBuffer.limit(writeBuffer.limit() + RecordHeader.SECONDARY_HEADER);
+            writeBuffer.putInt(entrySize); //secondary length
+            writeBuffer.position(0);
+            writeBuffer.putInt(entrySize); //length
+            writeBuffer.putInt(checksum); //checksum
+            writeBuffer.position(0);
+            writeBuffer.limit(RecordHeader.HEADER_OVERHEAD + entrySize);
+        } catch (BufferOverflowException boe) {
+            if (writeBuffer.capacity() > MAX_ENTRY_SIZE) {
+                throw new IllegalArgumentException("Record cannot exceed " + MAX_ENTRY_SIZE + " bytes");
+            }
+            bufferPool.free(writeBuffer);
+            ByteBuffer byteBuffer = serializer.toBytes(data);
+            resizeBuffer(byteBuffer.limit());
+            return write(storage, byteBuffer);
+        }
+        storage.write(writeBuffer);
+        return storagePos;
+    }
+
+    private void resizeBuffer(int size) {
+        ByteBuffer writeBuffer = bufferPool.allocate(size);
+        bufferPool.free(writeBuffer);
+    }
+
+    private void validateStoragePosition(long storagePos) {
+        if (storagePos < Log.START) {
+            throw new IllegalStateException("storage position is less than " + Log.START);
         }
     }
 
@@ -96,7 +144,7 @@ public class DataStream implements IDataStream {
         if (checksumProb == 0) {
             return;
         }
-        if(checksumProb >= 100 && Checksum.crc32(data) != expected) {
+        if (checksumProb >= 100 && Checksum.crc32(data) != expected) {
             throw new ChecksumException(position);
         }
         if (rand.nextInt(100) < checksumProb && Checksum.crc32(data) != expected) {
