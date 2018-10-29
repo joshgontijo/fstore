@@ -8,13 +8,16 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.testutils.FileUtils;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -30,10 +33,18 @@ public class RecordCleanupTest {
     private RecordCleanup cleanup;
     private Streams streams;
 
+    private File dummyFile;
+
     @Before
     public void setUp() {
-        streams = new Streams(100000, hash -> 0);
+        dummyFile = FileUtils.testFolder();
+        streams = new Streams(dummyFile, 100000, hash -> 0);
         cleanup = new RecordCleanup(streams);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        FileUtils.tryDelete(dummyFile);
     }
 
     @Test(expected = IllegalArgumentException.class)

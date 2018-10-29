@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.appender.history;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.appender.history.data.HistoryItem;
 
 import java.nio.ByteBuffer;
 

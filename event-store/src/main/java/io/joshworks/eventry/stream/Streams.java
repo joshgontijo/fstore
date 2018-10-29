@@ -4,20 +4,19 @@ import io.joshworks.eventry.LRUCache;
 import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.StreamHasher;
+import io.joshworks.eventry.stream.disk.StreamStore;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
 
 import java.io.Closeable;
-import java.util.ArrayList;
+import java.io.File;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,12 +31,15 @@ public class Streams implements Closeable {
     public static final String ALL_STREAM = Constant.SYSTEM_PREFIX + "all";
     //TODO LRU cache ? there's no way of getting item by stream name, need to use an indexed lsm-tree
     //LRU map that reads the last version from the index
-    private final LRUCache<Long, AtomicInteger> versions;
-    private final Map<Long, StreamMetadata> streamsMap = new ConcurrentHashMap<>();
+    private final Map<Long, AtomicInteger> versions;
+    private final StreamStore streamStore;
     private final StreamHasher hasher;
+    private final Function<Long, Integer> versionFetcher;
 
-    public Streams(int versionLruCacheSize, Function<Long, Integer> versionFetcher) {
-        this.versions = new LRUCache<>(versionLruCacheSize, streamHash -> new AtomicInteger(versionFetcher.apply(streamHash)));
+    public Streams(File root, int versionLruCacheSize, Function<Long, Integer> versionFetcher) {
+        this.versions = new LRUCache<>(versionLruCacheSize);
+        this.streamStore = new StreamStore(root, 1000000); //TODO externalize
+        this.versionFetcher = versionFetcher;
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
     }
 
@@ -46,25 +48,25 @@ public class Streams implements Closeable {
     }
 
     public Optional<StreamMetadata> get(long streamHash) {
-        return Optional.ofNullable(streamsMap.get(streamHash));
+        return Optional.ofNullable(streamStore.get(streamHash));
     }
 
     public List<StreamMetadata> all() {
-        return new ArrayList<>(streamsMap.values());
+        return streamStore.stream().map(e -> e.value).collect(Collectors.toList());
     }
 
     public long hashOf(String stream) {
         return hasher.hash(stream);
     }
 
-    public void add(StreamMetadata metadata) {
-        Objects.requireNonNull(metadata, "Metadata must be provided");
-        StringUtils.requireNonBlank(metadata.name, "Stream name is empty");
-        StreamMetadata existing = streamsMap.putIfAbsent(metadata.hash, metadata);
-        if (existing != null) {
-            throw new IllegalStateException("Stream '" + metadata.name + "' already exist: " + existing);
-        }
-    }
+//    public void add(StreamMetadata metadata) {
+//        Objects.requireNonNull(metadata, "Metadata must be provided");
+//        StringUtils.requireNonBlank(metadata.name, "Stream name is empty");
+//        StreamMetadata existing = streamsMap.putIfAbsent(metadata.hash, metadata);
+//        if (existing != null) {
+//            throw new IllegalStateException("Stream '" + metadata.name + "' already exist: " + existing);
+//        }
+//    }
 
     public StreamMetadata create(String stream) {
         return create(stream, NO_MAX_AGE, NO_MAX_COUNT);
@@ -78,16 +80,19 @@ public class Streams implements Closeable {
         StringUtils.requireNonBlank(stream, "Stream must be provided");
         long hash = hashOf(stream);
         StreamMetadata streamMeta = new StreamMetadata(stream, hash, System.currentTimeMillis(), maxAge, maxCount, permissions, metadata, STREAM_ACTIVE);
-        versions.set(hash, new AtomicInteger(IndexEntry.NO_VERSION));
-        StreamMetadata existing = streamsMap.putIfAbsent(hash, streamMeta);
-        if (existing != null) {
-            return null;
+        versions.put(hash, new AtomicInteger(IndexEntry.NO_VERSION));
+
+        StreamMetadata found = streamStore.get(hash);
+        if(found != null) {
+            throw new IllegalArgumentException("Stream already exist: " + stream);
         }
+
+        streamStore.put(hash, streamMeta);
         return streamMeta;
     }
 
     public StreamMetadata remove(long streamHash) {
-        return streamsMap.remove(streamHash);
+        return streamStore.remove(streamHash);
     }
 
     //Only supports 'startingWith' wildcard
@@ -99,13 +104,15 @@ public class Streams implements Closeable {
         //wildcard
         if (value.endsWith(STREAM_WILDCARD)) {
             final String prefix = value.substring(0, value.length() - 1);
-            return streamsMap.values().stream()
+            return streamStore.stream()
+                    .map(e -> e.value)
                     .filter(stream -> stream.name.startsWith(prefix))
                     .map(stream -> stream.name)
                     .collect(Collectors.toSet());
         }
 
-        return streamsMap.values().stream()
+        return streamStore.stream()
+                .map(e -> e.value)
                 .filter(stream -> stream.name.equals(value))
                 .map(stream -> stream.name)
                 .collect(Collectors.toSet());
@@ -114,11 +121,15 @@ public class Streams implements Closeable {
     }
 
     public int version(long stream) {
-        return versions.getOrElse(stream, new AtomicInteger(IndexEntry.NO_VERSION)).get();
+        return getVersion(stream).get();
+    }
+
+    private AtomicInteger getVersion(long stream) {
+        return versions.computeIfAbsent(stream, s -> new AtomicInteger(versionFetcher.apply(s)));
     }
 
     public int tryIncrementVersion(long stream, int expected) {
-        AtomicInteger versionCounter = versions.getOrElse(stream, new AtomicInteger(IndexEntry.NO_VERSION));
+        AtomicInteger versionCounter = getVersion(stream);
         if (expected < 0) {
             return versionCounter.incrementAndGet();
         }
@@ -132,7 +143,7 @@ public class Streams implements Closeable {
 
     @Override
     public void close() {
-
+        streamStore.close();
     }
 
 }

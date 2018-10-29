@@ -1,5 +1,6 @@
 package io.joshworks.fstore.lsmtree;
 
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -75,7 +76,7 @@ public class LsmTreeTest {
             lsmtree.remove(i);
         }
 
-        try (EntryIterator<Integer, String> iterator = lsmtree.iterator()) {
+        try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator()) {
             while(iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
                 System.out.println(entry);

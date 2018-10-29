@@ -10,6 +10,7 @@ import java.util.function.Supplier;
 
 public class MapSerializer<K, V> implements Serializer<Map<K, V>> {
 
+    private static final int MAP_ENTRY_COUNT_LENGTH = Integer.BYTES;
     private final Serializer<K> keySerializer;
     private final Serializer<V> valueSerializer;
     private final Supplier<Map<K, V>> instanceSupplier;
@@ -69,7 +70,7 @@ public class MapSerializer<K, V> implements Serializer<Map<K, V>> {
         for (Map.Entry<K, V> entry : map.entrySet()) {
             size += sizeOfKey.apply(entry.getKey()) + sizeOfValue.apply(entry.getValue());
         }
-        return size;
+        return MAP_ENTRY_COUNT_LENGTH + size;
     }
 
 

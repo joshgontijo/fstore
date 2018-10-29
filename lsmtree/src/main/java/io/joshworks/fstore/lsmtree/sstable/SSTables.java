@@ -21,6 +21,7 @@ public class SSTables<K extends Comparable<K>, V> {
     public SSTables(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold) {
         this.appender = LogAppender.builder(dir, new EntrySerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new SSTableCompactor<>())
+                .name("lsm-tree")
                 .open(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold));
     }
 
