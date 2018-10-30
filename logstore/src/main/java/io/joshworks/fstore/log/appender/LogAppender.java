@@ -33,9 +33,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -81,7 +81,7 @@ public class LogAppender<T> implements Closeable {
 
     private AtomicBoolean closed = new AtomicBoolean();
 
-    private final ExecutorService flushWorker = Executors.newFixedThreadPool(3);
+    private final ScheduledExecutorService flushWorker;
     private final SedaContext sedaContext = new SedaContext();
     private final Set<LogPoller> pollers = new HashSet<>();
     private final Compactor<T> compactor;
@@ -110,18 +110,20 @@ public class LogAppender<T> implements Closeable {
             }
 
             LogFileUtils.createRoot(directory);
-            this.metadata = Metadata.write(
-                    directory,
-                    config.segmentSize,
-                    config.compactionThreshold,
-                    config.flushAfterWrite,
-                    config.asyncFlush);
+            this.metadata = Metadata.write(directory, config.segmentSize, config.compactionThreshold, config.flushMode);
 
             this.state = State.empty(directory);
         } else {
             logger.info("Opening LogAppender");
             this.metadata = Metadata.readFrom(directory);
             this.state = State.readFrom(directory);
+        }
+
+        if (FlushMode.PERIODICALLY.equals(metadata.flushMode)) {
+            this.flushWorker = Executors.newSingleThreadScheduledExecutor();
+            this.flushWorker.scheduleWithFixedDelay(this::flush, 5, 5, TimeUnit.SECONDS);
+        } else {
+            this.flushWorker = null;
         }
 
         this.levels = loadLevels();
@@ -137,7 +139,7 @@ public class LogAppender<T> implements Closeable {
 
         logger.info("BUFFER POOL: {}", config.bufferPool.getClass().getSimpleName());
         logger.info("SEGMENT SIZE: {}", config.segmentSize);
-        logger.info("ASYNC FLUSH: {}", config.asyncFlush);
+        logger.info("FLUSH MODE: {}", config.flushMode);
         logger.info("COMPACTION ENABLED: {}", !this.compactionDisabled);
         logger.info("COMPACTION THRESHOLD: {}", config.compactionThreshold);
         logger.info("STORAGE MODE: {}", config.mode);
@@ -222,7 +224,9 @@ public class LogAppender<T> implements Closeable {
     public synchronized void roll() {
         try {
             Log<T> current = levels.current();
-            current.flush();
+            if (FlushMode.ON_ROLL.equals(metadata.flushMode)) {
+                current.flush();
+            }
             logger.info("Rolling segment: {}", current);
             if (current.entries() == 0) {
                 logger.warn("No entries in the current segment");
@@ -283,7 +287,7 @@ public class LogAppender<T> implements Closeable {
         }
     }
 
-    public long append(T data) {
+    public synchronized long append(T data) {
         Log<T> current = levels.current();
 
         long positionOnSegment = current.append(data);
@@ -295,8 +299,8 @@ public class LogAppender<T> implements Closeable {
                 throw new IllegalStateException("Failed to insert entry");
             }
         }
-        if (metadata.flushAfterWrite) {
-            flushInternal();
+        if (FlushMode.ALWAYS.equals(metadata.flushMode)) {
+            flush();
         }
         long entryPosition = toSegmentedPosition(levels.numSegments() - 1L, positionOnSegment);
 
@@ -408,20 +412,8 @@ public class LogAppender<T> implements Closeable {
         if (closed.get()) {
             return;
         }
-        if (metadata.asyncFlush)
-            flushWorker.execute(this::flushInternal);
-        else
-            this.flushInternal();
-
-    }
-
-    private void flushInternal() {
-        if (closed.get()) {
-            return;
-        }
         levels.current().flush();
     }
-
 
     public long entries() {
         return this.state.entryCount();
@@ -437,17 +429,18 @@ public class LogAppender<T> implements Closeable {
 
     public <R> R acquireSegments(Direction direction, Function<LogIterator<Log<T>>, R> function) {
         int retries = 0;
+        LogIterator<Log<T>> segments = null;
         do {
-            try (LogIterator<Log<T>> segments = levels.segments(direction)) {
-                return function.apply(segments);
+            try {
+                segments = levels.segments(direction);
             } catch (Exception e) {
                 logger.warn("Failed to acquire segments", e);
+                if (retries++ > 10) {
+                    throw new RuntimeException("Failed to acquire segment after " + retries + " retries");
+                }
             }
-            retries++;
-
-        } while (retries < 10);
-
-        throw new RuntimeException("Failed to acquire segment after " + retries + " retries");
+        } while (segments == null);
+        return function.apply(segments);
     }
 
     private List<Log<T>> segments(int level) {

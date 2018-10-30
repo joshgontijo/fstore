@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -71,7 +72,8 @@ public class MemIndex implements Index {
 
     @Override
     public LogIterator<IndexEntry> indexIterator(Direction direction) {
-        List<IndexEntry> ordered = index.entrySet().stream()
+        var copy = new HashSet<>(index.entrySet()); //sorted is a stateful operation
+        List<IndexEntry> ordered = copy.stream()
                 .sorted(Comparator.comparingLong(Map.Entry::getKey))
                 .map(Map.Entry::getValue)
                 .flatMap(Collection::stream)

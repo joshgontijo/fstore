@@ -11,6 +11,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.record.IDataStream;
@@ -36,6 +37,7 @@ public class IndexAppender implements Index {
                 .compactionThreshold(3)
                 .segmentSize(logSize)
                 .name("index-appender")
+                .flushMode(FlushMode.NEVER)
 //                .storageMode(StorageMode.MMAP)
                 .disableCompaction()
                 .namingStrategy(new IndexNaming())
