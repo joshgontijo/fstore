@@ -395,7 +395,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public String toString() {
         return "LogSegment{" + "handler=" + storage.name() +
-                ", entries=" + entries +
+                ", entries=" + entries() +
                 ", header=" + header +
                 ", readers=" + Arrays.toString(readers.toArray()) +
                 '}';

@@ -93,6 +93,14 @@ public class BlockSegment<T> extends Segment<Block<T>> {
     }
 
     @Override
+    public Block<T> get(long position) {
+        if(position == this.position()) {
+            return block;
+        }
+        return super.get(position);
+    }
+
+    @Override
     public void flush() {
         if(readOnly()) {
             return;

@@ -9,9 +9,11 @@ import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.lsmtree.mem.MemTable;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class SSTables<K extends Comparable<K>, V> {
@@ -25,8 +27,15 @@ public class SSTables<K extends Comparable<K>, V> {
                 .open(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold));
     }
 
-    public void append(Entry<K, V> entry) {
-        appender.append(entry);
+    //TODO SSTABLE must guarantee that all data from memtable is stored in a single segment
+    //it currently is size based, for this, the segment would have to be unbounded, and rolling, manual
+    public void write(MemTable<K, V> memTable) {
+        Collection<Entry<K, V>> sorted = memTable.sorted();
+
+        for (Entry<K, V> kvEntry : sorted) {
+            appender.append(kvEntry);
+        }
+        appender.flush();
     }
 
     public V getByKey(K key) {

@@ -30,20 +30,15 @@ import java.util.stream.Stream;
 
 public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
+    private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
+    private static final double FALSE_POSITIVE_PROB = 0.01;
+
     private BloomFilter<K> filter;
     private final Index<K> index;
     private final Serializer<K> keySerializer;
     private final File directory;
     private final BlockSegment<Entry<K, V>> delegate;
-
     private final Map<K, Long> cache = new HashMap<>();
-
-    private Block<Entry<K, V>> block;
-
-    private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
-
-    private static final double FALSE_POSITIVE_PROB = 0.01;
-    private final EntrySerializer<K, V> entrySerializer;
 
     public SSTable(Storage storage,
                    Serializer<K> keySerializer,
@@ -54,7 +49,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                    File directory,
                    int numElements) {
 
-        this.entrySerializer = new EntrySerializer<>(keySerializer, valueSerializer);
         this.delegate = new BlockSegment<>(
                 storage,
                 dataStream,

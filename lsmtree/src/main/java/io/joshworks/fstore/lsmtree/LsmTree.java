@@ -26,27 +26,29 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private final SSTables<K, V> sstables;
     private final TransactionLog<K, V> log;
     private final MemTable<K, V> memTable;
+    private final int flushThreshold;
 
     private LsmTree(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold) {
-        sstables = new SSTables<>(dir, keySerializer, valueSerializer, flushThreshold);
-        log = new TransactionLog<>(dir, keySerializer, valueSerializer);
-        memTable = new MemTable<>(flushThreshold);
-        log.restore(this::restore);
+        this.flushThreshold = flushThreshold;
+        this.sstables = new SSTables<>(dir, keySerializer, valueSerializer, flushThreshold);
+        this.log = new TransactionLog<>(dir, keySerializer, valueSerializer);
+        this.memTable = new MemTable<>();
+        this.log.restore(this::restore);
     }
 
     public static <K extends Comparable<K>, V> LsmTree<K, V> open(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold) {
         return new LsmTree<>(dir, keySerializer, valueSerializer, flushThreshold);
     }
 
-    public void put(K key, V value) {
+    public synchronized void put(K key, V value) {
         log.append(Record.add(key, value));
-        if (memTable.add(key, value)) {
+        if(memTable.size() >= flushThreshold) {
             flushMemTable();
-            log.markFlushed();
         }
+        memTable.add(key, value);
     }
 
-    public V get(K key) {
+    public synchronized V get(K key) {
         V found = memTable.get(key);
         if (found != null) {
             return found;
@@ -85,10 +87,14 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         log.close();
     }
 
-    private void flushMemTable() {
-        memTable.streamSorted().forEach(sstables::append);
+    private synchronized void flushMemTable() {
+        if(memTable.size() < flushThreshold) {
+            return;
+        }
+        sstables.write(memTable);
         sstables.roll();
         memTable.clear();
+        log.markFlushed();
     }
 
     private void restore(Record<K, V> record) {

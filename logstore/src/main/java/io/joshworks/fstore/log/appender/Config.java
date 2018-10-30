@@ -34,12 +34,10 @@ public class Config<T> {
     long segmentSize = DEFAULT_SEGMENT_SIZE;
     double checksumProbability = DEFAULT_CHECKSUM_PROB;
     StorageMode mode = StorageMode.RAF;
-    boolean asyncFlush;
+    FlushMode flushMode = FlushMode.NEVER;
     int compactionThreshold = COMPACTION_THRESHOLD;
-    boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
-    boolean rafCache;
 
     Config(File directory, Serializer<T> serializer) {
         this.directory = requireNonNull(directory, "directory cannot be null");;
@@ -104,13 +102,8 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> flushAfterWrite() {
-        this.flushAfterWrite = true;
-        return this;
-    }
-
-    public Config<T> asyncFlush() {
-        this.asyncFlush = true;
+    public Config<T> flushMode(FlushMode mode) {
+        this.flushMode = requireNonNull(mode);
         return this;
     }
 

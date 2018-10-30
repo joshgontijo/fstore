@@ -32,6 +32,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,7 +68,7 @@ public class EventStore implements IEventStore {
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
                 .name("event-log")
-                .asyncFlush()
+                .flushMode(FlushMode.NEVER)
                 .bufferPool(new SingleBufferThreadCachedPool(false))
                 .checksumProbability(1)
                 .disableCompaction()
@@ -441,7 +442,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventRecord append(EventRecord event, int expectedVersion) {
+    public synchronized EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
 
         StreamMetadata metadata = getOrCreateStream(event.stream);
@@ -479,14 +480,9 @@ public class EventStore implements IEventStore {
     }
 
     private StreamMetadata getOrCreateStream(String stream) {
-        long streamHash = streams.hashOf(stream);
-        return streams.get(streamHash).orElseGet(() -> {
-            StreamMetadata created = streams.create(stream);
-            if (created != null) { // metadata was created
-                EventRecord eventRecord = StreamCreated.create(created);
-                this.append(created, eventRecord, IndexEntry.NO_VERSION);
-            }
-            return created;
+        return streams.createIfAbsent(stream, created -> {
+            EventRecord eventRecord = StreamCreated.create(created);
+            this.append(created, eventRecord, IndexEntry.NO_VERSION);
         });
     }
 

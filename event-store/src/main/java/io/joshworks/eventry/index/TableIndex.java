@@ -17,6 +17,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -28,11 +30,12 @@ public class TableIndex implements Index {
     public static final boolean DEFAULT_USE_COMPRESSION = false;
     private final int flushThreshold; //TODO externalize
 
-    //    private final EventLog log;
     private final IndexAppender diskIndex;
     private MemIndex memIndex = new MemIndex();
 
     private final Set<DiskMemIndexPoller> pollers = new HashSet<>();
+
+    private final Lock writeLock = new ReentrantLock();
 
     public TableIndex(File rootDirectory) {
         this(rootDirectory, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
@@ -56,28 +59,31 @@ public class TableIndex implements Index {
             throw new IllegalArgumentException("Position must be greater than zero");
         }
         IndexEntry entry = IndexEntry.of(stream, version, position);
-        memIndex.add(entry);
+        FlushInfo flushInfo = null;
         if (memIndex.size() >= flushThreshold) {
-            var flushInfo = writeToDisk();
-            memIndex.close();
-            memIndex = new MemIndex();
-            return flushInfo;
+            flushInfo = writeToDisk();
         }
-        return null;
+        memIndex.add(entry);
+        return flushInfo;
     }
 
     //only single write can happen at time
-    private FlushInfo writeToDisk() {
-        logger.info("Writing index to disk");
-        if (memIndex.isEmpty()) {
+    private synchronized FlushInfo writeToDisk() {
+        //double verification: entries that were waiting for lock should not proceed after previous thread has written to disk
+        if (memIndex.size() < flushThreshold) {
             return null;
         }
+        logger.info("Writing index to disk");
 
         long start = System.currentTimeMillis();
         memIndex.indexStream(Direction.FORWARD).forEach(diskIndex::append);
         diskIndex.roll();
         long timeTaken = System.currentTimeMillis() - start;
         logger.info("Flush completed in {}ms", timeTaken);
+
+        memIndex.close();
+        memIndex = new MemIndex();
+
         return new FlushInfo(memIndex.size(), timeTaken);
     }
 
@@ -147,10 +153,7 @@ public class TableIndex implements Index {
     }
 
     public FlushInfo flush() {
-        FlushInfo flushInfo = writeToDisk();
-        memIndex.close();
-        memIndex = new MemIndex();
-        return flushInfo;
+        return writeToDisk();
     }
 
     public void compact() {
