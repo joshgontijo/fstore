@@ -83,7 +83,6 @@ public class IndexAppender implements Index {
             }
             return Optional.empty();
         });
-
     }
 
     @Override

@@ -97,6 +97,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         return entries.get(idx).value;
     }
 
+    public void writeBlock() {
+        delegate.writeBlock();
+    }
+
     public synchronized void flush() {
         delegate.flush();
         index.write();

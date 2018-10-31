@@ -30,6 +30,7 @@ public class ConcurrencyIT {
     public void setUp() {
         directory = FileUtils.testFolder();
         store = EventStore.open(directory);
+//        store = new QueuedEventStore(EventStore.open(directory));
     }
 
     @After
@@ -44,7 +45,7 @@ public class ConcurrencyIT {
     public void concurrent_write_same_stream() throws InterruptedException {
 
         int threads = 10;
-        int itemPerThread = 1000000;
+        int itemPerThread = 500000;
         String stream = "stream-0";
         ExecutorService executor = Executors.newFixedThreadPool(threads);
 
@@ -83,7 +84,7 @@ public class ConcurrencyIT {
     public void concurrent_write_thread_per_stream() throws InterruptedException {
 
         int threads = 50;
-        int itemPerThread = 1000000;
+        int itemPerThread = 100000;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
 
         Set<String> streamNames = new HashSet<>();

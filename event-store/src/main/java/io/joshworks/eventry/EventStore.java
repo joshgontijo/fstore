@@ -437,7 +437,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventRecord append(EventRecord event) {
+    public synchronized EventRecord append(EventRecord event) {
         return append(event, IndexEntry.NO_VERSION);
     }
 

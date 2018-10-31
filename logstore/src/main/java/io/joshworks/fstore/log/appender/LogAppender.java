@@ -423,7 +423,7 @@ public class LogAppender<T> implements Closeable {
         return levels.current().name();
     }
 
-    Log<T> current() {
+    public Log<T> current() {
         return levels.current();
     }
 
