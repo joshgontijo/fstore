@@ -153,8 +153,9 @@ public class IndexSegment implements Log<IndexEntry>, Index {
 
     @Override
     public void roll(int level) {
-        flush();
         delegate.roll(level);
+        midpoints.write();
+        filter.write();
     }
 
 

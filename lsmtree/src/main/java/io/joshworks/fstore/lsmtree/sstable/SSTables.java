@@ -35,7 +35,8 @@ public class SSTables<K extends Comparable<K>, V> {
         for (Entry<K, V> kvEntry : sorted) {
             appender.append(kvEntry);
         }
-        appender.flush();
+        SSTable<K, V> current = (SSTable<K, V>) appender.current();
+        current.writeBlock();
     }
 
     public V getByKey(K key) {

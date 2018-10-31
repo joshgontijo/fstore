@@ -12,9 +12,6 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 
-/**
- * This class is guarded by {@link Streams#streamLock}
- */
 public class StreamStore implements Closeable {
 
     private static final String DIR = "streams";

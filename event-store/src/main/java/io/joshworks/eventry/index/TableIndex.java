@@ -17,8 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,8 +32,6 @@ public class TableIndex implements Index {
     private MemIndex memIndex = new MemIndex();
 
     private final Set<DiskMemIndexPoller> pollers = new HashSet<>();
-
-    private final Lock writeLock = new ReentrantLock();
 
     public TableIndex(File rootDirectory) {
         this(rootDirectory, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
@@ -79,7 +75,7 @@ public class TableIndex implements Index {
         memIndex.indexStream(Direction.FORWARD).forEach(diskIndex::append);
         diskIndex.roll();
         long timeTaken = System.currentTimeMillis() - start;
-        logger.info("Flush completed in {}ms", timeTaken);
+        logger.info("Index write took {}ms", timeTaken);
 
         memIndex.close();
         memIndex = new MemIndex();

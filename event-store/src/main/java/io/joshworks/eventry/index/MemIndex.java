@@ -9,14 +9,10 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,7 +22,7 @@ import java.util.stream.Stream;
 
 public class MemIndex implements Index {
 
-    private final Map<Long, SortedSet<IndexEntry>> index = new ConcurrentHashMap<>();
+    private final Map<Long, List<IndexEntry>> index = new ConcurrentHashMap<>();
     private final List<IndexEntry> insertOrder = new ArrayList<>();
     private final AtomicInteger size = new AtomicInteger();
 
@@ -35,7 +31,7 @@ public class MemIndex implements Index {
     public void add(IndexEntry entry) {
         index.compute(entry.stream, (k, v) -> {
             if (v == null)
-                v = new TreeSet<>();
+                v = new ArrayList<>();
             v.add(entry);
             size.incrementAndGet();
             insertOrder.add(entry);
@@ -46,12 +42,13 @@ public class MemIndex implements Index {
 
     @Override
     public int version(long stream) {
-        SortedSet<IndexEntry> entries = index.get(stream);
+        List<IndexEntry> entries = index.get(stream);
         if (entries == null) {
             return IndexEntry.NO_VERSION;
         }
-
-        return entries.last().version;
+        synchronized (entries) {
+            return entries.get(entries.size() - 1).version;
+        }
     }
 
     public int size() {
@@ -74,9 +71,9 @@ public class MemIndex implements Index {
     public LogIterator<IndexEntry> indexIterator(Direction direction) {
         var copy = new HashSet<>(index.entrySet()); //sorted is a stateful operation
         List<IndexEntry> ordered = copy.stream()
-                .sorted(Comparator.comparingLong(Map.Entry::getKey))
                 .map(Map.Entry::getValue)
                 .flatMap(Collection::stream)
+                .sorted()
                 .collect(Collectors.toList());
 
         return Iterators.of(ordered);
@@ -84,15 +81,15 @@ public class MemIndex implements Index {
 
     @Override
     public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
-        SortedSet<IndexEntry> entries = index.get(range.stream);
+        List<IndexEntry> entries = index.get(range.stream);
         if (entries == null || entries.isEmpty()) {
             return Iterators.empty();
         }
-        Set<IndexEntry> indexEntries = entries.subSet(range.start(), range.end());
-        if(Direction.FORWARD.equals(direction)) {
-            return Iterators.of(Collections.unmodifiableSet(indexEntries));
+        synchronized (entries) {
+            List<IndexEntry> copy = List.copyOf(entries);
+            LogIterator<IndexEntry> entriesIt = Direction.BACKWARD.equals(direction) ? Iterators.reversed(copy) : Iterators.of(copy);
+            return Iterators.filtering(entriesIt, ie -> ie.version >= range.startVersionInclusive && ie.version < range.endVersionExclusive);
         }
-        return Iterators.reversed(List.copyOf(indexEntries));
     }
 
     @Override
@@ -107,28 +104,19 @@ public class MemIndex implements Index {
 
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
-        SortedSet<IndexEntry> entries = index.get(stream);
-        if (entries == null) {
+        List<IndexEntry> entries = index.get(stream);
+        if (entries == null || entries.isEmpty()) {
             return Optional.empty();
         }
 
-        Range range = Range.of(stream, version, version + 1);
-        entries = entries.subSet(range.start(), range.end());
-        if (entries.isEmpty()) {
+        synchronized (entries) {
+            int idx = Collections.binarySearch(entries, IndexEntry.of(stream, version, 0));
+            if(idx >= 0) {
+                return Optional.of(entries.get(idx));
+            }
             return Optional.empty();
         }
-        if (entries.size() > 1) {
-            throw new IllegalStateException("Found more than one index entry for stream " + stream + ", version " + version);
-        }
-        return Optional.of(entries.first());
     }
-
-
-//    private void adToPollers(IndexEntry entry) {
-//        for (MemPoller poller : new ArrayList<>(pollers)) {
-//            poller.add(entry);
-//        }
-//    }
 
     PollingSubscriber<IndexEntry> poller() {
         MemPoller memPoller = new MemPoller();
@@ -147,7 +135,7 @@ public class MemIndex implements Index {
         }
 
         private void waitFor(long time, TimeUnit timeUnit) throws InterruptedException {
-            if(time < 0) {
+            if (time < 0) {
                 return;
             }
             long elapsed = 0;

@@ -36,8 +36,6 @@ public class Streams implements Closeable {
     private final StreamHasher hasher;
     private final Function<Long, Integer> versionFetcher;
 
-    private final EquivalenceLock<Long> streamLock = new EquivalenceLock<>();
-
     public Streams(File root, int versionLruCacheSize, Function<Long, Integer> versionFetcher) {
         this.versions = new LRUCache<>(versionLruCacheSize);
         this.streamStore = new StreamStore(root, 1000000); //TODO externalize
@@ -74,29 +72,18 @@ public class Streams implements Closeable {
     //return a metadata if existing, or create a new one using default values, invoking createdCallback on creation
     public StreamMetadata createIfAbsent(String stream, Consumer<StreamMetadata> createdCallback) {
         long streamHash = hashOf(stream);
-        streamLock.lock(streamHash);
-        try {
-            StreamMetadata metadata = streamStore.get(streamHash);
-            if (metadata == null) {
-                metadata = this.createInternal(stream, NO_MAX_AGE, NO_MAX_COUNT, new HashMap<>(), new HashMap<>(), streamHash);
-                createdCallback.accept(metadata);
-            }
-            return metadata;
-        } finally {
-            streamLock.unlock(streamHash);
+        StreamMetadata metadata = streamStore.get(streamHash);
+        if (metadata == null) {
+            metadata = this.createInternal(stream, NO_MAX_AGE, NO_MAX_COUNT, new HashMap<>(), new HashMap<>(), streamHash);
+            createdCallback.accept(metadata);
         }
+        return metadata;
     }
 
     public StreamMetadata create(String stream, long maxAge, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata) {
         StringUtils.requireNonBlank(stream, "Stream must be provided");
         long hash = hashOf(stream);
-
-        streamLock.lock(hash);
-        try {
-            return createInternal(stream, maxAge, maxCount, permissions, metadata, hash);
-        } finally {
-            streamLock.unlock(hash);
-        }
+        return createInternal(stream, maxAge, maxCount, permissions, metadata, hash);
     }
 
     //must not hold the lock, since
@@ -108,12 +95,7 @@ public class Streams implements Closeable {
     }
 
     public StreamMetadata remove(long streamHash) {
-        streamLock.lock(streamHash);
-        try {
-            return streamStore.remove(streamHash);
-        } finally {
-            streamLock.unlock(streamHash);
-        }
+        return streamStore.remove(streamHash);
     }
 
     //Only supports 'startingWith' wildcard
@@ -146,19 +128,14 @@ public class Streams implements Closeable {
     }
 
     private AtomicInteger getVersion(long stream) {
-        streamLock.lock(stream);
-        try {
-            AtomicInteger counter = versions.get(stream);
-            if (counter != null) {
-                return counter;
-            }
-            Integer fromDisk = versionFetcher.apply(stream);//may return -1 (NO_VERSION)
-            AtomicInteger found = new AtomicInteger(fromDisk);
-            versions.put(stream, found);
-            return found;
-        } finally {
-            streamLock.unlock(stream);
+        AtomicInteger counter = versions.get(stream);
+        if (counter != null) {
+            return counter;
         }
+        Integer fromDisk = versionFetcher.apply(stream);//may return -1 (NO_VERSION)
+        AtomicInteger found = new AtomicInteger(fromDisk);
+        versions.put(stream, found);
+        return found;
     }
 
     //lock not required, it uses getVersion
@@ -178,46 +155,4 @@ public class Streams implements Closeable {
     public void close() {
         streamStore.close();
     }
-
-
-    private static class EquivalenceLock<T> {
-        private final Set<T> slots = new HashSet<>();
-
-        public void lock(final T ticket) {
-            synchronized (slots) {
-//                String name = Thread.currentThread().getName();
-//                System.out.println("[" + name + "] Acquiring lock for " + ticket);
-                while (slots.contains(ticket)) {
-                    try {
-//                        System.out.println("[" + name + "] awaiting lock for " + ticket);
-                        slots.wait();
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("Failed to acquire lock for " + ticket, e);
-                    }
-                }
-                slots.add(ticket);
-            }
-        }
-
-        public boolean tryLock(final T ticket) {
-            synchronized (slots) {
-                if (slots.contains(ticket)) {
-                    return false;
-                }
-                slots.add(ticket);
-                return true;
-            }
-        }
-
-        public void unlock(final T ticket) {
-            synchronized (slots) {
-//                String name = Thread.currentThread().getName();
-//                System.out.println("[" + name + "] Lock released for " + ticket);
-                slots.remove(ticket);
-                slots.notifyAll();
-            }
-        }
-    }
-
 }

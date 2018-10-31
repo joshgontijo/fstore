@@ -58,7 +58,7 @@ public class BlockSegment<T> extends Segment<Block<T>> {
         return super.position();
     }
 
-    protected long writeBlock() {
+    public long writeBlock() {
         if (block.isEmpty()) {
             return position();
         }
