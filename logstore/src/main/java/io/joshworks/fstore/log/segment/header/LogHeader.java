@@ -65,8 +65,8 @@ public class LogHeader {
         return headerSerializer.fromBytes(bb);
     }
 
-    public static LogHeader writeNew(Storage storage, String magic, Type type,  long fileSize) {
-        LogHeader newHeader = new LogHeader(magic, 0, System.currentTimeMillis(), 0, type,  0, fileSize, BYTES);
+    public static LogHeader writeNew(Storage storage, String magic, Type type, long fileSize) {
+        LogHeader newHeader = new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, 0, fileSize, BYTES);
         write(storage, newHeader);
         return newHeader;
     }

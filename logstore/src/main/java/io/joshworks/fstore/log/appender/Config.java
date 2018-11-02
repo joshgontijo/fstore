@@ -18,13 +18,13 @@ import static java.util.Objects.requireNonNull;
 
 public class Config<T> {
 
-    public static final String DEFAULT_APPENDER_NAME = "default";
-    public static final int COMPACTION_THRESHOLD = 3;
-    public static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(200);
-    public static final double DEFAULT_CHECKSUM_PROB = 1.0;
+    private static final String DEFAULT_APPENDER_NAME = "default";
+    private static final int COMPACTION_THRESHOLD = 3;
+    private static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(200);
+    private static final double DEFAULT_CHECKSUM_PROB = 1.0;
 
-    public final File directory;
-    public final Serializer<T> serializer;
+    final File directory;
+    final Serializer<T> serializer;
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
     SegmentFactory<T> segmentFactory;

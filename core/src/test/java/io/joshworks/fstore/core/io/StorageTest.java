@@ -188,7 +188,6 @@ public abstract class StorageTest {
         storage.read(position, read);
 
         assertEquals(value, read.flip().getInt());
-
     }
 
 

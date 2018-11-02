@@ -48,10 +48,6 @@ public class FileUtils {
     }
 
 
-    private static File TEST_DIR = AppProperties.create().get("test.dir")
-            .map(File::new)
-            .orElse(tempFolder());
-
     private static File tempFolder() {
         try {
             return Files.createTempDirectory("fstore-test").toFile();
@@ -74,7 +70,8 @@ public class FileUtils {
 
     private static File testFolder(String name) {
         try {
-            File file = new File(TEST_DIR, name);
+            File testDir = AppProperties.create().get("test.dir").map(File::new).orElse(tempFolder());
+            File file = new File(testDir, name);
             Files.createDirectories(file.toPath());
             return file;
         } catch (IOException e) {

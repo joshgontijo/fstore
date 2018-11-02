@@ -397,9 +397,6 @@ public abstract class LogAppenderTest {
         int val = 0;
         while (scanner.hasNext()) {
             long pos = scanner.position();
-            if (pos == 1024) {
-                System.out.println("");
-            }
             String next = scanner.next();
             assertEquals("Failed on " + pos, String.valueOf(val++), next);
         }
@@ -510,14 +507,10 @@ public abstract class LogAppenderTest {
     public void backwards_scanner_returns_all_records() throws IOException {
         int entries = 10;
         for (int i = 0; i < entries; i++) {
-            long pos = appender.append(String.valueOf(i));
-            System.out.println(pos);
+            appender.append(String.valueOf(i));
         }
 
         appender.flush();
-
-        long position = appender.position();
-        System.out.println("POS: " + position);
 
         int current = entries - 1;
         try (LogIterator<String> iterator = appender.iterator(Direction.BACKWARD)) {

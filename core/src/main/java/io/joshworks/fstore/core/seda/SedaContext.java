@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -37,13 +38,12 @@ public class SedaContext implements Closeable {
 
     public CompletableFuture<Object> submit(String stageName, Object event) {
         ContextState contextState = state.get();
-        String uuid = UUID.randomUUID().toString();
         if (!ContextState.RUNNING.equals(contextState)) {
             throw new IllegalStateException("Cannot accept new events on stage '" + stageName + "', context state " + contextState);
         }
         Objects.requireNonNull(event, "Event must be provided");
         CompletableFuture<Object> future = new CompletableFuture<>();
-        sendTo(stageName, uuid, event, future);
+        sendTo(stageName, event, future);
         return future;
     }
 
@@ -58,16 +58,16 @@ public class SedaContext implements Closeable {
             throw new IllegalStateException("Cannot accept new events, context state " + contextState);
         }
         Objects.requireNonNull(event, "Event must be provided");
-        sendTo(stageName, correlationId, event, future);
+        sendTo(stageName, event, future);
     }
 
     @SuppressWarnings("unchecked")
-    private void sendTo(String stageName, String correlationId, Object event, CompletableFuture<Object> future) {
+    private void sendTo(String stageName, Object event, CompletableFuture<Object> future) {
         Stage stage = stages.get(stageName);
         if (stage == null) {
             throw new IllegalArgumentException("No such stage: " + stageName);
         }
-        stage.submit(correlationId, event, future);
+        stage.submit(event, future);
     }
 
     public Set<String> stages() {
@@ -117,7 +117,7 @@ public class SedaContext implements Closeable {
                     completed = completed && stageCompleted;
                 }
 
-                if(!completed) {
+                if (!completed) {
                     sleep();
                 }
             } while (!completed);

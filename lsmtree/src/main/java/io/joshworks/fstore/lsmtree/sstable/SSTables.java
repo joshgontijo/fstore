@@ -32,11 +32,12 @@ public class SSTables<K extends Comparable<K>, V> {
     public void write(MemTable<K, V> memTable) {
         Collection<Entry<K, V>> sorted = memTable.sorted();
 
-        for (Entry<K, V> kvEntry : sorted) {
-            appender.append(kvEntry);
-        }
         SSTable<K, V> current = (SSTable<K, V>) appender.current();
+        for (Entry<K, V> kvEntry : sorted) {
+            current.append(kvEntry);
+        }
         current.writeBlock();
+        appender.roll();
     }
 
     public V getByKey(K key) {
