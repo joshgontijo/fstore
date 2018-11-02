@@ -54,6 +54,8 @@ public class Segment<T> implements Log<T> {
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
+    private final AtomicLong writting = new AtomicLong();
+
     private LogHeader header;
 
     private final Object READER_LOCK = new Object();
@@ -82,7 +84,7 @@ public class Segment<T> implements Log<T> {
             } else {
                 this.header = foundHeader;
                 this.entries.set(foundHeader.entries);
-                if(Type.LOG_HEAD.equals(foundHeader.type)) {
+                if (Type.LOG_HEAD.equals(foundHeader.type)) {
                     SegmentState result = rebuildState(Segment.START);
                     this.position(result.position);
                     this.entries.set(result.entries);
@@ -104,38 +106,15 @@ public class Segment<T> implements Log<T> {
         this.storage.position(position);
     }
 
-//    @Override
-//    public long append(T data) {
-//        if (readOnly()) {
-//            throw new IllegalStateException("Segment is read only");
-//        }
-//        ByteBuffer bytes = serializer.toBytes(data);
-//        long position = position();
-//        if (!hasAvailableSpace(bytes, position)) {
-//            return -1;
-//        }
-//        long recordPosition = dataStream.write(storage, bytes);
-//        entries.incrementAndGet();
-//        return recordPosition;
-//    }
-
     @Override
     public long append(T data) {
         if (readOnly()) {
             throw new IllegalStateException("Segment is read only");
         }
         ByteBuffer bytes = serializer.toBytes(data);
-        long position = position();
-        if (!hasAvailableSpace(bytes, position)) {
-            return -1;
-        }
         long recordPosition = dataStream.write(storage, bytes);
         entries.incrementAndGet();
         return recordPosition;
-    }
-
-    private boolean hasAvailableSpace(ByteBuffer bytes, long position) {
-        return LogHeader.BYTES + Log.EOL.length + position + bytes.remaining() <= header.fileSize;
     }
 
     @Override
@@ -316,7 +295,7 @@ public class Segment<T> implements Log<T> {
 
     private <R extends TimeoutReader> R acquireReader(R reader) {
         synchronized (READER_LOCK) {
-            if(closed.get()) {
+            if (closed.get()) {
                 throw new RuntimeException("Could not acquire segment reader: Closed");
             }
             if (markedForDeletion.get()) {
@@ -509,7 +488,7 @@ public class Segment<T> implements Log<T> {
         private final IDataStream dataStream;
         private final Serializer<T> serializer;
         private final Queue<T> pageQueue = new LinkedList<>();
-        private final Queue<Integer> entriesSizes =  new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
+        private final Queue<Integer> entriesSizes = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
         private long readPosition;
 
         SegmentPoller(IDataStream dataStream, Serializer<T> serializer, long initialPosition) {

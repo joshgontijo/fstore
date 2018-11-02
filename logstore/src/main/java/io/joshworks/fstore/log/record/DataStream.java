@@ -11,6 +11,8 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 //THREAD SAFE
 public class DataStream implements IDataStream {
@@ -43,6 +45,10 @@ public class DataStream implements IDataStream {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
         }
     }
+
+    private final AtomicLong counter = new AtomicLong();
+
+    private final AtomicReference<Object> ref = new AtomicReference<>();
 
     @Override
     public long write(Storage storage, ByteBuffer bytes) {

@@ -5,7 +5,9 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
+import io.joshworks.fstore.core.seda.EventContext;
 import io.joshworks.fstore.core.seda.SedaContext;
+import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -33,9 +35,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -129,9 +135,12 @@ public class LogAppender<T> implements Closeable {
         this.levels = loadLevels();
         this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.compactionThreshold, metadata.magic, config.name, levels, sedaContext, config.threadPerLevel);
         logConfig(config);
+
+        sedaContext.addStage("WRITE", this::appendInternal2, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
     }
 
     private void logConfig(Config<T> config) {
+        logger.info("STORAGE LOCATION: {}", config.directory.toPath());
         logger.info("COMPACTION ENABLED: {}", !config.compactionDisabled);
         logger.info("SEGMENT BITS : {}", SEGMENT_BITS);
         logger.info("MAX SEGMENTS: {} ({} bits)", MAX_SEGMENTS, SEGMENT_BITS);
@@ -287,27 +296,63 @@ public class LogAppender<T> implements Closeable {
         }
     }
 
-    public synchronized long append(T data) {
-        Log<T> current = levels.current();
+    private final Semaphore semaphore = new Semaphore(10000, true);
+    private final ExecutorService writer = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r);
+        t.setName("writer");
+        return t;
+    });
 
-        long positionOnSegment = current.append(data);
-        if (positionOnSegment < 0) { //no space left, roll
-            roll();
-            current = levels.current();
-            positionOnSegment = current.append(data);
-            if (positionOnSegment < 0) {
-                throw new IllegalStateException("Failed to insert entry");
+
+    public long append(T data) {
+        if(closed.get()) {
+            throw new AppendException("Stored closed");
+        }
+        try {
+            return (long) sedaContext.submit("WRITE", data).get();
+//            return appendAsync(data).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AppendException(e);
+        } catch (ExecutionException e) {
+            throw new AppendException(e);
+        }
+    }
+
+    public CompletableFuture<Long> appendAsync(T data) {
+        return CompletableFuture.supplyAsync(() -> this.appendInternal(data), writer);
+    }
+
+    private void appendInternal2(EventContext<T> ctx) {
+        long pos = appendInternal(ctx.data);
+        ctx.complete(pos);
+    }
+
+    private long appendInternal(T data) {
+        if(closed.get()) {
+            throw new AppendException("Stored closed");
+        }
+        semaphore.acquireUninterruptibly();
+        try {
+            Log<T> current = levels.current();
+
+            int segments = levels.numSegments();
+            long positionOnSegment = current.append(data);
+            if (current.logicalSize() > metadata.segmentSize) {
+                roll();
             }
-        }
-        if (FlushMode.ALWAYS.equals(metadata.flushMode)) {
-            flush();
-        }
-        long entryPosition = toSegmentedPosition(levels.numSegments() - 1L, positionOnSegment);
+            if (FlushMode.ALWAYS.equals(metadata.flushMode)) {
+                flush();
+            }
+            long entryPosition = toSegmentedPosition(segments - 1L, positionOnSegment);
+            long currentPosition = toSegmentedPosition(segments - 1L, current.position());
 
-        long currentPosition = toSegmentedPosition(levels.numSegments() - 1L, current.position());
-        state.position(currentPosition);
-        state.incrementEntryCount();
-        return entryPosition;
+            state.position(currentPosition);
+            state.incrementEntryCount();
+            return entryPosition;
+        }finally {
+            semaphore.release();
+        }
     }
 
     public String name() {
@@ -323,7 +368,7 @@ public class LogAppender<T> implements Closeable {
         return Iterators.closeableStream(iterator(direction));
     }
 
-    public LogIterator<T> iterator(long position, Direction direction) {
+    public synchronized LogIterator<T> iterator(long position, Direction direction) {
         return Direction.FORWARD.equals(direction) ? new ForwardLogReader(position) : new BackwardLogReader(position);
     }
 
@@ -335,7 +380,7 @@ public class LogAppender<T> implements Closeable {
         return createPoller(position);
     }
 
-    private PollingSubscriber<T> createPoller(long position) {
+    private synchronized PollingSubscriber<T> createPoller(long position) {
         LogPoller logPoller = new LogPoller(position);
         pollers.add(logPoller);
         return logPoller;
@@ -372,13 +417,14 @@ public class LogAppender<T> implements Closeable {
         return segments(level).stream().mapToLong(Log::fileSize).sum();
     }
 
-    public void close() {
+    public synchronized void close() {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
         logger.info("Closing log appender {}", directory.getName());
 //        stateScheduler.shutdown();
 
+        writer.shutdown();
         sedaContext.shutdown();
 
         Log<T> currentSegment = levels.current();
@@ -408,7 +454,7 @@ public class LogAppender<T> implements Closeable {
         }
     }
 
-    public void flush() {
+    public synchronized void flush() {
         if (closed.get()) {
             return;
         }

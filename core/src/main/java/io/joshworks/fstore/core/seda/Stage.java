@@ -9,6 +9,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Stage<T> implements Closeable {
 
@@ -20,6 +21,7 @@ public class Stage<T> implements Closeable {
     private final String name;
 
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicLong correlation = new AtomicLong(Long.MIN_VALUE);
 
     Stage(String name,
           int corePoolSize,
@@ -39,13 +41,14 @@ public class Stage<T> implements Closeable {
         threadPool = SedaThreadPoolExecutor.create(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, queueSize, queueHighBound, rejectionHandler, blockWhenFull);
     }
 
-    void submit(String correlationId, T event, CompletableFuture<Object> future) {
+    void submit(T event, CompletableFuture<Object> future) {
         if (closed.get()) {
             throw new IllegalStateException("Stage is closed");
         }
 
-        threadPool.execute(TimedRunnable.wrap(() -> {
-            EventContext<T> context = new EventContext<>(correlationId, event, sedaContext, future);
+        String uuid = name + "_" + correlation.incrementAndGet();
+        threadPool.execute(SedaTask.wrap(() -> {
+            EventContext<T> context = new EventContext<>(uuid, event, sedaContext, future);
             try {
                 handler.handle(context);
 

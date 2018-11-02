@@ -12,6 +12,7 @@ import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
@@ -21,6 +22,7 @@ public class BlockSegment<T> extends Segment<Block<T>> {
     private final BlockFactory<T> blockFactory;
     private final int blockSize;
     private final BiConsumer<Long, Block<T>> blockWriteListener;
+    private final AtomicLong entries = new AtomicLong();
     protected Block<T> block;
 
     public BlockSegment(Storage storage,
@@ -116,11 +118,21 @@ public class BlockSegment<T> extends Segment<Block<T>> {
     }
 
     @Override
+    public long entries() {
+        return entries.get();
+    }
+
+    public long blocks() {
+        return super.entries();
+    }
+
+    @Override
     protected long processEntries(List<Block<T>> items) {
-        long entries = 0;
+        long entryCount = 0;
         for (Block<T> item : items) {
-            entries += item.entryCount();
+            entryCount += item.entryCount();
         }
-        return entries;
+        entries.addAndGet(entryCount);
+        return entryCount;
     }
 }
