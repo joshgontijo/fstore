@@ -17,6 +17,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -44,27 +45,29 @@ public class ConcurrencyIT {
     @Test
     public void concurrent_write_same_stream() throws InterruptedException {
 
-        int threads = 10;
-        int itemPerThread = 500000;
+        int threads = 20;
+        int totalItems = 15000000;
         String stream = "stream-0";
         ExecutorService executor = Executors.newFixedThreadPool(threads);
 
-        CountDownLatch latch = new CountDownLatch(threads);
-        for (int thread = 0; thread < threads; thread++) {
+        final AtomicInteger writeCount = new AtomicInteger();
+        for (int written = 0; written < totalItems; written++) {
             executor.execute(() -> {
-                TimeWatch watch = TimeWatch.start();
-                for (int i = 0; i < itemPerThread; i++) {
-                    store.append(EventRecord.create(stream, "" + i, "data-" + i));
-                }
-                latch.countDown();
-                System.out.println("Thread " + Thread.currentThread().getName() + " took " + watch.time() + " to write " + itemPerThread + " entries");
+                int i = writeCount.getAndIncrement();
+                store.append(EventRecord.create(stream, "" + i, "data-" + i));
             });
         }
 
+        Thread reportThread = new Thread(() -> {
+            while (writeCount.get() < totalItems) {
+                System.out.println("WRITES: " + writeCount.get());
+                sleep(2000);
+            }
+        });
+        reportThread.start();
+
         executor.shutdown();
-        if (!latch.await(1, TimeUnit.HOURS)) {
-            fail("Failed to write all entries");
-        }
+        reportThread.join();
 
 
         //READ
@@ -76,7 +79,58 @@ public class ConcurrencyIT {
             found++;
         }
 
-        assertEquals(threads * itemPerThread, found);
+        assertEquals(totalItems, found);
+    }
+
+    @Test
+    public void concurrent_write_read() throws InterruptedException {
+
+        int writeThreads = 10;
+        int totalWrites = 1500000;
+        int readThreads = 10;
+        int totalReads = 10000;
+        String stream = "stream-0";
+        ExecutorService writeExecutor = Executors.newFixedThreadPool(writeThreads);
+        ExecutorService readExecutor = Executors.newFixedThreadPool(readThreads);
+
+        CountDownLatch writeLatch = new CountDownLatch(totalWrites);
+        CountDownLatch readLatch = new CountDownLatch(totalWrites);
+
+        final AtomicInteger writeCount = new AtomicInteger();
+        final AtomicInteger readCount = new AtomicInteger();
+        for (int writeItem = 0; writeItem < totalWrites; writeItem++) {
+            writeExecutor.execute(() -> {
+                int id = writeCount.getAndIncrement();
+                store.append(EventRecord.create(stream, "" + id, "data-" + id));
+                writeLatch.countDown();
+            });
+        }
+
+        for (int readTask = 0; readTask < totalReads; readTask++) {
+            readExecutor.execute(() -> {
+                long count = store.fromStream(stream).count();
+                readLatch.countDown();
+                readCount.incrementAndGet();
+            });
+        }
+
+        Thread reportThread = new Thread(() -> {
+            while (writeCount.get() < totalWrites) {
+                System.out.println("WRITES: " + writeCount.get() + " | READS: " + readCount.get());
+                sleep(2000);
+            }
+        });
+        reportThread.start();
+
+
+        writeExecutor.shutdown();
+        readExecutor.shutdown();
+        if (!writeLatch.await(1, TimeUnit.HOURS)) {
+            fail("Failed to write all entries");
+        }
+        if (!readLatch.await(1, TimeUnit.HOURS)) {
+            fail("Failed to write all entries");
+        }
     }
 
 
@@ -87,6 +141,7 @@ public class ConcurrencyIT {
         int itemPerThread = 100000;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
 
+        AtomicInteger written = new AtomicInteger();
         Set<String> streamNames = new HashSet<>();
         CountDownLatch latch = new CountDownLatch(threads);
         for (int thread = 0; thread < threads; thread++) {
@@ -97,12 +152,20 @@ public class ConcurrencyIT {
                 TimeWatch watch = TimeWatch.start();
                 for (int i = 0; i < itemPerThread; i++) {
                     store.append(EventRecord.create(threadName, "" + i, "data-" + i));
+                    written.incrementAndGet();
                 }
                 latch.countDown();
-                System.out.println("Thread " +threadName + " took " + watch.time() + " to write " + itemPerThread + " entries");
+                System.out.println("Thread " + threadName + " took " + watch.time() + " to write " + itemPerThread + " entries");
             });
         }
 
+        Thread reportThread = new Thread(() -> {
+            while (written.get() < threads * itemPerThread) {
+                System.out.println("WRITES: " + written.get());
+                sleep(2000);
+            }
+        });
+        reportThread.start();
 
         executor.shutdown();
         if (!latch.await(1, TimeUnit.HOURS)) {
@@ -122,5 +185,13 @@ public class ConcurrencyIT {
         assertEquals(threads * itemPerThread, found);
     }
 
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
 
 }

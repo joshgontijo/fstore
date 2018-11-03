@@ -7,6 +7,7 @@ import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -27,6 +28,7 @@ import java.util.stream.Stream;
 public class IndexAppender implements Index {
 
     private static final String INDEX_DIR = "index";
+    private static final String STORE_NAME = "index";
     private final LogAppender<IndexEntry> appender;
 
     public IndexAppender(File rootDir, int logSize, int numElements, boolean useCompression) {
@@ -36,10 +38,10 @@ public class IndexAppender implements Index {
                 .compactionStrategy(new IndexCompactor())
                 .compactionThreshold(3)
                 .segmentSize(logSize)
-                .name("index-appender")
+                .name(STORE_NAME)
                 .flushMode(FlushMode.NEVER)
-//                .storageMode(StorageMode.MMAP)
-                .disableCompaction()
+                .storageMode(StorageMode.MMAP)
+//                .disableCompaction()
                 .namingStrategy(new IndexNaming())
                 .open(new IndexSegmentFactory(indexDirectory, numElements, codec));
     }
@@ -52,8 +54,8 @@ public class IndexAppender implements Index {
 
     @Override
     public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
-        return appender.acquireSegments(direction, segs -> {
-            List<LogIterator<IndexEntry>> iterators = Iterators.closeableStream(segs)
+        return appender.acquireSegments(direction, segments -> {
+            List<LogIterator<IndexEntry>> iterators = Iterators.closeableStream(segments)
                     .map(seg -> (IndexSegment) seg)
                     .map(idxSeg -> idxSeg.indexIterator(direction, range))
                     .collect(Collectors.toList());

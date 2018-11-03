@@ -15,7 +15,7 @@ public class Stage<T> implements Closeable {
 
     private final Logger logger;
 
-    private final SedaThreadPoolExecutor threadPool;
+    private final BoundedExecutor executor;
     private final StageHandler<T> handler;
     private final SedaContext sedaContext;
     private final String name;
@@ -27,7 +27,6 @@ public class Stage<T> implements Closeable {
           int corePoolSize,
           int maximumPoolSize,
           int queueSize,
-          int queueHighBound,
           long keepAliveTime,
           TimeUnit unit,
           boolean blockWhenFull,
@@ -38,7 +37,8 @@ public class Stage<T> implements Closeable {
         this.handler = handler;
         this.name = name;
         this.sedaContext = sedaContext;
-        threadPool = SedaThreadPoolExecutor.create(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, queueSize, queueHighBound, rejectionHandler, blockWhenFull);
+        SedaThreadPoolExecutor tp = SedaThreadPoolExecutor.create(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, queueSize, rejectionHandler);
+        this.executor = new BoundedExecutor(tp, queueSize, blockWhenFull);
     }
 
     void submit(T event, CompletableFuture<Object> future) {
@@ -47,7 +47,7 @@ public class Stage<T> implements Closeable {
         }
 
         String uuid = name + "_" + correlation.incrementAndGet();
-        threadPool.execute(SedaTask.wrap(() -> {
+        executor.submitTask(() -> {
             EventContext<T> context = new EventContext<>(uuid, event, sedaContext, future);
             try {
                 handler.handle(context);
@@ -65,11 +65,11 @@ public class Stage<T> implements Closeable {
                 logger.error("Failed handling event: " + event, e);
                 future.completeExceptionally(e);
             }
-        }));
+        });
     }
 
     public StageStats stats() {
-        return new StageStats(threadPool, closed.get());
+        return executor.stats();
     }
 
     public boolean closed() {
@@ -82,7 +82,7 @@ public class Stage<T> implements Closeable {
             return;
         }
         logger.info("Closing stage");
-        threadPool.shutdown();
+        executor.shutdown();
     }
 
     public void close(long timeout, TimeUnit unit) {
@@ -92,7 +92,7 @@ public class Stage<T> implements Closeable {
         close();
         try {
             logger.info("Waiting termination");
-            threadPool.awaitTermination(timeout, unit);
+            executor.awaitTermination(timeout, unit);
             logger.info("Stage terminated");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -104,20 +104,19 @@ public class Stage<T> implements Closeable {
         return name;
     }
 
-    public static class Builder {
+    public static class Builder<T> {
 
         private int corePoolSize = 1;
         private int maximumPoolSize = 1;
-        private int queueSize = Integer.MAX_VALUE;
+        private int queueSize = 1000000;
         private long keepAliveTime = 30000;
-        private int queueHighBound = queueSize / 2;
         private RejectedExecutionHandler rejectionHandler;
         private boolean blockWhenFull;
 
         public Builder() {
         }
 
-        public Builder corePoolSize(int corePoolSize) {
+        public Builder<T> corePoolSize(int corePoolSize) {
             if (maximumPoolSize <= 0) {
                 throw new IllegalArgumentException("corePoolSize must be greater than zero");
             }
@@ -128,7 +127,7 @@ public class Stage<T> implements Closeable {
             return this;
         }
 
-        public Builder maximumPoolSize(int maximumPoolSize) {
+        public Builder<T> maximumPoolSize(int maximumPoolSize) {
             if (maximumPoolSize <= 0) {
                 throw new IllegalArgumentException("maximumPoolSize must be greater than zero");
             }
@@ -139,7 +138,7 @@ public class Stage<T> implements Closeable {
             return this;
         }
 
-        public Builder queueSize(int queueSize) {
+        public Builder<T> queueSize(int queueSize) {
             if (maximumPoolSize <= 0) {
                 throw new IllegalArgumentException("queueSize must be greater than zero");
             }
@@ -147,31 +146,25 @@ public class Stage<T> implements Closeable {
             return this;
         }
 
-        public Builder normalQueueOperationSize(int queueSize) {
-            this.queueHighBound = queueSize;
-            return this;
-        }
-
-        public Builder keepAliveTime(long keepAliveTime) {
+        public Builder<T> keepAliveTime(long keepAliveTime) {
             this.keepAliveTime = keepAliveTime;
             return this;
         }
 
-        public Builder blockWhenFull() {
+        public Builder<T> blockWhenFull() {
             this.blockWhenFull = true;
             return this;
         }
 
-        public Builder rejectionHandler(RejectedExecutionHandler rejectionHandler) {
+        public Builder<T> rejectionHandler(RejectedExecutionHandler rejectionHandler) {
             Objects.requireNonNull(rejectionHandler, "Rejection handler must be provided");
             this.rejectionHandler = rejectionHandler;
             return this;
         }
 
-        Stage build(String name, StageHandler handler, SedaContext sedaContext) {
-            rejectionHandler = rejectionHandler == null ?  new LoggingRejectionHandler(name) : rejectionHandler;
-            queueHighBound = queueHighBound > queueSize ? queueSize : queueHighBound;
-            return new Stage<>(name, corePoolSize, maximumPoolSize, queueSize, queueHighBound, keepAliveTime, TimeUnit.MILLISECONDS, blockWhenFull, rejectionHandler, sedaContext, handler);
+        Stage<T> build(String name, StageHandler<T> handler, SedaContext sedaContext) {
+            rejectionHandler = rejectionHandler == null ? new LoggingRejectionHandler(name) : rejectionHandler;
+            return new Stage<>(name, corePoolSize, maximumPoolSize, queueSize, keepAliveTime, TimeUnit.MILLISECONDS, blockWhenFull, rejectionHandler, sedaContext, handler);
         }
     }
 

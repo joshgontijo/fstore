@@ -13,14 +13,12 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
-import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -512,60 +510,60 @@ public class EventStoreIT {
         assertEquals(numStreams * numVersions, eventCounter);
     }
 
-    @Test
-    public void poller_returns_all_items() throws IOException, InterruptedException {
-
-        int items = 1000000;
-        String stream = "stream-123";
-        for (int i = 0; i < items; i++) {
-            store.append(EventRecord.create(stream, "type", "data"));
-            if (i % 10000 == 0) {
-                System.out.println("WRITE: " + i);
-            }
-        }
-
-        System.out.println("Write completed");
-        try (PollingSubscriber<EventRecord> poller = store.poller(stream)) {
-            for (int i = 0; i < items; i++) {
-                EventRecord event = poller.take();
-                assertNotNull(event);
-                assertEquals(i, event.version);
-                if (i % 10000 == 0) {
-                    System.out.println("READ: " + i);
-                }
-            }
-        }
-    }
-
-    @Test
-    public void poller_with_multiple_streams_returns_all_items() throws IOException, InterruptedException {
-
-        int items = 1000000;
-        Set<String> allStreams = new HashSet<>();
-        for (int i = 0; i < items; i++) {
-            String stream = "stream-" + i;
-            allStreams.add(stream);
-            store.append(EventRecord.create(stream, "type", "data"));
-            if (i % 10000 == 0) {
-                System.out.println("WRITE: " + i);
-            }
-        }
-
-        System.out.println("Write completed");
-        //Orders of events is not guaranteed across streams
-        try (PollingSubscriber<EventRecord> poller = store.poller(allStreams)) {
-            for (int i = 0; i < items; i++) {
-                EventRecord event = poller.take();
-                assertNotNull(event);
-                assertEquals("Failed on iteration:" + i + " event:" + event, 0, event.version);
-
-
-                if (i % 10000 == 0) {
-                    System.out.println("READ: " + i);
-                }
-            }
-        }
-    }
+//    @Test
+//    public void poller_returns_all_items() throws IOException, InterruptedException {
+//
+//        int items = 1000000;
+//        String stream = "stream-123";
+//        for (int i = 0; i < items; i++) {
+//            store.append(EventRecord.create(stream, "type", "data"));
+//            if (i % 10000 == 0) {
+//                System.out.println("WRITE: " + i);
+//            }
+//        }
+//
+//        System.out.println("Write completed");
+//        try (PollingSubscriber<EventRecord> poller = store.poller(stream)) {
+//            for (int i = 0; i < items; i++) {
+//                EventRecord event = poller.take();
+//                assertNotNull(event);
+//                assertEquals(i, event.version);
+//                if (i % 10000 == 0) {
+//                    System.out.println("READ: " + i);
+//                }
+//            }
+//        }
+//    }
+//
+//    @Test
+//    public void poller_with_multiple_streams_returns_all_items() throws IOException, InterruptedException {
+//
+//        int items = 1000000;
+//        Set<String> allStreams = new HashSet<>();
+//        for (int i = 0; i < items; i++) {
+//            String stream = "stream-" + i;
+//            allStreams.add(stream);
+//            store.append(EventRecord.create(stream, "type", "data"));
+//            if (i % 10000 == 0) {
+//                System.out.println("WRITE: " + i);
+//            }
+//        }
+//
+//        System.out.println("Write completed");
+//        //Orders of events is not guaranteed across streams
+//        try (PollingSubscriber<EventRecord> poller = store.poller(allStreams)) {
+//            for (int i = 0; i < items; i++) {
+//                EventRecord event = poller.take();
+//                assertNotNull(event);
+//                assertEquals("Failed on iteration:" + i + " event:" + event, 0, event.version);
+//
+//
+//                if (i % 10000 == 0) {
+//                    System.out.println("READ: " + i);
+//                }
+//            }
+//        }
+//    }
 
     @Test
     public void linkTo_events_are_resolved_on_get() {

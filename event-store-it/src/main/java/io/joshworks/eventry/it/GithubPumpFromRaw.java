@@ -3,23 +3,29 @@ package io.joshworks.eventry.it;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.util.Size;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
+import java.io.InputStreamReader;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class GithubPumpFromRaw {
 
     private static final File directory = new File("J:\\github\\");
-    private static final ExecutorService executor = Executors.newFixedThreadPool(50);
+    private static final ExecutorService parsers = Executors.newFixedThreadPool(2);
+    private static final ExecutorService writer = Executors.newSingleThreadExecutor();
 
     private static final IEventStore store = EventStore.open(new File("J:\\github-store\\"));
 
@@ -40,38 +46,50 @@ public class GithubPumpFromRaw {
                 .sorted(Comparator.comparing(o -> o.b))
                 .map(t -> t.a)
                 .forEach(fileName -> {
-//                    executor.submit(() -> {
+                    parsers.submit(() -> {
                         try {
                             importFromFile(new File(directory, fileName));
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
-//                    });
+                    });
                 });
-
 
     }
 
     private static void importFromFile(File file) throws Exception {
-        long start = System.currentTimeMillis();
         String stream = "github";
         String evType = "evType";
 
-        int entries = 0;
+        long start = System.currentTimeMillis();
+        List<EventRecord> records = new ArrayList<>();
         try (BufferedReader reader = openReader(file)) {
             String line;
-            while((line = reader.readLine()) != null) {
+            while ((line = reader.readLine()) != null) {
                 EventRecord record = EventRecord.create(stream, evType, line);
-                store.append(record);
-                entries++;
+                records.add(record);
             }
+            System.out.println("PARSED " + records.size() + " in " + (System.currentTimeMillis() - start));
         }
+        write(records);
 
-        System.out.println(entries + " entries imported from " + file.getName() + " in: " + (System.currentTimeMillis() - start));
+
+    }
+
+    private static void write(List<EventRecord> records) {
+        writer.submit(() -> {
+            long start = System.currentTimeMillis();
+            AtomicInteger entries = new AtomicInteger();
+            for (EventRecord rec : records) {
+                store.append(rec);
+                entries.incrementAndGet();
+            }
+            System.out.println("WRITE: " + entries + " in: " + (System.currentTimeMillis() - start));
+        });
     }
 
     private static BufferedReader openReader(File file) throws FileNotFoundException {
-        return new BufferedReader(new FileReader(file));
+        return new BufferedReader(new InputStreamReader(new FileInputStream(file)), Size.MB.intOf(5));
     }
 
     private static class Tuple<A, B> {

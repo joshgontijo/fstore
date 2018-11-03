@@ -222,14 +222,5 @@ public class QueuedEventStore implements IEventStore {
     public PollingSubscriber<EventRecord> poller(long position) {
         return delegate.poller(position);
     }
-
-    @Override
-    public PollingSubscriber<EventRecord> poller(String stream) {
-        return delegate.poller(stream);
-    }
-
-    @Override
-    public PollingSubscriber<EventRecord> poller(Set<String> streamNames) {
-        return delegate.poller(streamNames);
-    }
+    
 }

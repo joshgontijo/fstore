@@ -1,9 +1,7 @@
 package io.joshworks.fstore.core.seda;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -12,33 +10,26 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class SedaThreadPoolExecutor extends ThreadPoolExecutor {
 
-    private final int queueSize;
-    private final int queueHighBound;
     private final RejectedExecutionHandlerWrapper rejectionHandler;
     private final AtomicLong totalTime = new AtomicLong();
     private final AtomicLong queueTime = new AtomicLong();
     private final AtomicLong totalExecutions = new AtomicLong();
-    private final TimeWatch timer = TimeWatch.start();
-    private final Semaphore semaphore;
 
-    private SedaThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, SedaThreadFactory threadFactory, int queueSize, int queueHighBound, RejectedExecutionHandlerWrapper rejectionHandler) {
-        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, new LinkedBlockingQueue<>(), threadFactory, rejectionHandler);
-        this.queueSize = queueSize;
-        this.semaphore = new Semaphore(queueSize);
-        this.queueHighBound = queueHighBound;
+    private SedaThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, SedaThreadFactory threadFactory, int queueSize, RejectedExecutionHandlerWrapper rejectionHandler) {
+        super(corePoolSize, maximumPoolSize, keepAliveTime, unit, new ArrayBlockingQueue<>(queueSize), threadFactory, rejectionHandler);
         this.rejectionHandler = rejectionHandler;
     }
 
-    public static SedaThreadPoolExecutor create(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, int queueSize, int queueHighBound, RejectedExecutionHandler handler, boolean blockWhenFull) {
+    public static SedaThreadPoolExecutor create(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, int queueSize, RejectedExecutionHandler handler) {
         SedaThreadFactory threadFactory = new SedaThreadFactory(name);
         RejectedExecutionHandlerWrapper rejectionHandler = new RejectedExecutionHandlerWrapper(handler);
-        return new SedaThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, unit, threadFactory, queue, rejectionHandler);
+        return new SedaThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, unit, threadFactory, queueSize, rejectionHandler);
     }
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
         SedaTask tr = (SedaTask) r;
-        queueTime.addAndGet(System.currentTimeMillis() - tr.queuedTime);
+        queueTime.addAndGet(tr.queueTime());
 
         super.beforeExecute(t, r);
     }
@@ -48,21 +39,7 @@ public class SedaThreadPoolExecutor extends ThreadPoolExecutor {
         super.afterExecute(r, t);
         totalExecutions.incrementAndGet();
         SedaTask task = (SedaTask) r;
-        totalTime.addAndGet(task.executionTime);
-    }
-
-    @Override
-    public void execute(final Runnable command) {
-        try {
-            semaphore.acquire();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return;
-        }
-
-        SedaTask task = (SedaTask) command;
-        task.semaphore = semaphore;
-        super.execute(task);
+        totalTime.addAndGet(task.executionTime());
     }
 
     long totalTime() {

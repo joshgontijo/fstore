@@ -247,7 +247,6 @@ public class IndexSegment implements Log<IndexEntry>, Index {
             throw new IllegalStateException("Inconsistent index");
         }
         return Optional.of(found);
-
     }
 
     @Override
