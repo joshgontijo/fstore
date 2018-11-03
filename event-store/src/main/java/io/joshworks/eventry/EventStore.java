@@ -209,7 +209,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public Projection createProjection(String script) {
+    public synchronized Projection createProjection(String script) {
         Projection projection = projections.create(script);
         EventRecord eventRecord = ProjectionCreated.create(projection);
         this.appendSystemEvent(eventRecord);
@@ -218,7 +218,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public Projection updateProjection(String name, String script) {
+    public synchronized Projection updateProjection(String name, String script) {
         Projection projection = projections.update(name, script);
         EventRecord eventRecord = ProjectionUpdated.create(projection);
         this.appendSystemEvent(eventRecord);
@@ -227,14 +227,14 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public void deleteProjection(String name) {
+    public synchronized void deleteProjection(String name) {
         projections.delete(name);
         EventRecord eventRecord = ProjectionDeleted.create(name);
         this.appendSystemEvent(eventRecord);
     }
 
     @Override
-    public void runProjection(String name) {
+    public synchronized void runProjection(String name) {
         projections.run(name, this);
     }
 
@@ -254,7 +254,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
+    public synchronized StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
         StreamMetadata created = streams.create(stream, maxAge, maxCount, permissions, metadata);
         if (created == null) {
             throw new IllegalStateException("Stream '" + stream + "' already exist");
@@ -377,7 +377,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventRecord linkTo(String stream, EventRecord event) {
+    public synchronized EventRecord linkTo(String stream, EventRecord event) {
         if (event.isLinkToEvent()) {
             //resolve event
             event = get(event.stream, event.version);
@@ -387,7 +387,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public void emit(String stream, EventRecord event) {
+    public synchronized void emit(String stream, EventRecord event) {
         EventRecord withStream = EventRecord.create(stream, event.type, event.data, event.metadata);
         this.append(withStream);
     }
@@ -405,12 +405,10 @@ public class EventStore implements IEventStore {
             throw new RuntimeException("IndexEntry not found for " + stream + "@" + version);
         }
 
-        return indexEntry.map(this::get).orElseThrow(() -> new RuntimeException("EventRecord not found for " + indexEntry));
+        return indexEntry.map(this::getResolve).orElseThrow(() -> new RuntimeException("EventRecord not found for " + indexEntry));
     }
 
-
-    //TODO make it price and change SingleStreamIterator
-    EventRecord get(IndexEntry indexEntry) {
+    EventRecord getResolve(IndexEntry indexEntry) {
         Objects.requireNonNull(indexEntry, "IndexEntry must be provided");
         EventRecord record = eventLog.get(indexEntry.position);
 
@@ -442,7 +440,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized EventRecord append(EventRecord event, int expectedVersion) {
+    public EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
 
         StreamMetadata metadata = getOrCreateStream(event.stream);
@@ -487,30 +485,30 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public PollingSubscriber<EventRecord> poller() {
+    public synchronized PollingSubscriber<EventRecord> poller() {
         return new LogPoller(eventLog.poller(), this);
     }
 
     @Override
-    public PollingSubscriber<EventRecord> poller(long position) {
+    public synchronized PollingSubscriber<EventRecord> poller(long position) {
         return new LogPoller(eventLog.poller(position), this);
     }
 
-    @Override
-    public PollingSubscriber<EventRecord> poller(String stream) {
-        Set<Long> hashes = streams.streamMatching(stream).stream().map(streams::hashOf).collect(Collectors.toSet());
-        return new IndexedLogPoller(index.poller(hashes), this);
-    }
-
-    @Override
-    public PollingSubscriber<EventRecord> poller(Set<String> streamNames) {
-        Set<Long> hashes = streamNames.stream().map(streams::hashOf).collect(Collectors.toSet());
-        return new IndexedLogPoller(index.poller(hashes), this);
-    }
-
-//    public PollingSubscriber<Event> poller(String stream, int version) {
-//        long streamHash = streams.hashOf(closeableStream);
-//        return new IndexedLogPoller(index.poller(streamHash, version), eventLog);
+//    @Override
+//    public synchronized PollingSubscriber<EventRecord> poller(String stream) {
+//        Set<Long> hashes = streams.streamMatching(stream).stream().map(streams::hashOf).collect(Collectors.toSet());
+//        return new IndexedLogPoller(index.poller(hashes), this);
+//    }
+//
+//    @Override
+//    public synchronized PollingSubscriber<EventRecord> poller(Set<String> streamNames) {
+//        Set<Long> hashes = streamNames.stream().map(streams::hashOf).collect(Collectors.toSet());
+//        return new IndexedLogPoller(index.poller(hashes), this);
+//    }
+//
+//    public PollingSubscriber<EventRecord> poller(String stream, int fromVersion) {
+//        long streamHash = streams.hashOf(stream);
+//        return new IndexedLogPoller(index.poller(streamHash, fromVersion), this);
 //    }
 
     private LogIterator<IndexEntry> withMaxCountFilter(long streamHash, LogIterator<IndexEntry> iterator) {
@@ -531,9 +529,8 @@ public class EventStore implements IEventStore {
         return new MaxAgeFilteringIterator(metadataMap, iterator);
     }
 
-
     @Override
-    public void close() {
+    public synchronized void close() {
         index.close();
         eventLog.close();
         streams.close();

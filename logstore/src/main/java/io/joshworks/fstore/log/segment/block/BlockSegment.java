@@ -55,8 +55,10 @@ public class BlockSegment<T> extends Segment<Block<T>> {
 
     public long add(T entry) {
         if (block.add(entry)) {
+            entries.incrementAndGet();
             return writeBlock();
         }
+        entries.incrementAndGet();
         return super.position();
     }
 

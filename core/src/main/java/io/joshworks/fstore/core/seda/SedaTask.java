@@ -1,13 +1,11 @@
 package io.joshworks.fstore.core.seda;
 
-import java.util.concurrent.Semaphore;
-
 public class SedaTask implements Runnable {
 
     private final Runnable delegate;
-    final long queuedTime = System.currentTimeMillis();
-    long executionTime = 0;
-    Semaphore semaphore;
+    private long executionTime = 0;
+    private long started = -1;
+    private long created = System.currentTimeMillis();
 
     private SedaTask(Runnable delegate) {
         this.delegate = delegate;
@@ -19,13 +17,27 @@ public class SedaTask implements Runnable {
 
     @Override
     public void run() {
-        long start = System.currentTimeMillis();
+        this.started = System.currentTimeMillis();
         try {
             delegate.run();
         } finally {
-            executionTime = (System.currentTimeMillis()) - start;
-            semaphore.release();
+            executionTime = (System.currentTimeMillis()) - started;
         }
+    }
 
+    public long executionTime() {
+        return executionTime;
+    }
+
+    public long started() {
+        return started;
+    }
+
+    public long created() {
+        return created;
+    }
+
+    public long queueTime() {
+        return started < 0 ? System.currentTimeMillis() - created : started - created;
     }
 }

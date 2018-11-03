@@ -16,7 +16,6 @@ public interface IEventLog extends Closeable {
 
     long position();
 
-    @Override
     void close();
 
     LogIterator<EventRecord> iterator(Direction direction);

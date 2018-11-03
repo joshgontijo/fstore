@@ -5,9 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.seda.EventContext;
 import io.joshworks.fstore.core.seda.SedaContext;
-import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -35,13 +33,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -136,7 +130,7 @@ public class LogAppender<T> implements Closeable {
         this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.compactionThreshold, metadata.magic, config.name, levels, sedaContext, config.threadPerLevel);
         logConfig(config);
 
-        sedaContext.addStage("WRITE", this::appendInternal2, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
+//        sedaContext.addStage(writerName, this::appendInternalAsync, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
     }
 
     private void logConfig(Config<T> config) {
@@ -236,11 +230,11 @@ public class LogAppender<T> implements Closeable {
             if (FlushMode.ON_ROLL.equals(metadata.flushMode)) {
                 current.flush();
             }
-            logger.info("Rolling segment: {}", current);
             if (current.entries() == 0) {
-                logger.warn("No entries in the current segment");
+                logger.warn("No entries in the current segment: {}", current.name());
                 return;
             }
+            logger.info("Rolling segment: {}", current);
 
             current.roll(1);
 
@@ -296,63 +290,35 @@ public class LogAppender<T> implements Closeable {
         }
     }
 
-    private final Semaphore semaphore = new Semaphore(10000, true);
-    private final ExecutorService writer = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r);
-        t.setName("writer");
-        return t;
-    });
-
-
     public long append(T data) {
-        if(closed.get()) {
+        if (closed.get()) {
             throw new AppendException("Stored closed");
         }
-        try {
-            return (long) sedaContext.submit("WRITE", data).get();
-//            return appendAsync(data).get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new AppendException(e);
-        } catch (ExecutionException e) {
-            throw new AppendException(e);
-        }
-    }
-
-    public CompletableFuture<Long> appendAsync(T data) {
-        return CompletableFuture.supplyAsync(() -> this.appendInternal(data), writer);
-    }
-
-    private void appendInternal2(EventContext<T> ctx) {
-        long pos = appendInternal(ctx.data);
-        ctx.complete(pos);
+        return appendInternal(data);
     }
 
     private long appendInternal(T data) {
-        if(closed.get()) {
+        if (closed.get()) {
             throw new AppendException("Stored closed");
         }
-        semaphore.acquireUninterruptibly();
-        try {
-            Log<T> current = levels.current();
 
-            int segments = levels.numSegments();
-            long positionOnSegment = current.append(data);
-            if (current.logicalSize() > metadata.segmentSize) {
-                roll();
-            }
-            if (FlushMode.ALWAYS.equals(metadata.flushMode)) {
-                flush();
-            }
-            long entryPosition = toSegmentedPosition(segments - 1L, positionOnSegment);
-            long currentPosition = toSegmentedPosition(segments - 1L, current.position());
+        Log<T> current = levels.current();
 
-            state.position(currentPosition);
-            state.incrementEntryCount();
-            return entryPosition;
-        }finally {
-            semaphore.release();
+        int segments = levels.numSegments();
+        long positionOnSegment = current.append(data);
+        if (current.logicalSize() > metadata.segmentSize) {
+            roll();
         }
+        if (FlushMode.ALWAYS.equals(metadata.flushMode)) {
+            flush();
+        }
+        long entryPosition = toSegmentedPosition(segments - 1L, positionOnSegment);
+        long currentPosition = toSegmentedPosition(segments - 1L, current.position());
+
+        state.position(currentPosition);
+        state.incrementEntryCount();
+        return entryPosition;
+
     }
 
     public String name() {
@@ -424,7 +390,6 @@ public class LogAppender<T> implements Closeable {
         logger.info("Closing log appender {}", directory.getName());
 //        stateScheduler.shutdown();
 
-        writer.shutdown();
         sedaContext.shutdown();
 
         Log<T> currentSegment = levels.current();

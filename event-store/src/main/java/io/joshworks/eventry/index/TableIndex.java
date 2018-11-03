@@ -64,7 +64,7 @@ public class TableIndex implements Index {
     }
 
     //only single write can happen at time
-    private synchronized FlushInfo writeToDisk() {
+    private FlushInfo writeToDisk() {
         //double verification: entries that were waiting for lock should not proceed after previous thread has written to disk
         if (memIndex.size() < flushThreshold) {
             return null;

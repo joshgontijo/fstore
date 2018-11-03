@@ -18,9 +18,11 @@ public class TransactionLog<K extends Comparable<K>, V> {
     private final LogAppender<Record<K, V>> appender;
     private long lastFlush;
 
-    public TransactionLog(File root, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
+    public TransactionLog(File root, Serializer<K> keySerializer, Serializer<V> valueSerializer, String name) {
         this.appender = LogAppender.builder(new File(root, "log"), new RecordSerializer<>(keySerializer, valueSerializer))
-                .compactionStrategy(new NoOpCombiner<>()).open();
+                .compactionStrategy(new NoOpCombiner<>())
+                .name(name + "-log")
+                .open();
         this.lastFlush = Log.START;
     }
 

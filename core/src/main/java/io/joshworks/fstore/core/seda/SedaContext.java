@@ -8,11 +8,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -36,13 +34,13 @@ public class SedaContext implements Closeable {
         return stages.values().stream().collect(Collectors.toMap(Stage::name, Stage::stats));
     }
 
-    public CompletableFuture<Object> submit(String stageName, Object event) {
+    public <R> CompletableFuture<R> submit(String stageName, Object event) {
         ContextState contextState = state.get();
         if (!ContextState.RUNNING.equals(contextState)) {
             throw new IllegalStateException("Cannot accept new events on stage '" + stageName + "', context state " + contextState);
         }
         Objects.requireNonNull(event, "Event must be provided");
-        CompletableFuture<Object> future = new CompletableFuture<>();
+        CompletableFuture<R> future = new CompletableFuture<>();
         sendTo(stageName, event, future);
         return future;
     }
@@ -62,7 +60,7 @@ public class SedaContext implements Closeable {
     }
 
     @SuppressWarnings("unchecked")
-    private void sendTo(String stageName, Object event, CompletableFuture<Object> future) {
+    private <T> void sendTo(String stageName, Object event, CompletableFuture<T> future) {
         Stage stage = stages.get(stageName);
         if (stage == null) {
             throw new IllegalArgumentException("No such stage: " + stageName);

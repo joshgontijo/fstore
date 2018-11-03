@@ -28,16 +28,20 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private final MemTable<K, V> memTable;
     private final int flushThreshold;
 
-    private LsmTree(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold) {
+    private LsmTree(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold, String name) {
         this.flushThreshold = flushThreshold;
-        this.sstables = new SSTables<>(dir, keySerializer, valueSerializer, flushThreshold);
-        this.log = new TransactionLog<>(dir, keySerializer, valueSerializer);
+        this.sstables = new SSTables<>(dir, keySerializer, valueSerializer, flushThreshold, name);
+        this.log = new TransactionLog<>(dir, keySerializer, valueSerializer, name);
         this.memTable = new MemTable<>();
         this.log.restore(this::restore);
     }
 
     public static <K extends Comparable<K>, V> LsmTree<K, V> open(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold) {
-        return new LsmTree<>(dir, keySerializer, valueSerializer, flushThreshold);
+        return open(dir, keySerializer, valueSerializer, flushThreshold, "lsm-tree");
+    }
+
+    public static <K extends Comparable<K>, V> LsmTree<K, V> open(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold, String name) {
+        return new LsmTree<>(dir, keySerializer, valueSerializer, flushThreshold, name);
     }
 
     public synchronized void put(K key, V value) {
