@@ -2,6 +2,7 @@ package io.joshworks.eventry.data;
 
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
@@ -9,7 +10,7 @@ import java.nio.ByteBuffer;
 public class StreamUpdated {
 
     //serializing straight into a StreamMetadata
-    private static final JsonSerializer<StreamMetadata> serializer = JsonSerializer.of(StreamMetadata.class);
+    private static final Serializer<StreamMetadata> serializer = JsonSerializer.of(StreamMetadata.class);
 
     public static final String TYPE = Constant.SYSTEM_PREFIX + "STREAM_UPDATED";
 

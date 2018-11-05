@@ -10,8 +10,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -34,23 +32,11 @@ public class StreamsTest {
     }
 
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void stream_with_same_name_is_not_created() {
-        StreamMetadata created = streams.create("a");
-        assertNotNull(created);
-
-        StreamMetadata anotherOne = streams.create("a");
-        assertNull(anotherOne);
-
-        assertEquals(created, streams.get(created.hash).get());
-
+        streams.create("a");
+        streams.create("a");
     }
-//
-//    @Test(expected = IllegalStateException.class)
-//    public void adding_a_stream_with_same_name_throws_exception() {
-//        streams.add(new StreamMetadata("name", 0, 0, 0, 0, Map.of(), Map.of(), 0));
-//        streams.add(new StreamMetadata("name", 0, 0, 0, 0, Map.of(), Map.of(), 0));
-//    }
 
     @Test
     public void get_returns_correct_stream() {

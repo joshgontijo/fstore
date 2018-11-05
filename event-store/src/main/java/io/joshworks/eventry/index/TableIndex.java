@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -65,20 +64,19 @@ public class TableIndex implements Index {
 
     //only single write can happen at time
     private FlushInfo writeToDisk() {
-        //double verification: entries that were waiting for lock should not proceed after previous thread has written to disk
-        if (memIndex.size() < flushThreshold) {
-            return null;
-        }
         logger.info("Writing index to disk");
 
         long start = System.currentTimeMillis();
-        memIndex.indexStream(Direction.FORWARD).forEach(diskIndex::append);
-        diskIndex.roll();
+        diskIndex.writeToDisk(memIndex);
         long timeTaken = System.currentTimeMillis() - start;
         logger.info("Index write took {}ms", timeTaken);
 
         memIndex.close();
         memIndex = new MemIndex();
+
+        for (DiskMemIndexPoller poller : pollers) {
+            poller.onMemIndexFlushed();
+        }
 
         return new FlushInfo(memIndex.size(), timeTaken);
     }
@@ -168,17 +166,23 @@ public class TableIndex implements Index {
     }
 
     public PollingSubscriber<IndexEntry> poller(Set<Long> streams) {
-        return new StreamIndexPoller(new DiskMemIndexPoller(diskIndex.poller()), streams);
+        return new StreamTrackerPoller(new DiskMemIndexPoller(diskIndex.poller()), streams);
     }
 
-    private class StreamIndexPoller implements PollingSubscriber<IndexEntry> {
+    /**
+     * Higher level poller, that tracks the read streams, used in conjunction with DiskMemPoller to avoid duplicates
+     * when switching from memindex to diskindex pollers and vice versa
+     */
+    private class StreamTrackerPoller implements PollingSubscriber<IndexEntry> {
 
         private final PollingSubscriber<IndexEntry> poller;
         private final Map<Long, Integer> streamsRead;
         private IndexEntry lastEntry;
 
-        StreamIndexPoller(PollingSubscriber<IndexEntry> poller, Set<Long> streams) {
-            this.poller = poller;
+        //TODO add support to restart from a set of streams / versions. map entries must be set with last read version of each stream
+        //AND the disk memDiskPoller must have the position (already supported by log appender)
+        StreamTrackerPoller(PollingSubscriber<IndexEntry> memDiskPoller, Set<Long> streams) {
+            this.poller = memDiskPoller;
             this.streamsRead = streams.stream().collect(Collectors.toMap(aLong -> aLong, aLong -> -1));
         }
 
@@ -202,7 +206,7 @@ public class TableIndex implements Index {
         }
 
         @Override
-        public IndexEntry peek() throws InterruptedException {
+        public synchronized IndexEntry peek() throws InterruptedException {
             if (lastEntry != null) {
                 return lastEntry;
             }
@@ -215,12 +219,12 @@ public class TableIndex implements Index {
         }
 
         @Override
-        public IndexEntry poll() throws InterruptedException {
+        public synchronized IndexEntry poll() throws InterruptedException {
             return poll(-1, TimeUnit.SECONDS);
         }
 
         @Override
-        public IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+        public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
             IndexEntry indexEntry = poolAndUpdateMap();
             if (indexEntry != null) {
                 lastEntry = null; //invalidate future peek
@@ -229,7 +233,7 @@ public class TableIndex implements Index {
         }
 
         @Override
-        public IndexEntry take() throws InterruptedException {
+        public synchronized IndexEntry take() throws InterruptedException {
             IndexEntry indexEntry;
             do {
                 indexEntry = poller.take();
@@ -242,12 +246,12 @@ public class TableIndex implements Index {
         }
 
         @Override
-        public boolean headOfLog() {
+        public synchronized boolean headOfLog() {
             return poller.headOfLog();
         }
 
         @Override
-        public boolean endOfLog() {
+        public synchronized boolean endOfLog() {
             return poller.endOfLog();
         }
 
@@ -257,101 +261,72 @@ public class TableIndex implements Index {
         }
 
         @Override
-        public void close() throws IOException {
+        public synchronized void close() throws IOException {
             poller.close();
             //TODO store state ??
         }
     }
 
+    /**
+     * Manages the MemIndex and DiskIndex pollers
+     * Start polling from disk if data is available.
+     * Switches to mem poller if no entry is available in disk
+     * Once the disk is flushed and the current poller is on mem, switch to disk and discard the mem poller
+     * When catching up from disk, possible duplicate entry can be polled since the reordering on disk write
+     * MUST NOT BE USED WITHOUT StreamIndexPoller that manages the already read items
+     */
     private class DiskMemIndexPoller implements PollingSubscriber<IndexEntry> {
 
         private final PollingSubscriber<IndexEntry> diskPoller;
         private PollingSubscriber<IndexEntry> memPoller;
-        private long readFromMemory;
+        private PollingSubscriber<IndexEntry> current;
+        private boolean memPolling;
 
         private DiskMemIndexPoller(PollingSubscriber<IndexEntry> diskPoller) {
             this.diskPoller = diskPoller;
-            this.memPoller = memIndex.poller();
+            this.memPoller = newMemPoller();
+            this.current = diskPoller;
         }
 
-        @Override
-        public IndexEntry peek() throws InterruptedException {
-            return getIndexEntry(poller -> {
-                try {
-                    return poller.peek();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-        @Override
-        public IndexEntry poll() throws InterruptedException {
-            return getIndexEntry(poller -> {
-                try {
-                    return poller.poll();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-
-        @Override
-        public IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            return getIndexEntry(poller -> {
-                try {
-                    return poller.poll(limit, timeUnit);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-        @Override
-        public IndexEntry take() throws InterruptedException {
-            return getIndexEntry(poller -> {
-                try {
-                    return poller.take();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-        private synchronized IndexEntry getIndexEntry(Function<PollingSubscriber<IndexEntry>, IndexEntry> func) throws InterruptedException {
-            if (!diskPoller.headOfLog()) {
-                memPoller = newMemPoller();
-                while (readFromMemory > 0) {
-                    IndexEntry polled = diskPoller.take();
-                    if (polled == null) {
-                        throw new IllegalStateException("Polled value was null");
-                    }
-                    readFromMemory--;
-                }
-                if (!diskPoller.headOfLog()) {
-                    return func.apply(diskPoller);
-                }
-                IndexEntry polled = diskPoller.poll(3, TimeUnit.SECONDS);
-                if (polled != null) {
-                    return polled;
-                }
+        private void checkSwitchRequired() {
+            if (!memPolling && diskPoller.headOfLog()) {
+                current = newMemPoller();
+                memPolling = true;
             }
+            if (memPolling && !diskPoller.headOfLog()) {
+                current = diskPoller;
+                memPolling = false;
+            }
+        }
 
-            if (memPoller.endOfLog()) {
-                memPoller = newMemPoller();
+        @Override
+        public synchronized IndexEntry peek() throws InterruptedException {
+            checkSwitchRequired();
+            return current.peek();
+        }
+
+        @Override
+        public synchronized IndexEntry poll() throws InterruptedException {
+            checkSwitchRequired();
+            return current.poll();
+        }
+
+
+        @Override
+        public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+            checkSwitchRequired();
+            return current.poll(limit, timeUnit);
+        }
+
+        @Override
+        public synchronized IndexEntry take() throws InterruptedException {
+            checkSwitchRequired();
+            IndexEntry take;
+            //take might be null if mem index gets closed
+            while ((take = current.take()) == null) {
+                checkSwitchRequired();
             }
-            IndexEntry polled = func.apply(memPoller);
-            if (polled == null && memPoller.endOfLog()) { //closed while waiting for data
-                memPoller = newMemPoller();
-                return getIndexEntry(func);
-            }
-            readFromMemory++;
-            return polled;
+            return take;
         }
 
         @Override
@@ -366,7 +341,8 @@ public class TableIndex implements Index {
 
         @Override
         public long position() {
-            return 0;
+            //always use disk position, on restart duplicate might be read but the tracker poller will remove then
+            return diskPoller.position();
         }
 
         @Override
@@ -375,9 +351,16 @@ public class TableIndex implements Index {
             IOUtils.closeQuietly(memPoller);
         }
 
-        private PollingSubscriber<IndexEntry> newMemPoller() {
+        private synchronized PollingSubscriber<IndexEntry> newMemPoller() {
             IOUtils.closeQuietly(memPoller);
             return memIndex.poller();
+        }
+
+        //releases memindex pollers and acquire new one
+        private synchronized void onMemIndexFlushed() {
+            memPoller = newMemPoller();
+            memPolling = false;
+            current = diskPoller;
         }
 
     }

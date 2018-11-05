@@ -353,7 +353,7 @@ public class TableIndexTest {
                     IndexEntry poll = poller.take();
                     assertNotNull(poll);
                     assertTrue(versionTracker.containsKey(poll.stream));
-                    assertEquals((int)versionTracker.get(poll.stream), poll.version);
+                    assertEquals((int) versionTracker.get(poll.stream), poll.version);
                     versionTracker.put(poll.stream, poll.version + 1);
                 }
             }
@@ -596,6 +596,69 @@ public class TableIndexTest {
         }
 
         writeThread.join();
+    }
+
+    @Test
+    public void mem_disk_transition_returns_correct_index_order() throws InterruptedException {
+
+        long stream1 = 123L;
+        long stream2 = 456L;
+
+        tableIndex.add(stream2, 0, 0);
+        tableIndex.flush();
+        tableIndex.add(stream2, 1, 0);
+
+        PollingSubscriber<IndexEntry> poller = tableIndex.poller(Set.of(stream1, stream2));
+
+        IndexEntry polled = poller.poll();
+        assertEquals(stream2, polled.stream);
+        assertEquals(0, polled.version);
+
+        polled = poller.poll();
+        assertEquals(stream2, polled.stream);
+        assertEquals(1, polled.version);
+    }
+
+    @Test
+    public void disk_switches_to_mem_poller() throws InterruptedException {
+
+        long stream = 456L;
+
+        tableIndex.add(stream, 0, 0);
+        tableIndex.add(stream, 1, 0);
+
+        PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream);
+
+        IndexEntry polled = poller.poll();
+        assertEquals(stream, polled.stream);
+        assertEquals(0, polled.version);
+
+        tableIndex.flush();
+
+        polled = poller.poll();
+        assertEquals(stream, polled.stream);
+        assertEquals(1, polled.version);
+    }
+
+    @Test
+    public void mem_switches_to_disk_poller() throws InterruptedException {
+
+        long stream = 456L;
+
+        tableIndex.add(stream, 0, 0);
+
+        PollingSubscriber<IndexEntry> poller = tableIndex.poller(Set.of(stream));
+
+        IndexEntry polled = poller.poll();
+        assertEquals(stream, polled.stream);
+        assertEquals(0, polled.version);
+
+        tableIndex.add(stream, 1, 0);
+        tableIndex.flush();
+
+        polled = poller.poll();
+        assertEquals(stream, polled.stream);
+        assertEquals(1, polled.version);
     }
 
 }

@@ -1,6 +1,7 @@
 package io.joshworks.eventry.data;
 
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
@@ -9,7 +10,7 @@ import static io.joshworks.eventry.data.Constant.SYSTEM_PREFIX;
 
 public class IndexFlushed {
 
-    private static final JsonSerializer<IndexFlushed> serializer = JsonSerializer.of(IndexFlushed.class);
+    private static final Serializer<IndexFlushed> serializer = JsonSerializer.of(IndexFlushed.class);
 
     public final long logPosition;
     public final long timeTaken;

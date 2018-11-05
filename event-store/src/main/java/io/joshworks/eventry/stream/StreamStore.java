@@ -27,11 +27,11 @@ public class StreamStore implements Closeable {
     public void put(long stream, StreamMetadata metadata) {
         requireNonNull(metadata, "Metadata must be provided");
         if (cache.containsKey(stream)) {
-            throw new IllegalStateException("Stream '" + metadata.name + "' already exist");
+            throw new IllegalArgumentException("Stream '" + metadata.name + "' already exist");
         }
         StreamMetadata fromDisk = store.get(stream);
         if (fromDisk != null) {
-            throw new IllegalStateException("Stream '" + metadata.name + "' already exist");
+            throw new IllegalArgumentException("Stream '" + metadata.name + "' already exist");
         }
 
         cache.put(stream, metadata);

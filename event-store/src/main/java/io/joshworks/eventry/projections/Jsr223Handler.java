@@ -2,6 +2,8 @@ package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.utils.StringUtils;
 
+import javax.script.Compilable;
+import javax.script.CompiledScript;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
@@ -31,7 +33,7 @@ public class Jsr223Handler implements EventStreamHandler {
     private final Invocable invocable;
     private final StreamSource source;
 
-    public Jsr223Handler(ProjectionContext ctx, String script, String engineName) {
+    Jsr223Handler(ProjectionContext ctx, String script, String engineName) {
         try {
             BiConsumer<String, JsonEvent> emmit = ctx::emit;
             BiConsumer<String, JsonEvent> linkTo = ctx::linkTo;
@@ -45,8 +47,10 @@ public class Jsr223Handler implements EventStreamHandler {
             engine.put(EMIT_METHOD_NAME, emmit);
             engine.put(LINK_TO_METHOD_NAME, linkTo);
 
-            engine.eval(script);
-            this.invocable = (Invocable) engine;
+            Compilable compilingEngine = (Compilable) engine;
+            CompiledScript cscript = compilingEngine.compile(script);
+            cscript.eval();
+            this.invocable = (Invocable) cscript.getEngine();
             this.source = getStreamSource(ctx);
 
         } catch (Exception e) {
@@ -89,7 +93,7 @@ public class Jsr223Handler implements EventStreamHandler {
         return source;
     }
 
-    public static Projection compile(String script, String engineName) {
+    static Projection compile(String script, String engineName) {
         try {
             Map<String, Object> options = new HashMap<>();
             Map<String, Object> initialState = new HashMap<>();
@@ -108,35 +112,35 @@ public class Jsr223Handler implements EventStreamHandler {
             Object enabled = options.get(ENABLED_FIELD_NAME);
 
             if (sourceStreams == null) {
-                throw new RuntimeException("No source stream provided");
+                throw new ScriptException("No source stream provided");
             }
             Set<String> streams = new HashSet<>(((Map<String, String>) sourceStreams).values());
             streams.removeIf(String::isEmpty);
             if (streams.isEmpty()) {
-                throw new RuntimeException("No source stream provided");
+                throw new ScriptException("No source stream provided");
             }
 
             if (projectionName == null || StringUtils.isBlank(String.valueOf(projectionName))) {
-                throw new RuntimeException("No projection name provided");
+                throw new ScriptException("No projection name provided");
             }
             if (type == null || StringUtils.isBlank(String.valueOf(type))) {
-                throw new RuntimeException("No source stream provided");
+                throw new ScriptException("No source stream provided");
             }
             Projection.Type theType = getType(type);
 
             boolean isParallel = parallel != null && ((Boolean) parallel);
             boolean isEnabled = enabled == null || ((Boolean) enabled);
 
-            return new Projection(script, String.valueOf(projectionName), streams, theType, isEnabled, isParallel);
+            return new Projection(script, String.valueOf(projectionName), engineName, streams, theType, isEnabled, isParallel);
 
         } catch (Exception e) {
-            throw new RuntimeException("Script compilation error: " + e.getMessage(), e);
+            throw new CompilationException("Script compilation error: " + e.getMessage(), e);
         }
     }
 
     private static Projection.Type getType(Object type) {
         try {
-            return Projection.Type.valueOf(String.valueOf(type));
+            return Projection.Type.valueOf(String.valueOf(type).trim().toUpperCase());
         } catch (Exception e) {
             throw new RuntimeException("Invalid projection type '" + type + "'");
         }

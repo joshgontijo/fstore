@@ -17,7 +17,7 @@ import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.log.RecordCleanup;
 import io.joshworks.eventry.projections.Projection;
-import io.joshworks.eventry.projections.ProjectionManager;
+import io.joshworks.eventry.projections.ProjectionExecutorManager;
 import io.joshworks.eventry.projections.Projections;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.stream.StreamInfo;
@@ -63,7 +63,7 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         this.index = new TableIndex(rootDir);
-        this.projections = new Projections(new ProjectionManager(this::appendSystemEvent));
+        this.projections = new Projections(new ProjectionExecutorManager(this::appendSystemEvent));
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
@@ -175,7 +175,14 @@ public class EventStore implements IEventStore {
                 projections.delete(deleted.name);
             }
         }
-        logger.info("Projections loaded in {}ms", (System.currentTimeMillis() - start));
+
+        int loaded = projections.all().size();
+        logger.info("Loaded {} projections in {}ms", loaded, (System.currentTimeMillis() - start));
+        if (loaded == 0) {
+            logger.info("Creating system projections");
+            projections.createSystemProjections();
+        }
+
     }
 
     @Override
@@ -405,17 +412,19 @@ public class EventStore implements IEventStore {
             throw new RuntimeException("IndexEntry not found for " + stream + "@" + version);
         }
 
-        return indexEntry.map(this::getResolve).orElseThrow(() -> new RuntimeException("EventRecord not found for " + indexEntry));
+        return get(indexEntry.get());
     }
 
-    EventRecord getResolve(IndexEntry indexEntry) {
-        Objects.requireNonNull(indexEntry, "IndexEntry must be provided");
-        EventRecord record = eventLog.get(indexEntry.position);
+    @Override
+    public EventRecord get(IndexEntry indexEntry) {
+        Objects.requireNonNull(indexEntry, "IndexEntry mus not be null");
 
+        EventRecord record = eventLog.get(indexEntry.position);
         return resolve(record);
     }
 
-    EventRecord resolve(EventRecord record) {
+    @Override
+    public EventRecord resolve(EventRecord record) {
         if (record.isLinkToEvent()) {
             String[] split = record.dataAsString().split(EventRecord.STREAM_VERSION_SEPARATOR);
             var linkToStream = split[0];
@@ -452,7 +461,6 @@ public class EventStore implements IEventStore {
         return append(metadata, event, IndexEntry.NO_VERSION);
     }
 
-    //TODO synchronize on stream
     private EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
         if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");

@@ -1,6 +1,7 @@
 package io.joshworks.eventry.data;
 
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
@@ -13,7 +14,7 @@ public class ProjectionStopped {
     public final long logPosition;
 
     public static final String TYPE = Constant.SYSTEM_PREFIX + "PROJECTION_RUN_STOPPED";
-    private static final JsonSerializer<ProjectionStopped> serializer = JsonSerializer.of(ProjectionStopped.class);
+    private static final Serializer<ProjectionStopped> serializer = JsonSerializer.of(ProjectionStopped.class);
 
     public ProjectionStopped(String name, String reason, long processedItems, long logPosition) {
         this.name = name;

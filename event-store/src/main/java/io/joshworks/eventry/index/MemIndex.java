@@ -62,8 +62,10 @@ public class MemIndex implements Index {
 
     @Override
     public void close() {
-        for (MemPoller poller : new ArrayList<>(pollers)) {
-            poller.close();
+        synchronized (pollers) {
+            for (MemPoller poller : pollers) {
+                poller.close();
+            }
         }
     }
 
@@ -119,9 +121,11 @@ public class MemIndex implements Index {
     }
 
     PollingSubscriber<IndexEntry> poller() {
-        MemPoller memPoller = new MemPoller();
-        pollers.add(memPoller);
-        return memPoller;
+        synchronized (pollers) {
+            MemPoller memPoller = new MemPoller();
+            pollers.add(memPoller);
+            return memPoller;
+        }
     }
 
     private class MemPoller implements PollingSubscriber<IndexEntry> {
@@ -169,10 +173,9 @@ public class MemIndex implements Index {
 
         @Override
         public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            if (hasData()) {
-                return insertOrder.get(position++);
+            if (!hasData()) {
+                waitFor(limit, timeUnit);
             }
-            waitFor(limit, timeUnit);
             if (hasData()) {
                 return insertOrder.get(position++);
             }

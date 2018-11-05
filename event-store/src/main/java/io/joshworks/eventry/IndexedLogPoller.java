@@ -19,7 +19,7 @@ class IndexedLogPoller implements PollingSubscriber<EventRecord> {
     }
 
     private EventRecord getOrElse(IndexEntry peek) {
-        return Optional.ofNullable(peek).map(store::getResolve).orElse(null);
+        return Optional.ofNullable(peek).map(store::get).orElse(null);
     }
 
     @Override

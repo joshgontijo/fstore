@@ -78,6 +78,7 @@ public class LogAppender<T> implements Closeable {
     //state
     private final State state;
     private final boolean compactionDisabled;
+    private final boolean autoRoll;
 
     private AtomicBoolean closed = new AtomicBoolean();
 
@@ -98,6 +99,7 @@ public class LogAppender<T> implements Closeable {
         this.namingStrategy = config.namingStrategy;
         this.dataStream = new DataStream(config.bufferPool, config.checksumProbability);
         this.compactionDisabled = config.compactionDisabled;
+        this.autoRoll = config.autoRoll;
         this.logger = Logging.namedLogger(config.name, "appender");
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
@@ -306,7 +308,7 @@ public class LogAppender<T> implements Closeable {
 
         int segments = levels.numSegments();
         long positionOnSegment = current.append(data);
-        if (current.logicalSize() > metadata.segmentSize) {
+        if (autoRoll && current.logicalSize() > metadata.segmentSize) {
             roll();
         }
         if (FlushMode.ALWAYS.equals(metadata.flushMode)) {

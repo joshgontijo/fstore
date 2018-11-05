@@ -2,6 +2,7 @@ package io.joshworks.eventry.data;
 
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.Projection;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
@@ -10,7 +11,7 @@ import java.nio.ByteBuffer;
 public class ProjectionUpdated {
 
     //serializing straight into a StreamMetadata
-    private static final JsonSerializer<Projection> serializer = JsonSerializer.of(Projection.class);
+    private static final Serializer<Projection> serializer = JsonSerializer.of(Projection.class);
 
     public static final String TYPE = Constant.SYSTEM_PREFIX + "PROJECTION_UPDATED";
 

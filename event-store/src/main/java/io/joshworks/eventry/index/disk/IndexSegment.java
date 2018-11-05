@@ -37,16 +37,14 @@ import java.util.stream.Stream;
 
 public class IndexSegment implements Log<IndexEntry>, Index {
 
+    private static final double FALSE_POSITIVE_PROB = 0.01;
+    private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
+
     BloomFilter<Long> filter;
     final Midpoints midpoints;
     private final File directory;
-    private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
 
     private final BlockSegment<IndexEntry> delegate;
-
-
-
-    private static final double FALSE_POSITIVE_PROB = 0.01;
 
     IndexSegment(Storage storage,
                  IDataStream reader,

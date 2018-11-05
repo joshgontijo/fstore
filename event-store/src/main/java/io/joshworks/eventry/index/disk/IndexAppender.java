@@ -2,6 +2,7 @@ package io.joshworks.eventry.index.disk;
 
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
@@ -38,6 +39,7 @@ public class IndexAppender implements Index {
                 .compactionStrategy(new IndexCompactor())
                 .compactionThreshold(3)
                 .segmentSize(logSize)
+                .disableAutoRoll()
                 .name(STORE_NAME)
                 .flushMode(FlushMode.NEVER)
                 .storageMode(StorageMode.MMAP)
@@ -110,11 +112,8 @@ public class IndexAppender implements Index {
         appender.close();
     }
 
-    public void append(IndexEntry indexEntry) {
-        appender.append(indexEntry);
-    }
-
-    public void roll() {
+    public synchronized void writeToDisk(MemIndex memIndex) {
+        memIndex.indexStream(Direction.FORWARD).forEach(appender::append);
         appender.roll();
     }
 
@@ -125,11 +124,6 @@ public class IndexAppender implements Index {
     public PollingSubscriber<IndexEntry> poller() {
         return appender.poller();
     }
-
-    public void flush() {
-        appender.flush();
-    }
-
 
     public static class IndexNaming extends ShortUUIDNamingStrategy {
         @Override

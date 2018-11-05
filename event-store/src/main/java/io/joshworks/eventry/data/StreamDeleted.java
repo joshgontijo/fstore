@@ -1,6 +1,7 @@
 package io.joshworks.eventry.data;
 
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
@@ -8,7 +9,7 @@ import java.nio.ByteBuffer;
 public class StreamDeleted {
 
     //serializing straight into a StreamMetadata
-    private static final JsonSerializer<StreamDeleted> serializer = JsonSerializer.of(StreamDeleted.class);
+    private static final Serializer<StreamDeleted> serializer = JsonSerializer.of(StreamDeleted.class);
 
     public final String stream;
     public final int versionAtDeletion;

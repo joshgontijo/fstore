@@ -38,6 +38,7 @@ public class Config<T> {
     int compactionThreshold = COMPACTION_THRESHOLD;
     boolean threadPerLevel;
     boolean compactionDisabled;
+    boolean autoRoll = true;
 
     Config(File directory, Serializer<T> serializer) {
         this.directory = requireNonNull(directory, "directory cannot be null");;
@@ -51,6 +52,11 @@ public class Config<T> {
 
     public Config<T> storageMode(StorageMode mode) {
         this.mode = requireNonNull(mode);
+        return this;
+    }
+
+    public Config<T> disableAutoRoll() {
+        this.autoRoll = false;
         return this;
     }
 

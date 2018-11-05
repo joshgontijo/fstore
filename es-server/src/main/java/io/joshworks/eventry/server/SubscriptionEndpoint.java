@@ -57,9 +57,9 @@ public class SubscriptionEndpoint {
 
                 //TODO implement checkpoint
 //              int version = lastEventId == null || lastEventId.isEmpty() ? 0 : Integer.valueOf(lastEventId);
-                PollingSubscriber<EventRecord> poller = store.poller(streams);
-                pollers.put(connection, poller);
-                broadcast.add(poller);
+//                PollingSubscriber<EventRecord> poller = store.poller(streams);
+//                pollers.put(connection, poller);
+//                broadcast.add(poller);
 
                 for (String stream : streams) {
                     SseBroadcaster.addToGroup(stream, connection);

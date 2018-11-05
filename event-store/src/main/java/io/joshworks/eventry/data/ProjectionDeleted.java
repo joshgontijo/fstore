@@ -1,6 +1,7 @@
 package io.joshworks.eventry.data;
 
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
@@ -10,7 +11,7 @@ public class ProjectionDeleted {
     public final String name;
 
     public static final String TYPE = Constant.SYSTEM_PREFIX + "PROJECTION_DELETED";
-    private static final JsonSerializer<ProjectionDeleted> serializer = JsonSerializer.of(ProjectionDeleted.class);
+    private static final Serializer<ProjectionDeleted> serializer = JsonSerializer.of(ProjectionDeleted.class);
 
     public ProjectionDeleted(String name) {
         this.name = name;
