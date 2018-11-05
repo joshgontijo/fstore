@@ -1,5 +1,7 @@
 package io.joshworks.eventry.it;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,7 +32,7 @@ public class GithubPumpFromRaw {
 
     private static final IEventStore store = EventStore.open(new File("J:\\github-store\\"));
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
 
         final DateFormat format = new SimpleDateFormat("yyyy-MM-dd-HH");
 
@@ -57,6 +60,7 @@ public class GithubPumpFromRaw {
 
     }
 
+    private static Gson gson = new Gson();
     private static void importFromFile(File file) throws Exception {
         String stream = "github";
         String evType = "evType";
@@ -66,13 +70,13 @@ public class GithubPumpFromRaw {
         try (BufferedReader reader = openReader(file)) {
             String line;
             while ((line = reader.readLine()) != null) {
-                EventRecord record = EventRecord.create(stream, evType, line);
+                Map<String, Object> map = gson.fromJson(line, new TypeToken<Map<String, Object>>() {}.getType());
+                EventRecord record = EventRecord.create(stream, evType, map);
                 records.add(record);
             }
             System.out.println("PARSED " + records.size() + " in " + (System.currentTimeMillis() - start));
         }
         write(records);
-
 
     }
 

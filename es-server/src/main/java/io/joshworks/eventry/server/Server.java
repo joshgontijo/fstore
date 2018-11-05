@@ -24,7 +24,7 @@ public class Server {
     public static void main(String[] args) {
 
         AppProperties properties = AppProperties.create();
-        String path = properties.get("store.path").orElse("J:\\event-store-github");
+        String path = properties.get("store.path").orElse("J:\\github-store");
         IEventStore store = EventStore.open(new File(path));
 
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);

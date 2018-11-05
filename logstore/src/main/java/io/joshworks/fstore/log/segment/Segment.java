@@ -50,11 +50,9 @@ public class Segment<T> implements Log<T> {
     private final IDataStream dataStream;
     private final String magic;
 
-    private AtomicLong entries = new AtomicLong();
+    protected AtomicLong entries = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
-
-    private final AtomicLong writting = new AtomicLong();
 
     private LogHeader header;
 
@@ -113,8 +111,12 @@ public class Segment<T> implements Log<T> {
         }
         ByteBuffer bytes = serializer.toBytes(data);
         long recordPosition = dataStream.write(storage, bytes);
-        entries.incrementAndGet();
+        incrementEntry();
         return recordPosition;
+    }
+
+    protected void incrementEntry() {
+        entries.incrementAndGet();
     }
 
     @Override

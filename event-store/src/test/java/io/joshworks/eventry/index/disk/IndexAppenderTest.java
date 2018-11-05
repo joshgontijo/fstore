@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index.disk;
 
 import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -21,11 +22,13 @@ public class IndexAppenderTest {
 
     private IndexAppender appender;
     private File location;
+    private MemIndex memIndex;
 
     @Before
     public void setUp() {
         location = FileUtils.testFolder();
         appender = new IndexAppender(location, (int) Size.MB.of(10), 10000, true);
+        memIndex = new MemIndex();
     }
 
     @After
@@ -37,34 +40,25 @@ public class IndexAppenderTest {
     @Test
     public void entry_count() {
 
-        appender.append(IndexEntry.of(1, 0, 0));
-        appender.append(IndexEntry.of(2, 0, 0));
-        appender.append(IndexEntry.of(3, 0, 0));
+        memIndex.add(IndexEntry.of(1, 0, 0));
+        memIndex.add(IndexEntry.of(2, 0, 0));
+        memIndex.add(IndexEntry.of(3, 0, 0));
+
+        appender.writeToDisk(memIndex);
 
         long entries = appender.entries();
         assertEquals(3, entries);
     }
 
-    @Test
-    public void entry_count_after_flush() {
-
-        appender.append(IndexEntry.of(1, 0, 0));
-        appender.append(IndexEntry.of(2, 0, 0));
-        appender.append(IndexEntry.of(3, 0, 0));
-
-        appender.flush();
-
-        long entries = appender.entries();
-        assertEquals(3, entries);
-    }
 
     @Test
     public void entry_count_after_close() {
 
-        appender.append(IndexEntry.of(1, 0, 0));
-        appender.append(IndexEntry.of(2, 0, 0));
-        appender.append(IndexEntry.of(3, 0, 0));
+        memIndex.add(IndexEntry.of(1, 0, 0));
+        memIndex.add(IndexEntry.of(2, 0, 0));
+        memIndex.add(IndexEntry.of(3, 0, 0));
 
+        appender.writeToDisk(memIndex);
         appender.close();
 
         appender = new IndexAppender(location, (int) Size.MB.of(10), 10000, true);
@@ -83,11 +77,11 @@ public class IndexAppenderTest {
         int stream = 0;
         for (int i = 0; i < entriesPerSegment; i++) {
             for (int x = 0; x < numSegments; x++) {
-                appender.append(IndexEntry.of(stream++, 0, 0));
+                memIndex.add(IndexEntry.of(stream++, 0, 0));
             }
-            appender.roll();
+            appender.writeToDisk(memIndex);
+            memIndex = new MemIndex();
         }
-        appender.flush();
 
         long entries = appender.entries();
         assertEquals(entriesPerSegment * numSegments, entries);
@@ -107,11 +101,11 @@ public class IndexAppenderTest {
         int version = 0;
         for (int i = 0; i < entriesPerSegment; i++) {
             for (int x = 0; x < numSegments; x++) {
-                appender.append(IndexEntry.of(0, version++, 0));
+                memIndex.add(IndexEntry.of(0, version++, 0));
             }
-            appender.roll();
+            appender.writeToDisk(memIndex);
+            memIndex = new MemIndex();
         }
-        appender.flush();
 
         int found = 0;
         int expectedVersion = Range.START_VERSION;
@@ -131,9 +125,9 @@ public class IndexAppenderTest {
 
         long start = System.currentTimeMillis();
         for (int i = 0; i < 1000000; i++) {
-            appender.append(IndexEntry.of(i, 1, 0));
+            memIndex.add(IndexEntry.of(i, 1, 0));
         }
-        appender.flush();
+        appender.writeToDisk(memIndex);
         System.out.println("WRITE " + (System.currentTimeMillis() - start));
 
 
@@ -161,21 +155,17 @@ public class IndexAppenderTest {
         int numSegments = 2;
         int itemsPerSegment = streams / numSegments;
         for (int i = 0; i < streams; i++) {
-            appender.append(IndexEntry.of(i, 1, 0));
+            memIndex.add(IndexEntry.of(i, 1, 0));
             if (i % itemsPerSegment == 0) {
-                appender.roll();
+                appender.writeToDisk(memIndex);
+                memIndex = new MemIndex();
             }
         }
-        appender.flush();
 
-        long start = System.currentTimeMillis();
+        appender.writeToDisk(memIndex);
+
         for (int i = 0; i < streams; i++) {
-
             int version = appender.version(i);
-            if (i % 100000 == 0) {
-                System.out.println((System.currentTimeMillis() - start));
-                start = System.currentTimeMillis();
-            }
             assertEquals("Failed on iteration " + i, 1, version);
 
         }

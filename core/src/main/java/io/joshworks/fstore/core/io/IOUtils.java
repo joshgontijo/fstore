@@ -15,10 +15,13 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.Flushable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
+import java.util.Scanner;
 
 
 public final class IOUtils {
@@ -154,6 +157,12 @@ public final class IOUtils {
             }
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
+        }
+    }
+
+    public static String toString(InputStream is) {
+        try(Scanner scanner = new Scanner( is, StandardCharsets.UTF_8)) {
+            return scanner.useDelimiter("\\A").next();
         }
     }
 }

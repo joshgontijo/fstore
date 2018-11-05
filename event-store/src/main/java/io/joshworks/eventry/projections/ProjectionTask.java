@@ -1,5 +1,6 @@
 package io.joshworks.eventry.projections;
 
+import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.result.ExecutionResult;
@@ -79,8 +80,13 @@ public class ProjectionTask {
         }
     }
 
+    private boolean isAll(Set<String> streams) {
+        return streams.size() == 1 && streams.iterator().next().equals("_all");
+    }
+
     private TaskResult runSequentially(EventStreamHandler handler, Set<String> streams) {
-        LogIterator<EventRecord> stream = store.zipStreamsIter(streams);
+
+        LogIterator<EventRecord> stream = isAll(streams) ? store.fromAllIter() : store.zipStreamsIter(streams);
         try {
             String id = UUID.randomUUID().toString().substring(0, 8);
             tasksMetrics.put(id, new Metrics(streams));
@@ -104,6 +110,13 @@ public class ProjectionTask {
                     return TaskResult.stopped(projection.name, context.state(), metrics);
                 }
                 record = stream.next();
+                if(record.isSystemEvent()) {
+                    continue;
+                }
+                if(record.isLinkToEvent()) {
+                    EventStore st = (EventStore) store;
+                    record = st.resolve(record);
+                }
                 JsonEvent event = JsonEvent.from(record);
                 if (handler.filter(event, context.state())) {
                     handler.onEvent(event, context.state());
@@ -126,7 +139,6 @@ public class ProjectionTask {
         }
     }
 
-
     private void validateSource(StreamSource streamSource) {
         if (streamSource.streams == null || streamSource.streams.isEmpty()) {
             throw new RuntimeException("Source must be provided");
@@ -142,8 +154,7 @@ public class ProjectionTask {
     }
 
     private EventStreamHandler createHandler(Projection projection, ProjectionContext context) {
-        return new Jsr223Handler(context, projection.script, "nashorn");
-//        return new ByType(context);
+        return new Jsr223Handler(context, projection.script, Projections.ENGINE_NAME);
     }
 
     public void stop() {

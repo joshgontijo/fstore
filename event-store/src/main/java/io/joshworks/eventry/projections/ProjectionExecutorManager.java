@@ -13,8 +13,6 @@ import io.joshworks.eventry.projections.result.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -24,16 +22,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
-public class ProjectionManager {
+public class ProjectionExecutorManager {
 
-    private static final Logger logger = LoggerFactory.getLogger(ProjectionManager.class);
+    private static final Logger logger = LoggerFactory.getLogger(ProjectionExecutorManager.class);
 
     private final ExecutorService executor = Executors.newFixedThreadPool(10);
-    private final ProjectionHandlers handlers = new ProjectionHandlers();
     private final Consumer<EventRecord> systemRecordAppender;
     private final Map<String, ProjectionTask> running = new HashMap<>();
 
-    public ProjectionManager(Consumer<EventRecord> systemRecordAppender) {
+    public ProjectionExecutorManager(Consumer<EventRecord> systemRecordAppender) {
         this.systemRecordAppender = systemRecordAppender;
     }
 

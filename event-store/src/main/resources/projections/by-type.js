@@ -1,8 +1,9 @@
 config({
     name: "by-type",
-    streams: ["clickstream"],
-    type: "ONE_TIME",
-    parallel: false
+    streams: ["_all"],
+    type: "CONTINUOUS",
+    parallel: false,
+    enabled: true
 });
 
 function filter(event, state) {
