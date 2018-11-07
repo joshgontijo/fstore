@@ -7,6 +7,7 @@ public class Range {
     public final int endVersionExclusive;
 
     public static final int START_VERSION = 0;
+    private static final int UNUSED = 0;
 
     private Range(long stream, int startVersionInclusive, int endVersionExclusive) {
         if(startVersionInclusive < START_VERSION) {
@@ -15,6 +16,10 @@ public class Range {
         this.stream = stream;
         this.startVersionInclusive = startVersionInclusive;
         this.endVersionExclusive = endVersionExclusive;
+    }
+
+    public boolean match(IndexEntry entry) {
+        return entry.version >= startVersionInclusive && entry.version < endVersionExclusive;
     }
 
     public static Range of(long stream, int start) {
@@ -30,11 +35,11 @@ public class Range {
     }
 
     public IndexEntry start() {
-        return IndexEntry.of(stream, startVersionInclusive, START_VERSION);
+        return IndexEntry.of(stream, startVersionInclusive, UNUSED);
     }
 
     public IndexEntry end() {
-        return IndexEntry.of(stream, endVersionExclusive, START_VERSION);
+        return IndexEntry.of(stream, endVersionExclusive, UNUSED);
     }
 
 

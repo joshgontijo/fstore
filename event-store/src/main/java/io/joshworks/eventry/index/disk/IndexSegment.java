@@ -6,7 +6,6 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.midpoint.Midpoint;
 import io.joshworks.eventry.index.midpoint.Midpoints;
 import io.joshworks.fstore.core.Codec;
-import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.fstore.core.filter.BloomFilterHasher;
 import io.joshworks.fstore.core.io.Storage;
@@ -15,10 +14,10 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
 import io.joshworks.fstore.log.segment.block.BlockPoller;
@@ -27,11 +26,12 @@ import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -54,7 +54,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
                  Codec codec,
                  int numElements) {
 
-        this.delegate = new BlockSegment<>(storage, reader, magic, type,  new IndexEntrySerializer(), new IndexBlockFactory(), codec,MAX_BLOCK_SIZE, this::onBlockWrite);
+        this.delegate = new BlockSegment<>(storage, reader, magic, type, new IndexEntrySerializer(), new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
@@ -190,6 +190,11 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         return !midpoints.inRange(range) || !filter.contains(range.stream);
     }
 
+    private boolean definitelyNotPresent(long stream, int version) {
+        Range range = Range.of(stream, version, version + 1);
+        return !midpoints.inRange(range) || !filter.contains(range.stream);
+    }
+
 
     @Override
     public LogIterator<IndexEntry> indexIterator(Direction direction) {
@@ -206,9 +211,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         if (lowBound == null) {
             return Iterators.empty();
         }
-
-        LogIterator<IndexEntry> logIterator = iterator(lowBound.position, direction);
-        return new RangeIndexEntryIterator(range, logIterator);
+        return new RangeIndexEntryIterator(range);
     }
 
     @Override
@@ -223,12 +226,11 @@ public class IndexSegment implements Log<IndexEntry>, Index {
 
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
-        Range range = Range.of(stream, version, version + 1);
-        if (definitelyNotPresent(range)) {
+        if (definitelyNotPresent(stream, version)) {
             return Optional.empty();
         }
 
-        IndexEntry start = range.start();
+        IndexEntry start = IndexEntry.of(stream, version, 0);
         Midpoint lowBound = midpoints.getMidpointFor(start);
         if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
             return Optional.empty();
@@ -283,60 +285,71 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     }
 
 
-    private static final class RangeIndexEntryIterator implements LogIterator<IndexEntry> {
+    private final class RangeIndexEntryIterator implements LogIterator<IndexEntry> {
 
-        private final IndexEntry end;
-        private final IndexEntry start;
-        private final LogIterator<IndexEntry> segmentIterator;
-        private IndexEntry current;
+        private final Range range;
+        private long lastBlockPos;
+        private int lastReadVersion;
+        private Queue<IndexEntry> entries = new LinkedList<>();
 
-        private RangeIndexEntryIterator(Range range, LogIterator<IndexEntry> logIterator) {
-            this.end = range.end();
-            this.start = range.start();
-            this.segmentIterator = logIterator;
+        private RangeIndexEntryIterator(Range range) {
+            this.range = range;
+            this.lastReadVersion = range.startVersionInclusive - 1;
+        }
 
-            //initial load skipping less than queuedTime
-            while (logIterator.hasNext()) {
-                IndexEntry next = logIterator.next();
-                if (next.greatOrEqualsTo(start)) {
-                    current = next;
-                    break;
+        private void fetchEntries() {
+            int nextVersion = lastReadVersion + 1;
+            if(nextVersion < range.startVersionInclusive || nextVersion >= range.endVersionExclusive) {
+                return;
+            }
+            if (definitelyNotPresent(range.stream, nextVersion)) {
+                return;
+            }
+
+            IndexEntry key = IndexEntry.of(range.stream, nextVersion, 0);
+            Midpoint lowBound = midpoints.getMidpointFor(key);
+            if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
+                return;
+            }
+            IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
+            this.lastBlockPos = lowBound.position;
+            for (IndexEntry entry : foundBlock.entries()) {
+                if (range.match(entry)) {
+                    entries.add(entry);
                 }
             }
         }
 
         @Override
-        public boolean hasNext() {
-            boolean hasNext = current != null && current.lessThan(end);
-            if (!hasNext) {
-                close();
+        public IndexEntry next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
             }
-            return hasNext;
+            IndexEntry polled = entries.poll();
+            if(polled == null) {
+                throw new NoSuchElementException(); //should never happen
+            }
+            lastReadVersion = polled.version;
+            return polled;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (!entries.isEmpty()) {
+                return true;
+            }
+            fetchEntries();
+            return !entries.isEmpty();
         }
 
         @Override
         public void close() {
-            try {
-                segmentIterator.close();
-            } catch (IOException e) {
-                throw RuntimeIOException.of(e);
-            }
-        }
-
-        @Override
-        public IndexEntry next() {
-            if (current == null) {
-                close();
-                throw new NoSuchElementException();
-            }
-            IndexEntry curr = current;
-            current = segmentIterator.hasNext() ? segmentIterator.next() : null;
-            return curr;
+            entries.clear();
         }
 
         @Override
         public long position() {
-            return segmentIterator.position();
+            return lastBlockPos;
         }
     }
 
