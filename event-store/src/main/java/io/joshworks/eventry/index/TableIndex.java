@@ -176,14 +176,14 @@ public class TableIndex implements Index {
     private class StreamTrackerPoller implements PollingSubscriber<IndexEntry> {
 
         private final PollingSubscriber<IndexEntry> poller;
-        private final Map<Long, Integer> streamsRead;
+        private final Map<Long, Integer> readVersions;
         private IndexEntry lastEntry;
 
         //TODO add support to restart from a set of streams / versions. map entries must be set with last read version of each stream
         //AND the disk memDiskPoller must have the position (already supported by log appender)
         StreamTrackerPoller(PollingSubscriber<IndexEntry> memDiskPoller, Set<Long> streams) {
             this.poller = memDiskPoller;
-            this.streamsRead = streams.stream().collect(Collectors.toMap(aLong -> aLong, aLong -> -1));
+            this.readVersions = streams.stream().collect(Collectors.toMap(aLong -> aLong, aLong -> -1));
         }
 
         private IndexEntry poolAndUpdateMap() throws InterruptedException {
@@ -193,7 +193,7 @@ public class TableIndex implements Index {
                     return null;
                 }
                 if (streamMatch(indexEntry)) {
-                    streamsRead.computeIfPresent(indexEntry.stream, (k, v) -> indexEntry.version);
+                    readVersions.computeIfPresent(indexEntry.stream, (k, v) -> indexEntry.version);
                     lastEntry = indexEntry;
                     return indexEntry;
                 }
@@ -202,7 +202,7 @@ public class TableIndex implements Index {
         }
 
         private boolean streamMatch(IndexEntry indexEntry) {
-            return streamsRead.getOrDefault(indexEntry.stream, Integer.MAX_VALUE) < indexEntry.version;
+            return readVersions.getOrDefault(indexEntry.stream, Integer.MAX_VALUE) < indexEntry.version;
         }
 
         @Override
@@ -239,7 +239,7 @@ public class TableIndex implements Index {
                 indexEntry = poller.take();
 
             } while (indexEntry == null || !streamMatch(indexEntry));
-            streamsRead.computeIfPresent(indexEntry.stream, (k, v) -> v + 1);
+            readVersions.computeIfPresent(indexEntry.stream, (k, v) -> v + 1);
 
             lastEntry = null; //invalidate future peek
             return indexEntry;
