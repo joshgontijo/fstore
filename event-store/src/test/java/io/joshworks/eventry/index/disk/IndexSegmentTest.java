@@ -555,11 +555,10 @@ public class IndexSegmentTest {
             //then
             assertEquals("Failed on iteration " + i, 0, version);
         }
-
     }
 
     @Test
-    public void version_of_inexistent_stream_returns_zero() {
+    public void version_of_nonexistent_stream_returns_zero() {
 
         //given
         int numStreams = 1000;
@@ -574,6 +573,122 @@ public class IndexSegmentTest {
             assertEquals("Failed on iteration " + i, IndexEntry.NO_VERSION, version);
         }
 
+    }
+
+    @Test
+    public void full_iterator_backwards() {
+        //given
+        int stream = 123;
+        int startVersion = 0;
+        int endVersion = 499;
+        IndexSegment segment = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
+
+        LogIterator<IndexEntry> iterator = segment.iterator(Direction.BACKWARD);
+
+        int expectedVersion = endVersion;
+        int read = 0;
+        while(iterator.hasNext()) {
+            IndexEntry next = iterator.next();
+            assertEquals(expectedVersion, next.version);
+            expectedVersion--;
+            read++;
+        }
+
+        assertEquals(500, read);
+    }
+
+    @Test
+    public void range_iterator_forward() {
+        //given
+        int stream = 123;
+        int startVersion = 0;
+        int endVersion = 499;
+        IndexSegment segment = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
+
+        int rangeStart = 100;
+        int rangeEnd = 200;
+
+        LogIterator<IndexEntry> iterator = segment.iterator(Direction.FORWARD, Range.of(stream, rangeStart, rangeEnd));
+
+        int expectedVersion = rangeStart;
+        int read = 0;
+        while(iterator.hasNext()) {
+            IndexEntry next = iterator.next();
+            assertEquals(expectedVersion, next.version);
+            expectedVersion++;
+            read++;
+        }
+
+        assertEquals(100, read);
+    }
+
+    @Test
+    public void range_iterator_backward() {
+        //given
+        int stream = 123;
+        int startVersion = 0;
+        int endVersion = 499;
+        IndexSegment segment = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
+
+        int rangeStart = 100;
+        int rangeEnd = 200;
+
+        LogIterator<IndexEntry> iterator = segment.iterator(Direction.BACKWARD, Range.of(stream, rangeStart, rangeEnd));
+
+        int expectedVersion = rangeEnd - 1;
+        int read = 0;
+        while(iterator.hasNext()) {
+            IndexEntry next = iterator.next();
+            assertEquals(expectedVersion, next.version);
+            expectedVersion--;
+            read++;
+        }
+
+        assertEquals(100, read);
+    }
+
+    @Test
+    public void full_range_iterator_backward() {
+        //given
+        int stream = 123;
+        int startVersion = 0;
+        int endVersion = 499;
+        IndexSegment segment = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
+
+        LogIterator<IndexEntry> iterator = segment.iterator(Direction.BACKWARD, Range.of(stream, startVersion, endVersion + 1));
+
+        int expectedVersion = endVersion;
+        int read = 0;
+        while(iterator.hasNext()) {
+            IndexEntry next = iterator.next();
+            assertEquals(expectedVersion, next.version);
+            expectedVersion--;
+            read++;
+        }
+
+        assertEquals(500, read);
+    }
+
+    @Test
+    public void full_range_iterator_forward() {
+        //given
+        int stream = 123;
+        int startVersion = 0;
+        int endVersion = 499;
+        IndexSegment segment = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
+
+        LogIterator<IndexEntry> iterator = segment.iterator(Direction.FORWARD, Range.of(stream, startVersion, endVersion + 1));
+
+        int expectedVersion = startVersion;
+        int read = 0;
+        while(iterator.hasNext()) {
+            IndexEntry next = iterator.next();
+            assertEquals(expectedVersion, next.version);
+            expectedVersion++;
+            read++;
+        }
+
+        assertEquals(500, read);
     }
 
     private void assertIteratorHasAllEntries(long stream, int lastEventVersion, Iterator<IndexEntry> iterator) {

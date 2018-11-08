@@ -194,7 +194,7 @@ public class IndexSegment implements Log<IndexEntry> {
         return !midpoints.inRange(range) || !filter.contains(range.stream);
     }
 
-    public LogIterator<IndexEntry> iterator(Range range) {
+    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
         if (definitelyNotPresent(range)) {
             return Iterators.empty();
         }
@@ -203,9 +203,13 @@ public class IndexSegment implements Log<IndexEntry> {
         if (lowBound == null) {
             return Iterators.empty();
         }
-        int startVersion = firstVersionOf(range.stream);
+        int firstVersion = firstVersionOf(range.stream);
         int lastVersion = lastVersionOf(range.stream);
-        return new RangeIndexEntryIterator(range, startVersion, lastVersion);
+
+        int start = Math.max(range.start().version, firstVersion);
+        int end = Math.min(range.end().version, lastVersion);
+
+        return new RangeIndexEntryIterator(direction, range, start, end);
     }
 
     public Stream<IndexEntry> stream(Direction direction, Range range) {
@@ -282,7 +286,6 @@ public class IndexSegment implements Log<IndexEntry> {
         return lastVersion.version;
     }
 
-
     @Override
     public String toString() {
         return delegate.toString();
@@ -297,28 +300,29 @@ public class IndexSegment implements Log<IndexEntry> {
 
     private final class RangeIndexEntryIterator implements LogIterator<IndexEntry> {
 
+        private Direction direction;
         private final Range range;
         private final int startVersion;
         private final int lastVersion;
 
         private long lastBlockPos;
-        private int lastReadVersion = -1;
+        private int lastReadVersion;
         private Queue<IndexEntry> entries = new LinkedList<>();
 
-        private RangeIndexEntryIterator(Range range, int startVersion, int lastVersion) {
+        private RangeIndexEntryIterator(Direction direction, Range range, int startVersion, int endVersion) {
+            this.direction = direction;
             this.range = range;
             this.startVersion = startVersion;
-            this.lastVersion = lastVersion;
-            this.lastReadVersion = startVersion - 1;
+            this.lastVersion = endVersion;
+            this.lastReadVersion = Direction.FORWARD.equals(direction) ? startVersion - 1 : endVersion + 1;
         }
 
         private void fetchEntries() {
-            int nextVersion = lastReadVersion + 1;
-            if (nextVersion > lastVersion) {
+            int nextVersion = Direction.FORWARD.equals(direction)? lastReadVersion + 1 : lastReadVersion - 1;
+            if (nextVersion > lastVersion || nextVersion < startVersion) {
                 return;
             }
-            TableIndexTest#reopened_index_returns_all_items_for_stream_rang
-            if (nextVersion < range.startVersionInclusive || nextVersion >= range.endVersionExclusive) {
+            if (nextVersion < range.startVersionInclusive || nextVersion > range.endVersionExclusive) {
                 return;
             }
 
@@ -329,11 +333,23 @@ public class IndexSegment implements Log<IndexEntry> {
             }
             IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
             this.lastBlockPos = lowBound.position;
-            for (IndexEntry entry : foundBlock.entries()) {
-                if (range.match(entry) && entry.version > lastReadVersion) {
-                    entries.add(entry);
+            List<IndexEntry> blockEntries = foundBlock.entries();
+            if(Direction.BACKWARD.equals(direction)) {
+                Collections.reverse(blockEntries);
+            }
+
+            for (IndexEntry entry : blockEntries) {
+                if (range.match(entry) && !hasRead(entry)) {
+                    this.entries.add(entry);
                 }
             }
+        }
+
+        private boolean hasRead(IndexEntry entry) {
+            if(Direction.FORWARD.equals(direction)) {
+                return entry.version <= lastReadVersion;
+            }
+            return entry.version >= lastReadVersion;
         }
 
         @Override
