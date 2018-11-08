@@ -108,29 +108,16 @@ public class TableIndex implements Index {
     }
 
     @Override
-    public LogIterator<IndexEntry> indexIterator(Direction direction) {
-        LogIterator<IndexEntry> cacheIterator = memIndex.indexIterator(direction);
-        LogIterator<IndexEntry> diskIterator = diskIndex.indexIterator(direction);
+    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
+        LogIterator<IndexEntry> cacheIterator = memIndex.iterator(direction, range);
+        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(direction, range);
 
         return joiningDiskAndMem(diskIterator, cacheIterator);
     }
 
     @Override
-    public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
-        LogIterator<IndexEntry> cacheIterator = memIndex.indexIterator(direction, range);
-        LogIterator<IndexEntry> diskIterator = diskIndex.indexIterator(direction, range);
-
-        return joiningDiskAndMem(diskIterator, cacheIterator);
-    }
-
-    @Override
-    public Stream<IndexEntry> indexStream(Direction direction) {
-        return Iterators.closeableStream(indexIterator(direction));
-    }
-
-    @Override
-    public Stream<IndexEntry> indexStream(Direction direction, Range range) {
-        return Iterators.closeableStream(indexIterator(direction, range));
+    public Stream<IndexEntry> stream(Direction direction, Range range) {
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
     @Override
@@ -158,8 +145,7 @@ public class TableIndex implements Index {
         return poller(Set.of(stream));
     }
 
-    //TODO how to mark last read indexEntry ?
-    //timestamp / position (how about the mem items ?) / version (of each stream individually, then crash could cause repeated)
+
     public PollingSubscriber<IndexEntry> poller(long stream, int lastVersion) {
         throw new UnsupportedOperationException("Implement me");
 //        return poller(Set.of(stream));

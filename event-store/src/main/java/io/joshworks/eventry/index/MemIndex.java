@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -70,19 +71,7 @@ public class MemIndex implements Index {
     }
 
     @Override
-    public LogIterator<IndexEntry> indexIterator(Direction direction) {
-        var copy = new HashSet<>(index.entrySet()); //sorted is a stateful operation
-        List<IndexEntry> ordered = copy.stream()
-                .map(Map.Entry::getValue)
-                .flatMap(Collection::stream)
-                .sorted()
-                .collect(Collectors.toList());
-
-        return Iterators.of(ordered);
-    }
-
-    @Override
-    public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
+    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
         List<IndexEntry> entries = index.get(range.stream);
         if (entries == null || entries.isEmpty()) {
             return Iterators.empty();
@@ -95,13 +84,8 @@ public class MemIndex implements Index {
     }
 
     @Override
-    public Stream<IndexEntry> indexStream(Direction direction) {
-        return Iterators.closeableStream(indexIterator(direction));
-    }
-
-    @Override
-    public Stream<IndexEntry> indexStream(Direction direction, Range range) {
-        return Iterators.closeableStream(indexIterator(direction, range));
+    public Stream<IndexEntry> stream(Direction direction, Range range) {
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
     @Override
@@ -118,6 +102,17 @@ public class MemIndex implements Index {
             }
             return Optional.empty();
         }
+    }
+
+    public Iterator<IndexEntry> iterator() {
+        var copy = new HashSet<>(index.entrySet()); //sorted is a stateful operation
+        List<IndexEntry> ordered = copy.stream()
+                .map(Map.Entry::getValue)
+                .flatMap(Collection::stream)
+                .sorted()
+                .collect(Collectors.toList());
+
+        return Iterators.of(ordered);
     }
 
     PollingSubscriber<IndexEntry> poller() {

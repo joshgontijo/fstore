@@ -2,6 +2,7 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -12,7 +13,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -55,7 +55,7 @@ public class TableIndexTest {
         tableIndex.flush();
         tableIndex.add(stream, 3, 0); //memory
 
-        Iterator<IndexEntry> it = tableIndex.indexIterator(Direction.FORWARD);
+        LogIterator<IndexEntry> it = tableIndex.iterator(Direction.FORWARD, Range.anyOf(stream));
 
         assertEquals(0, it.next().version);
         assertEquals(1, it.next().version);
@@ -139,7 +139,7 @@ public class TableIndexTest {
 
         tableIndex.add(stream, 2, 0);
 
-        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD);
+        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD, Range.anyOf(stream));
 
         assertEquals(2, dataStream.count());
     }
@@ -152,7 +152,7 @@ public class TableIndexTest {
         tableIndex.flush();
         tableIndex.add(stream, 1, 0);
 
-        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD, Range.allOf(stream));
+        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD, Range.anyOf(stream));
 
         assertEquals(2, dataStream.count());
     }
@@ -168,7 +168,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD);
+        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD, Range.anyOf(stream));
 
         assertEquals(size, dataStream.count());
     }
@@ -184,7 +184,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        Iterator<IndexEntry> it = tableIndex.indexIterator(Direction.FORWARD);
+        LogIterator<IndexEntry> it = tableIndex.iterator(Direction.FORWARD, Range.anyOf(stream));
 
         int expectedVersion = 0;
         while (it.hasNext()) {
@@ -205,7 +205,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        Iterator<IndexEntry> it = tableIndex.indexIterator(Direction.FORWARD, Range.allOf(stream));
+        LogIterator<IndexEntry> it = tableIndex.iterator(Direction.FORWARD, Range.anyOf(stream));
 
         int expectedVersion = 0;
         while (it.hasNext()) {
@@ -226,7 +226,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD, Range.allOf(stream));
+        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD, Range.anyOf(stream));
         assertEquals(size, dataStream.count());
     }
 
@@ -246,11 +246,11 @@ public class TableIndexTest {
 
         tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD, USE_COMPRESSION);
 
-        Stream<IndexEntry> dataStream = tableIndex.indexStream(Direction.FORWARD, Range.of(stream, 1, 11));
+        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD, Range.of(stream, 1, 11));
 
         assertEquals(10, dataStream.count());
 
-        Iterator<IndexEntry> it = tableIndex.indexStream(Direction.FORWARD, Range.of(stream, 1, 11)).iterator();
+        LogIterator<IndexEntry> it = tableIndex.iterator(Direction.FORWARD, Range.of(stream, 1, 11));
 
         assertEquals(1, it.next().version);
         assertEquals(2, it.next().version);

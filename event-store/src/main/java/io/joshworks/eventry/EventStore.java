@@ -159,7 +159,7 @@ public class EventStore implements IEventStore {
         long start = System.currentTimeMillis();
 
         long streamHash = streams.hashOf(SystemStreams.PROJECTIONS);
-        LogIterator<IndexEntry> addresses = index.indexIterator(Direction.FORWARD, Range.allOf(streamHash));
+        LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.anyOf(streamHash));
 
         while (addresses.hasNext()) {
             IndexEntry next = addresses.next();
@@ -183,11 +183,6 @@ public class EventStore implements IEventStore {
             projections.createSystemProjections();
         }
 
-    }
-
-    @Override
-    public LogIterator<IndexEntry> keys() {
-        return index.indexIterator(Direction.FORWARD);
     }
 
     @Override
@@ -301,7 +296,7 @@ public class EventStore implements IEventStore {
     @Override
     public LogIterator<EventRecord> fromStreamIter(String stream, int versionInclusive) {
         long streamHash = streams.hashOf(stream);
-        LogIterator<IndexEntry> indexIterator = index.indexIterator(Direction.FORWARD, Range.of(streamHash, versionInclusive));
+        LogIterator<IndexEntry> indexIterator = index.iterator(Direction.FORWARD, Range.of(streamHash, versionInclusive));
         indexIterator = withMaxCountFilter(streamHash, indexIterator);
         SingleStreamIterator singleStreamIterator = new SingleStreamIterator(indexIterator, eventLog);
         LogIterator<EventRecord> ageFilterIterator = withMaxAgeFilter(Set.of(streamHash), singleStreamIterator);
@@ -347,7 +342,7 @@ public class EventStore implements IEventStore {
                 .collect(Collectors.toSet());
 
         List<LogIterator<IndexEntry>> indexes = hashes.stream()
-                .map(hash -> index.indexIterator(Direction.FORWARD, Range.allOf(hash)))
+                .map(hash -> index.iterator(Direction.FORWARD, Range.anyOf(hash)))
                 .collect(Collectors.toList());
 
         LogIterator<EventRecord> ageFilterIterator = withMaxAgeFilter(hashes, new MultiStreamIterator(indexes, eventLog));

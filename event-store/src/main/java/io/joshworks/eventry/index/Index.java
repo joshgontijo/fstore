@@ -9,13 +9,14 @@ import java.util.stream.Stream;
 
 public interface Index extends Closeable {
 
-    LogIterator<IndexEntry> indexIterator(Direction direction);
+//    LogIterator<IndexEntry> indexIterator(Direction direction);
 
-    LogIterator<IndexEntry> indexIterator(Direction direction, Range range);
+//    Stream<IndexEntry> indexStream(Direction direction);
 
-    Stream<IndexEntry> indexStream(Direction direction);
+    LogIterator<IndexEntry> iterator(Direction direction, Range range);
 
-    Stream<IndexEntry> indexStream(Direction direction, Range range);
+
+    Stream<IndexEntry> stream(Direction direction, Range range);
 
     Optional<IndexEntry> get(long stream, int version);
 
