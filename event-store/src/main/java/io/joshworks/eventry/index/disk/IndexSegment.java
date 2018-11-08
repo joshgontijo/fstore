@@ -1,6 +1,5 @@
 package io.joshworks.eventry.index.disk;
 
-import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.midpoint.Midpoint;
@@ -35,7 +34,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Stream;
 
-public class IndexSegment implements Log<IndexEntry>, Index {
+public class IndexSegment implements Log<IndexEntry> {
 
     private static final double FALSE_POSITIVE_PROB = 0.01;
     private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
@@ -195,14 +194,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         return !midpoints.inRange(range) || !filter.contains(range.stream);
     }
 
-
-    @Override
-    public LogIterator<IndexEntry> indexIterator(Direction direction) {
-        return null;
-    }
-
-    @Override
-    public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
+    public LogIterator<IndexEntry> iterator(Range range) {
         if (definitelyNotPresent(range)) {
             return Iterators.empty();
         }
@@ -211,20 +203,15 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         if (lowBound == null) {
             return Iterators.empty();
         }
-        return new RangeIndexEntryIterator(range);
+        int startVersion = firstVersionOf(range.stream);
+        int lastVersion = lastVersionOf(range.stream);
+        return new RangeIndexEntryIterator(range, startVersion, lastVersion);
     }
 
-    @Override
-    public Stream<IndexEntry> indexStream(Direction direction) {
-        return Iterators.closeableStream(indexIterator(direction));
+    public Stream<IndexEntry> stream(Direction direction, Range range) {
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
-    @Override
-    public Stream<IndexEntry> indexStream(Direction direction, Range range) {
-        return Iterators.closeableStream(indexIterator(direction, range));
-    }
-
-    @Override
     public Optional<IndexEntry> get(long stream, int version) {
         if (definitelyNotPresent(stream, version)) {
             return Optional.empty();
@@ -249,9 +236,8 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         return Optional.of(found);
     }
 
-    @Override
-    public int version(long stream) {
-        Range range = Range.allOf(stream);
+    public int lastVersionOf(long stream) {
+        Range range = Range.anyOf(stream);
         if (definitelyNotPresent(range)) {
             return IndexEntry.NO_VERSION;
         }
@@ -273,6 +259,30 @@ public class IndexSegment implements Log<IndexEntry>, Index {
         return lastVersion.version;
     }
 
+    public int firstVersionOf(long stream) {
+        Range range = Range.anyOf(stream);
+        if (definitelyNotPresent(range)) {
+            return IndexEntry.NO_VERSION;
+        }
+
+        IndexEntry start = range.start();
+        Midpoint lowBound = midpoints.getMidpointFor(start);
+        if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
+            return IndexEntry.NO_VERSION;
+        }
+
+        IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
+        List<IndexEntry> entries = foundBlock.entries();
+        int idx = Collections.binarySearch(entries, start);
+        idx = idx >= 0 ? idx : Math.abs(idx) - 1;
+        IndexEntry lastVersion = entries.get(idx);
+        if (lastVersion.stream != stream) { //false positive on the bloom filter
+            return IndexEntry.NO_VERSION;
+        }
+        return lastVersion.version;
+    }
+
+
     @Override
     public String toString() {
         return delegate.toString();
@@ -288,21 +298,27 @@ public class IndexSegment implements Log<IndexEntry>, Index {
     private final class RangeIndexEntryIterator implements LogIterator<IndexEntry> {
 
         private final Range range;
+        private final int startVersion;
+        private final int lastVersion;
+
         private long lastBlockPos;
-        private int lastReadVersion;
+        private int lastReadVersion = -1;
         private Queue<IndexEntry> entries = new LinkedList<>();
 
-        private RangeIndexEntryIterator(Range range) {
+        private RangeIndexEntryIterator(Range range, int startVersion, int lastVersion) {
             this.range = range;
-            this.lastReadVersion = range.startVersionInclusive - 1;
+            this.startVersion = startVersion;
+            this.lastVersion = lastVersion;
+            this.lastReadVersion = startVersion - 1;
         }
 
         private void fetchEntries() {
             int nextVersion = lastReadVersion + 1;
-            if(nextVersion < range.startVersionInclusive || nextVersion >= range.endVersionExclusive) {
+            if (nextVersion > lastVersion) {
                 return;
             }
-            if (definitelyNotPresent(range.stream, nextVersion)) {
+            TableIndexTest#reopened_index_returns_all_items_for_stream_rang
+            if (nextVersion < range.startVersionInclusive || nextVersion >= range.endVersionExclusive) {
                 return;
             }
 
@@ -314,7 +330,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
             IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
             this.lastBlockPos = lowBound.position;
             for (IndexEntry entry : foundBlock.entries()) {
-                if (range.match(entry)) {
+                if (range.match(entry) && entry.version > lastReadVersion) {
                     entries.add(entry);
                 }
             }
@@ -326,7 +342,7 @@ public class IndexSegment implements Log<IndexEntry>, Index {
                 throw new NoSuchElementException();
             }
             IndexEntry polled = entries.poll();
-            if(polled == null) {
+            if (polled == null) {
                 throw new NoSuchElementException(); //should never happen
             }
             lastReadVersion = polled.version;

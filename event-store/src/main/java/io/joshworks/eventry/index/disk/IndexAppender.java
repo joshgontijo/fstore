@@ -50,29 +50,23 @@ public class IndexAppender implements Index {
 
 
     @Override
-    public LogIterator<IndexEntry> indexIterator(Direction direction) {
-        return appender.iterator(direction);
-    }
-
-    @Override
-    public LogIterator<IndexEntry> indexIterator(Direction direction, Range range) {
+    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
         return appender.acquireSegments(direction, segments -> {
             List<LogIterator<IndexEntry>> iterators = Iterators.closeableStream(segments)
                     .map(seg -> (IndexSegment) seg)
-                    .map(idxSeg -> idxSeg.indexIterator(direction, range))
+                    .map(idxSeg -> idxSeg.iterator(direction, range))
                     .collect(Collectors.toList());
             return Iterators.concat(iterators);
         });
     }
 
     @Override
-    public Stream<IndexEntry> indexStream(Direction direction) {
-        return Iterators.closeableStream(indexIterator(direction));
+    public Stream<IndexEntry> stream(Direction direction, Range range) {
+        return Iterators.closeableStream(iterator(direction, range));
     }
 
-    @Override
-    public Stream<IndexEntry> indexStream(Direction direction, Range range) {
-        return Iterators.closeableStream(indexIterator(direction, range));
+    public LogIterator<IndexEntry> iterator(Direction direction) {
+        return appender.iterator(direction);
     }
 
     @Override
@@ -94,7 +88,7 @@ public class IndexAppender implements Index {
         return appender.acquireSegments(Direction.BACKWARD, segments -> {
             while (segments.hasNext()) {
                 IndexSegment segment = (IndexSegment) segments.next();
-                int version = segment.version(stream);
+                int version = segment.lastVersionOf(stream);
                 if (version >= 0) {
                     return version;
                 }
@@ -113,7 +107,7 @@ public class IndexAppender implements Index {
     }
 
     public synchronized void writeToDisk(MemIndex memIndex) {
-        memIndex.indexStream(Direction.FORWARD).forEach(appender::append);
+        memIndex.iterator().forEachRemaining(appender::append);
         appender.roll();
     }
 

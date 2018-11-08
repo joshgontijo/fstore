@@ -1,14 +1,16 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -29,7 +31,7 @@ public class MemIndexTest {
             index.add(IndexEntry.of(stream, i, 0));
         }
 
-        assertEquals(numEntries, index.indexStream(Direction.FORWARD).count());
+        assertEquals(numEntries, index.stream(Direction.FORWARD, Range.anyOf(stream)).count());
     }
 
     @Test
@@ -46,7 +48,7 @@ public class MemIndexTest {
 
         for (int stream = 0; stream < streams; stream++) {
             //when
-            long count = index.indexStream(Direction.FORWARD, Range.allOf(stream)).count();
+            long count = index.stream(Direction.FORWARD, Range.anyOf(stream)).count();
             //then
             assertEquals(versions, count);
         }
@@ -68,7 +70,7 @@ public class MemIndexTest {
             int lastVersion = 0;
 
             //when
-            Iterator<IndexEntry> iterator = index.indexIterator(Direction.FORWARD, Range.allOf(stream));
+            Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.anyOf(stream));
             while (iterator.hasNext()) {
                 IndexEntry indexEntry = iterator.next();
                 //then
@@ -97,7 +99,7 @@ public class MemIndexTest {
         for (int stream = 0; stream < streams; stream++) {
             int lastVersion = 0;
 
-            Iterator<IndexEntry> iterator = index.indexIterator(Direction.FORWARD, Range.allOf(stream));
+            Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.anyOf(stream));
             while (iterator.hasNext()) {
                 IndexEntry indexEntry = iterator.next();
                 //then
@@ -120,7 +122,7 @@ public class MemIndexTest {
 
         int count = 0;
         IndexEntry last = null;
-        LogIterator<IndexEntry> iterator = index.indexIterator(Direction.FORWARD);
+        Iterator<IndexEntry> iterator = index.iterator();
         while(iterator.hasNext()) {
             IndexEntry next = iterator.next();
             if (last != null) {
@@ -237,7 +239,7 @@ public class MemIndexTest {
         }
 
         //when
-        Stream<IndexEntry> dataStream = index.indexStream(Direction.FORWARD, Range.of(stream, 500));
+        Stream<IndexEntry> dataStream = index.stream(Direction.FORWARD, Range.of(stream, 500));
 
         //then
         assertEquals(500, dataStream.count());
@@ -256,7 +258,7 @@ public class MemIndexTest {
 
         //when
         int versionStart = 500;
-        Iterator<IndexEntry> iterator = index.indexIterator(Direction.FORWARD, Range.of(stream, versionStart));
+        Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.of(stream, versionStart));
 
         //then
         int lastVersion = versionStart - 1;
@@ -281,7 +283,7 @@ public class MemIndexTest {
 
         //when
         int versionStart = 500;
-        Iterator<IndexEntry> iterator = index.indexIterator(Direction.FORWARD, Range.of(stream, versionStart, 999999));
+        Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.of(stream, versionStart, 999999));
 
         //then
         int lastVersion = versionStart - 1;
@@ -306,7 +308,7 @@ public class MemIndexTest {
 
         //when
         int versionStart = 500;
-        Iterator<IndexEntry> iterator = index.indexIterator(Direction.FORWARD, Range.of(stream, versionStart, versionStart + 1));
+        Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.of(stream, versionStart, versionStart + 1));
 
         assertTrue(iterator.hasNext());
         assertEquals(IndexEntry.of(stream, versionStart, 0), iterator.next());
@@ -381,7 +383,7 @@ public class MemIndexTest {
         index.add(ie5);
 
 
-        LogIterator<IndexEntry> iterator = index.indexIterator(Direction.FORWARD);
+        Iterator<IndexEntry> iterator = index.iterator();
 
         assertEquals(ie1, iterator.next());
         assertEquals(ie2, iterator.next());
@@ -417,10 +419,12 @@ public class MemIndexTest {
         index.add(IndexEntry.of(1, 3, 0));
 
         //when
-        Stream<IndexEntry> iterator = index.indexStream(Direction.FORWARD);
+        Iterator<IndexEntry> iterator = index.iterator();
+
 
         //then
-        assertEquals(6, iterator.count());
+        Stream<IndexEntry> stream = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+        assertEquals(6, stream.count());
     }
 
     @Test

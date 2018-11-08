@@ -19,7 +19,7 @@ public class Range {
     }
 
     public boolean match(IndexEntry entry) {
-        return entry.version >= startVersionInclusive && entry.version < endVersionExclusive;
+        return stream == entry.stream && entry.version >= startVersionInclusive && entry.version < endVersionExclusive;
     }
 
     public static Range of(long stream, int start) {
@@ -30,7 +30,7 @@ public class Range {
         return new Range(stream, start, end);
     }
 
-    public static Range allOf(long stream) {
+    public static Range anyOf(long stream) {
         return new Range(stream, START_VERSION, Integer.MAX_VALUE);
     }
 

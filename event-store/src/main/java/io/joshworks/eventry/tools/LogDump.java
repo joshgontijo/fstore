@@ -2,7 +2,6 @@ package io.joshworks.eventry.tools;
 
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.LogIterator;
 
@@ -43,17 +42,17 @@ public class LogDump {
         }
     }
 
-    public static void dumpIndex(File file, IEventStore store) {
-        try (var fileWriter = new FileWriter(file)) {
-            LogIterator<IndexEntry> iterator = store.keys();
-            while (iterator.hasNext()) {
-                long position = iterator.position();
-                IndexEntry event = iterator.next();
-                fileWriter.write(position + " | " +event.toString() + System.lineSeparator());
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    public static void dumpIndex(File file, IEventStore store) {
+//        try (var fileWriter = new FileWriter(file)) {
+//            LogIterator<IndexEntry> iterator = store.keys();
+//            while (iterator.hasNext()) {
+//                long position = iterator.position();
+//                IndexEntry event = iterator.next();
+//                fileWriter.write(position + " | " +event.toString() + System.lineSeparator());
+//            }
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
 }
