@@ -12,7 +12,6 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
@@ -21,10 +20,13 @@ import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.File;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
 public class IndexAppender implements Index {
 
@@ -69,6 +71,7 @@ public class IndexAppender implements Index {
         return appender.iterator(direction);
     }
 
+
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
         return appender.acquireSegments(Direction.BACKWARD, segments -> {
@@ -83,6 +86,19 @@ public class IndexAppender implements Index {
         });
     }
 
+    public List<IndexEntry> getBlockEntries(long stream, int version) {
+        return appender.acquireSegments(Direction.BACKWARD, segments -> {
+            while (segments.hasNext()) {
+                IndexSegment next = (IndexSegment) segments.next();
+                List<IndexEntry> indexEntries = next.readBlockEntries(stream, version);
+                if(!indexEntries.isEmpty()) {
+                    return indexEntries;
+                }
+            }
+            return Collections.emptyList();
+        });
+    }
+
     @Override
     public int version(long stream) {
         return appender.acquireSegments(Direction.BACKWARD, segments -> {
@@ -93,13 +109,14 @@ public class IndexAppender implements Index {
                     return version;
                 }
             }
-            return IndexEntry.NO_VERSION;
+            return NO_VERSION;
         });
     }
 
     public void compact() {
         appender.compact();
     }
+
 
     @Override
     public void close() {
@@ -113,10 +130,6 @@ public class IndexAppender implements Index {
 
     public long entries() {
         return appender.entries();
-    }
-
-    public PollingSubscriber<IndexEntry> poller() {
-        return appender.poller();
     }
 
     public static class IndexNaming extends ShortUUIDNamingStrategy {

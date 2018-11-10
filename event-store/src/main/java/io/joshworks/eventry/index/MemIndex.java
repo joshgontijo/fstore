@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -97,10 +98,20 @@ public class MemIndex implements Index {
 
         synchronized (entries) {
             int idx = Collections.binarySearch(entries, IndexEntry.of(stream, version, 0));
-            if(idx >= 0) {
+            if (idx >= 0) {
                 return Optional.of(entries.get(idx));
             }
             return Optional.empty();
+        }
+    }
+
+    public List<IndexEntry> getAllOf(long stream) {
+        List<IndexEntry> entries = index.get(stream);
+        if(entries == null) {
+            return new ArrayList<>();
+        }
+        synchronized (entries) {
+            return new ArrayList<>(entries);
         }
     }
 
@@ -115,9 +126,9 @@ public class MemIndex implements Index {
         return Iterators.of(ordered);
     }
 
-    PollingSubscriber<IndexEntry> poller() {
+    PollingSubscriber<IndexEntry> poller(List<Range> ranges) {
         synchronized (pollers) {
-            MemPoller memPoller = new MemPoller();
+            MemPoller memPoller = new MemPoller(ranges);
             pollers.add(memPoller);
             return memPoller;
         }
@@ -128,6 +139,12 @@ public class MemIndex implements Index {
         private static final int VERIFICATION_INTERVAL_MILLIS = 500;
         private final AtomicBoolean closed = new AtomicBoolean();
         private int position = 0;
+
+        private final Map<Long, Range> ranges;
+
+        private MemPoller(List<Range> ranges) {
+            this.ranges = ranges.stream().collect(Collectors.toMap(r -> r.stream, Function.identity()));
+        }
 
         private boolean hasData() {
             return position < insertOrder.size();
@@ -147,18 +164,27 @@ public class MemIndex implements Index {
             }
         }
 
-        private void waitForData(long time, TimeUnit timeUnit) throws InterruptedException {
-            while (!closed.get() && !hasData()) {
-                timeUnit.sleep(time);
+        private boolean matchRange(IndexEntry indexEntry) {
+            if (indexEntry == null || !ranges.containsKey(indexEntry.stream)) {
+                return false;
             }
+            return ranges.get(indexEntry.stream).match(indexEntry);
+        }
+
+        private IndexEntry getEntry() {
+            IndexEntry indexEntry = null;
+            while (hasData() && !matchRange(indexEntry)) {
+                indexEntry = insertOrder.get(position);
+                if (!matchRange(indexEntry)) {
+                    position++;
+                }
+            }
+            return matchRange(indexEntry) ? indexEntry : null;
         }
 
         @Override
         public synchronized IndexEntry peek() {
-            if (hasData()) {
-                return insertOrder.get(position);
-            }
-            return null;
+            return getEntry();
         }
 
         @Override
@@ -168,26 +194,25 @@ public class MemIndex implements Index {
 
         @Override
         public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            if (!hasData()) {
+            IndexEntry indexEntry = getEntry();
+            if(indexEntry == null) {
                 waitFor(limit, timeUnit);
             }
-            if (hasData()) {
-                return insertOrder.get(position++);
+            if (indexEntry == null && hasData()) {
+                indexEntry = getEntry();
+                if (indexEntry != null) {
+                    position++;
+                }
             }
-            return null;
+            if(indexEntry != null) {
+                position++;
+            }
+            return indexEntry;
         }
 
         @Override
-        public synchronized IndexEntry take() throws InterruptedException {
-            if (hasData()) {
-                return insertOrder.get(position++);
-            }
-            waitForData(VERIFICATION_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
-            if (hasData()) {
-                return insertOrder.get(position++);
-            }
-            //poller was closed while waiting for data
-            return null; //TODO shouldn't be an InterruptedException ?
+        public synchronized IndexEntry take() {
+           throw new UnsupportedOperationException();
         }
 
         @Override

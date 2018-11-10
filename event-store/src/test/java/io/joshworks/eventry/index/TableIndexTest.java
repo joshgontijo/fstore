@@ -16,6 +16,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
@@ -329,7 +331,6 @@ public class TableIndexTest {
                 assertTrue(streams.contains(poll.stream));
                 assertEquals(0, poll.version);
             }
-
         }
     }
 
@@ -546,14 +547,12 @@ public class TableIndexTest {
     @Test
     public void take_blocks_inmemory_until_stream_matches() throws IOException, InterruptedException {
         int entries = 10;
-        long someOtherStream = 123L;
-        long expectedStream = 456L;
+        long someOtherStream = 456L;
+        long expectedStream = 123L;
 
         for (int i = 0; i < entries; i++) {
             tableIndex.add(someOtherStream, i, 0);
         }
-
-//        tableIndex.flush();
 
         new Thread(() -> {
             try {
@@ -587,10 +586,40 @@ public class TableIndexTest {
 
         try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
             for (int i = 0; i < totalEntries; i++) {
+                IndexEntry entry = poller.take();
+                if (i % 100000 == 0) {
+                    System.out.println("Polled " + i);
+                }
+                assertNotNull("Failed on " + i + ": " + entry, entry);
+                assertEquals("Failed on " + i + ": " + entry, i, entry.version);
+            }
+            System.out.println("COMPLETED READ");
+        }
 
-                IndexEntry poll = poller.take();
-                assertNotNull("Failed on " + i + ": " + poll, poll);
-                assertEquals("Failed on " + i + ": " + poll, i, poll.version);
+        writeThread.join();
+    }
+
+    @Test
+    public void concurrent_write_and_poller_returns_data_in_sequence_from_multiple_streams() throws IOException, InterruptedException {
+        int numVersion = 500;
+        long numStreams = 10000;
+        Thread writeThread = new Thread(() -> {
+            for (int stream = 0; stream < numStreams; stream++) {
+                for (int version = 0; version < numVersion; version++) {
+                    tableIndex.add(stream, version, 0);
+                }
+            }
+            System.out.println("COMPLETED WRITE");
+        });
+        writeThread.start();
+
+        Set<Long> streams = LongStream.range(0, numStreams).boxed().collect(Collectors.toSet());
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(streams)) {
+            for (int i = 0; i < numVersion * numStreams; i++) {
+                IndexEntry entry = poller.take();
+                if (i % 100000 == 0) {
+                    System.out.println("Polled " + i);
+                }
             }
             System.out.println("COMPLETED READ");
         }
@@ -659,6 +688,49 @@ public class TableIndexTest {
         polled = poller.poll();
         assertEquals(stream, polled.stream);
         assertEquals(1, polled.version);
+    }
+
+    @Test
+    public void poller_returns_the_processed_stream_versions() {
+        int versions = 10;
+        long stream = 456L;
+
+        for (int version = 0; version < versions; version++) {
+            tableIndex.add(stream, version, 0);
+        }
+
+        TableIndex.IndexPoller poller = tableIndex.poller(stream);
+        IndexEntry poll = poller.poll();
+        assertEquals(0, poll.version);
+
+        Map<Long, Integer> processed = poller.processed();
+        assertEquals(Integer.valueOf(0), processed.get(stream));
+
+    }
+
+    @Test
+    public void poller_starts_from_the_provided_stream_versions() {
+        int versions = 10;
+        long stream = 456L;
+
+        for (int version = 0; version < versions; version++) {
+            tableIndex.add(stream, version, 0);
+        }
+
+        TableIndex.IndexPoller poller = tableIndex.poller(stream);
+        IndexEntry entry = poller.poll();
+        assertEquals(0, entry.version);
+
+        Map<Long, Integer> processed = poller.processed();
+        assertEquals(Integer.valueOf(0), processed.get(stream));
+
+        poller.close();
+
+        poller = tableIndex.poller(processed);
+        entry = poller.poll();
+        assertEquals(1, entry.version);
+
+
     }
 
 }

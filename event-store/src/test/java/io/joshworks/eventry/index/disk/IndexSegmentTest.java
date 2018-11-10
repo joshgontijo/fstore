@@ -587,7 +587,7 @@ public class IndexSegmentTest {
 
         int expectedVersion = endVersion;
         int read = 0;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             assertEquals(expectedVersion, next.version);
             expectedVersion--;
@@ -612,7 +612,7 @@ public class IndexSegmentTest {
 
         int expectedVersion = rangeStart;
         int read = 0;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             assertEquals(expectedVersion, next.version);
             expectedVersion++;
@@ -637,7 +637,7 @@ public class IndexSegmentTest {
 
         int expectedVersion = rangeEnd - 1;
         int read = 0;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             assertEquals(expectedVersion, next.version);
             expectedVersion--;
@@ -659,7 +659,7 @@ public class IndexSegmentTest {
 
         int expectedVersion = endVersion;
         int read = 0;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             assertEquals(expectedVersion, next.version);
             expectedVersion--;
@@ -671,7 +671,6 @@ public class IndexSegmentTest {
 
     @Test
     public void full_range_iterator_forward() {
-        //given
         int stream = 123;
         int startVersion = 0;
         int endVersion = 499;
@@ -681,7 +680,7 @@ public class IndexSegmentTest {
 
         int expectedVersion = startVersion;
         int read = 0;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             assertEquals(expectedVersion, next.version);
             expectedVersion++;
@@ -689,6 +688,20 @@ public class IndexSegmentTest {
         }
 
         assertEquals(500, read);
+    }
+
+    @Test
+    public void full_range_iterator_forward_with_single_entry() {
+        int stream = 123;
+        segment.append(IndexEntry.of(stream, 0, 0));
+        segment.roll(1);
+
+        LogIterator<IndexEntry> iterator = segment.iterator(Direction.FORWARD, Range.anyOf(stream));
+
+        assertTrue(iterator.hasNext());
+        assertEquals(0, iterator.next().version);
+
+        assertFalse(iterator.hasNext());
     }
 
     private void assertIteratorHasAllEntries(long stream, int lastEventVersion, Iterator<IndexEntry> iterator) {
@@ -732,6 +745,14 @@ public class IndexSegmentTest {
         }
         segment.roll(1);
         return segment;
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }

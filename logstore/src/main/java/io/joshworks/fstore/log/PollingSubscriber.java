@@ -19,4 +19,48 @@ public interface PollingSubscriber<T> extends IPosition, Closeable {
 
     boolean endOfLog();
 
+    static <T> PollingSubscriber<T> empty() {
+        return new PollingSubscriber<>() {
+            @Override
+            public T peek() {
+                return null;
+            }
+
+            @Override
+            public T poll() {
+                return null;
+            }
+
+            @Override
+            public T poll(long limit, TimeUnit timeUnit) {
+                return null;
+            }
+
+            @Override
+            public T take() {
+                return null;
+            }
+
+            @Override
+            public boolean headOfLog() {
+                return true;
+            }
+
+            @Override
+            public boolean endOfLog() {
+                return true;
+            }
+
+            @Override
+            public long position() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void close() {
+                //do nothing
+            }
+        };
+    }
+
 }
