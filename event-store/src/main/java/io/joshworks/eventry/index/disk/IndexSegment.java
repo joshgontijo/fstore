@@ -32,6 +32,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 public class IndexSegment implements Log<IndexEntry> {
@@ -39,9 +40,10 @@ public class IndexSegment implements Log<IndexEntry> {
     private static final double FALSE_POSITIVE_PROB = 0.01;
     private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
 
-    BloomFilter<Long> filter;
+    private final AtomicBoolean closed = new AtomicBoolean();
     final Midpoints midpoints;
     private final File directory;
+    BloomFilter<Long> filter;
 
     private final BlockSegment<IndexEntry> delegate;
 
@@ -191,7 +193,7 @@ public class IndexSegment implements Log<IndexEntry> {
 
     private boolean definitelyNotPresent(long stream, int version) {
         Range range = Range.of(stream, version, version + 1);
-        return !midpoints.inRange(range) || !filter.contains(range.stream);
+        return !midpoints.inRange(range) || !filter.contains(stream);
     }
 
     public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
@@ -203,8 +205,8 @@ public class IndexSegment implements Log<IndexEntry> {
         if (lowBound == null) {
             return Iterators.empty();
         }
-        int firstVersion = firstVersionOf(range.stream);
-        int lastVersion = lastVersionOf(range.stream);
+        int firstVersion = firstVersionOf(range.start().stream);
+        int lastVersion = lastVersionOf(range.end().stream);
 
         int start = Math.max(range.start().version, firstVersion);
         int end = Math.min(range.end().version, lastVersion);
@@ -214,6 +216,21 @@ public class IndexSegment implements Log<IndexEntry> {
 
     public Stream<IndexEntry> stream(Direction direction, Range range) {
         return Iterators.closeableStream(iterator(direction, range));
+    }
+
+    public List<IndexEntry> readBlockEntries(long stream, int version) {
+        if (definitelyNotPresent(stream, version)) {
+            return Collections.emptyList();
+        }
+
+        IndexEntry start = IndexEntry.of(stream, version, 0);
+        Midpoint lowBound = midpoints.getMidpointFor(start);
+        if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
+            return Collections.emptyList();
+        }
+
+        IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
+        return foundBlock.entries();
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
@@ -295,6 +312,7 @@ public class IndexSegment implements Log<IndexEntry> {
     public void close() {
         //do not flush
         delegate.close();
+        closed.set(true);
     }
 
 
@@ -303,7 +321,7 @@ public class IndexSegment implements Log<IndexEntry> {
         private Direction direction;
         private final Range range;
         private final int startVersion;
-        private final int lastVersion;
+        private final int endVersion;
 
         private long lastBlockPos;
         private int lastReadVersion;
@@ -313,16 +331,13 @@ public class IndexSegment implements Log<IndexEntry> {
             this.direction = direction;
             this.range = range;
             this.startVersion = startVersion;
-            this.lastVersion = endVersion;
+            this.endVersion = endVersion;
             this.lastReadVersion = Direction.FORWARD.equals(direction) ? startVersion - 1 : endVersion + 1;
         }
 
         private void fetchEntries() {
-            int nextVersion = Direction.FORWARD.equals(direction)? lastReadVersion + 1 : lastReadVersion - 1;
-            if (nextVersion > lastVersion || nextVersion < startVersion) {
-                return;
-            }
-            if (nextVersion < range.startVersionInclusive || nextVersion > range.endVersionExclusive) {
+            int nextVersion = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
+            if (nextVersion < startVersion || nextVersion > endVersion) {
                 return;
             }
 
@@ -334,7 +349,7 @@ public class IndexSegment implements Log<IndexEntry> {
             IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
             this.lastBlockPos = lowBound.position;
             List<IndexEntry> blockEntries = foundBlock.entries();
-            if(Direction.BACKWARD.equals(direction)) {
+            if (Direction.BACKWARD.equals(direction)) {
                 Collections.reverse(blockEntries);
             }
 
@@ -346,7 +361,7 @@ public class IndexSegment implements Log<IndexEntry> {
         }
 
         private boolean hasRead(IndexEntry entry) {
-            if(Direction.FORWARD.equals(direction)) {
+            if (Direction.FORWARD.equals(direction)) {
                 return entry.version <= lastReadVersion;
             }
             return entry.version >= lastReadVersion;

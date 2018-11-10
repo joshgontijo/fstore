@@ -5,7 +5,10 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -436,12 +439,14 @@ public class MemIndexTest {
     @Test
     public void poller_poll_returns_all_data() throws IOException, InterruptedException {
 
+        List<Range> ranges = new ArrayList<>();
         int entries = 500;
         for (int i = 0; i < entries; i++) {
             index.add(IndexEntry.of(i, 0, 0));
+            ranges.add(Range.anyOf(i));
         }
 
-        try (PollingSubscriber<IndexEntry> poller = index.poller()) {
+        try (PollingSubscriber<IndexEntry> poller = index.poller(ranges)) {
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
                 assertNotNull(poll);
@@ -455,7 +460,7 @@ public class MemIndexTest {
 
         index.add(IndexEntry.of(1, 0, 0));
 
-        PollingSubscriber<IndexEntry> poller = index.poller();
+        PollingSubscriber<IndexEntry> poller = index.poller(Arrays.asList(Range.anyOf(1)));
         assertFalse(poller.endOfLog());
 
         poller.poll();
@@ -470,7 +475,7 @@ public class MemIndexTest {
 
         index.add(IndexEntry.of(1, 0, 0));
 
-        PollingSubscriber<IndexEntry> poller = index.poller();
+        PollingSubscriber<IndexEntry> poller = index.poller(Arrays.asList(Range.anyOf(1)));
         assertFalse(poller.headOfLog());
 
         poller.poll();

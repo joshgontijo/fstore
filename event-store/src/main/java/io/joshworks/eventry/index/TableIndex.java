@@ -10,15 +10,27 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
 public class TableIndex implements Index {
 
@@ -30,7 +42,7 @@ public class TableIndex implements Index {
     private final IndexAppender diskIndex;
     private MemIndex memIndex = new MemIndex();
 
-    private final Set<DiskMemIndexPoller> pollers = new HashSet<>();
+    private final Set<IndexPoller> pollers = new HashSet<>();
 
     public TableIndex(File rootDirectory) {
         this(rootDirectory, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
@@ -74,10 +86,6 @@ public class TableIndex implements Index {
         memIndex.close();
         memIndex = new MemIndex();
 
-        for (DiskMemIndexPoller poller : pollers) {
-            poller.onMemIndexFlushed();
-        }
-
         return new FlushInfo(memIndex.size(), timeTaken);
     }
 
@@ -100,7 +108,7 @@ public class TableIndex implements Index {
 //        this.flush(); //no need to flush, just reload from disk on startup
         memIndex.close();
         diskIndex.close();
-        for (DiskMemIndexPoller poller : pollers) {
+        for (IndexPoller poller : pollers) {
             IOUtils.closeQuietly(poller);
         }
         pollers.clear();
@@ -141,183 +149,135 @@ public class TableIndex implements Index {
         diskIndex.compact();
     }
 
-    public PollingSubscriber<IndexEntry> poller(long stream) {
+    public IndexPoller poller(long stream) {
         return poller(Set.of(stream));
     }
 
-
-    public PollingSubscriber<IndexEntry> poller(long stream, int lastVersion) {
-        throw new UnsupportedOperationException("Implement me");
-//        return poller(Set.of(stream));
+    public IndexPoller poller(Map<Long, Integer> streams) {
+        Map<Long, AtomicInteger> map = streams.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, kv -> new AtomicInteger(kv.getValue())));
+        return new IndexPoller(map);
     }
 
-    public PollingSubscriber<IndexEntry> poller(Set<Long> streams) {
-        return new StreamTrackerPoller(new DiskMemIndexPoller(diskIndex.poller()), streams);
+    public IndexPoller poller(Set<Long> streams) {
+        List<Long> streamList = new ArrayList<>(streams);
+        streamList.sort(Comparator.comparingLong(s -> s));
+        Map<Long, AtomicInteger> map = streamList.stream().collect(Collectors.toMap(stream -> stream, r -> new AtomicInteger(NO_VERSION)));
+        return new IndexPoller(map);
     }
 
-    /**
-     * Higher level poller, that tracks the read streams, used in conjunction with DiskMemPoller to avoid duplicates
-     * when switching from memindex to diskindex pollers and vice versa
-     */
-    private class StreamTrackerPoller implements PollingSubscriber<IndexEntry> {
 
-        private final PollingSubscriber<IndexEntry> poller;
-        private final Map<Long, Integer> readVersions;
-        private IndexEntry lastEntry;
+    public class IndexPoller implements PollingSubscriber<IndexEntry> {
 
-        //TODO add support to restart from a set of streams / versions. map entries must be set with last read version of each stream
-        //AND the disk memDiskPoller must have the position (already supported by log appender)
-        StreamTrackerPoller(PollingSubscriber<IndexEntry> memDiskPoller, Set<Long> streams) {
-            this.poller = memDiskPoller;
-            this.readVersions = streams.stream().collect(Collectors.toMap(aLong -> aLong, aLong -> -1));
+        private static final int MAX_BACKOFF_COUNT = 6;
+        private static final int INITIAL_WAIT_TIME = 200;
+        private final Map<Long, AtomicInteger> streams = new ConcurrentHashMap<>();
+        private final BlockingQueue<IndexEntry> queue = new LinkedBlockingQueue<>();
+        private final Queue<Long> streamReadPriority;
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        private IndexPoller(Map<Long, AtomicInteger> streamVersions) {
+            streams.putAll(streamVersions);
+            streamReadPriority = new ArrayDeque<>(streamVersions.keySet());
         }
 
-        private IndexEntry poolAndUpdateMap() throws InterruptedException {
-            while (!poller.headOfLog()) {
-                IndexEntry indexEntry = poller.poll();
-                if (indexEntry == null) {
-                    return null;
-                }
-                if (streamMatch(indexEntry)) {
-                    readVersions.computeIfPresent(indexEntry.stream, (k, v) -> indexEntry.version);
-                    lastEntry = indexEntry;
-                    return indexEntry;
-                }
-            }
-            return null;
-        }
-
-        private boolean streamMatch(IndexEntry indexEntry) {
-            return readVersions.getOrDefault(indexEntry.stream, Integer.MAX_VALUE) < indexEntry.version;
-        }
-
-        @Override
-        public synchronized IndexEntry peek() throws InterruptedException {
-            if (lastEntry != null) {
-                return lastEntry;
-            }
-            IndexEntry indexEntry = poller.peek();
-            if (indexEntry == null || !streamMatch(indexEntry)) {
+        private IndexEntry computeAndGet(IndexEntry ie) {
+            if (ie == null) {
                 return null;
             }
-            lastEntry = indexEntry;
-            return indexEntry;
+            AtomicInteger lastVersion = streams.get(ie.stream);
+            if (lastVersion.get() >= ie.version) {
+                throw new IllegalStateException("Reading already processed version, last processed version: " + lastVersion + " read version: " + ie.version);
+            }
+            int expected = lastVersion.get() + 1;
+            if (expected != ie.version) {
+                throw new IllegalStateException("Next expected version: " + expected + " got: " + ie.version);
+            }
+            lastVersion.incrementAndGet();
+            return ie;
+        }
+
+        private void tryFetch() {
+            if (queue.isEmpty()) {
+                Queue<Long> emptyStreams = new ArrayDeque<>();
+                while (!streamReadPriority.isEmpty()) {
+                    long stream = streamReadPriority.peek();
+                    int lastProcessedVersion = streams.get(stream).get();
+                    List<IndexEntry> indexEntries = blockGet(stream, lastProcessedVersion + 1);
+                    if (!indexEntries.isEmpty()) {
+                        queue.addAll(indexEntries);
+                        streamReadPriority.addAll(emptyStreams);
+                        return;
+                    } else {
+                        streamReadPriority.poll();
+                        emptyStreams.offer(stream);
+                    }
+                }
+                streamReadPriority.addAll(emptyStreams);
+            }
+        }
+
+        private List<IndexEntry> blockGet(long stream, int version) {
+            List<IndexEntry> fromDisk = diskIndex.getBlockEntries(stream, version);
+            List<IndexEntry> filtered = filtering(fromDisk);
+            if (!filtered.isEmpty()) {
+                return filtered;
+            }
+            List<IndexEntry> fromMemory = memIndex.getAllOf(stream);
+            return filtering(fromMemory);
+        }
+
+        private List<IndexEntry> filtering(List<IndexEntry> original) {
+            if (original.isEmpty()) {
+                return Collections.emptyList();
+            }
+            return original.stream().filter(ie -> {
+                AtomicInteger version = streams.get(ie.stream);
+                return version != null && ie.version > version.get();
+            }).collect(Collectors.toList());
+        }
+
+
+        @Override
+        public synchronized IndexEntry peek() {
+            tryFetch();
+            return queue.peek();
         }
 
         @Override
-        public synchronized IndexEntry poll() throws InterruptedException {
-            return poll(-1, TimeUnit.SECONDS);
+        public synchronized IndexEntry poll() {
+            tryFetch();
+            IndexEntry entry = queue.poll();
+            return computeAndGet(entry);
         }
 
         @Override
         public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            IndexEntry indexEntry = poolAndUpdateMap();
-            if (indexEntry != null) {
-                lastEntry = null; //invalidate future peek
+            tryFetch();
+            IndexEntry entry = queue.poll(limit, timeUnit);
+            if (entry == null) {
+                tryFetch();
+                entry = queue.poll();
             }
-            return indexEntry;
+            return computeAndGet(entry);
         }
 
         @Override
         public synchronized IndexEntry take() throws InterruptedException {
-            IndexEntry indexEntry;
+            IndexEntry entry;
+            int waitingTimeMs = INITIAL_WAIT_TIME;
+            int backoffCount = 0;
             do {
-                indexEntry = poller.take();
-
-            } while (indexEntry == null || !streamMatch(indexEntry));
-            readVersions.computeIfPresent(indexEntry.stream, (k, v) -> v + 1);
-
-            lastEntry = null; //invalidate future peek
-            return indexEntry;
+                tryFetch();
+                entry = queue.poll(waitingTimeMs, TimeUnit.MILLISECONDS);
+                waitingTimeMs = backoffCount++ > MAX_BACKOFF_COUNT ? waitingTimeMs : waitingTimeMs * 2;
+            } while (entry == null && !closed.get());
+            return computeAndGet(entry);
         }
 
         @Override
         public synchronized boolean headOfLog() {
-            return poller.headOfLog();
-        }
-
-        @Override
-        public synchronized boolean endOfLog() {
-            return poller.endOfLog();
-        }
-
-        @Override
-        public long position() {
-            return poller.position();
-        }
-
-        @Override
-        public synchronized void close() throws IOException {
-            poller.close();
-            //TODO store state ??
-        }
-    }
-
-    /**
-     * Manages the MemIndex and DiskIndex pollers
-     * Start polling from disk if data is available.
-     * Switches to mem poller if no entry is available in disk
-     * Once the disk is flushed and the current poller is on mem, switch to disk and discard the mem poller
-     * When catching up from disk, possible duplicate entry can be polled since the reordering on disk write
-     * MUST NOT BE USED WITHOUT StreamIndexPoller that manages the already read items
-     */
-    private class DiskMemIndexPoller implements PollingSubscriber<IndexEntry> {
-
-        private final PollingSubscriber<IndexEntry> diskPoller;
-        private PollingSubscriber<IndexEntry> memPoller;
-        private PollingSubscriber<IndexEntry> current;
-        private boolean memPolling;
-
-        private DiskMemIndexPoller(PollingSubscriber<IndexEntry> diskPoller) {
-            this.diskPoller = diskPoller;
-            this.memPoller = newMemPoller();
-            this.current = diskPoller;
-        }
-
-        private void checkSwitchRequired() {
-            if (!memPolling && diskPoller.headOfLog()) {
-                current = newMemPoller();
-                memPolling = true;
-            }
-            if (memPolling && !diskPoller.headOfLog()) {
-                current = diskPoller;
-                memPolling = false;
-            }
-        }
-
-        @Override
-        public synchronized IndexEntry peek() throws InterruptedException {
-            checkSwitchRequired();
-            return current.peek();
-        }
-
-        @Override
-        public synchronized IndexEntry poll() throws InterruptedException {
-            checkSwitchRequired();
-            return current.poll();
-        }
-
-
-        @Override
-        public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            checkSwitchRequired();
-            return current.poll(limit, timeUnit);
-        }
-
-        @Override
-        public synchronized IndexEntry take() throws InterruptedException {
-            checkSwitchRequired();
-            IndexEntry take;
-            //take might be null if mem index gets closed
-            while ((take = current.take()) == null) {
-                checkSwitchRequired();
-            }
-            return take;
-        }
-
-        @Override
-        public synchronized boolean headOfLog() {
-            return diskPoller.headOfLog() && memPoller.headOfLog();
+            tryFetch();
+            return queue.isEmpty();
         }
 
         @Override
@@ -327,30 +287,19 @@ public class TableIndex implements Index {
 
         @Override
         public long position() {
-            //always use disk position, on restart duplicate might be read but the tracker poller will remove then
-            return diskPoller.position();
+            return -1;
         }
 
         @Override
-        public synchronized void close() {
-            IOUtils.closeQuietly(diskPoller);
-            IOUtils.closeQuietly(memPoller);
+        public void close() {
+            closed.set(true);
         }
 
-        private synchronized PollingSubscriber<IndexEntry> newMemPoller() {
-            IOUtils.closeQuietly(memPoller);
-            return memIndex.poller();
-        }
-
-        //releases memindex pollers and acquire new one
-        private synchronized void onMemIndexFlushed() {
-            memPoller = newMemPoller();
-            memPolling = false;
-            current = diskPoller;
+        public synchronized Map<Long, Integer> processed() {
+            return streams.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, kv -> kv.getValue().get()));
         }
 
     }
-
 
     public class FlushInfo {
         public int entries;
