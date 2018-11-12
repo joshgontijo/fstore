@@ -1,6 +1,7 @@
 package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.MapRecordSerializer;
+import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
@@ -44,12 +45,22 @@ public class JsonEvent {
             data = mapSerializer.fromBytes(ByteBuffer.wrap(event.data));
             metadata = mapSerializer.fromBytes(ByteBuffer.wrap(event.metadata));
         }
-        return new JsonEvent(event.type, event.timestamp, event.stream, event.version, metadata, data, event.isSystemEvent());
+        return new JsonEvent(event.type, event.timestamp, event.stream, event.version, data, metadata, event.isSystemEvent());
+    }
+
+    public static JsonEvent fromMap(Map<String, Object> event) {
+        String type = (String) event.get("type");
+        long timestamp = (int) event.get("timestamp");
+        String stream = (String) event.get("stream");
+        int version = (int) event.get("version");
+        Map<String, Object> metadata = (Map<String, Object>) event.get("metadata");
+        Map<String, Object> data = (Map<String, Object>) event.get("data");
+        return new JsonEvent(type, timestamp, stream, version, data, metadata, type.startsWith(Constant.SYSTEM_PREFIX));
     }
 
     public EventRecord toEvent() {
         if(systemEvent) {
-            return new EventRecord(stream, type, version, timestamp, JsonSerializer.toJsonBytes(data), JsonSerializer.toJsonBytes(data));
+            return new EventRecord(stream, type, version, timestamp, JsonSerializer.toJsonBytes(data), JsonSerializer.toJsonBytes(metadata));
         }
         return new EventRecord(stream, type, version, timestamp, mapSerializer.toBytes(data).array(), mapSerializer.toBytes(metadata).array());
     }

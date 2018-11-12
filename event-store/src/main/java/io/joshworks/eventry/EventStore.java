@@ -433,12 +433,6 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized void emit(String stream, EventRecord event) {
-        EventRecord withStream = EventRecord.create(stream, event.type, event.data, event.metadata);
-        this.append(withStream);
-    }
-
-    @Override
     public EventRecord get(String stream, int version) {
         long streamHash = streams.hashOf(stream);
 

@@ -1,11 +1,13 @@
 package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.ScriptExecutionException;
 import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.StreamFormat;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.result.ExecutionResult;
 import io.joshworks.eventry.projections.result.Metrics;
+import io.joshworks.eventry.projections.result.ScriptExecutionResult;
 import io.joshworks.eventry.projections.result.Status;
 import io.joshworks.eventry.projections.result.TaskError;
 import io.joshworks.eventry.projections.result.TaskStatus;
@@ -20,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -83,12 +86,9 @@ public class ProjectionTask {
     }
 
     private TaskStatus runTask(TaskItem taskItem) {
-        for (int i = 0; i < BATCH_SIZE; i++) {
-            taskItem.run();
-            if (stopRequested.get() || !Status.RUNNING.equals(taskItem.status)) {
-                taskItem.stop();
-                break;
-            }
+        taskItem.run();
+        if (stopRequested.get() || !Status.RUNNING.equals(taskItem.status)) {
+            taskItem.stop();
         }
         return taskItem.status();
     }
@@ -159,6 +159,8 @@ public class ProjectionTask {
         private final ProjectionContext context;
         private final Metrics metrics = new Metrics();
 
+        private final int ITEMS_PER_BATCH = 10000;
+
         private Status status = Status.NOT_STARTED;
         private TaskError error;
 
@@ -171,32 +173,53 @@ public class ProjectionTask {
         @Override
         public void run() {
             status = Status.RUNNING;
-            JsonEvent event = null;
             try {
+
+                //read
+                List<EventRecord> batchRecords = new ArrayList<>();
+                int processed = 0;
+                long readStart = System.currentTimeMillis();
+                while (processed < ITEMS_PER_BATCH && source.hasNext()) {
+                    EventRecord record = source.next();
+                    if (record.isLinkToEvent()) {
+                        throw new IllegalStateException("Event source must resolve linkTo events");
+                    }
+                    batchRecords.add(record);
+                    processed++;
+                }
+                metrics.readTime += (System.currentTimeMillis() - readStart);
+
+
+                //process
+                long processStart = System.currentTimeMillis();
+                ScriptExecutionResult result = handler.processEvents(batchRecords, context.state());
+                metrics.processTime += (System.currentTimeMillis() - processStart);
+
+
+                //write
+                context.handleScriptOutput(result.outputEvents);
+                metrics.writeTime = (System.currentTimeMillis() - processStart);
+
+                metrics.linkToEvents += result.linkToEvents;
+                metrics.emittedEvents += result.emittedEvents;
+                metrics.processed += batchRecords.size();
+
                 if (!source.hasNext()) {
-                    source.close();
+                    IOUtils.closeQuietly(source);
                     status = Status.COMPLETED;
                 }
-                EventRecord record = source.next();
-                if (record.isLinkToEvent()) {
-                    throw new IllegalStateException("Event source must resolve linkTo events");
-                }
-                event = JsonEvent.from(record);
-                if (handler.filter(event, context.state())) {
-                    handler.onEvent(event, context.state());
-                } else {
-                    metrics.skipped++;
-                }
-                metrics.processed++;
-                metrics.logPosition = source.logPosition();
-                metrics.lastEvent = StreamFormat.toString(event.stream, event.version);
 
-            } catch (Exception e) {
+                if (!batchRecords.isEmpty()) {
+                    EventRecord last = batchRecords.get(batchRecords.size() - 1);
+                    metrics.lastEvent = StreamFormat.toString(last.stream, last.version);
+                }
+                metrics.logPosition = source.logPosition();
+
+
+            } catch (ScriptExecutionException e) {
+                status = Status.FAILED;
                 logger.error("Task item " + uuid + " failed", e);
-                String currentStream = event != null ? event.stream : "(none)";
-                int currentVersion = event != null ? event.version : -1;
-                status = Status.AWAITING;
-                error = new TaskError(e.getMessage(), metrics.logPosition, currentStream, currentVersion, event);
+                error = new TaskError(e.getMessage(), metrics.logPosition, e.event);
             }
 
         }
