@@ -3,7 +3,7 @@ package io.joshworks.fstore.log;
 import java.io.Closeable;
 import java.util.concurrent.TimeUnit;
 
-public interface PollingSubscriber<T> extends IPosition, Closeable {
+public interface LogPoller<T> extends IPosition, Closeable {
 
     int NO_SLEEP = -1;
 
@@ -19,8 +19,8 @@ public interface PollingSubscriber<T> extends IPosition, Closeable {
 
     boolean endOfLog();
 
-    static <T> PollingSubscriber<T> empty() {
-        return new PollingSubscriber<>() {
+    static <T> LogPoller<T> empty() {
+        return new LogPoller<T>() {
             @Override
             public T peek() {
                 return null;

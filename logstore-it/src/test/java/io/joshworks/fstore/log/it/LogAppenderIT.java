@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.it;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -216,7 +216,7 @@ public abstract class LogAppenderIT {
             }
         }).start();
 
-        try (PollingSubscriber<String> poller = appender.poller()) {
+        try (LogPoller<String> poller = appender.poller()) {
             for (int i = 0; i < totalEntries; i++) {
                 String poll = poller.poll(1, TimeUnit.MINUTES);
 //                System.out.println(poll);

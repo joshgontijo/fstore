@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.header.Type;
@@ -91,11 +91,11 @@ public class BlockSegment<T> extends Segment<Block<T>> {
         return Iterators.closeableStream(entryIterator(position, direction));
     }
 
-    public PollingSubscriber<T> entryPoller() {
+    public LogPoller<T> entryPoller() {
         return new BlockPoller<>(super.poller());
     }
 
-    public PollingSubscriber<T> entryPoller(long position) {
+    public LogPoller<T> entryPoller(long position) {
         return new BlockPoller<>(super.poller(position));
     }
 

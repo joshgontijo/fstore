@@ -2,8 +2,7 @@ config({
     name: "by-type",
     streams: ["_all"],
     type: "CONTINUOUS",
-    parallel: false,
-    enabled: true
+    parallel: false
 });
 
 function filter(event, state) {

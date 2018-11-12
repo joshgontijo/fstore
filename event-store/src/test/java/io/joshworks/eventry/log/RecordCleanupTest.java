@@ -7,7 +7,7 @@ import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.TimeoutReader;
@@ -170,12 +170,12 @@ public class RecordCleanupTest {
         }
 
         @Override
-        public PollingSubscriber<EventRecord> poller(long position) {
+        public LogPoller<EventRecord> poller(long position) {
             return null;
         }
 
         @Override
-        public PollingSubscriber<EventRecord> poller() {
+        public LogPoller<EventRecord> poller() {
             return null;
         }
 

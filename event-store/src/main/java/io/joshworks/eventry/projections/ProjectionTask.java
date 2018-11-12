@@ -1,23 +1,28 @@
 package io.joshworks.eventry.projections;
 
-import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.data.Constant;
+import io.joshworks.eventry.data.StreamFormat;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.result.ExecutionResult;
 import io.joshworks.eventry.projections.result.Metrics;
-import io.joshworks.eventry.projections.result.TaskResult;
+import io.joshworks.eventry.projections.result.Status;
+import io.joshworks.eventry.projections.result.TaskError;
+import io.joshworks.eventry.projections.result.TaskStatus;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.LogPoller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -26,139 +31,278 @@ public class ProjectionTask {
     private static final Logger logger = LoggerFactory.getLogger(ProjectionTask.class);
 
     private final Projection projection;
-    private final ExecutorService executor;
-    private final Map<String, Metrics> tasksMetrics = new HashMap<>();
     private final AtomicBoolean stopRequested = new AtomicBoolean();
     private final ProjectionContext context;
-    private final IEventStore store;
 
-    public ProjectionTask(IEventStore store, Projection projection, ExecutorService executor) {
-        this.store = store;
+    private final List<TaskItem> tasks = new ArrayList<>();
+
+    private static final int BATCH_SIZE = 10000;
+
+    private ProjectionTask(IEventStore store, Projection projection, List<TaskItem> taskItems) {
         this.context = new ProjectionContext(store);
         this.projection = projection;
-        this.executor = executor;
+        this.tasks.addAll(taskItems);
+
     }
 
-    public ExecutionResult execute() {
+    public static ProjectionTask create(IEventStore store, Projection projection) {
+        ProjectionContext context = new ProjectionContext(store);
 
-        ExecutionResult result = new ExecutionResult(projection.name, context.options());
-        try {
-            EventStreamHandler handler = createHandler(projection, context);
-            StreamSource source = handler.source();
-            validateSource(source);
+        EventStreamHandler handler = createHandler(projection, context);
+        StreamSource source = handler.source();
+        validateSource(source);
 
-            if (source.isSingleSource()) {
-                TaskResult taskResult = runSequentially(handler, source.streams);
-                result.addTask(taskResult);
-            } else {
-                List<TaskResult> taskResults = runInParallel(handler, source.streams);
-                result.addTasks(taskResults);
+        List<TaskItem> taskItems = createTaskItems(store, handler, source, projection);
+        return new ProjectionTask(store, projection, taskItems);
+
+    }
+
+    ExecutionResult run() {
+        for (TaskItem taskItem : tasks) {
+            TaskStatus result = runTask(taskItem);
+            if (Status.FAILED.equals(result.status)) {
+                abort();
+                break;
             }
-
-            return result;
-
-        } catch (Exception e) {
-            logger.error("Projection " + projection.name + " failed", e);
-            TaskResult failed = TaskResult.failed(projection.name, context.state(), null, e, null, -1);
-            return result.addTask(failed);
         }
+        return status();
     }
 
-    private List<TaskResult> runInParallel(EventStreamHandler handler, Set<String> streams) {
-        List<Future<TaskResult>> tasks = streams.stream()
-                .map(stream -> executor.submit(() -> runSequentially(handler, Set.of(stream))))
-                .collect(Collectors.toList());
-
-        return tasks.stream().map(this::waitForCompletion).collect(Collectors.toList());
-    }
-
-    private TaskResult waitForCompletion(Future<TaskResult> future) {
-        try {
-            return future.get();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private boolean isAll(Set<String> streams) {
-        return streams.size() == 1 && streams.iterator().next().equals("_all");
-    }
-
-    private TaskResult runSequentially(EventStreamHandler handler, Set<String> streams) {
-
-        LogIterator<EventRecord> stream = isAll(streams) ? store.fromAllIter() : store.zipStreamsIter(streams);
-        try {
-            String id = UUID.randomUUID().toString().substring(0, 8);
-            tasksMetrics.put(id, new Metrics(streams));
-
-            return run(id, handler, stream);
-        } catch (Exception e) {
-            //should never happen since 'run' is catching all exceptions
-            logger.error("Failed running", e);
-            throw new RuntimeException(e);
-        } finally {
-            IOUtils.closeQuietly(stream);
-        }
-    }
-
-    private TaskResult run(String runId, EventStreamHandler handler, LogIterator<EventRecord> stream) {
-        EventRecord record = null;
-        Metrics metrics = this.tasksMetrics.get(runId);
-        try {
-            while (stream.hasNext()) {
-                if (stopRequested.get()) {
-                    return TaskResult.stopped(projection.name, context.state(), metrics);
-                }
-                record = stream.next();
-                if(record.isSystemEvent()) {
-                    continue;
-                }
-                if(record.isLinkToEvent()) {
-                    EventStore st = (EventStore) store;
-                    record = st.resolve(record);
-                }
-                JsonEvent event = JsonEvent.from(record);
-                if (handler.filter(event, context.state())) {
-                    handler.onEvent(event, context.state());
-                } else {
-                    metrics.skipped++;
-                }
-                metrics.processed++;
-                metrics.logPosition = stream.position();
+    private void abort() {
+        logger.info("Stopping all tasks");
+        for (TaskItem taskItem : tasks) {
+            taskItem.stop();
+            if (!Status.FAILED.equals(taskItem.status)) {
+                taskItem.status = Status.STOPPED;
             }
-
-            System.out.println(context.state());
-
-            return TaskResult.completed(projection.name, context.state(), metrics);
-
-        } catch (Exception e) {
-            logger.error("Projection " + projection.name + " failed", e);
-            String currentStream = record != null ? record.stream : "(none)";
-            int currentVersion = record != null ? record.version : -1;
-            return TaskResult.failed(projection.name, context.state(), metrics, e, currentStream, currentVersion);
         }
     }
 
-    private void validateSource(StreamSource streamSource) {
+    ExecutionResult status() {
+        return new ExecutionResult(projection.name, context.options(), tasks.stream().map(TaskItem::status).collect(Collectors.toList()));
+    }
+
+    private TaskStatus runTask(TaskItem taskItem) {
+        for (int i = 0; i < BATCH_SIZE; i++) {
+            taskItem.run();
+            if (stopRequested.get() || !Status.RUNNING.equals(taskItem.status)) {
+                taskItem.stop();
+                break;
+            }
+        }
+        return taskItem.status();
+    }
+
+
+    private static List<TaskItem> createTaskItems(IEventStore store, EventStreamHandler handler, StreamSource streamSource, Projection projection) {
+
+        List<TaskItem> tasks = new ArrayList<>();
+        Projection.Type type = projection.type;
+        Set<String> streams = streamSource.streams;
+
+        if (streamSource.isSingleSource()) {
+            final EventSource source = createSource(store, type, streams);
+            ProjectionContext context = new ProjectionContext(store);
+            TaskItem taskItem = new TaskItem(source, handler, context);
+            tasks.add(taskItem);
+
+        } else {
+            for (String stream : streams) {
+                final EventSource source = createSource(store, type, streams);
+                ProjectionContext context = new ProjectionContext(store);
+                TaskItem taskItem = new TaskItem(source, handler, context);
+                tasks.add(taskItem);
+            }
+        }
+
+        return tasks;
+    }
+
+    private static EventSource createSource(IEventStore store, Projection.Type type, Set<String> streams) {
+        if (Projection.Type.CONTINUOUS.equals(type)) {
+            LogPoller<EventRecord> poller = isAll(streams) ? store.logPoller() : store.streamPoller(streams);
+            return new ContinuousEventSource(poller, streams);
+        } else {
+            LogIterator<EventRecord> iterator = isAll(streams) ? store.fromAllIter() : store.zipStreamsIter(streams);
+            return new OneTimeEventSource(iterator, streams);
+        }
+    }
+
+    private static boolean isAll(Set<String> streams) {
+        return streams.size() == 1 && streams.iterator().next().equals(Constant.ALL_STREAMS);
+    }
+
+    private static void validateSource(StreamSource streamSource) {
         if (streamSource.streams == null || streamSource.streams.isEmpty()) {
             throw new RuntimeException("Source must be provided");
         }
     }
 
-    public Map<String, Metrics> metrics() {
-        Map<String, Metrics> copy = new HashMap<>();
-        for (Map.Entry<String, Metrics> entry : tasksMetrics.entrySet()) {
-            copy.put(entry.getKey(), entry.getValue().copy());
-        }
-        return copy;
+    public Map<String, TaskStatus> metrics() {
+        return tasks.stream().collect(Collectors.toMap(t -> t.uuid, TaskItem::status));
     }
 
-    private EventStreamHandler createHandler(Projection projection, ProjectionContext context) {
+    private static EventStreamHandler createHandler(Projection projection, ProjectionContext context) {
         return new Jsr223Handler(context, projection.script, Projections.ENGINE_NAME);
     }
 
     public void stop() {
         stopRequested.set(true);
     }
+
+
+    private static class TaskItem implements Runnable, Closeable {
+
+        private final String uuid = UUID.randomUUID().toString().substring(0, 8);
+        private final EventSource source;
+        private final EventStreamHandler handler;
+        private final ProjectionContext context;
+        private final Metrics metrics = new Metrics();
+
+        private Status status = Status.NOT_STARTED;
+        private TaskError error;
+
+        private TaskItem(EventSource source, EventStreamHandler handler, ProjectionContext context) {
+            this.source = source;
+            this.handler = handler;
+            this.context = context;
+        }
+
+        @Override
+        public void run() {
+            status = Status.RUNNING;
+            JsonEvent event = null;
+            try {
+                if (!source.hasNext()) {
+                    source.close();
+                    status = Status.COMPLETED;
+                }
+                EventRecord record = source.next();
+                if (record.isLinkToEvent()) {
+                    throw new IllegalStateException("Event source must resolve linkTo events");
+                }
+                event = JsonEvent.from(record);
+                if (handler.filter(event, context.state())) {
+                    handler.onEvent(event, context.state());
+                } else {
+                    metrics.skipped++;
+                }
+                metrics.processed++;
+                metrics.logPosition = source.logPosition();
+                metrics.lastEvent = StreamFormat.toString(event.stream, event.version);
+
+            } catch (Exception e) {
+                logger.error("Task item " + uuid + " failed", e);
+                String currentStream = event != null ? event.stream : "(none)";
+                int currentVersion = event != null ? event.version : -1;
+                status = Status.AWAITING;
+                error = new TaskError(e.getMessage(), metrics.logPosition, currentStream, currentVersion, event);
+            }
+
+        }
+
+        private TaskStatus status() {
+            return new TaskStatus(status, error, context.state(), metrics);
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeQuietly(source);
+        }
+
+        public void stop() {
+            status = Status.STOPPED;
+            close();
+        }
+    }
+
+
+    private interface EventSource extends Closeable {
+
+        Set<String> streams();
+
+        EventRecord next();
+
+        boolean hasNext();
+
+        long logPosition();
+    }
+
+    private static class OneTimeEventSource implements EventSource {
+
+        private final LogIterator<EventRecord> iterator;
+        private Set<String> streams;
+
+        private OneTimeEventSource(LogIterator<EventRecord> iterator, Set<String> streams) {
+            this.iterator = iterator;
+            this.streams = streams;
+        }
+
+        @Override
+        public Set<String> streams() {
+            return streams;
+        }
+
+        @Override
+        public EventRecord next() {
+            return iterator.next();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
+
+        @Override
+        public long logPosition() {
+            return iterator.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            iterator.close();
+        }
+    }
+
+    private static class ContinuousEventSource implements EventSource {
+
+        private final LogPoller<EventRecord> poller;
+        private Set<String> streams;
+
+        private ContinuousEventSource(LogPoller<EventRecord> poller, Set<String> streams) {
+            this.poller = poller;
+            this.streams = streams;
+        }
+
+        @Override
+        public Set<String> streams() {
+            return streams;
+        }
+
+        @Override
+        public EventRecord next() {
+            try {
+                return poller.poll(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public long logPosition() {
+            return poller.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            poller.close();
+        }
+    }
+
 
 }

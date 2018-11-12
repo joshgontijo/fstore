@@ -2,7 +2,7 @@ package io.joshworks.eventry.log;
 
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 
 import java.io.Closeable;
 import java.util.stream.Stream;
@@ -22,9 +22,9 @@ public interface IEventLog extends Closeable {
 
     Stream<EventRecord> stream(Direction direction);
 
-    PollingSubscriber<EventRecord> poller();
+    LogPoller<EventRecord> poller();
 
-    PollingSubscriber<EventRecord> poller(long position);
+    LogPoller<EventRecord> poller(long position);
 
     void cleanup();
 }

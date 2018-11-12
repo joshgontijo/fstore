@@ -12,7 +12,7 @@ import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.utils.Logging;
+import io.joshworks.fstore.core.util.Logging;
 import org.slf4j.Logger;
 
 import java.io.File;

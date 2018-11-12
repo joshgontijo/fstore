@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.Writer;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.header.LogHeader;
@@ -29,9 +29,9 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     T get(long position);
 
-    PollingSubscriber<T> poller(long position);
+    LogPoller<T> poller(long position);
 
-    PollingSubscriber<T> poller();
+    LogPoller<T> poller();
 
     long fileSize();
 

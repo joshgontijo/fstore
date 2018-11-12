@@ -17,10 +17,11 @@ public final class StringUtils {
         requireNonBlank(val, "Value");
     }
 
-    public static void requireNonBlank(String val, String name) {
+    public static String requireNonBlank(String val, String name) {
         if(isBlank(val)) {
             throw new IllegalArgumentException(name + " must not be null or empty");
         }
+        return val;
     }
 
     public static byte[] toUtf8Bytes(String val) {

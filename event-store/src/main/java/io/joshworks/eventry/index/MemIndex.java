@@ -4,7 +4,7 @@ package io.joshworks.eventry.index;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -126,7 +126,7 @@ public class MemIndex implements Index {
         return Iterators.of(ordered);
     }
 
-    PollingSubscriber<IndexEntry> poller(List<Range> ranges) {
+    LogPoller<IndexEntry> poller(List<Range> ranges) {
         synchronized (pollers) {
             MemPoller memPoller = new MemPoller(ranges);
             pollers.add(memPoller);
@@ -134,7 +134,7 @@ public class MemIndex implements Index {
         }
     }
 
-    private class MemPoller implements PollingSubscriber<IndexEntry> {
+    private class MemPoller implements LogPoller<IndexEntry> {
 
         private static final int VERIFICATION_INTERVAL_MILLIS = 500;
         private final AtomicBoolean closed = new AtomicBoolean();

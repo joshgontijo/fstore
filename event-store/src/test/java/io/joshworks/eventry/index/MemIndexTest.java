@@ -1,7 +1,7 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -446,7 +446,7 @@ public class MemIndexTest {
             ranges.add(Range.anyOf(i));
         }
 
-        try (PollingSubscriber<IndexEntry> poller = index.poller(ranges)) {
+        try (LogPoller<IndexEntry> poller = index.poller(ranges)) {
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
                 assertNotNull(poll);
@@ -460,7 +460,7 @@ public class MemIndexTest {
 
         index.add(IndexEntry.of(1, 0, 0));
 
-        PollingSubscriber<IndexEntry> poller = index.poller(Arrays.asList(Range.anyOf(1)));
+        LogPoller<IndexEntry> poller = index.poller(Arrays.asList(Range.anyOf(1)));
         assertFalse(poller.endOfLog());
 
         poller.poll();
@@ -475,7 +475,7 @@ public class MemIndexTest {
 
         index.add(IndexEntry.of(1, 0, 0));
 
-        PollingSubscriber<IndexEntry> poller = index.poller(Arrays.asList(Range.anyOf(1)));
+        LogPoller<IndexEntry> poller = index.poller(Arrays.asList(Range.anyOf(1)));
         assertFalse(poller.headOfLog());
 
         poller.poll();

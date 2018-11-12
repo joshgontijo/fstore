@@ -2,6 +2,7 @@ package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.projections.result.Metrics;
+import io.joshworks.eventry.projections.result.TaskStatus;
 import io.joshworks.fstore.core.io.IOUtils;
 
 import java.io.Closeable;
@@ -9,37 +10,37 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class Projections implements Closeable {
 
     public static final String ENGINE_NAME = "nashorn";
-    private final ProjectionExecutorManager manager;
+    private final ProjectionExecutor manager;
     private final Map<String, Projection> projectionsMap = new HashMap<>();
 
     public static final String PROJECTIONS_RESOURCE_FOLDER = "projections"; //TODO this should not be hardcoded
     private static final Set<String> systemProjectionFiles = Set.of("by-type.js");
 
-    private final Set<String> systemProjectionNames;
+    private final Set<String> systemProjectionNames = new HashSet<>();
 
-    public Projections(ProjectionExecutorManager manager) {
+    public Projections(ProjectionExecutor manager) {
         this.manager = manager;
-        this.systemProjectionNames = getSystemProjections().stream().map(p -> p.name).collect(Collectors.toSet());
     }
 
-    public void createSystemProjections() {
-        List<Projection> projections = getSystemProjections();
-        for (Projection projection : projections) {
-            projectionsMap.put(projection.name, projection);
+    public void bootstrapProjections(IEventStore store) {
+        for (Projection projection : projectionsMap.values()) {
+            if(Projection.Type.CONTINUOUS.equals(projection.type) && projection.enabled) {
+                run(projection.name, store);
+            }
         }
     }
 
-    private List<Projection> getSystemProjections() {
+    public List<Projection> loadSystemProjections() {
         List<Projection> found = new ArrayList<>();
         for (String scriptFile : systemProjectionFiles) {
             InputStream is = this.getClass().getClassLoader().getResourceAsStream(PROJECTIONS_RESOURCE_FOLDER + "/" + scriptFile);
@@ -49,6 +50,7 @@ public class Projections implements Closeable {
             String script = IOUtils.toString(is);
             Projection projection = Jsr223Handler.compile(script, ENGINE_NAME);
             found.add(projection);
+            systemProjectionNames.add(projection.name);
         }
         return found;
     }
@@ -82,8 +84,24 @@ public class Projections implements Closeable {
         manager.run(projection, store);
     }
 
+    public void resume(String name, IEventStore store) {
+        //TODO implement checkpoint and re-read state from it
+    }
+
     public void stop(String name) {
         manager.stop(name);
+    }
+
+    public void disable(String name) {
+        Projection projection = get(name);
+        projection.enabled = false;
+
+        stop(name);
+    }
+
+    public void enable(String name) {
+        Projection projection = get(name);
+        projection.enabled = true;
     }
 
     public void stopAll() {
@@ -98,7 +116,7 @@ public class Projections implements Closeable {
         throw new UnsupportedOperationException("TODO");
     }
 
-    public Map<String, Metrics> executionStatus(String name) {
+    public Map<String, TaskStatus> executionStatus(String name) {
         return manager.status(name);
     }
 
@@ -140,7 +158,6 @@ public class Projections implements Closeable {
         requireNonBlank(name, "name");
 
         Projection projection = projectionsMap.get(name);
-
         if (projection == null) {
             throw new IllegalArgumentException("No projection found for name '" + name + "'");
         }

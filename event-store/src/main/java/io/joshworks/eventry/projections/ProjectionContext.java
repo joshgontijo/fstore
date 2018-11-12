@@ -10,15 +10,13 @@ public class ProjectionContext {
     private final IEventStore store;
     private final State state = new State();
     private final Map<String, Object> options = new HashMap<>();
-    private final Map<String, Object> source = new HashMap<>();
-
 
     public ProjectionContext(IEventStore store) {
         this.store = store;
     }
 
     public final void linkTo(String stream, JsonEvent record) {
-        store.linkTo(stream, record.toEvent());
+        store.linkTo(stream, record.stream, record.version, record.type);
     }
 
     public final void emit(String stream, JsonEvent record) {
@@ -37,10 +35,6 @@ public class ProjectionContext {
         if (initialState != null) {
             this.state.putAll(initialState);
         }
-    }
-
-    public final void source(Map<String, Object> source) {
-        this.source.putAll(source);
     }
 
     public Map<String, Object> options() {

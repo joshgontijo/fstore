@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.appender.level;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
@@ -343,12 +343,12 @@ public class LevelsTest {
         }
 
         @Override
-        public PollingSubscriber<String> poller(long position) {
+        public LogPoller<String> poller(long position) {
             return null;
         }
 
         @Override
-        public PollingSubscriber<String> poller() {
+        public LogPoller<String> poller() {
             return null;
         }
 

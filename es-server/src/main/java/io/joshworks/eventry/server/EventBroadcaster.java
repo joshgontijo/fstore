@@ -3,7 +3,7 @@ package io.joshworks.eventry.server;
 import com.google.gson.Gson;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.snappy.sse.EventData;
 import io.joshworks.snappy.sse.SseBroadcaster;
 import org.slf4j.Logger;
@@ -55,7 +55,7 @@ public class EventBroadcaster implements Closeable {
     }
 
 
-    public boolean add(PollingSubscriber<EventRecord> poller) {
+    public boolean add(LogPoller<EventRecord> poller) {
         if(closed.get()) {
             logger.warn("Event broadcaster is closed");
             return false;
@@ -75,7 +75,7 @@ public class EventBroadcaster implements Closeable {
         return true;
     }
 
-    public void remove(PollingSubscriber<EventRecord> poller) {
+    public void remove(LogPoller<EventRecord> poller) {
         for (BroadcastWorker worker : workers) {
             worker.remove(poller);
         }
@@ -109,7 +109,7 @@ public class EventBroadcaster implements Closeable {
         private static final Logger logger = LoggerFactory.getLogger(EventBroadcaster.class);
         private final Gson gson = new Gson();
         private final AtomicBoolean closed = new AtomicBoolean();
-        private final List<PollingSubscriber<EventRecord>> pollers = new ArrayList<>();
+        private final List<LogPoller<EventRecord>> pollers = new ArrayList<>();
         private final long waitTime;
 
         private BroadcastWorker(long waitTime) {
@@ -126,7 +126,7 @@ public class EventBroadcaster implements Closeable {
                     }
 
                     List<EventRecord> available = new ArrayList<>();
-                    for (PollingSubscriber<EventRecord> poller : pollers) {
+                    for (LogPoller<EventRecord> poller : pollers) {
                         EventRecord event = poller.poll();
                         if (event == null) {
                             continue;
@@ -152,7 +152,7 @@ public class EventBroadcaster implements Closeable {
         @Override
         public void close() {
             closed.set(true);
-            for (PollingSubscriber<EventRecord> poller : pollers) {
+            for (LogPoller<EventRecord> poller : pollers) {
                 remove(poller);
             }
         }
@@ -179,7 +179,7 @@ public class EventBroadcaster implements Closeable {
 
         }
 
-        public void remove(PollingSubscriber<EventRecord> poller) {
+        public void remove(LogPoller<EventRecord> poller) {
             pollers.remove(poller);
             IOUtils.closeQuietly(poller);
         }

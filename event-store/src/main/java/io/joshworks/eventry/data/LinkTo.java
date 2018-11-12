@@ -15,13 +15,14 @@ public class LinkTo {
         this.version = version;
     }
 
-    public static EventRecord create(String stream, EventRecord event) {
-        return EventRecord.create(stream, TYPE, StringUtils.toUtf8Bytes(event.eventId()));
+    public static EventRecord create(String stream, StreamFormat streamFormat) {
+        return EventRecord.create(stream, TYPE, StringUtils.toUtf8Bytes(streamFormat.toString()));
     }
 
     public static LinkTo from(EventRecord record) {
-        String[] split = record.dataAsString().split(EventRecord.STREAM_VERSION_SEPARATOR);
-        return new LinkTo(split[0], Integer.parseInt(split[1]));
+        String streamVersion = record.dataAsString();
+        StreamFormat streamFormat = StreamFormat.parse(streamVersion);
+        return new LinkTo(streamFormat.stream, streamFormat.version);
     }
 
 }

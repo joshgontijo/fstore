@@ -1,17 +1,17 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-class LogPoller implements PollingSubscriber<EventRecord> {
+class EventLogPoller implements LogPoller<EventRecord> {
 
     private final EventStore store;
-    private final PollingSubscriber<EventRecord> logPoller;
+    private final LogPoller<EventRecord> logPoller;
 
-    LogPoller(PollingSubscriber<EventRecord> logPoller, EventStore store) {
+    EventLogPoller(LogPoller<EventRecord> logPoller, EventStore store) {
         this.store = store;
         this.logPoller = logPoller;
     }

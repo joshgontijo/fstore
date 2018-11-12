@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -407,7 +407,7 @@ public abstract class LogAppenderTest {
 
         long appendDataAfterSeconds = 2;
         String message = "YOLO";
-        try (PollingSubscriber<String> poller = appender.poller()) {
+        try (LogPoller<String> poller = appender.poller()) {
 
             new Thread(() -> {
                 sleep(TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
@@ -425,7 +425,7 @@ public abstract class LogAppenderTest {
     @Test
     public void poll_returns_immediately_without_data() throws InterruptedException, IOException {
 
-        try (PollingSubscriber<String> poller = appender.poller()) {
+        try (LogPoller<String> poller = appender.poller()) {
             for (int i = 0; i < 1000; i++) {
                 String message = poller.poll();
                 assertNull(message);
@@ -439,7 +439,7 @@ public abstract class LogAppenderTest {
         final var message = "Yolo";
         appender.append(message);
         appender.flush();
-        try (PollingSubscriber<String> poller = appender.poller()) {
+        try (LogPoller<String> poller = appender.poller()) {
             String found = poller.poll();
             assertEquals(message, found);
 
@@ -454,7 +454,7 @@ public abstract class LogAppenderTest {
     public void poll_waits_for_specified_time() throws InterruptedException, IOException {
 
         long timeToWaitMillis = 1000;
-        try (PollingSubscriber<String> poller = appender.poller()) {
+        try (LogPoller<String> poller = appender.poller()) {
             long start = System.currentTimeMillis();
             String message = poller.poll(timeToWaitMillis, TimeUnit.MILLISECONDS);
             assertNull(message);
@@ -468,7 +468,7 @@ public abstract class LogAppenderTest {
         long waitSeconds = 30;
         long appendDataAfterSeconds = 2;
         String message = "YOLO";
-        try (PollingSubscriber<String> poller = appender.poller()) {
+        try (LogPoller<String> poller = appender.poller()) {
 
             new Thread(() -> {
                 sleep(TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
@@ -486,7 +486,7 @@ public abstract class LogAppenderTest {
     @Test
     public void poll_headOfLog_returns_true_when_no_data_is_available() {
 
-        PollingSubscriber<String> poller = appender.poller();
+        LogPoller<String> poller = appender.poller();
         assertTrue(poller.headOfLog());
         appender.append("a");
         appender.flush();
@@ -496,7 +496,7 @@ public abstract class LogAppenderTest {
     @Test
     public void poll_endOfLog_always_returns_false() {
 
-        PollingSubscriber<String> poller = appender.poller();
+        LogPoller<String> poller = appender.poller();
         assertFalse(poller.endOfLog());
         appender.append("a");
         assertFalse(poller.endOfLog());

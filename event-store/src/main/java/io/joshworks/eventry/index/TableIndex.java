@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -166,7 +166,7 @@ public class TableIndex implements Index {
     }
 
 
-    public class IndexPoller implements PollingSubscriber<IndexEntry> {
+    public class IndexPoller implements LogPoller<IndexEntry> {
 
         private static final int MAX_BACKOFF_COUNT = 6;
         private static final int INITIAL_WAIT_TIME = 200;
