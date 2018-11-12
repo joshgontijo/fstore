@@ -12,7 +12,7 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
@@ -114,12 +114,12 @@ public class IndexSegment implements Log<IndexEntry> {
     }
 
     @Override
-    public PollingSubscriber<IndexEntry> poller(long position) {
+    public LogPoller<IndexEntry> poller(long position) {
         return new BlockPoller<>(delegate.poller(position));
     }
 
     @Override
-    public PollingSubscriber<IndexEntry> poller() {
+    public LogPoller<IndexEntry> poller() {
         return new BlockPoller<>(delegate.poller());
     }
 

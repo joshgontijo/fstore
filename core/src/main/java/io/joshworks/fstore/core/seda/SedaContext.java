@@ -1,7 +1,7 @@
 package io.joshworks.fstore.core.seda;
 
+import io.joshworks.fstore.core.util.Logging;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.util.HashSet;
@@ -16,10 +16,16 @@ import java.util.stream.Collectors;
 
 public class SedaContext implements Closeable {
 
-    private static final Logger logger = LoggerFactory.getLogger(SedaContext.class);
+    private final Logger logger;
 
     private final Map<String, Stage> stages = new ConcurrentHashMap<>();
     private final AtomicReference<ContextState> state = new AtomicReference<>(ContextState.RUNNING);
+    private final String name;
+
+    public SedaContext(String name) {
+        this.name = name;
+        logger = Logging.namedLogger(name, "seda");
+    }
 
     @SuppressWarnings("unchecked")
     public <T> void addStage(String name, StageHandler<T> handler, Stage.Builder builder) {

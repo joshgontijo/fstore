@@ -3,7 +3,7 @@ package io.joshworks.eventry.index;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -303,7 +303,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(stream)) {
 
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
@@ -323,7 +323,7 @@ public class TableIndexTest {
             tableIndex.add(i, 0, 0);
         }
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(streams)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(streams)) {
 
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
@@ -347,7 +347,7 @@ public class TableIndexTest {
             }
         }
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(versionTracker.keySet())) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(versionTracker.keySet())) {
 
             for (long stream = 0; stream < streams; stream++) {
                 for (int version = 0; version < versions; version++) {
@@ -372,7 +372,7 @@ public class TableIndexTest {
 
         tableIndex.flush();
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(stream)) {
 
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
@@ -393,7 +393,7 @@ public class TableIndexTest {
 
         tableIndex.flush();
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(stream)) {
 
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.take();
@@ -410,7 +410,7 @@ public class TableIndexTest {
         tableIndex.add(stream, 0, 0);
         tableIndex.add(stream, 1, 0);
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(stream)) {
 
             for (int i = 0; i < 10; i++) {
                 IndexEntry peek = poller.peek();
@@ -430,7 +430,7 @@ public class TableIndexTest {
 
         tableIndex.flush();
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(stream)) {
 
             for (int i = 0; i < 10; i++) {
                 IndexEntry peek = poller.peek();
@@ -458,7 +458,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(stream)) {
 
             for (int i = 0; i < entries * 2; i++) {
                 IndexEntry poll = poller.poll();
@@ -478,7 +478,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
                 assertNull(poll);
@@ -498,7 +498,7 @@ public class TableIndexTest {
 
         tableIndex.flush();
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
                 assertNull(poll);
@@ -518,7 +518,7 @@ public class TableIndexTest {
 
         tableIndex.flush();
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.peek();
                 assertNull(poll);
@@ -536,7 +536,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.peek();
                 assertNull(poll);
@@ -563,7 +563,7 @@ public class TableIndexTest {
             }
         }).start();
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(expectedStream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(expectedStream)) {
             IndexEntry poll = poller.take();
             assertNotNull(poll);
             assertEquals(expectedStream, poll.stream);
@@ -584,7 +584,7 @@ public class TableIndexTest {
         });
         writeThread.start();
 
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(stream)) {
             for (int i = 0; i < totalEntries; i++) {
                 IndexEntry entry = poller.take();
                 if (i % 100000 == 0) {
@@ -614,7 +614,7 @@ public class TableIndexTest {
         writeThread.start();
 
         Set<Long> streams = LongStream.range(0, numStreams).boxed().collect(Collectors.toSet());
-        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(streams)) {
+        try (LogPoller<IndexEntry> poller = tableIndex.poller(streams)) {
             for (int i = 0; i < numVersion * numStreams; i++) {
                 IndexEntry entry = poller.take();
                 if (i % 100000 == 0) {
@@ -637,7 +637,7 @@ public class TableIndexTest {
         tableIndex.flush();
         tableIndex.add(stream2, 1, 0);
 
-        PollingSubscriber<IndexEntry> poller = tableIndex.poller(Set.of(stream1, stream2));
+        LogPoller<IndexEntry> poller = tableIndex.poller(Set.of(stream1, stream2));
 
         IndexEntry polled = poller.poll();
         assertEquals(stream2, polled.stream);
@@ -656,7 +656,7 @@ public class TableIndexTest {
         tableIndex.add(stream, 0, 0);
         tableIndex.add(stream, 1, 0);
 
-        PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream);
+        LogPoller<IndexEntry> poller = tableIndex.poller(stream);
 
         IndexEntry polled = poller.poll();
         assertEquals(stream, polled.stream);
@@ -676,7 +676,7 @@ public class TableIndexTest {
 
         tableIndex.add(stream, 0, 0);
 
-        PollingSubscriber<IndexEntry> poller = tableIndex.poller(Set.of(stream));
+        LogPoller<IndexEntry> poller = tableIndex.poller(Set.of(stream));
 
         IndexEntry polled = poller.poll();
         assertEquals(stream, polled.stream);

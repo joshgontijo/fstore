@@ -3,7 +3,7 @@ package io.joshworks.eventry.log;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 
@@ -57,12 +57,12 @@ public class EventLog implements IEventLog {
     }
 
     @Override
-    public PollingSubscriber<EventRecord> poller() {
+    public LogPoller<EventRecord> poller() {
         return appender.poller();
     }
 
     @Override
-    public PollingSubscriber<EventRecord> poller(long position) {
+    public LogPoller<EventRecord> poller(long position) {
         return appender.poller(position);
     }
 

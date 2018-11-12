@@ -3,6 +3,7 @@ package io.joshworks.eventry.log;
 import io.joshworks.eventry.MapRecordSerializer;
 import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.LinkTo;
+import io.joshworks.eventry.data.StreamFormat;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.Serializer;
 
@@ -10,8 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class EventRecord {
-
-    public static final String STREAM_VERSION_SEPARATOR = "@";
 
     private static final Serializer<Map<String, Object>> serializer = new MapRecordSerializer();
 
@@ -59,7 +58,7 @@ public class EventRecord {
     }
 
     public String eventId() {
-        return stream + STREAM_VERSION_SEPARATOR + version;
+        return StreamFormat.toString(stream, version);
     }
 
     public boolean isSystemEvent() {

@@ -4,6 +4,8 @@ import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.fstore.core.properties.AppProperties;
 import io.joshworks.snappy.http.MediaType;
+import io.joshworks.snappy.parser.Parsers;
+import io.joshworks.snappy.parser.PlainTextParser;
 
 import java.io.File;
 
@@ -17,9 +19,11 @@ import static io.joshworks.snappy.SnappyServer.put;
 import static io.joshworks.snappy.SnappyServer.sse;
 import static io.joshworks.snappy.SnappyServer.start;
 import static io.joshworks.snappy.parser.MediaTypes.consumes;
+import static io.joshworks.snappy.parser.MediaTypes.produces;
 
 public class Server {
 
+    private static final String JAVASCRIPT_MIME = "application/javascript";
 
     public static void main(String[] args) {
 
@@ -32,6 +36,8 @@ public class Server {
         StreamEndpoint streams = new StreamEndpoint(store);
         ProjectionsEndpoint projections = new ProjectionsEndpoint(store);
 
+
+        Parsers.register(MediaType.valueOf(JAVASCRIPT_MIME), new PlainTextParser());
 
         group("/streams", () -> {
             post("/", streams::create);
@@ -48,16 +54,19 @@ public class Server {
 
         group("/projections", () -> {
             get(projections::getAll);
-            post(projections::create, consumes("application/javascript"));
+            post(projections::create, consumes(JAVASCRIPT_MIME));
             post("AD-HOC-QUERY-TODO", projections::create);
             group("{name}", () -> {
-                put(projections::update, consumes("application/javascript"));
+                put(projections::update, consumes(JAVASCRIPT_MIME));
                 get(projections::get);
                 delete(projections::delete);
-                group("/executions", () -> {
-                    post(projections::run);
-                    get(projections::executionStatus);
-                });
+                get("script", projections::getScript, produces(JAVASCRIPT_MIME));
+                post("stop", projections::stop);
+                post("start", projections::run);
+                post("resume", projections::resume);
+                post("disable", projections::disable);
+                post("enable", projections::enable);
+                get("status", projections::executionStatus);
 
             });
         });

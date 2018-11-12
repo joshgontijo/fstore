@@ -7,13 +7,13 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.record.BufferRef;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
-import io.joshworks.fstore.log.utils.Logging;
+import io.joshworks.fstore.core.util.Logging;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -132,14 +132,14 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
-    public PollingSubscriber<T> poller(long position) {
+    public LogPoller<T> poller(long position) {
         checkClosed();
         SegmentPoller segmentPoller = new SegmentPoller(dataStream, serializer, position);
         return acquireReader(segmentPoller);
     }
 
     @Override
-    public PollingSubscriber<T> poller() {
+    public LogPoller<T> poller() {
         return poller(Log.START);
     }
 
@@ -483,7 +483,7 @@ public class Segment<T> implements Log<T> {
         }
     }
 
-    private class SegmentPoller extends TimeoutReader implements PollingSubscriber<T> {
+    private class SegmentPoller extends TimeoutReader implements LogPoller<T> {
 
         private static final int POLL_MS = 500;
 

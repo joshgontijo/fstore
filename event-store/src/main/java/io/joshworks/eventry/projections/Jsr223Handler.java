@@ -109,7 +109,6 @@ public class Jsr223Handler implements EventStreamHandler {
             Object projectionName = options.get(PROJECTION_NAME_FIELD_NAME);
             Object type = options.get(TYPE_NAME_FIELD_NAME);
             Object parallel = options.get(SOURCE_PARALLEL_FIELD_NAME);
-            Object enabled = options.get(ENABLED_FIELD_NAME);
 
             if (sourceStreams == null) {
                 throw new ScriptException("No source stream provided");
@@ -129,9 +128,8 @@ public class Jsr223Handler implements EventStreamHandler {
             Projection.Type theType = getType(type);
 
             boolean isParallel = parallel != null && ((Boolean) parallel);
-            boolean isEnabled = enabled == null || ((Boolean) enabled);
 
-            return new Projection(script, String.valueOf(projectionName), engineName, streams, theType, isEnabled, isParallel);
+            return new Projection(script, String.valueOf(projectionName), engineName, streams, theType, isParallel);
 
         } catch (Exception e) {
             throw new CompilationException("Script compilation error: " + e.getMessage(), e);

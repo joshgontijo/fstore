@@ -1,11 +1,14 @@
 package io.joshworks.fstore.serializer.json;
 
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.StringSerializer;
 
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 
 public class JsonSerializer<T> implements Serializer<T> {
@@ -25,6 +28,18 @@ public class JsonSerializer<T> implements Serializer<T> {
 
     public static <T> JsonSerializer<T> of(Type type) {
         return new JsonSerializer<>(type);
+    }
+
+    public static Map<String, Object> toMap(String json) {
+        return gson.fromJson(json, new TypeToken<Map<String, Object>>(){}.getType());
+    }
+
+    public static String toJson(Map<String, Object> data) {
+        return gson.toJson(data);
+    }
+
+    public static byte[] toJsonBytes(Map<String, Object> data) {
+        return toJson(data).getBytes(StandardCharsets.UTF_8);
     }
 
     @Override

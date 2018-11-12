@@ -1,20 +1,9 @@
 package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.RafStorage;
-import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
-import io.joshworks.fstore.core.seda.TimeWatch;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.header.LogHeader;
-import io.joshworks.fstore.log.segment.header.Type;
-import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -26,15 +15,10 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Queue;
 import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -372,7 +356,7 @@ public abstract class SegmentTest {
         for (int i = 0; i < numOfSubscribers; i++) {
             executor.submit(() -> {
                 try {
-                    PollingSubscriber<String> poller = segment.poller();
+                    LogPoller<String> poller = segment.poller();
                     String polled = poller.take();
                     if (polled != null) {
                         notifyLatch.countDown();
@@ -402,7 +386,7 @@ public abstract class SegmentTest {
         segment.append(value);
         segment.flush();
 
-        PollingSubscriber<String> poller = segment.poller();
+        LogPoller<String> poller = segment.poller();
         String polled = poller.poll(3, TimeUnit.SECONDS);
 
         assertEquals(value, polled);
@@ -420,7 +404,7 @@ public abstract class SegmentTest {
 
         new Thread(() -> {
             try {
-                PollingSubscriber<String> poller = segment.poller(position);
+                LogPoller<String> poller = segment.poller(position);
                 String polled = poller.poll();
                 captured.set(polled);
                 latch.countDown();
@@ -446,7 +430,7 @@ public abstract class SegmentTest {
 
         new Thread(() -> {
             try {
-                PollingSubscriber<String> poller = segment.poller();
+                LogPoller<String> poller = segment.poller();
                 String polled = poller.poll();
                 captured.set(polled);
                 latch.countDown();
@@ -467,7 +451,7 @@ public abstract class SegmentTest {
     @Test
     public void poll_headOfLog_returns_true_when_no_data_is_available() {
 
-        PollingSubscriber<String> poller = segment.poller();
+        LogPoller<String> poller = segment.poller();
         assertTrue(poller.headOfLog());
         segment.append("a");
         segment.flush();
@@ -477,7 +461,7 @@ public abstract class SegmentTest {
     @Test
     public void poll_endOfLog_always_returns_false_only_when_segment_is_closed() throws InterruptedException {
 
-        PollingSubscriber<String> poller = segment.poller();
+        LogPoller<String> poller = segment.poller();
         assertFalse(poller.endOfLog());
 
         segment.append("a");

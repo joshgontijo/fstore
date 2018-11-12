@@ -523,9 +523,9 @@ public class EventStoreIT {
 //        }
 //
 //        System.out.println("Write completed");
-//        try (PollingSubscriber<EventRecord> poller = store.poller(stream)) {
+//        try (PollingSubscriber<EventRecord> streamPoller = store.streamPoller(stream)) {
 //            for (int i = 0; i < items; i++) {
-//                EventRecord event = poller.take();
+//                EventRecord event = streamPoller.take();
 //                assertNotNull(event);
 //                assertEquals(i, event.version);
 //                if (i % 10000 == 0) {
@@ -551,9 +551,9 @@ public class EventStoreIT {
 //
 //        System.out.println("Write completed");
 //        //Orders of events is not guaranteed across streams
-//        try (PollingSubscriber<EventRecord> poller = store.poller(allStreams)) {
+//        try (PollingSubscriber<EventRecord> streamPoller = store.streamPoller(allStreams)) {
 //            for (int i = 0; i < items; i++) {
-//                EventRecord event = poller.take();
+//                EventRecord event = streamPoller.take();
 //                assertNotNull(event);
 //                assertEquals("Failed on iteration:" + i + " event:" + event, 0, event.version);
 //

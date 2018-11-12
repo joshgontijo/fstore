@@ -9,7 +9,6 @@ import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
@@ -20,7 +19,7 @@ import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.utils.BitUtil;
 import io.joshworks.fstore.log.utils.LogFileUtils;
-import io.joshworks.fstore.log.utils.Logging;
+import io.joshworks.fstore.core.util.Logging;
 import org.slf4j.Logger;
 
 import java.io.Closeable;
@@ -83,7 +82,7 @@ public class LogAppender<T> implements Closeable {
     private AtomicBoolean closed = new AtomicBoolean();
 
     private final ScheduledExecutorService flushWorker;
-    private final SedaContext sedaContext = new SedaContext();
+    private final SedaContext sedaContext = new SedaContext("compaction");
     private final Set<LogPoller> pollers = new HashSet<>();
     private final Compactor<T> compactor;
 
@@ -340,15 +339,15 @@ public class LogAppender<T> implements Closeable {
         return Direction.FORWARD.equals(direction) ? new ForwardLogReader(position) : new BackwardLogReader(position);
     }
 
-    public PollingSubscriber<T> poller() {
+    public io.joshworks.fstore.log.LogPoller<T> poller() {
         return createPoller(Log.START);
     }
 
-    public PollingSubscriber<T> poller(long position) {
+    public io.joshworks.fstore.log.LogPoller<T> poller(long position) {
         return createPoller(position);
     }
 
-    private synchronized PollingSubscriber<T> createPoller(long position) {
+    private synchronized io.joshworks.fstore.log.LogPoller<T> createPoller(long position) {
         LogPoller logPoller = new LogPoller(position);
         pollers.add(logPoller);
         return logPoller;
@@ -633,11 +632,11 @@ public class LogAppender<T> implements Closeable {
     }
 
 
-    private class LogPoller implements PollingSubscriber<T> {
+    private class LogPoller implements io.joshworks.fstore.log.LogPoller<T> {
 
-        private final BlockingQueue<PollingSubscriber<T>> segmentPollers = new LinkedBlockingQueue<>();
+        private final BlockingQueue<io.joshworks.fstore.log.LogPoller<T>> segmentPollers = new LinkedBlockingQueue<>();
         private final int MAX_SEGMENT_WAIT_SEC = 5;
-        private PollingSubscriber<T> currentPoller;
+        private io.joshworks.fstore.log.LogPoller<T> currentPoller;
         private int segmentIdx;
         private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -669,7 +668,7 @@ public class LogAppender<T> implements Closeable {
 
         @Override
         public T poll() throws InterruptedException {
-            return pollData(PollingSubscriber.NO_SLEEP, TimeUnit.SECONDS);
+            return pollData(io.joshworks.fstore.log.LogPoller.NO_SLEEP, TimeUnit.SECONDS);
         }
 
         @Override
@@ -736,8 +735,8 @@ public class LogAppender<T> implements Closeable {
             return item;
         }
 
-        private PollingSubscriber<T> waitForNextSegment() throws InterruptedException {
-            PollingSubscriber<T> next = null;
+        private io.joshworks.fstore.log.LogPoller<T> waitForNextSegment() throws InterruptedException {
+            io.joshworks.fstore.log.LogPoller<T> next = null;
             while (!closed.get() && next == null) {
                 next = segmentPollers.poll(MAX_SEGMENT_WAIT_SEC, TimeUnit.SECONDS);//wait next segment, should never wait really
             }
@@ -751,7 +750,7 @@ public class LogAppender<T> implements Closeable {
                 //TODO verify if the !segmentPollers.isEmpty() is actually correct and is a replacement for the commented out code below
 //                boolean isLatestSegment = segmentIdx == levels.numSegments() - 1;
                 if (!segmentPollers.isEmpty()) {
-                    PollingSubscriber<T> poll = segmentPollers.peek();
+                    io.joshworks.fstore.log.LogPoller<T> poll = segmentPollers.peek();
                     return poll.headOfLog();
                 }
                 return true;
@@ -774,7 +773,7 @@ public class LogAppender<T> implements Closeable {
             if (!closed.compareAndSet(false, true)) {
                 return;
             }
-            for (PollingSubscriber<T> poller : segmentPollers) {
+            for (io.joshworks.fstore.log.LogPoller<T> poller : segmentPollers) {
                 IOUtils.closeQuietly(poller);
             }
 

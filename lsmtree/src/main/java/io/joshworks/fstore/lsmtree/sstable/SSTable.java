@@ -8,7 +8,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
@@ -171,12 +171,12 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
-    public PollingSubscriber<Entry<K, V>> poller(long position) {
+    public LogPoller<Entry<K, V>> poller(long position) {
         return delegate.entryPoller(position);
     }
 
     @Override
-    public PollingSubscriber<Entry<K, V>> poller() {
+    public LogPoller<Entry<K, V>> poller() {
         return delegate.entryPoller();
     }
 

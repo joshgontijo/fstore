@@ -7,6 +7,7 @@ import io.joshworks.eventry.data.ProjectionCreated;
 import io.joshworks.eventry.data.ProjectionDeleted;
 import io.joshworks.eventry.data.ProjectionUpdated;
 import io.joshworks.eventry.data.StreamCreated;
+import io.joshworks.eventry.data.StreamFormat;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
@@ -17,9 +18,10 @@ import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.log.RecordCleanup;
 import io.joshworks.eventry.projections.Projection;
-import io.joshworks.eventry.projections.ProjectionExecutorManager;
+import io.joshworks.eventry.projections.ProjectionExecutor;
 import io.joshworks.eventry.projections.Projections;
 import io.joshworks.eventry.projections.result.Metrics;
+import io.joshworks.eventry.projections.result.TaskStatus;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
@@ -31,7 +33,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
@@ -63,7 +65,7 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         this.index = new TableIndex(rootDir);
-        this.projections = new Projections(new ProjectionExecutorManager(this::appendSystemEvent));
+        this.projections = new Projections(new ProjectionExecutor(this::appendSystemEvent));
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
@@ -180,8 +182,14 @@ public class EventStore implements IEventStore {
         logger.info("Loaded {} projections in {}ms", loaded, (System.currentTimeMillis() - start));
         if (loaded == 0) {
             logger.info("Creating system projections");
-            projections.createSystemProjections();
+            for (Projection projection : this.projections.loadSystemProjections()) {
+                createProjection(projection);
+                projections.add(projection);
+            }
+
         }
+
+        projections.bootstrapProjections(this);
 
     }
 
@@ -213,9 +221,12 @@ public class EventStore implements IEventStore {
     @Override
     public synchronized Projection createProjection(String script) {
         Projection projection = projections.create(script);
+        return createProjection(projection);
+    }
+
+    private synchronized Projection createProjection(Projection projection) {
         EventRecord eventRecord = ProjectionCreated.create(projection);
         this.appendSystemEvent(eventRecord);
-
         return projection;
     }
 
@@ -237,11 +248,31 @@ public class EventStore implements IEventStore {
 
     @Override
     public synchronized void runProjection(String name) {
-        projections.run(name, this);
+        projections.run(name, this); //TODO move system event to this method ???
     }
 
     @Override
-    public Map<String, Metrics> projectionExecutionStatus(String name) {
+    public void resumeProjectionExecution(String name) {
+        projections.resume(name, this); //TODO emit system event and add code on projections load
+    }
+
+    @Override
+    public void stopProjectionExecution(String name) {
+        projections.stop(name); //TODO move system event to this method ???
+    }
+
+    @Override
+    public void disableProjection(String name) {
+        projections.disable(name); //TODO emit system event and add code on projections load
+    }
+
+    @Override
+    public void enableProjection(String name) {
+        projections.enable(name); //TODO emit system event and add code on projections load
+    }
+
+    @Override
+    public Map<String, TaskStatus> projectionExecutionStatus(String name) {
         return projections.executionStatus(name);
     }
 
@@ -384,8 +415,21 @@ public class EventStore implements IEventStore {
             //resolve event
             event = get(event.stream, event.version);
         }
-        EventRecord linkTo = LinkTo.create(stream, event);
+        EventRecord linkTo = LinkTo.create(stream, StreamFormat.of(event));
         return this.appendSystemEvent(linkTo);
+    }
+
+    @Override
+    public synchronized EventRecord linkTo(String dstStream, String sourceStream, int sourceVersion, String sourceType) {
+        if (LinkTo.TYPE.equals(sourceType)) {
+            //resolve event
+            EventRecord event = get(sourceStream, sourceVersion);
+            EventRecord linkTo = LinkTo.create(dstStream, StreamFormat.of(event));
+            return this.appendSystemEvent(linkTo);
+        }
+        EventRecord linkTo = LinkTo.create(dstStream, StreamFormat.of(sourceStream, sourceVersion));
+        return this.appendSystemEvent(linkTo);
+
     }
 
     @Override
@@ -404,7 +448,7 @@ public class EventStore implements IEventStore {
         Optional<IndexEntry> indexEntry = index.get(streamHash, version);
         if (!indexEntry.isPresent()) {
             //TODO improve this to a non exception response
-            throw new RuntimeException("IndexEntry not found for " + stream + "@" + version);
+            throw new RuntimeException("IndexEntry not found for " + StreamFormat.toString(stream, version));
         }
 
         return get(indexEntry.get());
@@ -421,9 +465,9 @@ public class EventStore implements IEventStore {
     @Override
     public EventRecord resolve(EventRecord record) {
         if (record.isLinkToEvent()) {
-            String[] split = record.dataAsString().split(EventRecord.STREAM_VERSION_SEPARATOR);
-            var linkToStream = split[0];
-            var linkToVersion = Integer.parseInt(split[1]);
+            StreamFormat streamFormat = StreamFormat.parse(record.dataAsString());
+            var linkToStream = streamFormat.stream;
+            var linkToVersion = streamFormat.version;
             return get(linkToStream, linkToVersion);
         }
         return record;
@@ -488,31 +532,39 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized PollingSubscriber<EventRecord> poller() {
-        return new LogPoller(eventLog.poller(), this);
+    public synchronized LogPoller<EventRecord> logPoller() {
+        return new EventLogPoller(eventLog.poller(), this);
     }
 
     @Override
-    public synchronized PollingSubscriber<EventRecord> poller(long position) {
-        return new LogPoller(eventLog.poller(position), this);
+    public synchronized LogPoller<EventRecord> logPoller(long position) {
+        return new EventLogPoller(eventLog.poller(position), this);
     }
 
-//    @Override
-//    public synchronized PollingSubscriber<EventRecord> poller(String stream) {
-//        Set<Long> hashes = streams.streamMatching(stream).stream().map(streams::hashOf).collect(Collectors.toSet());
-//        return new IndexedLogPoller(index.poller(hashes), this);
-//    }
-//
-//    @Override
-//    public synchronized PollingSubscriber<EventRecord> poller(Set<String> streamNames) {
-//        Set<Long> hashes = streamNames.stream().map(streams::hashOf).collect(Collectors.toSet());
-//        return new IndexedLogPoller(index.poller(hashes), this);
-//    }
-//
-//    public PollingSubscriber<EventRecord> poller(String stream, int fromVersion) {
-//        long streamHash = streams.hashOf(stream);
-//        return new IndexedLogPoller(index.poller(streamHash, fromVersion), this);
-//    }
+    @Override
+    public synchronized LogPoller<EventRecord> streamPoller(Set<String> streamNames) {
+        if (streamNames.stream().anyMatch(Constant.ALL_STREAMS::equals)) {
+            throw new IllegalArgumentException(Constant.ALL_STREAMS + " not allowed");
+        }
+        Set<Long> streamHashes = streamNames.stream()
+                .map(streams::hashOf)
+                .collect(Collectors.toSet());
+
+        TableIndex.IndexPoller indexPoller = index.poller(streamHashes);
+        return new IndexedEventPoller(indexPoller, this);
+    }
+
+    @Override
+    public synchronized LogPoller<EventRecord> streamPoller(Map<String, Integer> streamMap) {
+        if (streamMap.keySet().stream().anyMatch(Constant.ALL_STREAMS::equals)) {
+            throw new IllegalArgumentException(Constant.ALL_STREAMS + " not allowed");
+        }
+        Map<Long, Integer> mappedStreams = streamMap.entrySet().stream()
+                .collect(Collectors.toMap(kv -> streams.hashOf(kv.getKey()), Map.Entry::getValue));
+
+        TableIndex.IndexPoller indexPoller = index.poller(mappedStreams);
+        return new IndexedEventPoller(indexPoller, this);
+    }
 
     private LogIterator<IndexEntry> withMaxCountFilter(long streamHash, LogIterator<IndexEntry> iterator) {
         return streams.get(streamHash)

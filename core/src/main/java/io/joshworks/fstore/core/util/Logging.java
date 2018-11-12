@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.utils;
+package io.joshworks.fstore.core.util;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

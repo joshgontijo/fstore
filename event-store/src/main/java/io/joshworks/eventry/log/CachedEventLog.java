@@ -4,7 +4,7 @@ import io.joshworks.eventry.log.cache.EventRecordCache;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 
 import java.util.stream.Stream;
 
@@ -61,12 +61,12 @@ public class CachedEventLog implements IEventLog {
     }
 
     @Override
-    public PollingSubscriber<EventRecord> poller() {
+    public LogPoller<EventRecord> poller() {
         return delegate.poller();
     }
 
     @Override
-    public PollingSubscriber<EventRecord> poller(long position) {
+    public LogPoller<EventRecord> poller(long position) {
         return delegate.poller(position);
     }
 

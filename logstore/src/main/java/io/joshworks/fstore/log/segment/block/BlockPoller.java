@@ -1,18 +1,18 @@
 package io.joshworks.fstore.log.segment.block;
 
-import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.LogPoller;
 
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
-public class BlockPoller<T> implements PollingSubscriber<T> {
+public class BlockPoller<T> implements LogPoller<T> {
 
-    private final PollingSubscriber<Block<T>> delegate;
+    private final LogPoller<Block<T>> delegate;
     private final Queue<T> cached = new LinkedList<>();
 
-    public BlockPoller(PollingSubscriber<Block<T>> delegate) {
+    public BlockPoller(LogPoller<Block<T>> delegate) {
         this.delegate = delegate;
     }
 
