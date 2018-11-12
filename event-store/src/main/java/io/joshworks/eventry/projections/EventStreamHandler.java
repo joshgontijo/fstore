@@ -1,5 +1,11 @@
 package io.joshworks.eventry.projections;
 
+import io.joshworks.eventry.ScriptExecutionException;
+import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.projections.result.ScriptExecutionResult;
+
+import java.util.List;
+
 public interface EventStreamHandler {
 
     boolean filter(JsonEvent record, State state);
@@ -7,5 +13,8 @@ public interface EventStreamHandler {
     void onEvent(JsonEvent record, State state);
 
     StreamSource source();
+
+    ScriptExecutionResult processEvents(List<EventRecord> events, State state) throws ScriptExecutionException;
+
 
 }

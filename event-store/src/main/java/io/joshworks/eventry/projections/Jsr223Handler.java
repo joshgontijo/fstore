@@ -1,20 +1,35 @@
 package io.joshworks.eventry.projections;
 
+import io.joshworks.eventry.ScriptExecutionException;
+import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.projections.result.ScriptExecutionResult;
 import io.joshworks.eventry.utils.StringUtils;
+import io.joshworks.fstore.core.io.IOUtils;
 
+import javax.script.Bindings;
 import javax.script.Compilable;
 import javax.script.CompiledScript;
 import javax.script.Invocable;
+import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
+import java.io.InputStream;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class Jsr223Handler implements EventStreamHandler {
+
+    private static final String BASE_PROCESS_EVENTS_METHOD_NAME = "process_events";
 
     private static final String ON_EVENT_METHOD_NAME = "onEvent";
     private static final String FILTER_METHOD_NAME = "filter";
@@ -23,20 +38,20 @@ public class Jsr223Handler implements EventStreamHandler {
 
     private static final String SOURCE_STREAMS_FIELD_NAME = "streams";
     private static final String SOURCE_PARALLEL_FIELD_NAME = "parallel";
-    private static final String ENABLED_FIELD_NAME = "enabled";
     private static final String PROJECTION_NAME_FIELD_NAME = "name";
     private static final String TYPE_NAME_FIELD_NAME = "type";
 
-    private static final String EMIT_METHOD_NAME = "emit";
-    private static final String LINK_TO_METHOD_NAME = "linkTo";
+//    private static final String EMIT_METHOD_NAME = "emit";
+//    private static final String LINK_TO_METHOD_NAME = "linkTo";
 
     private final Invocable invocable;
     private final StreamSource source;
 
     Jsr223Handler(ProjectionContext ctx, String script, String engineName) {
         try {
-            BiConsumer<String, JsonEvent> emmit = ctx::emit;
-            BiConsumer<String, JsonEvent> linkTo = ctx::linkTo;
+//            BiConsumer<String, JsonEvent> emmit = ctx::emit;
+//            BiConsumer<String, JsonEvent> linkTo = ctx::linkTo;
+
             Consumer<Map<String, Object>> config = ctx::options;
             Consumer<Map<String, Object>> initialState = ctx::initialState;
 
@@ -44,13 +59,15 @@ public class Jsr223Handler implements EventStreamHandler {
             engine.put(CONFIG_METHOD_NAME, config);
             engine.put(INITIAL_STATE_METHOD_NAME, initialState);
 
-            engine.put(EMIT_METHOD_NAME, emmit);
-            engine.put(LINK_TO_METHOD_NAME, linkTo);
+//            engine.put(EMIT_METHOD_NAME, emmit);
+//            engine.put(LINK_TO_METHOD_NAME, linkTo);
 
-            Compilable compilingEngine = (Compilable) engine;
-            CompiledScript cscript = compilingEngine.compile(script);
-            cscript.eval();
-            this.invocable = (Invocable) cscript.getEngine();
+            InputStream is = this.getClass().getClassLoader().getResourceAsStream("projections/base.js");
+            String baseScript = IOUtils.toString(is);
+            engine.eval(baseScript);
+            engine.eval(script);
+
+            this.invocable = (Invocable) engine;
             this.source = getStreamSource(ctx);
 
         } catch (Exception e) {
@@ -91,6 +108,24 @@ public class Jsr223Handler implements EventStreamHandler {
     @Override
     public StreamSource source() {
         return source;
+    }
+
+    @Override
+    public ScriptExecutionResult processEvents(List<EventRecord> events, State state) throws ScriptExecutionException {
+        Queue<JsonEvent> jsonEvents = events.stream().map(JsonEvent::from).collect(Collectors.toCollection(ArrayDeque::new));
+        try {
+            Map<String, Object> result = (Map<String, Object>) invocable.invokeFunction(BASE_PROCESS_EVENTS_METHOD_NAME, jsonEvents, state);
+
+            Collection<Object> values = result.values();
+            List<Map<String, Object>> parsed = new ArrayList<>();
+            for (Object value : values) {
+                parsed.add((Map<String, Object>) value);
+            }
+            return new ScriptExecutionResult(parsed);
+        } catch (Exception e) {
+            JsonEvent failed = jsonEvents.isEmpty() ? null : jsonEvents.poll();
+           throw new ScriptExecutionException(e, failed);
+        }
     }
 
     static Projection compile(String script, String engineName) {

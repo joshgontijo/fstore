@@ -13,8 +13,8 @@ public final class StringUtils {
         return val == null || val.trim().isEmpty();
     }
 
-    public static void requireNonBlank(String val) {
-        requireNonBlank(val, "Value");
+    public static String requireNonBlank(String val) {
+        return requireNonBlank(val, "Value");
     }
 
     public static String requireNonBlank(String val, String name) {

@@ -9,11 +9,16 @@ public class TaskError {
     public final int version;
     public final JsonEvent event;
 
-    public TaskError(String reason, long logPosition, String stream, int version, JsonEvent event) {
+    public TaskError(String reason, long logPosition, JsonEvent event) {
         this.reason = reason;
         this.logPosition = logPosition;
-        this.stream = stream;
-        this.version = version;
         this.event = event;
+        if(event != null) {
+            this.stream = event.stream;
+            this.version = event.version;
+        } else {
+            this.stream = null;
+            this.version = -1;
+        }
     }
 }
