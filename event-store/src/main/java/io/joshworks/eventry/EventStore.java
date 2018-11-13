@@ -5,6 +5,9 @@ import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.ProjectionCreated;
 import io.joshworks.eventry.data.ProjectionDeleted;
+import io.joshworks.eventry.data.ProjectionResumed;
+import io.joshworks.eventry.data.ProjectionStarted;
+import io.joshworks.eventry.data.ProjectionStopped;
 import io.joshworks.eventry.data.ProjectionUpdated;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamFormat;
@@ -248,27 +251,33 @@ public class EventStore implements IEventStore {
 
     @Override
     public synchronized void runProjection(String name) {
-        projections.run(name, this); //TODO move system event to this method ???
+        projections.run(name, this);
+        EventRecord eventRecord = ProjectionStarted.create(name);
+        this.appendSystemEvent(eventRecord);
     }
 
     @Override
     public void resumeProjectionExecution(String name) {
-        projections.resume(name, this); //TODO emit system event and add code on projections load
+        projections.resume(name, this);
     }
 
     @Override
     public void stopProjectionExecution(String name) {
-        projections.stop(name); //TODO move system event to this method ???
+        projections.stop(name);
     }
 
     @Override
     public void disableProjection(String name) {
-        projections.disable(name); //TODO emit system event and add code on projections load
+        Projection disabled = projections.disable(name);
+        EventRecord eventRecord = ProjectionUpdated.create(disabled);
+        this.appendSystemEvent(eventRecord);
     }
 
     @Override
     public void enableProjection(String name) {
-        projections.enable(name); //TODO emit system event and add code on projections load
+        Projection enabled = projections.enable(name);
+        EventRecord eventRecord = ProjectionUpdated.create(enabled);
+        this.appendSystemEvent(eventRecord);
     }
 
     @Override

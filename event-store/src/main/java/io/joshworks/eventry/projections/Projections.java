@@ -34,7 +34,7 @@ public class Projections implements Closeable {
 
     public void bootstrapProjections(IEventStore store) {
         for (Projection projection : projectionsMap.values()) {
-            if(Projection.Type.CONTINUOUS.equals(projection.type) && projection.enabled) {
+            if (Projection.Type.CONTINUOUS.equals(projection.type) && projection.enabled) {
                 run(projection.name, store);
             }
         }
@@ -85,24 +85,26 @@ public class Projections implements Closeable {
         manager.run(projection, store);
     }
 
-    public void resume(String name, IEventStore store) {
+    public boolean resume(String name, IEventStore store) {
         //TODO implement checkpoint and re-read state from it
+        //TODO return checkpoint info to be appended to the internal stream
     }
 
     public void stop(String name) {
         manager.stop(name);
     }
 
-    public void disable(String name) {
+    public Projection disable(String name) {
         Projection projection = get(name);
         projection.enabled = false;
-
         stop(name);
+        return projection;
     }
 
-    public void enable(String name) {
+    public Projection enable(String name) {
         Projection projection = get(name);
         projection.enabled = true;
+        return projection;
     }
 
     public void stopAll() {
@@ -131,7 +133,7 @@ public class Projections implements Closeable {
         if (found == null) {
             throw new IllegalArgumentException("No projection found for name " + name);
         }
-        if(systemProjectionNames.contains(name)) {
+        if (systemProjectionNames.contains(name)) {
             throw new IllegalArgumentException("Cannot update system projection");
         }
 
@@ -145,7 +147,7 @@ public class Projections implements Closeable {
     public void delete(String name) {
         requireNonBlank(name, "name");
 
-        if(systemProjectionNames.contains(name)) {
+        if (systemProjectionNames.contains(name)) {
             throw new IllegalArgumentException("Cannot update system projection");
         }
 
@@ -153,6 +155,8 @@ public class Projections implements Closeable {
         if (projection == null) {
             throw new IllegalArgumentException("No projection found for id " + name);
         }
+
+        stop(name);
     }
 
     public Projection get(String name) {
