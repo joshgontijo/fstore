@@ -49,10 +49,7 @@ public class ProjectionExecutor {
         logger.info("Starting projection '{}'", projection.name);
 
         ProjectionTask projectionTask = ProjectionTask.create(store, projection);
-
         try {
-            EventRecord eventRecord = ProjectionStarted.create(projection.name);
-            systemRecordAppender.accept(eventRecord);
             running.put(projection.name, projectionTask);
             scheduleRun(projectionTask);
 

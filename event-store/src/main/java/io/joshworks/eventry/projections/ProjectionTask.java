@@ -53,7 +53,7 @@ public class ProjectionTask {
         ProjectionContext context = new ProjectionContext(store);
 
         EventStreamHandler handler = createHandler(projection, context);
-        StreamSource source = handler.source();
+        SourceOptions source = handler.source();
         validateSource(source);
 
         List<TaskItem> taskItems = createTaskItems(store, handler, source, projection);
@@ -95,25 +95,22 @@ public class ProjectionTask {
     }
 
 
-    private static List<TaskItem> createTaskItems(IEventStore store, EventStreamHandler handler, StreamSource streamSource, Projection projection) {
+    private static List<TaskItem> createTaskItems(IEventStore store, EventStreamHandler handler, SourceOptions sourceOptions, Projection projection) {
 
         List<TaskItem> tasks = new ArrayList<>();
         Projection.Type type = projection.type;
-        Set<String> streams = streamSource.streams;
+        Set<String> streams = sourceOptions.streams;
 
         validateStreamNames(streams);
 
-        //single source
-        //multi source - parallel
-        //multi source - sequential
-
-        if (streamSource.isSingleSource() || !projection.parallel) {
-            final EventSource source = createSingleSource(store, type, streams);
+        //single source or not parallel
+        if (sourceOptions.isSingleSource()) {
+            final EventSource source = createSequentialSource(store, type, sourceOptions);
             ProjectionContext context = new ProjectionContext(store);
             TaskItem taskItem = new TaskItem(source, handler, context, type);
             tasks.add(taskItem);
-        } else if (projection.parallel) {
-            List<EventSource> sources = createMultipleSources(store, type, streams);
+        } else { //multi source and parallel
+            List<EventSource> sources = createParallelSource(store, type, sourceOptions);
             for (EventSource source : sources) {
                 ProjectionContext context = new ProjectionContext(store);
                 TaskItem taskItem = new TaskItem(source, handler, context, type);
@@ -121,31 +118,35 @@ public class ProjectionTask {
             }
 
         }
-
-
         return tasks;
     }
 
-    private static EventSource createMultipleSources(IEventStore store, Projection.Type type, Set<String> streams) {
+    private static List<EventSource> createParallelSource(IEventStore store, Projection.Type type, SourceOptions options) {
+        List<EventSource> result = new ArrayList<>();
+        for (String stream : options.streams) {
+            Set<String> singleStreamSet = Set.of(stream);
+            if (Projection.Type.CONTINUOUS.equals(type)) {
+                LogPoller<EventRecord> poller = Constant.ALL_STREAMS.equals(stream) ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(singleStreamSet);
+                result.add(new ContinuousEventSource(poller, singleStreamSet));
+            } else {
+                //TODO add LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE to fromAllIter
+                LogIterator<EventRecord> iterator = store.fromStreamIter(stream);
+                result.add(new OneTimeEventSource(iterator, singleStreamSet));
+            }
+        }
+        return result;
+    }
+
+    private static EventSource createSequentialSource(IEventStore store, Projection.Type type, SourceOptions options) {
+        Set<String> streams = options.streams;
+        boolean isAllStream = options.isAllStream();
         if (Projection.Type.CONTINUOUS.equals(type)) {
-            LogPoller<EventRecord> poller = isAll(streams) ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(streams);
+            LogPoller<EventRecord> poller = isAllStream ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(streams);
             return new ContinuousEventSource(poller, streams);
         } else {
             //TODO add LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE to fromAllIter
-            LogIterator<EventRecord> iterator = isAll(streams) ? store.fromAllIter() : store.zipStreamsIter(streams);
+            LogIterator<EventRecord> iterator = isAllStream ? store.fromAllIter() : store.zipStreamsIter(streams);
             return new OneTimeEventSource(iterator, streams);
-        }
-    }
-
-    private static EventSource createSingleSource(IEventStore store, Projection.Type type, String stream) {
-        Set<String> singleStreamSet = Set.of(stream);
-        if (Projection.Type.CONTINUOUS.equals(type)) {
-            LogPoller<EventRecord> poller = Constant.ALL_STREAMS.equals(stream) ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(singleStreamSet);
-            return new ContinuousEventSource(poller, singleStreamSet);
-        } else {
-            //TODO add LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE to fromAllIter
-            LogIterator<EventRecord> iterator = Constant.ALL_STREAMS.equals(stream) ? store.fromAllIter() : store.fromStreamIter(stream);
-            return new OneTimeEventSource(iterator, singleStreamSet);
         }
     }
 
@@ -159,8 +160,8 @@ public class ProjectionTask {
         }
     }
 
-    private static void validateSource(StreamSource streamSource) {
-        if (streamSource.streams == null || streamSource.streams.isEmpty()) {
+    private static void validateSource(SourceOptions sourceOptions) {
+        if (sourceOptions.streams == null || sourceOptions.streams.isEmpty()) {
             throw new RuntimeException("Source must be provided");
         }
     }
@@ -195,6 +196,7 @@ public class ProjectionTask {
             this.source = source;
             this.handler = handler;
             this.context = context;
+            this.type = type;
         }
 
         @Override

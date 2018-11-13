@@ -40,7 +40,7 @@ public class Jsr223Handler implements EventStreamHandler {
 //    private static final String LINK_TO_METHOD_NAME = "linkTo";
 
     private final Invocable invocable;
-    private final StreamSource source;
+    private final SourceOptions source;
 
     Jsr223Handler(ProjectionContext ctx, String script, String engineName) {
         try {
@@ -70,11 +70,11 @@ public class Jsr223Handler implements EventStreamHandler {
         }
     }
 
-    private StreamSource getStreamSource(ProjectionContext ctx) {
+    private SourceOptions getStreamSource(ProjectionContext ctx) {
         try {
             Map<String, String> sourceStreams = (Map<String, String>) ctx.options().get(SOURCE_STREAMS_FIELD_NAME);
             Boolean parallel = (Boolean) ctx.options().get(SOURCE_PARALLEL_FIELD_NAME);
-            return new StreamSource(new HashSet<>(sourceStreams.values()), parallel != null && parallel);
+            return new SourceOptions(new HashSet<>(sourceStreams.values()), parallel != null && parallel);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -101,7 +101,7 @@ public class Jsr223Handler implements EventStreamHandler {
     }
 
     @Override
-    public StreamSource source() {
+    public SourceOptions source() {
         return source;
     }
 
