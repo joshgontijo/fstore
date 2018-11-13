@@ -4,8 +4,8 @@ import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 
 public class ProjectionContext {
 
@@ -17,10 +17,9 @@ public class ProjectionContext {
         this.store = store;
     }
 
-    public void handleScriptOutput(Queue<ScriptExecutionResult.OutputEvent> outputs) {
-        while (!outputs.isEmpty()) {
-            var event = outputs.poll();
-            event.handle(store);
+    public void handleScriptOutput(List<ScriptExecutionResult.OutputEvent> outputs) {
+        for (var output : outputs) {
+            output.handle(store);
         }
     }
 

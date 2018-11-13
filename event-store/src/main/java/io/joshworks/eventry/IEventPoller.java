@@ -8,9 +8,9 @@ import java.util.Set;
 
 public interface IEventPoller {
 
-    LogPoller<EventRecord> logPoller();
+    LogPoller<EventRecord> logPoller(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy);
 
-    LogPoller<EventRecord> logPoller(long position);
+    LogPoller<EventRecord> logPoller(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, long position);
 
     LogPoller<EventRecord> streamPoller(Set<String> streams);
 

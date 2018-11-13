@@ -82,7 +82,7 @@ public class GithubFileParser {
     private static Map<String, Object> mapJson(Map<String, Object> map) {
         Map<String, Object> wrapper = new HashMap<>();
         wrapper.put("type", map.get("type"));
-        wrapper.put("data", map);
+        wrapper.put("body", map);
         return wrapper;
     }
 
@@ -107,8 +107,8 @@ public class GithubFileParser {
 //                Map<String, Object> map = gson.fromJson(line, type);
 //                return map;
 //            }).map(map -> {
-//                String data = gson.toJson(map);
-//                return EventRecord.create("github", String.valueOf(map.get("type")), data);
+//                String body = gson.toJson(map);
+//                return EventRecord.create("github", String.valueOf(map.get("type")), body);
 //            }).collect(Collectors.toList());
 //
 //            long parseEnd = System.currentTimeMillis();

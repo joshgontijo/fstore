@@ -31,7 +31,7 @@ public class ProjectionFailed {
     }
 
     public static ProjectionFailed from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.data));
+        return serializer.fromBytes(ByteBuffer.wrap(record.body));
     }
 
 }

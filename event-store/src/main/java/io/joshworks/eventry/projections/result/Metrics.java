@@ -9,6 +9,6 @@ public class Metrics {
     public long processTime;
     public long writeTime;
     public long emittedEvents;
-    public long linkToEvents;
+    public long linkedEvents;
 
 }

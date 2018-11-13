@@ -20,7 +20,7 @@ public class EventSerializer implements Serializer<EventRecord> {
                         Integer.BYTES +
                         Long.BYTES +
                         Integer.BYTES +
-                        data.data.length +
+                        data.body.length +
                         Integer.BYTES +
                         data.metadata.length);
 
@@ -36,8 +36,8 @@ public class EventSerializer implements Serializer<EventRecord> {
         dest.putInt(data.version);
         dest.putLong(data.timestamp);
 
-        dest.putInt(data.data.length);
-        dest.put(data.data);
+        dest.putInt(data.body.length);
+        dest.put(data.body);
 
         dest.putInt(data.metadata.length);
         dest.put(data.metadata);

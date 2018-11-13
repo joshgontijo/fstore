@@ -6,11 +6,7 @@ import io.joshworks.eventry.projections.result.ScriptExecutionResult;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.io.IOUtils;
 
-import javax.script.Bindings;
-import javax.script.Compilable;
-import javax.script.CompiledScript;
 import javax.script.Invocable;
-import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import java.io.InputStream;
@@ -23,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -112,8 +107,9 @@ public class Jsr223Handler implements EventStreamHandler {
 
     @Override
     public ScriptExecutionResult processEvents(List<EventRecord> events, State state) throws ScriptExecutionException {
-        Queue<JsonEvent> jsonEvents = events.stream().map(JsonEvent::from).collect(Collectors.toCollection(ArrayDeque::new));
+        Queue<JsonEvent> jsonEvents = null;
         try {
+            jsonEvents = events.stream().map(JsonEvent::from).collect(Collectors.toCollection(ArrayDeque::new));
             Map<String, Object> result = (Map<String, Object>) invocable.invokeFunction(BASE_PROCESS_EVENTS_METHOD_NAME, jsonEvents, state);
 
             Collection<Object> values = result.values();
@@ -123,7 +119,7 @@ public class Jsr223Handler implements EventStreamHandler {
             }
             return new ScriptExecutionResult(parsed);
         } catch (Exception e) {
-            JsonEvent failed = jsonEvents.isEmpty() ? null : jsonEvents.poll();
+            JsonEvent failed = jsonEvents != null && !jsonEvents.isEmpty() ? jsonEvents.poll() : null;
            throw new ScriptExecutionException(e, failed);
         }
     }

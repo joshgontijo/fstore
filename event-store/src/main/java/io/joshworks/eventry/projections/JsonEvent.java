@@ -1,19 +1,19 @@
 package io.joshworks.eventry.projections;
 
-import io.joshworks.eventry.MapRecordSerializer;
+import com.google.gson.reflect.TypeToken;
 import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 
 public class JsonEvent {
 
     //    private static final Gson gson = new Gson();
-//    private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>(){}.getType());
-    private static final Serializer<Map<String, Object>> mapSerializer = new MapRecordSerializer();
+    private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>() {
+    }.getType());
+//    private static final Serializer<Map<String, Object>> mapSerializer = new MapRecordSerializer();
 
     public final String type;
     public final long timestamp;
@@ -36,15 +36,8 @@ public class JsonEvent {
     }
 
     public static JsonEvent from(EventRecord event) {
-        Map<String, Object> data;
-        Map<String, Object> metadata;
-        if(event.isSystemEvent()) { //system event uses json serializer
-            data = JsonSerializer.toMap(new String(event.data));
-            metadata = JsonSerializer.toMap(new String(event.metadata));
-        } else { //user events uses custom map serializer
-            data = mapSerializer.fromBytes(ByteBuffer.wrap(event.data));
-            metadata = mapSerializer.fromBytes(ByteBuffer.wrap(event.metadata));
-        }
+        Map<String, Object> data = JsonSerializer.toMap(new String(event.body));
+        Map<String, Object> metadata = JsonSerializer.toMap(new String(event.metadata));
         return new JsonEvent(event.type, event.timestamp, event.stream, event.version, data, metadata, event.isSystemEvent());
     }
 
@@ -54,15 +47,12 @@ public class JsonEvent {
         String stream = (String) event.get("stream");
         int version = (int) event.get("version");
         Map<String, Object> metadata = (Map<String, Object>) event.get("metadata");
-        Map<String, Object> data = (Map<String, Object>) event.get("data");
+        Map<String, Object> data = (Map<String, Object>) event.get("body");
         return new JsonEvent(type, timestamp, stream, version, data, metadata, type.startsWith(Constant.SYSTEM_PREFIX));
     }
 
     public EventRecord toEvent() {
-        if(systemEvent) {
-            return new EventRecord(stream, type, version, timestamp, JsonSerializer.toJsonBytes(data), JsonSerializer.toJsonBytes(metadata));
-        }
-        return new EventRecord(stream, type, version, timestamp, mapSerializer.toBytes(data).array(), mapSerializer.toBytes(metadata).array());
+        return new EventRecord(stream, type, version, timestamp, JsonSerializer.toJsonBytes(data), JsonSerializer.toJsonBytes(metadata));
     }
 
     public String toJson() {

@@ -28,7 +28,7 @@ public class EventBody {
         this.timestamp = event.timestamp;
         this.version = event.version;
         this.stream = event.stream;
-        this.data = jsonSerializer.fromBytes(ByteBuffer.wrap(event.data));
+        this.data = jsonSerializer.fromBytes(ByteBuffer.wrap(event.body));
         this.metadata = jsonSerializer.fromBytes(ByteBuffer.wrap(event.metadata));
     }
 
