@@ -23,7 +23,7 @@ public class EsClient {
                 data.put("age", 2);
 
                 object.put("type", "type");
-                object.put("data", data);
+                object.put("body", data);
 
                 for (int i = 0; i < 10000; i++) {
 

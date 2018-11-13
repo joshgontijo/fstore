@@ -1,21 +1,19 @@
 package io.joshworks.eventry.projections.result;
 
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.JsonEvent;
 import io.joshworks.eventry.utils.StringUtils;
 
-import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 
 public class ScriptExecutionResult {
 
     private static final String EMIT = "EMIT";
     private static final String LINK_TO = "LINK_TO";
 
-    public final Queue<OutputEvent> outputEvents = new ArrayDeque<>();
+    public final List<OutputEvent> outputEvents = new ArrayList<>();
     public final int emittedEvents;
     public final int linkToEvents;
 
@@ -27,7 +25,7 @@ public class ScriptExecutionResult {
             if (EMIT.equals(type)) {
                 String stream = String.valueOf(item.get("stream"));
                 Map<String, Object> event = (Map<String, Object>) item.get("event");
-                outputEvents.offer(new EmitEvent(stream, event));
+                outputEvents.add(new EmitEvent(stream, event));
                 emittedEvents++;
 
             } else if (LINK_TO.equals(type)) {
@@ -35,7 +33,7 @@ public class ScriptExecutionResult {
                 String srcStream = String.valueOf(item.get("srcStream"));
                 String srcType = String.valueOf(item.get("srcType"));
                 int srcVersion = (int) item.get("srcVersion");
-                outputEvents.offer(new LinkToEvent(dstStream, srcStream, srcVersion, srcType));
+                outputEvents.add(new LinkToEvent(dstStream, srcStream, srcVersion, srcType));
                 linkToEvents++;
             }
         }

@@ -27,7 +27,7 @@ public class StreamDeleted {
     }
 
     public static StreamDeleted from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.data));
+        return serializer.fromBytes(ByteBuffer.wrap(record.body));
     }
 
 }

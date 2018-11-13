@@ -506,7 +506,7 @@ public class EventStore implements IEventStore {
 
         int version = streams.tryIncrementVersion(streamHash, expectedVersion);
 
-        var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.data, event.metadata);
+        var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.body, event.metadata);
 
         long position = eventLog.append(record);
         var flushInfo = index.add(streamHash, version, position);
@@ -526,13 +526,13 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized LogPoller<EventRecord> logPoller() {
-        return new EventLogPoller(eventLog.poller(), this);
+    public synchronized LogPoller<EventRecord> logPoller(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+        return new EventLogPoller(eventLog.poller(), this, linkToPolicy, systemEventPolicy);
     }
 
     @Override
-    public synchronized LogPoller<EventRecord> logPoller(long position) {
-        return new EventLogPoller(eventLog.poller(position), this);
+    public synchronized LogPoller<EventRecord> logPoller(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, long position) {
+        return new EventLogPoller(eventLog.poller(position), this, linkToPolicy, systemEventPolicy);
     }
 
     @Override

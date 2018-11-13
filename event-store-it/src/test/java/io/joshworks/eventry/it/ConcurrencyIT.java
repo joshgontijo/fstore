@@ -54,7 +54,7 @@ public class ConcurrencyIT {
         for (int written = 0; written < totalItems; written++) {
             executor.execute(() -> {
                 int i = writeCount.getAndIncrement();
-                store.append(EventRecord.create(stream, "" + i, "data-" + i));
+                store.append(EventRecord.create(stream, "" + i, "body-" + i));
             });
         }
 
@@ -101,7 +101,7 @@ public class ConcurrencyIT {
         for (int writeItem = 0; writeItem < totalWrites; writeItem++) {
             writeExecutor.execute(() -> {
                 int id = writeCount.getAndIncrement();
-                store.append(EventRecord.create(stream, "" + id, "data-" + id));
+                store.append(EventRecord.create(stream, "" + id, "body-" + id));
                 writeLatch.countDown();
             });
         }
@@ -151,7 +151,7 @@ public class ConcurrencyIT {
 
                 TimeWatch watch = TimeWatch.start();
                 for (int i = 0; i < itemPerThread; i++) {
-                    store.append(EventRecord.create(threadName, "" + i, "data-" + i));
+                    store.append(EventRecord.create(threadName, "" + i, "body-" + i));
                     written.incrementAndGet();
                 }
                 latch.countDown();

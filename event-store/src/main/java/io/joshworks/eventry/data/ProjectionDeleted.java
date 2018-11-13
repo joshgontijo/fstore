@@ -23,6 +23,6 @@ public class ProjectionDeleted {
     }
 
     public static ProjectionDeleted from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.data));
+        return serializer.fromBytes(ByteBuffer.wrap(record.body));
     }
 }

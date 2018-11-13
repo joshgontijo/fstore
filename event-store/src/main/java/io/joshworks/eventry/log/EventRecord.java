@@ -1,34 +1,36 @@
 package io.joshworks.eventry.log;
 
-import io.joshworks.eventry.MapRecordSerializer;
+import com.google.gson.reflect.TypeToken;
 import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamFormat;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class EventRecord {
 
-    private static final Serializer<Map<String, Object>> serializer = new MapRecordSerializer();
+//    private static final Serializer<Map<String, Object>> serializer = new MapRecordSerializer();
+    private static final Serializer<Map<String, Object>> serializer = JsonSerializer.of(new TypeToken<Map<String, Object>>(){}.getType());
 
     public final String stream;
     public final String type;
     public final int version;
     public final long timestamp;
-    public final byte[] data;
+    public final byte[] body;
     public final byte[] metadata;
 
-    public EventRecord(String stream, String type, int version, long timestamp, byte[] data, byte[] metadata) {
+    public EventRecord(String stream, String type, int version, long timestamp, byte[] body, byte[] metadata) {
         StringUtils.requireNonBlank(stream, "Stream must be provided");
         StringUtils.requireNonBlank(type, "Type must be provided");
         this.stream = stream;
         this.type = type;
         this.version = version;
         this.timestamp = timestamp;
-        this.data = data;
+        this.body = body;
         this.metadata = metadata;
     }
 
@@ -54,7 +56,7 @@ public class EventRecord {
 
     //TODO use in the response
     public String dataAsString() {
-        return new String(data, StandardCharsets.UTF_8);
+        return new String(body, StandardCharsets.UTF_8);
     }
 
     public String eventId() {
@@ -68,7 +70,6 @@ public class EventRecord {
     public boolean isLinkToEvent() {
         return LinkTo.TYPE.equals(type);
     }
-
 
     @Override
     public String toString() {

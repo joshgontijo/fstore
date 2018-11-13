@@ -68,6 +68,7 @@ public class Projections implements Closeable {
             throw new IllegalArgumentException("Projection with name '" + projection.name + "' already exist");
         }
 
+        projection.enabled = true;
         projectionsMap.put(projection.name, projection);
         return projection;
     }

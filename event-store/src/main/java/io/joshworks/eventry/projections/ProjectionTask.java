@@ -1,7 +1,9 @@
 package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.ScriptExecutionException;
+import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.StreamFormat;
 import io.joshworks.eventry.log.EventRecord;
@@ -22,7 +24,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -100,36 +101,62 @@ public class ProjectionTask {
         Projection.Type type = projection.type;
         Set<String> streams = streamSource.streams;
 
-        if (streamSource.isSingleSource()) {
-            final EventSource source = createSource(store, type, streams);
-            ProjectionContext context = new ProjectionContext(store);
-            TaskItem taskItem = new TaskItem(source, handler, context);
-            tasks.add(taskItem);
+        validateStreamNames(streams);
 
-        } else {
-            for (String stream : streams) {
-                final EventSource source = createSource(store, type, streams);
+        //single source
+        //multi source - parallel
+        //multi source - sequential
+
+        if (streamSource.isSingleSource() || !projection.parallel) {
+            final EventSource source = createSingleSource(store, type, streams);
+            ProjectionContext context = new ProjectionContext(store);
+            TaskItem taskItem = new TaskItem(source, handler, context, type);
+            tasks.add(taskItem);
+        } else if (projection.parallel) {
+            List<EventSource> sources = createMultipleSources(store, type, streams);
+            for (EventSource source : sources) {
                 ProjectionContext context = new ProjectionContext(store);
-                TaskItem taskItem = new TaskItem(source, handler, context);
+                TaskItem taskItem = new TaskItem(source, handler, context, type);
                 tasks.add(taskItem);
             }
+
         }
+
 
         return tasks;
     }
 
-    private static EventSource createSource(IEventStore store, Projection.Type type, Set<String> streams) {
+    private static EventSource createMultipleSources(IEventStore store, Projection.Type type, Set<String> streams) {
         if (Projection.Type.CONTINUOUS.equals(type)) {
-            LogPoller<EventRecord> poller = isAll(streams) ? store.logPoller() : store.streamPoller(streams);
+            LogPoller<EventRecord> poller = isAll(streams) ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(streams);
             return new ContinuousEventSource(poller, streams);
         } else {
+            //TODO add LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE to fromAllIter
             LogIterator<EventRecord> iterator = isAll(streams) ? store.fromAllIter() : store.zipStreamsIter(streams);
             return new OneTimeEventSource(iterator, streams);
         }
     }
 
+    private static EventSource createSingleSource(IEventStore store, Projection.Type type, String stream) {
+        Set<String> singleStreamSet = Set.of(stream);
+        if (Projection.Type.CONTINUOUS.equals(type)) {
+            LogPoller<EventRecord> poller = Constant.ALL_STREAMS.equals(stream) ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(singleStreamSet);
+            return new ContinuousEventSource(poller, singleStreamSet);
+        } else {
+            //TODO add LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE to fromAllIter
+            LogIterator<EventRecord> iterator = Constant.ALL_STREAMS.equals(stream) ? store.fromAllIter() : store.fromStreamIter(stream);
+            return new OneTimeEventSource(iterator, singleStreamSet);
+        }
+    }
+
     private static boolean isAll(Set<String> streams) {
         return streams.size() == 1 && streams.iterator().next().equals(Constant.ALL_STREAMS);
+    }
+
+    private static void validateStreamNames(Set<String> streams) {
+        if (!isAll(streams) && streams.contains(Constant.ALL_STREAMS)) {
+            throw new IllegalArgumentException("Multiple streams cannot contain '" + Constant.ALL_STREAMS + "' stream");
+        }
     }
 
     private static void validateSource(StreamSource streamSource) {
@@ -157,14 +184,14 @@ public class ProjectionTask {
         private final EventSource source;
         private final EventStreamHandler handler;
         private final ProjectionContext context;
+        private final Projection.Type type;
         private final Metrics metrics = new Metrics();
 
-        private final int ITEMS_PER_BATCH = 10000;
 
         private Status status = Status.NOT_STARTED;
         private TaskError error;
 
-        private TaskItem(EventSource source, EventStreamHandler handler, ProjectionContext context) {
+        private TaskItem(EventSource source, EventStreamHandler handler, ProjectionContext context, Projection.Type type) {
             this.source = source;
             this.handler = handler;
             this.context = context;
@@ -179,7 +206,7 @@ public class ProjectionTask {
                 List<EventRecord> batchRecords = new ArrayList<>();
                 int processed = 0;
                 long readStart = System.currentTimeMillis();
-                while (processed < ITEMS_PER_BATCH && source.hasNext()) {
+                while (processed < BATCH_SIZE && source.hasNext()) {
                     EventRecord record = source.next();
                     if (record.isLinkToEvent()) {
                         throw new IllegalStateException("Event source must resolve linkTo events");
@@ -200,11 +227,11 @@ public class ProjectionTask {
                 context.handleScriptOutput(result.outputEvents);
                 metrics.writeTime = (System.currentTimeMillis() - processStart);
 
-                metrics.linkToEvents += result.linkToEvents;
+                metrics.linkedEvents += result.linkToEvents;
                 metrics.emittedEvents += result.emittedEvents;
                 metrics.processed += batchRecords.size();
 
-                if (!source.hasNext()) {
+                if (!source.hasNext() && !Projection.Type.CONTINUOUS.equals(type)) {
                     IOUtils.closeQuietly(source);
                     status = Status.COMPLETED;
                 }
@@ -220,6 +247,10 @@ public class ProjectionTask {
                 status = Status.FAILED;
                 logger.error("Task item " + uuid + " failed", e);
                 error = new TaskError(e.getMessage(), metrics.logPosition, e.event);
+            } catch (Exception e) {
+                status = Status.FAILED;
+                logger.error("Internal error on processing event", e);
+                error = new TaskError(e.getMessage(), metrics.logPosition, null);
             }
 
         }
@@ -313,7 +344,7 @@ public class ProjectionTask {
 
         @Override
         public boolean hasNext() {
-            return true;
+            return !poller.headOfLog();
         }
 
         @Override

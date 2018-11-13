@@ -20,7 +20,7 @@ public class StreamUpdated {
     }
 
     public static StreamMetadata from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.data));
+        return serializer.fromBytes(ByteBuffer.wrap(record.body));
     }
 
 }

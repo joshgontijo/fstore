@@ -13,13 +13,14 @@ function process_events(events, state) {
 }
 
 //String dstStream, String sourceStream, int sourceVersion, String sourceType
-function linkTo(stream, event) {
+function linkTo(stream, event, metadata) {
     out_events.push({
         type: "LINK_TO",
         dstStream: stream,
         srcStream: event.stream,
         srcVersion: event.version,
-        srcType: event.type
+        srcType: event.type,
+        metadata: metadata
     })
 }
 

@@ -104,7 +104,6 @@ public class StreamEndpoint {
         exchange.send(events);
     }
 
-    //TODO json parsing should be avoided
     public void append(HttpExchange exchange) {
         String stream = exchange.pathParameter(PATH_PARAM_STREAM);
         if (MediaType.APPLICATION_OCTET_STREAM_TYPE.isCompatible(exchange.type())) {
@@ -142,9 +141,10 @@ public class StreamEndpoint {
     }
 
     private static byte[] toBytes(InputStream is) {
-        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
+        int bufferSize = 16384;
+        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream(bufferSize)) {
             int nRead;
-            byte[] data = new byte[8192];
+            byte[] data = new byte[bufferSize];
 
             while ((nRead = is.read(data, 0, data.length)) != -1) {
                 buffer.write(data, 0, nRead);
