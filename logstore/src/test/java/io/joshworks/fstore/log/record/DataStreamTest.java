@@ -26,11 +26,14 @@ import static org.junit.Assert.assertEquals;
 
 public class DataStreamTest {
 
+    private static final long MAX_ENTRY_SIZE = 1024 * 1024 * 5L;
+    private static final double CHCKSUM_PROB = 1;
+
     private File file;
     private Storage storage;
     private static final long FILE_SIZE = Size.MB.of(10);
 
-    private final IDataStream stream = new DataStream(new SingleBufferThreadCachedPool(false));
+    private final IDataStream stream = new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE);
 
     @Before
     public void setUp() {

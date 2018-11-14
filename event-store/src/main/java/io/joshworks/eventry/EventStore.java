@@ -66,7 +66,7 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         this.index = new TableIndex(rootDir);
-        this.projections = new Projections(new ProjectionExecutor(this::appendSystemEvent));
+        this.projections = new Projections(new ProjectionExecutor(rootDir, this::appendSystemEvent));
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))

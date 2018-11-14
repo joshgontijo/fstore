@@ -20,7 +20,7 @@ public class RafSegmentTest extends SegmentTest {
         return new Segment<>(
                 StorageProvider.of(StorageMode.RAF).create(file, Size.MB.of(10)),
                 Serializers.STRING,
-                new DataStream(new SingleBufferThreadCachedPool(false)),
+                new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE),
                 "magic",
                 Type.LOG_HEAD);
     }
@@ -28,7 +28,7 @@ public class RafSegmentTest extends SegmentTest {
     @Test(expected = IllegalArgumentException.class)
     public void inserting_record_bigger_than_MAX_RECORD_SIZE_throws_exception() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < DataStream.MAX_ENTRY_SIZE + 1; i++) {
+        for (int i = 0; i < MAX_ENTRY_SIZE + 1; i++) {
             sb.append("a");
         }
         String data = sb.toString();
