@@ -33,6 +33,9 @@ public class IndexSegmentTest {
     private File segmentFile;
     private File indexDir;
 
+    private static final long MAX_ENTRY_SIZE = 1024 * 1024 * 5L;
+    private static final double CHCKSUM_PROB = 1;
+
     private IndexSegment segment;
     private static final int NUMBER_OF_ELEMENTS = 1000000; //bloom filter
 
@@ -52,7 +55,7 @@ public class IndexSegmentTest {
     private IndexSegment create(File location) {
         return new IndexSegment(
                 StorageProvider.of(StorageMode.RAF).create(location, Size.MB.of(100)),
-                new DataStream(new SingleBufferThreadCachedPool(false)),
+                new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,
@@ -63,7 +66,7 @@ public class IndexSegmentTest {
     private IndexSegment open(File location) {
         return new IndexSegment(
                 StorageProvider.of(StorageMode.RAF).open(location),
-                new DataStream(new SingleBufferThreadCachedPool(false)),
+                new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,

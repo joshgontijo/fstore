@@ -19,6 +19,6 @@ public class MMapSegmentTest extends RafSegmentTest {
         return new Segment<>(
                 StorageProvider.of(StorageMode.MMAP).create(file, Size.MB.of(10)),
                 Serializers.STRING,
-                new DataStream(new SingleBufferThreadCachedPool(false)), "magic", Type.LOG_HEAD);
+                new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE), "magic", Type.LOG_HEAD);
     }
 }

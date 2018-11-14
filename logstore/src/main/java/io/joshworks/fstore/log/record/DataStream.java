@@ -23,10 +23,10 @@ public class DataStream implements IDataStream {
     static final int READ_BUFFER_SIZE = Memory.PAGE_SIZE;
     static final int BULK_READ_BUFFER_SIZE = Memory.PAGE_SIZE * 2;
 
-    //hard limit is required to memory issues in case of broken record
-    public static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
+    //hard limit is required to avoid memory issues in case of broken record
 
     private final double checksumProb;
+    private final long maxEntrySize;
     private final ThreadLocalRandom rand = ThreadLocalRandom.current();
     private final RecordReader forwardReader = new ForwardRecordReader();
     private final RecordReader bulkForwardReader = new BulkForwardRecordReader();
@@ -34,21 +34,14 @@ public class DataStream implements IDataStream {
     private final RecordReader backwardReader = new BackwardRecordReader();
     private final BufferPool bufferPool;
 
-    public DataStream(BufferPool bufferPool) {
-        this(bufferPool, DEFAULT_CHECKSUM_PROB);
-    }
-
-    public DataStream(BufferPool bufferPool, double checksumProb) {
+    public DataStream(BufferPool bufferPool, double checksumProb, long maxEntrySize) {
         this.checksumProb = (int) (checksumProb * 100);
+        this.maxEntrySize = maxEntrySize;
         this.bufferPool = Objects.requireNonNull(bufferPool, "BufferPool must be provided");
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
         }
     }
-
-    private final AtomicLong counter = new AtomicLong();
-
-    private final AtomicReference<Object> ref = new AtomicReference<>();
 
     @Override
     public long write(Storage storage, ByteBuffer bytes) {
@@ -57,8 +50,8 @@ public class DataStream implements IDataStream {
 
         int recordSize = RecordHeader.HEADER_OVERHEAD + bytes.remaining();
 
-        if (recordSize > MAX_ENTRY_SIZE) {
-            throw new IllegalArgumentException("Record cannot exceed " + MAX_ENTRY_SIZE + " bytes");
+        if (recordSize > maxEntrySize) {
+            throw new IllegalArgumentException("Record cannot exceed " + maxEntrySize + " bytes");
         }
 
         ByteBuffer bb = bufferPool.allocate(recordSize);
@@ -84,10 +77,10 @@ public class DataStream implements IDataStream {
         validateStoragePosition(storagePos);
 
         ByteBuffer writeBuffer = bufferPool.allocate(Memory.PAGE_SIZE);
-        writeBuffer.limit(writeBuffer.capacity());
-        writeBuffer.position(RecordHeader.MAIN_HEADER);
-
         try {
+            writeBuffer.limit(writeBuffer.capacity());
+            writeBuffer.position(RecordHeader.MAIN_HEADER);
+
             serializer.writeTo(data, writeBuffer);
 
             int entrySize = writeBuffer.position() - RecordHeader.MAIN_HEADER;
@@ -102,8 +95,8 @@ public class DataStream implements IDataStream {
             writeBuffer.position(0);
             writeBuffer.limit(RecordHeader.HEADER_OVERHEAD + entrySize);
         } catch (BufferOverflowException boe) {
-            if (writeBuffer.capacity() > MAX_ENTRY_SIZE) {
-                throw new IllegalArgumentException("Record cannot exceed " + MAX_ENTRY_SIZE + " bytes");
+            if (writeBuffer.capacity() > maxEntrySize) {
+                throw new IllegalArgumentException("Record cannot exceed " + maxEntrySize + " bytes");
             }
             bufferPool.free(writeBuffer);
             ByteBuffer byteBuffer = serializer.toBytes(data);
@@ -112,6 +105,10 @@ public class DataStream implements IDataStream {
         }
         storage.write(writeBuffer);
         return storagePos;
+    }
+
+    private void safePut() {
+
     }
 
     private void resizeBuffer(int size) {
@@ -423,7 +420,7 @@ public class DataStream implements IDataStream {
     }
 
     private void checkRecordLength(int length, long position) {
-        if (length < 0 || length > MAX_ENTRY_SIZE) {
+        if (length < 0 || length > maxEntrySize) {
             throw new IllegalStateException("Invalid record length " + length + " at position " + position);
         }
     }

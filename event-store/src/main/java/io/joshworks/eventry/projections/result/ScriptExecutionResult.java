@@ -18,15 +18,15 @@ public class ScriptExecutionResult {
     public final int linkToEvents;
 
     public ScriptExecutionResult(List<Map<String, Object>> outputQueue) {
-        int emittedEvents = 0;
-        int linkToEvents = 0;
+        int emitted = 0;
+        int linked = 0;
         for (Map<String, Object> item : outputQueue) {
             String type = String.valueOf(item.get("type"));
             if (EMIT.equals(type)) {
                 String stream = String.valueOf(item.get("stream"));
                 Map<String, Object> event = (Map<String, Object>) item.get("event");
                 outputEvents.add(new EmitEvent(stream, event));
-                emittedEvents++;
+                emitted++;
 
             } else if (LINK_TO.equals(type)) {
                 String dstStream = String.valueOf(item.get("dstStream"));
@@ -34,18 +34,18 @@ public class ScriptExecutionResult {
                 String srcType = String.valueOf(item.get("srcType"));
                 int srcVersion = (int) item.get("srcVersion");
                 outputEvents.add(new LinkToEvent(dstStream, srcStream, srcVersion, srcType));
-                linkToEvents++;
+                linked++;
             }
         }
-        this.emittedEvents = emittedEvents;
-        this.linkToEvents = linkToEvents;
+        this.emittedEvents = emitted;
+        this.linkToEvents = linked;
     }
 
-    public abstract static class OutputEvent {
-        public abstract void handle(IEventStore store);
+    public interface OutputEvent {
+        void handle(IEventStore store);
     }
 
-    private static class LinkToEvent extends OutputEvent {
+    private static class LinkToEvent implements OutputEvent {
 
         private final String dstStream;
         private final String srcStream;
@@ -66,7 +66,7 @@ public class ScriptExecutionResult {
         }
     }
 
-    private static class EmitEvent extends OutputEvent {
+    private static class EmitEvent implements OutputEvent {
 
         private final Map<String, Object> event;
 

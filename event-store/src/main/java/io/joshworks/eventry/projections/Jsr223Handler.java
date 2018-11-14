@@ -32,18 +32,20 @@ public class Jsr223Handler implements EventStreamHandler {
 
     private static final String CONFIG_STREAMS_FIELD_NAME = "streams";
     private static final String CONFIG_PARALLEL_FIELD_NAME = "parallel";
-    private static final String SOURCE_BATCH_SIZE_FIELD_NAME = "batchSize";
-    private static final String PROJECTION_NAME_FIELD_NAME = "name";
+    private static final String CONFIG_BATCH_SIZE_FIELD_NAME = "batchSize";
+    private static final String CONFIG_PUBLISH_STATE_FIELD_NAME = "publishState";
     private static final String TYPE_NAME_FIELD_NAME = "type";
 
+    private static final String PROJECTION_NAME_FIELD_NAME = "name";
+
     private static final boolean DEFAULT_PARALLEL = false;
+    private static final boolean DEFAULT_PUBLISH_STATE = false;
     private static final int DEFAULT_BATCH_SIZE = 10000;
 
 //    private static final String EMIT_METHOD_NAME = "emit";
 //    private static final String LINK_TO_METHOD_NAME = "linkTo";
 
     private final Invocable invocable;
-    private final SourceOptions source;
 
     Jsr223Handler(ProjectionContext ctx, String script, String engineName) {
         try {
@@ -66,35 +68,20 @@ public class Jsr223Handler implements EventStreamHandler {
             engine.eval(script);
 
             this.invocable = (Invocable) engine;
-            this.source = getStreamSource(ctx);
 
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new ScriptException(e);
         }
     }
 
-    private SourceOptions getStreamSource(ProjectionContext ctx) {
-        try {
-            Map<String, String> sourceStreams = (Map<String, String>) ctx.options().get(CONFIG_STREAMS_FIELD_NAME);
-            Boolean parallel = (Boolean) ctx.options().get(CONFIG_PARALLEL_FIELD_NAME);
-            return new SourceOptions(new HashSet<>(sourceStreams.values()), parallel != null && parallel);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     @Override
     public void onEvent(JsonEvent record, State state) {
         try {
             invocable.invokeFunction(ON_EVENT_METHOD_NAME, record, state);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new ScriptException(e);
         }
-    }
-
-    @Override
-    public SourceOptions source() {
-        return source;
     }
 
     @Override
@@ -132,19 +119,21 @@ public class Jsr223Handler implements EventStreamHandler {
             Object projectionName = options.get(PROJECTION_NAME_FIELD_NAME);
             Object type = options.get(TYPE_NAME_FIELD_NAME);
             Object parallel = options.getOrDefault(CONFIG_PARALLEL_FIELD_NAME, DEFAULT_PARALLEL);
-            Object batchSize = options.getOrDefault(SOURCE_BATCH_SIZE_FIELD_NAME, DEFAULT_BATCH_SIZE);
+            Object batchSize = options.getOrDefault(CONFIG_BATCH_SIZE_FIELD_NAME, DEFAULT_BATCH_SIZE);
+            Object publishState = options.getOrDefault(CONFIG_PUBLISH_STATE_FIELD_NAME, DEFAULT_PUBLISH_STATE);
 
             Set<String> streams = getStreams(sourceStreams);
             Projection.Type theType = getType(type);
             validateProjectionName(projectionName);
 
             boolean isParallel = parallel != null && ((Boolean) parallel);
+            boolean shouldPublishState = publishState != null && ((Boolean) publishState);
             int batchSizeVal = getBatchSize(batchSize);
 
-            return new Projection(script, String.valueOf(projectionName), engineName, streams, theType, isParallel, batchSizeVal);
+            return new Projection(script, String.valueOf(projectionName), engineName, streams, theType, isParallel, batchSizeVal, shouldPublishState);
 
         } catch (Exception e) {
-            throw new CompilationException("Script compilation error: " + e.getMessage(), e);
+            throw new ScriptException("Script compilation error: " + e.getMessage(), e);
         }
     }
 
@@ -174,7 +163,7 @@ public class Jsr223Handler implements EventStreamHandler {
         try {
             return Projection.Type.valueOf(String.valueOf(type).trim().toUpperCase());
         } catch (Exception e) {
-            throw new RuntimeException("Invalid projection type '" + type + "'");
+            throw new ScriptException("Invalid projection type '" + type + "'");
         }
     }
 
@@ -182,7 +171,7 @@ public class Jsr223Handler implements EventStreamHandler {
         try {
             return  (int) batchSize;
         } catch (Exception e) {
-            throw new RuntimeException("Invalid batch size value: " + batchSize + ", value must a positive integer");
+            throw new ScriptException("Invalid batch size value: " + batchSize + ", value must a positive integer");
         }
     }
 

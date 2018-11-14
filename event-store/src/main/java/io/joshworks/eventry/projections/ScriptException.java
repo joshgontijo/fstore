@@ -6,4 +6,11 @@ public class ScriptException extends ProjectionException {
         super(message);
     }
 
+    ScriptException(Exception e) {
+        super(e);
+    }
+
+    ScriptException(String s, Exception e) {
+        super(s, e);
+    }
 }

@@ -6,6 +6,7 @@ import io.joshworks.eventry.data.ProjectionFailed;
 import io.joshworks.eventry.data.ProjectionStarted;
 import io.joshworks.eventry.data.ProjectionStopped;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.projections.persistence.ProjectionCheckpointer;
 import io.joshworks.eventry.projections.result.ExecutionResult;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.Status;
@@ -14,6 +15,7 @@ import io.joshworks.eventry.projections.result.TaskStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -40,15 +42,17 @@ public class ProjectionExecutor {
     });
     private final Consumer<EventRecord> systemRecordAppender;
     private final Map<String, ProjectionTask> running = new HashMap<>();
+    private final ProjectionCheckpointer checkpointer;
 
-    public ProjectionExecutor(Consumer<EventRecord> systemRecordAppender) {
+    public ProjectionExecutor(File root, Consumer<EventRecord> systemRecordAppender) {
+        this.checkpointer = new ProjectionCheckpointer(root);
         this.systemRecordAppender = systemRecordAppender;
     }
 
     void run(Projection projection, IEventStore store) {
         logger.info("Starting projection '{}'", projection.name);
 
-        ProjectionTask projectionTask = ProjectionTask.create(store, projection);
+        ProjectionTask projectionTask = ProjectionTask.create(store, projection, checkpointer);
         try {
             running.put(projection.name, projectionTask);
             scheduleRun(projectionTask);

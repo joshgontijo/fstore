@@ -14,11 +14,14 @@ import java.io.File;
 
 public class RafBlockSegmentTest extends BlockSegmentTest {
 
+    private static final long MAX_ENTRY_SIZE = 1024 * 1024 * 5L;
+    private static final double CHCKSUM_PROB = 1;
+
     @Override
     BlockSegment<String> open(File file) {
         return new BlockSegment<>(
                 StorageProvider.of(StorageMode.RAF).create(file, Size.MB.of(10)),
-                new DataStream(new SingleBufferThreadCachedPool(false)),
+                new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE),
                 "magic",
                 Type.LOG_HEAD,
                 Serializers.STRING,

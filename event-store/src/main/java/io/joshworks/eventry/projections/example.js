@@ -2,7 +2,8 @@ config({
     name: "by-type",
     streams: ["clickstream"],
     type: "ONE_TIME",
-    parallel: false
+    parallel: false,
+    publishState: false,
 });
 
 function onEvent(event, state) {

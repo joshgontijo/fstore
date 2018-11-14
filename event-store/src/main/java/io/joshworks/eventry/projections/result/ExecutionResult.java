@@ -9,13 +9,11 @@ import java.util.stream.Collectors;
 public class ExecutionResult {
 
     public final String projectionName;
-    public final Map<String, Object> options;
     public final Status status;
     public final List<TaskStatus> tasks = new ArrayList<>();
 
-    public ExecutionResult(String projectionName, Map<String, Object> options, Collection<TaskStatus> tasks) {
+    public ExecutionResult(String projectionName, Collection<TaskStatus> tasks) {
         this.projectionName = projectionName;
-        this.options = options;
         this.tasks.addAll(tasks);
         this.status = getStatusFlag(tasks.stream().map(task -> task.status).collect(Collectors.toList()));
     }

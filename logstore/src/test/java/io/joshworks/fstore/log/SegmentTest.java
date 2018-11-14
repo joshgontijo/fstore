@@ -30,6 +30,9 @@ import static org.junit.Assert.fail;
 
 public abstract class SegmentTest {
 
+    protected static final long MAX_ENTRY_SIZE = 1024 * 1024 * 5L;
+    protected static final double CHCKSUM_PROB = 1;
+
     protected Log<String> segment;
     private File testFile;
 
@@ -150,7 +153,7 @@ public abstract class SegmentTest {
     @Test
     public void big_entry() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < DataStream.MAX_ENTRY_SIZE - RecordHeader.HEADER_OVERHEAD; i++) {
+        for (int i = 0; i < MAX_ENTRY_SIZE - RecordHeader.HEADER_OVERHEAD; i++) {
             sb.append("a");
         }
         String data = sb.toString();

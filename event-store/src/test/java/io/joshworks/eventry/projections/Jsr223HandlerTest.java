@@ -1,20 +1,14 @@
 package io.joshworks.eventry.projections;
 
-import io.joshworks.eventry.EventStore;
-import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.ScriptExecutionException;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.Assert.*;
 
 public class Jsr223HandlerTest {
 
