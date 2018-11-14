@@ -8,8 +8,6 @@ import java.util.List;
 
 public interface EventStreamHandler {
 
-    boolean filter(JsonEvent record, State state);
-
     void onEvent(JsonEvent record, State state);
 
     SourceOptions source();

@@ -43,7 +43,7 @@ public class ProjectionsEndpoint {
     public void getScript(HttpExchange exchange) {
         String name = exchange.pathParameter(PROJECTION_NAME_PATH_PARAM);
         Projection projection = store.projection(name);
-        if(projection == null) {
+        if (projection == null) {
             exchange.status(404).end();
             return;
         }
@@ -60,9 +60,9 @@ public class ProjectionsEndpoint {
         store.stopProjectionExecution(name);
     }
 
-    public void resume(HttpExchange exchange) {
+    public void reset(HttpExchange exchange) {
         String name = exchange.pathParameter(PROJECTION_NAME_PATH_PARAM);
-        store.resumeProjectionExecution(name);
+        store.resetProjection(name);
     }
 
     public void enable(HttpExchange exchange) {
@@ -75,10 +75,16 @@ public class ProjectionsEndpoint {
         store.disableProjection(name);
     }
 
+    //TODO implement
+    public void projectionState(HttpExchange exchange) {
+        String name = exchange.pathParameter(PROJECTION_NAME_PATH_PARAM);
+        throw new UnsupportedOperationException("TODO");
+    }
+
     public void executionStatus(HttpExchange exchange) {
         String name = exchange.pathParameter(PROJECTION_NAME_PATH_PARAM);
         Map<String, TaskStatus> executionStatus = store.projectionExecutionStatus(name);
-        if(executionStatus == null) {
+        if (executionStatus == null) {
             exchange.status(404);
             return;
         }

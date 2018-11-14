@@ -40,8 +40,6 @@ public class ProjectionTask {
 
     private final List<TaskItem> tasks = new ArrayList<>();
 
-    private static final int BATCH_SIZE = 10000;
-
     private ProjectionTask(IEventStore store, Projection projection, List<TaskItem> taskItems) {
         this.context = new ProjectionContext(store);
         this.projection = projection;
@@ -107,13 +105,13 @@ public class ProjectionTask {
         if (sourceOptions.isSingleSource()) {
             final EventSource source = createSequentialSource(store, type, sourceOptions);
             ProjectionContext context = new ProjectionContext(store);
-            TaskItem taskItem = new TaskItem(source, handler, context, type);
+            TaskItem taskItem = new TaskItem(source, handler, context, type, projection.batchSize);
             tasks.add(taskItem);
         } else { //multi source and parallel
             List<EventSource> sources = createParallelSource(store, type, sourceOptions);
             for (EventSource source : sources) {
                 ProjectionContext context = new ProjectionContext(store);
-                TaskItem taskItem = new TaskItem(source, handler, context, type);
+                TaskItem taskItem = new TaskItem(source, handler, context, type, projection.batchSize);
                 tasks.add(taskItem);
             }
 
@@ -186,17 +184,19 @@ public class ProjectionTask {
         private final EventStreamHandler handler;
         private final ProjectionContext context;
         private final Projection.Type type;
+        private final int batchSize;
         private final Metrics metrics = new Metrics();
 
 
         private Status status = Status.NOT_STARTED;
         private TaskError error;
 
-        private TaskItem(EventSource source, EventStreamHandler handler, ProjectionContext context, Projection.Type type) {
+        private TaskItem(EventSource source, EventStreamHandler handler, ProjectionContext context, Projection.Type type, int batchSize) {
             this.source = source;
             this.handler = handler;
             this.context = context;
             this.type = type;
+            this.batchSize = batchSize;
         }
 
         @Override
@@ -208,7 +208,7 @@ public class ProjectionTask {
                 List<EventRecord> batchRecords = new ArrayList<>();
                 int processed = 0;
                 long readStart = System.currentTimeMillis();
-                while (processed < BATCH_SIZE && source.hasNext()) {
+                while (processed < batchSize && source.hasNext()) {
                     EventRecord record = source.next();
                     if (record.isLinkToEvent()) {
                         throw new IllegalStateException("Event source must resolve linkTo events");

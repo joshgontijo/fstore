@@ -5,9 +5,7 @@ import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.ProjectionCreated;
 import io.joshworks.eventry.data.ProjectionDeleted;
-import io.joshworks.eventry.data.ProjectionResumed;
 import io.joshworks.eventry.data.ProjectionStarted;
-import io.joshworks.eventry.data.ProjectionStopped;
 import io.joshworks.eventry.data.ProjectionUpdated;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamFormat;
@@ -257,8 +255,8 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public void resumeProjectionExecution(String name) {
-        projections.resume(name, this);
+    public void resetProjection(String name) {
+        projections.reset(name);
     }
 
     @Override

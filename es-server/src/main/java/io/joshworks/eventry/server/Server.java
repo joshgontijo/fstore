@@ -55,7 +55,7 @@ public class Server {
         group("/projections", () -> {
             get(projections::getAll);
             post(projections::create, consumes(JAVASCRIPT_MIME));
-            post("AD-HOC-QUERY-TODO", projections::create);
+            post("AD-HOC-QUERY-TODO", projections::create); //TODO
             group("{name}", () -> {
                 put(projections::update, consumes(JAVASCRIPT_MIME));
                 get(projections::get);
@@ -63,10 +63,11 @@ public class Server {
                 get("script", projections::getScript, produces(JAVASCRIPT_MIME));
                 post("stop", projections::stop);
                 post("start", projections::run);
-                post("resume", projections::resume);
+                post("reset", projections::reset);
                 post("disable", projections::disable);
                 post("enable", projections::enable);
                 get("status", projections::executionStatus);
+                get("state", projections::executionStatus);
 
             });
         });

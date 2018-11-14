@@ -23,7 +23,7 @@ public class Projections implements Closeable {
     private final ProjectionExecutor manager;
     private final Map<String, Projection> projectionsMap = new HashMap<>();
 
-    public static final String PROJECTIONS_RESOURCE_FOLDER = "projections"; //TODO this should not be hardcoded
+    public static final String PROJECTIONS_RESOURCE_FOLDER = "projections";
     private static final Set<String> systemProjectionFiles = Set.of("by-type.js");
 
     private final Set<String> systemProjectionNames = new HashSet<>();
@@ -78,6 +78,7 @@ public class Projections implements Closeable {
     }
 
     public void run(String name, IEventStore store) {
+        //TODO implement RESUME
         Projection projection = get(name);
         if (!projection.enabled) {
             throw new RuntimeException("Projection is not enabled");
@@ -85,10 +86,11 @@ public class Projections implements Closeable {
         manager.run(projection, store);
     }
 
-    public boolean resume(String name, IEventStore store) {
+    public void reset(String name) {
         //TODO implement checkpoint and re-read state from it
         //TODO return checkpoint info to be appended to the internal stream
     }
+
 
     public void stop(String name) {
         manager.stop(name);

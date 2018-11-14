@@ -22,7 +22,7 @@ public interface IProjection {
 
     void runProjection(String name);
 
-    void resumeProjectionExecution(String name);
+    void resetProjection(String name);
 
     void stopProjectionExecution(String name);
 
