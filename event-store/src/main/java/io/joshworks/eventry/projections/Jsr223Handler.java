@@ -27,14 +27,17 @@ public class Jsr223Handler implements EventStreamHandler {
     private static final String BASE_PROCESS_EVENTS_METHOD_NAME = "process_events";
 
     private static final String ON_EVENT_METHOD_NAME = "onEvent";
-    private static final String FILTER_METHOD_NAME = "filter";
     private static final String CONFIG_METHOD_NAME = "config";
     private static final String INITIAL_STATE_METHOD_NAME = "state";
 
-    private static final String SOURCE_STREAMS_FIELD_NAME = "streams";
-    private static final String SOURCE_PARALLEL_FIELD_NAME = "parallel";
+    private static final String CONFIG_STREAMS_FIELD_NAME = "streams";
+    private static final String CONFIG_PARALLEL_FIELD_NAME = "parallel";
+    private static final String SOURCE_BATCH_SIZE_FIELD_NAME = "batchSize";
     private static final String PROJECTION_NAME_FIELD_NAME = "name";
     private static final String TYPE_NAME_FIELD_NAME = "type";
+
+    private static final boolean DEFAULT_PARALLEL = false;
+    private static final int DEFAULT_BATCH_SIZE = 10000;
 
 //    private static final String EMIT_METHOD_NAME = "emit";
 //    private static final String LINK_TO_METHOD_NAME = "linkTo";
@@ -72,20 +75,9 @@ public class Jsr223Handler implements EventStreamHandler {
 
     private SourceOptions getStreamSource(ProjectionContext ctx) {
         try {
-            Map<String, String> sourceStreams = (Map<String, String>) ctx.options().get(SOURCE_STREAMS_FIELD_NAME);
-            Boolean parallel = (Boolean) ctx.options().get(SOURCE_PARALLEL_FIELD_NAME);
+            Map<String, String> sourceStreams = (Map<String, String>) ctx.options().get(CONFIG_STREAMS_FIELD_NAME);
+            Boolean parallel = (Boolean) ctx.options().get(CONFIG_PARALLEL_FIELD_NAME);
             return new SourceOptions(new HashSet<>(sourceStreams.values()), parallel != null && parallel);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public boolean filter(JsonEvent record, State state) {
-        try {
-            Boolean result = (Boolean) invocable.invokeFunction(FILTER_METHOD_NAME, record, state);
-            return result != null && result;
-
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -136,42 +128,61 @@ public class Jsr223Handler implements EventStreamHandler {
 
             engine.eval(script);
 
-            Object sourceStreams = options.get(SOURCE_STREAMS_FIELD_NAME);
+            Object sourceStreams = options.get(CONFIG_STREAMS_FIELD_NAME);
             Object projectionName = options.get(PROJECTION_NAME_FIELD_NAME);
             Object type = options.get(TYPE_NAME_FIELD_NAME);
-            Object parallel = options.get(SOURCE_PARALLEL_FIELD_NAME);
+            Object parallel = options.getOrDefault(CONFIG_PARALLEL_FIELD_NAME, DEFAULT_PARALLEL);
+            Object batchSize = options.getOrDefault(SOURCE_BATCH_SIZE_FIELD_NAME, DEFAULT_BATCH_SIZE);
 
-            if (sourceStreams == null) {
-                throw new ScriptException("No source stream provided");
-            }
-            Set<String> streams = new HashSet<>(((Map<String, String>) sourceStreams).values());
-            streams.removeIf(String::isEmpty);
-            if (streams.isEmpty()) {
-                throw new ScriptException("No source stream provided");
-            }
-
-            if (projectionName == null || StringUtils.isBlank(String.valueOf(projectionName))) {
-                throw new ScriptException("No projection name provided");
-            }
-            if (type == null || StringUtils.isBlank(String.valueOf(type))) {
-                throw new ScriptException("No source stream provided");
-            }
+            Set<String> streams = getStreams(sourceStreams);
             Projection.Type theType = getType(type);
+            validateProjectionName(projectionName);
 
             boolean isParallel = parallel != null && ((Boolean) parallel);
+            int batchSizeVal = getBatchSize(batchSize);
 
-            return new Projection(script, String.valueOf(projectionName), engineName, streams, theType, isParallel);
+            return new Projection(script, String.valueOf(projectionName), engineName, streams, theType, isParallel, batchSizeVal);
 
         } catch (Exception e) {
             throw new CompilationException("Script compilation error: " + e.getMessage(), e);
         }
     }
 
+
+    private static void validateProjectionName(Object projectionName) {
+        if (projectionName == null || StringUtils.isBlank(String.valueOf(projectionName))) {
+            throw new ScriptException("No projection name provided");
+        }
+    }
+
+    private static Set<String> getStreams(Object sourceStreams) {
+        if (sourceStreams == null) {
+            throw new ScriptException("No source stream provided");
+        }
+        Set<String> streams = new HashSet<>(((Map<String, String>) sourceStreams).values());
+        streams.removeIf(String::isEmpty);
+        if (streams.isEmpty()) {
+            throw new ScriptException("No source stream provided");
+        }
+        return streams;
+    }
+
     private static Projection.Type getType(Object type) {
+        if (type == null || StringUtils.isBlank(String.valueOf(type))) {
+            throw new ScriptException("Projection type must be provided");
+        }
         try {
             return Projection.Type.valueOf(String.valueOf(type).trim().toUpperCase());
         } catch (Exception e) {
             throw new RuntimeException("Invalid projection type '" + type + "'");
+        }
+    }
+
+    private static int getBatchSize(Object batchSize) {
+        try {
+            return  (int) batchSize;
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid batch size value: " + batchSize + ", value must a positive integer");
         }
     }
 

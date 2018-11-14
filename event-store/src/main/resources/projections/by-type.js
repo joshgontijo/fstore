@@ -2,7 +2,8 @@ config({
     name: "by-type",
     streams: ["_all"],
     type: "CONTINUOUS",
-    parallel: false
+    parallel: false,
+    batchSize: 10000
 });
 
 function filter(event, state) {
