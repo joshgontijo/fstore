@@ -52,8 +52,6 @@ public class EventStoreIT {
     @After
     public void tearDown() {
         store.close();
-        FileUtils.tryDelete(new File(directory, "index"));
-        FileUtils.tryDelete(new File(directory, "projections"));
         FileUtils.tryDelete(directory);
     }
 
@@ -239,16 +237,15 @@ public class EventStoreIT {
 
         EventRecord event = iter.next();
         assertEquals(stream, event.stream);
-        assertEquals(0, iter.next().version);
+        assertEquals(0, event.version);
 
         event = iter.next();
         assertEquals(stream, event.stream);
-        assertEquals(1, iter.next().version);
+        assertEquals(1, event.version);
 
         event = iter.next();
         assertEquals(stream, event.stream);
-        assertEquals(2, iter.next().version);
-
+        assertEquals(2, event.version);
     }
 
     @Test
