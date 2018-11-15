@@ -101,6 +101,7 @@ public class EventStore implements IEventStore {
         int loaded = 0;
         long p = 0;
 
+        List<EventRecord> backwardsIndex = new ArrayList<>(10000);
         try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
 
             while (iterator.hasNext()) {
@@ -108,13 +109,20 @@ public class EventStore implements IEventStore {
                 if (IndexFlushed.TYPE.equals(next.type)) {
                     break;
                 }
-                long position = iterator.position();
-                long streamHash = streams.hashOf(next.stream);
-                index.add(streamHash, next.version, position);
+                backwardsIndex.add(next);
                 if (++loaded % 50000 == 0) {
                     logger.info("Loaded {} index entries", loaded);
                 }
             }
+
+            LogIterator<EventRecord> reversed = Iterators.reversed(backwardsIndex);
+            while(reversed.hasNext()) {
+                EventRecord next = reversed.next();
+                long position = iterator.position();
+                long streamHash = streams.hashOf(next.stream);
+                index.add(streamHash, next.version, position);
+            }
+
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to load memIndex on position " + p, e);
@@ -266,15 +274,23 @@ public class EventStore implements IEventStore {
 
     @Override
     public void disableProjection(String name) {
-        Projection disabled = projections.disable(name);
-        EventRecord eventRecord = ProjectionUpdated.create(disabled);
+        Projection projection = projections.get(name);
+        if(!projection.enabled) {
+            return;
+        }
+        projection.enabled = false;
+        EventRecord eventRecord = ProjectionUpdated.create(projection);
         this.appendSystemEvent(eventRecord);
     }
 
     @Override
     public void enableProjection(String name) {
-        Projection enabled = projections.enable(name);
-        EventRecord eventRecord = ProjectionUpdated.create(enabled);
+        Projection projection = projections.get(name);
+        if(projection.enabled) {
+            return;
+        }
+        projection.enabled = true;
+        EventRecord eventRecord = ProjectionUpdated.create(projection);
         this.appendSystemEvent(eventRecord);
     }
 
@@ -590,6 +606,7 @@ public class EventStore implements IEventStore {
         index.close();
         eventLog.close();
         streams.close();
+        projections.close();
     }
 
 }

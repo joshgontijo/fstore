@@ -10,6 +10,8 @@ public interface EventStreamHandler {
 
     void onEvent(JsonEvent record, State state);
 
+    State aggregateState(State first, State second);
+
     ScriptExecutionResult processEvents(List<EventRecord> events, State state) throws ScriptExecutionException;
 
 }

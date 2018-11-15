@@ -3,10 +3,8 @@ package io.joshworks.eventry.projections;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.data.ProjectionCompleted;
 import io.joshworks.eventry.data.ProjectionFailed;
-import io.joshworks.eventry.data.ProjectionStarted;
 import io.joshworks.eventry.data.ProjectionStopped;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.projections.persistence.ProjectionCheckpointer;
 import io.joshworks.eventry.projections.result.ExecutionResult;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.Status;
@@ -15,6 +13,7 @@ import io.joshworks.eventry.projections.result.TaskStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.io.File;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -26,7 +25,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
-public class ProjectionExecutor {
+public class ProjectionExecutor implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(ProjectionExecutor.class);
 
@@ -127,4 +126,9 @@ public class ProjectionExecutor {
         }
     }
 
+    @Override
+    public void close() {
+        executor.shutdown();
+        checkpointer.close();
+    }
 }

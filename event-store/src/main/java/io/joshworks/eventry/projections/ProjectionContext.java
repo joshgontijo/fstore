@@ -2,7 +2,6 @@ package io.joshworks.eventry.projections;
 
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
-import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.util.HashMap;
 import java.util.List;
@@ -11,13 +10,11 @@ import java.util.Map;
 public class ProjectionContext {
 
     private final IEventStore store;
-    private final Projection projection;
     private final State state = new State();
     private final Map<String, Object> options = new HashMap<>();
 
-    public ProjectionContext(IEventStore store, Projection projection) {
+    public ProjectionContext(IEventStore store) {
         this.store = store;
-        this.projection = projection;
     }
 
     public void publishEvents(List<ScriptExecutionResult.OutputEvent> outputs) {

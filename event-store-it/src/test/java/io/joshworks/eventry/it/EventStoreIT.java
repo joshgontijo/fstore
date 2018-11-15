@@ -13,6 +13,7 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -221,6 +222,33 @@ public class EventStoreIT {
                 assertEquals(streamPrefix + i, event.stream);
             }
         }
+    }
+
+    @Test
+    public void index_is_loaded_with_correct_stream_version_order() {
+        String stream = "stream-a";
+        store.append(EventRecord.create(stream, "type", "body"));
+        store.append(EventRecord.create(stream, "type", "body"));
+        store.append(EventRecord.create(stream, "type", "body"));
+
+        store.close();
+
+        store = EventStore.open(directory);
+
+        LogIterator<EventRecord> iter = store.fromStreamIter(stream);
+
+        EventRecord event = iter.next();
+        assertEquals(stream, event.stream);
+        assertEquals(0, iter.next().version);
+
+        event = iter.next();
+        assertEquals(stream, event.stream);
+        assertEquals(1, iter.next().version);
+
+        event = iter.next();
+        assertEquals(stream, event.stream);
+        assertEquals(2, iter.next().version);
+
     }
 
     @Test

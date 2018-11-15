@@ -7,7 +7,6 @@ import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.StreamFormat;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.projections.persistence.ProjectionCheckpointer;
 import io.joshworks.eventry.projections.result.ExecutionResult;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
@@ -23,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -39,13 +39,11 @@ public class ProjectionTask {
 
     private final Projection projection;
     private final AtomicBoolean stopRequested = new AtomicBoolean();
-    private final ProjectionCheckpointer checkpointer;
 
     private final List<TaskItem> tasks = new ArrayList<>();
 
-    private ProjectionTask(Projection projection, ProjectionCheckpointer checkpointer, List<TaskItem> taskItems) {
+    private ProjectionTask(Projection projection, List<TaskItem> taskItems) {
         this.projection = projection;
-        this.checkpointer = checkpointer;
         this.tasks.addAll(taskItems);
     }
 
@@ -53,7 +51,7 @@ public class ProjectionTask {
         List<TaskItem> taskItems = new ArrayList<>();
         try {
             taskItems = createTaskItems(store, projection, checkpointer);
-            return new ProjectionTask(projection, checkpointer, taskItems);
+            return new ProjectionTask(projection, taskItems);
         } catch (Exception e) {
             for (TaskItem taskItem : taskItems) {
                 taskItem.close();
@@ -87,6 +85,14 @@ public class ProjectionTask {
         return new ExecutionResult(projection.name, tasks.stream().map(TaskItem::status).collect(Collectors.toList()));
     }
 
+   State state() {
+        State state = new State();
+        for (TaskItem task : tasks) {
+            state = task.aggregateState(state);
+        }
+        return state;
+    }
+
     private TaskStatus runTask(TaskItem taskItem) {
         taskItem.run();
         if (stopRequested.get() || !Status.RUNNING.equals(taskItem.status)) {
@@ -105,14 +111,14 @@ public class ProjectionTask {
         //single source or not parallel
         if (isSingleSource(projection)) {
             final EventSource source = createSequentialSource(store, projection);
-            ProjectionContext context = new ProjectionContext(store, projection);
+            ProjectionContext context = new ProjectionContext(store);
             EventStreamHandler handler = createHandler(projection, context);
             TaskItem taskItem = new TaskItem(source, checkpointer, handler, context, projection);
             tasks.add(taskItem);
         } else { //multi source and parallel
             List<EventSource> sources = createParallelSource(store, projection);
             for (EventSource source : sources) {
-                ProjectionContext context = new ProjectionContext(store, projection);
+                ProjectionContext context = new ProjectionContext(store);
                 EventStreamHandler handler = createHandler(projection, context);
                 TaskItem taskItem = new TaskItem(source, checkpointer, handler, context, projection);
                 tasks.add(taskItem);
@@ -192,6 +198,7 @@ public class ProjectionTask {
         private final Projection projection;
         private final ProjectionCheckpointer checkpointer;
         private final Metrics metrics = new Metrics();
+        private final String stateKey;
 
         private Status status = Status.NOT_STARTED;
         private TaskError error;
@@ -202,6 +209,8 @@ public class ProjectionTask {
             this.handler = handler;
             this.context = context;
             this.projection = projection;
+            //TODO doesnt work for parallel streams, projection name is used by default
+            this.stateKey = projection.name;
         }
 
         @Override
@@ -210,50 +219,15 @@ public class ProjectionTask {
             try {
 
                 //read
-                List<EventRecord> batchRecords = new ArrayList<>();
-                int processed = 0;
-                long readStart = System.currentTimeMillis();
-                while (processed < projection.batchSize && source.hasNext()) {
-                    EventRecord record = source.next();
-                    if (record.isLinkToEvent()) {
-                        throw new IllegalStateException("Event source must resolve linkTo events");
-                    }
-                    batchRecords.add(record);
-                    processed++;
-                }
-                metrics.readTime += (System.currentTimeMillis() - readStart);
-
-
+                List<EventRecord> batchRecords = bulkRead();
                 //process
-                long processStart = System.currentTimeMillis();
-                ScriptExecutionResult result = handler.processEvents(batchRecords, context.state());
-                metrics.processTime += (System.currentTimeMillis() - processStart);
-
-
-                //TODO truncate stream up to last batch position if write fails
-                //TODO store may be closed when publishing events, may not be an issue though
+                ScriptExecutionResult result = process(batchRecords);
                 //publish
-                context.publishEvents(result.outputEvents);
-                metrics.writeTime = (System.currentTimeMillis() - processStart);
+                publishEvents(result);
 
-                State state = context.state();
+                checkpoint();
 
-
-                metrics.linkedEvents += result.linkToEvents;
-                metrics.emittedEvents += result.emittedEvents;
-                metrics.processed += batchRecords.size();
-
-                if (!source.hasNext() && !Projection.Type.CONTINUOUS.equals(projection.type)) {
-                    IOUtils.closeQuietly(source);
-                    status = Status.COMPLETED;
-                }
-
-                if (!batchRecords.isEmpty()) {
-                    EventRecord last = batchRecords.get(batchRecords.size() - 1);
-                    metrics.lastEvent = StreamFormat.toString(last.stream, last.version);
-                }
-                metrics.logPosition = source.streamTracker();
-
+                updateStatus(batchRecords, result);
 
             } catch (ScriptExecutionException e) {
                 status = Status.FAILED;
@@ -264,11 +238,71 @@ public class ProjectionTask {
                 logger.error("Internal error on processing event", e);
                 error = new TaskError(e.getMessage(), metrics.logPosition, null);
             }
+        }
 
+        //TODO truncate stream up to last batch position if write fails
+        private void publishEvents(ScriptExecutionResult result) {
+            long publishStart = System.currentTimeMillis();
+            context.publishEvents(result.outputEvents);
+            metrics.publishTime = (System.currentTimeMillis() - publishStart);
+        }
+
+        private ScriptExecutionResult process(List<EventRecord> batchRecords) throws ScriptExecutionException {
+            long processStart = System.currentTimeMillis();
+            ScriptExecutionResult result = handler.processEvents(batchRecords, context.state());
+            metrics.processTime += (System.currentTimeMillis() - processStart);
+            return result;
+        }
+
+        private void updateStatus(List<EventRecord> batchRecords, ScriptExecutionResult result) {
+            metrics.linkedEvents += result.linkToEvents;
+            metrics.emittedEvents += result.emittedEvents;
+            metrics.processed += batchRecords.size();
+
+            if (!source.hasNext() && !Projection.Type.CONTINUOUS.equals(projection.type)) {
+                IOUtils.closeQuietly(source);
+                status = Status.COMPLETED;
+            }
+
+            if (!batchRecords.isEmpty()) {
+                EventRecord last = batchRecords.get(batchRecords.size() - 1);
+                metrics.lastEvent = StreamFormat.toString(last.stream, last.version);
+            }
+            metrics.logPosition = source.position();
+        }
+
+        private void checkpoint() {
+            State state = context.state();
+            Map<String, Integer> tracker = source.streamTracker();
+            checkpointer.checkpoint(stateKey, state, tracker);
+        }
+
+        private List<EventRecord> bulkRead() {
+            List<EventRecord> batchRecords = new ArrayList<>();
+            int processed = 0;
+            long readStart = System.currentTimeMillis();
+            while (processed < projection.batchSize && source.hasNext()) {
+                EventRecord record = source.next();
+                if (record.isLinkToEvent()) {
+                    throw new IllegalStateException("Event source must resolve linkTo events");
+                }
+                batchRecords.add(record);
+                processed++;
+            }
+            metrics.readTime += (System.currentTimeMillis() - readStart);
+            return batchRecords;
         }
 
         private TaskStatus status() {
             return new TaskStatus(status, error, context.state(), metrics);
+        }
+
+        private State aggregateState(State other) {
+            return handler.aggregateState(other, this.state());
+        }
+
+        private State state() {
+            return context.state();
         }
 
         @Override
@@ -276,7 +310,7 @@ public class ProjectionTask {
             IOUtils.closeQuietly(source);
         }
 
-        public void stop() {
+        private void stop() {
             status = Status.STOPPED;
             close();
         }
@@ -299,7 +333,8 @@ public class ProjectionTask {
     private static class OneTimeEventSource implements EventSource {
 
         private final LogIterator<EventRecord> iterator;
-        private Set<String> streams;
+        private final Set<String> streams;
+        private final StreamTracker tracker = new StreamTracker();
 
 
         private OneTimeEventSource(LogIterator<EventRecord> iterator, Set<String> streams) {
@@ -314,7 +349,7 @@ public class ProjectionTask {
 
         @Override
         public EventRecord next() {
-            return iterator.next();
+            return tracker.update(iterator.next());
         }
 
         @Override
@@ -329,7 +364,7 @@ public class ProjectionTask {
 
         @Override
         public Map<String, Integer> streamTracker() {
-
+            return tracker.tracker();
         }
 
         @Override
@@ -341,7 +376,8 @@ public class ProjectionTask {
     private static class ContinuousEventSource implements EventSource {
 
         private final LogPoller<EventRecord> poller;
-        private Set<String> streams;
+        private final Set<String> streams;
+        private final StreamTracker tracker = new StreamTracker();
 
         private ContinuousEventSource(LogPoller<EventRecord> poller, Set<String> streams) {
             this.poller = poller;
@@ -356,7 +392,8 @@ public class ProjectionTask {
         @Override
         public EventRecord next() {
             try {
-                return poller.poll(5, TimeUnit.SECONDS);
+                EventRecord record = poller.poll(5, TimeUnit.SECONDS);
+                return tracker.update(record);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -369,7 +406,7 @@ public class ProjectionTask {
 
         @Override
         public Map<String, Integer> streamTracker() {
-
+            return tracker.tracker();
         }
 
         @Override
@@ -386,32 +423,16 @@ public class ProjectionTask {
     private static class StreamTracker {
 
         private final Map<String, Integer> multiStreamTracker = new ConcurrentHashMap<>();
-        private String stream;
-        private int version;
 
-        private final boolean single;
-
-        private StreamTracker(boolean single) {
-            this.single = single;
-        }
-
-        public EventRecord update(EventRecord record) {
+        private EventRecord update(EventRecord record) {
             if (record != null) {
-                if (single) {
-                    this.stream = record.stream;
-                    this.version = record.version;
-                } else {
-                    multiStreamTracker.put(record.stream, record.version);
-                }
+                multiStreamTracker.put(record.stream, record.version);
             }
             return record;
         }
 
-        public Map<String, Integer> tracker() {
-            if(single) {
-                return Map.of(stream, version);
-            }
-            return multiStreamTracker;
+        private Map<String, Integer> tracker() {
+            return new HashMap<>(multiStreamTracker);
         }
 
     }
