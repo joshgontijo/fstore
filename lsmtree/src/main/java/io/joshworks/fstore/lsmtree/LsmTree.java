@@ -28,6 +28,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private final MemTable<K, V> memTable;
     private final int flushThreshold;
 
+    //TODO expose logstore parameters
     private LsmTree(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold, String name) {
         this.flushThreshold = flushThreshold;
         this.sstables = new SSTables<>(dir, keySerializer, valueSerializer, flushThreshold, name);

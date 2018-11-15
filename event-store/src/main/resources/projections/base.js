@@ -4,9 +4,7 @@ function process_events(events, state) {
     out_events = [];
     while(!events.isEmpty()) {
         var event = events.peek();
-        if (filter(event, state)) {
-            onEvent(event, state);
-        }
+        onEvent(event, state);
         events.poll()
     }
     return out_events;

@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -101,7 +102,7 @@ public class EventStore implements IEventStore {
         int loaded = 0;
         long p = 0;
 
-        List<EventRecord> backwardsIndex = new ArrayList<>(10000);
+        Map<EventRecord, Long> backwardsIndex = new HashMap<>(500000);
         try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
 
             while (iterator.hasNext()) {
@@ -109,20 +110,18 @@ public class EventStore implements IEventStore {
                 if (IndexFlushed.TYPE.equals(next.type)) {
                     break;
                 }
-                backwardsIndex.add(next);
+                backwardsIndex.put(next, iterator.position());
                 if (++loaded % 50000 == 0) {
                     logger.info("Loaded {} index entries", loaded);
                 }
             }
 
-            LogIterator<EventRecord> reversed = Iterators.reversed(backwardsIndex);
-            while(reversed.hasNext()) {
-                EventRecord next = reversed.next();
-                long position = iterator.position();
-                long streamHash = streams.hashOf(next.stream);
-                index.add(streamHash, next.version, position);
-            }
-
+            backwardsIndex.entrySet().stream().sorted(Comparator.comparingLong(Map.Entry::getValue)).forEach(e -> {
+                EventRecord entry = e.getKey();
+                long position = e.getValue();
+                long streamHash = streams.hashOf(entry.stream);
+                index.add(streamHash, entry.version, position);
+            });
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to load memIndex on position " + p, e);

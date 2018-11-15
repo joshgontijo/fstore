@@ -5,10 +5,6 @@ config({
     parallel: false
 });
 
-function filter(event, state) {
-    return true;
-}
-
 function onEvent(event, state) {
     someInvalidMethodName(event)
 }

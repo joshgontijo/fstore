@@ -1,5 +1,6 @@
 package io.joshworks.eventry.projections.result;
 
+import io.joshworks.eventry.IEventAppender;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.projections.JsonEvent;
 import io.joshworks.eventry.utils.StringUtils;
@@ -42,7 +43,7 @@ public class ScriptExecutionResult {
     }
 
     public interface OutputEvent {
-        void handle(IEventStore store);
+        void handle(IEventAppender storeAppender);
     }
 
     private static class LinkToEvent implements OutputEvent {
@@ -61,8 +62,8 @@ public class ScriptExecutionResult {
 
 
         @Override
-        public void handle(IEventStore store) {
-            store.linkTo(dstStream, srcStream, srcVersion, srcType);
+        public void handle(IEventAppender appender) {
+            appender.linkTo(dstStream, srcStream, srcVersion, srcType);
         }
     }
 
@@ -76,9 +77,9 @@ public class ScriptExecutionResult {
         }
 
         @Override
-        public void handle(IEventStore store) {
+        public void handle(IEventAppender appender) {
             JsonEvent jsonEVent = JsonEvent.fromMap(event);
-            store.append(jsonEVent.toEvent());
+            appender.append(jsonEVent.toEvent());
         }
     }
 

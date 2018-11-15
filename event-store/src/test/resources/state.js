@@ -7,8 +7,10 @@ config({
     publishState: false
 });
 
+state({ count: 10});
+
 function onEvent(event, state) {
-    linkTo(event.type, event)
+    state.count++;
 }
 
 function aggregateState(state1, state2) {
