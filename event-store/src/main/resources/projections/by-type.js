@@ -3,7 +3,8 @@ config({
     streams: ["_all"],
     type: "CONTINUOUS",
     parallel: false,
-    batchSize: 10000
+    batchSize: 10000,
+    publishState: false
 });
 
 function filter(event, state) {

@@ -27,6 +27,7 @@ public class Jsr223Handler implements EventStreamHandler {
     private static final String BASE_PROCESS_EVENTS_METHOD_NAME = "process_events";
 
     private static final String ON_EVENT_METHOD_NAME = "onEvent";
+    private static final String AGGREGATE_STATE_METHOD_NAME = "aggregateState";
     private static final String CONFIG_METHOD_NAME = "config";
     private static final String INITIAL_STATE_METHOD_NAME = "state";
 
@@ -79,6 +80,18 @@ public class Jsr223Handler implements EventStreamHandler {
     public void onEvent(JsonEvent record, State state) {
         try {
             invocable.invokeFunction(ON_EVENT_METHOD_NAME, record, state);
+        } catch (Exception e) {
+            throw new ScriptException(e);
+        }
+    }
+
+    @Override
+    public State aggregateState(State first, State second) {
+        try {
+            Map<String, Object> stateMap = (Map<String, Object>) invocable.invokeFunction(AGGREGATE_STATE_METHOD_NAME, first, second);
+            State state = new State();
+            state.putAll(stateMap);
+            return second;
         } catch (Exception e) {
             throw new ScriptException(e);
         }

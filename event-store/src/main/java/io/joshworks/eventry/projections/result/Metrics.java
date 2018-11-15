@@ -7,7 +7,7 @@ public class Metrics {
     public String lastEvent;
     public long readTime;
     public long processTime;
-    public long writeTime;
+    public long publishTime;
     public long emittedEvents;
     public long linkedEvents;
 

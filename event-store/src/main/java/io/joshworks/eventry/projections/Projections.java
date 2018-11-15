@@ -174,5 +174,6 @@ public class Projections implements Closeable {
     @Override
     public void close() {
         stopAll();
+        manager.close();
     }
 }
