@@ -337,56 +337,34 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public LogIterator<EventRecord> fromStreamIter(String stream) {
-        return fromStreamIter(stream, Range.START_VERSION);
-    }
-
-    @Override
-    public Stream<EventRecord> fromStream(String stream) {
+    public EventLogIterator fromStream(String stream) {
         return fromStream(stream, Range.START_VERSION);
     }
 
     @Override
-    public LogIterator<EventRecord> fromStreamIter(String stream, int versionInclusive) {
+    public EventLogIterator fromStream(String stream, int versionInclusive) {
         long streamHash = streams.hashOf(stream);
         LogIterator<IndexEntry> indexIterator = index.iterator(Direction.FORWARD, Range.of(streamHash, versionInclusive));
         indexIterator = withMaxCountFilter(streamHash, indexIterator);
         SingleStreamIterator singleStreamIterator = new SingleStreamIterator(indexIterator, eventLog);
-        LogIterator<EventRecord> ageFilterIterator = withMaxAgeFilter(Set.of(streamHash), singleStreamIterator);
+        EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(streamHash), singleStreamIterator);
         return new LinkToResolveIterator(ageFilterIterator, this::resolve);
 
     }
 
     @Override
-    public Stream<EventRecord> fromStream(String stream, int versionInclusive) {
-        LogIterator<EventRecord> iterator = fromStreamIter(stream, versionInclusive);
-        return Iterators.closeableStream(iterator);
-    }
-
-    @Override
-    public Stream<EventRecord> zipStreams(Set<String> streams) {
-        LogIterator<EventRecord> iterator = zipStreamsIter(streams);
-        return Iterators.closeableStream(iterator);
-    }
-
-    @Override
-    public LogIterator<EventRecord> zipStreamsIter(String stream) {
+    public EventLogIterator zipStreams(String stream) {
         Set<String> eventStreams = streams.streamMatching(stream);
         if (eventStreams.isEmpty()) {
-            return Iterators.empty();
+            return EventLogIterator.empty();
         }
-        return zipStreamsIter(eventStreams);
+        return zipStreams(eventStreams);
     }
 
     @Override
-    public Stream<EventRecord> zipStreams(String streamPrefix) {
-        return Iterators.closeableStream(zipStreamsIter(streamPrefix));
-    }
-
-    @Override
-    public LogIterator<EventRecord> zipStreamsIter(Set<String> streamNames) {
+    public EventLogIterator zipStreams(Set<String> streamNames) {
         if (streamNames.size() == 1) {
-            return fromStreamIter(streamNames.iterator().next());
+            return fromStream(streamNames.iterator().next());
         }
 
         Set<Long> hashes = streamNames.stream()
@@ -398,17 +376,12 @@ public class EventStore implements IEventStore {
                 .map(hash -> index.iterator(Direction.FORWARD, Range.anyOf(hash)))
                 .collect(Collectors.toList());
 
-        LogIterator<EventRecord> ageFilterIterator = withMaxAgeFilter(hashes, new MultiStreamIterator(indexes, eventLog));
+        EventLogIterator ageFilterIterator = withMaxAgeFilter(hashes, new MultiStreamIterator(indexes, eventLog));
         return new LinkToResolveIterator(ageFilterIterator, this::resolve);
     }
 
     @Override
-    public Stream<Stream<EventRecord>> fromStreams(Set<String> streams) {
-        return streams.stream().map(this::fromStream);
-    }
-
-    @Override
-    public Map<String, Stream<EventRecord>> fromStreamsMapped(Set<String> streams) {
+    public Map<String, EventLogIterator> fromStreamsMapped(Set<String> streams) {
         return streams.stream()
                 .map(stream -> Tuple.of(stream, fromStream(stream)))
                 .collect(Collectors.toMap(Tuple::a, Tuple::b));
@@ -421,14 +394,13 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public LogIterator<EventRecord> fromAllIter() {
+    public EventLogIterator fromAll() {
         return eventLog.iterator(Direction.FORWARD);
     }
 
-    //Won't return the closeableStream in the event !
     @Override
-    public Stream<EventRecord> fromAll() {
-        return eventLog.stream(Direction.FORWARD);
+    public Stream<EventLogIterator> fromStreams(Set<String> streams) {
+        return streams.stream().map(this::fromStream);
     }
 
     @Override
@@ -590,7 +562,7 @@ public class EventStore implements IEventStore {
                 .orElse(iterator);
     }
 
-    private LogIterator<EventRecord> withMaxAgeFilter(Set<Long> streamHashes, LogIterator<EventRecord> iterator) {
+    private EventLogIterator withMaxAgeFilter(Set<Long> streamHashes, EventLogIterator iterator) {
         Map<String, Long> metadataMap = streamHashes.stream()
                 .map(streams::get)
                 .filter(Optional::isPresent)

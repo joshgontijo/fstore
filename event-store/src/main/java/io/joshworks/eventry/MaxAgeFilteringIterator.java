@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-public class MaxAgeFilteringIterator implements LogIterator<EventRecord> {
+public class MaxAgeFilteringIterator implements EventLogIterator {
 
     private final LogIterator<EventRecord> delegate;
     private EventRecord next;

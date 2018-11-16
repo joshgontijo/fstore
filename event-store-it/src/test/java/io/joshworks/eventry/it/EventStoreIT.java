@@ -67,7 +67,7 @@ public class EventStoreIT {
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
 
-        Iterator<EventRecord> events = store.fromStreamIter(stream);
+        Iterator<EventRecord> events = store.fromStream(stream);
         int found = 0;
 
         start = System.currentTimeMillis();
@@ -233,7 +233,7 @@ public class EventStoreIT {
 
         store = EventStore.open(directory);
 
-        LogIterator<EventRecord> iter = store.fromStreamIter(stream);
+        LogIterator<EventRecord> iter = store.fromStream(stream);
 
         EventRecord event = iter.next();
         assertEquals(stream, event.stream);
@@ -278,7 +278,7 @@ public class EventStoreIT {
 
         //when
         for (int i = 0; i < numEvents; i++) {
-            Iterator<EventRecord> events = store.fromStreamIter(streamPrefix + i);
+            Iterator<EventRecord> events = store.fromStream(streamPrefix + i);
 
             assertTrue(events.hasNext());
 
@@ -309,7 +309,7 @@ public class EventStoreIT {
 
         List<String> streams = Arrays.asList("test-0", "test-1", "test-10", "test-100", "test-1000");
 
-        Iterator<EventRecord> eventStream = store.zipStreamsIter(new HashSet<>(streams));
+        Iterator<EventRecord> eventStream = store.zipStreams(new HashSet<>(streams));
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -329,7 +329,7 @@ public class EventStoreIT {
             store.append(EventRecord.create("stream-" + i, "test", "body"));
         }
 
-        Iterator<EventRecord> it = store.fromAllIter();
+        Iterator<EventRecord> it = store.fromAll();
 
         EventRecord last = null;
         while (it.hasNext()) {
@@ -353,7 +353,7 @@ public class EventStoreIT {
         }
 
         String eventToQuery = "test-1";
-        Iterator<EventRecord> eventStream = store.zipStreamsIter(Set.of(eventToQuery));
+        Iterator<EventRecord> eventStream = store.zipStreams(Set.of(eventToQuery));
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -378,7 +378,7 @@ public class EventStoreIT {
             store.append(EventRecord.create(stream, "type", "body-" + stream));
         }
 
-        Iterator<EventRecord> eventStream = store.fromStreamIter(stream);
+        Iterator<EventRecord> eventStream = store.fromStream(stream);
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -521,7 +521,7 @@ public class EventStoreIT {
             store.append(EventRecord.create("someOtherStream", String.valueOf("type"), "body-" + version));
         }
 
-        Iterator<EventRecord> eventStream = store.zipStreamsIter(streamPrefix + "*");
+        Iterator<EventRecord> eventStream = store.zipStreams(streamPrefix + "*");
 
         assertTrue(eventStream.hasNext());
 

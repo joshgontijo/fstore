@@ -7,7 +7,7 @@ import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
 
-public class SingleStreamIterator implements LogIterator<EventRecord> {
+public class SingleStreamIterator implements EventLogIterator {
 
     private final LogIterator<IndexEntry> indexIterator;
     private final IEventLog log;
