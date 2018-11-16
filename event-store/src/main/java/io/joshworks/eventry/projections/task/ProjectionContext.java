@@ -1,6 +1,7 @@
-package io.joshworks.eventry.projections;
+package io.joshworks.eventry.projections.task;
 
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
 
 import java.util.HashMap;
@@ -22,14 +23,6 @@ public class ProjectionContext {
             output.handle(store);
         }
     }
-
-//    public final void linkTo(String stream, JsonEvent record) {
-//        store.linkTo(stream, record.stream, record.version, record.type);
-//    }
-//
-//    public final void emit(String stream, JsonEvent record) {
-//        store.emit(stream, record.toEvent());
-//    }
 
     public final State state() {
         return state;

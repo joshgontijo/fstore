@@ -3,6 +3,7 @@ package io.joshworks.eventry.projections;
 import io.joshworks.eventry.ScriptExecutionException;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
+import io.joshworks.eventry.projections.task.ProjectionContext;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.io.IOUtils;
 
@@ -48,7 +49,7 @@ public class Jsr223Handler implements EventStreamHandler {
 
     private final Invocable invocable;
 
-    Jsr223Handler(ProjectionContext ctx, String script, String engineName) {
+    public Jsr223Handler(ProjectionContext ctx, String script, String engineName) {
         try {
 //            BiConsumer<String, JsonEvent> emmit = ctx::emit;
 //            BiConsumer<String, JsonEvent> linkTo = ctx::linkTo;

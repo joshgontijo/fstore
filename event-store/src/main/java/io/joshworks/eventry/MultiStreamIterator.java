@@ -12,7 +12,7 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 
 //Ordered by log position multiple streams
-public class MultiStreamIterator implements LogIterator<EventRecord> {
+public class MultiStreamIterator implements EventLogIterator {
 
     private final IEventLog log;
     private final Queue<Iterators.PeekingIterator<IndexEntry>> queue;

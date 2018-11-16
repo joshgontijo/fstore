@@ -108,7 +108,7 @@ public class Stage<T> implements Closeable {
 
         private int corePoolSize = 1;
         private int maximumPoolSize = 1;
-        private int queueSize = 1000000;
+        private int queueSize = 10000;
         private long keepAliveTime = 30000;
         private RejectedExecutionHandler rejectionHandler;
         private boolean blockWhenFull;

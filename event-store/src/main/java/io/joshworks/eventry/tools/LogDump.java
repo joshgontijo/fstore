@@ -19,7 +19,7 @@ public class LogDump {
 
     public static void dumpStream(String stream, File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file)) {
-            LogIterator<EventRecord> iterator = store.fromStreamIter(stream);
+            LogIterator<EventRecord> iterator = store.fromStream(stream);
             while (iterator.hasNext()) {
                 EventRecord event = iterator.next();
                 fileWriter.write(event.toString() + System.lineSeparator());
@@ -31,7 +31,7 @@ public class LogDump {
 
     public static void dumpLog(File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file)) {
-            LogIterator<EventRecord> iterator = store.fromAllIter();
+            LogIterator<EventRecord> iterator = store.fromAll();
             while (iterator.hasNext()) {
                 long position = iterator.position();
                 EventRecord event = iterator.next();

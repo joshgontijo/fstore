@@ -71,7 +71,7 @@ public class ConcurrencyIT {
 
 
         //READ
-        Iterator<EventRecord> events = store.fromStreamIter(stream);
+        Iterator<EventRecord> events = store.fromStream(stream);
         int found = 0;
 
         while (events.hasNext()) {
@@ -174,7 +174,7 @@ public class ConcurrencyIT {
 
 
         //READ
-        Iterator<EventRecord> events = store.zipStreamsIter(streamNames);
+        Iterator<EventRecord> events = store.zipStreams(streamNames);
         int found = 0;
 
         while (events.hasNext()) {

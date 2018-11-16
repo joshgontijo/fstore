@@ -1,22 +1,15 @@
 package io.joshworks.eventry.projections;
 
-import io.joshworks.eventry.IEventAppender;
-import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.ScriptExecutionException;
-import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
+import io.joshworks.eventry.projections.task.ProjectionContext;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.LogPoller;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 
