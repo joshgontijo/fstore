@@ -10,6 +10,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -552,9 +553,8 @@ public class TableIndexTest {
         assertEquals(1, entry.version);
     }
 
-
     @Test
-    public void indexedIterator_finds_all_entries() throws IOException {
+    public void indexedIterator_finds_all_entries() {
 
         long[] streams = new long[]{12, -3, 10, 3000, -100, -300, 0, -20, 60};
         int versions = 999999;
@@ -565,38 +565,53 @@ public class TableIndexTest {
             }
         }
 
-        try(LogIterator<IndexEntry> scanner = tableIndex.scanner()) {
-            dumpIndex(new File("index.txt"), scanner);
-        }
-
-
         for (long stream : streams) {
             try (TableIndex.IndexIterator iterator = tableIndex.indexedIterator(stream)) {
                 for (int version = 0; version < versions; version++) {
-                    assertTrue("Failed on stream " + stream + "version " + version, iterator.hasNext());
+                    assertTrue("Failed on stream " + stream + " version " + version, iterator.hasNext());
 
                     IndexEntry next = iterator.next();
-                    assertEquals("Failed on stream " + stream + "version " + version, stream, next.stream);
-                    assertEquals("Failed on stream " + stream + "version " + version, version, next.version);
+                    assertEquals("Failed on stream " + stream + " version " + version, stream, next.stream);
+                    assertEquals("Failed on stream " + stream + " version " + version, version, next.version);
                 }
             }
         }
-
     }
 
-    //TODO remove me
-    public static void dumpIndex(File file, LogIterator<IndexEntry> iterator) {
-        System.out.println("Dumping index");
-        try (var fileWriter = new FileWriter(file)) {
-            while (iterator.hasNext()) {
-                long position = iterator.position();
-                IndexEntry event = iterator.next();
-                fileWriter.write(position + " | " +event.toString() + System.lineSeparator());
+    @Test
+    public void indexedIterator_finds_all_entries_with_multiple_streams() {
+
+        Set<Long> streams = Set.of(12L, -3L, 10L, 3000L, -100L, -300L, 0L, -20L, 60L);
+        int versions = 999999;
+
+        for (long stream : streams) {
+            for (int version = 0; version < versions; version++) {
+                tableIndex.add(stream, version, 0);
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
-        System.out.println("Dumping index complete");
+
+        final Map<Long, Integer> tracker = new HashMap<>();
+        for (Long stream : streams) {
+            tracker.put(stream, IndexEntry.NO_VERSION);
+        }
+
+        try (TableIndex.IndexIterator iterator = tableIndex.indexedIterator(streams)) {
+            while (iterator.hasNext()) {
+                IndexEntry next = iterator.next();
+                tracker.put(next.stream, next.version);
+            }
+        }
+
+        for (Map.Entry<Long, Integer> kv : tracker.entrySet()) {
+            Long stream = kv.getKey();
+            Integer lastVersion = kv.getValue();
+
+            assertEquals("Failed total read stream items of stream " + stream, Integer.valueOf(versions - 1), lastVersion);
+
+        }
+
+
     }
+
 
 }
