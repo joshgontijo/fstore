@@ -2,7 +2,7 @@ package io.joshworks.eventry;
 
 import java.io.Closeable;
 
-public interface IEventStore extends Closeable, IProjection, IStream, IStreamQuery, ILogIterator, IEventPoller, IEventAppender {
+public interface IEventStore extends Closeable, IProjection, IStream, IStreamQuery, ILogIterator, IEventAppender {
 
     void cleanup();
 

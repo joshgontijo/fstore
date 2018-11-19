@@ -1,10 +1,6 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.LogPoller;
-
-import java.util.Map;
-import java.util.Set;
 
 public interface IEventAppender {
 

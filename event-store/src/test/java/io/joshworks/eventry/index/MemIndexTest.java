@@ -1,14 +1,9 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.LogPoller;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -17,7 +12,6 @@ import java.util.stream.StreamSupport;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class MemIndexTest {
@@ -34,7 +28,7 @@ public class MemIndexTest {
             index.add(IndexEntry.of(stream, i, 0));
         }
 
-        assertEquals(numEntries, index.stream(Direction.FORWARD, Range.anyOf(stream)).count());
+        assertEquals(numEntries, index.indexedIterator(Direction.FORWARD, Range.anyOf(stream)).stream().count());
     }
 
     @Test
@@ -51,7 +45,7 @@ public class MemIndexTest {
 
         for (int stream = 0; stream < streams; stream++) {
             //when
-            long count = index.stream(Direction.FORWARD, Range.anyOf(stream)).count();
+            long count = index.indexedIterator(Direction.FORWARD, Range.anyOf(stream)).stream().count();
             //then
             assertEquals(versions, count);
         }
@@ -73,7 +67,7 @@ public class MemIndexTest {
             int lastVersion = 0;
 
             //when
-            Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.anyOf(stream));
+            Iterator<IndexEntry> iterator = index.indexedIterator(Direction.FORWARD, Range.anyOf(stream));
             while (iterator.hasNext()) {
                 IndexEntry indexEntry = iterator.next();
                 //then
@@ -102,7 +96,7 @@ public class MemIndexTest {
         for (int stream = 0; stream < streams; stream++) {
             int lastVersion = 0;
 
-            Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.anyOf(stream));
+            Iterator<IndexEntry> iterator = index.indexedIterator(Direction.FORWARD, Range.anyOf(stream));
             while (iterator.hasNext()) {
                 IndexEntry indexEntry = iterator.next();
                 //then
@@ -242,7 +236,7 @@ public class MemIndexTest {
         }
 
         //when
-        Stream<IndexEntry> dataStream = index.stream(Direction.FORWARD, Range.of(stream, 500));
+        Stream<IndexEntry> dataStream = index.indexedIterator(Direction.FORWARD, Range.of(stream, 500)).stream();
 
         //then
         assertEquals(500, dataStream.count());
@@ -261,7 +255,7 @@ public class MemIndexTest {
 
         //when
         int versionStart = 500;
-        Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.of(stream, versionStart));
+        Iterator<IndexEntry> iterator = index.indexedIterator(Direction.FORWARD, Range.of(stream, versionStart));
 
         //then
         int lastVersion = versionStart - 1;
@@ -286,7 +280,7 @@ public class MemIndexTest {
 
         //when
         int versionStart = 500;
-        Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.of(stream, versionStart, 999999));
+        Iterator<IndexEntry> iterator = index.indexedIterator(Direction.FORWARD, Range.of(stream, versionStart, 999999));
 
         //then
         int lastVersion = versionStart - 1;
@@ -311,7 +305,7 @@ public class MemIndexTest {
 
         //when
         int versionStart = 500;
-        Iterator<IndexEntry> iterator = index.iterator(Direction.FORWARD, Range.of(stream, versionStart, versionStart + 1));
+        Iterator<IndexEntry> iterator = index.indexedIterator(Direction.FORWARD, Range.of(stream, versionStart, versionStart + 1));
 
         assertTrue(iterator.hasNext());
         assertEquals(IndexEntry.of(stream, versionStart, 0), iterator.next());
@@ -436,49 +430,4 @@ public class MemIndexTest {
         assertEquals(IndexEntry.NO_VERSION, version);
     }
 
-    @Test
-    public void poller_poll_returns_all_data() throws IOException, InterruptedException {
-
-        List<Range> ranges = new ArrayList<>();
-        int entries = 500;
-        for (int i = 0; i < entries; i++) {
-            index.add(IndexEntry.of(i, 0, 0));
-            ranges.add(Range.anyOf(i));
-        }
-
-        try (LogPoller<IndexEntry> poller = index.poller(ranges)) {
-            for (int i = 0; i < entries; i++) {
-                IndexEntry poll = poller.poll();
-                assertNotNull(poll);
-                assertEquals(i, poll.stream);
-            }
-        }
-    }
-
-    @Test
-    public void endOfLog_when_is_closed_and_read_all_entries() throws IOException, InterruptedException {
-
-        index.add(IndexEntry.of(1, 0, 0));
-
-        LogPoller<IndexEntry> poller = index.poller(Arrays.asList(Range.anyOf(1)));
-        assertFalse(poller.endOfLog());
-
-        poller.poll();
-
-        assertFalse(poller.endOfLog());
-        poller.close();
-        assertTrue(poller.endOfLog());
-    }
-
-    @Test
-    public void headOfLog_when_there_are_no_more_entries() throws InterruptedException {
-
-        index.add(IndexEntry.of(1, 0, 0));
-
-        LogPoller<IndexEntry> poller = index.poller(Arrays.asList(Range.anyOf(1)));
-        assertFalse(poller.headOfLog());
-
-        poller.poll();
-        assertTrue(poller.headOfLog());
-    }
 }

@@ -5,7 +5,6 @@ import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
 public class MaxAgeFilteringIterator implements EventLogIterator {
 
@@ -17,25 +16,25 @@ public class MaxAgeFilteringIterator implements EventLogIterator {
     public MaxAgeFilteringIterator(Map<String, Long> metadataMap, LogIterator<EventRecord> delegate) {
         this.maxAges = metadataMap;
         this.delegate = delegate;
-        next = dropEvents();
     }
 
     @Override
     public boolean hasNext() {
+        next = takeWhile();
         return next != null;
     }
 
     @Override
     public EventRecord next() {
-        if (next == null) {
-            throw new NoSuchElementException();
-        }
-        EventRecord temp = next;
-        next = dropEvents();
-        return temp;
+        EventRecord record = takeWhile();
+        next = null;
+        return record;
     }
 
-    private EventRecord dropEvents() {
+    private EventRecord takeWhile() {
+        if(next != null) {
+            return next;
+        }
         EventRecord last = nextEntry();
         while(last != null && !withinMaxAge(last)) {
             last = nextEntry();

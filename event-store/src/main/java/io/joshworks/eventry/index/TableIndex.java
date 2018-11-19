@@ -5,10 +5,10 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -24,15 +24,13 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
-public class TableIndex implements Index {
+public class TableIndex implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
     public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
@@ -42,7 +40,7 @@ public class TableIndex implements Index {
     private final IndexAppender diskIndex;
     private MemIndex memIndex = new MemIndex();
 
-    private final Set<IndexPoller> pollers = new HashSet<>();
+    private final Set<IndexIterator> pollers = new HashSet<>();
 
     public TableIndex(File rootDirectory) {
         this(rootDirectory, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
@@ -66,12 +64,12 @@ public class TableIndex implements Index {
             throw new IllegalArgumentException("Position must be greater than zero");
         }
         IndexEntry entry = IndexEntry.of(stream, version, position);
-        FlushInfo flushInfo = null;
-        if (memIndex.size() >= flushThreshold) {
-            flushInfo = writeToDisk();
-        }
         memIndex.add(entry);
-        return flushInfo;
+
+        if (memIndex.size() >= flushThreshold) {
+            return writeToDisk();
+        }
+        return null;
     }
 
     //only single write can happen at time
@@ -89,7 +87,6 @@ public class TableIndex implements Index {
         return new FlushInfo(memIndex.size(), timeTaken);
     }
 
-    @Override
     public int version(long stream) {
         int version = memIndex.version(stream);
         if (version > IndexEntry.NO_VERSION) {
@@ -103,32 +100,43 @@ public class TableIndex implements Index {
         return diskIndex.entries() + memIndex.size();
     }
 
-    @Override
     public void close() {
 //        this.flush(); //no need to flush, just reload from disk on startup
         memIndex.close();
         diskIndex.close();
-        for (IndexPoller poller : pollers) {
+        for (IndexIterator poller : pollers) {
             IOUtils.closeQuietly(poller);
         }
         pollers.clear();
 
     }
 
-    @Override
-    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
-        LogIterator<IndexEntry> cacheIterator = memIndex.iterator(direction, range);
-        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(direction, range);
+    public LogIterator<IndexEntry> scanner() {
+        LogIterator<IndexEntry> cacheIterator = memIndex.iterator();
+        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(Direction.FORWARD);
 
         return joiningDiskAndMem(diskIterator, cacheIterator);
     }
 
-    @Override
-    public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.closeableStream(iterator(direction, range));
+
+    public IndexIterator indexedIterator(long stream) {
+        return indexedIterator( Set.of(stream));
     }
 
-    @Override
+    //TODO Backwards scan requires fetching the latest version and adding to the map
+    public IndexIterator indexedIterator(Map<Long, Integer> streams) {
+        Map<Long, AtomicInteger> map = streams.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, kv -> new AtomicInteger(kv.getValue())));
+        return new IndexIterator(Direction.FORWARD, map);
+    }
+
+    public IndexIterator indexedIterator(Set<Long> streams) {
+        List<Long> streamList = new ArrayList<>(streams);
+        Map<Long, AtomicInteger> map = streamList.stream().collect(Collectors.toMap(stream -> stream, r -> new AtomicInteger(NO_VERSION)));
+        return new IndexIterator(Direction.FORWARD, map);
+    }
+
     public Optional<IndexEntry> get(long stream, int version) {
         Optional<IndexEntry> fromMemory = memIndex.get(stream, version);
         if (fromMemory.isPresent()) {
@@ -149,35 +157,23 @@ public class TableIndex implements Index {
         diskIndex.compact();
     }
 
-    public IndexPoller poller(long stream) {
-        return poller(Set.of(stream));
-    }
 
-    public IndexPoller poller(Map<Long, Integer> streams) {
-        Map<Long, AtomicInteger> map = streams.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, kv -> new AtomicInteger(kv.getValue())));
-        return new IndexPoller(map);
-    }
+    //TODO add direction
+    public class IndexIterator implements LogIterator<IndexEntry> {
 
-    public IndexPoller poller(Set<Long> streams) {
-        List<Long> streamList = new ArrayList<>(streams);
-        streamList.sort(Comparator.comparingLong(s -> s));
-        Map<Long, AtomicInteger> map = streamList.stream().collect(Collectors.toMap(stream -> stream, r -> new AtomicInteger(NO_VERSION)));
-        return new IndexPoller(map);
-    }
-
-
-    public class IndexPoller implements LogPoller<IndexEntry> {
-
-        private static final int MAX_BACKOFF_COUNT = 6;
-        private static final int INITIAL_WAIT_TIME = 200;
         private final Map<Long, AtomicInteger> streams = new ConcurrentHashMap<>();
         private final BlockingQueue<IndexEntry> queue = new LinkedBlockingQueue<>();
         private final Queue<Long> streamReadPriority;
         private final AtomicBoolean closed = new AtomicBoolean();
+        private final Direction direction;
 
-        private IndexPoller(Map<Long, AtomicInteger> streamVersions) {
-            streams.putAll(streamVersions);
-            streamReadPriority = new ArrayDeque<>(streamVersions.keySet());
+        private IndexIterator(Direction direction, Map<Long, AtomicInteger> streamVersions) {
+            this.streams.putAll(streamVersions);
+            //deterministic behaviour
+            ArrayList<Long> streamHashes = new ArrayList<>(streamVersions.keySet());
+            streamHashes.sort(Comparator.comparingLong(c -> c));
+            this.streamReadPriority = new ArrayDeque<>(streamHashes);
+            this.direction = direction;
         }
 
         private IndexEntry computeAndGet(IndexEntry ie) {
@@ -185,14 +181,22 @@ public class TableIndex implements Index {
                 return null;
             }
             AtomicInteger lastVersion = streams.get(ie.stream);
-            if (lastVersion.get() >= ie.version) {
+            int lastReadVersion = lastVersion.get();
+            if (Direction.FORWARD.equals(direction) && lastReadVersion >= ie.version) {
                 throw new IllegalStateException("Reading already processed version, last processed version: " + lastVersion + " read version: " + ie.version);
             }
-            int expected = lastVersion.get() + 1;
-            if (expected != ie.version) {
-                throw new IllegalStateException("Next expected version: " + expected + " got: " + ie.version);
+            if (Direction.BACKWARD.equals(direction) && lastReadVersion <= ie.version) {
+                throw new IllegalStateException("Reading already processed version, last processed version: " + lastVersion + " read version: " + ie.version);
             }
-            lastVersion.incrementAndGet();
+            int expected = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
+            if (expected != ie.version) {
+                throw new IllegalStateException("Next expected version: " + expected + " got: " + ie.version + ", stream " + ie.stream);
+            }
+            if (Direction.FORWARD.equals(direction)) {
+                lastVersion.incrementAndGet();
+            } else {
+                lastVersion.decrementAndGet();
+            }
             return ie;
         }
 
@@ -202,7 +206,7 @@ public class TableIndex implements Index {
                 while (!streamReadPriority.isEmpty()) {
                     long stream = streamReadPriority.peek();
                     int lastProcessedVersion = streams.get(stream).get();
-                    List<IndexEntry> indexEntries = blockGet(stream, lastProcessedVersion + 1);
+                    List<IndexEntry> indexEntries = fetchEntries(stream, lastProcessedVersion);
                     if (!indexEntries.isEmpty()) {
                         queue.addAll(indexEntries);
                         streamReadPriority.addAll(emptyStreams);
@@ -216,8 +220,9 @@ public class TableIndex implements Index {
             }
         }
 
-        private List<IndexEntry> blockGet(long stream, int version) {
-            List<IndexEntry> fromDisk = diskIndex.getBlockEntries(stream, version);
+        private List<IndexEntry> fetchEntries(long stream, int lastProcessedVersion) {
+            int nextVersion = Direction.FORWARD.equals(direction) ? lastProcessedVersion + 1 : lastProcessedVersion - 1;
+            List<IndexEntry> fromDisk = diskIndex.getBlockEntries(stream, nextVersion);
             List<IndexEntry> filtered = filtering(fromDisk);
             if (!filtered.isEmpty()) {
                 return filtered;
@@ -232,57 +237,29 @@ public class TableIndex implements Index {
             }
             return original.stream().filter(ie -> {
                 AtomicInteger version = streams.get(ie.stream);
-                return version != null && ie.version > version.get();
+                if (version == null) {
+                    return false;
+                }
+                if (Direction.FORWARD.equals(direction)) {
+                    return ie.version > version.get();
+                }
+                return ie.version < version.get();
             }).collect(Collectors.toList());
         }
 
-
         @Override
-        public synchronized IndexEntry peek() {
-            tryFetch();
-            return queue.peek();
+        public boolean hasNext() {
+            if (queue.isEmpty()) {
+                tryFetch();
+            }
+            return !queue.isEmpty();
         }
 
         @Override
-        public synchronized IndexEntry poll() {
+        public IndexEntry next() {
             tryFetch();
             IndexEntry entry = queue.poll();
             return computeAndGet(entry);
-        }
-
-        @Override
-        public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            tryFetch();
-            IndexEntry entry = queue.poll(limit, timeUnit);
-            if (entry == null) {
-                tryFetch();
-                entry = queue.poll();
-            }
-            return computeAndGet(entry);
-        }
-
-        @Override
-        public synchronized IndexEntry take() throws InterruptedException {
-            IndexEntry entry;
-            int waitingTimeMs = INITIAL_WAIT_TIME;
-            int backoffCount = 0;
-            do {
-                tryFetch();
-                entry = queue.poll(waitingTimeMs, TimeUnit.MILLISECONDS);
-                waitingTimeMs = backoffCount++ > MAX_BACKOFF_COUNT ? waitingTimeMs : waitingTimeMs * 2;
-            } while (entry == null && !closed.get());
-            return computeAndGet(entry);
-        }
-
-        @Override
-        public synchronized boolean headOfLog() {
-            tryFetch();
-            return queue.isEmpty();
-        }
-
-        @Override
-        public boolean endOfLog() {
-            return false;
         }
 
         @Override

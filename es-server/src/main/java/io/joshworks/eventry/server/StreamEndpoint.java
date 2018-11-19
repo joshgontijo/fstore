@@ -1,6 +1,8 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.LinkToPolicy;
+import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.log.EventRecord;
@@ -52,7 +54,7 @@ public class StreamEndpoint {
 
         if (SystemStreams.ALL.equals(streamName)) {
             //startVersion doesnt apply to _all
-            try (Stream<EventRecord> stream = store.fromAll()) {
+            try (Stream<EventRecord> stream = store.fromAll(LinkToPolicy.RESOLVE, SystemEventPolicy.INCLUDE).stream()) {
                 List<EventBody> all = stream.filter(ev -> !ev.isLinkToEvent())
                         .limit(limit)
                         .map(EventBody::from)
@@ -62,7 +64,7 @@ public class StreamEndpoint {
             }
         }
 
-        try (Stream<EventRecord> stream = store.fromStream(streamName, startVersion)) {
+        try (Stream<EventRecord> stream = store.fromStream(streamName, startVersion).stream()) {
             List<EventBody> streamEvents = stream.filter(ev -> !ev.isLinkToEvent())
                     .limit(limit)
                     .map(EventBody::from)
@@ -85,7 +87,7 @@ public class StreamEndpoint {
         //TODO check access to the stream
         List<EventBody> events = new ArrayList<>();
         if (!streams.isEmpty()) {
-            try (Stream<EventRecord> recordStream = store.zipStreams(streams)) {
+            try (Stream<EventRecord> recordStream = store.zipStreams(streams).stream()) {
                 events = recordStream
                         .map(EventBody::from)
                         .limit(limit)
@@ -94,7 +96,7 @@ public class StreamEndpoint {
 
 
         } else if (zipWithPrefix != null) {
-            try (Stream<EventRecord> recordStream = store.zipStreams(zipWithPrefix + Streams.STREAM_WILDCARD)) {
+            try (Stream<EventRecord> recordStream = store.zipStreams(zipWithPrefix + Streams.STREAM_WILDCARD).stream()) {
                 events = recordStream.limit(limit)
                         .map(EventBody::from)
                         .collect(Collectors.toList());

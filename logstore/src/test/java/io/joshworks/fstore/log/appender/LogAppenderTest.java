@@ -1,13 +1,12 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -23,14 +22,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -177,7 +174,7 @@ public abstract class LogAppenderTest {
 
         appender.flush();
 
-        LogIterator<String> logIterator = appender.iterator(lastWrittenPosition, Direction.FORWARD);
+        LogIterator<String> logIterator = appender.iterator(Direction.FORWARD, lastWrittenPosition);
 
         assertTrue(logIterator.hasNext());
         assertEquals(lastEntry, logIterator.next());
@@ -402,106 +399,6 @@ public abstract class LogAppenderTest {
         }
     }
 
-    @Test
-    public void take_waits_for_data_to_become_available() throws InterruptedException, IOException {
-
-        long appendDataAfterSeconds = 2;
-        String message = "YOLO";
-        try (LogPoller<String> poller = appender.poller()) {
-
-            new Thread(() -> {
-                sleep(TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
-                appender.append(message);
-                appender.flush();
-            }).start();
-
-            long start = System.currentTimeMillis();
-            String found = poller.take();
-            assertEquals(message, found);
-            assertTrue(System.currentTimeMillis() - start >= TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
-        }
-    }
-
-    @Test
-    public void poll_returns_immediately_without_data() throws InterruptedException, IOException {
-
-        try (LogPoller<String> poller = appender.poller()) {
-            for (int i = 0; i < 1000; i++) {
-                String message = poller.poll();
-                assertNull(message);
-            }
-        }
-    }
-
-    @Test
-    public void poll_returns_immediately_with_data() throws InterruptedException, IOException {
-
-        final var message = "Yolo";
-        appender.append(message);
-        appender.flush();
-        try (LogPoller<String> poller = appender.poller()) {
-            String found = poller.poll();
-            assertEquals(message, found);
-
-            for (int i = 0; i < 1000; i++) {
-                found = poller.poll();
-                assertNull(found);
-            }
-        }
-    }
-
-    @Test
-    public void poll_waits_for_specified_time() throws InterruptedException, IOException {
-
-        long timeToWaitMillis = 1000;
-        try (LogPoller<String> poller = appender.poller()) {
-            long start = System.currentTimeMillis();
-            String message = poller.poll(timeToWaitMillis, TimeUnit.MILLISECONDS);
-            assertNull(message);
-            assertTrue(System.currentTimeMillis() - start >= timeToWaitMillis);
-        }
-    }
-
-    @Test
-    public void poll_returns_when_data_is_available() throws InterruptedException, IOException {
-
-        long waitSeconds = 30;
-        long appendDataAfterSeconds = 2;
-        String message = "YOLO";
-        try (LogPoller<String> poller = appender.poller()) {
-
-            new Thread(() -> {
-                sleep(TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
-                appender.append(message);
-                appender.flush();
-            }).start();
-
-            long start = System.currentTimeMillis();
-            String found = poller.poll(waitSeconds, TimeUnit.SECONDS);
-            assertEquals(message, found);
-            assertTrue(System.currentTimeMillis() - start < TimeUnit.SECONDS.toMillis(waitSeconds));
-        }
-    }
-
-    @Test
-    public void poll_headOfLog_returns_true_when_no_data_is_available() {
-
-        LogPoller<String> poller = appender.poller();
-        assertTrue(poller.headOfLog());
-        appender.append("a");
-        appender.flush();
-        assertFalse(poller.headOfLog());
-    }
-
-    @Test
-    public void poll_endOfLog_always_returns_false() {
-
-        LogPoller<String> poller = appender.poller();
-        assertFalse(poller.endOfLog());
-        appender.append("a");
-        assertFalse(poller.endOfLog());
-
-    }
 
     @Test
     public void backwards_scanner_returns_all_records() throws IOException {
@@ -533,7 +430,7 @@ public abstract class LogAppenderTest {
 
         long position = appender.position();
         for (int i = entries - 1; i >= 0; i--) {
-            try (LogIterator<String> iterator = appender.iterator(position, Direction.BACKWARD)) {
+            try (LogIterator<String> iterator = appender.iterator(Direction.BACKWARD, position)) {
                 assertTrue("Failed on position " + position, iterator.hasNext());
 
                 String next = iterator.next();
@@ -555,7 +452,7 @@ public abstract class LogAppenderTest {
         appender.flush();
 
         for (int i = 0; i < entries; i++) {
-            try (LogIterator<String> iterator = appender.iterator(position, Direction.FORWARD)) {
+            try (LogIterator<String> iterator = appender.iterator(Direction.FORWARD, position)) {
                 assertTrue("Failed on position " + position, iterator.hasNext());
 
                 String next = iterator.next();
@@ -706,7 +603,6 @@ public abstract class LogAppenderTest {
                 Long position = iterator.position();
                 iterator.next();
                 assertEquals("Failed on " + i, positions.get(i), position);
-
             }
         }
     }
@@ -727,11 +623,69 @@ public abstract class LogAppenderTest {
         assertEquals(prev, appender.position());
     }
 
-    private static void sleep(long time) {
-        try {
-            Thread.sleep(time);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+    @Test
+    public void forward_reader_returns_data_after_rolling_segment() {
+
+        LogIterator<String> iterator = appender.iterator(Direction.FORWARD);
+
+        appender.append("a");
+        assertTrue(iterator.hasNext());
+        assertEquals("a", iterator.next());
+
+        assertFalse(iterator.hasNext());
+        appender.roll();
+        assertFalse(iterator.hasNext());
+
+        appender.append("b");
+        assertTrue(iterator.hasNext());
+        assertEquals("b", iterator.next());
+    }
+
+    @Test
+    public void entries_return_same_value_after_reopening() {
+        appender.append("a");
+        appender.append("b");
+        assertEquals(2, appender.entries());
+
+        appender.close();
+        appender = appender();
+        assertEquals(2, appender.entries());
+    }
+
+    @Test
+    public void entries_return_same_value_after_reopening_with_multiple_segments() {
+        appender.append("a");
+        appender.append("b");
+        assertEquals(2, appender.entries());
+
+        appender.roll();
+        appender.append("c");
+        assertEquals(3, appender.entries());
+
+        appender.close();
+        appender = appender();
+        assertEquals(3, appender.entries());
+    }
+
+    @Test
+    public void position_return_same_value_after_reopening() {
+        appender.append("a");
+        long pos = appender.position();
+        appender.close();
+        appender = appender();
+        assertEquals(pos, appender.position());
+    }
+
+    @Test
+    public void position_return_same_value_after_reopening_with_multiple_segments() {
+        appender.append("a");
+
+        appender.roll();
+        appender.append("b");
+
+        long pos = appender.position();
+        appender.close();
+        appender = appender();
+        assertEquals(pos, appender.position());
     }
 }

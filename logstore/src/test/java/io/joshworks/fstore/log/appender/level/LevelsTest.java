@@ -2,11 +2,10 @@ package io.joshworks.fstore.log.appender.level;
 
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
-import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
-import io.joshworks.fstore.log.segment.TimeoutReader;
+import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Test;
 
@@ -16,7 +15,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 
@@ -317,18 +315,14 @@ public class LevelsTest {
             return null;
         }
 
+
         @Override
-        public Stream<String> stream(Direction direction) {
+        public SegmentIterator<String> iterator(long position, Direction direction) {
             return null;
         }
 
         @Override
-        public LogIterator<String> iterator(long position, Direction direction) {
-            return null;
-        }
-
-        @Override
-        public LogIterator<String> iterator(Direction direction) {
+        public SegmentIterator<String> iterator(Direction direction) {
             return null;
         }
 
@@ -339,16 +333,6 @@ public class LevelsTest {
 
         @Override
         public String get(long position) {
-            return null;
-        }
-
-        @Override
-        public LogPoller<String> poller(long position) {
-            return null;
-        }
-
-        @Override
-        public LogPoller<String> poller() {
             return null;
         }
 

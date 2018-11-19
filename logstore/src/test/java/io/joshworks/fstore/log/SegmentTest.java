@@ -1,7 +1,6 @@
 package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -16,17 +15,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public abstract class SegmentTest {
 
@@ -61,18 +53,6 @@ public abstract class SegmentTest {
         }
     }
 
-//    @Test
-//    public void segment_returns_negative_position_when_is_fill() {
-//        do {
-//            long pos = segment.append("a");
-//            assertTrue("Failed with " + pos, pos > 0);
-//        } while (LogHeader.BYTES + segment.position() + Log.EOL.length + 1 < segment.fileSize());
-//
-//        long pos = segment.append("a");
-//        assertTrue("Failed with " + pos, pos < 0);
-//    }
-
-
     @Test
     public void segment_expands_larger_than_original_size() {
         long originalSize = segment.fileSize();
@@ -83,10 +63,6 @@ public abstract class SegmentTest {
         segment.append("a");
         
         assertTrue(segment.fileSize() > originalSize);
-        assertEquals(segment.fileSize(), segment.logicalSize());
-
-
-
     }
 
     @Test
@@ -281,6 +257,19 @@ public abstract class SegmentTest {
     }
 
     @Test
+    public void iterator_continuously_read_from_disk() {
+
+        LogIterator<String> iterator = segment.iterator(Direction.FORWARD);
+        assertFalse(iterator.hasNext());
+
+        segment.append("a");
+
+        assertTrue(iterator.hasNext());
+        assertEquals("a", iterator.next());
+
+    }
+
+    @Test
     public void reader_forward_maintain_correct_position() throws IOException {
         int entries = 300000;
         List<Long> positions = new ArrayList<>();
@@ -323,7 +312,6 @@ public abstract class SegmentTest {
 
     @Test
     public void segment_read_backwards_returns_false_when_empty_log() throws IOException {
-
         try (LogIterator<String> iterator = segment.iterator(Direction.BACKWARD)) {
             assertFalse(iterator.hasNext());
         }
@@ -346,134 +334,5 @@ public abstract class SegmentTest {
             i++;
         }
         assertEquals(items, i);
-    }
-
-    @Test
-    public void poller_notifies_awaiting_consumers() throws InterruptedException {
-        final String value = "yolo";
-        int numOfSubscribers = 3;
-        ExecutorService executor = Executors.newFixedThreadPool(numOfSubscribers);
-
-        CountDownLatch notifyLatch = new CountDownLatch(numOfSubscribers);
-
-        for (int i = 0; i < numOfSubscribers; i++) {
-            executor.submit(() -> {
-                try {
-                    LogPoller<String> poller = segment.poller();
-                    String polled = poller.take();
-                    if (polled != null) {
-                        notifyLatch.countDown();
-                    }
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-        executor.shutdown();
-
-        Thread.sleep(4000);
-
-        segment.append(value);
-        segment.flush();
-
-        if (!notifyLatch.await(5, TimeUnit.SECONDS)) {
-            fail("Failed to notify " + numOfSubscribers + " pollers, got: " + notifyLatch.getCount());
-        }
-    }
-
-    @Test
-    public void poller_doesnt_no_block_when_data_is_available() throws InterruptedException {
-        final String value = "yolo";
-
-        segment.append(value);
-        segment.flush();
-
-        LogPoller<String> poller = segment.poller();
-        String polled = poller.poll(3, TimeUnit.SECONDS);
-
-        assertEquals(value, polled);
-    }
-
-    @Test
-    public void poll_returns_null_when_segment_is_rolled() throws InterruptedException {
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<String> captured = new AtomicReference<>("NON-NULL");
-
-        segment.append("value");
-        segment.flush();
-        long position = segment.position();
-
-        new Thread(() -> {
-            try {
-                LogPoller<String> poller = segment.poller(position);
-                String polled = poller.poll();
-                captured.set(polled);
-                latch.countDown();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
-
-
-        segment.roll(1);
-
-        if (!latch.await(5, TimeUnit.SECONDS)) {
-            fail("Thread was not released");
-        }
-        assertNull(captured.get());
-    }
-
-    @Test
-    public void poll_returns_null_when_segment_is_closed() throws InterruptedException, IOException {
-
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<String> captured = new AtomicReference<>("NON-NULL");
-
-        new Thread(() -> {
-            try {
-                LogPoller<String> poller = segment.poller();
-                String polled = poller.poll();
-                captured.set(polled);
-                latch.countDown();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }).start();
-
-        Thread.sleep(1000);
-        segment.close();
-
-        if (!latch.await(5, TimeUnit.SECONDS)) {
-            fail("Thread was not released");
-        }
-        assertNull(captured.get());
-    }
-
-    @Test
-    public void poll_headOfLog_returns_true_when_no_data_is_available() {
-
-        LogPoller<String> poller = segment.poller();
-        assertTrue(poller.headOfLog());
-        segment.append("a");
-        segment.flush();
-        assertFalse(poller.headOfLog());
-    }
-
-    @Test
-    public void poll_endOfLog_always_returns_false_only_when_segment_is_closed() throws InterruptedException {
-
-        LogPoller<String> poller = segment.poller();
-        assertFalse(poller.endOfLog());
-
-        segment.append("a");
-        assertFalse(poller.endOfLog());
-
-        segment.roll(1);
-        assertFalse(poller.endOfLog());
-
-        poller.poll();
-        assertTrue(poller.endOfLog());
     }
 }

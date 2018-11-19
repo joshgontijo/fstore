@@ -7,12 +7,11 @@ import io.joshworks.fstore.core.filter.BloomFilterHasher;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
-import io.joshworks.fstore.log.segment.TimeoutReader;
+import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
@@ -26,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
@@ -171,17 +169,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
-    public LogPoller<Entry<K, V>> poller(long position) {
-        return delegate.entryPoller(position);
-    }
-
-    @Override
-    public LogPoller<Entry<K, V>> poller() {
-        return delegate.entryPoller();
-    }
-
-
-    @Override
     public long fileSize() {
         return delegate.fileSize();
     }
@@ -202,17 +189,12 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
-    public Stream<Entry<K, V>> stream(Direction direction) {
-        return delegate.streamEntries(direction);
-    }
-
-    @Override
-    public LogIterator<Entry<K, V>> iterator(long position, Direction direction) {
+    public SegmentIterator<Entry<K, V>> iterator(long position, Direction direction) {
         return delegate.entryIterator(position, direction);
     }
 
     @Override
-    public LogIterator<Entry<K, V>> iterator(Direction direction) {
+    public SegmentIterator<Entry<K, V>> iterator(Direction direction) {
         return delegate.entryIterator(direction);
     }
 

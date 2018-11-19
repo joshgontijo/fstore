@@ -109,7 +109,7 @@ public class IndexAppenderTest {
 
         int found = 0;
         int expectedVersion = Range.START_VERSION;
-        try (LogIterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD, Range.anyOf(stream))) {
+        try (LogIterator<IndexEntry> iterator = appender.indexedIterator(Direction.FORWARD, Range.anyOf(stream))) {
             while (iterator.hasNext()) {
                 IndexEntry next = iterator.next();
                 assertEquals(expectedVersion, next.version);

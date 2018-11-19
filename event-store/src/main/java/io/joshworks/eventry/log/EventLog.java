@@ -1,13 +1,9 @@
 package io.joshworks.eventry.log;
 
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
-
-import java.util.stream.Stream;
 
 public class EventLog implements IEventLog {
 
@@ -51,20 +47,6 @@ public class EventLog implements IEventLog {
         return appender.iterator(direction);
     }
 
-    @Override
-    public Stream<EventRecord> stream(Direction direction) {
-        return Iterators.closeableStream(iterator(direction));
-    }
-
-    @Override
-    public LogPoller<EventRecord> poller() {
-        return appender.poller();
-    }
-
-    @Override
-    public LogPoller<EventRecord> poller(long position) {
-        return appender.poller(position);
-    }
 
     @Override
     public void cleanup() {

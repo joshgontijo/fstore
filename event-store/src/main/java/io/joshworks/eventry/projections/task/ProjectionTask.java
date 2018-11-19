@@ -1,36 +1,27 @@
 package io.joshworks.eventry.projections.task;
 
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.data.Constant;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.projections.Checkpointer;
 import io.joshworks.eventry.projections.EventStreamHandler;
 import io.joshworks.eventry.projections.Jsr223Handler;
 import io.joshworks.eventry.projections.Projection;
-import io.joshworks.eventry.projections.Checkpointer;
 import io.joshworks.eventry.projections.Projections;
 import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.projections.result.ExecutionResult;
 import io.joshworks.eventry.projections.result.Status;
 import io.joshworks.eventry.projections.result.TaskStatus;
-import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-
-import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
 public class ProjectionTask implements Callable<ExecutionResult> {
 
@@ -98,80 +89,84 @@ public class ProjectionTask implements Callable<ExecutionResult> {
         return status;
     }
 
-
+    //FIXME
     private static List<TaskItem> createTaskItems(IEventStore store, Projection projection, Checkpointer checkpointer) {
         List<TaskItem> tasks = new ArrayList<>();
-        Set<String> streams = projection.sources;
-
-        validateStreamNames(streams);
-
-        //single source or not parallel
-        if (isSingleSource(projection)) {
-            final EventSource source = createSequentialSource(store, projection);
-            ProjectionContext context = new ProjectionContext(store);
-            EventStreamHandler handler = createHandler(projection, context);
-            TaskItem taskItem = new TaskItem(source, checkpointer, handler, context, projection);
-            tasks.add(taskItem);
-        } else { //multi source and parallel
-            List<EventSource> sources = createParallelSource(store, projection);
-            for (EventSource source : sources) {
-                ProjectionContext context = new ProjectionContext(store);
-                EventStreamHandler handler = createHandler(projection, context);
-                TaskItem taskItem = new TaskItem(source, checkpointer, handler, context, projection);
-                tasks.add(taskItem);
-            }
-
-        }
+//        Set<String> streams = projection.sources;
+//
+//        validateStreamNames(streams);
+//
+//        //single source or not parallel
+//        if (isSingleSource(projection)) {
+//            final EventSource source = createSequentialSource(store, projection);
+//            ProjectionContext context = new ProjectionContext(store);
+//            EventStreamHandler handler = createHandler(projection, context);
+//            TaskItem taskItem = new TaskItem(source, checkpointer, handler, context, projection);
+//            tasks.add(taskItem);
+//        } else { //multi source and parallel
+//            List<EventSource> sources = createParallelSource(store, projection);
+//            for (EventSource source : sources) {
+//                ProjectionContext context = new ProjectionContext(store);
+//                EventStreamHandler handler = createHandler(projection, context);
+//                TaskItem taskItem = new TaskItem(source, checkpointer, handler, context, projection);
+//                tasks.add(taskItem);
+//            }
+//
+//        }
         return tasks;
     }
 
+    //FIXME
     private static List<EventSource> createParallelSource(IEventStore store, Projection projection) {
         List<EventSource> result = new ArrayList<>();
-        for (String stream : projection.sources) {
-            Set<String> singleStreamSet = Set.of(stream);
-            if (Projection.Type.CONTINUOUS.equals(projection.type)) {
-                LogPoller<EventRecord> poller = Constant.ALL_STREAMS.equals(stream) ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(singleStreamSet);
-                result.add(new ContinuousEventSource(poller, singleStreamSet));
-            } else {
-                //TODO add LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE to fromAll
-                LogIterator<EventRecord> iterator = store.fromStream(stream);
-                result.add(new OneTimeEventSource(iterator, singleStreamSet));
-            }
-        }
+//        for (String stream : projection.sources) {
+//            Set<String> singleStreamSet = Set.of(stream);
+//            if (Projection.Type.CONTINUOUS.equals(projection.type)) {
+//                LogPoller<EventRecord> poller = Constant.ALL_STREAMS.equals(stream) ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(singleStreamSet);
+//                result.add(new ContinuousEventSource(poller, singleStreamSet));
+//            } else {
+//                //TODO add LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE to fromAll
+//                LogIterator<EventRecord> iterator = store.fromStream(stream);
+//                result.add(new OneTimeEventSource(iterator, singleStreamSet));
+//            }
+//        }
         return result;
     }
 
+    //FIXME
     private static EventSource createSequentialSource(IEventStore store, Projection projection, Checkpointer checkpointer) {
-        Set<String> streams = projection.sources;
-        boolean isAllStream = isAllStream(projection);
-        if (Projection.Type.CONTINUOUS.equals(projection.type)) {
-            LogPoller<EventRecord> poller = isAllStream ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(streams);
-            return new ContinuousEventSource(poller, streams);
-        } else {
-            //TODO add LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE to fromAll
-            LogIterator<EventRecord> iterator = isAllStream ? store.fromAll() : store.zipStreams(streams);
-            return new OneTimeEventSource(iterator, streams);
-        }
+//        Set<String> streams = projection.sources;
+//        boolean isAllStream = isAllStream(projection);
+//        if (Projection.Type.CONTINUOUS.equals(projection.type)) {
+//            LogPoller<EventRecord> poller = isAllStream ? store.logPoller(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE) : store.streamPoller(streams);
+//            return new ContinuousEventSource(poller, streams);
+//        } else {
+//            //TODO add LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE to fromAll
+//            LogIterator<EventRecord> iterator = isAllStream ? store.fromAll() : store.zipStreams(streams);
+//            return new OneTimeEventSource(iterator, streams);
+//        }
+        return null;
     }
 
-    private static Map<String, Integer> tracker(Projection projection, Checkpointer checkpointer) {
-        Map<String, Integer> tracker = new HashMap<>();
-
-        Set<String> keys = projectionTaskIds(projection);
-
-        for (String key :keys) {
-            Checkpointer.Checkpoint checkpoint = checkpointer.get(key);
-            tracker.put(source, NO_VERSION);
-            if(checkpoint != null) {
-                tracker.putAll(checkpoint.tracker);
-            }
-        }
-
-        projection.sources.stream()
-                .map(s -> projection.name + "-" + s)
-                .map(id -> Optional.ofNullable(checkpointer.get(id)))
-                .
-    }
+    //TODO
+//    private static Map<String, Integer> tracker(Projection projection, Checkpointer checkpointer) {
+//        Map<String, Integer> tracker = new HashMap<>();
+//
+//        Set<String> keys = projectionTaskIds(projection);
+//
+//        for (String key :keys) {
+//            Checkpointer.Checkpoint checkpoint = checkpointer.get(key);
+//            tracker.put(source, NO_VERSION);
+//            if(checkpoint != null) {
+//                tracker.putAll(checkpoint.tracker);
+//            }
+//        }
+//
+//        projection.sources.stream()
+//                .map(s -> projection.name + "-" + s)
+//                .map(id -> Optional.ofNullable(checkpointer.get(id)))
+//                .
+//    }
 
     private static boolean isAll(Set<String> streams) {
         return streams.size() == 1 && streams.iterator().next().equals(Constant.ALL_STREAMS);
@@ -192,8 +187,10 @@ public class ProjectionTask implements Callable<ExecutionResult> {
         return projection.sources.size() == 1 && Constant.ALL_STREAMS.equals(new LinkedList<>(projection.sources).getFirst());
     }
 
+    //FIXME
     public Map<String, TaskStatus> metrics() {
-        return tasks.stream().collect(Collectors.toMap(t -> t.uuid, TaskItem::stats));
+//        return tasks.stream().collect(Collectors.toMap(t -> t.uuid, TaskItem::stats));
+        return null;
     }
 
     private static EventStreamHandler createHandler(Projection projection, ProjectionContext context) {

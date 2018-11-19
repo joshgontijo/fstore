@@ -27,14 +27,12 @@ import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
-import io.joshworks.eventry.utils.Tuple;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
@@ -51,7 +49,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class EventStore implements IEventStore {
 
@@ -169,7 +166,7 @@ public class EventStore implements IEventStore {
         long start = System.currentTimeMillis();
 
         long streamHash = streams.hashOf(SystemStreams.PROJECTIONS);
-        LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.anyOf(streamHash));
+        LogIterator<IndexEntry> addresses = index.indexedIterator(streamHash);
 
         while (addresses.hasNext()) {
             IndexEntry next = addresses.next();
@@ -336,15 +333,22 @@ public class EventStore implements IEventStore {
         });
     }
 
+    //TODO remove ?? use only for log dump
+    @Override
+    public LogIterator<IndexEntry> scanIndex() {
+        return index.scanner();
+    }
+
     @Override
     public EventLogIterator fromStream(String stream) {
         return fromStream(stream, Range.START_VERSION);
     }
 
+    //TODO expose direction ?
     @Override
     public EventLogIterator fromStream(String stream, int versionInclusive) {
         long streamHash = streams.hashOf(stream);
-        LogIterator<IndexEntry> indexIterator = index.iterator(Direction.FORWARD, Range.of(streamHash, versionInclusive));
+        LogIterator<IndexEntry> indexIterator = index.indexedIterator(Map.of(streamHash, versionInclusive - 1));
         indexIterator = withMaxCountFilter(streamHash, indexIterator);
         SingleStreamIterator singleStreamIterator = new SingleStreamIterator(indexIterator, eventLog);
         EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(streamHash), singleStreamIterator);
@@ -373,18 +377,11 @@ public class EventStore implements IEventStore {
                 .collect(Collectors.toSet());
 
         List<LogIterator<IndexEntry>> indexes = hashes.stream()
-                .map(hash -> index.iterator(Direction.FORWARD, Range.anyOf(hash)))
+                .map(index::indexedIterator)
                 .collect(Collectors.toList());
 
         EventLogIterator ageFilterIterator = withMaxAgeFilter(hashes, new MultiStreamIterator(indexes, eventLog));
         return new LinkToResolveIterator(ageFilterIterator, this::resolve);
-    }
-
-    @Override
-    public Map<String, EventLogIterator> fromStreamsMapped(Set<String> streams) {
-        return streams.stream()
-                .map(stream -> Tuple.of(stream, fromStream(stream)))
-                .collect(Collectors.toMap(Tuple::a, Tuple::b));
     }
 
     @Override
@@ -394,13 +391,22 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromAll() {
-        return eventLog.iterator(Direction.FORWARD);
-    }
+    public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+        LogIterator<EventRecord> filtering = Iterators.filtering(eventLog.iterator(Direction.FORWARD), ev -> {
+            if (ev == null) {
+                return false;
+            }
+            if (LinkToPolicy.IGNORE.equals(linkToPolicy) && ev.isLinkToEvent()) {
+                return false;
+            }
+            if (SystemEventPolicy.IGNORE.equals(systemEventPolicy) && ev.isSystemEvent()) {
+                return false;
+            }
+            return true;
+        });
 
-    @Override
-    public Stream<EventLogIterator> fromStreams(Set<String> streams) {
-        return streams.stream().map(this::fromStream);
+        return Iterators.mapping(filtering, this::resolve);
+
     }
 
     @Override
@@ -517,41 +523,6 @@ public class EventStore implements IEventStore {
             EventRecord eventRecord = StreamCreated.create(created);
             this.append(created, eventRecord, IndexEntry.NO_VERSION);
         });
-    }
-
-    @Override
-    public synchronized LogPoller<EventRecord> logPoller(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-        return new EventLogPoller(eventLog.poller(), this, linkToPolicy, systemEventPolicy);
-    }
-
-    @Override
-    public synchronized LogPoller<EventRecord> logPoller(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, long position) {
-        return new EventLogPoller(eventLog.poller(position), this, linkToPolicy, systemEventPolicy);
-    }
-
-    @Override
-    public synchronized LogPoller<EventRecord> streamPoller(Set<String> streamNames) {
-        if (streamNames.stream().anyMatch(Constant.ALL_STREAMS::equals)) {
-            throw new IllegalArgumentException(Constant.ALL_STREAMS + " not allowed");
-        }
-        Set<Long> streamHashes = streamNames.stream()
-                .map(streams::hashOf)
-                .collect(Collectors.toSet());
-
-        TableIndex.IndexPoller indexPoller = index.poller(streamHashes);
-        return new IndexedEventPoller(indexPoller, this);
-    }
-
-    @Override
-    public synchronized LogPoller<EventRecord> streamPoller(Map<String, Integer> streamMap) {
-        if (streamMap.keySet().stream().anyMatch(Constant.ALL_STREAMS::equals)) {
-            throw new IllegalArgumentException(Constant.ALL_STREAMS + " not allowed");
-        }
-        Map<Long, Integer> mappedStreams = streamMap.entrySet().stream()
-                .collect(Collectors.toMap(kv -> streams.hashOf(kv.getKey()), Map.Entry::getValue));
-
-        TableIndex.IndexPoller indexPoller = index.poller(mappedStreams);
-        return new IndexedEventPoller(indexPoller, this);
     }
 
     private LogIterator<IndexEntry> withMaxCountFilter(long streamHash, LogIterator<IndexEntry> iterator) {
