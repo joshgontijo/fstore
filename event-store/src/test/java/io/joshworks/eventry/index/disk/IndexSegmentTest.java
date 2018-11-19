@@ -749,6 +749,53 @@ public class IndexSegmentTest {
     }
 
     @Test
+    public void readBlockEntries_returns_correct_block_for_sparse_stream() {
+        long[] streams = new long[]{-300, -2, 0, 1, 5, 200, 500};
+
+        int versions = 999999;
+        for (long stream : streams) {
+            for (int version = 0; version < versions; version++) {
+                segment.append(IndexEntry.of(stream, version, 0));
+            }
+        }
+        segment.flush();
+
+        for (long stream : streams) {
+            for (int version = 0; version < versions; version++) {
+                List<IndexEntry> indexEntries = segment.readBlockEntries(stream, version);
+
+                final int theVersion = version;
+                boolean found = indexEntries.stream().anyMatch(ie -> ie.version == theVersion && ie.stream == stream);
+                assertTrue("Failed on stream " + stream + ", version " + theVersion, found);
+            }
+        }
+    }
+
+
+    @Test
+    public void readBlockEntries_returns_correct_block_for_sparse_stream_1() {
+        long[] streams = new long[]{-1, 0};
+
+        int versions = 999999;
+        for (long stream : streams) {
+            for (int version = 0; version < versions; version++) {
+                segment.append(IndexEntry.of(stream, version, 0));
+            }
+        }
+        segment.flush();
+
+        for (long stream : streams) {
+            for (int version = 0; version < versions; version++) {
+                List<IndexEntry> indexEntries = segment.readBlockEntries(stream, version);
+
+                final int theVersion = version;
+                boolean found = indexEntries.stream().anyMatch(ie -> ie.version == theVersion && ie.stream == stream);
+                assertTrue("Failed on stream " + stream + ", version " + theVersion, found);
+            }
+        }
+    }
+
+    @Test
     public void get_returns_correct_block_for_all_entries() {
         int streams = 1000;
         int versions = 1000;

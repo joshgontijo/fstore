@@ -15,6 +15,7 @@ import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.record.IDataStream;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
 
@@ -80,8 +81,8 @@ public class IndexAppender implements Closeable {
         });
     }
 
-    public List<IndexEntry> getBlockEntries(long stream, int version) {
-        return appender.acquireSegments(Direction.BACKWARD, segments -> {
+    public List<IndexEntry> getBlockEntries(Direction direction, long stream, int version) {
+        return appender.acquireSegments(direction, segments -> {
             while (segments.hasNext()) {
                 IndexSegment next = (IndexSegment) segments.next();
                 List<IndexEntry> indexEntries = next.readBlockEntries(stream, version);
@@ -115,8 +116,11 @@ public class IndexAppender implements Closeable {
         appender.close();
     }
 
+    //this must ensure that, all the memtable entries are stored in the same segment file
     public synchronized void writeToDisk(MemIndex memIndex) {
-        memIndex.iterator().forEachRemaining(appender::append);
+        Log<IndexEntry> current = appender.current();
+        memIndex.iterator().forEachRemaining(current::append);
+        current.flush();
         appender.roll();
     }
 

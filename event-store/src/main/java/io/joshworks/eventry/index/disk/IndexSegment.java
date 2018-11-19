@@ -208,8 +208,12 @@ public class IndexSegment implements Log<IndexEntry> {
         if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
             return Collections.emptyList();
         }
-
         IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
+        List<IndexEntry> entries = foundBlock.entries();
+        int idx = Collections.binarySearch(entries, start);
+        if (idx < 0) { //if not exact match, wasn't found
+            return Collections.emptyList();
+        }
         return foundBlock.entries();
     }
 

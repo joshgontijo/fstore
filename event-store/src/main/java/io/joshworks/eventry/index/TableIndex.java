@@ -23,6 +23,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -120,7 +121,7 @@ public class TableIndex implements Closeable {
 
 
     public IndexIterator indexedIterator(long stream) {
-        return indexedIterator( Set.of(stream));
+        return indexedIterator(Set.of(stream));
     }
 
     //TODO Backwards scan requires fetching the latest version and adding to the map
@@ -162,7 +163,7 @@ public class TableIndex implements Closeable {
     public class IndexIterator implements LogIterator<IndexEntry> {
 
         private final Map<Long, AtomicInteger> streams = new ConcurrentHashMap<>();
-        private final BlockingQueue<IndexEntry> queue = new LinkedBlockingQueue<>();
+        private final Queue<IndexEntry> queue = new ConcurrentLinkedDeque<>();
         private final Queue<Long> streamReadPriority;
         private final AtomicBoolean closed = new AtomicBoolean();
         private final Direction direction;
@@ -175,6 +176,8 @@ public class TableIndex implements Closeable {
             this.streamReadPriority = new ArrayDeque<>(streamHashes);
             this.direction = direction;
         }
+
+        private long counter = 0;
 
         private IndexEntry computeAndGet(IndexEntry ie) {
             if (ie == null) {
@@ -197,20 +200,20 @@ public class TableIndex implements Closeable {
             } else {
                 lastVersion.decrementAndGet();
             }
+            counter++;
             return ie;
         }
 
         private void tryFetch() {
             if (queue.isEmpty()) {
                 Queue<Long> emptyStreams = new ArrayDeque<>();
-                while (!streamReadPriority.isEmpty()) {
+                while (!streamReadPriority.isEmpty() && queue.isEmpty()) {
                     long stream = streamReadPriority.peek();
                     int lastProcessedVersion = streams.get(stream).get();
                     List<IndexEntry> indexEntries = fetchEntries(stream, lastProcessedVersion);
                     if (!indexEntries.isEmpty()) {
                         queue.addAll(indexEntries);
                         streamReadPriority.addAll(emptyStreams);
-                        return;
                     } else {
                         streamReadPriority.poll();
                         emptyStreams.offer(stream);
@@ -222,24 +225,21 @@ public class TableIndex implements Closeable {
 
         private List<IndexEntry> fetchEntries(long stream, int lastProcessedVersion) {
             int nextVersion = Direction.FORWARD.equals(direction) ? lastProcessedVersion + 1 : lastProcessedVersion - 1;
-            List<IndexEntry> fromDisk = diskIndex.getBlockEntries(stream, nextVersion);
-            List<IndexEntry> filtered = filtering(fromDisk);
+            List<IndexEntry> fromDisk = diskIndex.getBlockEntries(direction, stream, nextVersion);
+            List<IndexEntry> filtered = filtering(stream, fromDisk);
             if (!filtered.isEmpty()) {
                 return filtered;
             }
             List<IndexEntry> fromMemory = memIndex.getAllOf(stream);
-            return filtering(fromMemory);
+            return filtering(stream, fromMemory);
         }
 
-        private List<IndexEntry> filtering(List<IndexEntry> original) {
-            if (original.isEmpty()) {
+        private List<IndexEntry> filtering(long stream, List<IndexEntry> original) {
+            if (original.isEmpty() || !streams.containsKey(stream)) {
                 return Collections.emptyList();
             }
+            AtomicInteger version = streams.get(stream);
             return original.stream().filter(ie -> {
-                AtomicInteger version = streams.get(ie.stream);
-                if (version == null) {
-                    return false;
-                }
                 if (Direction.FORWARD.equals(direction)) {
                     return ie.version > version.get();
                 }
