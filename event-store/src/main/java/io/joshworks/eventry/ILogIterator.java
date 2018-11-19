@@ -1,10 +1,15 @@
 package io.joshworks.eventry;
 
-import java.util.Map;
+import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.log.LogIterator;
+
 import java.util.Set;
-import java.util.stream.Stream;
 
 public interface ILogIterator {
+
+    //TODO remove me ?? just used for log dump
+    LogIterator<IndexEntry> scanIndex();
 
     EventLogIterator fromStream(String stream);
 
@@ -14,10 +19,6 @@ public interface ILogIterator {
 
     EventLogIterator zipStreams(Set<String> streamNames);
 
-    EventLogIterator fromAll();
-
-    Stream<EventLogIterator> fromStreams(Set<String> streams);
-
-    Map<String, EventLogIterator> fromStreamsMapped(Set<String> streams);
+    LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy);
 
 }

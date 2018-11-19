@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.SegmentIterator;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -11,13 +11,13 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 
-public class BlockIterator<T> implements LogIterator<T> {
+public class BlockIterator<T> implements SegmentIterator<T> {
 
-    private final LogIterator<Block<T>> delegate;
+    private final SegmentIterator<Block<T>> delegate;
     private final Direction direction;
     private final Queue<T> cached = new LinkedList<>();
 
-    public BlockIterator(LogIterator<Block<T>> delegate, Direction direction) {
+    public BlockIterator(SegmentIterator<Block<T>> delegate, Direction direction) {
         this.delegate = delegate;
         this.direction = direction;
     }
@@ -71,4 +71,8 @@ public class BlockIterator<T> implements LogIterator<T> {
         delegate.close();
     }
 
+    @Override
+    public boolean endOfLog() {
+        return cached.isEmpty() && delegate.endOfLog();
+    }
 }

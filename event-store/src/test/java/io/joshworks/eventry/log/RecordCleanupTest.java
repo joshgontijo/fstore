@@ -5,9 +5,7 @@ import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
-import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
+import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.TimeoutReader;
@@ -18,11 +16,12 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
@@ -43,7 +42,8 @@ public class RecordCleanupTest {
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void tearDown() {
+        streams.close();
         FileUtils.tryDelete(dummyFile);
     }
 
@@ -145,18 +145,39 @@ public class RecordCleanupTest {
         }
 
         @Override
-        public Stream<EventRecord> stream(Direction direction) {
-            return records.stream();
-        }
-
-        @Override
-        public LogIterator<EventRecord> iterator(long position, Direction direction) {
+        public SegmentIterator<EventRecord> iterator(long position, Direction direction) {
             return null;
         }
 
         @Override
-        public LogIterator<EventRecord> iterator(Direction direction) {
-            return Iterators.of(records);
+        public SegmentIterator<EventRecord> iterator(Direction direction) {
+            final Queue<EventRecord> copy = new ArrayDeque<>(records);
+            return new SegmentIterator<>() {
+                @Override
+                public boolean endOfLog() {
+                    return copy.isEmpty();
+                }
+
+                @Override
+                public long position() {
+                    return 0;
+                }
+
+                @Override
+                public void close() {
+                    copy.clear();
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return !copy.isEmpty();
+                }
+
+                @Override
+                public EventRecord next() {
+                    return copy.poll();
+                }
+            };
         }
 
         @Override
@@ -166,16 +187,6 @@ public class RecordCleanupTest {
 
         @Override
         public EventRecord get(long position) {
-            return null;
-        }
-
-        @Override
-        public LogPoller<EventRecord> poller(long position) {
-            return null;
-        }
-
-        @Override
-        public LogPoller<EventRecord> poller() {
             return null;
         }
 

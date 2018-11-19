@@ -3,7 +3,6 @@ package io.joshworks.fstore.log.it;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -206,25 +205,6 @@ public abstract class LogAppenderIT {
         }
     }
 
-    @Test
-    public void poll_returns_data_from_disk_and_memory_IT() throws IOException, InterruptedException {
-        int totalEntries = 5000000;
-
-        new Thread(() -> {
-            for (int i = 0; i < totalEntries; i++) {
-                appender.append(String.valueOf(i));
-            }
-        }).start();
-
-        try (LogPoller<String> poller = appender.poller()) {
-            for (int i = 0; i < totalEntries; i++) {
-                String poll = poller.poll(1, TimeUnit.MINUTES);
-//                System.out.println(poll);
-                assertEquals(String.valueOf(i), poll);
-            }
-
-        }
-    }
 
     private static String stringOfLength(int length) {
         StringBuilder sb = new StringBuilder();

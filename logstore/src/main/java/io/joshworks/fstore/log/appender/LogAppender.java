@@ -6,9 +6,11 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.seda.SedaContext;
+import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
@@ -19,21 +21,19 @@ import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.utils.BitUtil;
 import io.joshworks.fstore.log.utils.LogFileUtils;
-import io.joshworks.fstore.core.util.Logging;
 import org.slf4j.Logger;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,6 +64,8 @@ public class LogAppender<T> implements Closeable {
     static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
     static final long MAX_SEGMENT_ADDRESS = BitUtil.maxValueForBits(SEGMENT_ADDRESS_BITS);
 
+    private static final int FLUSH_INTERVAL_SEC = 5;
+
     private final File directory;
     private final Serializer<T> serializer;
     private final Metadata metadata;
@@ -83,7 +85,7 @@ public class LogAppender<T> implements Closeable {
 
     private final ScheduledExecutorService flushWorker;
     private final SedaContext sedaContext = new SedaContext("compaction");
-    private final Set<LogPoller> pollers = new HashSet<>();
+    private final Set<ForwardLogReader> forwardReaders = new HashSet<>();
     private final Compactor<T> compactor;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
@@ -122,7 +124,7 @@ public class LogAppender<T> implements Closeable {
 
         if (FlushMode.PERIODICALLY.equals(metadata.flushMode)) {
             this.flushWorker = Executors.newSingleThreadScheduledExecutor();
-            this.flushWorker.scheduleWithFixedDelay(this::flush, 5, 5, TimeUnit.SECONDS);
+            this.flushWorker.scheduleWithFixedDelay(this::flush, FLUSH_INTERVAL_SEC, FLUSH_INTERVAL_SEC, TimeUnit.SECONDS);
         } else {
             this.flushWorker = null;
         }
@@ -151,25 +153,13 @@ public class LogAppender<T> implements Closeable {
 
     private Levels<T> loadLevels() {
         try {
-            Levels<T> loadedLevels = loadSegments();
-            restoreState(loadedLevels);
-            return loadedLevels;
+            return loadSegments();
         } catch (Exception e) {
             IOUtils.closeQuietly(state);
             throw e;
         }
     }
 
-    private void restoreState(Levels<T> levels) {
-        Log<T> current = levels.current();
-        logger.info("Restoring state");
-        long segmentPosition = current.position();
-        long position = toSegmentedPosition(levels.numSegments() - 1L, segmentPosition);
-        state.position(position);
-        state.addEntryCount(current.entries());
-
-        logger.info("State restored: {}", state);
-    }
 
     private Log<T> createCurrentSegment() {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
@@ -244,6 +234,9 @@ public class LogAppender<T> implements Closeable {
 
             notifyPollers(newSegment);
 
+            long currentPosition = toSegmentedPosition(levels.numSegments() - 1L, current.position());
+            state.position(currentPosition);
+            state.addEntryCount(current.entries());
             state.lastRollTime(System.currentTimeMillis());
             state.flush();
 
@@ -286,8 +279,8 @@ public class LogAppender<T> implements Closeable {
     }
 
     private void notifyPollers(Log<T> newSegment) {
-        for (LogPoller poller : pollers) {
-            poller.addSegment(newSegment);
+        for (ForwardLogReader reader : forwardReaders) {
+            reader.addSegment(newSegment);
         }
     }
 
@@ -313,12 +306,7 @@ public class LogAppender<T> implements Closeable {
         if (FlushMode.ALWAYS.equals(metadata.flushMode)) {
             flush();
         }
-        long entryPosition = toSegmentedPosition(segments - 1L, positionOnSegment);
-        long currentPosition = toSegmentedPosition(segments - 1L, current.position());
-
-        state.position(currentPosition);
-        state.incrementEntryCount();
-        return entryPosition;
+        return toSegmentedPosition(segments - 1L, positionOnSegment);
 
     }
 
@@ -328,34 +316,24 @@ public class LogAppender<T> implements Closeable {
 
     public LogIterator<T> iterator(Direction direction) {
         long startPosition = Direction.FORWARD.equals(direction) ? Log.START : Math.max(position(), Log.START);
-        return iterator(startPosition, direction);
+        return iterator(direction, startPosition);
     }
 
     public Stream<T> stream(Direction direction) {
         return Iterators.closeableStream(iterator(direction));
     }
 
-    public synchronized LogIterator<T> iterator(long position, Direction direction) {
-        return Direction.FORWARD.equals(direction) ? new ForwardLogReader(position) : new BackwardLogReader(position);
+    public synchronized LogIterator<T> iterator(Direction direction, long position) {
+        if (Direction.FORWARD.equals(direction)) {
+            ForwardLogReader forwardLogReader = new ForwardLogReader(position);
+            forwardReaders.add(forwardLogReader);
+            return forwardLogReader;
+        }
+        return new BackwardLogReader(position);
     }
-
-    public io.joshworks.fstore.log.LogPoller<T> poller() {
-        return createPoller(Log.START);
-    }
-
-    public io.joshworks.fstore.log.LogPoller<T> poller(long position) {
-        return createPoller(position);
-    }
-
-    private synchronized io.joshworks.fstore.log.LogPoller<T> createPoller(long position) {
-        LogPoller logPoller = new LogPoller(position);
-        pollers.add(logPoller);
-        return logPoller;
-    }
-
 
     public long position() {
-        return state.position();
+        return toSegmentedPosition(levels.numSegments() - 1L, current().position());
     }
 
     public T get(long position) {
@@ -403,9 +381,10 @@ public class LogAppender<T> implements Closeable {
         state.close();
         closeSegments();
 
-        for (LogPoller poller : pollers) {
-            poller.close();
+        for (ForwardLogReader forwardReader : forwardReaders) {
+            IOUtils.closeQuietly(forwardReader);
         }
+        forwardReaders.clear();
     }
 
     private void closeSegments() {
@@ -428,7 +407,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     public long entries() {
-        return this.state.entryCount();
+        return this.state.entryCount() + current().entries();
     }
 
     public String currentSegment() {
@@ -480,8 +459,8 @@ public class LogAppender<T> implements Closeable {
     // hasNext calls will always return true, since the previous segment always has data
     private class ForwardLogReader implements LogIterator<T> {
 
-        private final Iterator<LogIterator<T>> segmentsIterators;
-        private LogIterator<T> current;
+        private final Queue<SegmentIterator<T>> segmentsQueue = new ArrayDeque<>();
+        private SegmentIterator<T> current;
         private int segmentIdx;
 
         ForwardLogReader(long startPosition) {
@@ -501,12 +480,9 @@ public class LogAppender<T> implements Closeable {
                 this.current = segments.next().iterator(positionOnSegment, Direction.FORWARD);
             }
 
-            List<LogIterator<T>> subsequentIterators = new ArrayList<>();
             while (segments.hasNext()) {
-                subsequentIterators.add(segments.next().iterator(Direction.FORWARD));
+                this.segmentsQueue.add(segments.next().iterator(Direction.FORWARD));
             }
-            this.segmentsIterators = subsequentIterators.iterator();
-
         }
 
         @Override
@@ -519,26 +495,27 @@ public class LogAppender<T> implements Closeable {
             if (current == null) {
                 return false;
             }
-            boolean hasNext = current.hasNext();
-            if (!hasNext) {
+            if (current.endOfLog()) {
                 IOUtils.closeQuietly(current);
-                if (!segmentsIterators.hasNext()) {
+                if (segmentsQueue.isEmpty()) {
                     return false;
                 }
-                current = segmentsIterators.next();
+                current = segmentsQueue.poll();
                 segmentIdx++;
-                return current.hasNext();
             }
-            return true;
+            return current.hasNext();
         }
 
         @Override
         public T next() {
+            if (!hasNext()) {
+                return null;
+            }
             T next = current.next();
-            if ((next == null || !current.hasNext())) {
+            if (next == null && current.endOfLog()) {
                 IOUtils.closeQuietly(current);
-                if (segmentsIterators.hasNext()) {
-                    current = segmentsIterators.next();
+                if (!segmentsQueue.isEmpty()) {
+                    current = segmentsQueue.poll();
                     segmentIdx++;
                 }
             }
@@ -547,14 +524,28 @@ public class LogAppender<T> implements Closeable {
 
         @Override
         public void close() {
-            try {
-                current.close();
-                while (segmentsIterators.hasNext()) {
-                    segmentsIterators.next().close();
-                }
-            } catch (IOException e) {
-                throw RuntimeIOException.of(e);
+            shutdownFlushWorker();
+            IOUtils.closeQuietly(current);
+            segmentsQueue.forEach(IOUtils::closeQuietly);
+            segmentsQueue.clear();
+            forwardReaders.remove(this);
+        }
+
+        private void shutdownFlushWorker() {
+            if (flushWorker == null) {
+                return;
             }
+            try {
+                flushWorker.shutdown();
+                flushWorker.awaitTermination(FLUSH_INTERVAL_SEC * 2, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.error("Failed to close flush worker");
+            }
+        }
+
+        private void addSegment(Log<T> segment) {
+            segmentsQueue.add(segment.iterator(Direction.FORWARD));
         }
     }
 
@@ -613,179 +604,16 @@ public class LogAppender<T> implements Closeable {
                 segmentIdx--;
             }
             if (current == null || !hasNext()) {
-                return null; //TODO throw nosuchelementexception
+                return null;
             }
             return current.next();
         }
 
         @Override
         public void close() {
-            try {
-                current.close();
-                while (segmentsIterators.hasNext()) {
-                    segmentsIterators.next().close();
-                }
-            } catch (IOException e) {
-                throw RuntimeIOException.of(e);
-            }
+            IOUtils.closeQuietly(current);
+            segmentsIterators.forEachRemaining(IOUtils::closeQuietly);
         }
-    }
-
-
-    private class LogPoller implements io.joshworks.fstore.log.LogPoller<T> {
-
-        private final BlockingQueue<io.joshworks.fstore.log.LogPoller<T>> segmentPollers = new LinkedBlockingQueue<>();
-        private final int MAX_SEGMENT_WAIT_SEC = 5;
-        private io.joshworks.fstore.log.LogPoller<T> currentPoller;
-        private int segmentIdx;
-        private final AtomicBoolean closed = new AtomicBoolean();
-
-        LogPoller(long startPosition) {
-            this.segmentIdx = getSegment(startPosition);
-            validateSegmentIdx(segmentIdx, startPosition);
-            Iterator<Log<T>> segments = levels.segments(Direction.FORWARD);
-            long positionOnSegment = getPositionOnSegment(startPosition);
-
-            // skip
-            for (int i = 0; i <= segmentIdx - 1; i++) {
-                segments.next();
-            }
-
-            if (segments.hasNext()) {
-                this.currentPoller = segments.next().poller(positionOnSegment);
-            }
-
-            while (segments.hasNext()) {
-                segmentPollers.add(segments.next().poller());
-            }
-
-        }
-
-        @Override
-        public T peek() throws InterruptedException {
-            return peekData();
-        }
-
-        @Override
-        public T poll() throws InterruptedException {
-            return pollData(io.joshworks.fstore.log.LogPoller.NO_SLEEP, TimeUnit.SECONDS);
-        }
-
-        @Override
-        public T poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            return pollData(limit, timeUnit);
-        }
-
-        @Override
-        public T take() throws InterruptedException {
-            return takeData();
-        }
-
-        private synchronized T pollData(long limit, TimeUnit timeUnit) throws InterruptedException {
-            if (closed.get()) {
-                return null;
-            }
-            T item = limit < 0 ? currentPoller.poll() : currentPoller.poll(limit, timeUnit);
-            if (item == null && nextSegment())
-                return pollData(limit, timeUnit);
-            return item;
-        }
-
-        private boolean nextSegment() throws InterruptedException {
-            if (currentPoller.endOfLog()) { //end of segment
-                IOUtils.closeQuietly(this.currentPoller);
-                this.currentPoller = waitForNextSegment();
-                if (this.currentPoller == null) { //close was called
-                    return false;
-                }
-                segmentIdx++;
-                return true;
-            }
-            return false;
-        }
-
-        private synchronized T peekData() throws InterruptedException {
-            if (closed.get()) {
-                return null;
-            }
-            T item = currentPoller.peek();
-            if (nextSegment() && item == null)
-                return peek();
-            return item;
-        }
-
-        private synchronized T takeData() throws InterruptedException {
-            if (closed.get()) {
-                return null;
-            }
-            T item = currentPoller.take();
-            if (currentPoller.endOfLog()) { //end of segment
-                IOUtils.closeQuietly(this.currentPoller);
-                this.currentPoller = waitForNextSegment();
-
-                if (this.currentPoller == null) { //close was called
-                    return item;
-                }
-                segmentIdx++;
-                if (item != null) {
-                    return item;
-                }
-                return takeData();
-            }
-            return item;
-        }
-
-        private io.joshworks.fstore.log.LogPoller<T> waitForNextSegment() throws InterruptedException {
-            io.joshworks.fstore.log.LogPoller<T> next = null;
-            while (!closed.get() && next == null) {
-                next = segmentPollers.poll(MAX_SEGMENT_WAIT_SEC, TimeUnit.SECONDS);//wait next segment, should never wait really
-            }
-            return next;
-        }
-
-        @Override
-        public synchronized boolean headOfLog() {
-            //if end of current segment, check the next one
-            if (currentPoller.headOfLog()) {
-                //TODO verify if the !segmentPollers.isEmpty() is actually correct and is a replacement for the commented out code below
-//                boolean isLatestSegment = segmentIdx == levels.numSegments() - 1;
-                if (!segmentPollers.isEmpty()) {
-                    io.joshworks.fstore.log.LogPoller<T> poll = segmentPollers.peek();
-                    return poll.headOfLog();
-                }
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public boolean endOfLog() {
-            return false;
-        }
-
-        @Override
-        public long position() {
-            return toSegmentedPosition(segmentIdx, currentPoller.position());
-        }
-
-        @Override
-        public void close() {
-            if (!closed.compareAndSet(false, true)) {
-                return;
-            }
-            for (io.joshworks.fstore.log.LogPoller<T> poller : segmentPollers) {
-                IOUtils.closeQuietly(poller);
-            }
-
-            segmentPollers.clear();
-            LogAppender.this.pollers.remove(this);
-            IOUtils.closeQuietly(currentPoller);
-        }
-
-        private void addSegment(Log<T> segment) {
-            segmentPollers.add(segment.poller());
-        }
-
     }
 
 }

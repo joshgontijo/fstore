@@ -2,7 +2,7 @@ package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.LogPoller;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.snappy.sse.SseBroadcaster;
 import io.joshworks.snappy.sse.SseCallback;
 import io.undertow.server.handlers.sse.ServerSentEventConnection;
@@ -28,7 +28,7 @@ public class SubscriptionEndpoint {
 
     private static final Logger logger = LoggerFactory.getLogger(SubscriptionEndpoint.class);
 
-    private Map<ServerSentEventConnection, LogPoller<EventRecord>> pollers = new HashMap<>();
+    private Map<ServerSentEventConnection, LogIterator<EventRecord>> pollers = new HashMap<>();
 
     public SubscriptionEndpoint(IEventStore store, EventBroadcaster broadcast) {
         this.store = store;
@@ -69,7 +69,7 @@ public class SubscriptionEndpoint {
 
             @Override
             public void onClose(ServerSentEventConnection connection) {
-                LogPoller<EventRecord> poller = pollers.get(connection);
+                LogIterator<EventRecord> poller = pollers.get(connection);
                 pollers.remove(connection);
                 broadcast.remove(poller);
             }

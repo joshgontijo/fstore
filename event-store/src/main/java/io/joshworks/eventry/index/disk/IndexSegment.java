@@ -12,14 +12,13 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
+import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
-import io.joshworks.fstore.log.segment.block.BlockPoller;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
@@ -33,7 +32,6 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
 
 public class IndexSegment implements Log<IndexEntry> {
 
@@ -88,18 +86,14 @@ public class IndexSegment implements Log<IndexEntry> {
         return delegate.name();
     }
 
-    @Override
-    public Stream<IndexEntry> stream(Direction direction) {
-        return Iterators.closeableStream(iterator(direction));
-    }
 
     @Override
-    public LogIterator<IndexEntry> iterator(long position, Direction direction) {
+    public SegmentIterator<IndexEntry> iterator(long position, Direction direction) {
         return new BlockIterator<>(delegate.iterator(position, direction), direction);
     }
 
     @Override
-    public LogIterator<IndexEntry> iterator(Direction direction) {
+    public SegmentIterator<IndexEntry> iterator(Direction direction) {
         return new BlockIterator<>(delegate.iterator(direction), direction);
     }
 
@@ -111,16 +105,6 @@ public class IndexSegment implements Log<IndexEntry> {
     @Override
     public IndexEntry get(long position) {
         throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
-    public LogPoller<IndexEntry> poller(long position) {
-        return new BlockPoller<>(delegate.poller(position));
-    }
-
-    @Override
-    public LogPoller<IndexEntry> poller() {
-        return new BlockPoller<>(delegate.poller());
     }
 
     @Override
@@ -196,7 +180,7 @@ public class IndexSegment implements Log<IndexEntry> {
         return !midpoints.inRange(range) || !filter.contains(stream);
     }
 
-    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
+    public LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
         if (definitelyNotPresent(range)) {
             return Iterators.empty();
         }
@@ -212,10 +196,6 @@ public class IndexSegment implements Log<IndexEntry> {
         int end = Math.min(range.end().version, lastVersion);
 
         return new RangeIndexEntryIterator(direction, range, start, end);
-    }
-
-    public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.closeableStream(iterator(direction, range));
     }
 
     public List<IndexEntry> readBlockEntries(long stream, int version) {
@@ -257,7 +237,7 @@ public class IndexSegment implements Log<IndexEntry> {
         return Optional.of(found);
     }
 
-    public int lastVersionOf(long stream) {
+    int lastVersionOf(long stream) {
         Range range = Range.anyOf(stream);
         if (definitelyNotPresent(range)) {
             return IndexEntry.NO_VERSION;
@@ -280,7 +260,7 @@ public class IndexSegment implements Log<IndexEntry> {
         return lastVersion.version;
     }
 
-    public int firstVersionOf(long stream) {
+    int firstVersionOf(long stream) {
         Range range = Range.anyOf(stream);
         if (definitelyNotPresent(range)) {
             return IndexEntry.NO_VERSION;
@@ -296,6 +276,9 @@ public class IndexSegment implements Log<IndexEntry> {
         List<IndexEntry> entries = foundBlock.entries();
         int idx = Collections.binarySearch(entries, start);
         idx = idx >= 0 ? idx : Math.abs(idx) - 1;
+        if(idx >= entries.size()) {
+            return IndexEntry.NO_VERSION;
+        }
         IndexEntry lastVersion = entries.get(idx);
         if (lastVersion.stream != stream) { //false positive on the bloom filter
             return IndexEntry.NO_VERSION;
@@ -316,7 +299,7 @@ public class IndexSegment implements Log<IndexEntry> {
     }
 
 
-    private final class RangeIndexEntryIterator implements LogIterator<IndexEntry> {
+    private final class RangeIndexEntryIterator implements SegmentIterator<IndexEntry> {
 
         private Direction direction;
         private final Range range;
@@ -370,7 +353,7 @@ public class IndexSegment implements Log<IndexEntry> {
         @Override
         public IndexEntry next() {
             if (!hasNext()) {
-                throw new NoSuchElementException();
+                return null;
             }
             IndexEntry polled = entries.poll();
             if (polled == null) {
@@ -397,6 +380,11 @@ public class IndexSegment implements Log<IndexEntry> {
         @Override
         public long position() {
             return lastBlockPos;
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return IndexSegment.this.readOnly() && !hasNext();
         }
     }
 

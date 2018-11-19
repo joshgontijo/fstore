@@ -108,7 +108,7 @@ public class ConcurrencyIT {
 
         for (int readTask = 0; readTask < totalReads; readTask++) {
             readExecutor.execute(() -> {
-                long count = store.fromStream(stream).count();
+                long count = store.fromStream(stream).stream().count();
                 readLatch.countDown();
                 readCount.incrementAndGet();
             });

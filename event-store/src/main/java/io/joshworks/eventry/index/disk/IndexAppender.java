@@ -1,6 +1,5 @@
 package io.joshworks.eventry.index.disk;
 
-import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
@@ -19,16 +18,16 @@ import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
 
+import java.io.Closeable;
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
-public class IndexAppender implements Index {
+public class IndexAppender implements Closeable {
 
     private static final String INDEX_DIR = "index";
     private static final String STORE_NAME = "index";
@@ -44,35 +43,30 @@ public class IndexAppender implements Index {
                 .disableAutoRoll()
                 .name(STORE_NAME)
                 .flushMode(FlushMode.NEVER)
-                .storageMode(StorageMode.MMAP)
-//                .disableCompaction()
+                .storageMode(StorageMode.RAF)
+                .disableCompaction() //TODO disable
                 .namingStrategy(new IndexNaming())
                 .open(new IndexSegmentFactory(indexDirectory, numElements, codec));
     }
 
-
-    @Override
-    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
+    public LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
         return appender.acquireSegments(direction, segments -> {
             List<LogIterator<IndexEntry>> iterators = Iterators.closeableStream(segments)
                     .map(seg -> (IndexSegment) seg)
-                    .map(idxSeg -> idxSeg.iterator(direction, range))
+                    .map(idxSeg -> idxSeg.indexedIterator(direction, range))
                     .collect(Collectors.toList());
             return Iterators.concat(iterators);
         });
-    }
-
-    @Override
-    public Stream<IndexEntry> stream(Direction direction, Range range) {
-        return Iterators.closeableStream(iterator(direction, range));
     }
 
     public LogIterator<IndexEntry> iterator(Direction direction) {
         return appender.iterator(direction);
     }
 
+    public LogIterator<IndexEntry> iterator(Direction direction, long position) {
+        return appender.iterator(direction, position);
+    }
 
-    @Override
     public Optional<IndexEntry> get(long stream, int version) {
         return appender.acquireSegments(Direction.BACKWARD, segments -> {
             while (segments.hasNext()) {
@@ -99,7 +93,6 @@ public class IndexAppender implements Index {
         });
     }
 
-    @Override
     public int version(long stream) {
         return appender.acquireSegments(Direction.BACKWARD, segments -> {
             while (segments.hasNext()) {
@@ -118,7 +111,6 @@ public class IndexAppender implements Index {
     }
 
 
-    @Override
     public void close() {
         appender.close();
     }

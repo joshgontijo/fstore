@@ -2,11 +2,7 @@ package io.joshworks.eventry.log;
 
 import io.joshworks.eventry.log.cache.EventRecordCache;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogPoller;
-
-import java.util.stream.Stream;
 
 public class CachedEventLog implements IEventLog {
 
@@ -53,21 +49,6 @@ public class CachedEventLog implements IEventLog {
     @Override
     public LogIterator<EventRecord> iterator(Direction direction) {
         return delegate.iterator(direction);
-    }
-
-    @Override
-    public Stream<EventRecord> stream(Direction direction) {
-        return Iterators.closeableStream(iterator(direction));
-    }
-
-    @Override
-    public LogPoller<EventRecord> poller() {
-        return delegate.poller();
-    }
-
-    @Override
-    public LogPoller<EventRecord> poller(long position) {
-        return delegate.poller(position);
     }
 
     @Override

@@ -14,7 +14,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -84,7 +83,10 @@ public abstract class ConcurrencyIT {
             executor.execute(() -> {
                 String lastEntry = null;
                 try (LogIterator<String> iterator = appender.iterator(Direction.FORWARD)) {
-                    while (iterator.hasNext()) {
+                    for (int j = 0; j < writeItems; j++) {
+                        while (!iterator.hasNext()) {
+                            Thread.sleep(1000);
+                        }
                         String next = iterator.next();
                         reads.incrementAndGet();
 
@@ -98,6 +100,7 @@ public abstract class ConcurrencyIT {
                         assertEquals(prev + 1, curr);
                         lastEntry = next;
                     }
+
                 } catch (Exception e) {
                     failed.incrementAndGet();
                     e.printStackTrace();

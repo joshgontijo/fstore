@@ -130,8 +130,8 @@ public class MMapStorage extends RafStorage {
             synchronized (LOCK) {
                 if (buffers[idx] == null && !closed.get()) {
                     buffers[idx] = map(idx);
-                    current = buffers[idx];
                 }
+                current = buffers[idx];
             }
 
         }
