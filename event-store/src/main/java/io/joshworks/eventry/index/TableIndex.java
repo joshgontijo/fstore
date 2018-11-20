@@ -21,10 +21,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -159,7 +157,6 @@ public class TableIndex implements Closeable {
     }
 
 
-    //TODO add direction
     public class IndexIterator implements LogIterator<IndexEntry> {
 
         private final Map<Long, AtomicInteger> streams = new ConcurrentHashMap<>();
@@ -238,12 +235,15 @@ public class TableIndex implements Closeable {
             if (original.isEmpty() || !streams.containsKey(stream)) {
                 return Collections.emptyList();
             }
-            AtomicInteger version = streams.get(stream);
+            int lastRead = streams.get(stream).get();
             return original.stream().filter(ie -> {
-                if (Direction.FORWARD.equals(direction)) {
-                    return ie.version > version.get();
+                if(ie.stream  != stream) {
+                    return false;
                 }
-                return ie.version < version.get();
+                if (Direction.FORWARD.equals(direction)) {
+                    return ie.version > lastRead;
+                }
+                return ie.version < lastRead;
             }).collect(Collectors.toList());
         }
 

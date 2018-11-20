@@ -8,9 +8,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -131,20 +128,6 @@ public class TableIndexTest {
         long size = tableIndex.size();
 
         assertEquals(2, size);
-    }
-
-    @Test
-    public void stream_returns_data_from_inMemory_and_disk() {
-        long stream = 1;
-        tableIndex.add(stream, 1, 0);
-
-        tableIndex.flush();
-
-        tableIndex.add(stream, 2, 0);
-
-        Stream<IndexEntry> dataStream = tableIndex.indexedIterator(stream).stream();
-
-        assertEquals(2, dataStream.count());
     }
 
     @Test
@@ -582,7 +565,7 @@ public class TableIndexTest {
     public void indexedIterator_finds_all_entries_with_multiple_streams() {
 
         Set<Long> streams = Set.of(12L, -3L, 10L, 3000L, -100L, -300L, 0L, -20L, 60L);
-        int versions = 999999;
+        int versions = 499999;
 
         for (long stream : streams) {
             for (int version = 0; version < versions; version++) {
@@ -609,8 +592,6 @@ public class TableIndexTest {
             assertEquals("Failed total read stream items of stream " + stream, Integer.valueOf(versions - 1), lastVersion);
 
         }
-
-
     }
 
 
