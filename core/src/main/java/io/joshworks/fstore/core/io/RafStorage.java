@@ -25,7 +25,7 @@ public class RafStorage extends DiskStorage {
             while (data.hasRemaining()) {
                 written += channel.write(data);
             }
-            position += written;
+            position.addAndGet(written);
             return written;
         } catch (IOException e) {
             throw RuntimeIOException.of(e);

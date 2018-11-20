@@ -7,6 +7,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class DiskStorage implements Storage {
 
@@ -14,7 +15,7 @@ public abstract class DiskStorage implements Storage {
     protected FileChannel channel;
     protected File file;
     protected FileLock lock;
-    protected long position;
+    protected AtomicLong position = new AtomicLong();
 
     DiskStorage(File target, RandomAccessFile raf) {
         Objects.requireNonNull(target, "File must specified");
@@ -43,7 +44,7 @@ public abstract class DiskStorage implements Storage {
     public void position(long position) {
         try {
             channel.position(position);
-            this.position = position;
+            this.position.set(position);
         } catch (Exception e) {
             throw new StorageException(e);
         }
@@ -51,7 +52,7 @@ public abstract class DiskStorage implements Storage {
 
     @Override
     public long position() {
-        return position;
+        return position.get();
     }
 
     @Override

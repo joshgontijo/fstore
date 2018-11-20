@@ -55,31 +55,40 @@ public class MMapStorage extends RafStorage {
         Storage.ensureNonEmpty(src);
 
         int dataSize = src.remaining();
+        int written = 0;
+        long currentPosition = this.position.get();
+        while (src.hasRemaining()) {
+            int idx = bufferIdx(currentPosition);
+            MappedByteBuffer dst = getOrAllocate(idx, true);
 
-        int idx = bufferIdx(this.position);
-        MappedByteBuffer dst = getOrAllocate(idx, true);
-
-        int dstRemaining = dst.remaining();
-        if (dstRemaining < dataSize) {
-            int srcLimit = src.limit();
-            src.limit(src.position() + dstRemaining);
-            dst.put(src);
-            dst.flip();
-            src.limit(srcLimit);
-            position += dstRemaining;
-            return write(src) + dstRemaining;
+            int dstRemaining = dst.remaining();
+            if (dstRemaining < dataSize) {
+                int srcLimit = src.limit();
+                src.limit(src.position() + dstRemaining);
+                dst.put(src);
+                dst.flip();
+                src.limit(srcLimit);
+                written += dstRemaining;
+                currentPosition += dstRemaining;
+            } else {
+                int srcRemaining = src.remaining();
+                dst.put(src);
+                written += srcRemaining;
+            }
         }
 
-        int srcRemaining = src.remaining();
-        dst.put(src);
-        position += srcRemaining;
-        return srcRemaining;
+        position.addAndGet(written);
+        return written;
     }
 
+
     @Override
-    public int read(long position, ByteBuffer dst) {
-        int idx = bufferIdx(position);
-        int bufferAddress = posOnBuffer(position);
+    public int read(long readPos, ByteBuffer dst) {
+        if(this.position.get() <= readPos) { // no data available
+            return 0;
+        }
+        int idx = bufferIdx(readPos);
+        int bufferAddress = posOnBuffer(readPos);
         if (idx >= buffers.length) {
             return -1;
         }
@@ -88,13 +97,9 @@ public class MMapStorage extends RafStorage {
 
         int srcCapacity = buffer.capacity();
         if (bufferAddress > srcCapacity) {
-            throw new IllegalArgumentException("Invalid position " + position + ", buffer idx " + idx + ", buffer capacity " + srcCapacity);
+            throw new IllegalArgumentException("Invalid position " + readPos + ", buffer idx " + idx + ", buffer capacity " + srcCapacity);
         }
 
-        int writeBufferIdx = bufferIdx(this.position);
-        if(idx != writeBufferIdx && buffer.position() > 0) {
-            buffer.clear();
-        }
         ByteBuffer src = buffer.asReadOnlyBuffer();
         src.clear();
         src.position(bufferAddress);
@@ -106,7 +111,7 @@ public class MMapStorage extends RafStorage {
             if (idx + 1 >= buffers.length) { //no more buffers
                 return srcRemaining;
             }
-            int read = read(position + srcRemaining, dst);
+            int read = read(readPos + srcRemaining, dst);
             return srcRemaining + (read >= 0 ? read : 0);
         }
 
@@ -152,11 +157,11 @@ public class MMapStorage extends RafStorage {
 
     @Override
     public void position(long pos) {
-        int idx = bufferIdx(position);
+        int idx = bufferIdx(position.get());
         MappedByteBuffer buffer = getOrAllocate(idx, true);
         int bufferAddress = posOnBuffer(pos);
         buffer.position(bufferAddress);
-        this.position = pos;
+        this.position.set(pos);
     }
 
     private int posOnBuffer(long pos) {
@@ -218,7 +223,7 @@ public class MMapStorage extends RafStorage {
 
     @Override
     public void flush() {
-        int idx = bufferIdx(this.position);
+        int idx = bufferIdx(this.position.get());
         if (idx >= buffers.length) {
             return;
         }
