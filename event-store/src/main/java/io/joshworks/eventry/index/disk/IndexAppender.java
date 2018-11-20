@@ -84,10 +84,12 @@ public class IndexAppender implements Closeable {
     public List<IndexEntry> getBlockEntries(Direction direction, long stream, int version) {
         return appender.acquireSegments(direction, segments -> {
             while (segments.hasNext()) {
-                IndexSegment next = (IndexSegment) segments.next();
-                List<IndexEntry> indexEntries = next.readBlockEntries(stream, version);
-                if(!indexEntries.isEmpty()) {
-                    return indexEntries;
+                IndexSegment segment = (IndexSegment) segments.next();
+                if(segment.readOnly()) { //only query completed segments
+                    List<IndexEntry> indexEntries = segment.readBlockEntries(stream, version);
+                    if (!indexEntries.isEmpty()) {
+                        return indexEntries;
+                    }
                 }
             }
             return Collections.emptyList();

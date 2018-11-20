@@ -13,9 +13,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MMapStorage extends RafStorage {
 
+    private static final boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("win");
     private final int bufferSize;
     private MappedByteBuffer[] buffers;
-    private final boolean isWindows;
     private final AtomicBoolean closed = new AtomicBoolean();
 
     private final Object LOCK = new Object();
@@ -23,7 +23,6 @@ public class MMapStorage extends RafStorage {
 
     public MMapStorage(File file, RandomAccessFile raf) {
         super(file, raf);
-        isWindows = System.getProperty("os.name").toLowerCase().startsWith("win");
         try {
             long fileLength = raf.length();
             this.bufferSize = getBufferSize(fileLength);
@@ -92,6 +91,10 @@ public class MMapStorage extends RafStorage {
             throw new IllegalArgumentException("Invalid position " + position + ", buffer idx " + idx + ", buffer capacity " + srcCapacity);
         }
 
+        int writeBufferIdx = bufferIdx(this.position);
+        if(idx != writeBufferIdx && buffer.position() > 0) {
+            buffer.clear();
+        }
         ByteBuffer src = buffer.asReadOnlyBuffer();
         src.clear();
         src.position(bufferAddress);
