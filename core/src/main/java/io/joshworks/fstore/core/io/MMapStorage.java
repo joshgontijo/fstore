@@ -84,16 +84,9 @@ public class MMapStorage extends RafStorage {
 
     @Override
     public int read(long readPos, ByteBuffer dst) {
-        if(this.position.get() <= readPos) { // no data available
-            return 0;
-        }
         int idx = bufferIdx(readPos);
         int bufferAddress = posOnBuffer(readPos);
-        if (idx >= buffers.length) {
-            return -1;
-        }
-
-        MappedByteBuffer buffer = getOrAllocate(idx, false);
+        MappedByteBuffer buffer = getOrAllocate(idx, true);
 
         int srcCapacity = buffer.capacity();
         if (bufferAddress > srcCapacity) {
@@ -120,7 +113,7 @@ public class MMapStorage extends RafStorage {
         return dstRemaining;
     }
 
-    private MappedByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
+    protected MappedByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
         if (idx >= buffers.length) {
             if (expandBuffers) {
                 synchronized (LOCK) {
@@ -164,11 +157,11 @@ public class MMapStorage extends RafStorage {
         this.position.set(pos);
     }
 
-    private int posOnBuffer(long pos) {
+    protected int posOnBuffer(long pos) {
         return (int) (pos % bufferSize);
     }
 
-    private int bufferIdx(long pos) {
+    protected int bufferIdx(long pos) {
         return (int) (pos / bufferSize);
     }
 
