@@ -13,7 +13,9 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.joshworks.fstore.core.utils.Utils.sleep;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -190,6 +192,135 @@ public abstract class StorageTest {
         assertEquals(value, read.flip().getInt());
     }
 
+    @Test
+    public void writing_returns_correct_written_bytes() {
+        int entrySize = 255;
+        byte[] data = new byte[entrySize];
+        int totalItems = 1000000;
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) i;
+        }
+
+        for (int i = 0; i < totalItems; i++) {
+            int written = storage.write(ByteBuffer.wrap(data));
+            assertEquals("Failed at position " + storage.position() + " iteration: " + i, entrySize, written);
+        }
+
+        assertEquals(totalItems * entrySize, storage.position());
+    }
+
+    @Test
+    public void position_is_updated_same_as_writen_bytes() {
+        int entrySize = 255;
+        byte[] data = new byte[entrySize];
+        int totalItems = 1000000;
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) i;
+        }
+
+        long totalWriten = 0;
+        for (int i = 0; i < totalItems; i++) {
+            totalWriten += storage.write(ByteBuffer.wrap(data));
+            assertEquals(totalWriten, storage.position());
+        }
+
+        assertEquals(totalItems * entrySize, storage.position());
+    }
+
+    @Test
+    public void reading_return_the_same_writen_data() {
+        int entrySize = 255;
+        byte[] data = new byte[entrySize];
+        int totalItems = 1000000;
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) i;
+        }
+
+        for (int i = 0; i < totalItems; i++) {
+            int written = storage.write(ByteBuffer.wrap(data));
+            assertEquals("Failed at position " + storage.position() + " iteration: " + i, entrySize, written);
+        }
+
+        long readPos = 0;
+        for (int i = 0; i < totalItems; i++) {
+            var readBuffer = ByteBuffer.allocate(entrySize);
+            int read = storage.read(readPos, readBuffer);
+            assertEquals("Failed on pos " + readPos + " iteration " + i, entrySize, read);
+            assertTrue("Failed on pos " + readPos + " iteration " + i, Arrays.equals(data, readBuffer.array()));
+            readPos += read;
+        }
+
+        assertEquals(totalItems * entrySize, storage.position());
+    }
+
+    @Test
+    public void store_must_support_concurrent_reads_and_writes() throws InterruptedException {
+
+        int items = 5000000;
+        int entrySize = 255;
+
+        byte[] data = new byte[entrySize];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) i;
+        }
+        final AtomicBoolean done = new AtomicBoolean();
+        final AtomicBoolean writeFailed = new AtomicBoolean();
+        final AtomicBoolean readFailed = new AtomicBoolean();
+
+        Thread writer = new Thread(() -> {
+            for (int i = 0; i < items; i++) {
+                if (readFailed.get()) {
+                    break;
+                }
+                try {
+                    storage.write(ByteBuffer.wrap(data));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    writeFailed.set(true);
+                }
+            }
+            done.set(true);
+        });
+
+
+        Thread reader = new Thread(() -> {
+            while (!done.get() && !readFailed.get()) {
+                int readPos = 0;
+                for (int i = 0; i < items; i++) {
+                    while (storage.position() <= readPos) {
+                        sleep(2);
+                    }
+                    if (readFailed.get()) {
+                        break;
+                    }
+                    try {
+                        var readBuffer = ByteBuffer.allocate(entrySize);
+                        readPos += storage.read(readPos, readBuffer);
+                        readBuffer.flip();
+                        if (!Arrays.equals(data, readBuffer.array())) {
+                            System.err.println("POSITION: " + readPos);
+                            System.err.println("EXPECTED: " + Arrays.toString(data));
+                            System.err.println("FOUND   : " + Arrays.toString(readBuffer.array()));
+                            readFailed.set(true);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        readFailed.set(true);
+                    }
+                }
+            }
+        });
+
+        writer.start();
+        reader.start();
+
+        writer.join();
+        reader.join();
+
+        assertFalse(writeFailed.get());
+        assertFalse(readFailed.get());
+
+    }
 
 
 }
