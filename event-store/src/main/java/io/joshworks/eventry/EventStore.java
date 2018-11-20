@@ -127,40 +127,6 @@ public class EventStore implements IEventStore {
         logger.info("Loaded {} index entries in {}ms", loaded, (System.currentTimeMillis() - start));
     }
 
-//    private void loadStreams() {
-//        logger.info("Loading streams");
-//        long start = System.currentTimeMillis();
-//
-//        long streamHash = streams.hashOf(SystemStreams.STREAMS);
-//        LogIterator<IndexEntry> addresses = index.indexIterator(Direction.FORWARD, Range.allOf(streamHash));
-//
-//        long elapsed = start;
-//        long loaded = 0;
-//        while (addresses.hasNext()) {
-//            IndexEntry next = addresses.next();
-//            EventRecord event = eventLog.get(next.position);
-//
-//            if (System.currentTimeMillis() - elapsed >= TimeUnit.SECONDS.toMillis(2)) {
-//                elapsed = System.currentTimeMillis();
-//                logger.info("Loaded {}, last: {}", loaded, event.eventId());
-//            }
-//
-//            //pattern matching would be great here
-//            if (StreamCreated.TYPE.equals(event.type)) {
-//                streams.add(StreamCreated.from(event));
-//                loaded++;
-//            } else if (StreamDeleted.TYPE.equals(event.type)) {
-//                StreamDeleted deleted = StreamDeleted.from(event);
-//                long hash = streams.hashOf(deleted.stream);
-//                streams.remove(hash);
-//            } else {
-//                //unrecognized event
-//            }
-//        }
-//
-//        logger.info("Streams loaded {} items in {}ms", loaded, (System.currentTimeMillis() - start));
-//    }
-
     private void loadProjections() {
         logger.info("Loading projections");
         long start = System.currentTimeMillis();
