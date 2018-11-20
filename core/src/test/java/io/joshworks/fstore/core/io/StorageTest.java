@@ -231,7 +231,7 @@ public abstract class StorageTest {
     public void reading_return_the_same_writen_data() {
         int entrySize = 255;
         byte[] data = new byte[entrySize];
-        int totalItems = 1000000;
+        int totalItems = 5000000;
         for (int i = 0; i < data.length; i++) {
             data[i] = (byte) i;
         }
@@ -250,7 +250,7 @@ public abstract class StorageTest {
             readPos += read;
         }
 
-        assertEquals(totalItems * entrySize, storage.position());
+        assertEquals(((long) totalItems * entrySize), storage.position());
     }
 
     @Test
@@ -284,29 +284,27 @@ public abstract class StorageTest {
 
 
         Thread reader = new Thread(() -> {
-            while (!done.get() && !readFailed.get()) {
-                int readPos = 0;
-                for (int i = 0; i < items; i++) {
-                    while (storage.position() <= readPos) {
-                        sleep(2);
-                    }
-                    if (readFailed.get()) {
-                        break;
-                    }
-                    try {
-                        var readBuffer = ByteBuffer.allocate(entrySize);
-                        readPos += storage.read(readPos, readBuffer);
-                        readBuffer.flip();
-                        if (!Arrays.equals(data, readBuffer.array())) {
-                            System.err.println("POSITION: " + readPos);
-                            System.err.println("EXPECTED: " + Arrays.toString(data));
-                            System.err.println("FOUND   : " + Arrays.toString(readBuffer.array()));
-                            readFailed.set(true);
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
+            int readPos = 0;
+            for (int i = 0; i < items; i++) {
+                while (storage.position() <= readPos) {
+                    sleep(2);
+                }
+                if (readFailed.get()) {
+                    break;
+                }
+                try {
+                    var readBuffer = ByteBuffer.allocate(entrySize);
+                    readPos += storage.read(readPos, readBuffer);
+                    readBuffer.flip();
+                    if (!Arrays.equals(data, readBuffer.array())) {
+                        System.err.println("POSITION: " + readPos);
+                        System.err.println("EXPECTED: " + Arrays.toString(data));
+                        System.err.println("FOUND   : " + Arrays.toString(readBuffer.array()));
                         readFailed.set(true);
                     }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    readFailed.set(true);
                 }
             }
         });
