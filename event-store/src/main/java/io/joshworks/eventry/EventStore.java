@@ -1,14 +1,15 @@
 package io.joshworks.eventry;
 
-import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.ProjectionCreated;
 import io.joshworks.eventry.data.ProjectionDeleted;
+import io.joshworks.eventry.data.ProjectionFailed;
+import io.joshworks.eventry.data.ProjectionResumed;
 import io.joshworks.eventry.data.ProjectionStarted;
+import io.joshworks.eventry.data.ProjectionStopped;
 import io.joshworks.eventry.data.ProjectionUpdated;
 import io.joshworks.eventry.data.StreamCreated;
-import io.joshworks.eventry.data.StreamFormat;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
@@ -31,7 +32,6 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
@@ -43,12 +43,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static java.util.Objects.requireNonNull;
 
 public class EventStore implements IEventStore {
 
@@ -131,23 +134,18 @@ public class EventStore implements IEventStore {
         logger.info("Loading projections");
         long start = System.currentTimeMillis();
 
-        long streamHash = streams.hashOf(SystemStreams.PROJECTIONS);
-        LogIterator<IndexEntry> addresses = index.indexedIterator(streamHash);
+        Set<String> running = new HashSet<>();
 
-        while (addresses.hasNext()) {
-            IndexEntry next = addresses.next();
-            EventRecord event = eventLog.get(next.position);
+        fromStream(StreamName.of(SystemStreams.PROJECTIONS))
+                .when(ProjectionCreated.TYPE, ev -> projections.add(ProjectionCreated.from(ev)))
+                .when(ProjectionUpdated.TYPE, ev -> projections.add(ProjectionCreated.from(ev)))
+                .when(ProjectionDeleted.TYPE, ev -> projections.delete(ProjectionDeleted.from(ev).name))
+                .when(ProjectionStarted.TYPE, ev -> running.add(ProjectionStarted.from(ev).name))
+                .when(ProjectionResumed.TYPE, ev -> running.add(ProjectionResumed.from(ev).name))
+                .when(ProjectionStopped.TYPE, ev -> running.remove(ProjectionStopped.from(ev).name))
+                .when(ProjectionFailed.TYPE, ev -> running.remove(ProjectionFailed.from(ev).name))
+                .match();
 
-            //pattern matching would be great here
-            if (ProjectionCreated.TYPE.equals(event.type)) {
-                projections.add(ProjectionCreated.from(event));
-            } else if (ProjectionUpdated.TYPE.equals(event.type)) {
-                projections.add(ProjectionCreated.from(event));
-            } else if (ProjectionDeleted.TYPE.equals(event.type)) {
-                ProjectionDeleted deleted = ProjectionDeleted.from(event);
-                projections.delete(deleted.name);
-            }
-        }
 
         int loaded = projections.all().size();
         logger.info("Loaded {} projections in {}ms", loaded, (System.currentTimeMillis() - start));
@@ -157,11 +155,9 @@ public class EventStore implements IEventStore {
                 createProjection(projection);
                 projections.add(projection);
             }
-
         }
 
-        projections.bootstrapProjections(this);
-
+        projections.bootstrapProjections(this, running);
     }
 
     @Override
@@ -306,47 +302,43 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStream(String stream) {
-        return fromStream(stream, Range.START_VERSION);
-    }
+    public EventLogIterator fromStream(StreamName stream) {
+        requireNonNull(stream, "Stream must be provided");
+        long streamHash = streams.hashOf(stream.name());
+        int versionInclusive = stream.version() == NO_VERSION ? Range.START_VERSION : stream.version();
 
-    //TODO expose direction ?
-    @Override
-    public EventLogIterator fromStream(String stream, int versionInclusive) {
-        long streamHash = streams.hashOf(stream);
         LogIterator<IndexEntry> indexIterator = index.indexedIterator(Map.of(streamHash, versionInclusive - 1));
         indexIterator = withMaxCountFilter(streamHash, indexIterator);
-        SingleStreamIterator singleStreamIterator = new SingleStreamIterator(indexIterator, eventLog);
-        EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(streamHash), singleStreamIterator);
+        IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
+        EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(streamHash), indexedLogIterator);
         return new LinkToResolveIterator(ageFilterIterator, this::resolve);
-
     }
 
+
     @Override
-    public EventLogIterator zipStreams(String stream) {
-        Set<String> eventStreams = streams.streamMatching(stream);
+    public EventLogIterator fromStreams(String streamPattern) {
+        Set<String> eventStreams = streams.streamMatching(streamPattern);
         if (eventStreams.isEmpty()) {
             return EventLogIterator.empty();
         }
-        return zipStreams(eventStreams);
+        return fromStreams(eventStreams.stream().map(StreamName::of).collect(Collectors.toSet()));
     }
 
     @Override
-    public EventLogIterator zipStreams(Set<String> streamNames) {
+    public EventLogIterator fromStreams(Set<StreamName> streamNames) {
         if (streamNames.size() == 1) {
             return fromStream(streamNames.iterator().next());
         }
 
-        Set<Long> hashes = streamNames.stream()
-                .filter(StringUtils::nonBlank)
-                .map(streams::hashOf)
-                .collect(Collectors.toSet());
+        Map<Long, Integer> streamVersions = streamNames.stream()
+                .filter(sn -> StringUtils.nonBlank(sn.name()))
+                .collect(Collectors.toMap(sn -> streams.hashOf(sn.name()), StreamName::version));
 
-        List<LogIterator<IndexEntry>> indexes = hashes.stream()
-                .map(index::indexedIterator)
-                .collect(Collectors.toList());
+        Set<Long> hashes = new HashSet<>(streamVersions.keySet());
 
-        EventLogIterator ageFilterIterator = withMaxAgeFilter(hashes, new MultiStreamIterator(indexes, eventLog));
+        TableIndex.IndexIterator indexIterator = index.indexedIterator(streamVersions);
+        IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
+        EventLogIterator ageFilterIterator = withMaxAgeFilter(hashes, indexedLogIterator);
         return new LinkToResolveIterator(ageFilterIterator, this::resolve);
     }
 
@@ -358,21 +350,20 @@ public class EventStore implements IEventStore {
 
     @Override
     public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-        LogIterator<EventRecord> filtering = Iterators.filtering(eventLog.iterator(Direction.FORWARD), ev -> {
-            if (ev == null) {
-                return false;
-            }
-            if (LinkToPolicy.IGNORE.equals(linkToPolicy) && ev.isLinkToEvent()) {
-                return false;
-            }
-            if (SystemEventPolicy.IGNORE.equals(systemEventPolicy) && ev.isSystemEvent()) {
-                return false;
-            }
-            return true;
-        });
+        LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD);
+        NonIndexedLogIterator nonIndexedLogIterator = new NonIndexedLogIterator(logIterator);
+        return new EventPolicyFilterIterator(nonIndexedLogIterator, linkToPolicy, systemEventPolicy);
+    }
 
-        return Iterators.mapping(filtering, this::resolve);
-
+    @Override
+    public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+        requireNonNull(lastEvent, "last event must be provided");
+        long hash = streams.hashOf(lastEvent.name());
+        Optional<IndexEntry> indexEntry = index.get(hash, lastEvent.version());
+        IndexEntry entry = indexEntry.orElseThrow(() -> new IllegalArgumentException("No index entry found for " + lastEvent));
+        LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD, entry.position);
+        NonIndexedLogIterator nonIndexedLogIterator = new NonIndexedLogIterator(logIterator);
+        return new EventPolicyFilterIterator(nonIndexedLogIterator, linkToPolicy, systemEventPolicy);
     }
 
     @Override
@@ -381,7 +372,7 @@ public class EventStore implements IEventStore {
             //resolve event
             event = get(event.stream, event.version);
         }
-        EventRecord linkTo = LinkTo.create(stream, StreamFormat.of(event));
+        EventRecord linkTo = LinkTo.create(stream, StreamName.from(event));
         return this.appendSystemEvent(linkTo);
     }
 
@@ -390,10 +381,10 @@ public class EventStore implements IEventStore {
         if (LinkTo.TYPE.equals(sourceType)) {
             //resolve event
             EventRecord event = get(sourceStream, sourceVersion);
-            EventRecord linkTo = LinkTo.create(dstStream, StreamFormat.of(event));
+            EventRecord linkTo = LinkTo.create(dstStream, StreamName.from(event));
             return this.appendSystemEvent(linkTo);
         }
-        EventRecord linkTo = LinkTo.create(dstStream, StreamFormat.of(sourceStream, sourceVersion));
+        EventRecord linkTo = LinkTo.create(dstStream, StreamName.of(sourceStream, sourceVersion));
         return this.appendSystemEvent(linkTo);
 
     }
@@ -402,13 +393,13 @@ public class EventStore implements IEventStore {
     public EventRecord get(String stream, int version) {
         long streamHash = streams.hashOf(stream);
 
-        if (version <= IndexEntry.NO_VERSION) {
-            throw new IllegalArgumentException("Version must be greater than " + IndexEntry.NO_VERSION);
+        if (version <= NO_VERSION) {
+            throw new IllegalArgumentException("Version must be greater than " + NO_VERSION);
         }
         Optional<IndexEntry> indexEntry = index.get(streamHash, version);
         if (!indexEntry.isPresent()) {
             //TODO improve this to a non exception response
-            throw new RuntimeException("IndexEntry not found for " + StreamFormat.toString(stream, version));
+            throw new RuntimeException("IndexEntry not found for " + StreamName.toString(stream, version));
         }
 
         return get(indexEntry.get());
@@ -416,7 +407,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public EventRecord get(IndexEntry indexEntry) {
-        Objects.requireNonNull(indexEntry, "IndexEntry mus not be null");
+        requireNonNull(indexEntry, "IndexEntry mus not be null");
 
         EventRecord record = eventLog.get(indexEntry.position);
         return resolve(record);
@@ -425,26 +416,26 @@ public class EventStore implements IEventStore {
     @Override
     public EventRecord resolve(EventRecord record) {
         if (record.isLinkToEvent()) {
-            StreamFormat streamFormat = StreamFormat.parse(record.dataAsString());
-            var linkToStream = streamFormat.stream;
-            var linkToVersion = streamFormat.version;
+            StreamName streamName = StreamName.parse(record.dataAsString());
+            var linkToStream = streamName.name();
+            var linkToVersion = streamName.version();
             return get(linkToStream, linkToVersion);
         }
         return record;
     }
 
     private void validateEvent(EventRecord event) {
-        Objects.requireNonNull(event, "Event must be provided");
+        requireNonNull(event, "Event must be provided");
         StringUtils.requireNonBlank(event.stream, "closeableStream must be provided");
         StringUtils.requireNonBlank(event.type, "Type must be provided");
-        if (event.stream.startsWith(Constant.SYSTEM_PREFIX)) {
-            throw new IllegalArgumentException("Stream cannot start with " + Constant.SYSTEM_PREFIX);
+        if (event.stream.startsWith(StreamName.SYSTEM_PREFIX)) {
+            throw new IllegalArgumentException("Stream cannot start with " + StreamName.SYSTEM_PREFIX);
         }
     }
 
     @Override
     public synchronized EventRecord append(EventRecord event) {
-        return append(event, IndexEntry.NO_VERSION);
+        return append(event, NO_VERSION);
     }
 
     @Override
@@ -457,7 +448,7 @@ public class EventStore implements IEventStore {
 
     private EventRecord appendSystemEvent(EventRecord event) {
         StreamMetadata metadata = getOrCreateStream(event.stream);
-        return append(metadata, event, IndexEntry.NO_VERSION);
+        return append(metadata, event, NO_VERSION);
     }
 
     private EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
@@ -487,7 +478,7 @@ public class EventStore implements IEventStore {
     private StreamMetadata getOrCreateStream(String stream) {
         return streams.createIfAbsent(stream, created -> {
             EventRecord eventRecord = StreamCreated.create(created);
-            this.append(created, eventRecord, IndexEntry.NO_VERSION);
+            this.append(created, eventRecord, NO_VERSION);
         });
     }
 

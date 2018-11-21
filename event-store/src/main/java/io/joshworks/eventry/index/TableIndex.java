@@ -118,11 +118,11 @@ public class TableIndex implements Closeable {
     }
 
 
+    //TODO Backwards scan requires fetching the latest version and adding to the map
     public IndexIterator indexedIterator(long stream) {
         return indexedIterator(Set.of(stream));
     }
 
-    //TODO Backwards scan requires fetching the latest version and adding to the map
     public IndexIterator indexedIterator(Map<Long, Integer> streams) {
         Map<Long, AtomicInteger> map = streams.entrySet()
                 .stream()
@@ -130,6 +130,7 @@ public class TableIndex implements Closeable {
         return new IndexIterator(Direction.FORWARD, map);
     }
 
+    //TODO Backwards scan requires fetching the latest version and adding to the map
     public IndexIterator indexedIterator(Set<Long> streams) {
         List<Long> streamList = new ArrayList<>(streams);
         Map<Long, AtomicInteger> map = streamList.stream().collect(Collectors.toMap(stream -> stream, r -> new AtomicInteger(NO_VERSION)));

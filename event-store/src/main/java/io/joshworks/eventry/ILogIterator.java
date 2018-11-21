@@ -11,14 +11,14 @@ public interface ILogIterator {
     //TODO remove me ?? just used for log dump
     LogIterator<IndexEntry> scanIndex();
 
-    EventLogIterator fromStream(String stream);
+    EventLogIterator fromStream(StreamName stream);
 
-    EventLogIterator fromStream(String stream, int versionInclusive);
+    EventLogIterator fromStreams(String streamPattern);
 
-    EventLogIterator zipStreams(String stream);
-
-    EventLogIterator zipStreams(Set<String> streamNames);
+    EventLogIterator fromStreams(Set<StreamName> streams);
 
     LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy);
+
+    LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent);
 
 }

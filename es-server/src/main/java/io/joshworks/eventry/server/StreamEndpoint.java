@@ -87,7 +87,7 @@ public class StreamEndpoint {
         //TODO check access to the stream
         List<EventBody> events = new ArrayList<>();
         if (!streams.isEmpty()) {
-            try (Stream<EventRecord> recordStream = store.zipStreams(streams).stream()) {
+            try (Stream<EventRecord> recordStream = store.fromStreams(streams).stream()) {
                 events = recordStream
                         .map(EventBody::from)
                         .limit(limit)
@@ -96,7 +96,7 @@ public class StreamEndpoint {
 
 
         } else if (zipWithPrefix != null) {
-            try (Stream<EventRecord> recordStream = store.zipStreams(zipWithPrefix + Streams.STREAM_WILDCARD).stream()) {
+            try (Stream<EventRecord> recordStream = store.fromStreams(zipWithPrefix + Streams.STREAM_WILDCARD).stream()) {
                 events = recordStream.limit(limit)
                         .map(EventBody::from)
                         .collect(Collectors.toList());

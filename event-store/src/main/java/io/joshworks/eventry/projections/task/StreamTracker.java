@@ -1,10 +1,12 @@
 package io.joshworks.eventry.projections.task;
 
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 class StreamTracker {
 
@@ -17,8 +19,8 @@ class StreamTracker {
         return record;
     }
 
-    Map<String, Integer> tracker() {
-        return new HashMap<>(multiStreamTracker);
+    Set<StreamName> get() {
+        return multiStreamTracker.entrySet().stream().map(e -> StreamName.of(e.getKey(), e.getValue())).collect(Collectors.toSet());
     }
 
 }

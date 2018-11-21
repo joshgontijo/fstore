@@ -1,9 +1,8 @@
 package io.joshworks.eventry.log;
 
 import com.google.gson.reflect.TypeToken;
-import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.LinkTo;
-import io.joshworks.eventry.data.StreamFormat;
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
@@ -60,11 +59,11 @@ public class EventRecord {
     }
 
     public String eventId() {
-        return StreamFormat.toString(stream, version);
+        return StreamName.toString(stream, version);
     }
 
     public boolean isSystemEvent() {
-        return type.startsWith(Constant.SYSTEM_PREFIX);
+        return type.startsWith(StreamName.SYSTEM_PREFIX);
     }
 
     public boolean isLinkToEvent() {

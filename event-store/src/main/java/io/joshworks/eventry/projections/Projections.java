@@ -4,6 +4,8 @@ import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.TaskStatus;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.util.Logging;
+import org.slf4j.Logger;
 
 import java.io.Closeable;
 import java.io.InputStream;
@@ -19,6 +21,8 @@ import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class Projections implements Closeable {
 
+    private final Logger logger;
+
     public static final String ENGINE_NAME = "nashorn";
     private final ProjectionExecutor manager;
     private final Map<String, Projection> projectionsMap = new HashMap<>();
@@ -30,11 +34,23 @@ public class Projections implements Closeable {
 
     public Projections(ProjectionExecutor manager) {
         this.manager = manager;
+        this.logger = Logging.namedLogger("projections", "projections");
     }
 
-    public void bootstrapProjections(IEventStore store) {
+    public void bootstrapProjections(IEventStore store, Set<String> running) {
+        for (String projectionName : running) {
+            logger.info("Resuming projection {}", projectionName);
+            Projection projection = projectionsMap.get(projectionName);
+            if(projection == null) {
+                logger.warn("No projection found for name '{}'", projectionName);
+                //TODO emit projection failed event
+            }
+
+            run(projectionName, store);
+        }
+
         for (Projection projection : projectionsMap.values()) {
-            if (Projection.Type.CONTINUOUS.equals(projection.type) && projection.enabled) {
+            if (Projection.Type.CONTINUOUS.equals(projection.type) && projection.enabled && !running.contains(projection.name)) {
                 run(projection.name, store);
             }
         }

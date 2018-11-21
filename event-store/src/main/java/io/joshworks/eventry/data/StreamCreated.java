@@ -1,5 +1,6 @@
 package io.joshworks.eventry.data;
 
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.Serializer;
@@ -12,7 +13,7 @@ public class StreamCreated {
     //serializing straight into a StreamMetadata
     private static final Serializer<StreamMetadata> serializer = JsonSerializer.of(StreamMetadata.class);
 
-    public static final String TYPE = Constant.SYSTEM_PREFIX + "STREAM_CREATED";
+    public static final String TYPE = StreamName.SYSTEM_PREFIX + "STREAM_CREATED";
 
     public static EventRecord create(StreamMetadata metadata) {
         var data = serializer.toBytes(metadata);

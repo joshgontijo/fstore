@@ -18,5 +18,7 @@ public interface IEventLog extends Closeable {
 
     LogIterator<EventRecord> iterator(Direction direction);
 
+    LogIterator<EventRecord> iterator(Direction direction, long position);
+
     void cleanup();
 }

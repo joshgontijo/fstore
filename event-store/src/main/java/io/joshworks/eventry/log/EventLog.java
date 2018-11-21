@@ -47,6 +47,11 @@ public class EventLog implements IEventLog {
         return appender.iterator(direction);
     }
 
+    @Override
+    public LogIterator<EventRecord> iterator(Direction direction, long position) {
+        return appender.iterator(direction, position);
+    }
+
 
     @Override
     public void cleanup() {

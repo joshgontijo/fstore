@@ -1,5 +1,6 @@
 package io.joshworks.eventry.data;
 
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
@@ -14,7 +15,7 @@ public class StreamDeleted {
     public final String stream;
     public final int versionAtDeletion;
 
-    public static final String TYPE = Constant.SYSTEM_PREFIX + "STREAM_DELETED";
+    public static final String TYPE = StreamName.SYSTEM_PREFIX + "STREAM_DELETED";
 
     public StreamDeleted(String stream, int versionAtDeletion) {
         this.stream = stream;
