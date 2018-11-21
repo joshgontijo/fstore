@@ -4,6 +4,7 @@ import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
+import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.Checkpointer;
 import io.joshworks.eventry.projections.EventStreamHandler;
@@ -70,6 +71,15 @@ public class ProjectionTask implements Callable<ExecutionResult> {
     private void abort() {
         logger.info("Stopping all tasks");
         tasks.forEach(TaskItem::stop);
+    }
+
+    //stops and clean checkpoint state
+    public void complete() {
+        logger.info("Completing all tasks");
+        tasks.forEach(taskItem -> {
+            taskItem.stop();
+            taskItem.deleteCheckpoint();
+        });
     }
 
     ExecutionResult status() {
@@ -152,12 +162,12 @@ public class ProjectionTask implements Callable<ExecutionResult> {
     }
 
     private static boolean isAllStream(Set<String> streams) {
-        return streams.size() == 1 && streams.iterator().next().equals(StreamName.ALL_STREAMS);
+        return streams.size() == 1 && streams.iterator().next().equals(SystemStreams.ALL);
     }
 
     private static void validateStreamNames(Set<String> streams) {
-        if (!isAllStream(streams) && streams.contains(StreamName.ALL_STREAMS)) {
-            throw new IllegalArgumentException("Multiple streams cannot contain '" + StreamName.ALL_STREAMS + "' stream");
+        if (!isAllStream(streams) && streams.contains(SystemStreams.ALL)) {
+            throw new IllegalArgumentException("Multiple streams cannot contain '" + SystemStreams.ALL + "' stream");
         }
     }
 
@@ -167,8 +177,7 @@ public class ProjectionTask implements Callable<ExecutionResult> {
     }
 
     public Map<String, TaskStatus> metrics() {
-//        return tasks.stream().collect(Collectors.toMap(t -> t.uuid, TaskItem::stats));
-        return null;
+        return tasks.stream().collect(Collectors.toMap(TaskItem::id, TaskItem::stats));
     }
 
     private static EventStreamHandler createHandler(Projection projection, ProjectionContext context) {

@@ -119,8 +119,7 @@ public class EventStore implements IEventStore {
             backwardsIndex.entrySet().stream().sorted(Comparator.comparingLong(Map.Entry::getValue)).forEach(e -> {
                 EventRecord entry = e.getKey();
                 long position = e.getValue();
-                long streamHash = streams.hashOf(entry.stream);
-                index.add(streamHash, entry.version, position);
+                index.add(entry.streamName(), position);
             });
 
         } catch (Exception e) {
@@ -304,13 +303,13 @@ public class EventStore implements IEventStore {
     @Override
     public EventLogIterator fromStream(StreamName stream) {
         requireNonNull(stream, "Stream must be provided");
-        long streamHash = streams.hashOf(stream.name());
         int versionInclusive = stream.version() == NO_VERSION ? Range.START_VERSION : stream.version();
+        StreamName start = StreamName.create(stream.name(), versionInclusive - 1);
 
-        LogIterator<IndexEntry> indexIterator = index.indexedIterator(Map.of(streamHash, versionInclusive - 1));
-        indexIterator = withMaxCountFilter(streamHash, indexIterator);
+        LogIterator<IndexEntry> indexIterator = index.indexedIterator(Map.of(start.hash(), start.version()));
+        indexIterator = withMaxCountFilter(stream.hash(), indexIterator);
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
-        EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(streamHash), indexedLogIterator);
+        EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(stream.hash()), indexedLogIterator);
         return new LinkToResolveIterator(ageFilterIterator, this::resolve);
     }
 
@@ -358,8 +357,7 @@ public class EventStore implements IEventStore {
     @Override
     public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
         requireNonNull(lastEvent, "last event must be provided");
-        long hash = streams.hashOf(lastEvent.name());
-        Optional<IndexEntry> indexEntry = index.get(hash, lastEvent.version());
+        Optional<IndexEntry> indexEntry = index.get(lastEvent.hash(), lastEvent.version());
         IndexEntry entry = indexEntry.orElseThrow(() -> new IllegalArgumentException("No index entry found for " + lastEvent));
         LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD, entry.position);
         NonIndexedLogIterator nonIndexedLogIterator = new NonIndexedLogIterator(logIterator);
@@ -370,36 +368,35 @@ public class EventStore implements IEventStore {
     public synchronized EventRecord linkTo(String stream, EventRecord event) {
         if (event.isLinkToEvent()) {
             //resolve event
-            event = get(event.stream, event.version);
+            event = get(event.streamName());
         }
         EventRecord linkTo = LinkTo.create(stream, StreamName.from(event));
         return this.appendSystemEvent(linkTo);
     }
 
     @Override
-    public synchronized EventRecord linkTo(String dstStream, String sourceStream, int sourceVersion, String sourceType) {
+    public synchronized EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
         if (LinkTo.TYPE.equals(sourceType)) {
             //resolve event
-            EventRecord event = get(sourceStream, sourceVersion);
-            EventRecord linkTo = LinkTo.create(dstStream, StreamName.from(event));
+            EventRecord resolvedEvent = get(source);
+            StreamName resolvedStream = resolvedEvent.streamName();
+            EventRecord linkTo = LinkTo.create(dstStream, resolvedStream);
             return this.appendSystemEvent(linkTo);
         }
-        EventRecord linkTo = LinkTo.create(dstStream, StreamName.of(sourceStream, sourceVersion));
+        EventRecord linkTo = LinkTo.create(dstStream, source);
         return this.appendSystemEvent(linkTo);
 
     }
 
     @Override
-    public EventRecord get(String stream, int version) {
-        long streamHash = streams.hashOf(stream);
-
-        if (version <= NO_VERSION) {
+    public EventRecord get(StreamName stream) {
+        if (!stream.hasVersion()) {
             throw new IllegalArgumentException("Version must be greater than " + NO_VERSION);
         }
-        Optional<IndexEntry> indexEntry = index.get(streamHash, version);
+        Optional<IndexEntry> indexEntry = index.get(stream.hash(), stream.version());
         if (!indexEntry.isPresent()) {
             //TODO improve this to a non exception response
-            throw new RuntimeException("IndexEntry not found for " + StreamName.toString(stream, version));
+            throw new RuntimeException("IndexEntry not found for " + stream);
         }
 
         return get(indexEntry.get());
@@ -416,10 +413,7 @@ public class EventStore implements IEventStore {
     @Override
     public EventRecord resolve(EventRecord record) {
         if (record.isLinkToEvent()) {
-            StreamName streamName = StreamName.parse(record.dataAsString());
-            var linkToStream = streamName.name();
-            var linkToVersion = streamName.version();
-            return get(linkToStream, linkToVersion);
+            return get(record.streamName());
         }
         return record;
     }
@@ -455,7 +449,10 @@ public class EventStore implements IEventStore {
         if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
         }
-        long streamHash = streams.hashOf(event.stream);
+
+        StreamName stream = event.streamName();
+        long streamHash = stream.hash();
+
         if (streamMetadata.name.equals(event.stream) && streamMetadata.hash != streamHash) {
             //TODO improve ??
             throw new IllegalStateException("Hash collision of closeableStream: " + event.stream + " with existing name: " + streamMetadata.name);

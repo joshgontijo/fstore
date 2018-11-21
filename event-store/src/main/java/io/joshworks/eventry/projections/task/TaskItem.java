@@ -146,6 +146,10 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
         return context.state();
     }
 
+    String id() {
+        return id;
+    }
+
     @Override
     public void close() {
         IOUtils.closeQuietly(source);
@@ -156,5 +160,9 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
             status = Status.STOPPED;
         }
         close();
+    }
+
+    void deleteCheckpoint() {
+        checkpointer.remove(this.id);
     }
 }

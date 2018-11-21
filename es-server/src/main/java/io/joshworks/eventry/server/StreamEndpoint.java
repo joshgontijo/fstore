@@ -2,6 +2,7 @@ package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.Range;
@@ -64,7 +65,7 @@ public class StreamEndpoint {
             }
         }
 
-        try (Stream<EventRecord> stream = store.fromStream(streamName, startVersion).stream()) {
+        try (Stream<EventRecord> stream = store.fromStream(StreamName.create(streamName, startVersion)).stream()) {
             List<EventBody> streamEvents = stream.filter(ev -> !ev.isLinkToEvent())
                     .limit(limit)
                     .map(EventBody::from)
@@ -77,7 +78,7 @@ public class StreamEndpoint {
     public void streamsQuery(HttpExchange exchange) {
 
         String zipWithPrefix = extractZipStartingWith(exchange);
-        Set<String> streams = extractZipParams(exchange);
+        Set<StreamName> streams = extractZipParams(exchange);
         int limit = exchange.queryParameterVal("limit").asInt().orElse(DEFAULT_LIMIT);
 
         if (!streams.isEmpty() && zipWithPrefix != null) {
@@ -173,13 +174,13 @@ public class StreamEndpoint {
         metadata.ifPresentOrElse(exchange::send, () -> exchange.send(new HttpException(404, "Stream not found for " + stream)));
     }
 
-    private Set<String> extractZipParams(HttpExchange exchange) {
+    private Set<StreamName> extractZipParams(HttpExchange exchange) {
         Deque<String> zip = exchange.queryParameters(QUERY_PARAM_ZIP);
-        Set<String> streams = new HashSet<>();
+        Set<StreamName> streams = new HashSet<>();
         if (zip != null && !zip.isEmpty()) {
             for (String val : zip) {
                 if (val != null && !val.isEmpty()) {
-                    streams.add(val);
+                    streams.add(StreamName.of(val));
                 }
             }
         }

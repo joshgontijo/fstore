@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.index.disk.IndexAppender;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
@@ -52,6 +53,10 @@ public class TableIndex implements Closeable {
 
         this.diskIndex = new IndexAppender(rootDirectory, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
         this.flushThreshold = flushThreshold;
+    }
+
+    public FlushInfo add(StreamName stream, long position) {
+        return add(stream.hash(), stream.version(), position);
     }
 
     //returns true if flushed to disk

@@ -70,6 +70,10 @@ public class EventRecord {
         return LinkTo.TYPE.equals(type);
     }
 
+    public StreamName streamName() {
+        return StreamName.create(stream, version);
+    }
+
     @Override
     public String toString() {
         return "EventRecord{" + "stream='" + stream + '\'' +

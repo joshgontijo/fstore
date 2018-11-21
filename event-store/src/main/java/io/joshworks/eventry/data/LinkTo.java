@@ -21,8 +21,7 @@ public class LinkTo {
     }
 
     public static LinkTo from(EventRecord record) {
-        String streamVersion = record.dataAsString();
-        StreamName streamName = StreamName.parse(streamVersion);
+        StreamName streamName = record.streamName();
         return new LinkTo(streamName.name(), streamName.version());
     }
 

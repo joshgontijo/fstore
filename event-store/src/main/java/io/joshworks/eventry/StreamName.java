@@ -1,5 +1,6 @@
 package io.joshworks.eventry;
 
+import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.utils.StringUtils;
@@ -11,7 +12,6 @@ import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 public class StreamName {
 
     public static final String SYSTEM_PREFIX = "_";
-    public static final String ALL_STREAMS = SYSTEM_PREFIX + "all";
     public static final String STREAM_VERSION_SEPARATOR = "@";
     private static final StreamHasher hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
 
@@ -40,24 +40,30 @@ public class StreamName {
     }
 
     public boolean isAll() {
-        return ALL_STREAMS.equals(name);
+        return SystemStreams.ALL.equals(name);
+    }
+
+    public boolean hasVersion() {
+        return version > NO_VERSION;
+    }
+
+    public static StreamName create(String stream, int version) {
+        StringUtils.requireNonBlank(stream);
+        StreamName parsed = parse(stream);
+        version = version <= NO_VERSION ? NO_VERSION : version;
+        return new StreamName(parsed.name, version);
     }
 
     public static StreamName of(String stream) {
         StringUtils.requireNonBlank(stream);
-        return new StreamName(stream, NO_VERSION);
-    }
-
-    public static StreamName of(String stream, int version) {
-        StringUtils.requireNonBlank(stream);
-        return new StreamName(stream, version);
+        return parse(stream);
     }
 
     public static StreamName from(EventRecord eventRecord) {
         return new StreamName(eventRecord.stream, eventRecord.version);
     }
 
-    public static StreamName parse(String streamVersion) {
+    private static StreamName parse(String streamVersion) {
         if (StringUtils.isBlank(streamVersion)) {
             throw new IllegalArgumentException("Invalid stream value");
         }
