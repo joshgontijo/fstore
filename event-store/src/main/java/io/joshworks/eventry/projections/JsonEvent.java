@@ -1,7 +1,7 @@
 package io.joshworks.eventry.projections;
 
 import com.google.gson.reflect.TypeToken;
-import io.joshworks.eventry.data.Constant;
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
@@ -48,7 +48,7 @@ public class JsonEvent {
         int version = (int) event.get("version");
         Map<String, Object> metadata = (Map<String, Object>) event.get("metadata");
         Map<String, Object> data = (Map<String, Object>) event.get("body");
-        return new JsonEvent(type, timestamp, stream, version, data, metadata, type.startsWith(Constant.SYSTEM_PREFIX));
+        return new JsonEvent(type, timestamp, stream, version, data, metadata, type.startsWith(StreamName.SYSTEM_PREFIX));
     }
 
     public EventRecord toEvent() {

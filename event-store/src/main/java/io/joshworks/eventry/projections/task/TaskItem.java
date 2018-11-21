@@ -1,11 +1,11 @@
 package io.joshworks.eventry.projections.task;
 
 import io.joshworks.eventry.ScriptExecutionException;
-import io.joshworks.eventry.data.StreamFormat;
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.projections.Checkpointer;
 import io.joshworks.eventry.projections.EventStreamHandler;
 import io.joshworks.eventry.projections.Projection;
-import io.joshworks.eventry.projections.Checkpointer;
 import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
@@ -14,47 +14,44 @@ import io.joshworks.eventry.projections.result.TaskError;
 import io.joshworks.eventry.projections.result.TaskStatus;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Logging;
+import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;
 
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 
 class TaskItem implements Callable<TaskStatus>, Closeable {
 
     private final Logger logger;
 
-    private final String uuid = UUID.randomUUID().toString().substring(0, 8);
-    private final EventSource source;
+    private final String id;
     private final EventStreamHandler handler;
     private final ProjectionContext context;
     private final Projection projection;
     private final Checkpointer checkpointer;
     private final Metrics metrics = new Metrics();
-    private final String stateKey;
+    private final StreamTracker tracker = new StreamTracker();
+    private final LogIterator<EventRecord> source;
 
     private Status status = Status.NOT_STARTED;
     private TaskError error;
 
-    TaskItem(EventSource source, Checkpointer checkpointer, EventStreamHandler handler, ProjectionContext context, Projection projection) {
+    TaskItem(String id, LogIterator<EventRecord> source, Checkpointer checkpointer, EventStreamHandler handler, ProjectionContext context, Projection projection) {
         this.source = source;
         this.checkpointer = checkpointer;
         this.handler = handler;
         this.context = context;
         this.projection = projection;
-        //TODO doesnt work for parallel streams, projection name is used by default
-        this.stateKey = projection.name;
-        this.logger = Logging.namedLogger("projection-task", stateKey);
+        this.id = id;
+        this.logger = Logging.namedLogger("projection-task", id);
     }
 
     @Override
     public TaskStatus call() {
         status = Status.RUNNING;
         try {
-
             //read
             List<EventRecord> batchRecords = bulkRead();
             if (!batchRecords.isEmpty()) {
@@ -63,18 +60,18 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
                 //publish
                 publishEvents(result);
 
-                checkpoint();
 
+                checkpoint(batchRecords);
                 updateStatus(batchRecords, result);
             }
 
         } catch (ScriptExecutionException e) {
             status = Status.FAILED;
-            logger.error("Task item " + uuid + " failed", e);
+            logger.error("Task item " + id + " failed", e);
             error = new TaskError(e.getMessage(), metrics.logPosition, e.event);
         } catch (Exception e) {
             status = Status.FAILED;
-            logger.error("Internal error on processing event", e);
+            logger.error("Internal error on processing event for task items " + id, e);
             error = new TaskError(e.getMessage(), metrics.logPosition, null);
         }
 
@@ -107,15 +104,14 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
 
         if (!batchRecords.isEmpty()) {
             EventRecord last = batchRecords.get(batchRecords.size() - 1);
-            metrics.lastEvent = StreamFormat.toString(last.stream, last.version);
+            metrics.lastEvent = StreamName.toString(last.stream, last.version);
         }
         metrics.logPosition = source.position();
     }
 
-    private void checkpoint() {
-        State state = context.state();
-        Map<String, Integer> tracker = source.streamTracker();
-        checkpointer.checkpoint(stateKey, state, tracker);
+    private void checkpoint(List<EventRecord> batchRecords) {
+        batchRecords.forEach(tracker::update);
+        checkpointer.checkpoint(id, context.state(), tracker.get());
     }
 
     private List<EventRecord> bulkRead() {

@@ -6,7 +6,7 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
 
-import static io.joshworks.eventry.data.Constant.SYSTEM_PREFIX;
+import static io.joshworks.eventry.StreamName.SYSTEM_PREFIX;
 
 public class IndexFlushed {
 

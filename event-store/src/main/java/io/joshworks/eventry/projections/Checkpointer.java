@@ -1,12 +1,13 @@
 package io.joshworks.eventry.projections;
 
+import io.joshworks.eventry.StreamName;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.Map;
+import java.util.Set;
 
 public class Checkpointer implements Closeable {
 
@@ -18,8 +19,8 @@ public class Checkpointer implements Closeable {
         this.store = LsmTree.open(new File(rootDir, PROJECTIONS_DIR), Serializers.STRING, JsonSerializer.of(Checkpoint.class), 1000, PROJECTIONS_STORE_NAME);
     }
 
-    public void checkpoint(String key, State state, Map<String, Integer> tracker) {
-        Checkpoint checkpoint = new Checkpoint(state, tracker);
+    public void checkpoint(String key, State state, Set<StreamName> lastProvessed) {
+        Checkpoint checkpoint = new Checkpoint(state, lastProvessed);
         store.put(key, checkpoint);
     }
 
@@ -33,12 +34,14 @@ public class Checkpointer implements Closeable {
 
     public static class Checkpoint {
         public final State state;
-        public final Map<String, Integer> tracker;
+        public final Set<StreamName> lastProcessed;
 
-        private Checkpoint(State state, Map<String, Integer> tracker) {
+        private Checkpoint(State state, Set<StreamName> lastProcessed) {
             this.state = state;
-            this.tracker = tracker;
+            this.lastProcessed = lastProcessed;
         }
+
+
     }
 
     @Override

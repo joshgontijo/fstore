@@ -1,7 +1,7 @@
 package io.joshworks.eventry.stream;
 
 import io.joshworks.eventry.LRUCache;
-import io.joshworks.eventry.data.Constant;
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.utils.StringUtils;
@@ -28,7 +28,7 @@ import static io.joshworks.eventry.stream.StreamMetadata.STREAM_ACTIVE;
 public class Streams implements Closeable {
 
     public static final String STREAM_WILDCARD = "*";
-    public static final String ALL_STREAM = Constant.SYSTEM_PREFIX + "all";
+    public static final String ALL_STREAM = StreamName.SYSTEM_PREFIX + "all";
     //TODO LRU cache ? there's no way of getting item by stream name, need to use an indexed lsm-tree
     //LRU map that reads the last version from the index
     private final Map<Long, AtomicInteger> versions;
@@ -40,6 +40,7 @@ public class Streams implements Closeable {
         this.versions = new LRUCache<>(versionLruCacheSize);
         this.streamStore = new StreamStore(root, 1000000); //TODO externalize
         this.versionFetcher = versionFetcher;
+        //TODO remove ?? StreamNames already has it
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
     }
 

@@ -52,6 +52,11 @@ public class CachedEventLog implements IEventLog {
     }
 
     @Override
+    public LogIterator<EventRecord> iterator(Direction direction, long position) {
+        return delegate.iterator(direction, position);
+    }
+
+    @Override
     public void cleanup() {
         delegate.cleanup();
     }

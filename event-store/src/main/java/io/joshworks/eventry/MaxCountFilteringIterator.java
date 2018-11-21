@@ -51,6 +51,7 @@ public class MaxCountFilteringIterator implements LogIterator<IndexEntry> {
         return delegate.hasNext() ? delegate.next() : null;
     }
 
+    //count is based on stream version rather than event count
     private boolean lessThanMaxCount(IndexEntry last) {
         return last.version <= (streamVersion - maxCount);
     }

@@ -4,8 +4,8 @@ import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
-import io.joshworks.eventry.data.Constant;
 import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
@@ -315,7 +315,7 @@ public class EventStoreIT {
 
         List<String> streams = Arrays.asList("test-0", "test-1", "test-10", "test-100", "test-1000");
 
-        Iterator<EventRecord> eventStream = store.zipStreams(new HashSet<>(streams));
+        Iterator<EventRecord> eventStream = store.fromStreams(new HashSet<>(streams));
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -359,7 +359,7 @@ public class EventStoreIT {
         }
 
         String eventToQuery = "test-1";
-        Iterator<EventRecord> eventStream = store.zipStreams(Set.of(eventToQuery));
+        Iterator<EventRecord> eventStream = store.fromStreams(Set.of(eventToQuery));
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -530,7 +530,7 @@ public class EventStoreIT {
             store.append(EventRecord.create("someOtherStream", String.valueOf("type"), "body-" + version));
         }
 
-        Iterator<EventRecord> eventStream = store.zipStreams(streamPrefix + "*");
+        Iterator<EventRecord> eventStream = store.fromStreams(streamPrefix + "*");
 
         assertTrue(eventStream.hasNext());
 
@@ -664,7 +664,7 @@ public class EventStoreIT {
 
     @Test(expected = IllegalArgumentException.class)
     public void stream_name_cannot_start_with_system_reserved_prefix() {
-        store.append(EventRecord.create(Constant.SYSTEM_PREFIX + "stream", "a", "asa"));
+        store.append(EventRecord.create(StreamName.SYSTEM_PREFIX + "stream", "a", "asa"));
     }
 
     @Test(expected = IllegalArgumentException.class)
