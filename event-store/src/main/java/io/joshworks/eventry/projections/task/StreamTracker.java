@@ -20,7 +20,7 @@ class StreamTracker {
     }
 
     Set<StreamName> get() {
-        return multiStreamTracker.entrySet().stream().map(e -> StreamName.of(e.getKey(), e.getValue())).collect(Collectors.toSet());
+        return multiStreamTracker.entrySet().stream().map(e -> StreamName.create(e.getKey(), e.getValue())).collect(Collectors.toSet());
     }
 
 }

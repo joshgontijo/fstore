@@ -15,21 +15,21 @@ public class StreamNameTest {
     @Test
     public void no_version() {
         StreamName stream = StreamName.of("stream");
-        assertEquals(NO_VERSION, stream.version);
+        assertEquals(NO_VERSION, stream.version());
     }
 
     @Test
     public void no_version_less_than_NO_VERSION_uses_NO_VERSION() {
         StreamName stream = StreamName.of("stream@-11111");
-        assertEquals("stream", stream.name);
-        assertEquals(NO_VERSION, stream.version);
+        assertEquals("stream", stream.name());
+        assertEquals(NO_VERSION, stream.version());
     }
 
     @Test
     public void with_version() {
         StreamName stream = StreamName.of("stream@1");
-        assertEquals("stream", stream.name);
-        assertEquals(1, stream.version);
+        assertEquals("stream", stream.name());
+        assertEquals(1, stream.version());
     }
 
     @Test(expected = IllegalArgumentException.class)

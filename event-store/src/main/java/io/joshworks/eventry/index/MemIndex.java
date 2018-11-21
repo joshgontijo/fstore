@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index;
 
 
+import io.joshworks.eventry.StreamName;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;

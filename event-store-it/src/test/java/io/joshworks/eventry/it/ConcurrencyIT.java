@@ -2,6 +2,7 @@ package io.joshworks.eventry.it;
 
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.seda.TimeWatch;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -18,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -71,7 +73,7 @@ public class ConcurrencyIT {
 
 
         //READ
-        Iterator<EventRecord> events = store.fromStream(stream);
+        Iterator<EventRecord> events = store.fromStream(StreamName.of(stream));
         int found = 0;
 
         while (events.hasNext()) {
@@ -108,7 +110,7 @@ public class ConcurrencyIT {
 
         for (int readTask = 0; readTask < totalReads; readTask++) {
             readExecutor.execute(() -> {
-                long count = store.fromStream(stream).stream().count();
+                long count = store.fromStream(StreamName.of(stream)).stream().count();
                 readLatch.countDown();
                 readCount.incrementAndGet();
             });
@@ -174,7 +176,8 @@ public class ConcurrencyIT {
 
 
         //READ
-        Iterator<EventRecord> events = store.fromStreams(streamNames);
+        Set<StreamName> streamHashes = streamNames.stream().map(StreamName::of).collect(Collectors.toSet());
+        Iterator<EventRecord> events = store.fromStreams(streamHashes);
         int found = 0;
 
         while (events.hasNext()) {
