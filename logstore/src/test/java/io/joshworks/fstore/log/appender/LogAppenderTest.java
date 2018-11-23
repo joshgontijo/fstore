@@ -9,6 +9,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.serializer.StringSerializer;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -688,4 +689,53 @@ public abstract class LogAppenderTest {
         appender = appender();
         assertEquals(pos, appender.position());
     }
+
+
+    public static class MMapLogAppenderTest extends LogAppenderTest {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory, int segmentSize) {
+            return LogAppender.builder(testDirectory, new StringSerializer())
+                    .segmentSize(segmentSize)
+                    .storageMode(StorageMode.MMAP)
+                    .disableCompaction()
+                    .open();
+        }
+    }
+
+    public static class CachedRafLogAppenderTest extends LogAppenderTest {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory, int segmentSize) {
+            return LogAppender.builder(testDirectory, new StringSerializer())
+                    .segmentSize(segmentSize)
+                    .storageMode(StorageMode.RAF_CACHED)
+                    .disableCompaction()
+                    .open();
+        }
+    }
+
+    public static class RafLogAppenderTest extends LogAppenderTest {
+
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory, int segmentSize) {
+            return LogAppender.builder(testDirectory, new StringSerializer())
+                    .segmentSize(segmentSize)
+                    .disableCompaction()
+                    .open();
+        }
+    }
+
+    public static class WithCompaction extends LogAppenderTest {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory, int segmentSize) {
+            return LogAppender.builder(testDirectory, new StringSerializer())
+                    .segmentSize(segmentSize)
+                    .storageMode(StorageMode.MMAP)
+                    .open();
+        }
+    }
+
 }

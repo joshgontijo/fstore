@@ -4,18 +4,46 @@ import io.joshworks.eventry.StreamName;
 import org.junit.Test;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
-import static org.junit.Assert.*;
+import static io.joshworks.eventry.index.Range.START_VERSION;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class StreamNameTest {
 
     @Test
-    public void testtoString() {
+    public void toStringFormat() {
+        assertEquals("stream@0", StreamName.of("stream").toString());
+    }
+
+    @Test
+    public void toStringFormatFromCreate() {
+        assertEquals("stream@123", StreamName.create("stream", 123).toString());
     }
 
     @Test
     public void no_version() {
         StreamName stream = StreamName.of("stream");
-        assertEquals(NO_VERSION, stream.version());
+        assertEquals(START_VERSION, stream.version());
+    }
+
+    @Test
+    public void name_is_correct() {
+        assertEquals("stream", StreamName.of("stream@123").name());
+    }
+
+    @Test
+    public void version_is_correct() {
+        assertEquals(123, StreamName.of("stream@123").version());
+    }
+
+    @Test
+    public void isAll() {
+        assertTrue(StreamName.of(SystemStreams.ALL).isAll());
+    }
+
+    @Test
+    public void isSystemStream() {
+        assertTrue(StreamName.of(SystemStreams.STREAMS).isSystemStream());
     }
 
     @Test
@@ -42,15 +70,5 @@ public class StreamNameTest {
         StreamName.of("stream@1@");
     }
 
-    @Test
-    public void of2() {
-    }
 
-    @Test
-    public void parse() {
-    }
-
-    @Test
-    public void toString1() {
-    }
 }

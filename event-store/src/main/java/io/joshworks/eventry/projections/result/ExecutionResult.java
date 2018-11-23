@@ -3,7 +3,6 @@ package io.joshworks.eventry.projections.result;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ExecutionResult {
@@ -26,6 +25,9 @@ public class ExecutionResult {
         if ((statusFlag & Status.RUNNING.flag) == Status.RUNNING.flag) {
             return Status.RUNNING;
         }
+        if ((statusFlag & Status.AWAITING.flag) == Status.AWAITING.flag) {
+            return Status.AWAITING;
+        }
         if ((statusFlag & Status.FAILED.flag) == Status.FAILED.flag) {
             return Status.FAILED;
         }
@@ -38,14 +40,15 @@ public class ExecutionResult {
         if ((statusFlag & Status.NOT_STARTED.flag) == Status.NOT_STARTED.flag) {
             return Status.NOT_STARTED;
         }
-        if ((statusFlag & Status.AWAITING.flag) == Status.AWAITING.flag) {
-            return Status.AWAITING;
-        }
-
 
         throw new RuntimeException("Unknown status Flag");
-
     }
 
-
+    @Override
+    public String toString() {
+        return "ExecutionResult{" + "projectionName='" + projectionName + '\'' +
+                ", status=" + status +
+                ", tasks=" + tasks +
+                '}';
+    }
 }

@@ -33,6 +33,7 @@ public class ProjectionExecutor implements Closeable {
     private static final Logger logger = LoggerFactory.getLogger(ProjectionExecutor.class);
 
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10, new ProjectionThreadFactory());
+
     private final Consumer<EventRecord> systemRecordAppender;
     private final Map<String, ProjectionTask> running = new HashMap<>();
     private final Checkpointer checkpointer;
@@ -48,16 +49,19 @@ public class ProjectionExecutor implements Closeable {
         ProjectionTask projectionTask = ProjectionTask.create(store, projection, checkpointer);
         try {
             running.put(projection.name, projectionTask);
-            scheduleRun(projectionTask);
+            runTask(projectionTask);
 
         } catch (Exception e) {
             logger.error("Script execution failed for projection " + projection.name, e);
         }
     }
 
-    private void scheduleRun(ProjectionTask projectionTask) {
-        CompletableFuture.supplyAsync(projectionTask::call)
-                .thenAccept(status -> processResult(status, projectionTask));
+    private void runTask(ProjectionTask projectionTask) {
+        CompletableFuture.supplyAsync(projectionTask::call, executor)
+                .exceptionally(t -> {
+                    logger.error("Internal error while running projection", t);
+                    return new ExecutionResult("UNKNOWN", Set.of(new TaskStatus(Status.FAILED, new TaskError(t.getMessage(), -1, null), null)));
+                }).thenAccept(status -> processResult(status, projectionTask));
     }
 
 
@@ -68,8 +72,15 @@ public class ProjectionExecutor implements Closeable {
 //        Metrics metrics = result.metrics;
         Status status = result.status;
 
+        //schedule immediately, it has data
         if (Status.RUNNING.equals(status)) {
-            this.executor.schedule(() -> this.scheduleRun(projectionTask), 500, TimeUnit.MILLISECONDS);
+            this.runTask(projectionTask);
+            return;
+        }
+
+        //awaiting for data, schedule in few seconds
+        if (Status.AWAITING.equals(status)) {
+            this.executor.schedule(() -> this.runTask(projectionTask), 5, TimeUnit.SECONDS);
             return;
         }
 

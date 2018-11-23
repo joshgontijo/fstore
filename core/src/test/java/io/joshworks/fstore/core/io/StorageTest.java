@@ -16,6 +16,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.joshworks.fstore.core.utils.Utils.sleep;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -246,7 +247,7 @@ public abstract class StorageTest {
             var readBuffer = ByteBuffer.allocate(entrySize);
             int read = storage.read(readPos, readBuffer);
             assertEquals("Failed on pos " + readPos + " iteration " + i, entrySize, read);
-            assertTrue("Failed on pos " + readPos + " iteration " + i, Arrays.equals(data, readBuffer.array()));
+            assertArrayEquals("Failed on pos " + readPos + " iteration " + i, data, readBuffer.array());
             readPos += read;
         }
 
@@ -254,7 +255,7 @@ public abstract class StorageTest {
     }
 
     @Test
-    public void store_must_support_concurrent_reads_and_writes() throws InterruptedException {
+    public void must_support_concurrent_reads_and_writes() throws InterruptedException {
 
         int items = 5000000;
         int entrySize = 255;

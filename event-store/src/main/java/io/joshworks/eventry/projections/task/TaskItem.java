@@ -35,8 +35,8 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
     private final StreamTracker tracker = new StreamTracker();
     private final LogIterator<EventRecord> source;
 
-    private Status status = Status.NOT_STARTED;
-    private TaskError error;
+    private volatile Status status = Status.NOT_STARTED;
+    private volatile TaskError error;
 
     TaskItem(String id, LogIterator<EventRecord> source, Checkpointer checkpointer, EventStreamHandler handler, ProjectionContext context, Projection projection) {
         this.source = source;
@@ -49,20 +49,28 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
     }
 
     @Override
-    public TaskStatus call() {
-        status = Status.RUNNING;
+    public synchronized TaskStatus call() {
+        if (Status.STOPPED.equals(status) || Status.FAILED.equals(status) || Status.COMPLETED.equals(status)) {
+            return new TaskStatus(status, error, metrics);
+        }
         try {
             //read
             List<EventRecord> batchRecords = bulkRead();
             if (!batchRecords.isEmpty()) {
+                status = Status.RUNNING;
                 //process
                 ScriptExecutionResult result = process(batchRecords);
                 //publish
                 publishEvents(result);
 
-
                 checkpoint(batchRecords);
                 updateStatus(batchRecords, result);
+
+                if (!source.hasNext()) {
+                    status = Status.AWAITING;
+                }
+            } else {
+                status = Status.AWAITING;
             }
 
         } catch (ScriptExecutionException e) {
@@ -155,7 +163,7 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
         IOUtils.closeQuietly(source);
     }
 
-    void stop() {
+    synchronized void stop() {
         if (!Status.FAILED.equals(status)) {
             status = Status.STOPPED;
         }

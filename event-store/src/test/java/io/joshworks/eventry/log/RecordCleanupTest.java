@@ -8,7 +8,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -20,7 +19,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
@@ -198,11 +196,6 @@ public class RecordCleanupTest {
         @Override
         public long logicalSize() {
             return 0;
-        }
-
-        @Override
-        public Set<TimeoutReader> readers() {
-            return null;
         }
 
         @Override

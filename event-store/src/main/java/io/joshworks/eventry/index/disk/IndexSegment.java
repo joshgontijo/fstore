@@ -1,6 +1,5 @@
 package io.joshworks.eventry.index.disk;
 
-import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.midpoint.Midpoint;
@@ -17,7 +16,6 @@ import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
@@ -31,7 +29,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class IndexSegment implements Log<IndexEntry> {
@@ -116,11 +113,6 @@ public class IndexSegment implements Log<IndexEntry> {
     @Override
     public long logicalSize() {
         return delegate.logicalSize();
-    }
-
-    @Override
-    public Set<TimeoutReader> readers() {
-        return delegate.readers();
     }
 
     @Override

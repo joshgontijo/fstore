@@ -8,6 +8,7 @@ import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static io.joshworks.eventry.index.Range.START_VERSION;
 
 public class StreamName {
 
@@ -55,7 +56,6 @@ public class StreamName {
     }
 
     public static StreamName of(String stream) {
-        StringUtils.requireNonBlank(stream);
         return parse(stream);
     }
 
@@ -65,19 +65,40 @@ public class StreamName {
 
     private static StreamName parse(String streamVersion) {
         if (StringUtils.isBlank(streamVersion)) {
-            throw new IllegalArgumentException("Invalid stream value");
+            throw new IllegalArgumentException("Null or empty stream value");
         }
-        String[] split = streamVersion.split(STREAM_VERSION_SEPARATOR);
-        if (split.length == 1) {
-            return new StreamName(split[0], 0);
-        } else if (split.length == 2) {
-            String streamName = StringUtils.requireNonBlank(split[0], "Stream name");
-            int version = Integer.parseInt(StringUtils.requireNonBlank(split[1], "Stream version"));
-            return new StreamName(streamName, version);
-        } else {
-            throw new IllegalArgumentException("Invalid stream name format: '" + streamVersion + "'");
+        String[] split = streamVersion.split(STREAM_VERSION_SEPARATOR, 2);
+        if (!(split.length >= 1 && split.length < 3)) {
+            throw new IllegalArgumentException("Invalid stream format: '" + streamVersion + "'");
+        }
+
+        String name = validateStreamName(split, streamVersion);
+        int version = getVersion(split, streamVersion);
+        return new StreamName(name, version);
+    }
+
+    private static String validateStreamName(String[] split, String original) {
+        String streamName = split[0];
+        if (StringUtils.isBlank(streamName)) {
+            throw new IllegalArgumentException("Null or empty stream name: '" + original + "'");
+        }
+        if (streamName.contains("@")) {
+            throw new IllegalArgumentException("Invalid stream name format: '" + original + "'");
+        }
+        return streamName;
+    }
+
+    private static int getVersion(String[] split, String original) {
+        if (split.length <= 1) {
+            return START_VERSION;
+        }
+        try {
+            return Integer.parseInt(StringUtils.requireNonBlank(split[1], "Stream version"));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid version for '" + original + "': ", e);
         }
     }
+
 
     public static String toString(String stream, int version) {
         if (version <= NO_VERSION) {

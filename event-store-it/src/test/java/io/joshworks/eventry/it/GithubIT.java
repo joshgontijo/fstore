@@ -35,6 +35,7 @@ public class GithubIT {
         FileUtils.tryDelete(directory);
     }
 
+    //TODO parse json and use actual event type
     @Test
     public void github() throws IOException {
         String stream = "github";
