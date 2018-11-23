@@ -8,7 +8,6 @@ import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.Closeable;
-import java.util.Set;
 
 public interface Log<T> extends Writer<T>, Closeable {
 
@@ -28,8 +27,6 @@ public interface Log<T> extends Writer<T>, Closeable {
     long fileSize();
 
     long logicalSize();
-
-    Set<TimeoutReader> readers();
 
     SegmentState rebuildState(long lastKnownPosition);
 

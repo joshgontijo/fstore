@@ -1,6 +1,5 @@
 package io.joshworks.eventry.index.disk;
 
-import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
@@ -45,8 +44,8 @@ public class IndexAppender implements Closeable {
                 .disableAutoRoll()
                 .name(STORE_NAME)
                 .flushMode(FlushMode.NEVER)
-                .storageMode(StorageMode.RAF)
-                .disableCompaction() //TODO disable
+                .storageMode(StorageMode.MMAP)
+//                .disableCompaction()
                 .namingStrategy(new IndexNaming())
                 .open(new IndexSegmentFactory(indexDirectory, numElements, codec));
     }

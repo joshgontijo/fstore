@@ -146,11 +146,6 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
-    public Set<TimeoutReader> readers() {
-        return readers;
-    }
-
-    @Override
     public String name() {
         return storage.name();
     }

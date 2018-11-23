@@ -30,7 +30,7 @@ public class StateTest {
     @Test
     public void flush() {
 
-        //give
+        //given
         state.position(10);
         state.incrementEntryCount();
         state.lastRollTime(123L);

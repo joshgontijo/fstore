@@ -33,7 +33,7 @@ public class IndexAppenderTest {
     @After
     public void tearDown() {
         appender.close();
-        FileUtils.tryDelete(location);
+//        FileUtils.tryDelete(location);
     }
 
     @Test
@@ -63,34 +63,11 @@ public class IndexAppenderTest {
         appender = new IndexAppender(location, (int) Size.MB.of(10), 10000, true);
         long entries = appender.entries();
 
-        //FIXME BLOCK SEGMENTS MUST PARSE ALL BLOCKS ON OPEN TO COMPUTE THE ENTRIES, IF ITS LOG_HEAD
         assertEquals(3, entries);
     }
 
-//    @Test
-//    public void all_entries_are_returned_from_multiple_segments() {
-//
-//        int entriesPerSegment = 10;
-//        int numSegments = 10;
-//
-//        int stream = 0;
-//        for (int i = 0; i < entriesPerSegment; i++) {
-//            for (int x = 0; x < numSegments; x++) {
-//                memIndex.add(IndexEntry.of(stream++, 0, 0));
-//            }
-//            appender.writeToDisk(memIndex);
-//            memIndex = new MemIndex();
-//        }
-//
-//        long entries = appender.entries();
-//        assertEquals(entriesPerSegment * numSegments, entries);
-//
-//        try (Stream<IndexEntry> items = appender.indexStream(Direction.FORWARD)) {
-//            assertEquals(entriesPerSegment * numSegments, items.count());
-//
-//        }
-//    }
 
+    //FIXME
     @Test
     public void entries_are_returned_in_order_from_multiple_segments() throws IOException {
 
@@ -136,8 +113,7 @@ public class IndexAppenderTest {
         IndexEntry last = null;
         Iterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD);
         while (iterator.hasNext()) {
-            IndexEntry next = iterator.next();
-            last = next;
+            last = iterator.next();
             count++;
         }
 

@@ -21,7 +21,7 @@ public class ExecutionResultTest {
     }
 
     @Test
-    public void running_when_all_at_least_on_item_is_running_and_no_failed_tasks() {
+    public void running_when_at_least_on_item_is_running_and_no_failed_tasks() {
         Status status = ExecutionResult.getStatusFlag(List.of(Status.COMPLETED, Status.RUNNING));
         assertEquals(Status.RUNNING, status);
     }
@@ -29,6 +29,12 @@ public class ExecutionResultTest {
     @Test
     public void returns_running_when_at_least_one_task_is_running() {
         Status status = ExecutionResult.getStatusFlag(List.of(Status.FAILED, Status.RUNNING));
+        assertEquals(Status.RUNNING, status);
+    }
+
+    @Test
+    public void running_when_at_least_on_item_is_running_and_no_awaiting_tasks() {
+        Status status = ExecutionResult.getStatusFlag(List.of(Status.AWAITING, Status.RUNNING));
         assertEquals(Status.RUNNING, status);
     }
 }

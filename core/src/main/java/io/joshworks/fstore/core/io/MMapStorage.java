@@ -114,6 +114,9 @@ public class MMapStorage extends RafStorage {
     }
 
     protected MappedByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
+        if (closed.get()) {
+            throw new StorageException("Storage closed: " + name());
+        }
         if (idx >= buffers.length) {
             if (expandBuffers) {
                 synchronized (LOCK) {
@@ -127,14 +130,16 @@ public class MMapStorage extends RafStorage {
             }
         }
         MappedByteBuffer current = buffers[idx];
-        if (current == null) {
+        if (buffers[idx] == null) {
             synchronized (LOCK) {
                 if (buffers[idx] == null && !closed.get()) {
                     buffers[idx] = map(idx);
                 }
                 current = buffers[idx];
             }
-
+        }
+        if (closed.get()) {
+            throw new StorageException("Storage closed");
         }
         if (current == null) {
             throw new StorageException("Could not acquire buffer page");
@@ -179,19 +184,18 @@ public class MMapStorage extends RafStorage {
     @Override
     public void delete() {
         synchronized (LOCK) {
-            closed.set(true);
-            unmapAll();
+            this.close();
             super.delete();
         }
     }
 
     @Override
     public void close() {
-        synchronized (LOCK) {
-            closed.set(true);
-            unmapAll();
-            super.close();
-        }
+            synchronized (LOCK) {
+                closed.set(true);
+                unmapAll();
+                super.close();
+            }
     }
 
     private void unmapAll() {

@@ -5,15 +5,12 @@ import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
@@ -344,11 +341,6 @@ public class LevelsTest {
         @Override
         public long logicalSize() {
             return 0;
-        }
-
-        @Override
-        public Set<TimeoutReader> readers() {
-            return new HashSet<>();
         }
 
         @Override

@@ -14,17 +14,20 @@ import io.joshworks.eventry.projections.Projections;
 import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.projections.result.ExecutionResult;
 import io.joshworks.eventry.projections.result.Status;
+import io.joshworks.eventry.projections.result.TaskError;
 import io.joshworks.eventry.projections.result.TaskStatus;
 import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class ProjectionTask implements Callable<ExecutionResult> {
@@ -58,14 +61,16 @@ public class ProjectionTask implements Callable<ExecutionResult> {
     public ExecutionResult call() {
         List<TaskStatus> statuses = new ArrayList<>();
         for (TaskItem taskItem : tasks) {
-            statuses.add(taskItem.stats());
             TaskStatus result = runTask(taskItem);
+            statuses.add(result);
             if (Status.FAILED.equals(result.status)) {
                 abort();
                 break;
             }
+
         }
         return new ExecutionResult(projection.name, statuses);
+
     }
 
     private void abort() {
@@ -95,11 +100,16 @@ public class ProjectionTask implements Callable<ExecutionResult> {
     }
 
     private TaskStatus runTask(TaskItem taskItem) {
-        TaskStatus status = taskItem.call();
-        if (stopRequested.get() || !Status.RUNNING.equals(taskItem.status())) {
-            taskItem.stop();
+        try {
+            TaskStatus status = taskItem.call();
+            if (stopRequested.get() && !Status.FAILED.equals(status.status)) {
+                taskItem.stop();
+            }
+            return status;
+        } catch (Exception e) {
+            logger.error("Error while running TaskItem" + taskItem.id(), e);
+            return new TaskStatus(Status.FAILED, new TaskError("INTERNAL ERROR: " + e.getMessage(), -1, null), null);
         }
-        return status;
     }
 
     private static List<TaskItem> createTaskItems(IEventStore store, Projection projection, Checkpointer checkpointer) {
@@ -115,20 +125,23 @@ public class ProjectionTask implements Callable<ExecutionResult> {
 
             Checkpointer.Checkpoint checkpoint = checkpointer.get(taskId);
 
-            //TODO improve this
+            //TODO refactor this
             LogIterator<EventRecord> source;
             if (checkpoint != null) {
                 if (isAllStream) {//there will be only single one
                     StreamName lastProcessed = checkpoint.lastProcessed.iterator().next();
-                    source = store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE, lastProcessed);
+                    StreamName start = StreamName.create(lastProcessed.name(), lastProcessed.version() + 1);
+                    source = store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE, start);
                 } else {
-                    source = store.fromStreams(checkpoint.lastProcessed);
+                    Set<StreamName> mergedStreamStartVersions = mergeCheckpoint(projection, checkpoint);
+                    source = store.fromStreams(mergedStreamStartVersions);
                 }
             } else {
                 if (isAllStream) {
                     source = store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE);
                 } else {
-                    source = store.fromStreams(projection.sources.stream().map(StreamName::of).collect(Collectors.toSet()));
+                    Set<StreamName> streamNames = projection.sources.stream().map(StreamName::of).collect(Collectors.toSet());
+                    source = store.fromStreams(streamNames);
                 }
             }
 
@@ -151,6 +164,23 @@ public class ProjectionTask implements Callable<ExecutionResult> {
         }
         return tasks;
     }
+
+    private static Set<StreamName> mergeCheckpoint(Projection projection, Checkpointer.Checkpoint checkpoint) {
+        //All the streams
+        Map<String, StreamName> allStreams = projection.sources.stream()
+                .map(StreamName::of)
+                .collect(Collectors.toMap(StreamName::name, Function.identity()));
+
+        //from checkpoint
+        Map<String, StreamName> checkpointStreams = checkpoint.lastProcessed.stream()
+                .map(sn -> StreamName.create(sn.name(), sn.version() + 1)) //next version
+                .collect(Collectors.toMap(StreamName::name, Function.identity()));
+
+        //merge them together
+        allStreams.putAll(checkpointStreams);
+        return new HashSet<>(allStreams.values());
+    }
+
 
     private static StreamName getSingleCheckpointOrCreate(Checkpointer checkpointer, String stream, String taskId) {
         Checkpointer.Checkpoint checkpoint = checkpointer.get(taskId);

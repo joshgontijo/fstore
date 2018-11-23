@@ -11,7 +11,6 @@ import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.TimeoutReader;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
@@ -24,7 +23,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
@@ -176,11 +174,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     @Override
     public long logicalSize() {
         return delegate.fileSize();
-    }
-
-    @Override
-    public Set<TimeoutReader> readers() {
-        return delegate.readers();
     }
 
     @Override

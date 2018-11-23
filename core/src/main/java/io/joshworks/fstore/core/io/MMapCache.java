@@ -3,7 +3,6 @@ package io.joshworks.fstore.core.io;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 
 public class MMapCache extends MMapStorage {
 
@@ -18,16 +17,13 @@ public class MMapCache extends MMapStorage {
 
     @Override
     public int read(long readPos, ByteBuffer dst) {
-        if (this.position.get() <= readPos) { // no data available
-            return 0;
-        }
 
         int tobeRead = dst.remaining();
         int read = 0;
         do { //READS ARE NOT GUARANTEED TO SEE CHANGES MADE TO THE UNDERLYING FILE, RE-READ IS NEEDED UNTIL ALL DATA IS AVAILABLE
             read += super.read(readPos, dst);
             readPos += read;
-        } while (read > 0 && read < tobeRead);
+        } while (read > 0 && read < tobeRead && (readPos < this.position.get()));
         return read;
     }
 
