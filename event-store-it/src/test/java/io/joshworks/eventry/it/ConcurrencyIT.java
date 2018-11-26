@@ -1,5 +1,6 @@
 package io.joshworks.eventry.it;
 
+import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.StreamName;
@@ -11,6 +12,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -22,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 public class ConcurrencyIT {
@@ -39,8 +43,6 @@ public class ConcurrencyIT {
     @After
     public void tearDown() {
         store.close();
-        FileUtils.tryDelete(new File(directory, "index"));
-        FileUtils.tryDelete(new File(directory, "projections"));
         FileUtils.tryDelete(directory);
     }
 
@@ -89,21 +91,20 @@ public class ConcurrencyIT {
 
         int writeThreads = 10;
         int totalWrites = 1500000;
-        int readThreads = 1;
-        int totalReads = 10000;
+        int readThreads = 20;
         String stream = "stream-0";
         ExecutorService writeExecutor = Executors.newFixedThreadPool(writeThreads);
         ExecutorService readExecutor = Executors.newFixedThreadPool(readThreads);
 
         CountDownLatch writeLatch = new CountDownLatch(totalWrites);
-        CountDownLatch readLatch = new CountDownLatch(totalWrites);
+        CountDownLatch readLatch = new CountDownLatch(readThreads);
 
         final AtomicInteger writeCount = new AtomicInteger();
-        final AtomicInteger readTaskCount = new AtomicInteger();
+        final AtomicInteger reads = new AtomicInteger();
 
         Thread reportThread = new Thread(() -> {
-            while (writeCount.get() < totalWrites && readTaskCount.get() < totalReads) {
-                System.out.println("WRITES: " + writeCount.get() + " | READS: " + readTaskCount.get());
+            while (writeCount.get() < totalWrites || readLatch.getCount() > 0) {
+                System.out.println("WRITES: " + writeCount.get() + " | READS: " + reads.get());
                 sleep(2000);
             }
         });
@@ -117,15 +118,28 @@ public class ConcurrencyIT {
             });
         }
 
-        for (int readTask = 0; readTask < totalReads; readTask++) {
+        for (int readTask = 0; readTask < readThreads; readTask++) {
             readExecutor.execute(() -> {
-                long count = store.fromStream(StreamName.of(stream)).stream().count();
-                readLatch.countDown();
-                readTaskCount.incrementAndGet();
+                AtomicInteger localCounter = new AtomicInteger();
+                try (EventLogIterator iterator = store.fromStream(StreamName.of(stream))) {
+                    while (localCounter.get() < totalWrites) {
+                        while (!iterator.hasNext()) {
+                            sleep(1000);
+                        }
+                        EventRecord next = iterator.next();
+                        assertNotNull(next);
+                        reads.incrementAndGet();
+                        localCounter.incrementAndGet();
+                    }
+                    System.out.println("COMPLETED READING " + localCounter.get() + ": " + Thread.currentThread().getName());
+                    readLatch.countDown();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+
             });
         }
-
-
 
         writeExecutor.shutdown();
         readExecutor.shutdown();
@@ -135,14 +149,17 @@ public class ConcurrencyIT {
         if (!readLatch.await(1, TimeUnit.HOURS)) {
             fail("Failed to write all entries");
         }
+
+        assertEquals(readThreads * totalWrites, reads.get());
+
     }
 
 
     @Test
-    public void concurrent_write_thread_per_stream() throws InterruptedException {
+    public void concurrent_write_thread_per_stream() throws InterruptedException, IOException {
 
-        int threads = 50;
-        int itemPerThread = 100000;
+        final int threads = 50;
+        final int itemPerThread = 100000;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
 
         AtomicInteger written = new AtomicInteger();
@@ -155,7 +172,7 @@ public class ConcurrencyIT {
 
                 TimeWatch watch = TimeWatch.start();
                 for (int i = 0; i < itemPerThread; i++) {
-                    store.append(EventRecord.create(threadName, "" + i, "body-" + i));
+                    store.append(EventRecord.create(threadName, "type", "body-" + i));
                     written.incrementAndGet();
                 }
                 latch.countDown();
@@ -175,19 +192,17 @@ public class ConcurrencyIT {
         if (!latch.await(1, TimeUnit.HOURS)) {
             fail("Failed to write all entries");
         }
+        Thread.sleep(15000);
 
 
         //READ
+        long found;
         Set<StreamName> streamHashes = streamNames.stream().map(StreamName::of).collect(Collectors.toSet());
-        Iterator<EventRecord> events = store.fromStreams(streamHashes);
-        int found = 0;
-
-        while (events.hasNext()) {
-            EventRecord next = events.next();
-            found++;
+        try (EventLogIterator events = store.fromStreams(streamHashes)) {
+            found = events.stream().count();
+            assertEquals(itemPerThread * threads, found);
         }
 
-        assertEquals(threads * itemPerThread, found);
     }
 
     private static void sleep(long millis) {

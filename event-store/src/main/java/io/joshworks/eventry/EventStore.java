@@ -29,6 +29,7 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -48,6 +49,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
@@ -73,6 +80,7 @@ public class EventStore implements IEventStore {
                 .segmentSize(Size.MB.of(512))
                 .name("event-log")
                 .flushMode(FlushMode.MANUAL)
+                .storageMode(StorageMode.MMAP)
                 .bufferPool(new SingleBufferThreadCachedPool(false))
                 .checksumProbability(1)
                 .disableCompaction()
@@ -232,7 +240,7 @@ public class EventStore implements IEventStore {
     @Override
     public void disableProjection(String name) {
         Projection projection = projections.get(name);
-        if(!projection.enabled) {
+        if (!projection.enabled) {
             return;
         }
         projection.enabled = false;
@@ -243,7 +251,7 @@ public class EventStore implements IEventStore {
     @Override
     public void enableProjection(String name) {
         Projection projection = projections.get(name);
-        if(projection.enabled) {
+        if (projection.enabled) {
             return;
         }
         projection.enabled = true;
@@ -432,12 +440,27 @@ public class EventStore implements IEventStore {
         return append(event, NO_VERSION);
     }
 
-    @Override
-    public synchronized EventRecord append(EventRecord event, int expectedVersion) {
-        validateEvent(event);
+    private final ExecutorService writer = Executors.newSingleThreadExecutor(new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r);
+            t.setName("event-store-writer");
+            return t;
+        }
+    });
 
-        StreamMetadata metadata = getOrCreateStream(event.stream);
-        return appendInternal(metadata, event, expectedVersion);
+    @Override
+    public EventRecord append(EventRecord event, int expectedVersion) {
+        validateEvent(event);
+        try {
+            return writer.submit(() -> {
+                StreamMetadata metadata = getOrCreateStream(event.stream);
+                return appendInternal(metadata, event, expectedVersion);
+            }).get();
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
     }
 
     private EventRecord appendSystemEvent(EventRecord event) {
@@ -445,7 +468,7 @@ public class EventStore implements IEventStore {
         return appendInternal(metadata, event, NO_VERSION);
     }
 
-    private  EventRecord appendInternal(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
+    private EventRecord appendInternal(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
         if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
         }
