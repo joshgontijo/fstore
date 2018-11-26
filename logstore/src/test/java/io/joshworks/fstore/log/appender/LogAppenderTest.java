@@ -34,7 +34,8 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class LogAppenderTest {
 
-    private static final int SEGMENT_SIZE = (int) Size.MB.of(10);//64kb
+    private static final int SEGMENT_SIZE = (int) Size.KB.of(128);//64kb
+    private static final int MAX_ENTRY_SIZE = SEGMENT_SIZE;//64kb
 
     private LogAppender<String> appender;
     private File testDirectory;
@@ -122,7 +123,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void get_returns_correct_data_on_multiple_segments() {
-        int entries = 2000000; //do not change
+        int entries = 100000;
         long[] positions = new long[entries];
         for (int i = 0; i < entries; i++) {
             positions[i] = appender.append(String.valueOf(i));
@@ -361,7 +362,7 @@ public abstract class LogAppenderTest {
     @Test
     public void get_return_all_items() {
         List<Long> positions = new ArrayList<>();
-        int size = 500000;
+        int size = 100000;
         for (int i = 0; i < size; i++) {
             long pos = appender.append(String.valueOf(i));
             positions.add(pos);
@@ -422,7 +423,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void backwards_scanner_with_position_returns_all_records() throws IOException {
-        int entries = 1000000;
+        int entries = 100000;
         for (int i = 0; i < entries; i++) {
             appender.append(String.valueOf(i));
         }
@@ -444,7 +445,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void forward_scanner_with_position_returns_all_records() throws IOException {
-        int entries = 1000000;
+        int entries = 100000;
         long position = appender.position();
         for (int i = 0; i < entries; i++) {
             appender.append(String.valueOf(i));
@@ -469,7 +470,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void forward_iterator_position_returns_correct_values() throws IOException {
-        int entries = 1000000; //do not change
+        int entries = 100000;
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < entries; i++) {
             long pos = appender.append(String.valueOf(i));
@@ -514,7 +515,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void backward_iterator_position_returns_correct_values_with_two_segments() throws IOException {
-        int entries = 900000; //do not change
+        int entries = 100000; //do not change
         List<Long> positions = new ArrayList<>();
         List<String> values = new ArrayList<>();
         for (int i = 0; i < entries; i++) {
@@ -543,7 +544,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void backward_iterator_position_returns_correct_values_with_multiple_segments() throws IOException {
-        int entries = 4000000; //do not change
+        int entries = 200000;
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < entries; i++) {
             long pos = appender.append("value-" + i);
@@ -565,7 +566,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void backward_iterator_returns_all_items_after_reopened_appender() throws IOException {
-        int entries = 2000000;
+        int entries = 100000;
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < entries; i++) {
             long pos = appender.append("value-" + i);
@@ -588,7 +589,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void forward_iterator_returns_all_items_after_reopened_appender() throws IOException {
-        int entries = 2000000;
+        int entries = 10000;
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < entries; i++) {
             long pos = appender.append("value-" + i);
@@ -610,7 +611,7 @@ public abstract class LogAppenderTest {
 
     @Test
     public void position_is_the_same_after_reopening() {
-        int entries = 1200000; //must be more than a single segment
+        int entries = 100000; //must be more than a single segment
         for (int i = 0; i < entries; i++) {
             appender.append("value-" + i);
         }
@@ -698,6 +699,7 @@ public abstract class LogAppenderTest {
             return LogAppender.builder(testDirectory, new StringSerializer())
                     .segmentSize(segmentSize)
                     .storageMode(StorageMode.MMAP)
+                    .maxEntrySize(MAX_ENTRY_SIZE)
                     .disableCompaction()
                     .open();
         }
@@ -710,6 +712,7 @@ public abstract class LogAppenderTest {
             return LogAppender.builder(testDirectory, new StringSerializer())
                     .segmentSize(segmentSize)
                     .storageMode(StorageMode.RAF_CACHED)
+                    .maxEntrySize(MAX_ENTRY_SIZE)
                     .disableCompaction()
                     .open();
         }
@@ -722,18 +725,8 @@ public abstract class LogAppenderTest {
         protected LogAppender<String> appender(File testDirectory, int segmentSize) {
             return LogAppender.builder(testDirectory, new StringSerializer())
                     .segmentSize(segmentSize)
+                    .maxEntrySize(MAX_ENTRY_SIZE)
                     .disableCompaction()
-                    .open();
-        }
-    }
-
-    public static class WithCompaction extends LogAppenderTest {
-
-        @Override
-        protected LogAppender<String> appender(File testDirectory, int segmentSize) {
-            return LogAppender.builder(testDirectory, new StringSerializer())
-                    .segmentSize(segmentSize)
-                    .storageMode(StorageMode.MMAP)
                     .open();
         }
     }

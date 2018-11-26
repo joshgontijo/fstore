@@ -72,7 +72,7 @@ public class EventStore implements IEventStore {
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
                 .name("event-log")
-                .flushMode(FlushMode.NEVER)
+                .flushMode(FlushMode.MANUAL)
                 .bufferPool(new SingleBufferThreadCachedPool(false))
                 .checksumProbability(1)
                 .disableCompaction()
@@ -267,7 +267,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
+    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
         StreamMetadata created = streams.create(stream, maxAge, maxCount, permissions, metadata);
         if (created == null) {
             throw new IllegalStateException("Stream '" + stream + "' already exist");
@@ -428,24 +428,24 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized EventRecord append(EventRecord event) {
+    public EventRecord append(EventRecord event) {
         return append(event, NO_VERSION);
     }
 
     @Override
-    public EventRecord append(EventRecord event, int expectedVersion) {
+    public synchronized EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
 
         StreamMetadata metadata = getOrCreateStream(event.stream);
-        return append(metadata, event, expectedVersion);
+        return appendInternal(metadata, event, expectedVersion);
     }
 
     private EventRecord appendSystemEvent(EventRecord event) {
         StreamMetadata metadata = getOrCreateStream(event.stream);
-        return append(metadata, event, NO_VERSION);
+        return appendInternal(metadata, event, NO_VERSION);
     }
 
-    private EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
+    private  EventRecord appendInternal(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
         if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
         }
@@ -475,7 +475,7 @@ public class EventStore implements IEventStore {
     private StreamMetadata getOrCreateStream(String stream) {
         return streams.createIfAbsent(stream, created -> {
             EventRecord eventRecord = StreamCreated.create(created);
-            this.append(created, eventRecord, NO_VERSION);
+            this.appendInternal(created, eventRecord, NO_VERSION);
         });
     }
 

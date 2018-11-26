@@ -20,7 +20,7 @@ public class Config<T> {
 
     private static final String DEFAULT_APPENDER_NAME = "default";
     private static final int COMPACTION_THRESHOLD = 3;
-    private static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(200);
+    private static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(256);
     private static final double DEFAULT_CHECKSUM_PROB = 1.0;
     private static final long DEFAULT_MAX_ENTRY_SIZE = 1024 * 1024 * 5L;
 
@@ -35,7 +35,7 @@ public class Config<T> {
     long segmentSize = DEFAULT_SEGMENT_SIZE;
     double checksumProbability = DEFAULT_CHECKSUM_PROB;
     StorageMode mode = StorageMode.RAF;
-    FlushMode flushMode = FlushMode.NEVER;
+    FlushMode flushMode = FlushMode.MANUAL;
     int compactionThreshold = COMPACTION_THRESHOLD;
     boolean threadPerLevel;
     boolean compactionDisabled;

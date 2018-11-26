@@ -46,6 +46,9 @@ public class LogHeader {
     }
 
     public static LogHeader read(Storage storage) {
+        if(storage.position() < LogHeader.BYTES) {
+            storage.position(LogHeader.BYTES);
+        }
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
         storage.read(0, bb);
         bb.flip();

@@ -20,7 +20,6 @@ public class MMapStorage extends RafStorage {
 
     private final Object LOCK = new Object();
 
-
     public MMapStorage(File file, RandomAccessFile raf) {
         super(file, raf);
         try {
@@ -84,6 +83,12 @@ public class MMapStorage extends RafStorage {
 
     @Override
     public int read(long readPos, ByteBuffer dst) {
+        long writePosition = super.position.get();
+
+        if(readPos >= writePosition) {
+            return EOF;
+        }
+
         int idx = bufferIdx(readPos);
         int bufferAddress = posOnBuffer(readPos);
         MappedByteBuffer buffer = getOrAllocate(idx, true);
@@ -97,9 +102,11 @@ public class MMapStorage extends RafStorage {
         src.clear();
         src.position(bufferAddress);
 
+        //TODO limit based on position ?
         int dstRemaining = dst.remaining();
         int srcRemaining = src.remaining();
         if (dstRemaining > srcRemaining) {
+            //here
             dst.put(src);
             if (idx + 1 >= buffers.length) { //no more buffers
                 return srcRemaining;
@@ -108,7 +115,10 @@ public class MMapStorage extends RafStorage {
             return srcRemaining + (read >= 0 ? read : 0);
         }
 
-        src.limit(bufferAddress + dst.remaining());
+        int available = (int) Math.min(readPos + dstRemaining, writePosition - readPos);
+        int toBeCopied = Math.min(available, dstRemaining);
+        src.limit(bufferAddress + toBeCopied);
+
         dst.put(src);
         return dstRemaining;
     }
@@ -155,7 +165,7 @@ public class MMapStorage extends RafStorage {
 
     @Override
     public void position(long pos) {
-        int idx = bufferIdx(position.get());
+        int idx = bufferIdx(pos);
         MappedByteBuffer buffer = getOrAllocate(idx, true);
         int bufferAddress = posOnBuffer(pos);
         buffer.position(bufferAddress);
@@ -191,11 +201,11 @@ public class MMapStorage extends RafStorage {
 
     @Override
     public void close() {
-            synchronized (LOCK) {
-                closed.set(true);
-                unmapAll();
-                super.close();
-            }
+        synchronized (LOCK) {
+            closed.set(true);
+            unmapAll();
+            super.close();
+        }
     }
 
     private void unmapAll() {

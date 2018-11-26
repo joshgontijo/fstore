@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
@@ -12,9 +13,9 @@ import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.lsmtree.mem.MemTable;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class SSTables<K extends Comparable<K>, V> {
 
@@ -24,6 +25,8 @@ public class SSTables<K extends Comparable<K>, V> {
         this.appender = LogAppender.builder(dir, new EntrySerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new SSTableCompactor<>())
                 .name(name + "-sstable")
+                .disableAutoRoll()
+                .flushMode(FlushMode.ON_ROLL)
                 .open(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold));
     }
 
@@ -32,19 +35,16 @@ public class SSTables<K extends Comparable<K>, V> {
     public void write(MemTable<K, V> memTable) {
         Collection<Entry<K, V>> sorted = memTable.sorted();
 
-        SSTable<K, V> current = (SSTable<K, V>) appender.current();
         for (Entry<K, V> kvEntry : sorted) {
-            current.append(kvEntry);
+            appender.append(kvEntry);
         }
-        current.writeBlock();
         appender.roll();
     }
 
     public V getByKey(K key) {
-
-        return appender.acquireSegments(Direction.BACKWARD, segments -> {
-            while (segments.hasNext()) {
-                SSTable<K, V> sstable = (SSTable<K, V>) segments.next();
+        return appender.applyToSegments(Direction.BACKWARD, segments -> {
+            for (Log<Entry<K, V>> segment : segments) {
+                SSTable<K, V> sstable = (SSTable<K, V>) segment;
                 V found = sstable.get(key);
                 if (found != null) {
                     return found;
@@ -68,13 +68,7 @@ public class SSTables<K extends Comparable<K>, V> {
     }
 
     public List<LogIterator<Entry<K, V>>> segmentsIterator() {
-        return appender.acquireSegments(Direction.FORWARD, segs -> {
-            List<LogIterator<Entry<K, V>>> iterators = new ArrayList<>();
-            while(segs.hasNext()) {
-                iterators.add(segs.next().iterator(Direction.FORWARD));
-            }
-            return iterators;
-        });
+        return appender.applyToSegments(Direction.FORWARD, segments -> segments.stream().map(seg -> seg.iterator(Direction.FORWARD)).collect(Collectors.toList()));
     }
 
     private static class SSTableFactory<K extends Comparable<K>, V> implements SegmentFactory<Entry<K, V>> {

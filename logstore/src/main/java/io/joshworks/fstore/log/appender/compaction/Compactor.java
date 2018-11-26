@@ -5,14 +5,14 @@ import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.seda.EventContext;
 import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.seda.Stage;
-import io.joshworks.fstore.log.utils.LogFileUtils;
+import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.core.util.Logging;
+import io.joshworks.fstore.log.utils.LogFileUtils;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -164,24 +164,30 @@ public class Compactor<T> {
         }
 
         long compactingForLevel = new ArrayList<>(compacting).stream().filter(l -> l.level() == level).count();
-        int levelSize = levels.segments(level).size();
-        return levelSize - compactingForLevel >= compactionThreshold;
+        return levels.apply(level, segments -> {
+            int levelSize = segments.size();
+            return levelSize - compactingForLevel >= compactionThreshold;
+        });
     }
 
     private synchronized List<Log<T>> segmentsForCompaction(int level) {
-        List<Log<T>> toBeCompacted = new ArrayList<>();
         if (level <= 0) {
             throw new IllegalArgumentException("Level must be greater than zero");
         }
-        for (Log<T> segment : levels.segments(level)) {
-            if (!compacting.contains(segment)) {
-                toBeCompacted.add(segment);
+        return levels.apply(level, segments -> {
+            List<Log<T>> toBeCompacted = new ArrayList<>();
+            for (Log<T> segment : segments) {
+                if (!compacting.contains(segment)) {
+                    toBeCompacted.add(segment);
+                }
+                if (toBeCompacted.size() >= compactionThreshold) {
+                    break;
+                }
             }
-            if (toBeCompacted.size() >= compactionThreshold) {
-                break;
-            }
-        }
-        return toBeCompacted;
+            return toBeCompacted;
+        });
+
+
     }
 
     //delete all source segments only if all of them are not being used

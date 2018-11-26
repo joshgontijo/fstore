@@ -64,7 +64,7 @@ public class Segment<T> implements Log<T> {
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
             LogHeader foundHeader = LogHeader.read(storage);
-            if (foundHeader == null) {
+            if (foundHeader == null) { //new segment
                 if (type == null) {
                     throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
                 }
@@ -73,15 +73,15 @@ public class Segment<T> implements Log<T> {
                 this.position(Log.START);
                 this.entries.set(this.header.entries);
 
-            } else {
+            } else { //existing segment
                 this.header = foundHeader;
                 this.entries.set(foundHeader.entries);
+                this.position(foundHeader.logicalSize);
                 if (Type.LOG_HEAD.equals(foundHeader.type)) {
                     SegmentState result = rebuildState(Segment.START);
                     this.position(result.position);
                     this.entries.set(result.entries);
                 }
-
             }
             LogHeader.validateMagic(this.header.magic, magic);
 
@@ -196,6 +196,7 @@ public class Segment<T> implements Log<T> {
         if (lastKnownPosition < START) {
             throw new IllegalStateException("Invalid lastKnownPosition: " + lastKnownPosition + ",value must be at least " + START);
         }
+        this.position(storage.length());
         long position = lastKnownPosition;
         int foundEntries = 0;
         long start = System.currentTimeMillis();
@@ -295,8 +296,6 @@ public class Segment<T> implements Log<T> {
         storage.write(ByteBuffer.wrap(Log.EOL));
     }
 
-    //TODO implement race condition on acquiring readers and closing / deleting segment
-    //ideally the delete functionality would be moved to inside the segment, instead handling in the Compactor
     private SegmentReader newLogReader(long pos, Direction direction) {
         checkClosed();
         checkBounds(pos);
@@ -427,7 +426,7 @@ public class Segment<T> implements Log<T> {
                 for (int length : entriesLength) {
                     entriesSizes.add(length);
                 }
-                if(entriesLength.length == 0) {
+                if (entriesLength.length == 0) {
                     logger.warn("Empty read");
                 }
             }

@@ -1,9 +1,12 @@
 package io.joshworks.fstore.log.it;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -23,8 +26,11 @@ import static org.junit.Assert.fail;
 
 public abstract class LogAppenderIT {
 
+    public static final long SEGMENT_SIZE = Size.MB.of(128);
     private LogAppender<String> appender;
+
     protected abstract LogAppender<String> appender(File testDirectory);
+
     private File testDirectory;
 
     @Before
@@ -266,5 +272,41 @@ public abstract class LogAppenderIT {
             e.printStackTrace();
         }
     }
+
+
+    public static class CachedRafLogAppenderIT extends LogAppenderIT {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory) {
+            return LogAppender.builder(testDirectory, Serializers.STRING)
+                    .segmentSize(SEGMENT_SIZE)
+                    .storageMode(StorageMode.RAF_CACHED)
+                    .open();
+        }
+    }
+
+    public static class MMapLogAppenderIT extends LogAppenderIT {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory) {
+            return LogAppender.builder(testDirectory, Serializers.STRING)
+                    .segmentSize(SEGMENT_SIZE)
+                    .threadPerLevelCompaction()
+                    .storageMode(StorageMode.MMAP)
+                    .open();
+        }
+    }
+
+    public static class RafLogAppenderIT extends LogAppenderIT {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory) {
+            return LogAppender.builder(testDirectory, Serializers.STRING)
+                    .segmentSize(SEGMENT_SIZE)
+                    .storageMode(StorageMode.RAF)
+                    .open();
+        }
+    }
+
 
 }

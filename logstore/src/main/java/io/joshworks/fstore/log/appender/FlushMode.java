@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.appender;
 
 public enum FlushMode {
     PERIODICALLY(0),
-    NEVER(1),
+    MANUAL(1),
     ON_ROLL(2),
     ALWAYS(3);
 

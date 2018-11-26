@@ -6,7 +6,8 @@ import io.joshworks.fstore.core.util.StatsStorage;
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
-import java.util.Objects;
+
+import static java.util.Objects.requireNonNull;
 
 public class StorageProvider {
 
@@ -21,7 +22,7 @@ public class StorageProvider {
     }
 
     public Storage create(File file, long size) {
-        Objects.requireNonNull(file, "File must be provided");
+        requireNonNull(file, "File must be provided");
         long alignedSize = align(size);
         RandomAccessFile raf = IOUtils.randomAccessFile(file, alignedSize);
         Storage storage = getStorage(file, raf);
@@ -29,15 +30,16 @@ public class StorageProvider {
     }
 
     public Storage open(File file) {
+        requireNonNull(file, "File must be provided");
         if (!Files.exists(file.toPath())) {
             throw new IllegalStateException("File " + file.getName() + " doesn't exist");
         }
         if (file.length() <= 0) {
             throw new IllegalStateException("File " + file.getName() + " has length equals to zero");
         }
-        Objects.requireNonNull(file, "File must be provided");
         RandomAccessFile raf = IOUtils.randomAccessFile(file);
         Storage storage = getStorage(file, raf);
+        storage.position(file.length());
         return new StatsStorage(storage);
     }
 

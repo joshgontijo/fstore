@@ -33,12 +33,22 @@ public class RafStorage extends DiskStorage {
     }
 
     @Override
-    public int read(long position, ByteBuffer data) {
+    public int read(long position, ByteBuffer dst) {
         try {
+            long writePosition = this.position.get();
+            if(position > writePosition) {
+                return EOF;
+            }
             int read = 0;
             int totalRead = 0;
-            while (data.hasRemaining() && read >= 0) {
-                read = channel.read(data, position + totalRead);
+            while (dst.hasRemaining() && read >= 0) {
+                long currReadPosition = position + totalRead;
+                int remaining = dst.remaining();
+                long available = Math.min(remaining, writePosition - currReadPosition);
+                int limit = (int) Math.min(remaining, available);
+                dst.limit(limit);
+
+                read = channel.read(dst, currReadPosition);
                 if (read > 0) {
                     totalRead += read;
                 }
