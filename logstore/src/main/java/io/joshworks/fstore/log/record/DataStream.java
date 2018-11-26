@@ -11,8 +11,6 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 //THREAD SAFE
 public class DataStream implements IDataStream {
@@ -105,10 +103,6 @@ public class DataStream implements IDataStream {
         }
         storage.write(writeBuffer);
         return storagePos;
-    }
-
-    private void safePut() {
-
     }
 
     private void resizeBuffer(int size) {

@@ -1,7 +1,6 @@
 package io.joshworks.fstore.log.appender.level;
 
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
@@ -9,7 +8,6 @@ import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,16 +33,16 @@ public class LevelsTest {
                         seg3));
 
 
-        List<Log<String>> segments = levels.segments(1);
+        List<Log<String>> segments = levels.getSegments(1);
         assertEquals(2, segments.size());
         assertEquals(seg1, segments.get(0));
         assertEquals(seg11, segments.get(1));
 
-        segments = levels.segments(2);
+        segments = levels.getSegments(2);
         assertEquals(1, segments.size());
         assertEquals(seg2, segments.get(0));
 
-        segments = levels.segments(3);
+        segments = levels.getSegments(3);
         assertEquals(1, segments.size());
         assertEquals(seg3, segments.get(0));
 
@@ -66,7 +64,7 @@ public class LevelsTest {
                         seg2,
                         seg3));
 
-        List<Log<String>> segments = levels.segments(1);
+        List<Log<String>> segments = levels.getSegments(1);
         assertEquals(3, segments.size());
 
         assertEquals(seg1, segments.get(0));
@@ -89,9 +87,7 @@ public class LevelsTest {
                         seg3));
 
 
-        Iterator<Log<String>> it = levels.segments(Direction.FORWARD);
-
-        List<Log<String>> segments = Iterators.toList(it);
+        List<Log<String>> segments = levels.getSegments(Direction.FORWARD);
 
         assertEquals(4, segments.size()); //zero included
 
@@ -121,9 +117,7 @@ public class LevelsTest {
                         seg31,
                         seg32));
 
-        Iterator<Log<String>> it = levels.segments(Direction.FORWARD);
-
-        List<Log<String>> segments = Iterators.toList(it);
+        List<Log<String>> segments = levels.getSegments(Direction.FORWARD);
 
         assertEquals(7, segments.size()); //zero included
 
@@ -156,9 +150,7 @@ public class LevelsTest {
                         seg31,
                         seg32));
 
-        Iterator<Log<String>> it = levels.segments(Direction.BACKWARD);
-
-        List<Log<String>> segments = Iterators.toList(it);
+        List<Log<String>> segments = levels.getSegments(Direction.BACKWARD);
 
         assertEquals(7, segments.size()); //zero included
 

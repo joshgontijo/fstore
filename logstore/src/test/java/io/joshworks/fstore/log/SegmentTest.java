@@ -30,8 +30,9 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class SegmentTest {
 
-    protected static final long MAX_ENTRY_SIZE = 1024 * 1024 * 5L;
-    protected static final double CHCKSUM_PROB = 1;
+    protected static final double CHECKSUM_PROB = 1;
+    protected static final long SEGMENT_SIZE = Size.KB.of(128);
+    protected static final long MAX_ENTRY_SIZE = SEGMENT_SIZE;
 
     protected Log<String> segment;
     private File testFile;
@@ -298,7 +299,7 @@ public abstract class SegmentTest {
 
     @Test
     public void reader_backward_maintain_correct_position() throws IOException {
-        int entries = 300000;
+        int entries = 100000;
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < entries; i++) {
             long pos = segment.append(String.valueOf(i));
@@ -349,9 +350,9 @@ public abstract class SegmentTest {
         @Override
         Log<String> open(File file) {
             return new Segment<>(
-                    StorageProvider.of(StorageMode.RAF_CACHED).create(file, Size.MB.of(10)),
+                    StorageProvider.of(StorageMode.RAF_CACHED).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE),
+                    new DataStream(new SingleBufferThreadCachedPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE),
                     "magic",
                     Type.LOG_HEAD);
         }
@@ -363,9 +364,9 @@ public abstract class SegmentTest {
         @Override
         Log<String> open(File file) {
             return new Segment<>(
-                    StorageProvider.of(StorageMode.MMAP).create(file, Size.MB.of(10)),
+                    StorageProvider.of(StorageMode.MMAP).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE), "magic", Type.LOG_HEAD);
+                    new DataStream(new SingleBufferThreadCachedPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE), "magic", Type.LOG_HEAD);
         }
     }
 
@@ -374,9 +375,9 @@ public abstract class SegmentTest {
         @Override
         Log<String> open(File file) {
             return new Segment<>(
-                    StorageProvider.of(StorageMode.RAF).create(file, Size.MB.of(10)),
+                    StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE),
+                    new DataStream(new SingleBufferThreadCachedPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE),
                     "magic",
                     Type.LOG_HEAD);
         }

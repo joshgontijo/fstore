@@ -30,7 +30,7 @@ public abstract class ConcurrencyIT {
 
     private File testDirectory;
 
-    private static final int SEGMENT_SIZE_MB = 5;
+    private static final long SEGMENT_SIZE = Size.MB.of(5);
 
     @Before
     public void setUp() {
@@ -48,10 +48,9 @@ public abstract class ConcurrencyIT {
     @Test
     public void full_scan() throws InterruptedException {
 
-        int readThreads = 50;
-        int tasks = 1000;
-        int writeItems = 20000000;
-        ExecutorService executor = Executors.newFixedThreadPool(readThreads);
+        int parallelReads = 50;
+        int totalItems = 20000000;
+        ExecutorService executor = Executors.newFixedThreadPool(parallelReads);
 
         AtomicInteger completedTasks = new AtomicInteger();
         AtomicLong failed = new AtomicLong();
@@ -63,29 +62,27 @@ public abstract class ConcurrencyIT {
             int counter = 0;
             do {
                 appender.append(String.valueOf(counter++));
-            } while (writes.incrementAndGet() < writeItems);
+            } while (writes.incrementAndGet() < totalItems);
         });
         writeThread.start();
 
 
         Thread reportThread = new Thread(() -> {
-            while (completedTasks.get() < tasks) {
-                System.out.println("TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
+            while (completedTasks.get() < parallelReads) {
+                System.out.println("READ TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
                 sleep(2000);
             }
         });
         reportThread.start();
 
 
-        sleep(10000);
-
-        for (int i = 0; i < tasks; i++) {
+        for (int i = 0; i < parallelReads; i++) {
             executor.execute(() -> {
                 String lastEntry = null;
                 try (LogIterator<String> iterator = appender.iterator(Direction.FORWARD)) {
-                    for (int j = 0; j < writeItems; j++) {
+                    for (int j = 0; j < totalItems; j++) {
                         while (!iterator.hasNext()) {
-                            Thread.sleep(1000);
+                            Thread.sleep(100);
                         }
                         String next = iterator.next();
                         reads.incrementAndGet();
@@ -119,7 +116,8 @@ public abstract class ConcurrencyIT {
         System.out.println("TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
 
         assertEquals(0, failed.get());
-
+        assertEquals(totalItems, writes.get());
+        assertEquals(parallelReads * totalItems, reads.get());
     }
 
     @Test
@@ -155,9 +153,6 @@ public abstract class ConcurrencyIT {
             });
         }
 
-
-
-
         executor.shutdown();
         executor.awaitTermination(2, TimeUnit.HOURS);
 
@@ -165,7 +160,6 @@ public abstract class ConcurrencyIT {
         System.out.println("TASKS COMPLETED: " + completedTasks.get() + " | FAILED: " + failed.get());
 
         assertEquals(0, failed.get());
-
     }
 
 
@@ -178,36 +172,37 @@ public abstract class ConcurrencyIT {
         }
     }
 
-    public static class RafConcurrencyTest extends ConcurrencyIT {
+    public static class RafTest extends ConcurrencyIT {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
-                    .segmentSize(Size.MB.of(SEGMENT_SIZE_MB))
+                    .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF)
+//                    .disableCompaction()
+                    .open();
+        }
+    }
+
+    public static class MMapTest extends ConcurrencyIT {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory) {
+            return LogAppender.builder(testDirectory, Serializers.STRING)
+                    .segmentSize(SEGMENT_SIZE)
+                    .storageMode(StorageMode.MMAP)
+                    .open();
+        }
+    }
+
+    public static class CachedRafTest extends ConcurrencyIT {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory) {
+            return LogAppender.builder(testDirectory, Serializers.STRING)
+                    .segmentSize(SEGMENT_SIZE)
+                    .storageMode(StorageMode.MMAP)
                     .disableCompaction()
-                    .open();
-        }
-    }
-
-    public static class MMapConcurrencyTest extends ConcurrencyIT {
-
-        @Override
-        protected LogAppender<String> appender(File testDirectory) {
-            return LogAppender.builder(testDirectory, Serializers.STRING)
-                    .segmentSize(Size.MB.of(SEGMENT_SIZE_MB))
-                    .storageMode(StorageMode.MMAP)
-                    .open();
-        }
-    }
-
-    public static class CachedRafConcurrencyTest extends ConcurrencyIT {
-
-        @Override
-        protected LogAppender<String> appender(File testDirectory) {
-            return LogAppender.builder(testDirectory, Serializers.STRING)
-                    .segmentSize(Size.MB.of(SEGMENT_SIZE_MB))
-                    .storageMode(StorageMode.MMAP)
                     .open();
         }
     }

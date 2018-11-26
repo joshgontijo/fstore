@@ -43,16 +43,15 @@ public class IndexAppender implements Closeable {
                 .segmentSize(logSize)
                 .disableAutoRoll()
                 .name(STORE_NAME)
-                .flushMode(FlushMode.NEVER)
+                .flushMode(FlushMode.ON_ROLL)
                 .storageMode(StorageMode.MMAP)
-//                .disableCompaction()
                 .namingStrategy(new IndexNaming())
                 .open(new IndexSegmentFactory(indexDirectory, numElements, codec));
     }
 
     public LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
-        return appender.acquireSegments(direction, segments -> {
-            List<LogIterator<IndexEntry>> iterators = Iterators.closeableStream(segments)
+        return appender.applyToSegments(direction, segments -> {
+            List<LogIterator<IndexEntry>> iterators = Iterators.stream(segments)
                     .map(seg -> (IndexSegment) seg)
                     .map(idxSeg -> idxSeg.indexedIterator(direction, range))
                     .collect(Collectors.toList());
@@ -69,10 +68,10 @@ public class IndexAppender implements Closeable {
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
-        return appender.acquireSegments(Direction.BACKWARD, segments -> {
-            while (segments.hasNext()) {
-                IndexSegment next = (IndexSegment) segments.next();
-                Optional<IndexEntry> fromDisk = next.get(stream, version);
+        return appender.applyToSegments(Direction.BACKWARD, segments -> {
+            for (Log<IndexEntry> segment : segments) {
+                IndexSegment indexSegment = (IndexSegment) segment;
+                Optional<IndexEntry> fromDisk = indexSegment.get(stream, version);
                 if (fromDisk.isPresent()) {
                     return fromDisk;
                 }
@@ -82,11 +81,11 @@ public class IndexAppender implements Closeable {
     }
 
     public List<IndexEntry> getBlockEntries(Direction direction, long stream, int version) {
-        return appender.acquireSegments(direction, segments -> {
-            while (segments.hasNext()) {
-                IndexSegment segment = (IndexSegment) segments.next();
+        return appender.applyToSegments(direction, segments -> {
+            for (Log<IndexEntry> segment : segments) {
+                IndexSegment indexSegment = (IndexSegment) segment;
                 if(segment.readOnly()) { //only query completed segments
-                    List<IndexEntry> indexEntries = segment.readBlockEntries(stream, version);
+                    List<IndexEntry> indexEntries = indexSegment.readBlockEntries(stream, version);
                     if (!indexEntries.isEmpty()) {
                         return indexEntries;
                     }
@@ -97,10 +96,10 @@ public class IndexAppender implements Closeable {
     }
 
     public int version(long stream) {
-        return appender.acquireSegments(Direction.BACKWARD, segments -> {
-            while (segments.hasNext()) {
-                IndexSegment segment = (IndexSegment) segments.next();
-                int version = segment.lastVersionOf(stream);
+        return appender.applyToSegments(Direction.BACKWARD, segments -> {
+            for (Log<IndexEntry> segment : segments) {
+                IndexSegment indexSegment = (IndexSegment) segment;
+                int version = indexSegment.lastVersionOf(stream);
                 if (version >= 0) {
                     return version;
                 }
@@ -113,16 +112,13 @@ public class IndexAppender implements Closeable {
         appender.compact();
     }
 
-
     public void close() {
         appender.close();
     }
 
     //this must ensure that, all the memtable entries are stored in the same segment file
     public synchronized void writeToDisk(MemIndex memIndex) {
-        Log<IndexEntry> current = appender.current();
-        memIndex.iterator().forEachRemaining(current::append);
-        current.flush();
+        memIndex.iterator().forEachRemaining(appender::append);
         appender.roll();
     }
 

@@ -91,6 +91,10 @@ public class Iterators {
         return delegate.onClose(() -> IOUtils.closeQuietly(iterator));
     }
 
+    public static <T> Stream<T> stream(Collection<T> collection) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(collection.iterator(), Spliterator.ORDERED), false);
+    }
+
     private static class EmptyIterator<T> implements LogIterator<T> {
 
         @Override

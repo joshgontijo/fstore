@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.joshworks.fstore.core.io.DiskStorage.EOF;
 import static io.joshworks.fstore.core.utils.Utils.sleep;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -160,7 +161,19 @@ public abstract class StorageTest {
     }
 
     @Test
-    public void reading_unwritten_data_returns_zeroes() {
+    public void position_bigger_than_write_position_returns_EOF() {
+        long writePosition = 4;
+        storage.position(writePosition);
+        ByteBuffer read = ByteBuffer.allocate(1024);
+        int bytesRead = storage.read(writePosition + 1, read);
+        assertEquals(EOF, bytesRead);
+        read.flip();
+
+        assertEquals(0, read.remaining());
+    }
+
+    @Test
+    public void when_read_buffer_is_larger_than_available_data_only_available_is_returned() {
         int writeSize = 16;
         int readSize = 32;
         byte[] write = new byte[writeSize];
@@ -172,7 +185,7 @@ public abstract class StorageTest {
         storage.read(0, read);
         read.flip();
 
-        assertEquals(readSize, read.remaining());
+        assertEquals(writeSize, read.remaining());
     }
 
     @Test
@@ -318,8 +331,48 @@ public abstract class StorageTest {
 
         assertFalse(writeFailed.get());
         assertFalse(readFailed.get());
+    }
+
+
+    public static class RafStorageTest extends StorageTest {
+
+        @Override
+        protected Storage store(File file, long size) {
+            return StorageProvider.of(StorageMode.RAF).create(file, size);
+        }
 
     }
 
+    public static class RafCachedStorageTest extends StorageTest {
+
+        @Override
+        protected Storage store(File file, long size) {
+            return StorageProvider.of(StorageMode.RAF_CACHED).create(file, size);
+        }
+
+    }
+
+    public static class MMapStorageTest extends StorageTest {
+
+        @Override
+        protected Storage store(File file, long size) {
+            return StorageProvider.of(StorageMode.MMAP).create(file, size);
+        }
+
+
+        @Test
+        public void buffer_grows_bigger_than_original_size() {
+            long originalLength = storage.length();
+            byte[] data = new byte[]{1};
+
+            while (storage.position() < originalLength) {
+                storage.write(ByteBuffer.wrap(data));
+            }
+
+            storage.write(ByteBuffer.wrap(data));
+
+            assertTrue(storage.length() > originalLength);
+        }
+    }
 
 }

@@ -89,7 +89,7 @@ public class ConcurrencyIT {
 
         int writeThreads = 10;
         int totalWrites = 1500000;
-        int readThreads = 10;
+        int readThreads = 1;
         int totalReads = 10000;
         String stream = "stream-0";
         ExecutorService writeExecutor = Executors.newFixedThreadPool(writeThreads);
@@ -99,7 +99,16 @@ public class ConcurrencyIT {
         CountDownLatch readLatch = new CountDownLatch(totalWrites);
 
         final AtomicInteger writeCount = new AtomicInteger();
-        final AtomicInteger readCount = new AtomicInteger();
+        final AtomicInteger readTaskCount = new AtomicInteger();
+
+        Thread reportThread = new Thread(() -> {
+            while (writeCount.get() < totalWrites && readTaskCount.get() < totalReads) {
+                System.out.println("WRITES: " + writeCount.get() + " | READS: " + readTaskCount.get());
+                sleep(2000);
+            }
+        });
+        reportThread.start();
+
         for (int writeItem = 0; writeItem < totalWrites; writeItem++) {
             writeExecutor.execute(() -> {
                 int id = writeCount.getAndIncrement();
@@ -112,17 +121,10 @@ public class ConcurrencyIT {
             readExecutor.execute(() -> {
                 long count = store.fromStream(StreamName.of(stream)).stream().count();
                 readLatch.countDown();
-                readCount.incrementAndGet();
+                readTaskCount.incrementAndGet();
             });
         }
 
-        Thread reportThread = new Thread(() -> {
-            while (writeCount.get() < totalWrites) {
-                System.out.println("WRITES: " + writeCount.get() + " | READS: " + readCount.get());
-                sleep(2000);
-            }
-        });
-        reportThread.start();
 
 
         writeExecutor.shutdown();

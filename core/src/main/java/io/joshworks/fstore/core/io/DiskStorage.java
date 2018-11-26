@@ -11,6 +11,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class DiskStorage implements Storage {
 
+    public static final int EOF = -1;
+
     protected RandomAccessFile raf;
     protected FileChannel channel;
     protected File file;
@@ -43,7 +45,7 @@ public abstract class DiskStorage implements Storage {
 
     public void position(long position) {
         try {
-            channel.position(position);
+            this.channel.position(position);
             this.position.set(position);
         } catch (Exception e) {
             throw new StorageException(e);

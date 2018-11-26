@@ -71,7 +71,7 @@ public class Streams implements Closeable {
     }
 
     //return a metadata if existing, or create a new one using default values, invoking createdCallback on creation
-    public StreamMetadata createIfAbsent(String stream, Consumer<StreamMetadata> createdCallback) {
+    public synchronized StreamMetadata createIfAbsent(String stream, Consumer<StreamMetadata> createdCallback) {
         long streamHash = hashOf(stream);
         StreamMetadata metadata = streamStore.get(streamHash);
         if (metadata == null) {
@@ -81,7 +81,7 @@ public class Streams implements Closeable {
         return metadata;
     }
 
-    public StreamMetadata create(String stream, long maxAge, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata) {
+    public synchronized StreamMetadata create(String stream, long maxAge, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata) {
         StringUtils.requireNonBlank(stream, "Stream must be provided");
         long hash = hashOf(stream);
         return createInternal(stream, maxAge, maxCount, permissions, metadata, hash);
