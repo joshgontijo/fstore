@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 //LEVEL3 ...
 public class Levels<T> {
 
-    private volatile List<Log<T>> segments = new CopyOnWriteArrayList<>();
+    private volatile List<Log<T>> segments = new ArrayList<>();
     private volatile Log<T> current;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
@@ -87,6 +87,7 @@ public class Levels<T> {
         }
     }
 
+    //not thread safe to use reference
     public Log<T> current() {
         return current;
     }
@@ -106,7 +107,7 @@ public class Levels<T> {
     }
 
     public int depth() {
-        return segments.stream().mapToInt(Log::level).max().orElse(0);
+        return apply(Direction.FORWARD, segs -> segs.stream().mapToInt(Log::level).max().orElse(0));
     }
 
     public static <T> Levels<T> create(List<Log<T>> segments) {
@@ -125,9 +126,7 @@ public class Levels<T> {
                 segments.add(newHead);
                 return;
             }
-            Log<T> currentSegment = current();
-
-            if (!currentSegment.readOnly()) {
+            if (!current.readOnly()) {
                 throw new IllegalStateException("Segment must be marked as read only after rolling");
             }
             segments.add(newHead);
@@ -185,11 +184,9 @@ public class Levels<T> {
     }
 
     private List<Log<T>> validateDeletion(List<Log<T>> segments) {
-        List<Log<T>> copy = new ArrayList<>(this.segments);
-
         int latestIndex = -1;
         for (Log<T> seg : segments) {
-            int i = copy.indexOf(seg);
+            int i = segments.indexOf(seg);
             if (i < 0) {
                 throw new IllegalStateException("Segment not found: " + seg.name());
             }
@@ -198,7 +195,7 @@ public class Levels<T> {
             }
             latestIndex = i;
         }
-        return copy;
+        return segments;
     }
 
     List<Log<T>> getSegments(int level) {
@@ -207,7 +204,7 @@ public class Levels<T> {
 
     List<Log<T>> getSegments(Direction direction) {
         ArrayList<Log<T>> copy = new ArrayList<>(segments);
-        if(Direction.BACKWARD.equals(direction)) {
+        if (Direction.BACKWARD.equals(direction)) {
             Collections.reverse(copy);
         }
         return copy;

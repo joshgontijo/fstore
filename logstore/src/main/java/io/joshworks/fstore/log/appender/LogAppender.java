@@ -326,18 +326,19 @@ public class LogAppender<T> implements Closeable {
         return toSegmentedPosition(levels.numSegments() - 1L, levels.current().position());
     }
 
-    //todo write read lock ? where write is the segment roll / deletion
     //must support multiple readers
     public T get(long position) {
-        int segmentIdx = getSegment(position);
-        validateSegmentIdx(segmentIdx, position);
+        return levels.apply(Direction.FORWARD, segments -> {
+            int segmentIdx = getSegment(position);
+            validateSegmentIdx(segmentIdx, position);
+            long positionOnSegment = getPositionOnSegment(position);
 
-        long positionOnSegment = getPositionOnSegment(position);
-        Log<T> segment = levels.get(segmentIdx);
-        if (segment != null) {
-            return segment.get(positionOnSegment);
-        }
-        return null;
+            if (segmentIdx < 0 || segmentIdx >= segments.size()) {
+                return null;
+            }
+            return segments.get(segmentIdx).get(positionOnSegment);
+        });
+
     }
 
     private void validateSegmentIdx(int segmentIdx, long pos) {
