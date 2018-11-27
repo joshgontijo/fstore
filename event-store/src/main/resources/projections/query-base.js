@@ -1,0 +1,1 @@
+if (stream === 'test-stream') state.stream1 += timestamp; else state.stream2 += version;

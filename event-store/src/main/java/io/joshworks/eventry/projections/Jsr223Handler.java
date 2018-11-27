@@ -44,25 +44,16 @@ public class Jsr223Handler implements EventStreamHandler {
     private static final boolean DEFAULT_PUBLISH_STATE = false;
     private static final int DEFAULT_BATCH_SIZE = 10000;
 
-//    private static final String EMIT_METHOD_NAME = "emit";
-//    private static final String LINK_TO_METHOD_NAME = "linkTo";
-
     private final Invocable invocable;
 
     public Jsr223Handler(ProjectionContext ctx, String script, String engineName) {
         try {
-//            BiConsumer<String, JsonEvent> emmit = ctx::emit;
-//            BiConsumer<String, JsonEvent> linkTo = ctx::linkTo;
-
             Consumer<Map<String, Object>> config = ctx::options;
             Consumer<Map<String, Object>> initialState = ctx::initialState;
 
             ScriptEngine engine = new ScriptEngineManager().getEngineByName(engineName);
             engine.put(CONFIG_METHOD_NAME, config);
             engine.put(INITIAL_STATE_METHOD_NAME, initialState);
-
-//            engine.put(EMIT_METHOD_NAME, emmit);
-//            engine.put(LINK_TO_METHOD_NAME, linkTo);
 
             InputStream is = this.getClass().getClassLoader().getResourceAsStream("projections/base.js");
             String baseScript = IOUtils.toString(is);
