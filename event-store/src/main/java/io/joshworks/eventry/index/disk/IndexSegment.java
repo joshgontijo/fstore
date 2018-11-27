@@ -7,6 +7,7 @@ import io.joshworks.eventry.index.midpoint.Midpoints;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.fstore.core.filter.BloomFilterHasher;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
@@ -306,6 +307,7 @@ public class IndexSegment implements Log<IndexEntry> {
         private long lastBlockPos;
         private int lastReadVersion;
         private Queue<IndexEntry> entries = new LinkedList<>();
+        private SegmentIterator<Block<IndexEntry>> lock;
 
         private RangeIndexEntryIterator(Direction direction, Range range, int startVersion, int endVersion) {
             this.direction = direction;
@@ -313,6 +315,7 @@ public class IndexSegment implements Log<IndexEntry> {
             this.startVersion = startVersion;
             this.endVersion = endVersion;
             this.lastReadVersion = Direction.FORWARD.equals(direction) ? startVersion - 1 : endVersion + 1;
+            this.lock = IndexSegment.this.delegate.iterator(Direction.FORWARD);
         }
 
         private void fetchEntries() {
@@ -372,6 +375,7 @@ public class IndexSegment implements Log<IndexEntry> {
         @Override
         public void close() {
             entries.clear();
+            IOUtils.closeQuietly(lock);
         }
 
         @Override

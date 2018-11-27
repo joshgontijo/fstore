@@ -181,9 +181,8 @@ public class DataStream implements IDataStream {
                 buffer.limit(buffer.position() + length);
                 checksum(checksum, buffer, position);
                 return BufferRef.of(buffer, bufferPool);
-            } catch (Exception e) {
+            } finally {
                 bufferPool.free(buffer);
-                throw new RuntimeException(e);
             }
         }
     }
@@ -247,9 +246,8 @@ public class DataStream implements IDataStream {
                     buffer.position(newPos);
                 }
                 return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-            } catch (Exception e) {
+            } finally {
                 bufferPool.free(buffer);
-                throw new RuntimeException(e);
             }
         }
     }
@@ -343,9 +341,8 @@ public class DataStream implements IDataStream {
                 }
 
                 return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-            } catch (Exception e) {
+            } finally {
                 bufferPool.free(buffer);
-                throw new RuntimeException(e);
             }
 
 
@@ -405,9 +402,8 @@ public class DataStream implements IDataStream {
                 checksum(checksum, buffer, position);
                 return BufferRef.of(buffer, bufferPool);
 
-            } catch (Exception e) {
+            } finally {
                 bufferPool.free(buffer);
-                throw new RuntimeException(e);
             }
 
         }

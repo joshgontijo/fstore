@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -144,7 +143,8 @@ public class Levels<T> {
         Lock lock = this.rwLock.writeLock();
         lock.lock();
         try {
-            List<Log<T>> copy = validateDeletion(segments);
+            validateDeletion(segments);
+            List<Log<T>> copy = new ArrayList<>(this.segments);
             for (Log<T> seg : segments) {
                 copy.remove(seg);
             }
@@ -154,27 +154,28 @@ public class Levels<T> {
         }
     }
 
-    public void merge(List<Log<T>> segments, Log<T> merged) {
+    public void merge(List<Log<T>> sources, Log<T> merged) {
         Lock lock = this.rwLock.writeLock();
         lock.lock();
         try {
-            if (segments.isEmpty() || merged == null) {
+            if (sources.isEmpty() || merged == null) {
                 return;
             }
 
-            List<Log<T>> copy = validateDeletion(segments);
+            List<Log<T>> copy = new ArrayList<>(this.segments);
+            validateDeletion(sources);
 
-            Log<T> first = segments.get(0);
+            Log<T> first = sources.get(0);
             int level = first.level(); //safe to assume that there is a segment and all of them are the same level
             int nextLevel = level + 1;
             int firstIdx = copy.indexOf(first);
             copy.set(firstIdx, merged);
-            for (int i = 1; i < segments.size(); i++) {
+            for (int i = 1; i < sources.size(); i++) {
                 copy.remove(firstIdx + 1);
             }
-            //TODO if the program cash after here, then there could be multiple READ_ONLY segments with same data
-            //ideally segments would have the source segments in their header to flag where they're were created from.
-            //on startup read all the source segments from the header and if there's an existing segment, then delete, either the sources
+            //TODO if the program cash after here, then there could be multiple READ_ONLY sources with same data
+            //ideally sources would have the source sources in their header to flag where they're were created from.
+            //on startup read all the source sources from the header and if there's an existing segment, then delete, either the sources
             //or the target segment
             merged.roll(nextLevel);
             this.segments = copy;
@@ -183,7 +184,43 @@ public class Levels<T> {
         }
     }
 
-    private List<Log<T>> validateDeletion(List<Log<T>> segments) {
+//    public synchronized void merge(List<Log<T>> segments, Log<T> merged) {
+//        if (segments.isEmpty() || merged == null) {
+//            return;
+//        }
+//
+//        List<Log<T>> copy = new ArrayList<>(this.segments);
+//
+//        int latestIndex = -1;
+//        for (Log<T> seg : segments) {
+//            int i = copy.indexOf(seg);
+//            if (i < 0) {
+//                throw new IllegalStateException("Segment not found: " + seg.name());
+//            }
+//            if (latestIndex >= 0 && latestIndex + 1 != i) {
+//                throw new IllegalArgumentException("Segments to be deleted must be contiguous");
+//            }
+//            latestIndex = i;
+//        }
+//
+//        Log<T> first = segments.get(0);
+//        int level = first.level(); //safe to assume that there is a segment and all of them are the same level
+//        int nextLevel = level + 1;
+//        int firstIdx = copy.indexOf(first);
+//        copy.set(firstIdx, merged);
+//        for (int i = 1; i < segments.size(); i++) {
+//            copy.remove(firstIdx + 1);
+//        }
+//        //TODO if the program cash after here, then there could be multiple READ_ONLY segments with same data
+//        //ideally segments would have the source segments in their header to flag where they're were created from.
+//        //on startup read all the source segments from the header and if there's an existing segment, then delete, either the sources
+//        //or the target segment
+//        merged.roll(nextLevel);
+//        this.segments = copy;
+//
+//    }
+
+    private void validateDeletion(List<Log<T>> segments) {
         int latestIndex = -1;
         for (Log<T> seg : segments) {
             int i = segments.indexOf(seg);
@@ -195,7 +232,6 @@ public class Levels<T> {
             }
             latestIndex = i;
         }
-        return segments;
     }
 
     List<Log<T>> getSegments(int level) {

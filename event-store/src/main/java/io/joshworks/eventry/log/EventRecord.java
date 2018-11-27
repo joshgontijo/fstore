@@ -10,6 +10,8 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
+
 public class EventRecord {
 
 //    private static final Serializer<Map<String, Object>> serializer = new MapRecordSerializer();
@@ -23,10 +25,8 @@ public class EventRecord {
     public final byte[] metadata;
 
     public EventRecord(String stream, String type, int version, long timestamp, byte[] body, byte[] metadata) {
-        StringUtils.requireNonBlank(stream, "Stream must be provided");
-        StringUtils.requireNonBlank(type, "Type must be provided");
-        this.stream = stream;
-        this.type = type;
+        this.stream = requireNonBlank(stream, "Stream must be provided");
+        this.type = requireNonBlank(type, "Type must be provided");
         this.version = version;
         this.timestamp = timestamp;
         this.body = body;

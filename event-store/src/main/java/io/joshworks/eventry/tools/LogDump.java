@@ -1,5 +1,6 @@
 package io.joshworks.eventry.tools;
 
+import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
@@ -21,9 +22,8 @@ public class LogDump {
 //        dumpIndex(new File("J:\\event-store\\idx-dump.log"), store);
     }
 
-    public static void dumpStream(String stream, File file, IEventStore store) {
+    public static void dump(File file, EventLogIterator iterator) {
         try (var fileWriter = new FileWriter(file)) {
-            LogIterator<EventRecord> iterator = store.fromStream(StreamName.of(stream));
             while (iterator.hasNext()) {
                 EventRecord event = iterator.next();
                 fileWriter.write(event.toString() + System.lineSeparator());
@@ -33,9 +33,21 @@ public class LogDump {
         }
     }
 
+    public static void dumpStream(String stream, File file, IEventStore store) {
+        try (var fileWriter = new FileWriter(file); var iterator = store.fromStream(StreamName.of(stream))) {
+            while (iterator.hasNext()) {
+                long position = iterator.position();
+                EventRecord event = iterator.next();
+                fileWriter.write(position + " | " + event.toString() + System.lineSeparator());
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static void dumpLog(File file, IEventStore store) {
-        try (var fileWriter = new FileWriter(file)) {
-            LogIterator<EventRecord> iterator = store.fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.INCLUDE);
+        try (var fileWriter = new FileWriter(file); var iterator = store.fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.INCLUDE)) {
             while (iterator.hasNext()) {
                 long position = iterator.position();
                 EventRecord event = iterator.next();
@@ -53,7 +65,7 @@ public class LogDump {
             while (iterator.hasNext()) {
                 long position = iterator.position();
                 IndexEntry event = iterator.next();
-                fileWriter.write(position + " | " +event.toString() + System.lineSeparator());
+                fileWriter.write(position + " | " + event.toString() + System.lineSeparator());
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
