@@ -8,7 +8,6 @@ import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
-import static io.joshworks.eventry.index.Range.START_VERSION;
 
 public class StreamName {
 
@@ -90,7 +89,7 @@ public class StreamName {
 
     private static int getVersion(String[] split, String original) {
         if (split.length <= 1) {
-            return START_VERSION;
+            return NO_VERSION;
         }
         try {
             return Integer.parseInt(StringUtils.requireNonBlank(split[1], "Stream version"));
@@ -98,7 +97,6 @@ public class StreamName {
             throw new IllegalArgumentException("Invalid version for '" + original + "': ", e);
         }
     }
-
 
     public static String toString(String stream, int version) {
         if (version <= NO_VERSION) {

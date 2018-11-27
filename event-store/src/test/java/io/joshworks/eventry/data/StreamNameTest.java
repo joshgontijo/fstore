@@ -4,15 +4,15 @@ import io.joshworks.eventry.StreamName;
 import org.junit.Test;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
-import static io.joshworks.eventry.index.Range.START_VERSION;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class StreamNameTest {
 
     @Test
     public void toStringFormat() {
-        assertEquals("stream@0", StreamName.of("stream").toString());
+        assertEquals("stream", StreamName.of("stream").toString());
     }
 
     @Test
@@ -23,7 +23,8 @@ public class StreamNameTest {
     @Test
     public void no_version() {
         StreamName stream = StreamName.of("stream");
-        assertEquals(START_VERSION, stream.version());
+        assertEquals(NO_VERSION, stream.version());
+        assertFalse(stream.hasVersion());
     }
 
     @Test

@@ -17,6 +17,7 @@ import org.slf4j.Logger;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -132,7 +133,7 @@ public class Compactor<T> {
         CompactionResult<T> result = context.data;
         Log<T> target = result.target;
         int level = result.level;
-        List<Log<T>> sources = result.sources;
+        List<Log<T>> sources = Collections.unmodifiableList(result.sources);
 
         if (!result.successful()) {
             //TODO

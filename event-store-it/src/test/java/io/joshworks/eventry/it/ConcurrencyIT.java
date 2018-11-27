@@ -13,8 +13,10 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -23,9 +25,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class ConcurrencyIT {
@@ -158,7 +161,7 @@ public class ConcurrencyIT {
     @Test
     public void concurrent_write_thread_per_stream() throws InterruptedException, IOException {
 
-        final int threads = 50;
+        final int threads = 10;
         final int itemPerThread = 100000;
         ExecutorService executor = Executors.newFixedThreadPool(threads);
 
@@ -192,15 +195,22 @@ public class ConcurrencyIT {
         if (!latch.await(1, TimeUnit.HOURS)) {
             fail("Failed to write all entries");
         }
-        Thread.sleep(15000);
-
+        System.out.println("TOTAL WRITE: " + written.get());
 
         //READ
-        long found;
+
+        Map<String, AtomicInteger> counter = new HashMap<>();
         Set<StreamName> streamHashes = streamNames.stream().map(StreamName::of).collect(Collectors.toSet());
         try (EventLogIterator events = store.fromStreams(streamHashes)) {
-            found = events.stream().count();
-            assertEquals(itemPerThread * threads, found);
+            for (int i = 0; i < itemPerThread * threads; i++) {
+                assertTrue("Failed on " + i, events.hasNext());
+                EventRecord event = events.next();
+
+                counter.putIfAbsent(event.stream, new AtomicInteger(NO_VERSION));
+                AtomicInteger version = counter.get(event.stream);
+                assertEquals(version.get() + 1, event.version);
+                version.set(event.version);
+            }
         }
 
     }

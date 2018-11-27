@@ -442,15 +442,16 @@ public class TableIndexTest {
         tableIndex.flush();
         tableIndex.add(stream2, 1, 0);
 
-        TableIndex.IndexIterator iterator = tableIndex.indexedIterator(Set.of(stream1, stream2));
+        try (TableIndex.IndexIterator iterator = tableIndex.indexedIterator(Set.of(stream1, stream2))) {
+            IndexEntry polled = iterator.next();
+            assertEquals(stream2, polled.stream);
+            assertEquals(0, polled.version);
 
-        IndexEntry polled = iterator.next();
-        assertEquals(stream2, polled.stream);
-        assertEquals(0, polled.version);
+            polled = iterator.next();
+            assertEquals(stream2, polled.stream);
+            assertEquals(1, polled.version);
+        }
 
-        polled = iterator.next();
-        assertEquals(stream2, polled.stream);
-        assertEquals(1, polled.version);
     }
 
     @Test
@@ -481,18 +482,19 @@ public class TableIndexTest {
 
         tableIndex.add(stream, 0, 0);
 
-        TableIndex.IndexIterator iterator = tableIndex.indexedIterator(Set.of(stream));
+        try (TableIndex.IndexIterator iterator = tableIndex.indexedIterator(Set.of(stream))) {
+            IndexEntry polled = iterator.next();
+            assertEquals(stream, polled.stream);
+            assertEquals(0, polled.version);
 
-        IndexEntry polled = iterator.next();
-        assertEquals(stream, polled.stream);
-        assertEquals(0, polled.version);
+            tableIndex.add(stream, 1, 0);
+            tableIndex.flush();
 
-        tableIndex.add(stream, 1, 0);
-        tableIndex.flush();
+            polled = iterator.next();
+            assertEquals(stream, polled.stream);
+            assertEquals(1, polled.version);
+        }
 
-        polled = iterator.next();
-        assertEquals(stream, polled.stream);
-        assertEquals(1, polled.version);
     }
 
     @Test
@@ -504,12 +506,13 @@ public class TableIndexTest {
             tableIndex.add(stream, version, 0);
         }
 
-        TableIndex.IndexIterator iterator = tableIndex.indexedIterator(stream);
-        IndexEntry poll = iterator.next();
-        assertEquals(0, poll.version);
+        try (TableIndex.IndexIterator iterator = tableIndex.indexedIterator(stream)) {
+            IndexEntry poll = iterator.next();
+            assertEquals(0, poll.version);
 
-        Map<Long, Integer> processed = iterator.processed();
-        assertEquals(Integer.valueOf(0), processed.get(stream));
+            Map<Long, Integer> processed = iterator.processed();
+            assertEquals(Integer.valueOf(0), processed.get(stream));
+        }
 
     }
 
@@ -522,18 +525,29 @@ public class TableIndexTest {
             tableIndex.add(stream, version, 0);
         }
 
-        TableIndex.IndexIterator iterator = tableIndex.indexedIterator(stream);
-        IndexEntry entry = iterator.next();
-        assertEquals(0, entry.version);
+        TableIndex.IndexIterator iterator = null;
+        IndexEntry entry;
+        Map<Long, Integer> processed;
+        try {
+            iterator = tableIndex.indexedIterator(stream);
+            entry = iterator.next();
+            assertEquals(0, entry.version);
 
-        Map<Long, Integer> processed = iterator.processed();
-        assertEquals(Integer.valueOf(0), processed.get(stream));
+            processed = iterator.processed();
+            assertEquals(Integer.valueOf(0), processed.get(stream));
 
-        iterator.close();
+        } finally {
+            iterator.close();
 
-        iterator = tableIndex.indexedIterator(processed);
-        entry = iterator.next();
-        assertEquals(1, entry.version);
+        }
+
+        try {
+            iterator = tableIndex.indexedIterator(processed);
+            entry = iterator.next();
+            assertEquals(1, entry.version);
+        } finally {
+            iterator.close();
+        }
     }
 
     @Test

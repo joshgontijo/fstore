@@ -23,9 +23,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -326,6 +326,37 @@ public class EventStoreIT {
         }
 
         assertEquals(streams.size() * numVersions, eventCounter);
+    }
+
+    @Test
+    public void fromStream_without_version_starts_from_zero() throws IOException {
+        String stream = "stream-1";
+        store.append(EventRecord.create(stream, "test", "body1"));
+        store.append(EventRecord.create(stream, "test", "body2"));
+
+        try(var it = store.fromStream(StreamName.of(stream))) {
+            assertTrue(it.hasNext());
+            assertEquals(0, it.next().version);
+
+            assertTrue(it.hasNext());
+            assertEquals(1, it.next().version);
+        }
+    }
+
+    @Test
+    public void fromStreams_without_version_starts_from_zero() throws IOException {
+        String stream1 = "stream-1";
+        String stream2 = "stream-2";
+        store.append(EventRecord.create(stream1, "test", "body1"));
+        store.append(EventRecord.create(stream2, "test", "body2"));
+
+        try(var it = store.fromStreams(Set.of(StreamName.of(stream1), StreamName.of(stream2)))) {
+            assertTrue(it.hasNext());
+            assertEquals(0, it.next().version);
+
+            assertTrue(it.hasNext());
+            assertEquals(0, it.next().version);
+        }
     }
 
     @Test
