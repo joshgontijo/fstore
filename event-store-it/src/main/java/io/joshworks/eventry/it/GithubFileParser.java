@@ -107,7 +107,7 @@ public class GithubFileParser {
 //                Map<String, Object> map = gson.fromJson(line, type);
 //                return map;
 //            }).map(map -> {
-//                String body = gson.toJson(map);
+//                String body = gson.dataAsJson(map);
 //                return EventRecord.create("github", String.valueOf(map.get("type")), body);
 //            }).collect(Collectors.toList());
 //

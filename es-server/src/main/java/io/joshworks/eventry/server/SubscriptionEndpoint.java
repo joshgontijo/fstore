@@ -82,7 +82,7 @@ public class SubscriptionEndpoint {
 //
 //
 //        return store.fromStream(streamId, lastVersion + 1).peek(event -> {
-//            String payload = EventBody.from(event).toJson();
+//            String payload = EventBody.from(event).dataAsJson();
 //            String version = String.valueOf(event.version());
 //            connection.send(payload, streamId, version, null);
 //        }).mapToLong(Event::position).reduce((first, second) -> second).orElse(0L);
