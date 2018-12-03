@@ -112,6 +112,10 @@ public class Projections implements Closeable {
         manager.stop(name);
     }
 
+    public State state(String name) {
+        return manager.state(name);
+    }
+
     public Projection disable(String name) {
         Projection projection = get(name);
         projection.enabled = false;

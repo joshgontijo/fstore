@@ -1,6 +1,7 @@
 package io.joshworks.eventry.projections.task;
 
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
 
@@ -22,6 +23,11 @@ public class ProjectionContext {
         for (var output : outputs) {
             output.handle(store);
         }
+    }
+
+    public void publishStateState(String stateStreamName) {
+        EventRecord record = EventRecord.create(stateStreamName, "STATE_UPDATED", state);
+        store.append(record);
     }
 
     public final State state() {
