@@ -217,6 +217,10 @@ public class EventStore implements IEventStore {
         return projection;
     }
 
+    public State projectionState(String name) {
+        return projections.state(name);
+    }
+
     @Override
     public synchronized void deleteProjection(String name) {
         projections.delete(name);

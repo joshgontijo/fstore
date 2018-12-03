@@ -91,7 +91,7 @@ public class ProjectionTask implements Callable<ExecutionResult> {
         return new ExecutionResult(projection.name, tasks.stream().map(TaskItem::stats).collect(Collectors.toList()));
     }
 
-    State state() {
+    public State state() {
         State state = new State();
         for (TaskItem task : tasks) {
             state = task.aggregateState(state);

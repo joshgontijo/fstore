@@ -82,7 +82,9 @@ public class Jsr223Handler implements EventStreamHandler {
         try {
             Map<String, Object> stateMap = (Map<String, Object>) invocable.invokeFunction(AGGREGATE_STATE_METHOD_NAME, first, second);
             State state = new State();
-            state.putAll(stateMap);
+            if (stateMap != null) {
+                state.putAll(stateMap);
+            }
             return second;
         } catch (Exception e) {
             throw new ScriptException(e);
@@ -104,7 +106,7 @@ public class Jsr223Handler implements EventStreamHandler {
             return new ScriptExecutionResult(parsed);
         } catch (Exception e) {
             JsonEvent failed = jsonEvents != null && !jsonEvents.isEmpty() ? jsonEvents.poll() : null;
-           throw new ScriptExecutionException(e, failed);
+            throw new ScriptExecutionException(e, failed);
         }
     }
 
@@ -174,7 +176,7 @@ public class Jsr223Handler implements EventStreamHandler {
 
     private static int getBatchSize(Object batchSize) {
         try {
-            return  (int) batchSize;
+            return (int) batchSize;
         } catch (Exception e) {
             throw new ScriptException("Invalid batch size value: " + batchSize + ", value must a positive integer");
         }
