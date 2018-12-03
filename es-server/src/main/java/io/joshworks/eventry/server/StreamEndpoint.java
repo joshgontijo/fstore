@@ -130,7 +130,7 @@ public class StreamEndpoint {
             EventRecord record = EventRecord.create(stream, eventType, eventBody);
             store.append(record);
 
-            exchange.status(201).end();
+            exchange.status(201).header("Location", "/streams/" + StreamName.from(record).toString()).end();
             return;
         }
 
