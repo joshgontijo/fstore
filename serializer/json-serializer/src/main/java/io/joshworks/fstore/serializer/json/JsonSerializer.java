@@ -34,9 +34,10 @@ public class JsonSerializer<T> implements Serializer<T> {
         return gson.fromJson(json, new TypeToken<Map<String, Object>>(){}.getType());
     }
 
-    public static String toJson(Map<String, Object> data) {
+    public static String toJson(Object data) {
         return gson.toJson(data);
     }
+
 
     public static byte[] toJsonBytes(Map<String, Object> data) {
         return toJson(data).getBytes(StandardCharsets.UTF_8);
