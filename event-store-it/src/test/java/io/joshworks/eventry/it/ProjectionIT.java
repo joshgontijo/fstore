@@ -78,7 +78,6 @@ public class ProjectionIT {
         assertEquals(10, projection.batchSize);
         assertEquals(Projection.Type.ONE_TIME, projection.type);
         assertFalse(projection.parallel);
-        assertFalse(projection.publishState);
         assertEquals(Set.of("test-stream"), projection.sources);
         assertTrue(projection.enabled);
     }
@@ -136,7 +135,7 @@ public class ProjectionIT {
         Thread.sleep(30000);
 
         //projection name  + -state
-        store.fromStream(StreamName.of("publish-state-state"))
+        store.fromStream(StreamName.of("my-state"))
                 .stream()
                 .map(JsonEvent::from)
                 .forEach(System.out::println);

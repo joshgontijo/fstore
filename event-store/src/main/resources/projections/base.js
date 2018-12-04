@@ -26,14 +26,14 @@ function emit(stream, event) {
     if (!event) {
         throw Error("Event must be provided")
     }
-    if (!event.type || (this.length === 0 || !this.trim())) {
+    if (!event.type || (event.type.length === 0 || !event.type.trim())) {
         throw Error("Event type must be provided")
     }
-    if (event.data === null || typeof event.data !== 'object') {
+    if (event.body === null || typeof event.body !== 'object') {
         throw Error("Event data must be provided")
     }
 
-    if (event.metadata !== null && typeof event.metadata !== 'object') {
+    if ((event.metadata && event.metadata !== null) &&  typeof event.metadata !== 'object') {
         throw Error("Event metadata must be an object")
     }
 

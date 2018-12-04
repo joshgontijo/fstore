@@ -62,7 +62,6 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
                 ScriptExecutionResult result = process(batchRecords);
                 //publish
                 publishEvents(result);
-                publishState();
 
                 checkpoint(batchRecords);
                 updateStatus(batchRecords, result);
@@ -92,13 +91,6 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
         long publishStart = System.currentTimeMillis();
         context.publishEvents(result.outputEvents);
         metrics.publishTime = (System.currentTimeMillis() - publishStart);
-    }
-
-    private void publishState() {
-        String stateStreamName = projection.name + "-state";
-        if(projection.publishState) {
-            context.publishStateState(stateStreamName);
-        }
     }
 
     private ScriptExecutionResult process(List<EventRecord> batchRecords) throws ScriptExecutionException {

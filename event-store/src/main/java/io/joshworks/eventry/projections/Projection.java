@@ -11,11 +11,10 @@ public class Projection {
     public final Type type;
     public final boolean parallel;
     public final int batchSize;
-    public final boolean publishState;
 
     public boolean enabled;
 
-    public Projection(String script, String name, String engine, Set<String> sources, Type type, boolean parallel, int batchSize, boolean publishState) {
+    public Projection(String script, String name, String engine, Set<String> sources, Type type, boolean parallel, int batchSize) {
         this.script = script;
         this.name = name;
         this.engine = engine;
@@ -23,7 +22,6 @@ public class Projection {
         this.type = type;
         this.parallel = parallel;
         this.batchSize = batchSize;
-        this.publishState = publishState;
     }
 
     public enum Type {

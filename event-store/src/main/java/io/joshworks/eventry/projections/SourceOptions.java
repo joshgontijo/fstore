@@ -1,6 +1,6 @@
 //package io.joshworks.eventry.projections;
 //
-//import io.joshworks.eventry.data.Constant;
+//import io.joshworks.eventry.body.Constant;
 //
 //import java.util.LinkedList;
 //import java.util.Set;
