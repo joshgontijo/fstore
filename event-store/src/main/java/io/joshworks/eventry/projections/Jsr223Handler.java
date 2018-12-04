@@ -41,7 +41,6 @@ public class Jsr223Handler implements EventStreamHandler {
     private static final String PROJECTION_NAME_FIELD_NAME = "name";
 
     private static final boolean DEFAULT_PARALLEL = false;
-    private static final boolean DEFAULT_PUBLISH_STATE = false;
     private static final int DEFAULT_BATCH_SIZE = 10000;
 
     private final Invocable invocable;
@@ -127,17 +126,15 @@ public class Jsr223Handler implements EventStreamHandler {
             Object type = options.get(TYPE_NAME_FIELD_NAME);
             Object parallel = options.getOrDefault(CONFIG_PARALLEL_FIELD_NAME, DEFAULT_PARALLEL);
             Object batchSize = options.getOrDefault(CONFIG_BATCH_SIZE_FIELD_NAME, DEFAULT_BATCH_SIZE);
-            Object publishState = options.getOrDefault(CONFIG_PUBLISH_STATE_FIELD_NAME, DEFAULT_PUBLISH_STATE);
 
             Set<String> streams = getStreams(sourceStreams);
             Projection.Type theType = getType(type);
             validateProjectionName(projectionName);
 
             boolean isParallel = parallel != null && ((Boolean) parallel);
-            boolean shouldPublishState = publishState != null && ((Boolean) publishState);
             int batchSizeVal = getBatchSize(batchSize);
 
-            return new Projection(script, String.valueOf(projectionName), engineName, streams, theType, isParallel, batchSizeVal, shouldPublishState);
+            return new Projection(script, String.valueOf(projectionName), engineName, streams, theType, isParallel, batchSizeVal);
 
         } catch (Exception e) {
             throw new ScriptException("Script compilation error: " + e.getMessage(), e);

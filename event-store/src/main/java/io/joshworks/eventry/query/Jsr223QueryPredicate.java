@@ -36,7 +36,7 @@ public class Jsr223QueryPredicate {
         try {
             while (iterator.hasNext()) {
                 JsonEvent record = JsonEvent.from(iterator.next());
-                invocable.invokeFunction(FUNCTION_NAME, state, record.stream, record.version, record.data, record.type, record.timestamp, record.metadata);
+                invocable.invokeFunction(FUNCTION_NAME, state, record.stream, record.version, record.body, record.type, record.timestamp, record.metadata);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);

@@ -72,13 +72,13 @@ public class ProjectionExecutor implements Closeable {
 //        Metrics metrics = result.metrics;
         Status status = result.status;
 
-        //schedule immediately, it has data
+        //schedule immediately, it has body
         if (Status.RUNNING.equals(status)) {
             this.runTask(projectionTask);
             return;
         }
 
-        //awaiting for data, schedule in few seconds
+        //awaiting for body, schedule in few seconds
         if (Status.AWAITING.equals(status)) {
             this.executor.schedule(() -> this.runTask(projectionTask), 5, TimeUnit.SECONDS);
             return;

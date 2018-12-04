@@ -3,8 +3,7 @@ config({
     streams: ["test-stream"],
     type: "ONE_TIME",
     parallel: false,
-    batchSize: 10,
-    publishState: true
+    batchSize: 10
 });
 
 state({
@@ -14,6 +13,7 @@ state({
 function onEvent(event, state) {
     state.count++;
     if(state.count % 10000 == 0) {
+        emit("my-state", {type: "STATE_UPDATED", body: state});
         print("Processed: " + state.count)
     }
 }

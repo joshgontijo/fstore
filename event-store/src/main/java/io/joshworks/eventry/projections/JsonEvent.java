@@ -5,13 +5,15 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
+import java.util.HashMap;
 import java.util.Map;
+
+import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
 public class JsonEvent {
 
     //    private static final Gson gson = new Gson();
-    private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>() {
-    }.getType());
+    private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>() {}.getType());
 //    private static final Serializer<Map<String, Object>> mapSerializer = new MapRecordSerializer();
 
     public final String type;
@@ -19,16 +21,16 @@ public class JsonEvent {
     public final String stream;
     public final int version;
 
-    public final Map<String, Object> data;
+    public final Map<String, Object> body;
     public final Map<String, Object> metadata;
 
 
-    private JsonEvent(String type, long timestamp, String stream, int version, Map<String, Object> data, Map<String, Object> metadata) {
+    private JsonEvent(String type, long timestamp, String stream, int version, Map<String, Object> body, Map<String, Object> metadata) {
         this.type = type;
         this.timestamp = timestamp;
         this.stream = stream;
         this.version = version;
-        this.data = data;
+        this.body = body;
         this.metadata = metadata;
     }
 
@@ -40,20 +42,20 @@ public class JsonEvent {
 
     public static JsonEvent fromMap(Map<String, Object> event) {
         String type = (String) event.get("type");
-        long timestamp = (int) event.get("timestamp");
         String stream = (String) event.get("stream");
-        int version = (int) event.get("version");
-        Map<String, Object> metadata = (Map<String, Object>) event.get("metadata");
-        Map<String, Object> data = (Map<String, Object>) event.get("body");
+        long timestamp = (int) event.getOrDefault("timestamp", -1);
+        int version = (int) event.getOrDefault("version", NO_VERSION);
+        Map<String, Object> metadata = (Map<String, Object>) event.getOrDefault("metadata", new HashMap<>());
+        Map<String, Object> data = (Map<String, Object>) event.getOrDefault("body", new HashMap<>());
         return new JsonEvent(type, timestamp, stream, version, data, metadata);
     }
 
     public EventRecord toEvent() {
-        return new EventRecord(stream, type, version, timestamp, JsonSerializer.toJsonBytes(data), JsonSerializer.toJsonBytes(metadata));
+        return new EventRecord(stream, type, version, timestamp, JsonSerializer.toJsonBytes(body), JsonSerializer.toJsonBytes(metadata));
     }
 
     public String dataAsJson() {
-        return data.toString();
+        return body.toString();
     }
 
     public String toJson() {
