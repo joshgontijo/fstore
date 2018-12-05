@@ -68,8 +68,6 @@ public class Server {
                 post("disable", projections::disable);
                 post("enable", projections::enable);
                 get("status", projections::executionStatus);
-                get("state", projections::executionStatus);
-
             });
         });
 

@@ -75,7 +75,6 @@ public class Projections implements Closeable {
         projectionsMap.put(projection.name, projection);
     }
 
-    //TODO provide engine name from the content type or header
     public Projection create(String script) {
         requireNonBlank(script, "script");
 
@@ -87,10 +86,6 @@ public class Projections implements Closeable {
         projection.enabled = true;
         projectionsMap.put(projection.name, projection);
         return projection;
-    }
-
-    public void runAdHoc(String script, IEventStore store) {
-        throw new UnsupportedOperationException("TODO - implement me");
     }
 
     public void run(String name, IEventStore store) {
@@ -110,23 +105,6 @@ public class Projections implements Closeable {
 
     public void stop(String name) {
         manager.stop(name);
-    }
-
-    public State state(String name) {
-        return manager.state(name);
-    }
-
-    public Projection disable(String name) {
-        Projection projection = get(name);
-        projection.enabled = false;
-        stop(name);
-        return projection;
-    }
-
-    public Projection enable(String name) {
-        Projection projection = get(name);
-        projection.enabled = true;
-        return projection;
     }
 
     public void stopAll() {

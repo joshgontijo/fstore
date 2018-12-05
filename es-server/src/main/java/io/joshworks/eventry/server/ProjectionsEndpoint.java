@@ -75,12 +75,6 @@ public class ProjectionsEndpoint {
         store.disableProjection(name);
     }
 
-    //TODO implement
-    public void projectionState(HttpExchange exchange) {
-        String name = exchange.pathParameter(PROJECTION_NAME_PATH_PARAM);
-        throw new UnsupportedOperationException("TODO");
-    }
-
     public void executionStatus(HttpExchange exchange) {
         String name = exchange.pathParameter(PROJECTION_NAME_PATH_PARAM);
         Map<String, TaskStatus> executionStatus = store.projectionExecutionStatus(name);
