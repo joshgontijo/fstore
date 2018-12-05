@@ -57,8 +57,8 @@ public class CachedEventLog implements IEventLog {
     }
 
     @Override
-    public void cleanup() {
-        delegate.cleanup();
+    public void compact() {
+        delegate.compact();
     }
 
 }
