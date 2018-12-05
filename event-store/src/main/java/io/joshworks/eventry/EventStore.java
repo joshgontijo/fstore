@@ -19,7 +19,6 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.log.RecordCleanup;
-import io.joshworks.eventry.projections.JsonEvent;
 import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.ProjectionExecutor;
 import io.joshworks.eventry.projections.Projections;
@@ -36,7 +35,6 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
@@ -53,12 +51,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
@@ -92,7 +87,6 @@ public class EventStore implements IEventStore {
 
         try {
             this.loadIndex();
-//            this.loadStreams();
             this.loadProjections();
         } catch (Exception e) {
             IOUtils.closeQuietly(index);
@@ -106,7 +100,6 @@ public class EventStore implements IEventStore {
     public static EventStore open(File rootDir) {
         return new EventStore(rootDir);
     }
-
 
     private void loadIndex() {
         logger.info("Loading index");
@@ -172,13 +165,9 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public void cleanup() {
-        eventLog.cleanup();
-    }
-
-    @Override
-    public void compactIndex() {
+    public void compact() {
         index.compact();
+        eventLog.compact();
     }
 
     @Override
@@ -308,12 +297,6 @@ public class EventStore implements IEventStore {
             int version = streams.version(meta.hash);
             return StreamInfo.from(meta, version);
         });
-    }
-
-    //TODO remove ?? use only for log dump
-    @Override
-    public LogIterator<IndexEntry> scanIndex() {
-        return index.scanner();
     }
 
     public State query(Set<String> streams, State state, String script) {

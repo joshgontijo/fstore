@@ -44,12 +44,10 @@ public class Streams implements Closeable {
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
     }
 
-    @Deprecated
     public Optional<StreamMetadata> get(String stream) {
         return get(hashOf(stream));
     }
 
-    @Deprecated
     public Optional<StreamMetadata> get(long streamHash) {
         return Optional.ofNullable(streamStore.get(streamHash));
     }

@@ -54,7 +54,7 @@ public class EventLog implements IEventLog {
 
 
     @Override
-    public void cleanup() {
+    public void compact() {
         appender.compact();
     }
 
