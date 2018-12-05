@@ -110,14 +110,6 @@ public class ProjectionExecutor implements Closeable {
         return new HashMap<>();
     }
 
-    public State state(String projectionName) {
-        ProjectionTask task = running.get(projectionName);
-        if (task != null) {
-            return task.state();
-        }
-        return new State();
-    }
-
     public Set<String> running() {
         return new HashSet<>(running.keySet());
     }

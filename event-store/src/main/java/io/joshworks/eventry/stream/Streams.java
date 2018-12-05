@@ -28,7 +28,6 @@ import static io.joshworks.eventry.stream.StreamMetadata.STREAM_ACTIVE;
 public class Streams implements Closeable {
 
     public static final String STREAM_WILDCARD = "*";
-    public static final String ALL_STREAM = StreamName.SYSTEM_PREFIX + "all";
     //TODO LRU cache ? there's no way of getting item by stream name, need to use an indexed lsm-tree
     //LRU map that reads the last version from the index
     private final Map<Long, AtomicInteger> versions;
@@ -70,6 +69,7 @@ public class Streams implements Closeable {
 
     //return a metadata if existing, or create a new one using default values, invoking createdCallback on creation
     public synchronized StreamMetadata createIfAbsent(String stream, Consumer<StreamMetadata> createdCallback) {
+        validateName(stream);
         long streamHash = hashOf(stream);
         StreamMetadata metadata = streamStore.get(streamHash);
         if (metadata == null) {
@@ -80,7 +80,7 @@ public class Streams implements Closeable {
     }
 
     public synchronized StreamMetadata create(String stream, long maxAge, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata) {
-        StringUtils.requireNonBlank(stream, "Stream must be provided");
+        validateName(stream);
         long hash = hashOf(stream);
         return createInternal(stream, maxAge, maxCount, permissions, metadata, hash);
     }
@@ -154,4 +154,18 @@ public class Streams implements Closeable {
     public void close() {
         streamStore.close();
     }
+
+    private void validateName(String streamName) {
+        StringUtils.requireNonBlank(streamName, "Stream name must be provided");
+        if(streamName.contains(" ")) {
+            throw new IllegalArgumentException("Stream name must not contain whitespaces");
+        }
+        if(streamName.contains(StreamName.STREAM_VERSION_SEPARATOR)) {
+            throw new IllegalArgumentException("Stream name must not contain " + StreamName.STREAM_VERSION_SEPARATOR);
+        }
+        if(streamName.startsWith(StreamName.SYSTEM_PREFIX)) {
+            throw new IllegalArgumentException("Stream name must not start with " + StreamName.SYSTEM_PREFIX);
+        }
+    }
+
 }
