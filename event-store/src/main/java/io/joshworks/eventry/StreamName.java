@@ -47,7 +47,7 @@ public class StreamName {
         return version > NO_VERSION;
     }
 
-    public static StreamName create(String stream, int version) {
+    public static StreamName of(String stream, int version) {
         StringUtils.requireNonBlank(stream);
         StreamName parsed = parse(stream);
         version = version <= NO_VERSION ? NO_VERSION : version;

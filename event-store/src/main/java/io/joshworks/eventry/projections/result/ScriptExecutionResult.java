@@ -1,7 +1,6 @@
 package io.joshworks.eventry.projections.result;
 
 import io.joshworks.eventry.IEventAppender;
-import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.projections.JsonEvent;
 import io.joshworks.eventry.utils.StringUtils;
@@ -64,7 +63,7 @@ public class ScriptExecutionResult {
 
         @Override
         public void handle(IEventAppender appender) {
-            appender.linkTo(dstStream, StreamName.create(srcStream, srcVersion), srcType);
+            appender.linkTo(dstStream, StreamName.of(srcStream, srcVersion), srcType);
         }
     }
 

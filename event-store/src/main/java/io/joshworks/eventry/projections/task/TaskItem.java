@@ -46,6 +46,7 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
         this.projection = projection;
         this.id = id;
         this.logger = Logging.namedLogger("projection-task", id);
+        this.handler.onStart(context.state());
     }
 
     @Override
@@ -163,7 +164,8 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
         IOUtils.closeQuietly(source);
     }
 
-    synchronized void stop() {
+    synchronized void stop(StopReason reason) {
+        handler.onStop(reason, context.state());
         if (!Status.FAILED.equals(status)) {
             status = Status.STOPPED;
         }

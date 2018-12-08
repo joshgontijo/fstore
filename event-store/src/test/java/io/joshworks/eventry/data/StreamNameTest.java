@@ -17,7 +17,7 @@ public class StreamNameTest {
 
     @Test
     public void toStringFormatFromCreate() {
-        assertEquals("stream@123", StreamName.create("stream", 123).toString());
+        assertEquals("stream@123", StreamName.of("stream", 123).toString());
     }
 
     @Test

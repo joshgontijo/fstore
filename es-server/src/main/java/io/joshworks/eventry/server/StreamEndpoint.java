@@ -65,7 +65,7 @@ public class StreamEndpoint {
             }
         }
 
-        try (Stream<EventRecord> stream = store.fromStream(StreamName.create(streamName, startVersion)).stream()) {
+        try (Stream<EventRecord> stream = store.fromStream(StreamName.of(streamName, startVersion)).stream()) {
             List<EventBody> streamEvents = stream.filter(ev -> !ev.isLinkToEvent())
                     .limit(limit)
                     .map(EventBody::from)

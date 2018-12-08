@@ -36,7 +36,6 @@ public class ProjectionTask implements Callable<ExecutionResult> {
 
     private final Projection projection;
     private final AtomicBoolean stopRequested = new AtomicBoolean();
-
     private final List<TaskItem> tasks = new ArrayList<>();
 
     private ProjectionTask(Projection projection, List<TaskItem> taskItems) {
@@ -75,14 +74,14 @@ public class ProjectionTask implements Callable<ExecutionResult> {
 
     private void abort() {
         logger.info("Stopping all tasks");
-        tasks.forEach(TaskItem::stop);
+        tasks.forEach(ti -> ti.stop(StopReason.ABORTED));
     }
 
     //stops and clean checkpoint state
     public void complete() {
         logger.info("Completing all tasks");
         tasks.forEach(taskItem -> {
-            taskItem.stop();
+            taskItem.stop(StopReason.COMPLETED);
             taskItem.deleteCheckpoint();
         });
     }
@@ -103,7 +102,7 @@ public class ProjectionTask implements Callable<ExecutionResult> {
         try {
             TaskStatus status = taskItem.call();
             if (stopRequested.get() && !Status.FAILED.equals(status.status)) {
-                taskItem.stop();
+                taskItem.stop(StopReason.ABORTED);
             }
             return status;
         } catch (Exception e) {
@@ -130,7 +129,7 @@ public class ProjectionTask implements Callable<ExecutionResult> {
             if (checkpoint != null) {
                 if (isAllStream) {//there will be only single one
                     StreamName lastProcessed = checkpoint.lastProcessed.iterator().next();
-                    StreamName start = StreamName.create(lastProcessed.name(), lastProcessed.version() + 1);
+                    StreamName start = StreamName.of(lastProcessed.name(), lastProcessed.version() + 1);
                     source = store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE, start);
                 } else {
                     Set<StreamName> mergedStreamStartVersions = mergeCheckpoint(projection, checkpoint);
@@ -173,7 +172,7 @@ public class ProjectionTask implements Callable<ExecutionResult> {
 
         //from checkpoint
         Map<String, StreamName> checkpointStreams = checkpoint.lastProcessed.stream()
-                .map(sn -> StreamName.create(sn.name(), sn.version() + 1)) //next version
+                .map(sn -> StreamName.of(sn.name(), sn.version() + 1)) //next version
                 .collect(Collectors.toMap(StreamName::name, Function.identity()));
 
         //merge them together
