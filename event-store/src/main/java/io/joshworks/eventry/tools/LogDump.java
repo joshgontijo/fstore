@@ -58,20 +58,20 @@ public class LogDump {
         }
     }
 
-    public static void dumpIndex(File file, IEventStore store) {
-        System.out.println("Dumping index");
-        try (var fileWriter = new FileWriter(file)) {
-            LogIterator<IndexEntry> iterator = store.scanIndex();
-            while (iterator.hasNext()) {
-                long position = iterator.position();
-                IndexEntry event = iterator.next();
-                fileWriter.write(position + " | " + event.toString() + System.lineSeparator());
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        System.out.println("Dumping index complete");
-    }
+//    public static void dumpIndex(File file, IEventStore store) {
+//        System.out.println("Dumping index");
+//        try (var fileWriter = new FileWriter(file)) {
+//            LogIterator<IndexEntry> iterator = store.scanIndex();
+//            while (iterator.hasNext()) {
+//                long position = iterator.position();
+//                IndexEntry event = iterator.next();
+//                fileWriter.write(position + " | " + event.toString() + System.lineSeparator());
+//            }
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//        System.out.println("Dumping index complete");
+//    }
 
 
 }

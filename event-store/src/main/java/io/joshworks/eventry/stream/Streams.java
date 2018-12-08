@@ -163,9 +163,6 @@ public class Streams implements Closeable {
         if(streamName.contains(StreamName.STREAM_VERSION_SEPARATOR)) {
             throw new IllegalArgumentException("Stream name must not contain " + StreamName.STREAM_VERSION_SEPARATOR);
         }
-        if(streamName.startsWith(StreamName.SYSTEM_PREFIX)) {
-            throw new IllegalArgumentException("Stream name must not start with " + StreamName.SYSTEM_PREFIX);
-        }
     }
 
 }

@@ -71,7 +71,7 @@ public class EventRecord {
     }
 
     public StreamName streamName() {
-        return StreamName.create(stream, version);
+        return StreamName.of(stream, version);
     }
 
     @Override

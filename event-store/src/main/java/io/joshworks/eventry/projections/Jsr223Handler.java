@@ -4,6 +4,7 @@ import io.joshworks.eventry.ScriptExecutionException;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.result.ScriptExecutionResult;
 import io.joshworks.eventry.projections.task.ProjectionContext;
+import io.joshworks.eventry.projections.task.StopReason;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.io.IOUtils;
 
@@ -25,10 +26,12 @@ import java.util.stream.Collectors;
 
 public class Jsr223Handler implements EventStreamHandler {
 
-    private static final String BASE_PROCESS_EVENTS_METHOD_NAME = "process_events";
+    private static final String BASE_PROCESS_EVENTS_METHOD_NAME = "_process_events";
 
     private static final String ON_EVENT_METHOD_NAME = "onEvent";
-    private static final String AGGREGATE_STATE_METHOD_NAME = "aggregateState";
+    private static final String AGGREGATE_STATE_METHOD_NAME = "_aggregateState";
+    private static final String ON_START_METHOD_NAME = "_onStart";
+    private static final String ON_STOP_METHOD_NAME = "_onStop";
     private static final String CONFIG_METHOD_NAME = "config";
     private static final String INITIAL_STATE_METHOD_NAME = "state";
 
@@ -66,6 +69,25 @@ public class Jsr223Handler implements EventStreamHandler {
         }
     }
 
+
+    @Override
+    public void onStart(State state) {
+        try {
+            invocable.invokeFunction(ON_START_METHOD_NAME, state);
+        } catch (Exception e) {
+            throw new ScriptException(e);
+        }
+    }
+
+    @Override
+    public void onStop(StopReason reason, State state) {
+        try {
+            String reasonVal = reason == null ? "NONE" : reason.name();
+            invocable.invokeFunction(ON_STOP_METHOD_NAME, reasonVal, state);
+        } catch (Exception e) {
+            throw new ScriptException(e);
+        }
+    }
 
     @Override
     public void onEvent(JsonEvent record, State state) {

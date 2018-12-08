@@ -12,10 +12,6 @@ import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
 public class JsonEvent {
 
-    //    private static final Gson gson = new Gson();
-    private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>() {}.getType());
-//    private static final Serializer<Map<String, Object>> mapSerializer = new MapRecordSerializer();
-
     public final String type;
     public final long timestamp;
     public final String stream;
@@ -23,7 +19,6 @@ public class JsonEvent {
 
     public final Map<String, Object> body;
     public final Map<String, Object> metadata;
-
 
     private JsonEvent(String type, long timestamp, String stream, int version, Map<String, Object> body, Map<String, Object> metadata) {
         this.type = type;
@@ -45,8 +40,8 @@ public class JsonEvent {
         String stream = (String) event.get("stream");
         long timestamp = (int) event.getOrDefault("timestamp", -1);
         int version = (int) event.getOrDefault("version", NO_VERSION);
-        Map<String, Object> metadata = (Map<String, Object>) event.getOrDefault("metadata", new HashMap<>());
-        Map<String, Object> data = (Map<String, Object>) event.getOrDefault("body", new HashMap<>());
+        Map<String, Object> metadata = (Map<String, Object>) event.getOrDefault("metadata", new HashMap<String, Object>());
+        Map<String, Object> data = (Map<String, Object>) event.getOrDefault("body", new HashMap<String, Object>());
         return new JsonEvent(type, timestamp, stream, version, data, metadata);
     }
 
@@ -55,7 +50,7 @@ public class JsonEvent {
     }
 
     public String dataAsJson() {
-        return body.toString();
+        return JsonSerializer.toJson(body);
     }
 
     public String toJson() {

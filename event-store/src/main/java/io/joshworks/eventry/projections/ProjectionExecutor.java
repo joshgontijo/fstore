@@ -90,8 +90,7 @@ public class ProjectionExecutor implements Closeable {
             systemRecordAppender.accept(completed);
             projectionTask.complete();
         } else if (Status.STOPPED.equals(status)) {
-            Metrics metrics = result.tasks.stream().map(t -> t.metrics).findFirst().get();
-            EventRecord stopped = ProjectionStopped.create(projectionName, "STOPPED BY USER", processed, metrics.logPosition);
+            EventRecord stopped = ProjectionStopped.create(projectionName, "STOPPED BY USER", processed);
             systemRecordAppender.accept(stopped);
         } else if (Status.FAILED.equals(status)) {
             TaskError taskError = result.tasks.stream().filter(t -> t.taskError != null).map(t -> t.taskError).findFirst().get();

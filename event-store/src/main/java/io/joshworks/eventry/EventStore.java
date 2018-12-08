@@ -72,6 +72,7 @@ public class EventStore implements IEventStore {
     private final Projections projections;
 
     private EventStore(File rootDir) {
+        long start = System.currentTimeMillis();
         this.index = new TableIndex(rootDir);
         this.projections = new Projections(new ProjectionExecutor(rootDir, this::appendSystemEvent));
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
@@ -88,6 +89,7 @@ public class EventStore implements IEventStore {
         try {
             this.loadIndex();
             this.loadProjections();
+            logger.info("Started event store in {}ms", (System.currentTimeMillis() - start));
         } catch (Exception e) {
             IOUtils.closeQuietly(index);
             IOUtils.closeQuietly(projections);
@@ -297,14 +299,14 @@ public class EventStore implements IEventStore {
 
     public State query(Set<String> streams, State state, String script) {
         EventLogIterator raw = fromStreams(streams.stream().map(StreamName::of).collect(Collectors.toSet()));
-       return new Jsr223QueryPredicate(script, raw).query(state);
+        return new Jsr223QueryPredicate(script, raw).query(state);
     }
 
     @Override
     public EventLogIterator fromStream(StreamName stream) {
         requireNonNull(stream, "Stream must be provided");
         int versionInclusive = stream.version() == NO_VERSION ? Range.START_VERSION : stream.version();
-        StreamName start = StreamName.create(stream.name(), versionInclusive - 1);
+        StreamName start = StreamName.of(stream.name(), versionInclusive - 1);
 
         LogIterator<IndexEntry> indexIterator = index.indexedIterator(Map.of(start.hash(), start.version()));
         indexIterator = withMaxCountFilter(stream.hash(), indexIterator);

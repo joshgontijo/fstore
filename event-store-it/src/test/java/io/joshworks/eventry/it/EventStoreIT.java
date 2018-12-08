@@ -13,7 +13,6 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.projections.JsonEvent;
 import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
@@ -243,7 +242,7 @@ public class EventStoreIT {
 
         try (IEventStore store = EventStore.open(directory)) {
             for (int i = 0; i < size; i++) {
-                EventRecord event = store.get(StreamName.create(streamPrefix + i, Range.START_VERSION));
+                EventRecord event = store.get(StreamName.of(streamPrefix + i, Range.START_VERSION));
                 assertNotNull(event);
                 assertEquals(Range.START_VERSION, event.version);
                 assertEquals(streamPrefix + i, event.stream);
@@ -288,7 +287,7 @@ public class EventStoreIT {
         int version = 0;
         for (int i = 0; i < numStreams; i++) {
             String stream = streamPrefix + i;
-            EventRecord event = store.get(StreamName.create(streamPrefix + i, version));
+            EventRecord event = store.get(StreamName.of(streamPrefix + i, version));
 
             assertNotNull(event);
             assertEquals(stream, event.stream);
@@ -532,7 +531,7 @@ public class EventStoreIT {
 
         for (int i = 0; i < size; i++) {
             String stream = streamPrefix + i;
-            EventRecord event = store.get(StreamName.create(stream, 0));
+            EventRecord event = store.get(StreamName.of(stream, 0));
             assertNotNull(event);
             assertEquals(stream, event.stream);
             assertEquals(0, event.version);
@@ -663,7 +662,7 @@ public class EventStoreIT {
 
         store.linkTo(linkToStream, created);
 
-        EventRecord eventRecord = store.get(StreamName.create(linkToStream, 0));
+        EventRecord eventRecord = store.get(StreamName.of(linkToStream, 0));
         assertNotNull(eventRecord);
         assertEquals(original, eventRecord.stream);
         assertEquals(0, eventRecord.version);
@@ -790,7 +789,7 @@ public class EventStoreIT {
 
                     for (int version = 0; version < numVersionPerStream; version++) {
                         //GET
-                        EventRecord event = store.get(StreamName.create(streamName, version));
+                        EventRecord event = store.get(StreamName.of(streamName, version));
                         assertNotNull(event);
                         assertEquals(streamName, event.stream);
                         assertEquals(version, event.version);
