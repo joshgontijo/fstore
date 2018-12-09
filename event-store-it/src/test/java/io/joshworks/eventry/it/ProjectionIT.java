@@ -1,5 +1,6 @@
 package io.joshworks.eventry.it;
 
+import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
@@ -12,15 +13,14 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class ProjectionIT {
 
@@ -57,7 +57,7 @@ public class ProjectionIT {
     @Test
     public void state() throws InterruptedException {
 
-        final int size = 1000000;
+        final int size = 1000;
         String stream = "test-stream"; //from file
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "" + i, Map.of("value", i)));
@@ -68,7 +68,7 @@ public class ProjectionIT {
 
         store.runProjection(projection.name);
 
-        Thread.sleep(60000);
+        Thread.sleep(5000);
 
 //        State state = store.projectionState(projection.name);
 //        Number evCounter = (Number) state.get("evCounter");
@@ -90,29 +90,29 @@ public class ProjectionIT {
     }
 
     @Test
-    public void onStart() throws InterruptedException {
+    public void onStart_onStop() throws InterruptedException {
 
-        final int size = 1000000;
+        final int size = 5;
         String stream = "test-stream"; //from file
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "" + i, Map.of("value", i)));
         }
 
-        String script = IOUtils.toString(this.getClass().getClassLoader().getResourceAsStream("on-start.js"));
+        String script = IOUtils.toString(this.getClass().getClassLoader().getResourceAsStream("on-stop.js"));
         Projection projection = store.createProjection(script);
 
         store.runProjection(projection.name);
 
-        Thread.sleep(30000);
+        Thread.sleep(10000);
 
-        EventRecord eventRecord = store.get(StreamName.of("my-state", 0));
-        assertNotNull(eventRecord);
-        JsonEvent jsonEvent = JsonEvent.from(eventRecord);
+        EventLogIterator eventRecord = store.fromStream(StreamName.of("my-state", 0));
+        assertTrue(eventRecord.hasNext());
+        JsonEvent jsonEvent = JsonEvent.from(eventRecord.next());
         assertTrue((Boolean) jsonEvent.body.get("started"));
 
-
-//
-
+        assertTrue(eventRecord.hasNext());
+        jsonEvent = JsonEvent.from(eventRecord.next());
+        assertTrue((Boolean) jsonEvent.body.get("stopped"));
 
     }
 
@@ -133,10 +133,13 @@ public class ProjectionIT {
         Thread.sleep(30000);
 
         //projection name  + -state
-        store.fromStream(StreamName.of("my-state"))
+        List<JsonEvent> events = store.fromStream(StreamName.of("my-state"))
                 .stream()
                 .map(JsonEvent::from)
-                .forEach(System.out::println);
+                .collect(Collectors.toList());
+
+        assertEquals(100, events.size());
+
 
 
     }

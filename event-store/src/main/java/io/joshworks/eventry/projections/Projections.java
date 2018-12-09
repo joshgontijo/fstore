@@ -107,9 +107,6 @@ public class Projections implements Closeable {
         manager.stop(name);
     }
 
-    public void stopAll() {
-        manager.stopAll();
-    }
 
     public Collection<Projection> all() {
         return new ArrayList<>(projectionsMap.values());
@@ -171,7 +168,6 @@ public class Projections implements Closeable {
 
     @Override
     public void close() {
-        stopAll();
         manager.close();
     }
 }

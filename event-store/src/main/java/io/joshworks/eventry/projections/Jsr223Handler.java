@@ -71,19 +71,21 @@ public class Jsr223Handler implements EventStreamHandler {
 
 
     @Override
-    public void onStart(State state) {
+    public ScriptExecutionResult onStart(State state) {
         try {
-            invocable.invokeFunction(ON_START_METHOD_NAME, state);
+            Map<String, Object> result = (Map<String, Object>) invocable.invokeFunction(ON_START_METHOD_NAME, state);
+            return toScriptExecutionResult(result);
         } catch (Exception e) {
             throw new ScriptException(e);
         }
     }
 
     @Override
-    public void onStop(StopReason reason, State state) {
+    public ScriptExecutionResult onStop(StopReason reason, State state) {
         try {
             String reasonVal = reason == null ? "NONE" : reason.name();
-            invocable.invokeFunction(ON_STOP_METHOD_NAME, reasonVal, state);
+            Map<String, Object> result = (Map<String, Object>) invocable.invokeFunction(ON_STOP_METHOD_NAME, reasonVal, state);
+            return toScriptExecutionResult(result);
         } catch (Exception e) {
             throw new ScriptException(e);
         }
@@ -118,17 +120,20 @@ public class Jsr223Handler implements EventStreamHandler {
         try {
             jsonEvents = events.stream().map(JsonEvent::from).collect(Collectors.toCollection(ArrayDeque::new));
             Map<String, Object> result = (Map<String, Object>) invocable.invokeFunction(BASE_PROCESS_EVENTS_METHOD_NAME, jsonEvents, state);
-
-            Collection<Object> values = result.values();
-            List<Map<String, Object>> parsed = new ArrayList<>();
-            for (Object value : values) {
-                parsed.add((Map<String, Object>) value);
-            }
-            return new ScriptExecutionResult(parsed);
+            return toScriptExecutionResult(result);
         } catch (Exception e) {
             JsonEvent failed = jsonEvents != null && !jsonEvents.isEmpty() ? jsonEvents.poll() : null;
             throw new ScriptExecutionException(e, failed);
         }
+    }
+
+    private ScriptExecutionResult toScriptExecutionResult(Map<String, Object> result) {
+        Collection<Object> values = result.values();
+        List<Map<String, Object>> parsed = new ArrayList<>();
+        for (Object value : values) {
+            parsed.add((Map<String, Object>) value);
+        }
+        return new ScriptExecutionResult(parsed);
     }
 
     static Projection compile(String script, String engineName) {

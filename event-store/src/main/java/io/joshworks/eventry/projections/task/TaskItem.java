@@ -46,7 +46,8 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
         this.projection = projection;
         this.id = id;
         this.logger = Logging.namedLogger("projection-task", id);
-        this.handler.onStart(context.state());
+        ScriptExecutionResult result = this.handler.onStart(context.state());
+        publishEvents(result);
     }
 
     @Override
@@ -68,10 +69,10 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
                 updateStatus(batchRecords, result);
 
                 if (!source.hasNext()) {
-                    status = Status.AWAITING;
+                    status = noNextRecordStatus();
                 }
             } else {
-                status = Status.AWAITING;
+                status = noNextRecordStatus();
             }
 
         } catch (ScriptExecutionException e) {
@@ -85,6 +86,10 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
         }
 
         return new TaskStatus(status, error, metrics);
+    }
+
+    private Status noNextRecordStatus() {
+        return Projection.Type.CONTINUOUS.equals(projection.type) ? Status.AWAITING : Status.COMPLETED;
     }
 
     //TODO truncate stream up to last batch position if write fails
@@ -165,7 +170,8 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
     }
 
     synchronized void stop(StopReason reason) {
-        handler.onStop(reason, context.state());
+        ScriptExecutionResult result = handler.onStop(reason, context.state());
+        publishEvents(result);
         if (!Status.FAILED.equals(status)) {
             status = Status.STOPPED;
         }
