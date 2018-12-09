@@ -6,7 +6,6 @@ import io.joshworks.eventry.data.ProjectionFailed;
 import io.joshworks.eventry.data.ProjectionStopped;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projections.result.ExecutionResult;
-import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.Status;
 import io.joshworks.eventry.projections.result.TaskError;
 import io.joshworks.eventry.projections.result.TaskStatus;
@@ -121,14 +120,11 @@ public class ProjectionExecutor implements Closeable {
         }
     }
 
-    public void stopAll() {
+    @Override
+    public void close() {
         for (String projection : running()) {
             stop(projection);
         }
-    }
-
-    @Override
-    public void close() {
         executor.shutdown();
         checkpointer.close();
     }

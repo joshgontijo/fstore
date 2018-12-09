@@ -516,10 +516,10 @@ public class EventStore implements IEventStore {
 
     @Override
     public synchronized void close() {
+        projections.close(); //must be closed first since it can emit events on close
         index.close();
         eventLog.close();
         streams.close();
-        projections.close();
     }
 
 }

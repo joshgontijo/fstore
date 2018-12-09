@@ -18,18 +18,20 @@ function _aggregate_state(state1, state2) {
     return {};
 }
 
-//_onStart is an optional function
+//onStart is an optional function
 function _onStart(state) {
     if (typeof onStart === "function") {
-        return onStart(state);
+        onStart(state);
+        return _out_events;
     }
     return {};
 }
 
-//_onStart is an optional function
+//onStart is an optional function
 function _onStop(reason, state) {
     if (typeof onStop === "function") {
-        return onStop(reason, state);
+        onStop(reason, state);
+        return _out_events;
     }
     return {};
 }

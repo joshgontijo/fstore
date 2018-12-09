@@ -9,9 +9,9 @@ import java.util.List;
 
 public interface EventStreamHandler {
 
-    void onStart(State state);
+    ScriptExecutionResult onStart(State state);
 
-    void onStop(StopReason reason, State state);
+    ScriptExecutionResult onStop(StopReason reason, State state);
 
     void onEvent(JsonEvent record, State state);
 
