@@ -297,6 +297,12 @@ public class EventStore implements IEventStore {
         });
     }
 
+    @Override
+    public void truncate(long stream, int version) {
+        index.truncate(stream, version);
+
+    }
+
     public State query(Set<String> streams, State state, String script) {
         EventLogIterator raw = fromStreams(streams.stream().map(StreamName::of).collect(Collectors.toSet()));
         return new Jsr223QueryPredicate(script, raw).query(state);

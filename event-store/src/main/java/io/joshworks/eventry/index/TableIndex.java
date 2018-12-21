@@ -4,7 +4,6 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.index.disk.IndexAppender;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +12,6 @@ import java.io.Closeable;
 import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -47,10 +45,6 @@ public class TableIndex implements Closeable {
     }
 
     TableIndex(File rootDirectory, int flushThreshold, boolean useCompression) {
-        if (flushThreshold < 1000) {//arbitrary number
-            throw new IllegalArgumentException("Flush threshold must be at least 1000");
-        }
-
         this.diskIndex = new IndexAppender(rootDirectory, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
         this.flushThreshold = flushThreshold;
     }
@@ -115,15 +109,10 @@ public class TableIndex implements Closeable {
 
     }
 
-    public LogIterator<IndexEntry> scanner() {
-        LogIterator<IndexEntry> cacheIterator = memIndex.iterator();
-        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(Direction.FORWARD);
 
-        return joiningDiskAndMem(diskIterator, cacheIterator);
-    }
-
-
-    //TODO Backwards scan requires fetching the latest version and adding to the map
+    //TODO: IMPLEMENT BACKWARD SCANNING: Backwards scan requires fetching the latest version and adding to the map
+    //backward here means that the version will be fetched from higher to lower
+    //no guarantees of the order of the streams
     public IndexIterator indexedIterator(long stream) {
         return indexedIterator(Set.of(stream));
     }
@@ -135,7 +124,9 @@ public class TableIndex implements Closeable {
         return new IndexIterator(Direction.FORWARD, map);
     }
 
-    //TODO Backwards scan requires fetching the latest version and adding to the map
+    //TODO: IMPLEMENT BACKWARD SCANNING: Backwards scan requires fetching the latest version and adding to the map
+    //backward here means that the version will be fetched from higher to lower
+    //no guarantees of the order of the streams
     public IndexIterator indexedIterator(Set<Long> streams) {
         List<Long> streamList = new ArrayList<>(streams);
         Map<Long, AtomicInteger> map = streamList.stream().collect(Collectors.toMap(stream -> stream, r -> new AtomicInteger(NO_VERSION)));
@@ -150,16 +141,35 @@ public class TableIndex implements Closeable {
         return diskIndex.get(stream, version);
     }
 
-    private LogIterator<IndexEntry> joiningDiskAndMem(LogIterator<IndexEntry> diskIterator, LogIterator<IndexEntry> memIndex) {
-        return Iterators.concat(Arrays.asList(diskIterator, memIndex));
-    }
-
     public FlushInfo flush() {
         return writeToDisk();
     }
 
     public void compact() {
         diskIndex.compact();
+    }
+
+    public void truncate(long stream, int version) {
+        if (version <= NO_VERSION) {
+            throw new IllegalArgumentException("Version must be greater or equals zero");
+        }
+        int streamVersion = version(stream);
+        if (streamVersion > version) {
+            throw new IllegalArgumentException("Truncate version: " + version + " must be less or equals stream version: " + streamVersion);
+        }
+
+        memIndex.truncate(stream, version);
+        diskIndex.truncate(stream, version);
+    }
+
+    public void delete(long stream) {
+        int version = version(stream);
+        if (version == NO_VERSION) {
+            return; // no exception needed, Streams should just mark as deleted
+        }
+
+        memIndex.delete(stream);
+        diskIndex.delete(stream);
     }
 
 
@@ -179,8 +189,6 @@ public class TableIndex implements Closeable {
             this.streamReadPriority = new ArrayDeque<>(streamHashes);
             this.direction = direction;
         }
-
-        private long counter = 0;
 
         private IndexEntry computeAndGet(IndexEntry ie) {
             if (ie == null) {
@@ -203,7 +211,6 @@ public class TableIndex implements Closeable {
             } else {
                 lastVersion.decrementAndGet();
             }
-            counter++;
             return ie;
         }
 
@@ -228,12 +235,12 @@ public class TableIndex implements Closeable {
 
         private List<IndexEntry> fetchEntries(long stream, int lastProcessedVersion) {
             int nextVersion = Direction.FORWARD.equals(direction) ? lastProcessedVersion + 1 : lastProcessedVersion - 1;
-            List<IndexEntry> fromDisk = diskIndex.getBlockEntries(direction, stream, nextVersion);
+            List<IndexEntry> fromDisk = diskIndex.getBlockEntries(stream, nextVersion);
             List<IndexEntry> filtered = filtering(stream, fromDisk);
             if (!filtered.isEmpty()) {
                 return filtered;
             }
-            List<IndexEntry> fromMemory = memIndex.getAllOf(stream);
+            List<IndexEntry> fromMemory = memIndex.allOf(stream);
             return filtering(stream, fromMemory);
         }
 
@@ -243,7 +250,7 @@ public class TableIndex implements Closeable {
             }
             int lastRead = streams.get(stream).get();
             return original.stream().filter(ie -> {
-                if(ie.stream  != stream) {
+                if (ie.stream != stream) {
                     return false;
                 }
                 if (Direction.FORWARD.equals(direction)) {

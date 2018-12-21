@@ -9,18 +9,41 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-//Format:
-//streamHash-qtd-version1|pos1-version2|pos2-versionN|posN
+
+/**
+ * Format:
+ * |streamHash entryCount | version1 pos1 | version2 pos2 | versionN posN |
+ *
+ * Where:
+ * streamHash - 64bits
+ * entryCount - 32bits
+ * version - 32bits
+ * pos - 64bits
+ *
+ * Definitions:
+ * streamHash: any real number
+ * entryCount: greater than zero
+ * pos: greater or equal zero
+ *
+ * version: positive greater or equal zero for insertions, negative value representing the truncated before version
+ * of the it's absolute value, example... -10 represents truncated versions from version 0 until 10.
+ * So only version 11 onwards will be available.
+ *
+ * Deleting a stream means the truncated version will be Integer.MIN_VALUE
+ *
+ *
+ *
+ */
 public class IndexBlock implements Block<IndexEntry> {
 
     private final List<IndexEntry> cached = new ArrayList<>();
     private final int maxSize;
 
-    public IndexBlock(int maxSize) {
+    IndexBlock(int maxSize) {
         this.maxSize = maxSize;
     }
 
-    protected IndexBlock(ByteBuffer data, Codec codec) {
+    IndexBlock(ByteBuffer data, Codec codec) {
         this.cached.addAll(unpack(data, codec));
         this.maxSize = -1;
     }
