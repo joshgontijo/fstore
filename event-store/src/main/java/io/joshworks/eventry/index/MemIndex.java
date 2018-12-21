@@ -1,7 +1,6 @@
 package io.joshworks.eventry.index;
 
 
-import io.joshworks.eventry.StreamName;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -16,7 +15,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -24,7 +22,6 @@ public class MemIndex implements Closeable {
 
     private final Map<Long, List<IndexEntry>> index = new ConcurrentHashMap<>();
     private final List<IndexEntry> insertOrder = new ArrayList<>();
-    private final AtomicInteger size = new AtomicInteger();
 
     private final List<MemIterator> pollers = new ArrayList<>();
 
@@ -33,9 +30,7 @@ public class MemIndex implements Closeable {
             if (v == null)
                 v = new ArrayList<>();
             v.add(entry);
-            size.incrementAndGet();
             insertOrder.add(entry);
-//            adToPollers(entry);
             return v;
         });
     }
@@ -51,12 +46,11 @@ public class MemIndex implements Closeable {
     }
 
     public int size() {
-        return size.get();
+        return insertOrder.size();
     }
 
-
     public boolean isEmpty() {
-        return size.get() == 0;
+        return size() == 0;
     }
 
     public void close() {
@@ -94,7 +88,7 @@ public class MemIndex implements Closeable {
         }
     }
 
-    public List<IndexEntry> getAllOf(long stream) {
+    public List<IndexEntry> allOf(long stream) {
         List<IndexEntry> entries = index.get(stream);
         if(entries == null) {
             return new ArrayList<>();
@@ -103,6 +97,35 @@ public class MemIndex implements Closeable {
             return new ArrayList<>(entries);
         }
     }
+
+//    public void delete(long stream) {
+//        List<IndexEntry> entries = index.get(stream);
+//        if(entries == null || entries.isEmpty()) {
+//            return;
+//        }
+//
+//        index.compute(stream, (k, v) -> {
+//            if (v == null)
+//                return null;
+//            v.forEach(insertOrder::remove);//not very efficient
+//            return null;
+//        });
+//    }
+//
+//    public void truncate(long stream, int version) {
+//        List<IndexEntry> entries = index.get(stream);
+//        if(entries == null || entries.isEmpty()) {
+//            return;
+//        }
+//
+//        index.compute(stream, (k, v) -> {
+//            if (v == null)
+//                return null;
+//            List<IndexEntry> removed = v.stream().filter(ie -> ie.version <= version).collect(Collectors.toList());
+//            removed.forEach(insertOrder::remove);//not very efficient
+//            return removed.isEmpty() ? null : removed;
+//        });
+//    }
 
     public LogIterator<IndexEntry> iterator() {
         var copy = new HashSet<>(index.entrySet()); //sorted is a stateful operation
@@ -115,6 +138,15 @@ public class MemIndex implements Closeable {
         return Iterators.of(ordered);
     }
 
+    private static class MemEntry {
+        private final IndexEntry entry;
+        private final boolean deletion;
+
+        private MemEntry(IndexEntry entry, boolean deletion) {
+            this.entry = entry;
+            this.deletion = deletion;
+        }
+    }
 
     private class MemIterator implements LogIterator<IndexEntry> {
 

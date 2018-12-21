@@ -68,6 +68,7 @@ public class IndexAppender implements Closeable {
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
+        //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
                 IndexSegment indexSegment = (IndexSegment) segment;
@@ -80,8 +81,9 @@ public class IndexAppender implements Closeable {
         });
     }
 
-    public List<IndexEntry> getBlockEntries(Direction direction, long stream, int version) {
-        return appender.applyToSegments(direction, segments -> {
+    public List<IndexEntry> getBlockEntries(long stream, int version) {
+        //always backward
+        return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
                 IndexSegment indexSegment = (IndexSegment) segment;
                 if(segment.readOnly()) { //only query completed segments
@@ -96,6 +98,7 @@ public class IndexAppender implements Closeable {
     }
 
     public int version(long stream) {
+        //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
                 IndexSegment indexSegment = (IndexSegment) segment;
@@ -116,7 +119,7 @@ public class IndexAppender implements Closeable {
         appender.close();
     }
 
-    //this must ensure that, all the memtable entries are stored in the same segment file
+    //this method must ensure that, all the memtable entries are stored in the same segment file
     public synchronized void writeToDisk(MemIndex memIndex) {
         memIndex.iterator().forEachRemaining(appender::append);
         appender.roll();
