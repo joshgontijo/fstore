@@ -19,7 +19,7 @@ public class StreamStore implements Closeable {
     private final LsmTree<Long, StreamMetadata> store;
     private final Map<Long, StreamMetadata> cache;
 
-    public StreamStore(File root, int cacheSize) {
+    StreamStore(File root, int cacheSize) {
         this.store = LsmTree.open(new File(root, DIR), Serializers.LONG, new StreamMetadataSerializer(), cacheSize, STORE_NAME); // doesnt need to be cacheSize
         this.cache = new LRUCache<>(cacheSize);
     }
