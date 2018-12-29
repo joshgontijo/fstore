@@ -65,24 +65,9 @@ public class TableIndex implements Closeable {
         memIndex.add(entry);
 
         if (memIndex.size() >= flushThreshold) {
-            return writeToDisk();
+            return flush();
         }
         return null;
-    }
-
-    //only single write can happen at time
-    private FlushInfo writeToDisk() {
-        logger.info("Writing index to disk");
-
-        long start = System.currentTimeMillis();
-        diskIndex.writeToDisk(memIndex);
-        long timeTaken = System.currentTimeMillis() - start;
-        logger.info("Index write took {}ms", timeTaken);
-
-        memIndex.close();
-        memIndex = new MemIndex();
-
-        return new FlushInfo(memIndex.size(), timeTaken);
     }
 
     public int version(long stream) {
@@ -142,7 +127,17 @@ public class TableIndex implements Closeable {
     }
 
     public FlushInfo flush() {
-        return writeToDisk();
+        logger.info("Writing index to disk");
+
+        long start = System.currentTimeMillis();
+        diskIndex.writeToDisk(memIndex);
+        long timeTaken = System.currentTimeMillis() - start;
+        logger.info("Index write took {}ms", timeTaken);
+
+        memIndex.close();
+        memIndex = new MemIndex();
+
+        return new FlushInfo(memIndex.size(), timeTaken);
     }
 
     public void compact() {

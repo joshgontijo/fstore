@@ -14,7 +14,7 @@ public class StreamInfo {
     final Map<String, Integer> permissions;
     final Map<String, String> metadata;
 
-    public StreamInfo(String name, long hash, long created, long maxAge, int maxCount, int version, Map<String, Integer> permissions, Map<String, String> metadata) {
+    private StreamInfo(String name, long hash, long created, long maxAge, int maxCount, int version, Map<String, Integer> permissions, Map<String, String> metadata) {
         this.name = name;
         this.hash = hash;
         this.created = created;
