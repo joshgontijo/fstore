@@ -31,7 +31,7 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
             }
 
             T nextEntry = getNextEntry(segmentIterators);
-            if (nextEntry != null) {
+            if (nextEntry != null && filter(nextEntry)) {
                 output.append(nextEntry);
             }
         }

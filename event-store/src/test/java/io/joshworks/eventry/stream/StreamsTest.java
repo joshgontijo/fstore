@@ -9,6 +9,7 @@ import java.io.File;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -98,4 +99,17 @@ public class StreamsTest {
         }
     }
 
+    @Test
+    public void truncate_sets_truncateBefore_field() {
+        String stream = "stream-123";
+        int tbVersion = 0;
+        StreamMetadata metadata = streams.create(stream);
+        streams.tryIncrementVersion(metadata.hash, NO_VERSION); //0
+        streams.tryIncrementVersion(metadata.hash, NO_VERSION); //1
+
+        streams.truncate(stream, tbVersion);
+
+        StreamMetadata found = streams.get(stream).get();
+        assertEquals(found.truncateBefore, tbVersion);
+    }
 }

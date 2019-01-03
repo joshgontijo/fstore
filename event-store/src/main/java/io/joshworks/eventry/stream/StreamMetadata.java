@@ -5,7 +5,7 @@ import java.util.Map;
 public class StreamMetadata {
 
 
-    //not using enums to easier serialization
+    //not using enums for easier serialization
     public static final int PERMISSION_NONE = 0;
     public static final int PERMISSION_READ = 1;
     public static final int PERMISSION_WRITE = 2;
@@ -17,6 +17,8 @@ public class StreamMetadata {
     public static final int NO_MAX_AGE = -1;
     public static final int NO_MAX_COUNT = -1;
 
+    public static final int NO_TRUNCATE = -1;
+
 
     public final String name;
     public final long hash;
@@ -25,18 +27,21 @@ public class StreamMetadata {
     public final long maxAge;
     public final int maxCount;
 
+    public final int truncateBefore;
+
     public final int state;
 
     //TODO lot of memory usage when creating many streams
     final Map<String, Integer> permissions;
     final Map<String, String> metadata;
 
-    public StreamMetadata(String name, long hash, long created, long maxAge, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata, int state) {
+    public StreamMetadata(String name, long hash, long created, long maxAge, int maxCount, int truncateBefore, Map<String, Integer> permissions, Map<String, String> metadata, int state) {
         this.name = name;
         this.hash = hash;
         this.created = created;
         this.maxAge = maxAge;
         this.maxCount = maxCount;
+        this.truncateBefore = truncateBefore;
         this.permissions = permissions;
         this.metadata = metadata;
         this.state = state;
@@ -63,6 +68,10 @@ public class StreamMetadata {
         return state == STREAM_LOCKED;
     }
 
+    public boolean truncated() {
+        return truncateBefore >= 0;
+    }
+
     public String metadata(String key) {
         return metadata.get(key);
     }
@@ -79,6 +88,7 @@ public class StreamMetadata {
                 ", hash=" + hash +
                 ", created=" + created +
                 ", maxAge=" + maxAge +
+                ", truncateBefore=" + truncateBefore +
                 ", maxCount=" + maxCount +
                 ", state=" + state +
                 ", permissions=" + permissions +

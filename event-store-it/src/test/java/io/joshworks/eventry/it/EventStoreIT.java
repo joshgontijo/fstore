@@ -754,7 +754,40 @@ public class EventStoreIT {
             }
         }
         assertEquals(createdStreams.size(), hits);
+    }
 
+    @Test
+    public void fromStream_returns_items_after_truncated_version() {
+
+        int size = 1000;
+        int truncateBeforeVersion = 400;
+        String stream ="stream-123";
+        for (int i = 0; i < size; i++) {
+            store.append(EventRecord.create(stream, "test", "body"));
+        }
+
+        store.truncate(stream, truncateBeforeVersion);
+
+        List<EventRecord> events = store.fromStream(StreamName.of(stream)).stream().collect(Collectors.toList());
+        assertEquals(600, events.size());
+        assertEquals(400, events.get(0).version);
+    }
+
+    @Test
+    public void compaction_removes_truncated_entries() {
+
+        int size = 3000000;
+        int truncateBeforeVersion = 400;
+        String stream ="stream-123";
+        for (int i = 0; i < size; i++) {
+            store.append(EventRecord.create(stream, "test", "body"));
+        }
+
+        store.truncate(stream, truncateBeforeVersion);
+
+
+        long count = store.fromStream(StreamName.of(stream)).stream().count();
+        assertEquals(size - truncateBeforeVersion , count);
     }
 
     private void testWith(int streams, int numVersionPerStream) {

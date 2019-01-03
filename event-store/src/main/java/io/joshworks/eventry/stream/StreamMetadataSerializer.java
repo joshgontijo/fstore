@@ -55,12 +55,13 @@ public class StreamMetadataSerializer implements Serializer<StreamMetadata> {
         long maxAge = buffer.getLong();
         int maxCount = buffer.getInt();
         int state = buffer.getInt();
+        int truncateBefore = buffer.getInt();
         String name = Serializers.VSTRING.fromBytes(buffer);
 
         Map<String, Integer> permissions = permissionSerializer.fromBytes(buffer);
         Map<String, String> metadata = metadataSerializer.fromBytes(buffer);
 
-        return new StreamMetadata(name, hash, created, maxAge, maxCount, permissions, metadata, state);
+        return new StreamMetadata(name, hash, created, maxAge, maxCount, truncateBefore, permissions, metadata, state);
     }
 
 }
