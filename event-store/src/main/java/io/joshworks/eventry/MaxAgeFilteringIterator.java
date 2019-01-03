@@ -13,7 +13,7 @@ public class MaxAgeFilteringIterator implements EventLogIterator {
     private final long timestamp = System.currentTimeMillis();
     private Map<String, Long> maxAges;
 
-    public MaxAgeFilteringIterator(Map<String, Long> metadataMap, LogIterator<EventRecord> delegate) {
+    MaxAgeFilteringIterator(Map<String, Long> metadataMap, LogIterator<EventRecord> delegate) {
         this.maxAges = metadataMap;
         this.delegate = delegate;
     }

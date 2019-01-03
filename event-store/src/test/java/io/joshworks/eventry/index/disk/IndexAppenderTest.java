@@ -26,7 +26,7 @@ public class IndexAppenderTest {
     @Before
     public void setUp() {
         location = FileUtils.testFolder();
-        appender = new IndexAppender(location, (int) Size.MB.of(10), 10000, true);
+        appender = new IndexAppender(location, e -> null, (int) Size.MB.of(10), 10000, true);
         memIndex = new MemIndex();
     }
 
@@ -60,7 +60,7 @@ public class IndexAppenderTest {
         appender.writeToDisk(memIndex);
         appender.close();
 
-        appender = new IndexAppender(location, (int) Size.MB.of(10), 10000, true);
+        appender = new IndexAppender(location, e -> null, (int) Size.MB.of(10), 10000, true);
         long entries = appender.entries();
 
         assertEquals(3, entries);

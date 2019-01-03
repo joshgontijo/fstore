@@ -24,7 +24,7 @@ public class StreamStore implements Closeable {
         this.cache = new LRUCache<>(cacheSize);
     }
 
-    public void put(long stream, StreamMetadata metadata) {
+    public void create(long stream, StreamMetadata metadata) {
         requireNonNull(metadata, "Metadata must be provided");
         if (cache.containsKey(stream)) {
             throw new IllegalArgumentException("Stream '" + metadata.name + "' already exist");
@@ -36,6 +36,17 @@ public class StreamStore implements Closeable {
 
         cache.put(stream, metadata);
         store.put(stream, metadata);
+    }
+
+    public void update(StreamMetadata metadata) {
+        requireNonNull(metadata, "Metadata must be provided");
+        StreamMetadata fromDisk = store.get(metadata.hash);
+        if (fromDisk == null) {
+            throw new IllegalArgumentException("Stream '" + metadata.name + "' doesn't exist");
+        }
+
+        cache.put(metadata.hash, metadata);
+        store.put(metadata.hash, metadata);
     }
 
     public StreamMetadata get(long stream) {

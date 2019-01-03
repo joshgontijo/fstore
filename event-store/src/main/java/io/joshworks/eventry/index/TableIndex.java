@@ -2,6 +2,7 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.index.disk.IndexAppender;
+import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -24,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
@@ -40,12 +42,12 @@ public class TableIndex implements Closeable {
 
     private final Set<IndexIterator> pollers = new HashSet<>();
 
-    public TableIndex(File rootDirectory) {
-        this(rootDirectory, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
+    public TableIndex(File rootDirectory, Function<Long, StreamMetadata> streamSupplier) {
+        this(rootDirectory, streamSupplier, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
     }
 
-    TableIndex(File rootDirectory, int flushThreshold, boolean useCompression) {
-        this.diskIndex = new IndexAppender(rootDirectory, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
+    TableIndex(File rootDirectory, Function<Long, StreamMetadata> streamSupplier, int flushThreshold, boolean useCompression) {
+        this.diskIndex = new IndexAppender(rootDirectory, streamSupplier, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
         this.flushThreshold = flushThreshold;
     }
 
@@ -144,30 +146,6 @@ public class TableIndex implements Closeable {
         diskIndex.compact();
     }
 
-    public void truncate(long stream, int version) {
-        if (version <= NO_VERSION) {
-            throw new IllegalArgumentException("Version must be greater or equals zero");
-        }
-        int streamVersion = version(stream);
-        if (streamVersion > version) {
-            throw new IllegalArgumentException("Truncate version: " + version + " must be less or equals stream version: " + streamVersion);
-        }
-
-        memIndex.truncate(stream, version);
-        diskIndex.truncate(stream, version);
-    }
-
-    public void delete(long stream) {
-        int version = version(stream);
-        if (version == NO_VERSION) {
-            return; // no exception needed, Streams should just mark as deleted
-        }
-
-        memIndex.delete(stream);
-        diskIndex.delete(stream);
-    }
-
-
     public class IndexIterator implements LogIterator<IndexEntry> {
 
         private final Map<Long, AtomicInteger> streams = new ConcurrentHashMap<>();
@@ -235,7 +213,7 @@ public class TableIndex implements Closeable {
             if (!filtered.isEmpty()) {
                 return filtered;
             }
-            List<IndexEntry> fromMemory = memIndex.allOf(stream);
+            List<IndexEntry> fromMemory = memIndex.indexedIterator(Direction.FORWARD, Range.of(stream, nextVersion)).stream().collect(Collectors.toList());
             return filtering(stream, fromMemory);
         }
 

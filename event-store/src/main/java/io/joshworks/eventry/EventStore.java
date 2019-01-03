@@ -10,6 +10,7 @@ import io.joshworks.eventry.data.ProjectionStarted;
 import io.joshworks.eventry.data.ProjectionStopped;
 import io.joshworks.eventry.data.ProjectionUpdated;
 import io.joshworks.eventry.data.StreamCreated;
+import io.joshworks.eventry.data.StreamTruncated;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
@@ -73,7 +74,7 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
-        this.index = new TableIndex(rootDir);
+        this.index = new TableIndex(rootDir, this::fetchMetadata);
         this.projections = new Projections(new ProjectionExecutor(rootDir, this::appendSystemEvent));
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
@@ -97,6 +98,10 @@ public class EventStore implements IEventStore {
             IOUtils.closeQuietly(eventLog);
             throw new RuntimeException(e);
         }
+    }
+
+    private StreamMetadata fetchMetadata(long stream) {
+        return streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Could not find stream metadata for " + stream));
     }
 
     public static EventStore open(File rootDir) {
@@ -298,9 +303,11 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public void truncate(long stream, int version) {
-        index.truncate(stream, version);
-
+    public void truncate(String stream, int version) {
+        StreamMetadata metadata = streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
+        streams.truncate(stream, version);
+        EventRecord eventRecord = StreamTruncated.create(metadata.name, version);
+        this.appendSystemEvent(eventRecord);
     }
 
     public State query(Set<String> streams, State state, String script) {
@@ -311,14 +318,23 @@ public class EventStore implements IEventStore {
     @Override
     public EventLogIterator fromStream(StreamName stream) {
         requireNonNull(stream, "Stream must be provided");
-        int versionInclusive = stream.version() == NO_VERSION ? Range.START_VERSION : stream.version();
-        StreamName start = StreamName.of(stream.name(), versionInclusive - 1);
+        int version = stream.version();
+        String name = stream.name();
+        long hash = stream.hash();
 
-        LogIterator<IndexEntry> indexIterator = index.indexedIterator(Map.of(start.hash(), start.version()));
-        indexIterator = withMaxCountFilter(stream.hash(), indexIterator);
-        IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
-        EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(stream.hash()), indexedLogIterator);
-        return new LinkToResolveIterator(ageFilterIterator, this::resolve);
+        return streams.get(hash).map(metadata -> {
+            int startVersion = version == NO_VERSION ? Range.START_VERSION : version;
+            int finalVersion = metadata.truncated() && startVersion < metadata.truncateBefore ? metadata.truncateBefore : startVersion;
+            StreamName start = StreamName.of(name, finalVersion - 1);
+
+            LogIterator<IndexEntry> indexIterator = index.indexedIterator(Map.of(start.hash(), start.version()));
+            indexIterator = withMaxCountFilter(hash, indexIterator);
+            IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
+            EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(hash), indexedLogIterator);
+            return (EventLogIterator) new LinkToResolveIterator(ageFilterIterator, this::resolve);
+
+        }).orElseGet(EventLogIterator::empty);
+
     }
 
 
@@ -339,7 +355,7 @@ public class EventStore implements IEventStore {
 
         Map<Long, Integer> streamVersions = streamNames.stream()
                 .filter(sn -> StringUtils.nonBlank(sn.name()))
-                .collect(Collectors.toMap(sn -> streams.hashOf(sn.name()), StreamName::version));
+                .collect(Collectors.toMap(StreamName::hash, StreamName::version));
 
         Set<Long> hashes = new HashSet<>(streamVersions.keySet());
 
@@ -518,6 +534,14 @@ public class EventStore implements IEventStore {
                 .collect(Collectors.toMap(StreamMetadata::name, meta -> meta.maxAge));
 
         return new MaxAgeFilteringIterator(metadataMap, iterator);
+    }
+
+    private LogIterator<IndexEntry> withTruncatedFilter(long streamHash, LogIterator<IndexEntry> iterator) {
+        return streams.get(streamHash)
+                .map(stream -> stream.maxCount)
+                .filter(maxCount -> maxCount > 0)
+                .map(maxCount -> MaxCountFilteringIterator.of(maxCount, streams.version(streamHash), iterator))
+                .orElse(iterator);
     }
 
     @Override

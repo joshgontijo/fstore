@@ -2,7 +2,6 @@ package io.joshworks.eventry.stream;
 
 import io.joshworks.eventry.LRUCache;
 import io.joshworks.eventry.StreamName;
-import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
@@ -21,8 +20,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
 import static io.joshworks.eventry.stream.StreamMetadata.STREAM_ACTIVE;
 
 public class Streams implements Closeable {
@@ -87,9 +88,9 @@ public class Streams implements Closeable {
 
     //must not hold the lock, since
     private StreamMetadata createInternal(String stream, long maxAge, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata, long hash) {
-        StreamMetadata streamMeta = new StreamMetadata(stream, hash, System.currentTimeMillis(), maxAge, maxCount, permissions, metadata, STREAM_ACTIVE);
-        streamStore.put(hash, streamMeta); //must be called before version
-        versions.put(hash, new AtomicInteger(IndexEntry.NO_VERSION));
+        StreamMetadata streamMeta = new StreamMetadata(stream, hash, System.currentTimeMillis(), maxAge, maxCount, NO_TRUNCATE, permissions, metadata, STREAM_ACTIVE);
+        streamStore.create(hash, streamMeta); //must be called before version
+        versions.put(hash, new AtomicInteger(NO_VERSION));
         return streamMeta;
     }
 
@@ -140,7 +141,7 @@ public class Streams implements Closeable {
     //lock not required, it uses getVersion
     public int tryIncrementVersion(long stream, int expected) {
         AtomicInteger versionCounter = getVersion(stream);
-        if (expected < 0) {
+        if (expected <= NO_VERSION) {
             return versionCounter.incrementAndGet();
         }
         int newValue = expected + 1;
@@ -165,4 +166,18 @@ public class Streams implements Closeable {
         }
     }
 
+    public void truncate(String stream, int version) {
+        StreamMetadata metadata = get(stream).orElseThrow(() -> new IllegalArgumentException("No metadata found for stream " + stream));
+        int currentVersion = version(metadata.hash);
+        if (currentVersion <= NO_VERSION) {
+            throw new IllegalArgumentException("Version must be greater or equals zero");
+        }
+        int streamVersion = version(metadata.hash);
+        if (version > streamVersion) {
+            throw new IllegalArgumentException("Truncate version: " + version + " must be less or equals stream version: " + streamVersion);
+        }
+
+        StreamMetadata streamMeta = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, version, metadata.permissions, metadata.metadata, metadata.state);
+        streamStore.update(streamMeta);
+    }
 }
