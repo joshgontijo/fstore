@@ -323,6 +323,7 @@ public class EventStoreIT {
         }
     }
 
+    //TODO this is no longer the case, each stream should independent, and no ordering is guaranteed across multiple streams
     @Test
     public void fromStreams_return_all_streams_based_on_the_position() {
         //given
@@ -331,19 +332,20 @@ public class EventStoreIT {
         String streamPrefix = "test-";
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 1; version <= numVersions; version++) {
-                store.append(EventRecord.create(streamPrefix + stream, String.valueOf("type"), "body-" + stream));
+                store.append(EventRecord.create(streamPrefix + stream, "type", "body-" + stream));
             }
         }
 
         List<StreamName> streams = Stream.of("test-0", "test-1", "test-10", "test-100", "test-1000").map(StreamName::of).collect(Collectors.toList());
 
+        List<EventRecord> eventStream1 = store.fromStreams(new HashSet<>(streams)).stream().collect(Collectors.toList());
         Iterator<EventRecord> eventStream = store.fromStreams(new HashSet<>(streams));
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
             EventRecord event = eventStream.next();
             int streamIdx = eventCounter++ / numVersions;
-            assertEquals(streams.get(streamIdx), event.stream);
+            assertEquals(streams.get(streamIdx).name(), event.stream);
         }
 
         assertEquals(streams.size() * numVersions, eventCounter);
