@@ -11,6 +11,7 @@ import org.junit.Test;
 import java.io.File;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 public class LsmTreeTest {
@@ -40,6 +41,22 @@ public class LsmTreeTest {
         assertEquals("a", lsmtree.get(1));
         assertEquals("b", lsmtree.get(2));
         assertEquals("c", lsmtree.get(3));
+    }
+
+    @Test
+    public void restart() {
+        lsmtree.put(1, "a");
+        lsmtree.put(2, "b");
+        lsmtree.put(3, "c");
+
+        lsmtree.close();
+
+        lsmtree = LsmTree.open(file, Serializers.INTEGER, Serializers.VSTRING, 100);
+
+        assertNotNull(lsmtree.get(1));
+        assertNotNull(lsmtree.get(2));
+        assertNotNull(lsmtree.get(3));
+
     }
 
     @Test

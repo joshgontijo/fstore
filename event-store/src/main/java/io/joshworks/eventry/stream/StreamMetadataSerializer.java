@@ -42,6 +42,7 @@ public class StreamMetadataSerializer implements Serializer<StreamMetadata> {
         dest.putLong(data.maxAge);
         dest.putInt(data.maxCount);
         dest.putInt(data.state);
+        dest.putInt(data.truncateBefore);
         dest.put(Serializers.VSTRING.toBytes(data.name));
 
         permissionSerializer.writeTo(data.permissions, dest);
