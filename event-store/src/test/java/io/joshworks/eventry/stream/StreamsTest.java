@@ -23,7 +23,11 @@ public class StreamsTest {
     @Before
     public void setUp() {
         dummyFile = FileUtils.testFolder();
-        streams = new Streams(dummyFile, 10, streamHash -> -1);
+        streams = createStreams();
+    }
+
+    private Streams createStreams() {
+        return new Streams(dummyFile, 10, streamHash -> -1);
     }
 
     @After
@@ -91,7 +95,7 @@ public class StreamsTest {
         }
 
         streams.close();
-        streams = new Streams(dummyFile, 10, streamHash -> -1);
+        streams = createStreams();
 
         for (int i = 0; i < numStreams; i++) {
             Optional<StreamMetadata> streamInfo = streams.get(String.valueOf(i));

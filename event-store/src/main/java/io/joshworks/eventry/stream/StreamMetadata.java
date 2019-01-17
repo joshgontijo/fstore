@@ -17,7 +17,7 @@ public class StreamMetadata {
     public static final int NO_MAX_AGE = -1;
     public static final int NO_MAX_COUNT = -1;
 
-    public static final int NO_TRUNCATE = -1;
+    public static final int NO_TRUNCATE = 0;
 
 
     public final String name;
@@ -69,7 +69,7 @@ public class StreamMetadata {
     }
 
     public boolean truncated() {
-        return truncateBefore >= 0;
+        return truncateBefore > 0;
     }
 
     public String metadata(String key) {

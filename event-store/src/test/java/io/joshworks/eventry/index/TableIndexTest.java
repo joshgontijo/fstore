@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -33,13 +34,17 @@ public class TableIndexTest {
     @Before
     public void setUp() {
         testDirectory = FileUtils.testFolder();
-        tableIndex = new TableIndex(testDirectory, e -> null, FLUSH_THRESHOLD, USE_COMPRESSION);
+        tableIndex = new TableIndex(testDirectory, e -> dummyMetadata(), FLUSH_THRESHOLD, USE_COMPRESSION);
     }
 
     @After
     public void tearDown() {
         IOUtils.closeQuietly(tableIndex);
         FileUtils.tryDelete(testDirectory);
+    }
+
+    private static StreamMetadata dummyMetadata() {
+        return new StreamMetadata("dummy", 123, 0, -1, -1, -1, new HashMap<>(), new HashMap<>(), StreamMetadata.STREAM_ACTIVE);
     }
 
     @Test

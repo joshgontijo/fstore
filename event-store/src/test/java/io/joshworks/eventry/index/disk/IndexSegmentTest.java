@@ -752,7 +752,7 @@ public class IndexSegmentTest {
     public void readBlockEntries_returns_correct_block_for_sparse_stream() {
         long[] streams = new long[]{-300, -2, 0, 1, 5, 200, 500};
 
-        int versions = 999999;
+        int versions = 99999;
         for (long stream : streams) {
             for (int version = 0; version < versions; version++) {
                 segment.append(IndexEntry.of(stream, version, 0));
