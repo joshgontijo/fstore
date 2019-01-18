@@ -338,7 +338,6 @@ public class EventStoreIT {
 
         List<StreamName> streams = Stream.of("test-0", "test-1", "test-10", "test-100", "test-1000").map(StreamName::of).collect(Collectors.toList());
 
-        List<EventRecord> eventStream1 = store.fromStreams(new HashSet<>(streams)).stream().collect(Collectors.toList());
         Iterator<EventRecord> eventStream = store.fromStreams(new HashSet<>(streams));
 
         int eventCounter = 0;
