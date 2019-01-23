@@ -26,6 +26,11 @@
             <artifactId>snappy</artifactId>
             <version>0.3</version>
         </dependency>
+        <dependency>
+            <groupId>org.jgroups</groupId>
+            <artifactId>jgroups</artifactId>
+            <version>4.0.10.Final</version>
+        </dependency>
     </dependencies>
 
 
