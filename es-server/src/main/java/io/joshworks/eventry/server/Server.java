@@ -2,18 +2,21 @@ package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.server.cluster.Cluster;
 import io.joshworks.fstore.core.properties.AppProperties;
 import io.joshworks.snappy.http.MediaType;
 import io.joshworks.snappy.parser.Parsers;
 import io.joshworks.snappy.parser.PlainTextParser;
 
 import java.io.File;
+import java.util.UUID;
 
 import static io.joshworks.snappy.SnappyServer.cors;
 import static io.joshworks.snappy.SnappyServer.delete;
 import static io.joshworks.snappy.SnappyServer.get;
 import static io.joshworks.snappy.SnappyServer.group;
 import static io.joshworks.snappy.SnappyServer.onShutdown;
+import static io.joshworks.snappy.SnappyServer.portOffset;
 import static io.joshworks.snappy.SnappyServer.post;
 import static io.joshworks.snappy.SnappyServer.put;
 import static io.joshworks.snappy.SnappyServer.sse;
@@ -29,7 +32,7 @@ public class Server {
 
         AppProperties properties = AppProperties.create();
 //        String path = properties.get("store.path").orElse("J:\\github-store");
-        String path = properties.get("store.path").orElse("J:\\github-store2");
+        String path = properties.get("store.path").orElse("J:\\event-store\\" + UUID.randomUUID().toString().substring(0, 8));
         IEventStore store = EventStore.open(new File(path));
 
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
@@ -37,8 +40,10 @@ public class Server {
         StreamEndpoint streams = new StreamEndpoint(store);
         ProjectionsEndpoint projections = new ProjectionsEndpoint(store);
 
-
         Parsers.register(MediaType.valueOf(JAVASCRIPT_MIME), new PlainTextParser());
+
+        Cluster cluster = new Cluster("test", 1000);
+        cluster.join();
 
         group("/streams", () -> {
             post("/", streams::create);
@@ -76,8 +81,12 @@ public class Server {
 
         onShutdown(store::close);
 
+        Integer portOffset = properties.getInt("http.port.offset").orElse(0);
+        portOffset(portOffset);
+
         cors();
         start();
 
     }
+
 }
