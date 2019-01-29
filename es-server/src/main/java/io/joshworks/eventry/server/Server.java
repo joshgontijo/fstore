@@ -42,7 +42,7 @@ public class Server {
 
         Parsers.register(MediaType.valueOf(JAVASCRIPT_MIME), new PlainTextParser());
 
-        Cluster cluster = new Cluster("test", 1000);
+        Cluster cluster = new Cluster("test");
         cluster.join();
 
         group("/streams", () -> {
@@ -79,7 +79,11 @@ public class Server {
         group("/push", () -> sse(subscriptions.newPushHandler()));
 
 
-        onShutdown(store::close);
+        onShutdown(() -> {
+            cluster.leave();
+            store.close();
+
+        });
 
         Integer portOffset = properties.getInt("http.port.offset").orElse(0);
         portOffset(portOffset);
