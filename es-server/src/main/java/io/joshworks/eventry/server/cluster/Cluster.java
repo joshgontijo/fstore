@@ -7,9 +7,6 @@ import org.jgroups.View;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class Cluster extends ReceiverAdapter {
 
     private static final Logger logger = LoggerFactory.getLogger(Cluster.class);
@@ -38,6 +35,10 @@ public class Cluster extends ReceiverAdapter {
         }
     }
 
+    public synchronized void leave() {
+        channel.close();
+    }
+
 
     @Override
     public void viewAccepted(View view) {
@@ -62,10 +63,6 @@ public class Cluster extends ReceiverAdapter {
             }
         }
         state = view;
-    }
-
-    public static void main(String[] args) {
-        new Cluster("yolo", 123).join();
     }
 
 }

@@ -38,26 +38,27 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
     }
 
     private T getNextEntry(List<Iterators.PeekingIterator<T>> segmentIterators) {
-        if (!segmentIterators.isEmpty()) {
-            Iterators.PeekingIterator<T> prev = null;
-            for (Iterators.PeekingIterator<T> curr : segmentIterators) {
-                if (prev == null) {
-                    prev = curr;
-                    continue;
-                }
-                T prevItem = prev.peek();
-                T currItem = curr.peek();
-                int c = prevItem.compareTo(currItem);
-                if (c == 0) { //duplicate remove form oldest entry
-                    prev.next();
-                }
-                if (c >= 0) {
-                    prev = curr;
-                }
+        if (segmentIterators.isEmpty()) {
+            return null;
+        }
+        Iterators.PeekingIterator<T> prev = null;
+        for (Iterators.PeekingIterator<T> curr : segmentIterators) {
+            if (prev == null) {
+                prev = curr;
+                continue;
             }
-            if (prev != null) {
-                return prev.next();
+            T prevItem = prev.peek();
+            T currItem = curr.peek();
+            int c = prevItem.compareTo(currItem);
+            if (c == 0) { //duplicate remove form oldest entry
+                prev.next();
             }
+            if (c >= 0) {
+                prev = curr;
+            }
+        }
+        if (prev != null) {
+            return prev.next();
         }
         return null;
     }

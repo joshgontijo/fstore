@@ -13,10 +13,12 @@ import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.TaskStatus;
 import io.joshworks.eventry.server.cluster.Cluster;
 import io.joshworks.eventry.server.cluster.Node;
-import io.joshworks.eventry.server.cluster.Partition;
+import io.joshworks.eventry.server.cluster.Partitions;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -28,37 +30,22 @@ import java.util.Set;
 
 public class ClusterStore implements IEventStore {
 
-    private static final int PARTITIONS = 1000;
+    private static final Logger logger = LoggerFactory.getLogger(ClusterStore.class);
+
+
     private final Cluster cluster;
     private final List<Node> nodes = new ArrayList<>();
-    private final List<Partition> partitions = new ArrayList<>();
+    private final Partitions partitions;
 
-    public ClusterStore(File rootDir, String name) {
+
+    public ClusterStore(File rootDir, IEventStore localStore, String name) {
         this.cluster = new Cluster(name);
-        //TODO refactor
-        if(!rootDir.exists() && !new File(rootDir, ".metadata").exists()) {
-
-        }
-//        this.localStore = EventStore.open(rootDir);
-
-    }
-
-    private void onNodeJoined() {
-
-    }
-
-    private void onNodeLeft() {
-
+        this.cluster.join();
+        this.partitions = new Partitions(rootDir, localStore);
     }
 
     private IEventStore store(String stream) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    private Partition nodeOf(String stream) {
-        long hash = StreamName.hash(stream);
-        int idx = (int) (Math.abs(hash) % PARTITIONS);
-        return partitions.get(idx);
+        return partitions.select(stream).store();
     }
 
     @Override

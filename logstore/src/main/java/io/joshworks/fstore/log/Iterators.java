@@ -17,6 +17,7 @@ import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -65,6 +66,17 @@ public class Iterators {
 
     public static <T> LogIterator<T> skipping(LogIterator<T> iterator, int skips) {
         return new SkippingIterator<>(iterator, skips);
+    }
+
+    /**
+     * For <b>UNIQUE</b> and <b>SORTED</b> iterators only.
+     */
+    public static <T, C extends Comparable<C>> LogIterator<T> ordered(Collection<? extends LogIterator<T>> iterators, Function<T, C> mapper) {
+        return new OrderedIterator<>(iterators, mapper);
+    }
+
+    public static <T> LogIterator<T> zipping(Collection<T> iterators, int skips) {
+        throw new UnsupportedOperationException("TODO");
     }
 
     public static <T> PeekingIterator<T> peekingIterator(LogIterator<T> iterator) {
@@ -440,6 +452,68 @@ public class Iterators {
             processed.incrementAndGet();
             return delegate.next();
         }
+    }
+
+    private static final class OrderedIterator<T, C extends Comparable<C>> implements LogIterator<T> {
+
+        private final List<PeekingIterator<T>> iterators;
+        private final Function<T, C> mapper;
+
+        private OrderedIterator(Collection<? extends LogIterator<T>> iterators, Function<T, C> mapper) {
+            this.iterators = iterators.stream().map(PeekingIterator::new).collect(Collectors.toList());
+            this.mapper = mapper;
+        }
+
+        @Override
+        public boolean hasNext() {
+            for (PeekingIterator<T> next : iterators) {
+                if (next.hasNext()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public T next() {
+            if (iterators.isEmpty()) {
+                throw new NoSuchElementException();
+            }
+            Iterator<PeekingIterator<T>> itit = iterators.iterator();
+            Iterators.PeekingIterator<T> prev = null;
+            while(itit.hasNext()) {
+                PeekingIterator<T> curr = itit.next();
+                if(!curr.hasNext()) {
+                    itit.remove();
+                    continue;
+                }
+                if (prev == null) {
+                    prev = curr;
+                    continue;
+                }
+
+                C prevItem = mapper.apply(prev.peek());
+                C currItem = mapper.apply(curr.peek());
+                int c = prevItem.compareTo(currItem);
+                prev = c >= 0 ? curr : prev;
+            }
+            if (prev != null) {
+                return prev.next();
+            }
+            return null;
+        }
+
+        @Override
+        public long position() {
+            throw new UnsupportedOperationException("Position is not supported here");
+        }
+
+        @Override
+        public void close()  {
+            iterators.forEach(IOUtils::closeQuietly);
+        }
+
+
     }
 
     private static final class SkippingIterator<T> implements LogIterator<T> {

@@ -105,6 +105,47 @@ public class IteratorsTest {
 
         itit.hasNext();
         assertEquals(2, itit.position());
+    }
+
+
+    @Test
+    public void ordered() {
+        //must be ordered
+        List<User> users1 = List.of(new User(1, "a"), new User(3, "b"), new User(5, "c"), new User(7, "d"));
+        List<User> users2 = List.of(new User(2, "e"), new User(3, "f"), new User(6, "g"), new User(8, "h"));
+
+        List<LogIterator<User>> compose = List.of(Iterators.of(users1), Iterators.of(users2));
+
+        LogIterator<User> ordered = Iterators.ordered(compose, User::age);
+
+        assertEquals("a", ordered.next().name);
+        assertEquals("e", ordered.next().name);
+        assertEquals("f", ordered.next().name);
+        assertEquals("b", ordered.next().name);
+        assertEquals("c", ordered.next().name);
+        assertEquals("g", ordered.next().name);
+        assertEquals("d", ordered.next().name);
+        assertEquals("h", ordered.next().name);
 
     }
+
+
+    private static class User {
+        private final int age;
+        private final String name;
+
+        private User(int age, String name) {
+            this.age = age;
+            this.name = name;
+        }
+
+        public int age() {
+            return age;
+        }
+
+        public String name() {
+            return name;
+        }
+    }
+
 }

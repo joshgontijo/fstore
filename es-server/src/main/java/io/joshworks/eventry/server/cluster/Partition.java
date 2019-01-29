@@ -12,4 +12,7 @@ public class Partition {
         this.owner = owner;
     }
 
+    public IEventStore store() {
+        return owner;
+    }
 }

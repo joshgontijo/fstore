@@ -15,11 +15,8 @@ import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.TableIndex;
-import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.log.EventSerializer;
-import io.joshworks.eventry.log.IEventLog;
-import io.joshworks.eventry.log.RecordCleanup;
+import io.joshworks.eventry.partition.Partition;
 import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.ProjectionExecutor;
 import io.joshworks.eventry.projections.Projections;
@@ -32,13 +29,10 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.appender.FlushMode;
-import io.joshworks.fstore.log.appender.LogAppender;
+import org.codehaus.groovy.tools.shell.IO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,11 +49,13 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 import static java.util.Objects.requireNonNull;
 
+@SuppressWarnings("Duplicates")
 public class EventStore implements IEventStore {
 
     private static final Logger logger = LoggerFactory.getLogger("event-store");
@@ -67,37 +63,28 @@ public class EventStore implements IEventStore {
     //TODO expose
     private static final int LRU_CACHE_SIZE = 1000000;
 
-    private final TableIndex index;
     private final Streams streams;
-    public final IEventLog eventLog;
     private final Projections projections;
+    private final List<Partition> partitions = new ArrayList<>();
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
-        this.index = new TableIndex(rootDir, this::fetchMetadata);
         this.projections = new Projections(new ProjectionExecutor(rootDir, this::appendSystemEvent));
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
-        this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
-                .segmentSize(Size.MB.of(512))
-                .name("event-log")
-                .flushMode(FlushMode.MANUAL)
-                .storageMode(StorageMode.MMAP)
-                .bufferPool(new SingleBufferThreadCachedPool(false))
-                .checksumProbability(1)
-                .disableCompaction()
-                .compactionStrategy(new RecordCleanup(streams)));
 
         try {
-            this.loadIndex();
             this.loadProjections();
             logger.info("Started event store in {}ms", (System.currentTimeMillis() - start));
         } catch (Exception e) {
-            IOUtils.closeQuietly(index);
             IOUtils.closeQuietly(projections);
             IOUtils.closeQuietly(streams);
-            IOUtils.closeQuietly(eventLog);
+            IOUtils.closeQuietly(partitions);
             throw new RuntimeException(e);
         }
+    }
+
+    private Partition partition(long stream) {
+        throw new UnsupportedOperationException("TODO");
     }
 
     private StreamMetadata fetchMetadata(long stream) {
@@ -108,38 +95,6 @@ public class EventStore implements IEventStore {
         return new EventStore(rootDir);
     }
 
-    private void loadIndex() {
-        logger.info("Loading index");
-        long start = System.currentTimeMillis();
-        int loaded = 0;
-        long p = 0;
-
-        Map<EventRecord, Long> backwardsIndex = new HashMap<>(500000);
-        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
-
-            while (iterator.hasNext()) {
-                EventRecord next = iterator.next();
-                if (IndexFlushed.TYPE.equals(next.type)) {
-                    break;
-                }
-                backwardsIndex.put(next, iterator.position());
-                if (++loaded % 50000 == 0) {
-                    logger.info("Loaded {} index entries", loaded);
-                }
-            }
-
-            backwardsIndex.entrySet().stream().sorted(Comparator.comparingLong(Map.Entry::getValue)).forEach(e -> {
-                EventRecord entry = e.getKey();
-                long position = e.getValue();
-                index.add(entry.streamName(), position);
-            });
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to load memIndex on position " + p, e);
-        }
-
-        logger.info("Loaded {} index entries in {}ms", loaded, (System.currentTimeMillis() - start));
-    }
 
     private void loadProjections() {
         logger.info("Loading projections");
@@ -318,23 +273,12 @@ public class EventStore implements IEventStore {
     @Override
     public EventLogIterator fromStream(StreamName stream) {
         requireNonNull(stream, "Stream must be provided");
-        int version = stream.version();
-        String name = stream.name();
-        long hash = stream.hash();
 
-        return streams.get(hash).map(metadata -> {
-            int startVersion = version == NO_VERSION ? Range.START_VERSION : version;
-            int finalVersion = metadata.truncated() && startVersion < metadata.truncateBefore ? metadata.truncateBefore : startVersion;
-            StreamName start = StreamName.of(name, finalVersion - 1);
+        List<EventLogIterator> iterators = partitions.stream().map(p -> p.fromStream(stream)).collect(Collectors.toList());
+        LogIterator<EventRecord> ordered = Iterators.ordered(iterators, ev -> ev.timestamp);
 
-            LogIterator<IndexEntry> indexIterator = index.indexedIterator(Map.of(start.hash(), start.version()));
-            indexIterator = withMaxCountFilter(hash, indexIterator);
-            IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
-            EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(hash), indexedLogIterator);
-            return (EventLogIterator) new LinkToResolveIterator(ageFilterIterator, this::resolve);
-
-        }).orElseGet(EventLogIterator::empty);
-
+        EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(stream.hash()), ordered);
+        return new LinkToResolveIterator(ageFilterIterator, this::resolve);
     }
 
 
@@ -526,7 +470,7 @@ public class EventStore implements IEventStore {
                 .orElse(iterator);
     }
 
-    private EventLogIterator withMaxAgeFilter(Set<Long> streamHashes, EventLogIterator iterator) {
+    private EventLogIterator withMaxAgeFilter(Set<Long> streamHashes, LogIterator<EventRecord> iterator) {
         Map<String, Long> metadataMap = streamHashes.stream()
                 .map(streams::get)
                 .filter(Optional::isPresent)
