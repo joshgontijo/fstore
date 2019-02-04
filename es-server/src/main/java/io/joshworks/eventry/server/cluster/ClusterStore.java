@@ -1,6 +1,7 @@
 package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.EventLogIterator;
+import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.StreamName;
@@ -11,17 +12,111 @@ import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.TaskStatus;
+import io.joshworks.eventry.server.cluster.message.NodeJoined;
+import io.joshworks.eventry.server.cluster.message.NodeLeft;
+import io.joshworks.eventry.server.cluster.message.command.Goodbye;
+import io.joshworks.eventry.server.cluster.message.command.Hello;
+import io.joshworks.eventry.server.cluster.message.command.NodeInfo;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.core.eventbus.EventBus;
+import io.joshworks.fstore.core.eventbus.Subscribe;
 import io.joshworks.fstore.log.LogIterator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-public class RemoteStore implements IEventStore {
+public class ClusterStore implements IEventStore {
+
+    private static final Logger logger = LoggerFactory.getLogger(ClusterStore.class);
+
+    private static final int PARTITIONS = 2;
+
+    private final Cluster cluster;
+    private final List<Partition> partitions = new ArrayList<>();
+    private final File rootDir;
+    private final ClusterDescriptor descriptor;
+
+    private ClusterStore(File rootDir, Cluster cluster, ClusterDescriptor clusterDescriptor) {
+        this.rootDir = rootDir;
+        this.descriptor = clusterDescriptor;
+        this.cluster = cluster;
+    }
+
+
+    public static ClusterStore connect(File rootDir, String name) {
+        ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
+        EventBus eventBus = new EventBus();
+        Cluster cluster = new Cluster(name, descriptor.uuid, eventBus);
+        ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
+        eventBus.register(store);
+        cluster.join();
+        cluster.cast(new Hello(store.descriptor.uuid));
+
+//        if (store.descriptor.isNew) {
+//            logger.info("No local store found, initializing");
+//            if (cluster.otherNodes().isEmpty()) {
+//                logger.info("No members connected, initializing root store");
+//                store.partitions.addAll(initializePartitions(rootDir));
+//            } else {
+//                logger.info("Members detected, forking streams");
+//                cluster.cast(new ForkPartition())
+//            }
+//        } else {
+//            logger.info("Directory already, loading streams");
+//            this.partitions.addAll(loadPartitions());
+//        }
+
+        return store;
+
+    }
+
+
+    @Subscribe
+    public void onNodeJoined(NodeJoined nodeJoined) {
+        logger.info("Node joined: {}, sending node info", nodeJoined.uuid);
+        List<Integer> pids = partitions.stream().map(p -> p.id).collect(Collectors.toList());
+        cluster.sendTo(nodeJoined.uuid, new NodeInfo(descriptor.uuid, pids));
+    }
+
+    @Subscribe
+    public void onNodeLeft(NodeLeft nodeLeft) {
+        logger.info("Node left: {}", nodeLeft.uuid);
+    }
+
+    private static List<Partition> initializePartitions(File root) {
+        List<Partition> newPartitions = new ArrayList<>();
+        for (int i = 0; i < PARTITIONS; i++) {
+            String pId = "partition-" + i;
+            IEventStore store = EventStore.open(new File(root, pId));
+            newPartitions.add(new Partition(i, store));
+        }
+        return newPartitions;
+    }
+
+    private List<Partition> loadPartitions() {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    private Partition select(String stream) {
+        long hash = StreamName.hash(stream);
+        int idx = (int) (Math.abs(hash) % PARTITIONS);
+        return partitions.get(idx);
+    }
+
+    @Override
+    public EventRecord append(EventRecord event) {
+        Partition partition = select(event.stream);
+        return partition.store().append(event);
+    }
 
     @Override
     public void compact() {
@@ -35,7 +130,7 @@ public class RemoteStore implements IEventStore {
 
     @Override
     public void close() {
-
+        cluster.cast(new Goodbye(descriptor.uuid));
     }
 
     @Override
@@ -48,13 +143,14 @@ public class RemoteStore implements IEventStore {
         return null;
     }
 
+
     @Override
-    public EventRecord append(EventRecord event) {
+    public EventRecord append(EventRecord event, int expectedVersion) {
         return null;
     }
 
     @Override
-    public EventRecord append(EventRecord event, int expectedVersion) {
+    public EventRecord appendSystemEvent(EventRecord event) {
         return null;
     }
 
@@ -192,4 +288,5 @@ public class RemoteStore implements IEventStore {
     public int version(String stream) {
         return 0;
     }
+
 }

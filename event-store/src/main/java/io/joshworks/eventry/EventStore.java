@@ -75,7 +75,7 @@ public class EventStore implements IEventStore {
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
         this.index = new TableIndex(rootDir, this::fetchMetadata);
-        this.projections = new Projections(new ProjectionExecutor(rootDir, this::appendSystemEvent));
+        this.projections = new Projections(new ProjectionExecutor(rootDir, this));
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
@@ -479,7 +479,11 @@ public class EventStore implements IEventStore {
         }
     }
 
-    private EventRecord appendSystemEvent(EventRecord event) {
+    @Override
+    public EventRecord appendSystemEvent(EventRecord event) {
+        if(!event.isSystemEvent()) {
+            throw new IllegalArgumentException("System events must start with " + StreamName.SYSTEM_PREFIX);
+        }
         StreamMetadata metadata = getOrCreateStream(event.stream);
         return appendInternal(metadata, event, NO_VERSION);
     }

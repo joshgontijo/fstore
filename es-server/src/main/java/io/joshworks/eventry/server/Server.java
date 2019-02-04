@@ -1,8 +1,7 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.server.cluster.Cluster;
+import io.joshworks.eventry.server.cluster.ClusterStore;
 import io.joshworks.fstore.core.properties.AppProperties;
 import io.joshworks.snappy.http.MediaType;
 import io.joshworks.snappy.parser.Parsers;
@@ -33,7 +32,9 @@ public class Server {
         AppProperties properties = AppProperties.create();
 //        String path = properties.get("store.path").orElse("J:\\github-store");
         String path = properties.get("store.path").orElse("J:\\event-store\\" + UUID.randomUUID().toString().substring(0, 8));
-        IEventStore store = EventStore.open(new File(path));
+
+
+        IEventStore store = ClusterStore.connect(new File(path), "test");
 
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
         SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store, broadcast);
@@ -41,9 +42,6 @@ public class Server {
         ProjectionsEndpoint projections = new ProjectionsEndpoint(store);
 
         Parsers.register(MediaType.valueOf(JAVASCRIPT_MIME), new PlainTextParser());
-
-        Cluster cluster = new Cluster("test");
-        cluster.join();
 
         group("/streams", () -> {
             post("/", streams::create);
@@ -80,7 +78,6 @@ public class Server {
 
 
         onShutdown(() -> {
-            cluster.leave();
             store.close();
 
         });

@@ -4,7 +4,8 @@ import io.joshworks.eventry.IEventStore;
 
 public class Partition {
 
-    private final int id;
+    public final int id;
+    private boolean master;
     private final IEventStore owner;
 
     public Partition(int id, IEventStore owner) {

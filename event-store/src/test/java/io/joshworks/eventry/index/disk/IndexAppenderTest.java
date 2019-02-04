@@ -3,6 +3,7 @@ package io.joshworks.eventry.index.disk;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
+import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -13,6 +14,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 
 import static org.junit.Assert.assertEquals;
@@ -26,7 +28,7 @@ public class IndexAppenderTest {
     @Before
     public void setUp() {
         location = FileUtils.testFolder();
-        appender = new IndexAppender(location, e -> null, (int) Size.MB.of(10), 10000, true);
+        appender = new IndexAppender(location, e -> new StreamMetadata("", 0, 0, 0, 0, 0, new HashMap<>(), new HashMap<>(), 0), (int) Size.MB.of(10), 10000, true);
         memIndex = new MemIndex();
     }
 
