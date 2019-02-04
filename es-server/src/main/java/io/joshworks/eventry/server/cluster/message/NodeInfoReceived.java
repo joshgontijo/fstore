@@ -30,4 +30,10 @@ public class NodeInfoReceived extends ClusterEvent {
         return serializer.fromBytes(ByteBuffer.wrap(record.body));
     }
 
+    @Override
+    public String toString() {
+        return "NodeInfoReceived{" + "partitions=" + partitions +
+                ", uuid='" + uuid + '\'' +
+                '}';
+    }
 }
