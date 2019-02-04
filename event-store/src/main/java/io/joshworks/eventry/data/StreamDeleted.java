@@ -17,7 +17,7 @@ public class StreamDeleted {
 
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "STREAM_DELETED";
 
-    public StreamDeleted(String stream, int versionAtDeletion) {
+    private StreamDeleted(String stream, int versionAtDeletion) {
         this.stream = stream;
         this.versionAtDeletion = versionAtDeletion;
     }

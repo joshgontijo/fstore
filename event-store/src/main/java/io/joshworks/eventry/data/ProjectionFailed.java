@@ -18,7 +18,7 @@ public class ProjectionFailed {
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_RUN_FAILED";
     private static final Serializer<ProjectionFailed> serializer = JsonSerializer.of(ProjectionFailed.class);
 
-    public ProjectionFailed(String name, String reason, long processedItems, String streamName, int streamVersion) {
+    private ProjectionFailed(String name, String reason, long processedItems, String streamName, int streamVersion) {
         this.name = name;
         this.reason = reason;
         this.processedItems = processedItems;

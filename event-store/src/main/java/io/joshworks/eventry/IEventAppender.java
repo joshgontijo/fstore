@@ -13,4 +13,6 @@ public interface IEventAppender {
 
     EventRecord append(EventRecord event, int expectedVersion);
 
+    EventRecord appendSystemEvent(EventRecord event);
+
 }
