@@ -12,11 +12,10 @@ import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.TaskStatus;
+import io.joshworks.eventry.server.cluster.message.NodeInfoReceived;
+import io.joshworks.eventry.server.cluster.message.NodeInfoRequested;
 import io.joshworks.eventry.server.cluster.message.NodeJoined;
 import io.joshworks.eventry.server.cluster.message.NodeLeft;
-import io.joshworks.eventry.server.cluster.message.command.Goodbye;
-import io.joshworks.eventry.server.cluster.message.command.Hello;
-import io.joshworks.eventry.server.cluster.message.command.NodeInfo;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.eventbus.EventBus;
@@ -32,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 public class ClusterStore implements IEventStore {
@@ -44,6 +44,7 @@ public class ClusterStore implements IEventStore {
     private final List<Partition> partitions = new ArrayList<>();
     private final File rootDir;
     private final ClusterDescriptor descriptor;
+    private final CountDownLatch onlineLatch = new CountDownLatch(1);
 
     private ClusterStore(File rootDir, Cluster cluster, ClusterDescriptor clusterDescriptor) {
         this.rootDir = rootDir;
@@ -53,13 +54,28 @@ public class ClusterStore implements IEventStore {
 
 
     public static ClusterStore connect(File rootDir, String name) {
-        ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
-        EventBus eventBus = new EventBus();
-        Cluster cluster = new Cluster(name, descriptor.uuid, eventBus);
-        ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
-        eventBus.register(store);
-        cluster.join();
-        cluster.cast(new Hello(store.descriptor.uuid));
+        try {
+            ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
+            EventBus eventBus = new EventBus();
+            Cluster cluster = new Cluster(name, descriptor.uuid, eventBus);
+            ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
+            eventBus.register(store);
+            cluster.join();
+            cluster.castAsync(NodeJoined.create(store.descriptor.uuid));
+
+
+
+            if (!cluster.otherNodes().isEmpty()) {
+                store.onlineLatch.await();
+            }
+
+            logger.info("Connected to {}", name);
+            return store;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to connect to " + name, e);
+        }
+
 
 //        if (store.descriptor.isNew) {
 //            logger.info("No local store found, initializing");
@@ -74,22 +90,31 @@ public class ClusterStore implements IEventStore {
 //            logger.info("Directory already, loading streams");
 //            this.partitions.addAll(loadPartitions());
 //        }
-
-        return store;
-
     }
-
 
     @Subscribe
     public void onNodeJoined(NodeJoined nodeJoined) {
         logger.info("Node joined: {}, sending node info", nodeJoined.uuid);
+
+    }
+
+    @Subscribe
+    public void onNodeInfoRequested(NodeInfoRequested infoRequested) {
+        logger.info("Node info requested from: {}", infoRequested.uuid);
         List<Integer> pids = partitions.stream().map(p -> p.id).collect(Collectors.toList());
-        cluster.sendTo(nodeJoined.uuid, new NodeInfo(descriptor.uuid, pids));
+        cluster.sendTo(infoRequested.uuid, NodeInfoReceived.create(descriptor.uuid, pids));
+
     }
 
     @Subscribe
     public void onNodeLeft(NodeLeft nodeLeft) {
         logger.info("Node left: {}", nodeLeft.uuid);
+    }
+
+    @Subscribe
+    public void onNodeInfoReceived(NodeInfoReceived nodeInfo) {
+        logger.info("Node info received: {}", nodeInfo);
+        onlineLatch.countDown();
     }
 
     private static List<Partition> initializePartitions(File root) {
@@ -130,7 +155,7 @@ public class ClusterStore implements IEventStore {
 
     @Override
     public void close() {
-        cluster.cast(new Goodbye(descriptor.uuid));
+        cluster.castAsync(NodeLeft.create(descriptor.uuid));
     }
 
     @Override

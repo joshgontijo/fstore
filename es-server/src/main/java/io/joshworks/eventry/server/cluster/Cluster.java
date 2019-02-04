@@ -8,7 +8,6 @@ import io.joshworks.eventry.server.cluster.message.NodeLeft;
 import io.joshworks.eventry.server.cluster.message.PartitionCreated;
 import io.joshworks.eventry.server.cluster.message.PartitionForked;
 import io.joshworks.eventry.server.cluster.message.PartitionTransferred;
-import io.joshworks.eventry.server.cluster.message.command.ClusterCommand;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.eventbus.EventBus;
 import org.jgroups.Address;
@@ -21,7 +20,6 @@ import org.jgroups.blocks.RequestHandler;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.Response;
 import org.jgroups.util.Buffer;
-import org.jgroups.util.RspList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,17 +82,17 @@ public class Cluster extends ReceiverAdapter implements RequestHandler {
         return state.getMembers().stream().filter(a -> channel.getAddress() != a).collect(Collectors.toList());
     }
 
-    public RspList<Message> cast(EventRecord eventRecord) {
+    public void cast(EventRecord event) {
         try {
-            return dispatcher.castMessage(null, createEvent(cmd), RequestOptions.ASYNC());
+            dispatcher.castMessage(null, createBuffer(event), RequestOptions.ASYNC());
         } catch (Exception e) {
             throw new ClusterException(e);
         }
     }
 
-    public Object sendTo(String uuid, ClusterCommand cmd) {
+    public Object sendTo(String uuid, EventRecord event) {
         try {
-            return dispatcher.sendMessage(node(uuid), createEvent(cmd), RequestOptions.ASYNC());
+            return dispatcher.sendMessage(node(uuid), createBuffer(event), RequestOptions.ASYNC());
         } catch (Exception e) {
             throw new ClusterException(e);
         }
@@ -108,8 +106,7 @@ public class Cluster extends ReceiverAdapter implements RequestHandler {
 //        }
 //    }
 
-    private Buffer createEvent(ClusterCommand command) {
-        EventRecord event = command.toEvent(channel.getAddress());
+    private Buffer createBuffer(EventRecord event) {
         return new Buffer(serializer.toBytes(event).array());
     }
 
