@@ -2,14 +2,13 @@ package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
-import io.joshworks.eventry.server.cluster.message.NodeInfoReceived;
+import io.joshworks.eventry.server.ClusterEvents;
+import io.joshworks.eventry.server.cluster.data.NodeInfo;
+import io.joshworks.eventry.server.cluster.message.NodeInfoRequested;
 import io.joshworks.eventry.server.cluster.message.NodeJoined;
 import io.joshworks.eventry.server.cluster.message.NodeLeft;
-import io.joshworks.eventry.server.cluster.message.PartitionCreated;
-import io.joshworks.eventry.server.cluster.message.PartitionForked;
-import io.joshworks.eventry.server.cluster.message.PartitionTransferred;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.eventbus.EventBus;
+import io.joshworks.fstore.serializer.json.JsonSerializer;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
 import org.jgroups.Message;
@@ -20,6 +19,8 @@ import org.jgroups.blocks.RequestHandler;
 import org.jgroups.blocks.RequestOptions;
 import org.jgroups.blocks.Response;
 import org.jgroups.util.Buffer;
+import org.jgroups.util.Rsp;
+import org.jgroups.util.RspList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,28 +31,31 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import static java.util.Objects.requireNonNull;
+
 public class Cluster extends ReceiverAdapter implements RequestHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(Cluster.class);
 
     private static final Serializer<EventRecord> serializer = new EventSerializer();
+    private static final Serializer<NodeInfo> nodeInfoSerializer = JsonSerializer.of(NodeInfo.class);
 
     private JChannel channel;
     private final String clusterName;
     private final String nodeUuid;
     private View state;
     private MessageDispatcher dispatcher;
-    private final EventBus eventBus;
 
     private final Map<String, Address> nodes = new ConcurrentHashMap<>();
+    private ClusterEvents clusterEvents;
 
-    public Cluster(String clusterName, String nodeUuid, EventBus eventBus) {
+    public Cluster(String clusterName, String nodeUuid) {
         this.clusterName = clusterName;
         this.nodeUuid = nodeUuid;
-        this.eventBus = eventBus;
     }
 
-    public synchronized void join() {
+    public synchronized void join(ClusterEvents clusterEvents) {
+        this.clusterEvents = requireNonNull(clusterEvents, "EventHandler must be provided");
         if (channel != null) {
             throw new RuntimeException("Already joined");
         }
@@ -90,6 +94,29 @@ public class Cluster extends ReceiverAdapter implements RequestHandler {
         }
     }
 
+    private RspList<byte[]> castSyncInternal(Buffer msg) {
+        try {
+            return dispatcher.castMessage(null, msg, RequestOptions.SYNC());
+        } catch (Exception e) {
+            throw new ClusterException(e);
+        }
+    }
+
+    public List<NodeInfo> getClusterInfo() {
+        RspList<byte[]> rsps = castSyncInternal(createBuffer(NodeInfoRequested.create(nodeUuid)));
+        List<NodeInfo> results = new ArrayList<>();
+        for (Rsp<byte[]> rsp : rsps) {
+            byte[] data = rsp.getValue();
+            NodeInfo nodeInfo = nodeInfoSerializer.fromBytes(ByteBuffer.wrap(data));
+            results.add(nodeInfo);
+        }
+        return results;
+    }
+
+    public void transfer() {
+
+    }
+
     public Object sendTo(String uuid, EventRecord event) {
         try {
             return dispatcher.sendMessage(node(uuid), createBuffer(event), RequestOptions.ASYNC());
@@ -112,7 +139,7 @@ public class Cluster extends ReceiverAdapter implements RequestHandler {
 
     private Address node(String uuid) {
         Address address = nodes.get(uuid);
-        if(address == null) {
+        if (address == null) {
             throw new IllegalArgumentException("Node not found: " + uuid);
         }
         return address;
@@ -145,8 +172,7 @@ public class Cluster extends ReceiverAdapter implements RequestHandler {
 
     @Override
     public Object handle(Message msg) {
-        handleEvent(msg);
-        return null;
+        return handleEvent(msg);
     }
 
     @Override
@@ -154,38 +180,30 @@ public class Cluster extends ReceiverAdapter implements RequestHandler {
         handleEvent(msg);
     }
 
-    private void handleEvent(Message msg) {
+    private byte[] handleEvent(Message msg) {
         try {
             EventRecord record = serializer.fromBytes(ByteBuffer.wrap(msg.buffer()));
             switch (record.type) {
                 case NodeJoined.TYPE:
                     NodeJoined joined = NodeJoined.from(record);
                     nodes.put(joined.uuid, msg.getSrc());
-                    eventBus.emit(joined);
+                    clusterEvents.onNodeJoined(joined);
                     break;
                 case NodeLeft.TYPE:
                     NodeLeft left = NodeLeft.from(record);
                     nodes.remove(left.uuid);
-                    eventBus.emit(left);
+                    clusterEvents.onNodeLeft(left);
                     break;
-                case NodeInfoReceived.TYPE:
-                    eventBus.emit(NodeInfoReceived.from(record));
-                    break;
-                case PartitionCreated.TYPE:
-                    eventBus.emit(PartitionCreated.from(record));
-                    break;
-                case PartitionTransferred.TYPE:
-                    eventBus.emit(PartitionTransferred.from(record));
-                    break;
-                case PartitionForked.TYPE:
-                    eventBus.emit(PartitionForked.from(record));
-                    break;
+                case NodeInfoRequested.TYPE:
+                    NodeInfo nodeInfo = clusterEvents.onNodeInfoRequested();
+                    return nodeInfoSerializer.toBytes(nodeInfo).array();
                 default:
                     throw new IllegalArgumentException("Unknown cluster message: " + record);
             }
         } catch (Exception e) {
             logger.error("Failed to receive message: " + msg, e);
         }
+        return null;
 
     }
 

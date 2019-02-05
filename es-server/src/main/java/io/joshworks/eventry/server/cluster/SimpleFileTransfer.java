@@ -1,0 +1,180 @@
+package io.joshworks.eventry.server.cluster;
+
+import org.jgroups.Global;
+import org.jgroups.Header;
+import org.jgroups.JChannel;
+import org.jgroups.Message;
+import org.jgroups.ReceiverAdapter;
+import org.jgroups.conf.ClassConfigurator;
+import org.jgroups.util.Util;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+
+
+public class SimpleFileTransfer extends ReceiverAdapter {
+    protected String filename;
+    protected JChannel channel;
+    protected Map<String, OutputStream> files = new ConcurrentHashMap<>();
+    protected static final short ID = 3500;
+
+
+    public static void main(String[] args) throws Exception {
+//        String props = "config.xml";
+//        String filename = null;
+//        String name = null;
+//        for (int i = 0; i < args.length; i++) {
+//            if (args[i].equals("-props")) {
+//                props = args[++i];
+//                continue;
+//            }
+//            if (args[i].equals("-name")) {
+//                name = args[++i];
+//                continue;
+//            }
+//            if (args[i].equals("-file")) {
+//                filename = args[++i];
+//                continue;
+//            }
+//            help();
+//            return;
+//        }
+//        if (filename == null) {
+//            help();
+//            return;
+//        }
+
+        new SimpleFileTransfer().start();
+    }
+
+
+    private void start() throws Exception {
+        ClassConfigurator.add(ID, FileHeader.class);
+        channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp.xml"));
+        channel.setReceiver(this);
+        channel.connect("FileCluster");
+        eventLoop();
+    }
+
+    private void eventLoop() throws Exception {
+        Scanner scanner = new Scanner(System.in);
+        while (true) {
+            System.out.print("File to be transfered: ");
+            filename = scanner.nextLine();
+            System.out.println();
+            sendFile();
+        }
+    }
+
+    protected void sendFile() throws Exception {
+        System.out.println("Sending file");
+        long start = System.currentTimeMillis();
+        FileInputStream in = new FileInputStream(filename);
+        try {
+            for (; ; ) {
+                byte[] buf = new byte[8096]; // think about why not outside the for-loop
+                int bytes = in.read(buf);
+                if (bytes == -1)
+                    break;
+                sendMessage(buf, 0, bytes, false);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            sendMessage(null, 0, 0, true);
+        }
+        System.out.println("File transferred in " + (System.currentTimeMillis() - start));
+    }
+
+
+    public void receive(Message msg) {
+        FileHeader hdr = msg.getHeader(ID);
+        if (hdr == null)
+            return;
+        OutputStream out = files.get(hdr.filename);
+        try {
+            if (out == null) {
+                String output_filename = new File(hdr.filename).getName();
+                output_filename = "J:\\event-store\\jgroups-file-transfer\\" + output_filename; // change this is /tmp doesn't exist
+                out = new FileOutputStream(output_filename);
+                System.out.printf("-- creating file %s\n", hdr.filename);
+                files.put(hdr.filename, out);
+            }
+            if (hdr.eof) {
+                System.out.printf("closing %s\n", hdr.filename);
+                Util.close(files.remove(hdr.filename));
+            } else {
+                out.write(msg.getRawBuffer(), msg.getOffset(), msg.getLength());
+            }
+        } catch (Throwable t) {
+            System.err.println(t);
+        }
+    }
+
+
+    protected void sendMessage(byte[] buf, int offset, int length, boolean eof) throws Exception {
+        Message msg = new Message(null, buf, offset, length).putHeader(ID, new FileHeader(filename, eof))
+                .setFlag(Message.Flag.DONT_BUNDLE);
+        // set this if the sender doesn't want to receive the file
+        // msg.setTransientFlag(Message.TransientFlag.DONT_LOOPBACK);
+        channel.send(msg);
+    }
+
+
+    /*protected static Buffer readFile(String filename) throws Exception {
+        File file=new File(filename);
+        int size=(int)file.length();
+        FileInputStream input=new FileInputStream(file);
+        ByteArrayDataOutputStream out=new ByteArrayDataOutputStream(size);
+        byte[] read_buf=new byte[1024];
+        int bytes;
+        while((bytes=input.read(read_buf)) != -1)
+            out.write(read_buf, 0, bytes);
+        return out.getBuffer();
+    }*/
+
+
+    protected static class FileHeader extends Header {
+        protected String filename;
+        protected boolean eof;
+
+        public FileHeader() {
+        } // for de-serialization
+
+        public FileHeader(String filename, boolean eof) {
+            this.filename = filename;
+            this.eof = eof;
+        }
+
+        public short getMagicId() {
+            return ID;
+        }
+
+        public Supplier<? extends Header> create() {
+            return FileHeader::new;
+        }
+
+        public int serializedSize() {
+            return Util.size(filename) + Global.BYTE_SIZE;
+        }
+
+        public void writeTo(DataOutput out) throws Exception {
+            Util.writeObject(filename, out);
+            out.writeBoolean(eof);
+        }
+
+        public void readFrom(DataInput in) throws Exception {
+            filename = (String) Util.readObject(in);
+            eof = in.readBoolean();
+        }
+    }
+
+}
