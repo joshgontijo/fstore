@@ -10,17 +10,15 @@ import java.nio.ByteBuffer;
 
 public class NodeInfoRequested extends ClusterEvent {
 
-    public static final String TYPE = StreamName.SYSTEM_PREFIX + "PARTITION_FORK_REQUESTED";
+    public static final String TYPE = StreamName.SYSTEM_PREFIX + "NODE_INFO_REQUESTED";
     private static final Serializer<NodeInfoRequested> serializer = JsonSerializer.of(NodeInfoRequested.class);
-    public final String from;
 
-    private NodeInfoRequested(String uuid, String from) {
+    private NodeInfoRequested(String uuid) {
         super(uuid);
-        this.from = from;
     }
 
-    public static EventRecord create(String uuid, String from) {
-        var data = serializer.toBytes(new NodeInfoRequested( uuid, from));
+    public static EventRecord create(String uuid) {
+        var data = serializer.toBytes(new NodeInfoRequested(uuid));
         return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data.array());
     }
 
