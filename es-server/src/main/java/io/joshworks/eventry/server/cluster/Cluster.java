@@ -171,6 +171,11 @@ public class Cluster extends ReceiverAdapter implements RequestHandler {
     }
 
     @Override
+    public void receive(Message msg) {
+        super.receive(msg);
+    }
+
+    @Override
     public Object handle(Message msg) {
         return handleEvent(msg);
     }
