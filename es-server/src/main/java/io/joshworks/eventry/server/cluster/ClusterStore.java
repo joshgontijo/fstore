@@ -57,8 +57,8 @@ public class ClusterStore implements IEventStore, ClusterEvents, ClusterCommands
             ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
             Cluster cluster = new Cluster(name, descriptor.uuid);
             ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
-            cluster.join(store);
-            cluster.cast(NodeJoined.create(store.descriptor.uuid));
+            cluster.join();
+            cluster.syncCast(NodeJoined.create(store.descriptor.uuid));
 
             List<NodeInfo> clusterInfo = cluster.getClusterInfo();
             if(store.descriptor.isNew && !clusterInfo.isEmpty()) {
@@ -165,7 +165,7 @@ public class ClusterStore implements IEventStore, ClusterEvents, ClusterCommands
 
     @Override
     public void close() {
-        cluster.cast(NodeLeft.create(descriptor.uuid));
+        cluster.syncCast(NodeLeft.create(descriptor.uuid));
     }
 
     @Override

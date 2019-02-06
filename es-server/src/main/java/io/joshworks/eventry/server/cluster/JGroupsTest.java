@@ -1,32 +1,45 @@
 package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.server.ClusterEvents;
-import io.joshworks.eventry.server.cluster.data.NodeInfo;
 import io.joshworks.eventry.server.cluster.message.ClusterEvent;
-import io.joshworks.eventry.server.cluster.message.NodeJoined;
-import io.joshworks.eventry.server.cluster.message.NodeLeft;
-import org.jgroups.Message;
-import org.jgroups.blocks.RequestHandler;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 import java.util.UUID;
 
-public class JGroupsTest implements RequestHandler, ClusterEvents {
+public class JGroupsTest  {
+
+    private static String nodeId = UUID.randomUUID().toString().substring(0, 8);
 
     public static void main(String[] args) throws InterruptedException {
 
-        Cluster cluster = new Cluster("test", "node-123");
-        cluster.join(new JGroupsTest());
-        String nodeId = UUID.randomUUID().toString().substring(0, 8);
+        Cluster cluster = new Cluster("test", null);
+        cluster.register("PING", cm -> {
+            System.out.println("RECEIVED PING: " + cm.message());
+            cm.reply(new StringMessage(nodeId, "PONG", "pong message").toEvent());
+        });
+        cluster.register("PONG", cm -> {
+            System.out.println("Received PONG: " + cm.message());
+        });
+
+        cluster.join();
+
 
         Thread output = new Thread(() -> {
             Scanner scanner = new Scanner(System.in);
             String cmd;
             do {
+                System.out.print("Enter event [EVENT_TYPE] [MESSAGE]: ");
                 cmd = scanner.nextLine();
-                cluster.cast(new StringMessage(nodeId, cmd).toEvent());
+                String[] split = cmd.split("\\s+");
+                if(split.length != 2) {
+                    System.err.println("Invalid message format");
+                    continue;
+                }
+                cluster.otherNodes().forEach(address -> {
+                    System.out.println("SENDING TO ADDRESS: " + address);
+                    cluster.sendTo(address, new StringMessage(nodeId, split[0], split[1]).toEvent());
+                });
 
             } while (!"exit".equals(cmd));
         });
@@ -36,38 +49,20 @@ public class JGroupsTest implements RequestHandler, ClusterEvents {
         output.join();
     }
 
-    @Override
-    public Object handle(Message msg) {
-        System.out.println("RECEIVED: " + new String(msg.buffer(), StandardCharsets.UTF_8));
-        return msg;
-    }
-
-    @Override
-    public void onNodeJoined(NodeJoined nodeJoined) {
-
-    }
-
-    @Override
-    public NodeInfo onNodeInfoRequested() {
-        return null;
-    }
-
-    @Override
-    public void onNodeLeft(NodeLeft nodeLeft) {
-
-    }
 
     private static class StringMessage extends ClusterEvent {
 
-        private final String cmd;
+        private final String eventType;
+        private final String data;
 
-        private StringMessage(String nodeId, String cmd) {
+        private StringMessage(String nodeId, String eventType, String data) {
             super(nodeId);
-            this.cmd = cmd;
+            this.eventType = eventType;
+            this.data = data;
         }
 
         public EventRecord toEvent() {
-            return new EventRecord("YOLO", "MESSAGE_RECEIVED", 0, 0, cmd.getBytes(StandardCharsets.UTF_8), new byte[0]);
+            return new EventRecord("TEST", eventType, 0, 0, data.getBytes(StandardCharsets.UTF_8), new byte[0]);
         }
     }
 
