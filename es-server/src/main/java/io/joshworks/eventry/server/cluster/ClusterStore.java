@@ -15,6 +15,7 @@ import io.joshworks.eventry.projections.result.TaskStatus;
 import io.joshworks.eventry.server.ClusterCommands;
 import io.joshworks.eventry.server.ClusterEvents;
 import io.joshworks.eventry.server.cluster.data.NodeInfo;
+import io.joshworks.eventry.server.cluster.message.NodeInfoRequested;
 import io.joshworks.eventry.server.cluster.message.NodeJoined;
 import io.joshworks.eventry.server.cluster.message.NodeLeft;
 import io.joshworks.eventry.stream.StreamInfo;
@@ -60,11 +61,11 @@ public class ClusterStore implements IEventStore, ClusterEvents, ClusterCommands
             cluster.join();
             cluster.syncCast(NodeJoined.create(store.descriptor.uuid));
 
-            List<NodeInfo> clusterInfo = cluster.getClusterInfo();
-            if(store.descriptor.isNew && !clusterInfo.isEmpty()) {
+            List<ClusterMessage> responses = cluster.syncCast(NodeInfoRequested.create(descriptor.uuid));
+            if(store.descriptor.isNew && !responses.isEmpty()) {
                 logger.info("Forking partitions");
                 //TODO forking from first
-                NodeInfo nodeInfo = clusterInfo.get(0);
+                EventRecord response = responses.get(0).message();
 
             }
 
