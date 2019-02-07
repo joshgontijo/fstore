@@ -2,14 +2,11 @@ package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
-import io.joshworks.eventry.server.cluster.data.NodeInfo;
-import io.joshworks.eventry.server.cluster.message.NodeInfoRequested;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.serializer.json.JsonSerializer;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
+import org.jgroups.MembershipListener;
 import org.jgroups.Message;
-import org.jgroups.ReceiverAdapter;
 import org.jgroups.View;
 import org.jgroups.blocks.MessageDispatcher;
 import org.jgroups.blocks.RequestOptions;
@@ -28,14 +25,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class Cluster extends ReceiverAdapter {
+public class Cluster implements MembershipListener {
 
     private static final Logger logger = LoggerFactory.getLogger(Cluster.class);
 
     private static final Serializer<EventRecord> serializer = new EventSerializer();
-    private static final Serializer<NodeInfo> nodeInfoSerializer = JsonSerializer.of(NodeInfo.class);
 
-    private JChannel channel;
+    private JChannel eventChannel;
     private final String clusterName;
     private final String nodeUuid;
     private View state;
@@ -51,30 +47,21 @@ public class Cluster extends ReceiverAdapter {
     }
 
     public synchronized void join() {
-        if (channel != null) {
+        if (eventChannel != null) {
             throw new RuntimeException("Already joined");
         }
         logger.info("Joining cluster");
         try {
-            channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp.xml"));
-            channel.setReceiver(this);
-            channel.setDiscardOwnMessages(false);
-            channel.setName(nodeUuid);
-            channel.connect(clusterName);
-            channel.getState(null, 10000);
-            dispatcher = new MessageDispatcher(channel);
-            dispatcher.setRequestHandler(eventHandler);
-            new Thread(() -> {
-                try {
-                    while(true) {
-                    Thread.sleep(5000);
-                    System.out.println(state);
+            eventChannel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp.xml"));
+            eventChannel.setDiscardOwnMessages(false);
+            eventChannel.setName(nodeUuid);
 
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }).start();
+            dispatcher = new MessageDispatcher(eventChannel, eventHandler);
+            dispatcher.setMembershipListener(this);
+
+            eventChannel.connect(clusterName);
+            eventChannel.getState(null, 10000);
+
         } catch (Exception e) {
             throw new RuntimeException("Failed to join cluster", e);
         }
@@ -85,11 +72,11 @@ public class Cluster extends ReceiverAdapter {
     }
 
     public Address address() {
-        return channel.getAddress();
+        return eventChannel.getAddress();
     }
 
     public synchronized void leave() {
-        channel.close();
+        eventChannel.close();
     }
 
     public List<Address> members() {
@@ -98,31 +85,6 @@ public class Cluster extends ReceiverAdapter {
 
     public List<Address> otherNodes() {
         return state.getMembers().stream().filter(address -> !address.equals(address())).collect(Collectors.toList());
-    }
-
-
-    private RspList<byte[]> castSyncInternal(Buffer msg) {
-        try {
-            return dispatcher.castMessage(null, msg, RequestOptions.SYNC());
-        } catch (Exception e) {
-            throw new ClusterException(e);
-        }
-    }
-
-
-    public List<NodeInfo> getClusterInfo() {
-        RspList<byte[]> rsps = castSyncInternal(createBuffer(NodeInfoRequested.create(nodeUuid)));
-        List<NodeInfo> results = new ArrayList<>();
-        for (Rsp<byte[]> rsp : rsps) {
-            byte[] data = rsp.getValue();
-            NodeInfo nodeInfo = nodeInfoSerializer.fromBytes(ByteBuffer.wrap(data));
-            results.add(nodeInfo);
-        }
-        return results;
-    }
-
-    public void transferPartition() {
-
     }
 
     /**
@@ -207,18 +169,13 @@ public class Cluster extends ReceiverAdapter {
 
         } else {
             for (Address address : view.getMembers()) {
-                if (!this.channel.getAddress().equals(address)) {
+                if (!this.eventChannel.getAddress().equals(address)) {
                     System.out.println("Already connected nodes: " + address);
                 }
 //                    eventBus.emit(new NodeJoined(inetAddress(address)));
             }
         }
         state = view;
-    }
-
-    @Override
-    public void receive(Message msg) {
-        super.receive(msg);
     }
 
     @Override

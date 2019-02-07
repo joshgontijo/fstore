@@ -31,7 +31,7 @@ public class JGroupsTest  {
             do {
                 System.out.print("Enter event [EVENT_TYPE] [MESSAGE]: ");
                 cmd = scanner.nextLine();
-                String[] split = cmd.split("\\s+");
+                final String[] split = cmd.split("\\s+");
                 if(split.length != 2) {
                     System.err.println("Invalid message format");
                     continue;
@@ -39,6 +39,7 @@ public class JGroupsTest  {
                 cluster.otherNodes().forEach(address -> {
                     System.out.println("SENDING TO ADDRESS: " + address);
                     cluster.sendTo(address, new StringMessage(nodeId, split[0], split[1]).toEvent());
+//                    cluster.test(address, new StringMessage(nodeId, split[0], split[1]).toEvent());
                 });
 
             } while (!"exit".equals(cmd));
