@@ -5,6 +5,7 @@ import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.fstore.core.Serializer;
 import org.jgroups.Message;
 import org.jgroups.blocks.RequestHandler;
+import org.jgroups.blocks.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +31,11 @@ public class EventHandler implements RequestHandler {
     @Override
     public Object handle(Message msg) {
         return handleEvent(msg);
+    }
+
+    @Override
+    public void handle(Message request, Response response) throws Exception {
+        System.out.println("ASYNC MESSAGE");
     }
 
     public void register(String eventType, Consumer<ClusterMessage> consumer) {

@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -102,39 +103,47 @@ public class Cluster implements MembershipListener {
         }
     }
 
-    /**
-     * Sends a message and synchronously process the response on the EVENT HANDLER
-     */
-    public void sendTo(Address address, EventRecord event) {
-        try {
-            Message response = dispatcher.sendMessage(address, createBuffer(event), RequestOptions.SYNC());
-            eventHandler.handle(response);
-        } catch (Exception e) {
-            throw new ClusterException(e);
-        }
-    }
 
     /**
      * Sends a message and asynchronously process the response on the EVENT HANDLER
      */
-    public void asyncSend(Address address, EventRecord event) {
+    public void sendAsync(Address address, EventRecord event) {
         try {
-            CompletableFuture<Message> future = dispatcher.sendMessageWithFuture(address, createBuffer(event), RequestOptions.ASYNC());
-            future.thenAccept(eventHandler::handle);
+            dispatcher.sendMessageWithFuture(address, createBuffer(event), RequestOptions.ASYNC());
         } catch (Exception e) {
             throw new ClusterException(e);
         }
     }
 
-    public List<ClusterMessage> syncCast(EventRecord event) {
+    public List<ClusterMessage> cast(EventRecord event) {
+        return cast(null, event);
+    }
+
+    public List<ClusterMessage> cast(Collection<Address> addresses, EventRecord event) {
         try {
-            RspList<Message> rsps = dispatcher.castMessage(null, createBuffer(event), RequestOptions.SYNC());
+            RspList<Message> rsps = dispatcher.castMessage(addresses, createBuffer(event), RequestOptions.SYNC());
             List<ClusterMessage> replies = new ArrayList<>();
             for (Rsp<Message> rsp : rsps) {
                 Message value = rsp.getValue();
                 replies.add(ClusterMessage.from(value));
             }
             return replies;
+        } catch (Exception e) {
+            throw new ClusterException(e);
+        }
+    }
+
+    public void castAsync(EventRecord event) {
+        try {
+            dispatcher.castMessage(null, createBuffer(event), RequestOptions.ASYNC());
+        } catch (Exception e) {
+            throw new ClusterException(e);
+        }
+    }
+
+    public void castAsync(Collection<Address> addresses, EventRecord event) {
+        try {
+            dispatcher.castMessage(addresses, createBuffer(event), RequestOptions.ASYNC());
         } catch (Exception e) {
             throw new ClusterException(e);
         }
