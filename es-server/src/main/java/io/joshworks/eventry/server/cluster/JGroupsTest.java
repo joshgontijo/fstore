@@ -38,7 +38,7 @@ public class JGroupsTest  {
                 }
                 cluster.otherNodes().forEach(address -> {
                     System.out.println("SENDING TO ADDRESS: " + address);
-                    cluster.sendTo(address, new StringMessage(nodeId, split[0], split[1]).toEvent());
+                    cluster.sendAsync(address, new StringMessage(nodeId, split[0], split[1]).toEvent());
 //                    cluster.test(address, new StringMessage(nodeId, split[0], split[1]).toEvent());
                 });
 

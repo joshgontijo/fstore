@@ -59,9 +59,9 @@ public class ClusterStore implements IEventStore, ClusterEvents, ClusterCommands
             Cluster cluster = new Cluster(name, descriptor.uuid);
             ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
             cluster.join();
-            cluster.syncCast(NodeJoined.create(store.descriptor.uuid));
+            cluster.cast(NodeJoined.create(store.descriptor.uuid));
 
-            List<ClusterMessage> responses = cluster.syncCast(NodeInfoRequested.create(descriptor.uuid));
+            List<ClusterMessage> responses = cluster.cast(NodeInfoRequested.create(descriptor.uuid));
             if(store.descriptor.isNew && !responses.isEmpty()) {
                 logger.info("Forking partitions");
                 //TODO forking from first
@@ -166,7 +166,7 @@ public class ClusterStore implements IEventStore, ClusterEvents, ClusterCommands
 
     @Override
     public void close() {
-        cluster.syncCast(NodeLeft.create(descriptor.uuid));
+        cluster.cast(NodeLeft.create(descriptor.uuid));
     }
 
     @Override
