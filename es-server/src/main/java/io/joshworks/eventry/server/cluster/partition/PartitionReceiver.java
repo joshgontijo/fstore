@@ -1,8 +1,8 @@
 package io.joshworks.eventry.server.cluster.partition;
 
-import io.joshworks.fstore.core.io.FileUtils;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.jgroups.Message;
+import org.jgroups.ReceiverAdapter;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -14,19 +14,16 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class PartitionReceiver {
+public class PartitionReceiver extends ReceiverAdapter {
 
-    private final File partitionRoot;
+    private final File storeRoot;
     private final Map<String, OutputStream> files = new ConcurrentHashMap<>();
 
-    public PartitionReceiver(File partitionRoot) {
-        this.partitionRoot = partitionRoot;
-        if(Files.exists(partitionRoot.toPath())) {
-            FileUtils.deleteRecursively(partitionRoot);
-        }
-        partitionRoot.mkdir();
+    public PartitionReceiver(File storeRoot) {
+        this.storeRoot = storeRoot;
     }
 
+    @Override
     public void receive(Message msg) {
         FileHeader header = msg.getHeader(FileHeader.HEADER_ID);
         if (header == null) {
@@ -50,10 +47,10 @@ public class PartitionReceiver {
     }
 
     private OutputStream createOutputStream(String fileName) throws IOException {
-        Path filePath = partitionRoot.toPath().resolve(Paths.get(fileName));
+        Path filePath = storeRoot.toPath().resolve(Paths.get(fileName));
         Path fileFolder = filePath.getParent();
         if(!Files.exists(fileFolder)) {
-            Files.createDirectory(fileFolder);
+            Files.createDirectories(fileFolder);
         }
         return new FileOutputStream(filePath.toFile());
     }

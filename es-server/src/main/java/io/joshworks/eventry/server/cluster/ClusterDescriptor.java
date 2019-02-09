@@ -38,10 +38,10 @@ public class ClusterDescriptor implements Closeable {
         try {
             File pFile = new File(root, FILE);
             boolean exists = Files.exists(pFile.toPath());
-            if(!exists) {
+            if (!exists) {
                 Files.createDirectories(root.toPath());
             }
-            if(!Files.exists(pFile.toPath())) {
+            if (!Files.exists(pFile.toPath())) {
                 Files.createFile(pFile.toPath());
             }
             FileChannel channel = FileChannel.open(pFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ);
@@ -55,7 +55,7 @@ public class ClusterDescriptor implements Closeable {
 
     private static String writeNodeUuid(FileChannel channel) throws IOException {
         ByteBuffer byteBuffer = ByteBuffer.allocate(36);
-        String uuid = UUID.randomUUID().toString();
+        String uuid = UUID.randomUUID().toString().substring(0, 8);
         byteBuffer.put(uuid.getBytes(StandardCharsets.UTF_8));
         byteBuffer.flip();
         channel.write(byteBuffer);

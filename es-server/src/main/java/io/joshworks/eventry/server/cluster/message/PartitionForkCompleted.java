@@ -8,23 +8,23 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
 
-public class PartitionForkRequested extends ClusterEvent {
+public class PartitionForkCompleted extends ClusterEvent {
 
-    public static final String TYPE = StreamName.SYSTEM_PREFIX + "PARTITION_FORK_REQUESTED";
-    private static final Serializer<PartitionForkRequested> serializer = JsonSerializer.of(PartitionForkRequested.class);
+    public static final String TYPE = StreamName.SYSTEM_PREFIX + "PARTITION_FORK_COMPLETED";
+    private static final Serializer<PartitionForkCompleted> serializer = JsonSerializer.of(PartitionForkCompleted.class);
     public final int partitionId;
 
-    private PartitionForkRequested(String uuid, int partitionId) {
+    private PartitionForkCompleted(String uuid, int partitionId) {
         super(uuid);
         this.partitionId = partitionId;
     }
 
     public static EventRecord create(String uuid, int partitionId) {
-        var data = serializer.toBytes(new PartitionForkRequested(uuid, partitionId));
+        var data = serializer.toBytes(new PartitionForkCompleted(uuid, partitionId));
         return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data.array());
     }
 
-    public static PartitionForkRequested from(EventRecord record) {
+    public static PartitionForkCompleted from(EventRecord record) {
         return serializer.fromBytes(ByteBuffer.wrap(record.body));
     }
 

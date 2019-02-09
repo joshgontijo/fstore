@@ -13,7 +13,7 @@ public class JGroupsTest  {
 
     public static void main(String[] args) throws InterruptedException {
 
-        Cluster cluster = new Cluster("test", null);
+        Cluster cluster = new Cluster(null, "test", null);
         cluster.register("PING", cm -> {
             System.out.println("RECEIVED PING: " + cm.message());
             cm.reply(new StringMessage(nodeId, "PONG", "pong message").toEvent());
