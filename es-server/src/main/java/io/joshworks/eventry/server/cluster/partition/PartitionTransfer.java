@@ -1,5 +1,6 @@
 package io.joshworks.eventry.server.cluster.partition;
 
+import io.joshworks.fstore.core.util.Threads;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
 import org.jgroups.Message;
@@ -12,40 +13,55 @@ import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class PartitionTransfer {
 
     private static final Logger logger = LoggerFactory.getLogger(PartitionTransfer.class);
     private static final int BUFFER_SIZE = 8096;
 
+    private static final ExecutorService executor = Executors.newFixedThreadPool(5, new ThreadFactory() {
+        final AtomicLong counter = new AtomicLong();
+        @Override
+        public Thread newThread(Runnable r) {
+            return Threads.named("partition-sender-" + counter.incrementAndGet(), r);
+        }
+    });
     private final JChannel channel;
-    private final Address dst;
-    private final Collection<File> transferQueue;
-    private final File partitionRoot;
+    private final PartitionReceiver receiver;
 
-    public PartitionTransfer(JChannel channel, Address dst, File partitionRoot) {
+    public PartitionTransfer(File root, JChannel channel) {
         this.channel = channel;
-        this.dst = dst;
-        this.transferQueue = listFiles(partitionRoot);
-        this.partitionRoot = partitionRoot;
+        this.receiver = new PartitionReceiver(root);
+        this.channel.setReceiver(receiver);
         ClassConfigurator.add(FileHeader.HEADER_ID, FileHeader.class);
     }
 
-    public void transfer() {
-        transferQueue.forEach(this::transfer);
+    public CompletableFuture<Void> transferTo(Address dst, File partitionRoot) {
+        Address dst1 = channel.getView().getMembers().get(1);
+        return CompletableFuture.runAsync(() -> this.transferAll(dst1, partitionRoot), executor);
     }
 
-    private void transfer(File file) {
-        long start = System.currentTimeMillis();
-        String fileName = partitionRoot.toPath().relativize(file.toPath()).toString();
+    private void transferAll(Address dst, File partitionRoot) {
+        listFiles(partitionRoot).forEach(file -> {
+            String fileName = partitionRoot.toPath().getParent().relativize(file.toPath()).toString();
+            transfer(dst, file, fileName);
+        });
+    }
 
-        logger.info("Started file transfer of '{}'", file.getName());
+    private void transfer(Address dst, File file, String fileName) {
+        long start = System.currentTimeMillis();
+        logger.info("Started transfer of '{}' to {}", fileName, dst);
         try (FileInputStream in = new FileInputStream(file)) {
             byte[] buf = new byte[BUFFER_SIZE]; // think about why not outside the for-loop
             int read;
             long total = 0;
             while ((read = in.read(buf)) != -1) {
-                sendMessage(fileName, buf, read, false);
+                sendMessage(dst, fileName, buf, read, false);
                 total += read;
                 buf = new byte[8096];
             }
@@ -54,7 +70,7 @@ public class PartitionTransfer {
         } catch (Exception e) {
             throw new RuntimeException("Failed to transfer", e);
         } finally {
-            sendMessage(fileName, null, 0, true);
+            sendMessage(dst, fileName, null, 0, true);
         }
     }
 
@@ -75,7 +91,7 @@ public class PartitionTransfer {
         return found;
     }
 
-    private void sendMessage(String fileName, byte[] buf, int length, boolean eof) {
+    private void sendMessage(Address dst, String fileName, byte[] buf, int length, boolean eof) {
         try {
             Message msg = new Message(dst, buf, 0, length).putHeader(FileHeader.HEADER_ID, new FileHeader(fileName, eof))
                     .setFlag(Message.Flag.DONT_BUNDLE)

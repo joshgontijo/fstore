@@ -12,12 +12,13 @@ import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.TaskStatus;
-import io.joshworks.eventry.server.ClusterCommands;
-import io.joshworks.eventry.server.ClusterEvents;
-import io.joshworks.eventry.server.cluster.data.NodeInfo;
+import io.joshworks.eventry.server.cluster.message.NodeInfo;
 import io.joshworks.eventry.server.cluster.message.NodeInfoRequested;
 import io.joshworks.eventry.server.cluster.message.NodeJoined;
 import io.joshworks.eventry.server.cluster.message.NodeLeft;
+import io.joshworks.eventry.server.cluster.message.PartitionForkCompleted;
+import io.joshworks.eventry.server.cluster.message.PartitionForkInitiated;
+import io.joshworks.eventry.server.cluster.message.PartitionForkRequested;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
@@ -34,11 +35,11 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
-public class ClusterStore implements IEventStore, ClusterEvents, ClusterCommands {
+public class ClusterStore implements IEventStore {
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterStore.class);
 
-    private static final int PARTITIONS = 2;
+    private static final int PARTITIONS = 10;
 
     private final Cluster cluster;
     private final List<Partition> partitions = new ArrayList<>();
@@ -56,21 +57,35 @@ public class ClusterStore implements IEventStore, ClusterEvents, ClusterCommands
     public static ClusterStore connect(File rootDir, String name) {
         try {
             ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
-            Cluster cluster = new Cluster(name, descriptor.uuid);
+            Cluster cluster = new Cluster(rootDir, name, descriptor.uuid);
             ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
+            cluster.register(NodeJoined.TYPE, store::onNodeJoined);
+            cluster.register(NodeLeft.TYPE, store::onNodeLeft);
+            cluster.register(NodeInfoRequested.TYPE, store::onNodeInfoRequested);
+            cluster.register(PartitionForkRequested.TYPE, store::onPartitionForkRequested);
+            cluster.register(PartitionForkInitiated.TYPE, store::onPartitionForkInitiated);
+            cluster.register(PartitionForkCompleted.TYPE, store::onPartitionForkCompleted);
+
             cluster.join();
             cluster.cast(NodeJoined.create(store.descriptor.uuid));
 
             List<ClusterMessage> responses = cluster.cast(NodeInfoRequested.create(descriptor.uuid));
-            if(store.descriptor.isNew && !responses.isEmpty()) {
-                logger.info("Forking partitions");
-                //TODO forking from first
-                EventRecord response = responses.get(0).message();
-
-            }
-
-            if (!cluster.otherNodes().isEmpty()) {
-                store.onlineLatch.await();
+            if (store.descriptor.isNew) {
+                if (!responses.isEmpty()) {
+                    logger.info("Forking partitions");
+                    //TODO forking 2 partition from each
+                    for (ClusterMessage response : responses) {
+                        EventRecord message = response.message();
+                        NodeInfo nodeInfo = NodeInfo.from(message);
+                        for (int i = 0; i < 2; i++) {
+                            int partitionId = nodeInfo.partitions.get(i);
+                            cluster.sendAsync(response.sender(), PartitionForkRequested.create(descriptor.uuid, partitionId));
+                        }
+                    }
+                } else {
+                    logger.info("No other nodes found, initializing partitions");
+                    store.partitions.addAll(initializePartitions(rootDir));
+                }
             }
 
             logger.info("Connected to {}", name);
@@ -81,51 +96,42 @@ public class ClusterStore implements IEventStore, ClusterEvents, ClusterCommands
         }
     }
 
-    private void transferPartition(int partitionId, String nodeId) {
-    }
-
-    @Override
-    public void onNodeJoined(NodeJoined nodeJoined) {
+    private void onNodeJoined(ClusterMessage message) {
+        NodeJoined nodeJoined = NodeJoined.from(message.message());
         logger.info("Node joined: '{}'", nodeJoined.uuid);
     }
 
-    @Override
-    public NodeInfo onNodeInfoRequested() {
-        logger.info("Node info requested");
+    private void onNodeLeft(ClusterMessage message) {
+        NodeLeft nodeJoined = NodeLeft.from(message.message());
+        logger.info("Node left: '{}'", nodeJoined.uuid);
+    }
+
+    private void onNodeInfoRequested(ClusterMessage message) {
+        NodeInfoRequested nodeInfoRequested = NodeInfoRequested.from(message.message());
+        logger.info("Node info requested from {}", nodeInfoRequested.uuid);
         List<Integer> pids = partitions.stream().map(p -> p.id).collect(Collectors.toList());
-        return new NodeInfo(descriptor.uuid, pids);
+        message.reply(NodeInfo.create(descriptor.uuid, pids));
     }
 
-    @Override
-    public void onNodeLeft(NodeLeft nodeLeft) {
+    private void onPartitionForkRequested(ClusterMessage message) {
+        PartitionForkRequested fork = PartitionForkRequested.from(message.message());
+        logger.info("Partition fork requested");
+        Partition partition = partitions.stream().filter(p -> p.id == fork.partitionId).findAny().orElseThrow(() -> new IllegalArgumentException("No partition found for id " + fork.uuid));
+        partition.close(); //TODO disable partition ?
 
+        cluster.copyFileRecursively(message.sender(), partition.root())
+                .thenRun(() -> cluster.send(message.sender(), PartitionForkCompleted.create(descriptor.uuid, fork.partitionId)));
     }
 
+    private void onPartitionForkInitiated(ClusterMessage message) {
+        PartitionForkInitiated fork = PartitionForkInitiated.from(message.message());
+        logger.info("Node info initiated: {}", fork.partitionId);
+    }
 
-//    @Subscribe
-//    public void onNodeJoined(NodeJoined nodeJoined) {
-//        logger.info("Node joined: {}, sending node info", nodeJoined.uuid);
-//
-//    }
-//
-//    @Subscribe
-//    public void onNodeInfoRequested(NodeInfoRequested infoRequested) {
-//        logger.info("Node info requested from: {}", infoRequested.uuid);
-//        List<Integer> pids = partitions.stream().map(p -> p.id).collect(Collectors.toList());
-//        cluster.sendTo(infoRequested.uuid, NodeInfoReceived.create(descriptor.uuid, pids));
-//
-//    }
-//
-//    @Subscribe
-//    public void onNodeLeft(NodeLeft nodeLeft) {
-//        logger.info("Node left: {}", nodeLeft.uuid);
-//    }
-//
-//    @Subscribe
-//    public void onNodeInfoReceived(NodeInfoReceived nodeInfo) {
-//        logger.info("Node info received: {}", nodeInfo);
-//        onlineLatch.countDown();
-//    }
+    private void onPartitionForkCompleted(ClusterMessage message) {
+        PartitionForkInitiated fork = PartitionForkInitiated.from(message.message());
+        logger.info("Node info completed: {}", fork.partitionId);
+    }
 
     private static List<Partition> initializePartitions(File root) {
         List<Partition> newPartitions = new ArrayList<>();

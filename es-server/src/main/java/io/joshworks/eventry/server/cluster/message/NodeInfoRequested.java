@@ -25,5 +25,4 @@ public class NodeInfoRequested extends ClusterEvent {
     public static NodeInfoRequested from(EventRecord record) {
         return serializer.fromBytes(ByteBuffer.wrap(record.body));
     }
-
 }

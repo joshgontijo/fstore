@@ -4,8 +4,6 @@ import io.joshworks.eventry.IEventStore;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.OutputStream;
-import java.nio.file.Files;
 
 public class Partition implements Closeable {
 
@@ -24,14 +22,8 @@ public class Partition implements Closeable {
         return owner;
     }
 
-
-    public void transferTo(OutputStream out) {
-        try {
-            close();
-            Files.copy(root.toPath(), out);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public File root() {
+        return root;
     }
 
     @Override

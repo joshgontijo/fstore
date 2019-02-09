@@ -2,7 +2,9 @@ package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
+import io.joshworks.eventry.server.cluster.partition.PartitionTransfer;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.IOUtils;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
 import org.jgroups.MembershipListener;
@@ -16,6 +18,8 @@ import org.jgroups.util.RspList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -26,22 +30,26 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-public class Cluster implements MembershipListener {
+public class Cluster implements MembershipListener, Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(Cluster.class);
 
     private static final Serializer<EventRecord> serializer = new EventSerializer();
 
-    private JChannel eventChannel;
+    private final File root;
     private final String clusterName;
     private final String nodeUuid;
+
+    private JChannel eventChannel;
     private View state;
     private MessageDispatcher dispatcher;
+    private PartitionTransfer partitionTransfer;
 
     private final Map<String, Address> nodes = new ConcurrentHashMap<>();
     private final EventHandler eventHandler;
 
-    public Cluster(String clusterName, String nodeUuid) {
+    public Cluster(File root, String clusterName, String nodeUuid) {
+        this.root = root;
         this.clusterName = clusterName;
         this.nodeUuid = nodeUuid;
         this.eventHandler = new EventHandler(this);
@@ -53,8 +61,10 @@ public class Cluster implements MembershipListener {
         }
         logger.info("Joining cluster");
         try {
+
+            //event channel
             eventChannel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp.xml"));
-            eventChannel.setDiscardOwnMessages(false);
+            eventChannel.setDiscardOwnMessages(true);
             eventChannel.setName(nodeUuid);
 
             dispatcher = new MessageDispatcher(eventChannel, eventHandler);
@@ -62,6 +72,13 @@ public class Cluster implements MembershipListener {
 
             eventChannel.connect(clusterName);
             eventChannel.getState(null, 10000);
+
+            //data transfer channel
+            JChannel transferChannel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp1.xml"));
+            transferChannel.setDiscardOwnMessages(true);
+            transferChannel.setName(nodeUuid + "_data");
+            transferChannel.connect(clusterName + "_data");
+            partitionTransfer = new PartitionTransfer(root, transferChannel);
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to join cluster", e);
@@ -149,6 +166,10 @@ public class Cluster implements MembershipListener {
         }
     }
 
+    public CompletableFuture<Void> copyFileRecursively(Address address, File root) {
+        return partitionTransfer.transferTo(address, root);
+    }
+
     private Buffer createBuffer(EventRecord event) {
         return new Buffer(serializer.toBytes(event).array());
     }
@@ -190,5 +211,11 @@ public class Cluster implements MembershipListener {
     @Override
     public void suspect(Address mbr) {
         logger.warn("SUSPECT ADDRESS: {}", mbr);
+    }
+
+    @Override
+    public void close() {
+        eventChannel.disconnect();
+        IOUtils.closeQuietly(dispatcher);
     }
 }
