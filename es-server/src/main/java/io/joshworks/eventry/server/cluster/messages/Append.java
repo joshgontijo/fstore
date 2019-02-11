@@ -1,4 +1,4 @@
-package io.joshworks.eventry.server.cluster.commands;
+package io.joshworks.eventry.server.cluster.messages;
 
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;

@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.server.cluster.message.ClusterEvent;
+import io.joshworks.eventry.server.cluster.messages.ClusterEvent;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;

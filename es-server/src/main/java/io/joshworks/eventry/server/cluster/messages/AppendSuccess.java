@@ -1,4 +1,4 @@
-package io.joshworks.eventry.server.cluster.commands;
+package io.joshworks.eventry.server.cluster.messages;
 
 import java.nio.ByteBuffer;
 

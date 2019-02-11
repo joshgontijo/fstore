@@ -22,8 +22,8 @@ public class CollectionSerializer<V, T extends Collection<V>> implements Seriali
     //practical but not very fast
     @Override
     public ByteBuffer toBytes(T data) {
-        int dataSize = sizeOfCollection(data);
-        ByteBuffer bb = ByteBuffer.allocate(Integer.BYTES + dataSize);
+        int totalSize = sizeOf(data);
+        ByteBuffer bb = ByteBuffer.allocate(totalSize);
         writeTo(data, bb);
         return bb.flip();
     }
@@ -47,6 +47,10 @@ public class CollectionSerializer<V, T extends Collection<V>> implements Seriali
             list.add(value);
         }
         return list;
+    }
+
+    public int sizeOf(Collection<V> collection) {
+        return Integer.BYTES + sizeOfCollection(collection);
     }
 
     private int sizeOfCollection(Collection<V> collection) {

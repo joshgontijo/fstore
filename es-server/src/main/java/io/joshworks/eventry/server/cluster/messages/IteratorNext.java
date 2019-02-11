@@ -1,22 +1,21 @@
-package io.joshworks.eventry.server.cluster.commands;
+package io.joshworks.eventry.server.cluster.messages;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.VStringSerializer;
 
 import java.nio.ByteBuffer;
 
-public class IteratorClose implements ClusterMessage {
+public class IteratorNext implements ClusterMessage {
 
-    public static final int CODE = 7;
-    private static final Serializer<String> vStringSerializer = new VStringSerializer();
+    public static final int CODE = 6;
 
     public final String uuid;
 
-    public IteratorClose(String uuid) {
+    public IteratorNext(String uuid) {
         this.uuid = uuid;
     }
 
-    public IteratorClose(ByteBuffer data) {
+    public IteratorNext(ByteBuffer data) {
         this.uuid = vStringSerializer.fromBytes(data);
     }
 

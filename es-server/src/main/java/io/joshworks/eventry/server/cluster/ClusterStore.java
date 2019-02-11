@@ -4,14 +4,14 @@ import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.server.cluster.commands.ClusterMessage;
-import io.joshworks.eventry.server.cluster.message.NodeInfo;
-import io.joshworks.eventry.server.cluster.message.NodeInfoRequested;
-import io.joshworks.eventry.server.cluster.message.NodeJoined;
-import io.joshworks.eventry.server.cluster.message.NodeLeft;
-import io.joshworks.eventry.server.cluster.message.PartitionForkCompleted;
-import io.joshworks.eventry.server.cluster.message.PartitionForkInitiated;
-import io.joshworks.eventry.server.cluster.message.PartitionForkRequested;
+import io.joshworks.eventry.server.cluster.messages.ClusterMessage;
+import io.joshworks.eventry.server.cluster.messages.NodeInfo;
+import io.joshworks.eventry.server.cluster.messages.NodeInfoRequested;
+import io.joshworks.eventry.server.cluster.messages.NodeJoined;
+import io.joshworks.eventry.server.cluster.messages.NodeLeft;
+import io.joshworks.eventry.server.cluster.messages.PartitionForkCompleted;
+import io.joshworks.eventry.server.cluster.messages.PartitionForkInitiated;
+import io.joshworks.eventry.server.cluster.messages.PartitionForkRequested;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,20 +36,24 @@ public class ClusterStore {
         this.rootDir = rootDir;
         this.descriptor = clusterDescriptor;
         this.cluster = cluster;
+        this.registerHandlers();
     }
 
+    private void registerHandlers() {
+        cluster.register(NodeJoined.CODE, this::onNodeJoined);
+        cluster.register(NodeLeft.CODE, this::onNodeLeft);
+        cluster.register(NodeInfoRequested.CODE, this::onNodeInfoRequested);
+        cluster.register(NodeInfo.CODE, this::onNodeInfoReceived);
+        cluster.register(PartitionForkRequested.TYPE, this::onPartitionForkRequested);
+        cluster.register(PartitionForkInitiated.TYPE, this::onPartitionForkInitiated);
+        cluster.register(PartitionForkCompleted.TYPE, this::onPartitionForkCompleted);
+    }
 
     public static ClusterStore connect(File rootDir, String name) {
         try {
             ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
             Cluster cluster = new Cluster(name, descriptor.uuid);
             ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
-            cluster.register(NodeJoined.TYPE, store::onNodeJoined);
-            cluster.register(NodeLeft.TYPE, store::onNodeLeft);
-            cluster.register(NodeInfoRequested.TYPE, store::onNodeInfoRequested);
-            cluster.register(PartitionForkRequested.TYPE, store::onPartitionForkRequested);
-            cluster.register(PartitionForkInitiated.TYPE, store::onPartitionForkInitiated);
-            cluster.register(PartitionForkCompleted.TYPE, store::onPartitionForkCompleted);
 
             cluster.join();
             cluster.cast(NodeJoined.create(store.descriptor.uuid));
@@ -83,21 +87,26 @@ public class ClusterStore {
         }
     }
 
-    private ClusterMessage onNodeJoined(ByteBuffer message) {
-        NodeJoined nodeJoined = NodeJoined.from(message.message());
-        logger.info("Node joined: '{}'", nodeJoined.uuid);
+    private void onNodeJoined(ByteBuffer message) {
+        NodeJoined nodeJoined = new NodeJoined(message);
+        logger.info("Node joined: '{}'", nodeJoined.nodeId);
     }
 
-    private ClusterMessage onNodeLeft(ClusterMessage message) {
-        NodeLeft nodeJoined = NodeLeft.from(message.message());
-        logger.info("Node left: '{}'", nodeJoined.uuid);
+    private void onNodeLeft(ByteBuffer message) {
+        NodeLeft nodeJoined = new NodeLeft(message);
+        logger.info("Node left: '{}'", nodeJoined.nodeId);
     }
 
-    private ClusterMessage onNodeInfoRequested(ClusterMessage message) {
-        NodeInfoRequested nodeInfoRequested = NodeInfoRequested.from(message.message());
-        logger.info("Node info requested from {}", nodeInfoRequested.uuid);
+    private ClusterMessage onNodeInfoRequested(ByteBuffer message) {
+        NodeInfoRequested nodeInfoRequested = new NodeInfoRequested(message);
+        logger.info("Node info requested from {}", nodeInfoRequested.nodeId);
         List<Integer> pids = partitions.stream().map(p -> p.id).collect(Collectors.toList());
-        message.reply(NodeInfo.create(descriptor.uuid, pids));
+        return new NodeInfo(descriptor.uuid, pids);
+    }
+
+    private void onNodeInfoReceived(ByteBuffer message) {
+        NodeInfo nodeInfo = new NodeInfo(message);
+        logger.info("Node info received from {}", nodeInfo.nodeId);
     }
 
     private ClusterMessage onPartitionForkRequested(ClusterMessage message) {
