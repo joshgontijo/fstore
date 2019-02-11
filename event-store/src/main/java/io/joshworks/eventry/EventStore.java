@@ -493,8 +493,7 @@ public class EventStore implements IEventStore {
             throw new IllegalArgumentException("EventStream cannot be null");
         }
 
-        StreamName stream = event.streamName();
-        long streamHash = stream.hash();
+        long streamHash = event.streamName().hash();
 
         if (streamMetadata.name.equals(event.stream) && streamMetadata.hash != streamHash) {
             //TODO improve ??
