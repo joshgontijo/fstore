@@ -1,9 +1,8 @@
 package io.joshworks.eventry.server.cluster;
 
-import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.log.EventSerializer;
-import io.joshworks.eventry.server.cluster.partition.PartitionTransfer;
-import io.joshworks.fstore.core.Serializer;
+import io.joshworks.eventry.server.cluster.client.AddressMapper;
+import io.joshworks.eventry.server.cluster.client.ClusterClient;
+import io.joshworks.eventry.server.cluster.commands.ClusterMessage;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
@@ -11,90 +10,84 @@ import org.jgroups.MembershipListener;
 import org.jgroups.Message;
 import org.jgroups.View;
 import org.jgroups.blocks.MessageDispatcher;
-import org.jgroups.blocks.RequestOptions;
-import org.jgroups.util.Buffer;
-import org.jgroups.util.Rsp;
-import org.jgroups.util.RspList;
+import org.jgroups.blocks.RequestHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class Cluster implements MembershipListener, Closeable {
+public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(Cluster.class);
 
-    private static final Serializer<EventRecord> serializer = new EventSerializer();
-
-    private final File root;
     private final String clusterName;
     private final String nodeUuid;
 
-    private JChannel eventChannel;
+    private JChannel channel;
     private View state;
     private MessageDispatcher dispatcher;
-    private PartitionTransfer partitionTransfer;
+    private ClusterClient clusterClient;
 
-    private final Map<String, Address> nodes = new ConcurrentHashMap<>();
-    private final EventHandler eventHandler;
+    private final Nodes nodes = new Nodes();
 
-    public Cluster(File root, String clusterName, String nodeUuid) {
-        this.root = root;
+    private final Map<Integer, Function<ByteBuffer, ClusterMessage>> handlers = new ConcurrentHashMap<>();
+
+    private static final Function<ByteBuffer, ClusterMessage> NO_OP = bb -> {
+        logger.warn("No message handler for code {}", bb.getInt(0));
+        return null; //This will cause sync clients to fail
+    };
+
+
+    public Cluster(String clusterName, String nodeUuid) {
         this.clusterName = clusterName;
         this.nodeUuid = nodeUuid;
-        this.eventHandler = new EventHandler(this);
     }
 
     public synchronized void join() {
-        if (eventChannel != null) {
-            throw new RuntimeException("Already joined");
+        if (channel != null) {
+            throw new RuntimeException("Already joined cluster '" + clusterName + "'");
         }
-        logger.info("Joining cluster");
+        logger.info("Joining cluster '{}'", clusterName);
         try {
-
             //event channel
-            eventChannel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp.xml"));
-            eventChannel.setDiscardOwnMessages(true);
-            eventChannel.setName(nodeUuid);
+            channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp.xml"));
+            channel.setDiscardOwnMessages(true);
+            channel.setName(nodeUuid);
 
-            dispatcher = new MessageDispatcher(eventChannel, eventHandler);
+            dispatcher = new MessageDispatcher(channel, this);
             dispatcher.setMembershipListener(this);
 
-            eventChannel.connect(clusterName);
-            eventChannel.getState(null, 10000);
+            clusterClient = new ClusterClient(dispatcher, new AddressMapper(nodes::fromUuid, nodes::fromAddress));
 
-            //data transfer channel
-            JChannel transferChannel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp1.xml"));
-            transferChannel.setDiscardOwnMessages(true);
-            transferChannel.setName(nodeUuid + "_data");
-            transferChannel.connect(clusterName + "_data");
-            partitionTransfer = new PartitionTransfer(root, transferChannel);
+            channel.connect(clusterName);
+            channel.getState(null, 10000);
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to join cluster", e);
         }
     }
 
-    public void register(String eventType, Consumer<ClusterMessage> consumer) {
-        this.eventHandler.register(eventType, consumer);
+    public ClusterClient client() {
+        return clusterClient;
+    }
+
+    public void register(int code, Function<ByteBuffer, ClusterMessage> handler) {
+        this.handlers.put(code, handler);
     }
 
     public Address address() {
-        return eventChannel.getAddress();
+        return channel.getAddress();
     }
 
     public synchronized void leave() {
-        eventChannel.close();
+        channel.close();
     }
 
     public List<Address> members() {
@@ -103,83 +96,6 @@ public class Cluster implements MembershipListener, Closeable {
 
     public List<Address> otherNodes() {
         return state.getMembers().stream().filter(address -> !address.equals(address())).collect(Collectors.toList());
-    }
-
-    /**
-     * Sends a message and waits for the response
-     */
-    public EventRecord send(Address address, EventRecord event) {
-        try {
-            Message response = dispatcher.sendMessage(address, createBuffer(event), RequestOptions.SYNC());
-            if (response == null) {
-                return null;
-            }
-            return serializer.fromBytes(ByteBuffer.wrap(response.buffer()));
-        } catch (Exception e) {
-            throw new ClusterException(e);
-        }
-    }
-
-
-    /**
-     * Sends a message and asynchronously process the response on the EVENT HANDLER
-     */
-    public void sendAsync(Address address, EventRecord event) {
-        try {
-            dispatcher.sendMessageWithFuture(address, createBuffer(event), RequestOptions.ASYNC());
-        } catch (Exception e) {
-            throw new ClusterException(e);
-        }
-    }
-
-    public List<ClusterMessage> cast(EventRecord event) {
-        return cast(null, event);
-    }
-
-    public List<ClusterMessage> cast(Collection<Address> addresses, EventRecord event) {
-        try {
-            RspList<Message> rsps = dispatcher.castMessage(addresses, createBuffer(event), RequestOptions.SYNC());
-            List<ClusterMessage> replies = new ArrayList<>();
-            for (Rsp<Message> rsp : rsps) {
-                Message value = rsp.getValue();
-                replies.add(ClusterMessage.from(value));
-            }
-            return replies;
-        } catch (Exception e) {
-            throw new ClusterException(e);
-        }
-    }
-
-    public void castAsync(EventRecord event) {
-        try {
-            dispatcher.castMessage(null, createBuffer(event), RequestOptions.ASYNC());
-        } catch (Exception e) {
-            throw new ClusterException(e);
-        }
-    }
-
-    public void castAsync(Collection<Address> addresses, EventRecord event) {
-        try {
-            dispatcher.castMessage(addresses, createBuffer(event), RequestOptions.ASYNC());
-        } catch (Exception e) {
-            throw new ClusterException(e);
-        }
-    }
-
-    public CompletableFuture<Void> copyFileRecursively(Address address, File root) {
-        return partitionTransfer.transferTo(address, root);
-    }
-
-    private Buffer createBuffer(EventRecord event) {
-        return new Buffer(serializer.toBytes(event).array());
-    }
-
-    private Address addressOf(String uuid) {
-        Address address = nodes.get(uuid);
-        if (address == null) {
-            throw new IllegalArgumentException("Node not found: " + uuid);
-        }
-        return address;
     }
 
     @Override
@@ -199,7 +115,7 @@ public class Cluster implements MembershipListener, Closeable {
 
         } else {
             for (Address address : view.getMembers()) {
-                if (!this.eventChannel.getAddress().equals(address)) {
+                if (!this.channel.getAddress().equals(address)) {
                     System.out.println("Already connected nodes: " + address);
                 }
 //                    eventBus.emit(new NodeJoined(inetAddress(address)));
@@ -215,7 +131,24 @@ public class Cluster implements MembershipListener, Closeable {
 
     @Override
     public void close() {
-        eventChannel.disconnect();
+        channel.disconnect();
         IOUtils.closeQuietly(dispatcher);
+    }
+
+    @Override
+    public Object handle(Message msg) {
+        try {
+            ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
+            int code = bb.getInt();
+            ClusterMessage response = handlers.getOrDefault(code, NO_OP).apply(bb);
+            if (response == null) {
+                return null;
+            }
+            byte[] replyData = response.toBytes();
+            return new Message(msg.src(), replyData).setSrc(address());
+        } catch (Exception e) {
+            logger.error("Failed to receive message: " + msg, e);
+            throw new RuntimeException(e);//TODO improve
+        }
     }
 }

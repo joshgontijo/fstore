@@ -77,10 +77,7 @@ public class Server {
         group("/push", () -> sse(subscriptions.newPushHandler()));
 
 
-        onShutdown(() -> {
-            store.close();
-
-        });
+        onShutdown(store::close);
 
         Integer portOffset = properties.getInt("http.port.offset").orElse(0);
         portOffset(portOffset);

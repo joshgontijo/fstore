@@ -60,6 +60,10 @@ public class Iterators {
         return new BufferingIterator<>(iterator, bufferSize);
     }
 
+    public static <T> LogIterator<List<T>> batching(LogIterator<T> iterator, int batchSize) {
+        return new BatchingIterator<>(iterator, batchSize);
+    }
+
     public static <T> LogIterator<T> limiting(LogIterator<T> iterator, int limit) {
         return new LimitIterator<>(iterator, limit);
     }
@@ -404,13 +408,61 @@ public class Iterators {
         }
 
         private boolean buffer() {
-            int buffered = 0;
-            while (buffered <= bufferSize && delegate.hasNext()) {
+            int buffered = buffer.size();
+            while (buffered < bufferSize && delegate.hasNext()) {
                 buffer.add(delegate.next());
                 buffered++;
             }
             return buffered > 0;
         }
+    }
+
+    private static final class BatchingIterator<T> implements LogIterator<List<T>> {
+
+        private final LogIterator<T> delegate;
+        private final int bufferSize;
+        private List<T> buffer = new ArrayList<>();
+
+        private BatchingIterator(LogIterator<T> delegate, int bufferSize) {
+            this.delegate = delegate;
+            this.bufferSize = bufferSize;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return !buffer.isEmpty() || batch();
+        }
+
+        @Override
+        public List<T> next() {
+            if (buffer.isEmpty() && !batch()) {
+                throw new NoSuchElementException();
+            }
+            List<T> tmp = buffer;
+            buffer = new ArrayList<>();
+            return tmp;
+        }
+
+        private boolean batch() {
+            int buffered = buffer.size();
+            while (buffered < bufferSize && delegate.hasNext()) {
+                buffer.add(delegate.next());
+                buffered++;
+            }
+            return buffered > 0;
+        }
+
+
     }
 
     private static final class LimitIterator<T> implements LogIterator<T> {
