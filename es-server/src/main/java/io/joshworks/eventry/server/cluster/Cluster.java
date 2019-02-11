@@ -2,7 +2,7 @@ package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.server.cluster.client.AddressMapper;
 import io.joshworks.eventry.server.cluster.client.ClusterClient;
-import io.joshworks.eventry.server.cluster.commands.ClusterMessage;
+import io.joshworks.eventry.server.cluster.messages.ClusterMessage;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -82,6 +83,13 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         this.handlers.put(code, handler);
     }
 
+    public void register(int code, Consumer<ByteBuffer> handler) {
+        this.handlers.put(code, bb -> {
+            handler.accept(bb);
+            return null;
+        });
+    }
+
     public Address address() {
         return channel.getAddress();
     }
@@ -142,7 +150,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             int code = bb.getInt();
             ClusterMessage response = handlers.getOrDefault(code, NO_OP).apply(bb);
             if (response == null) {
-                return null;
+                return null; //TODO will null actually send a response message ?
             }
             byte[] replyData = response.toBytes();
             return new Message(msg.src(), replyData).setSrc(address());

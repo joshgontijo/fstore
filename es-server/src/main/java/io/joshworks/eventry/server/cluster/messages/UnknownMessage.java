@@ -1,20 +1,20 @@
-package io.joshworks.eventry.server.cluster.commands;
+package io.joshworks.eventry.server.cluster.messages;
 
 import java.nio.ByteBuffer;
 
 /**
  * Used to issue append to command to the partition owner by another node who received the message from the client
  */
-public class UnknownCommand implements ClusterMessage {
+public class UnknownMessage implements ClusterMessage {
 
     public static final int CODE = -1;
     public final int unknownCode;
 
-    public UnknownCommand(int unknownCode) {
+    public UnknownMessage(int unknownCode) {
         this.unknownCode = unknownCode;
     }
 
-    public UnknownCommand(ByteBuffer data) {
+    public UnknownMessage(ByteBuffer data) {
         this.unknownCode = data.getInt();
     }
 

@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server.cluster.client;
 
-import io.joshworks.eventry.server.cluster.commands.ClusterMessage;
+import io.joshworks.eventry.server.cluster.messages.ClusterMessage;
 import org.jgroups.Address;
 import org.jgroups.Message;
 import org.jgroups.blocks.MessageDispatcher;
