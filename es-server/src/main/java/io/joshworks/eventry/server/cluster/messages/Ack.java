@@ -11,4 +11,9 @@ public class Ack implements ClusterMessage {
     public byte[] toBytes() {
         return ByteBuffer.allocate(Integer.BYTES).putInt(CODE).flip().array();
     }
+
+    @Override
+    public int code() {
+        return CODE;
+    }
 }

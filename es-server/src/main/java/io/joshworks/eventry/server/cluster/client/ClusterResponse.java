@@ -4,14 +4,14 @@ import java.util.List;
 
 public class ClusterResponse {
 
-    public final List<NodeResponse> responses;
+    public final List<NodeMessage> responses;
 
-    public ClusterResponse(List<NodeResponse> responses) {
+    public ClusterResponse(List<NodeMessage> responses) {
         this.responses = responses;
     }
 
     public boolean hasError() {
-        return responses.stream().anyMatch(NodeResponse::isError);
+        return responses.stream().anyMatch(NodeMessage::isError);
     }
 
 }

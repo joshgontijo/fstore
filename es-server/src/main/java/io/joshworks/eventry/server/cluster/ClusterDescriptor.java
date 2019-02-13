@@ -21,14 +21,14 @@ import java.util.UUID;
 public class ClusterDescriptor implements Closeable {
 
     private static final String FILE = ".partitions";
-    public final String uuid;
+    public final String nodeId;
     public final boolean isNew;
     private final FileChannel channel;
     private final FileLock lock;
 
 
-    private ClusterDescriptor(String uuid, boolean isNew, FileChannel channel, FileLock lock) {
-        this.uuid = uuid;
+    private ClusterDescriptor(String nodeId, boolean isNew, FileChannel channel, FileLock lock) {
+        this.nodeId = nodeId;
         this.isNew = isNew;
         this.channel = channel;
         this.lock = lock;

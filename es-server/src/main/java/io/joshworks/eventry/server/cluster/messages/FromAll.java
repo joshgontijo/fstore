@@ -8,21 +8,23 @@ import java.nio.ByteBuffer;
 public class FromAll implements ClusterMessage {
 
     public static final int CODE = 1;
-    public static final int BYTES = Integer.BYTES * 4;
+    public static final int BYTES = Integer.BYTES * 5;
 
     private static final LinkToPolicy[] ltpItems = LinkToPolicy.values();
     private static final SystemEventPolicy[] sepItems = SystemEventPolicy.values();
 
     public final int timeout;//seconds
     public final int batchSize;
+    public final int partitionId;
 
     public final LinkToPolicy linkToPolicy;
     public final SystemEventPolicy systemEventPolicy;
 
 
-    public FromAll(int timeout, int batchSize, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+    public FromAll(int timeout, int batchSize, int partitionId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
         this.timeout = timeout;
         this.batchSize = batchSize;
+        this.partitionId = partitionId;
         this.linkToPolicy = linkToPolicy;
         this.systemEventPolicy = systemEventPolicy;
     }
@@ -30,6 +32,7 @@ public class FromAll implements ClusterMessage {
     public FromAll(ByteBuffer bb) {
         this.timeout = bb.getInt();
         this.batchSize = bb.getInt();
+        this.partitionId = bb.getInt();
         this.linkToPolicy = ltpItems[bb.getInt()];
         this.systemEventPolicy = sepItems[bb.getInt()];
     }
@@ -40,8 +43,14 @@ public class FromAll implements ClusterMessage {
         bb.putInt(CODE);
         bb.putInt(timeout);
         bb.putInt(batchSize);
+        bb.putInt(partitionId);
         bb.putInt(linkToPolicy.ordinal());
         bb.putInt(systemEventPolicy.ordinal());
         return bb.flip().array();
+    }
+
+    @Override
+    public int code() {
+        return CODE;
     }
 }

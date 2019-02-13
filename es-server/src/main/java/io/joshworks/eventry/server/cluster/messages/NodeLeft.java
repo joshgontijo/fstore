@@ -27,4 +27,9 @@ public class NodeLeft implements ClusterMessage {
         return bb.array();
     }
 
+    @Override
+    public int code() {
+        return CODE;
+    }
+
 }
