@@ -28,33 +28,33 @@ public class ClusterClient {
         this.addressMapper = addressMapper;
     }
 
-    public NodeResponse send(String uuid, ClusterMessage message) {
+    public NodeMessage send(String uuid, ClusterMessage message) {
         Message response = send(uuid, message, RequestOptions.SYNC());
         requireNonNull(response, "Response cannot be null");
-        return new NodeResponse(uuid, ByteBuffer.wrap(response.buffer()));
+        return new NodeMessage(uuid, ByteBuffer.wrap(response.buffer()));
     }
 
     public void sendAsync(String uuid, ClusterMessage message) {
         send(uuid, message, RequestOptions.ASYNC());
     }
 
-    public ClusterResponse cast(ClusterMessage message) {
+    public List<NodeMessage> cast(ClusterMessage message) {
         return cast(null, message);
     }
 
-    public ClusterResponse cast(List<String> uuids, ClusterMessage message) {
+    public List<NodeMessage> cast(List<String> uuids, ClusterMessage message) {
         RspList<Message> responses = cast(uuids, message, RequestOptions.SYNC());
         requireNonNull(responses, "Responses cannot be null");
 
-        List<NodeResponse> nodeResponses = new ArrayList<>();
+        List<NodeMessage> nodeRespons = new ArrayList<>();
         for (Rsp<Message> response : responses) {
             requireNonNull(response, "Response cannot be null");
             Message respMsg = response.getValue();
             ByteBuffer resp = ByteBuffer.wrap(respMsg.buffer());
             String uuid = addressMapper.toUuid(respMsg.src());
-            nodeResponses.add(new NodeResponse(uuid, resp));
+            nodeRespons.add(new NodeMessage(uuid, resp));
         }
-        return new ClusterResponse(nodeResponses);
+        return nodeRespons;
     }
 
     public void castAsync(ClusterMessage message) {

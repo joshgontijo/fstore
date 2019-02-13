@@ -1,6 +1,5 @@
 package io.joshworks.eventry.server.cluster.messages;
 
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.VStringSerializer;
 
 import java.nio.ByteBuffer;
@@ -26,5 +25,10 @@ public class IteratorNext implements ClusterMessage {
         vStringSerializer.writeTo(uuid, bb);
         bb.flip();
         return bb.array();
+    }
+
+    @Override
+    public int code() {
+        return CODE;
     }
 }

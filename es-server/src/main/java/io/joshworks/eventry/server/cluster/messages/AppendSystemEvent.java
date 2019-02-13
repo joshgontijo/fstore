@@ -37,4 +37,9 @@ public class AppendSystemEvent implements ClusterMessage {
         envelope.put(bb);
         return envelope.flip().array();
     }
+
+    @Override
+    public int code() {
+        return CODE;
+    }
 }

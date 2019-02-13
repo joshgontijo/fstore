@@ -22,4 +22,9 @@ public class UnknownMessage implements ClusterMessage {
     public byte[] toBytes() {
         return ByteBuffer.allocate(Integer.BYTES * 2).putInt(CODE).putInt(unknownCode).flip().array();
     }
+
+    @Override
+    public int code() {
+        return CODE;
+    }
 }

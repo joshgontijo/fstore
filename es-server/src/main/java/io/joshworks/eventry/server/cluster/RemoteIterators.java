@@ -1,11 +1,9 @@
 package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,11 +14,11 @@ public class RemoteIterators {
     private final Map<String, LogIterator<EventRecord>> items = new ConcurrentHashMap<>();
 
     public String add(long timeout, int batchSize, LogIterator<EventRecord> delegate) {
-        String uuid = UUID.randomUUID().toString().substring(0,8);
+        String uuid = UUID.randomUUID().toString().substring(0, 8);
 
         TimestampedIterator timestamped = new TimestampedIterator(timeout, batchSize, delegate);
 
-        items.put(uuid, );
+        items.put(uuid, timestamped);
         return uuid;
     }
 

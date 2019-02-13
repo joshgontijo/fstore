@@ -26,4 +26,9 @@ public class NodeInfoRequested implements ClusterMessage {
         bb.flip();
         return bb.array();
     }
+
+    @Override
+    public int code() {
+        return CODE;
+    }
 }

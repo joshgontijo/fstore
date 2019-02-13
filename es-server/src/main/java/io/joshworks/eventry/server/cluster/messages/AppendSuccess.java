@@ -9,8 +9,17 @@ public class AppendSuccess implements ClusterMessage {
 
     public static final int CODE = 3;
 
+    public AppendSuccess(ByteBuffer ignore) {
+        //do nothing
+    }
+
     @Override
     public byte[] toBytes() {
         return ByteBuffer.allocate(Integer.BYTES).putInt(CODE).flip().array();
+    }
+
+    @Override
+    public int code() {
+        return CODE;
     }
 }

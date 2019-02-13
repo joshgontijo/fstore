@@ -22,4 +22,9 @@ public class AppendError implements ClusterMessage {
     public byte[] toBytes() {
         return ByteBuffer.allocate(Integer.BYTES * 2).putInt(CODE).putInt(errorCode).flip().array();
     }
+
+    @Override
+    public int code() {
+        return CODE;
+    }
 }

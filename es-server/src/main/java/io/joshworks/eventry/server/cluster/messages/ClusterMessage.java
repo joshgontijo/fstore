@@ -9,6 +9,8 @@ public interface ClusterMessage {
 
     byte[] toBytes();
 
+    int code();
+
     static boolean isError(int code) {
         return code < 0;
     }

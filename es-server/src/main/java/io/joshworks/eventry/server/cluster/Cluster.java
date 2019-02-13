@@ -2,7 +2,7 @@ package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.server.cluster.client.AddressMapper;
 import io.joshworks.eventry.server.cluster.client.ClusterClient;
-import io.joshworks.eventry.server.cluster.messages.ClusterMessage;
+import io.joshworks.eventry.server.cluster.client.NodeMessage;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
@@ -38,10 +38,10 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     private final Nodes nodes = new Nodes();
 
-    private final Map<Integer, Function<ByteBuffer, ClusterMessage>> handlers = new ConcurrentHashMap<>();
+    private final Map<Integer, Function<NodeMessage, NodeMessage>> handlers = new ConcurrentHashMap<>();
 
-    private static final Function<ByteBuffer, ClusterMessage> NO_OP = bb -> {
-        logger.warn("No message handler for code {}", bb.getInt(0));
+    private static final Function<NodeMessage, NodeMessage> NO_OP = bb -> {
+        logger.warn("No message handler for code {}", bb.code);
         return null; //This will cause sync clients to fail
     };
 
@@ -79,11 +79,11 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return clusterClient;
     }
 
-    public void register(int code, Function<ByteBuffer, ClusterMessage> handler) {
+    public void register(int code, Function<NodeMessage, NodeMessage> handler) {
         this.handlers.put(code, handler);
     }
 
-    public void register(int code, Consumer<ByteBuffer> handler) {
+    public void register(int code, Consumer<NodeMessage> handler) {
         this.handlers.put(code, bb -> {
             handler.accept(bb);
             return null;
@@ -147,12 +147,13 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     public Object handle(Message msg) {
         try {
             ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
-            int code = bb.getInt();
-            ClusterMessage response = handlers.getOrDefault(code, NO_OP).apply(bb);
+            String srcId = nodes.fromAddress(msg.src());
+            NodeMessage nodeMessage = new NodeMessage(srcId, bb);
+            NodeMessage response = handlers.getOrDefault(nodeMessage.code, NO_OP).apply(nodeMessage);
             if (response == null) {
                 return null; //TODO will null actually send a response message ?
             }
-            byte[] replyData = response.toBytes();
+            byte[] replyData = response.buffer.array();
             return new Message(msg.src(), replyData).setSrc(address());
         } catch (Exception e) {
             logger.error("Failed to receive message: " + msg, e);

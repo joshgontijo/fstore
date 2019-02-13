@@ -11,44 +11,36 @@ import io.joshworks.eventry.projections.Projection;
 import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.projections.result.Metrics;
 import io.joshworks.eventry.projections.result.TaskStatus;
+import io.joshworks.eventry.server.cluster.client.ClusterClient;
 import io.joshworks.eventry.server.cluster.messages.Append;
-import io.joshworks.eventry.server.cluster.messages.AppendError;
 import io.joshworks.eventry.server.cluster.messages.AppendSuccess;
+import io.joshworks.eventry.server.cluster.messages.EventData;
+import io.joshworks.eventry.server.cluster.messages.FromAll;
 import io.joshworks.eventry.server.cluster.messages.IteratorClose;
+import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
+import io.joshworks.eventry.server.cluster.messages.IteratorNext;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
-import org.jgroups.Address;
-import org.jgroups.Message;
-import org.jgroups.blocks.MessageDispatcher;
-import org.jgroups.blocks.RequestOptions;
-import org.jgroups.util.Buffer;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 
 //CLIENT
 public class RemoteStoreClient implements IEventStore {
 
-    private final MessageDispatcher dispatcher;
-    private final Address target;
+    private final ClusterClient client;
+    private final String nodeId;
 
-    public RemoteStoreClient(MessageDispatcher dispatcher, Address target) {
-        this.dispatcher = dispatcher;
-        this.target = target;
-    }
-
-    private Message send(byte[] data) {
-        try {
-            return dispatcher.sendMessage(target, new Buffer(data), RequestOptions.SYNC());
-        } catch (Exception e) {
-            throw new RemoteClientException(e);
-        }
+    public RemoteStoreClient(ClusterClient client, String nodeId) {
+        this.client = client;
+        this.nodeId = nodeId;
     }
 
     @Override
@@ -84,16 +76,7 @@ public class RemoteStoreClient implements IEventStore {
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
         Append append = new Append(event, expectedVersion);
-        Message response = send(append.toBytes());
-        ByteBuffer bb = ByteBuffer.wrap(response.buffer());
-        int code = bb.getInt();
-        if(AppendSuccess.CODE == code) {
-            return null;
-        }
-        if(AppendError.CODE == code) {
-            AppendError error = new AppendError(bb);
-            throw new RuntimeException("REMOTE ERROR CODE: " + error.errorCode);
-        }
+        AppendSuccess response = client.send(nodeId, append).as(AppendSuccess::new);
         return null; //TODO
     }
 
@@ -119,7 +102,8 @@ public class RemoteStoreClient implements IEventStore {
 
     @Override
     public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-        return null;
+        IteratorCreated it = client.send(nodeId, new FromAll(10000, 20, linkToPolicy, systemEventPolicy)).as(IteratorCreated::new);
+        return new RemoteStoreClientIterator(client, nodeId, it.iteratorId);
     }
 
     @Override
@@ -239,14 +223,16 @@ public class RemoteStoreClient implements IEventStore {
 
     private static class RemoteStoreClientIterator implements LogIterator<EventRecord> {
 
-        private final MessageDispatcher dispatcher;
-        private final Address target;
-        private final String uuid;
+        private final ClusterClient client;
+        private final String nodeId;
+        private final String iteratorId;
 
-        private RemoteStoreClientIterator(MessageDispatcher dispatcher, Address target, String uuid) {
-            this.dispatcher = dispatcher;
-            this.target = target;
-            this.uuid = uuid;
+        private final Queue<EventRecord> cached = new ArrayDeque<>();
+
+        private RemoteStoreClientIterator(ClusterClient client, String nodeId, String iteratorId) {
+            this.client = client;
+            this.iteratorId = iteratorId;
+            this.nodeId = nodeId;
         }
 
         @Override
@@ -255,20 +241,32 @@ public class RemoteStoreClient implements IEventStore {
         }
 
         @Override
-        public void close() throws IOException {
-            byte[] bytes = new IteratorClose(uuid).toBytes();
-            dispatcher.sendMessage(target, new Buffer(bytes), RequestOptions.SYNC());
+        public void close() {
+            client.send(nodeId, new IteratorClose(iteratorId));
         }
 
         @Override
         public boolean hasNext() {
-            return false;
+            if(!cached.isEmpty()) {
+                return true;
+            }
+            fetch();
+            return cached.isEmpty();
         }
 
         @Override
         public EventRecord next() {
-            return null;
+            if(!hasNext()) {
+                throw new NoSuchElementException("No remote element found");
+            }
+            return cached.poll();
         }
+
+        private void fetch() {
+            EventData eventData = client.send(nodeId, new IteratorNext(iteratorId)).as(EventData::new);
+            cached.add(eventData.record);
+        }
+
     }
 
 }
