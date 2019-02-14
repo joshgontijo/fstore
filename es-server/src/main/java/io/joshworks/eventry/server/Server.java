@@ -1,13 +1,11 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.server.cluster.ClusterStore;
 import io.joshworks.fstore.core.properties.AppProperties;
 import io.joshworks.snappy.http.MediaType;
 import io.joshworks.snappy.parser.Parsers;
 import io.joshworks.snappy.parser.PlainTextParser;
 
-import java.io.File;
 import java.util.UUID;
 
 import static io.joshworks.snappy.SnappyServer.cors;
@@ -34,7 +32,8 @@ public class Server {
         String path = properties.get("store.path").orElse("J:\\event-store\\" + UUID.randomUUID().toString().substring(0, 8));
 
 
-        IEventStore store = ClusterStore.connect(new File(path), "test");
+//        IEventStore store = ClusterStore.connect(new File(path), "test");
+        IEventStore store = null;
 
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
         SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store, broadcast);

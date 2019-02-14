@@ -22,6 +22,7 @@ import io.joshworks.eventry.server.cluster.messages.IteratorNext;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
+import org.jgroups.Address;
 
 import java.util.ArrayDeque;
 import java.util.Collection;
@@ -36,11 +37,13 @@ import java.util.Set;
 public class RemoteStoreClient implements IEventStore {
 
     private final ClusterClient client;
-    private final String nodeId;
+    private final Address address;
+    private final int partitionId;
 
-    public RemoteStoreClient(ClusterClient client, String nodeId) {
+    public RemoteStoreClient(ClusterClient client, Address address, int partitionId) {
         this.client = client;
-        this.nodeId = nodeId;
+        this.address = address;
+        this.partitionId = partitionId;
     }
 
     @Override
@@ -76,7 +79,7 @@ public class RemoteStoreClient implements IEventStore {
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
         Append append = new Append(event, expectedVersion);
-        AppendSuccess response = client.send(nodeId, append).as(AppendSuccess::new);
+        AppendSuccess response = client.send(address, append).as(AppendSuccess::new);
         return null; //TODO
     }
 
@@ -102,13 +105,13 @@ public class RemoteStoreClient implements IEventStore {
 
     @Override
     public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-        IteratorCreated it = client.send(nodeId, new FromAll(10000, 20, linkToPolicy, systemEventPolicy)).as(IteratorCreated::new);
-        return new RemoteStoreClientIterator(client, nodeId, it.iteratorId);
+        return fromAll(linkToPolicy, systemEventPolicy, null);
     }
 
     @Override
     public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
-        return null;
+        IteratorCreated it = client.send(address, new FromAll(10000, 20, partitionId, linkToPolicy, systemEventPolicy, lastEvent)).as(IteratorCreated::new);
+        return new RemoteStoreClientIterator(client, address, it.iteratorId);
     }
 
     @Override
@@ -224,15 +227,15 @@ public class RemoteStoreClient implements IEventStore {
     private static class RemoteStoreClientIterator implements LogIterator<EventRecord> {
 
         private final ClusterClient client;
-        private final String nodeId;
+        private final Address address;
         private final String iteratorId;
 
         private final Queue<EventRecord> cached = new ArrayDeque<>();
 
-        private RemoteStoreClientIterator(ClusterClient client, String nodeId, String iteratorId) {
+        private RemoteStoreClientIterator(ClusterClient client, Address address, String iteratorId) {
             this.client = client;
             this.iteratorId = iteratorId;
-            this.nodeId = nodeId;
+            this.address = address;
         }
 
         @Override
@@ -242,12 +245,12 @@ public class RemoteStoreClient implements IEventStore {
 
         @Override
         public void close() {
-            client.send(nodeId, new IteratorClose(iteratorId));
+            client.send(address, new IteratorClose(iteratorId));
         }
 
         @Override
         public boolean hasNext() {
-            if(!cached.isEmpty()) {
+            if (!cached.isEmpty()) {
                 return true;
             }
             fetch();
@@ -256,14 +259,14 @@ public class RemoteStoreClient implements IEventStore {
 
         @Override
         public EventRecord next() {
-            if(!hasNext()) {
+            if (!hasNext()) {
                 throw new NoSuchElementException("No remote element found");
             }
             return cached.poll();
         }
 
         private void fetch() {
-            EventData eventData = client.send(nodeId, new IteratorNext(iteratorId)).as(EventData::new);
+            EventData eventData = client.send(address, new IteratorNext(iteratorId)).as(EventData::new);
             cached.add(eventData.record);
         }
 

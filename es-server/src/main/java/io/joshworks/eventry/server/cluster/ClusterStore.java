@@ -24,6 +24,7 @@ import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
 import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.PartitionCreatedEvent;
 import io.joshworks.fstore.log.LogIterator;
+import org.jgroups.Address;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,11 +112,11 @@ public class ClusterStore {
         }
     }
 
-    private NodeMessage fromAllRequested(NodeMessage message) {
+    private ClusterMessage fromAllRequested(NodeMessage message) {
         FromAll fromAll = message.as(FromAll::new);
         LogIterator<EventRecord> iterator = partitions.get(fromAll.partitionId).store().fromAll(fromAll.linkToPolicy, fromAll.systemEventPolicy);
         String iteratorId = remoteIterators.add(-1, -1, iterator);
-        return NodeMessage.create(descriptor.nodeId, new IteratorCreated(iteratorId));
+        return new IteratorCreated(iteratorId);
     }
 
     //TODO this is totally wrong, append here will create events from scratch
@@ -133,7 +134,7 @@ public class ClusterStore {
         logger.info("Node joined: '{}': {}", nodeJoined.nodeId, nodeJoined);
         nodeLog.append(new NodeJoinedEvent(nodeJoined.nodeId));
         for (int ownedPartition : nodeJoined.partitions) {
-            Partition remotePartition = initRemotePartition(nodeJoined.nodeId, ownedPartition);
+            Partition remotePartition = initRemotePartition(message.address, ownedPartition);
             partitions.put(ownedPartition, remotePartition);
         }
     }
@@ -186,8 +187,8 @@ public class ClusterStore {
         throw new UnsupportedOperationException("TODO");
     }
 
-    private Partition initRemotePartition(String nodeId, int partitionId) {
-        IEventStore store = new RemoteStoreClient(cluster.client(), nodeId);
+    private Partition initRemotePartition(Address address, int partitionId) {
+        IEventStore store = new RemoteStoreClient(cluster.client(), address, partitionId);
         return new Partition(partitionId, store);
     }
 
