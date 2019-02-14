@@ -9,11 +9,11 @@ public class ClusterNode {
     public final Address address;
     public final long since;
 
-    public NodeStatus status = NodeStatus.DOWN;
+    public NodeStatus status = NodeStatus.UP;
 
-    public ClusterNode(String uuid, Address address, long since) {
-        this.uuid = uuid;
+    public ClusterNode(Address address) {
+        this.uuid = address.toString(); //Jgroups will use the logical channel name as the address string
         this.address = address;
-        this.since = since;
+        this.since = System.currentTimeMillis();
     }
 }

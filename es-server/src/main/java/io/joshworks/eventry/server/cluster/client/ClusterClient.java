@@ -9,64 +9,74 @@ import org.jgroups.util.Buffer;
 import org.jgroups.util.Rsp;
 import org.jgroups.util.RspList;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 
 public class ClusterClient {
 
     private final MessageDispatcher dispatcher;
-    private final AddressMapper addressMapper;
 
-    public ClusterClient(MessageDispatcher dispatcher, AddressMapper addressMapper) {
+    public ClusterClient(MessageDispatcher dispatcher) {
         this.dispatcher = dispatcher;
-        this.addressMapper = addressMapper;
     }
 
-    public NodeMessage send(String uuid, ClusterMessage message) {
-        Message response = send(uuid, message, RequestOptions.SYNC());
-        requireNonNull(response, "Response cannot be null");
-        return new NodeMessage(uuid, ByteBuffer.wrap(response.buffer()));
+    /**
+     * Sends a synchronous request and wait for a response
+     */
+    public NodeMessage send(Address address, ClusterMessage message) {
+        Message response = send(address, message, RequestOptions.SYNC());
+        return response == null ? null : new NodeMessage(response);
     }
 
-    public void sendAsync(String uuid, ClusterMessage message) {
-        send(uuid, message, RequestOptions.ASYNC());
+    /**
+     * Fire and forget, no response expected from the target node
+     */
+    public void sendAsync(Address address, ClusterMessage message) {
+        send(address, message, RequestOptions.ASYNC());
     }
 
+    /**
+     * Sends a synchronous request and wait for all responses
+     */
     public List<NodeMessage> cast(ClusterMessage message) {
         return cast(null, message);
     }
 
-    public List<NodeMessage> cast(List<String> uuids, ClusterMessage message) {
-        RspList<Message> responses = cast(uuids, message, RequestOptions.SYNC());
+    /**
+     * Sends a synchronous request to the specified nodes and wait for all responses, responses must not be null,
+     */
+    public List<NodeMessage> cast(List<Address> addresses, ClusterMessage message) {
+        RspList<Message> responses = cast(addresses, message, RequestOptions.SYNC());
         requireNonNull(responses, "Responses cannot be null");
 
-        List<NodeMessage> nodeRespons = new ArrayList<>();
+        List<NodeMessage> nodeResponses = new ArrayList<>();
         for (Rsp<Message> response : responses) {
             requireNonNull(response, "Response cannot be null");
             Message respMsg = response.getValue();
-            ByteBuffer resp = ByteBuffer.wrap(respMsg.buffer());
-            String uuid = addressMapper.toUuid(respMsg.src());
-            nodeRespons.add(new NodeMessage(uuid, resp));
+            nodeResponses.add(new NodeMessage(respMsg));
         }
-        return nodeRespons;
+        return nodeResponses;
     }
 
+    /**
+     * Sends a asynchronous request to all nodes in the cluster
+     */
     public void castAsync(ClusterMessage message) {
         castAsync(null, message);
     }
 
-    public void castAsync(List<String> uuids, ClusterMessage message) {
-        cast(uuids, message, RequestOptions.ASYNC());
+    /**
+     * Sends a asynchronous request to the specified nodes in the cluster
+     */
+    public void castAsync(List<Address> addresses, ClusterMessage message) {
+        cast(addresses, message, RequestOptions.ASYNC());
     }
 
-    private Message send(String uuid, ClusterMessage message, RequestOptions options) {
-        Address address = addressMapper.toAddress(uuid);
+    private Message send(Address address, ClusterMessage message, RequestOptions options) {
         try {
             return dispatcher.sendMessage(address, new Buffer(message.toBytes()), options);
         } catch (Exception e) {
@@ -74,8 +84,7 @@ public class ClusterClient {
         }
     }
 
-    private RspList<Message> cast(Collection<String> uuids, ClusterMessage message, RequestOptions options) {
-        List<Address> addresses = uuids == null ? null : uuids.stream().map(addressMapper::toAddress).collect(Collectors.toList());
+    private RspList<Message> cast(Collection<Address> addresses, ClusterMessage message, RequestOptions options) {
         try {
             return dispatcher.castMessage(addresses, new Buffer(message.toBytes()), options);
         } catch (Exception e) {

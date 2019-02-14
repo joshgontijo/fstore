@@ -1,8 +1,9 @@
 package io.joshworks.eventry.server.cluster;
 
-import io.joshworks.eventry.server.cluster.client.AddressMapper;
+import io.joshworks.eventry.server.NodeStatus;
 import io.joshworks.eventry.server.cluster.client.ClusterClient;
 import io.joshworks.eventry.server.cluster.client.NodeMessage;
+import io.joshworks.eventry.server.cluster.messages.ClusterMessage;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
@@ -15,14 +16,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
@@ -36,11 +35,10 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private MessageDispatcher dispatcher;
     private ClusterClient clusterClient;
 
-    private final Nodes nodes = new Nodes();
+    private final Map<Address, ClusterNode> nodes = new ConcurrentHashMap<>();
+    private final Map<Integer, Function<NodeMessage, ClusterMessage>> handlers = new ConcurrentHashMap<>();
 
-    private final Map<Integer, Function<NodeMessage, NodeMessage>> handlers = new ConcurrentHashMap<>();
-
-    private static final Function<NodeMessage, NodeMessage> NO_OP = bb -> {
+    private static final Function<NodeMessage, ClusterMessage> NO_OP = bb -> {
         logger.warn("No message handler for code {}", bb.code);
         return null; //This will cause sync clients to fail
     };
@@ -65,10 +63,10 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             dispatcher = new MessageDispatcher(channel, this);
             dispatcher.setMembershipListener(this);
 
-            clusterClient = new ClusterClient(dispatcher, new AddressMapper(nodes::fromUuid, nodes::fromAddress));
+            clusterClient = new ClusterClient(dispatcher);
 
-            channel.connect(clusterName);
-            channel.getState(null, 10000);
+            channel.connect(clusterName, null, 10000); //connect + getState
+            addNode(channel.address());
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to join cluster", e);
@@ -79,12 +77,12 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return clusterClient;
     }
 
-    public void register(int code, Function<NodeMessage, NodeMessage> handler) {
-        this.handlers.put(code, handler);
+    public synchronized void register(int code, Function<NodeMessage, ClusterMessage> handler) {
+        handlers.put(code, handler);
     }
 
-    public void register(int code, Consumer<NodeMessage> handler) {
-        this.handlers.put(code, bb -> {
+    public synchronized void register(int code, Consumer<NodeMessage> handler) {
+        handlers.put(code, bb -> {
             handler.accept(bb);
             return null;
         });
@@ -95,29 +93,28 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     public synchronized void leave() {
+        updateNodeStatus(channel.address(), NodeStatus.DOWN);
         channel.close();
     }
 
-    public List<Address> members() {
-        return new ArrayList<>(state.getMembers());
-    }
-
-    public List<Address> otherNodes() {
-        return state.getMembers().stream().filter(address -> !address.equals(address())).collect(Collectors.toList());
+    public List<ClusterNode> nodes() {
+        return new ArrayList<>(nodes.values());
     }
 
     @Override
-    public void viewAccepted(View view) {
+    public synchronized void viewAccepted(View view) {
         logger.info("View updated: {}", view);
         if (state != null) {
             for (Address address : view.getMembers()) {
                 if (!state.containsMember(address)) {
                     System.out.println("Node joined: " + address);
+                    addNode(address);
                 }
             }
             for (Address address : state.getMembers()) {
                 if (!view.containsMember(address)) {
                     System.out.println("Node left: " + address);
+                    updateNodeStatus(address, NodeStatus.DOWN);
                 }
             }
 
@@ -125,8 +122,8 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             for (Address address : view.getMembers()) {
                 if (!this.channel.getAddress().equals(address)) {
                     System.out.println("Already connected nodes: " + address);
+                    addNode(address);
                 }
-//                    eventBus.emit(new NodeJoined(inetAddress(address)));
             }
         }
         state = view;
@@ -146,18 +143,28 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     @Override
     public Object handle(Message msg) {
         try {
-            ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
-            String srcId = nodes.fromAddress(msg.src());
-            NodeMessage nodeMessage = new NodeMessage(srcId, bb);
-            NodeMessage response = handlers.getOrDefault(nodeMessage.code, NO_OP).apply(nodeMessage);
+            NodeMessage nodeMessage = new NodeMessage(msg);
+            ClusterMessage response = handlers.getOrDefault(nodeMessage.code, NO_OP).apply(nodeMessage);
             if (response == null) {
                 return null; //TODO will null actually send a response message ?
             }
-            byte[] replyData = response.buffer.array();
+            byte[] replyData = response.toBytes();
             return new Message(msg.src(), replyData).setSrc(address());
         } catch (Exception e) {
             logger.error("Failed to receive message: " + msg, e);
             throw new RuntimeException(e);//TODO improve
         }
+    }
+
+    private void addNode(Address address) {
+        nodes.put(address, new ClusterNode(address));
+    }
+
+    private void updateNodeStatus(Address address, NodeStatus status) {
+        ClusterNode clusterNode = nodes.get(address);
+        if(clusterNode == null) {
+            throw new IllegalArgumentException("No such node for: " + address);
+        }
+        clusterNode.status = status;
     }
 }
