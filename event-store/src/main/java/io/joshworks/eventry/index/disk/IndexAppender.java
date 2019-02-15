@@ -36,13 +36,14 @@ public class IndexAppender implements Closeable {
     private static final String STORE_NAME = "index";
     private final LogAppender<IndexEntry> appender;
 
-    public IndexAppender(File rootDir, Function<Long, StreamMetadata> streamSupplier, int logSize, int numElements, boolean useCompression) {
+    public IndexAppender(File rootDir, Function<Long, StreamMetadata> streamSupplier, int segmentSize, int numElements, boolean useCompression) {
         Codec codec = useCompression ? new SnappyCodec() : Codec.noCompression();
         File indexDirectory = new File(rootDir, INDEX_DIR);
         this.appender = LogAppender.builder(indexDirectory, new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor(streamSupplier))
                 .compactionThreshold(3)
-                .segmentSize(logSize)
+                .segmentSize(segmentSize)
+                .maxEntrySize(segmentSize)
                 .disableAutoRoll()
                 .name(STORE_NAME)
                 .flushMode(FlushMode.ON_ROLL)
@@ -54,6 +55,7 @@ public class IndexAppender implements Closeable {
     public LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
         return appender.applyToSegments(direction, segments -> {
             List<LogIterator<IndexEntry>> iterators = Iterators.stream(segments)
+                    .filter(Log::readOnly) //only rolled segments must be used
                     .map(seg -> (IndexSegment) seg)
                     .map(idxSeg -> idxSeg.indexedIterator(direction, range))
                     .collect(Collectors.toList());
@@ -61,18 +63,18 @@ public class IndexAppender implements Closeable {
         });
     }
 
-    public LogIterator<IndexEntry> iterator(Direction direction) {
+    //testing only
+    LogIterator<IndexEntry> iterator(Direction direction) {
         return appender.iterator(direction);
-    }
-
-    public LogIterator<IndexEntry> iterator(Direction direction, long position) {
-        return appender.iterator(direction, position);
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
         //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
+                if(!segment.readOnly()) { //only rolled segments must be used
+                    continue;
+                }
                 IndexSegment indexSegment = (IndexSegment) segment;
                 Optional<IndexEntry> fromDisk = indexSegment.get(stream, version);
                 if (fromDisk.isPresent()) {
@@ -87,6 +89,9 @@ public class IndexAppender implements Closeable {
         //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
+                if(!segment.readOnly()) { //only rolled segments must be used
+                    continue;
+                }
                 IndexSegment indexSegment = (IndexSegment) segment;
                 if(segment.readOnly()) { //only query completed segments
                     List<IndexEntry> indexEntries = indexSegment.readBlockEntries(stream, version);
@@ -103,6 +108,9 @@ public class IndexAppender implements Closeable {
         //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
+                if(!segment.readOnly()) { //only rolled segments must be used
+                    continue;
+                }
                 IndexSegment indexSegment = (IndexSegment) segment;
                 int version = indexSegment.lastVersionOf(stream);
                 if (version >= 0) {

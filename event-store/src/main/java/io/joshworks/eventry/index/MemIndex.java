@@ -13,26 +13,27 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class MemIndex implements Closeable {
+public class MemIndex  {
 
-    private final Map<Long, List<IndexEntry>> index = new ConcurrentHashMap<>();
-    private final List<IndexEntry> insertOrder = new ArrayList<>();
+    private AtomicInteger size = new AtomicInteger();
+    private final Map<Long, List<IndexEntry>> index = new TreeMap<>();
 
-    private final List<MemIterator> pollers = new ArrayList<>();
-
-    public void add(IndexEntry entry) {
+    public synchronized void add(IndexEntry entry) {
         index.compute(entry.stream, (k, v) -> {
             if (v == null)
                 v = new ArrayList<>();
             v.add(entry);
-            insertOrder.add(entry);
             return v;
         });
+        size.incrementAndGet();
     }
 
     public int version(long stream) {
@@ -46,22 +47,14 @@ public class MemIndex implements Closeable {
     }
 
     public int size() {
-        return insertOrder.size();
+        return size.get();
     }
 
     public boolean isEmpty() {
         return size() == 0;
     }
 
-    public void close() {
-        synchronized (pollers) {
-            for (MemIterator poller : pollers) {
-                poller.close();
-            }
-        }
-    }
-
-    public LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
+    public synchronized LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
         List<IndexEntry> entries = index.get(range.stream);
         if (entries == null || entries.isEmpty()) {
             return Iterators.empty();
@@ -88,45 +81,6 @@ public class MemIndex implements Closeable {
         }
     }
 
-    public List<IndexEntry> allOf(long stream) {
-        List<IndexEntry> entries = index.get(stream);
-        if(entries == null) {
-            return new ArrayList<>();
-        }
-        synchronized (entries) {
-            return new ArrayList<>(entries);
-        }
-    }
-
-//    public void delete(long stream) {
-//        List<IndexEntry> entries = index.get(stream);
-//        if(entries == null || entries.isEmpty()) {
-//            return;
-//        }
-//
-//        index.compute(stream, (k, v) -> {
-//            if (v == null)
-//                return null;
-//            v.forEach(insertOrder::remove);//not very efficient
-//            return null;
-//        });
-//    }
-//
-//    public void truncate(long stream, int version) {
-//        List<IndexEntry> entries = index.get(stream);
-//        if(entries == null || entries.isEmpty()) {
-//            return;
-//        }
-//
-//        index.compute(stream, (k, v) -> {
-//            if (v == null)
-//                return null;
-//            List<IndexEntry> removed = v.stream().filter(ie -> ie.version <= version).collect(Collectors.toList());
-//            removed.forEach(insertOrder::remove);//not very efficient
-//            return removed.isEmpty() ? null : removed;
-//        });
-//    }
-
     public LogIterator<IndexEntry> iterator() {
         var copy = new HashSet<>(index.entrySet()); //sorted is a stateful operation
         List<IndexEntry> ordered = copy.stream()
@@ -138,70 +92,5 @@ public class MemIndex implements Closeable {
         return Iterators.of(ordered);
     }
 
-    private static class MemEntry {
-        private final IndexEntry entry;
-        private final boolean deletion;
-
-        private MemEntry(IndexEntry entry, boolean deletion) {
-            this.entry = entry;
-            this.deletion = deletion;
-        }
-    }
-
-    private class MemIterator implements LogIterator<IndexEntry> {
-
-        private final AtomicBoolean closed = new AtomicBoolean();
-        private int position = 0;
-
-        private final Map<Long, Range> ranges;
-
-        private MemIterator(List<Range> ranges) {
-            this.ranges = ranges.stream().collect(Collectors.toMap(r -> r.stream, Function.identity()));
-        }
-
-        private boolean hasData() {
-            return position < insertOrder.size();
-        }
-
-        private boolean matchRange(IndexEntry indexEntry) {
-            if (indexEntry == null || !ranges.containsKey(indexEntry.stream)) {
-                return false;
-            }
-            return ranges.get(indexEntry.stream).match(indexEntry);
-        }
-
-        @Override
-        public boolean hasNext() {
-            return false;
-        }
-
-        @Override
-        public IndexEntry next() {
-            IndexEntry indexEntry = null;
-            while (hasData() && !matchRange(indexEntry)) {
-                indexEntry = insertOrder.get(position);
-                if (!matchRange(indexEntry)) {
-                    position++;
-                }
-            }
-            indexEntry =  matchRange(indexEntry) ? indexEntry : null;
-
-            if(indexEntry != null) {
-                position++;
-            }
-            return indexEntry;
-        }
-
-        @Override
-        public long position() {
-            return position;
-        }
-
-        @Override
-        public void close() {
-            closed.set(true);
-        }
-
-    }
 
 }
