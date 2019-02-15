@@ -10,7 +10,7 @@ import java.nio.ByteBuffer;
 public class FromAll implements ClusterMessage {
 
     public static final int CODE = 1;
-    public static final int BYTES = Integer.BYTES * 5;
+    public static final int BYTES = Integer.BYTES * 6;
 
     private static final LinkToPolicy[] ltpItems = LinkToPolicy.values();
     private static final SystemEventPolicy[] sepItems = SystemEventPolicy.values();
@@ -31,7 +31,7 @@ public class FromAll implements ClusterMessage {
         this.partitionId = partitionId;
         this.linkToPolicy = linkToPolicy;
         this.systemEventPolicy = systemEventPolicy;
-        this.lastEvent = lastEvent.toString();
+        this.lastEvent = lastEvent == null ? "" : lastEvent.toString();
     }
 
     public FromAll(ByteBuffer bb) {

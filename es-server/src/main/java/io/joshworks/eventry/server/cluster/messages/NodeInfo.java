@@ -1,7 +1,6 @@
 package io.joshworks.eventry.server.cluster.messages;
 
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.serializer.VStringSerializer;
 import io.joshworks.fstore.serializer.collection.SetSerializer;
 
 import java.nio.ByteBuffer;
@@ -13,36 +12,30 @@ public class NodeInfo implements ClusterMessage {
 
     private static final SetSerializer<Integer> setSerializer = new SetSerializer<>(Serializers.INTEGER, a -> Integer.BYTES);
 
-    public final String nodeId;
     public final Set<Integer> partitions;
 
 
-    public NodeInfo(String nodeId, Set<Integer> partitions) {
-        this.nodeId = nodeId;
+    public NodeInfo(Set<Integer> partitions) {
         this.partitions = partitions;
     }
 
     public NodeInfo(ByteBuffer bb) {
-        this.nodeId = vStringSerializer.fromBytes(bb);
         this.partitions = setSerializer.fromBytes(bb);
     }
 
     @Override
     public byte[] toBytes() {
         int size = setSerializer.sizeOf(partitions);
-        var bb = ByteBuffer.allocate(Integer.BYTES + VStringSerializer.sizeOf(nodeId) + size);
+        var bb = ByteBuffer.allocate(Integer.BYTES + size);
         bb.putInt(CODE);
-        vStringSerializer.writeTo(nodeId, bb);
-        setSerializer.toBytes(partitions);
+        setSerializer.writeTo(partitions, bb);
         bb.flip();
         return bb.array();
     }
 
     @Override
     public String toString() {
-        return "NodeInfo{" + "nodeId='" + nodeId + '\'' +
-                ", partitions=" + partitions +
-                '}';
+        return "NodeInfo{" + "partitions=" + partitions + '}';
     }
 
     @Override

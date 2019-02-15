@@ -35,7 +35,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private MessageDispatcher dispatcher;
     private ClusterClient clusterClient;
 
-    private final Map<Address, ClusterNode> nodes = new ConcurrentHashMap<>();
+    private final Map<Address, Node> nodes = new ConcurrentHashMap<>();
     private final Map<Integer, Function<NodeMessage, ClusterMessage>> handlers = new ConcurrentHashMap<>();
 
     private static final Function<NodeMessage, ClusterMessage> NO_OP = bb -> {
@@ -97,7 +97,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         channel.close();
     }
 
-    public List<ClusterNode> nodes() {
+    public List<Node> nodes() {
         return new ArrayList<>(nodes.values());
     }
 
@@ -157,14 +157,14 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     private void addNode(Address address) {
-        nodes.put(address, new ClusterNode(address));
+        nodes.put(address, new Node(address));
     }
 
     private void updateNodeStatus(Address address, NodeStatus status) {
-        ClusterNode clusterNode = nodes.get(address);
-        if(clusterNode == null) {
+        Node node = nodes.get(address);
+        if(node == null) {
             throw new IllegalArgumentException("No such node for: " + address);
         }
-        clusterNode.status = status;
+        node.status = status;
     }
 }
