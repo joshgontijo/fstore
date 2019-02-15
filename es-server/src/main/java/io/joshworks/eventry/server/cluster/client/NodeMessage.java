@@ -10,7 +10,7 @@ import java.util.function.Function;
 public class NodeMessage {
 
     public final Address address;
-    public final ByteBuffer buffer;
+    private final ByteBuffer buffer;
     public final int code;
 
     public NodeMessage(Message message) {
@@ -38,5 +38,9 @@ public class NodeMessage {
 
     public boolean isError() {
         return ClusterMessage.isError(buffer.getInt(0));
+    }
+
+    public ByteBuffer buffer() {
+        return buffer.asReadOnlyBuffer();
     }
 }
