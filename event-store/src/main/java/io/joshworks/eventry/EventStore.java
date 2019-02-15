@@ -35,6 +35,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -54,7 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
@@ -67,6 +68,7 @@ public class EventStore implements IEventStore {
     //TODO expose
     private static final int LRU_CACHE_SIZE = 1000000;
 
+    private final ExecutorService writer = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("event-store-writer"));
     private final TableIndex index;
     private final Streams streams;
     public final IEventLog eventLog;
@@ -74,7 +76,7 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
-        this.index = new TableIndex(rootDir, this::fetchMetadata);
+        this.index = new TableIndex(rootDir, this::fetchMetadata, this::onIndexWrite, 50000, 5, true);
         this.projections = new Projections(new ProjectionExecutor(rootDir, this));
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
@@ -101,7 +103,11 @@ public class EventStore implements IEventStore {
     }
 
     private StreamMetadata fetchMetadata(long stream) {
-        return streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Could not find stream metadata for " + stream));
+        Optional<StreamMetadata> streamMetadata = streams.get(stream);
+        if (!streamMetadata.isPresent()) {
+            throw new IllegalArgumentException("Could not find stream metadata for " + stream);
+        }
+        return streamMetadata.get();
     }
 
     public static EventStore open(File rootDir) {
@@ -456,15 +462,6 @@ public class EventStore implements IEventStore {
         return append(event, NO_VERSION);
     }
 
-    private final ExecutorService writer = Executors.newSingleThreadExecutor(new ThreadFactory() {
-        @Override
-        public Thread newThread(Runnable r) {
-            Thread t = new Thread(r);
-            t.setName("event-store-writer");
-            return t;
-        }
-    });
-
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
@@ -481,7 +478,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public EventRecord appendSystemEvent(EventRecord event) {
-        if(!event.isSystemEvent()) {
+        if (!event.isSystemEvent()) {
             throw new IllegalArgumentException("System events must start with " + StreamName.SYSTEM_PREFIX);
         }
         StreamMetadata metadata = getOrCreateStream(event.stream);
@@ -501,23 +498,23 @@ public class EventStore implements IEventStore {
         }
 
         int version = streams.tryIncrementVersion(streamHash, expectedVersion);
-
         var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.body, event.metadata);
 
         long position = eventLog.append(record);
-        var flushInfo = index.add(streamHash, version, position);
-        if (flushInfo != null) {
-            var indexFlushedEvent = IndexFlushed.create(position, flushInfo.timeTaken, flushInfo.entries);
-            this.appendSystemEvent(indexFlushedEvent);
-        }
+        index.add(streamHash, version, position);
 
         return record;
+    }
+
+    private void onIndexWrite(TableIndex.FlushInfo flushInfo) {
+        var indexFlushedEvent = IndexFlushed.create(flushInfo.timeTaken, flushInfo.entries);
+        this.appendSystemEvent(indexFlushedEvent);
     }
 
     private StreamMetadata getOrCreateStream(String stream) {
         return streams.createIfAbsent(stream, created -> {
             EventRecord eventRecord = StreamCreated.create(created);
-            this.appendInternal(created, eventRecord, NO_VERSION);
+            this.appendSystemEvent(eventRecord);
         });
     }
 

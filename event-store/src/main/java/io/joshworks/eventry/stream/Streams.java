@@ -134,12 +134,17 @@ public class Streams implements Closeable {
         }
         Integer fromDisk = versionFetcher.apply(stream);//may return -1 (NO_VERSION)
         AtomicInteger found = new AtomicInteger(fromDisk);
-        versions.put(stream, found);
+        if (fromDisk > NO_VERSION) {
+            versions.put(stream, found);
+        }
         return found;
     }
 
     //lock not required, it uses getVersion
     public int tryIncrementVersion(long stream, int expected) {
+        if (!get(stream).isPresent()) {
+            System.out.println("No metadata found for stream: " + stream);
+        }
         AtomicInteger versionCounter = getVersion(stream);
         if (expected <= NO_VERSION) {
             return versionCounter.incrementAndGet();
@@ -158,10 +163,10 @@ public class Streams implements Closeable {
 
     private void validateName(String streamName) {
         StringUtils.requireNonBlank(streamName, "Stream name must be provided");
-        if(streamName.contains(" ")) {
+        if (streamName.contains(" ")) {
             throw new IllegalArgumentException("Stream name must not contain whitespaces");
         }
-        if(streamName.contains(StreamName.STREAM_VERSION_SEPARATOR)) {
+        if (streamName.contains(StreamName.STREAM_VERSION_SEPARATOR)) {
             throw new IllegalArgumentException("Stream name must not contain " + StreamName.STREAM_VERSION_SEPARATOR);
         }
     }
