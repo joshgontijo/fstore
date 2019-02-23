@@ -14,7 +14,7 @@ import java.util.UUID;
 
 public class Metadata {
 
-    static final int MAGIC_SIZE = 36 + Integer.BYTES; //VSTRING
+    static final int MAGIC_SIZE = 8 + Integer.BYTES; //VSTRING
     static final int METADATA_SIZE = (Integer.BYTES * 3) + Long.BYTES + MAGIC_SIZE;
 
     final String magic;
@@ -69,7 +69,7 @@ public class Metadata {
     }
 
     private static String createMagic() {
-        return UUID.randomUUID().toString();
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 
 }
