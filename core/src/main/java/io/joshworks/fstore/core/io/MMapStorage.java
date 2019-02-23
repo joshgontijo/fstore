@@ -58,7 +58,7 @@ public class MMapStorage extends RafStorage {
         long currentPosition = this.position.get();
         while (src.hasRemaining()) {
             int idx = bufferIdx(currentPosition);
-            MappedByteBuffer dst = getOrAllocate(idx, true);
+            MappedByteBuffer dst = getOrAllocate(idx);
 
             int dstRemaining = dst.remaining();
             if (dstRemaining < dataSize) {
@@ -85,13 +85,13 @@ public class MMapStorage extends RafStorage {
     public int read(long readPos, ByteBuffer dst) {
         long writePosition = super.position.get();
 
-        if(readPos >= writePosition) {
+        if (readPos >= writePosition) {
             return EOF;
         }
 
         int idx = bufferIdx(readPos);
         int bufferAddress = posOnBuffer(readPos);
-        MappedByteBuffer buffer = getOrAllocate(idx, true);
+        MappedByteBuffer buffer = getOrAllocate(idx);
 
         int srcCapacity = buffer.capacity();
         if (bufferAddress > srcCapacity) {
@@ -123,20 +123,15 @@ public class MMapStorage extends RafStorage {
         return dstRemaining;
     }
 
-    protected MappedByteBuffer getOrAllocate(int idx, boolean expandBuffers) {
+    protected MappedByteBuffer getOrAllocate(int idx) {
         if (closed.get()) {
             throw new StorageException("Storage closed: " + name());
         }
         if (idx >= buffers.length) {
-            if (expandBuffers) {
-                synchronized (LOCK) {
-                    if (idx >= buffers.length && !closed.get()) {
-                        growBuffersToAccommodateIdx(idx);
-                    }
+            synchronized (LOCK) {
+                if (idx >= buffers.length && !closed.get()) {
+                    growBuffersToAccommodateIdx(idx);
                 }
-
-            } else {
-                throw new IllegalStateException("Invalid buffer index " + idx + " buffers length: " + buffers.length);
             }
         }
         MappedByteBuffer current = buffers[idx];
@@ -166,7 +161,7 @@ public class MMapStorage extends RafStorage {
     @Override
     public void position(long pos) {
         int idx = bufferIdx(pos);
-        MappedByteBuffer buffer = getOrAllocate(idx, true);
+        MappedByteBuffer buffer = getOrAllocate(idx);
         int bufferAddress = posOnBuffer(pos);
         buffer.position(bufferAddress);
         this.position.set(pos);
