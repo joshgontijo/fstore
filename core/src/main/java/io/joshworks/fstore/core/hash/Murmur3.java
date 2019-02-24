@@ -32,7 +32,7 @@ public class Murmur3 {
     }
 
     public static int hash32(ByteBuffer data, int seed) {
-        if(data.hasArray()) {
+        if (data.hasArray()) {
             return hash32(data.array(), data.position(), data.limit(), seed);
         }
         byte[] b = new byte[data.remaining()];
@@ -62,7 +62,6 @@ public class Murmur3 {
     }
 
 
-
     /**
      * Murmur3 32-bit variant.
      *
@@ -79,7 +78,7 @@ public class Murmur3 {
      * Murmur3 32-bit variant.
      *
      * @param data   - input byte array
-     * @param off - array offset
+     * @param off    - array offset
      * @param length - length of array
      * @param seed   - seed. (default 0)
      * @return - hashcode
@@ -379,7 +378,8 @@ public class Murmur3 {
                     case 3:
                         k = orBytes(tail[0], tail[1], tail[2], data[offset]);
                         break;
-                    default: throw new AssertionError(tailLen);
+                    default:
+                        throw new AssertionError(tailLen);
                 }
                 // mix functions
                 k *= C1_32;

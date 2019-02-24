@@ -18,7 +18,7 @@ class BoundedExecutor {
     }
 
     void submitTask(Runnable r) {
-        if(closed.get()) {
+        if (closed.get()) {
             return;
         }
         boolean acquired = semaphore.tryAcquire();
@@ -41,9 +41,8 @@ class BoundedExecutor {
     }
 
 
-
     private void execute(Runnable r) {
-        if(closed.get()) {
+        if (closed.get()) {
             return;
         }
         try {
@@ -63,7 +62,7 @@ class BoundedExecutor {
         return new StageStats(executor, closed.get());
     }
 
-    public void shutdown()  {
+    public void shutdown() {
         closed.set(true);
         executor.shutdown();
     }

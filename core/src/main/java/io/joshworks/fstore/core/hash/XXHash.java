@@ -6,7 +6,7 @@ import net.jpountz.xxhash.XXHashFactory;
 
 import java.nio.ByteBuffer;
 
-public class XXHash implements Hash{
+public class XXHash implements Hash {
 
     private final XXHashFactory factory = XXHashFactory.fastestInstance();
     private final XXHash32 hash32 = factory.hash32();

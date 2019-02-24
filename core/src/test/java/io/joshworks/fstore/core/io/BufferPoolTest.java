@@ -14,7 +14,7 @@ public class BufferPoolTest {
     private BufferPool bufferPool;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         bufferPool = new SingleBufferThreadCachedPool(false);
     }
 

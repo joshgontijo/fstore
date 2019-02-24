@@ -33,7 +33,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * File format:
  * <p>
- * |---- HEADER ----|----- LOG -----|--- END OF LOG (8bytes) ---|
+ * |---- HEADER ----|----- LOG -----|--- END OF LOG (8bytes) ---|--- HEADER ---|
  */
 public class Segment<T> implements Log<T> {
 
@@ -95,7 +95,7 @@ public class Segment<T> implements Log<T> {
         if (position < START) {
             throw new IllegalArgumentException("Position must be at least " + LogHeader.BYTES);
         }
-        this.storage.position(position);
+        this.storage.writePosition(position);
     }
 
     @Override
@@ -168,7 +168,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public long position() {
-        return storage.position();
+        return storage.writePosition();
     }
 
     @Override
@@ -217,9 +217,9 @@ public class Segment<T> implements Log<T> {
 
         } catch (Exception e) {
             logger.warn("Found inconsistent entry on position " + position + ", segment '" + name() + "': " + e.getMessage() + "", e);
-            storage.position(position);
+            storage.writePosition(position);
             dataStream.write(storage, ByteBuffer.wrap(EOL));
-            storage.position(position);
+            storage.writePosition(position);
         }
         logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
         if (position < Log.START) {
@@ -262,7 +262,7 @@ public class Segment<T> implements Log<T> {
             throw new IllegalStateException("Cannot roll read only segment: " + this.toString());
         }
 
-        long currPos = storage.position();
+        long currPos = storage.writePosition();
         writeEndOfLog();
         this.header = LogHeader.writeCompleted(storage, this.header, entries.get(), level, currPos);
 

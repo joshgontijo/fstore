@@ -20,6 +20,9 @@ public class RafStorage extends DiskStorage {
     @Override
     public int write(ByteBuffer data) {
         Storage.ensureNonEmpty(data);
+        if (!hasEnoughSpace(data.remaining())) {
+            return EOF;
+        }
         try {
             int written = 0;
             while (data.hasRemaining()) {
@@ -35,10 +38,10 @@ public class RafStorage extends DiskStorage {
     @Override
     public int read(long position, ByteBuffer dst) {
         try {
-            long writePosition = this.position.get();
-            if(position > writePosition) {
+            if (!hasAvailableData(position)) {
                 return EOF;
             }
+            long writePosition = writePosition();
             int read = 0;
             int totalRead = 0;
             while (dst.hasRemaining() && read >= 0) {

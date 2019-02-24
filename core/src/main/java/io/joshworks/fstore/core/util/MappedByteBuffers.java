@@ -1,6 +1,5 @@
 package io.joshworks.fstore.core.util;
 
-import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
@@ -49,7 +48,7 @@ public final class MappedByteBuffers {
     private MappedByteBuffers() {
     }
 
-    public static void unmap(MappedByteBuffer buffer) throws IOException {
+    public static void unmap(MappedByteBuffer buffer) {
         if (!buffer.isDirect())
             throw new IllegalArgumentException("Unmapping only works with direct buffers");
         if (UNMAP == null)
@@ -58,7 +57,7 @@ public final class MappedByteBuffers {
         try {
             UNMAP.invokeExact((ByteBuffer) buffer);
         } catch (Throwable throwable) {
-            throw new IOException("Unable to unmap the mapped buffer", throwable);
+            throw new RuntimeException("Unable to unmap the mapped buffer", throwable);
         }
     }
 

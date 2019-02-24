@@ -30,10 +30,10 @@ public class SingleBufferThreadCachedPool implements BufferPool {
     @Override
     public ByteBuffer allocate(int size) {
         BufferHolder holder = cache.get();
-        if(!holder.available.compareAndSet(true, false)) {
+        if (!holder.available.compareAndSet(true, false)) {
             throw new IllegalStateException("Buffer not released");
         }
-        if(holder.buffer.limit() < size) {
+        if (holder.buffer.limit() < size) {
             holder.buffer = create(size);
         }
         holder.buffer.limit(size);

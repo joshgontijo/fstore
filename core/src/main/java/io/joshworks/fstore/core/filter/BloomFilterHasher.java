@@ -26,7 +26,7 @@ public interface BloomFilterHasher<T> {
         @Override
         public int[] hash(int m, int k, T val) {
             ByteBuffer bb = serializer.toBytes(val);
-            if(!bb.hasArray()) {
+            if (!bb.hasArray()) {
                 throw new IllegalStateException("ByteBuffer must be backed by array");
             }
             long bitSize = m;

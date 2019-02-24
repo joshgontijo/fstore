@@ -39,7 +39,7 @@ public class DataStreamTest {
     public void setUp() {
         file = FileUtils.testFile();
         storage = StorageProvider.of(StorageMode.RAF).create(file, FILE_SIZE);
-        storage.position(Log.START);
+        storage.writePosition(Log.START);
     }
 
     @After
@@ -74,7 +74,7 @@ public class DataStreamTest {
         ByteBuffer data1 = Serializers.STRING.toBytes("1");
         stream.write(storage, data1);
 
-        long pos = storage.position();
+        long pos = storage.writePosition();
         try (BufferRef read = stream.read(storage, Direction.BACKWARD, pos)) {
             String read1 = Serializers.STRING.fromBytes(read.get());
             assertEquals("1", read1.intern());
@@ -110,7 +110,7 @@ public class DataStreamTest {
         }
 
         List<Long> found = new ArrayList<>();
-        try (BufferRef ref = stream.bulkRead(storage, Direction.BACKWARD, storage.position())) {
+        try (BufferRef ref = stream.bulkRead(storage, Direction.BACKWARD, storage.writePosition())) {
             ref.readAllInto(found, Serializers.LONG);
             assertEquals(numItems, found.size());
             Collections.reverse(found);
@@ -164,7 +164,7 @@ public class DataStreamTest {
         stream.write(storage, Serializers.STRING.toBytes(second));
 
         List<String> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, Direction.BACKWARD, storage.position())) {
+        try (BufferRef ref = stream.read(storage, Direction.BACKWARD, storage.writePosition())) {
             ref.readAllInto(found, Serializers.STRING);
             assertEquals(1, found.size());
             assertEquals(second, found.get(0));
@@ -191,7 +191,7 @@ public class DataStreamTest {
         ByteBuffer data = Serializers.STRING.toBytes(content);
         stream.write(storage, data);
 
-        long pos = storage.position();
+        long pos = storage.writePosition();
         try (BufferRef read = stream.read(storage, Direction.BACKWARD, pos)) {
             String read1 = Serializers.STRING.fromBytes(read.get());
             assertEquals(content, read1.intern());
@@ -230,7 +230,7 @@ public class DataStreamTest {
         String secondEntry = ofSize(secondEntryLength);
         stream.write(storage, Serializers.STRING.toBytes(secondEntry));
 
-        try (BufferRef read = stream.bulkRead(storage, Direction.BACKWARD, storage.position())) {
+        try (BufferRef read = stream.bulkRead(storage, Direction.BACKWARD, storage.writePosition())) {
             assertEquals(1, read.lengths().size());
 
             String read1 = Serializers.STRING.fromBytes(read.get());

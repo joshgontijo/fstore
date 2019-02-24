@@ -43,7 +43,7 @@ public class DataStream implements IDataStream {
 
     @Override
     public long write(Storage storage, ByteBuffer bytes) {
-        long storagePos = storage.position();
+        long storagePos = storage.writePosition();
         validateStoragePosition(storagePos);
 
         int recordSize = RecordHeader.HEADER_OVERHEAD + bytes.remaining();
@@ -71,7 +71,7 @@ public class DataStream implements IDataStream {
 
     @Override
     public <T> long write(Storage storage, T data, Serializer<T> serializer) {
-        long storagePos = storage.position();
+        long storagePos = storage.writePosition();
         validateStoragePosition(storagePos);
 
         ByteBuffer writeBuffer = bufferPool.allocate(Memory.PAGE_SIZE);

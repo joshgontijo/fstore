@@ -1,18 +1,20 @@
 package io.joshworks.fstore.core.io;
 
-import java.io.File;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 
 public class MMapCache extends MMapStorage {
 
-    public MMapCache(File file, RandomAccessFile raf) {
-        super(file, raf);
+    public MMapCache(DiskStorage diskStorage) {
+        super(diskStorage);
+    }
+
+    public MMapCache(DiskStorage diskStorage, int bufferSize) {
+        super(diskStorage, bufferSize);
     }
 
     @Override
     public int write(ByteBuffer src) {
-        return super.writeDirect(src);
+        return diskStorage.write(src);
     }
 
     @Override
@@ -20,7 +22,8 @@ public class MMapCache extends MMapStorage {
 
         int tobeRead = dst.remaining();
         int read = 0;
-        do { //READS ARE NOT GUARANTEED TO SEE CHANGES MADE TO THE UNDERLYING FILE, RE-READ IS NEEDED UNTIL ALL DATA IS AVAILABLE
+        do
+        { //READS ARE NOT GUARANTEED TO SEE CHANGES MADE TO THE UNDERLYING FILE, RE-READ IS NEEDED UNTIL ALL DATA IS AVAILABLE
             read += super.read(readPos, dst);
             readPos += read;
         } while (read > 0 && read < tobeRead && (readPos < this.position.get()));
@@ -28,12 +31,17 @@ public class MMapCache extends MMapStorage {
     }
 
     @Override
-    public void position(long position) {
+    public void writePosition(long position) {
         try {
-            channel.position(position);
-            super.position(position);
+            diskStorage.writePosition(position);
+            super.writePosition(position);
         } catch (Exception e) {
             throw new StorageException(e);
         }
+    }
+
+    @Override
+    public long writePosition() {
+        return diskStorage.writePosition();
     }
 }

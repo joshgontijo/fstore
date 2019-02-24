@@ -20,7 +20,7 @@ public class SingleByteMockFileChannel extends FileChannel {
     @Override
     public int read(ByteBuffer dst) {
         byte[] data = received.toByteArray();
-        if(readOffset >= data.length) {
+        if (readOffset >= data.length) {
             return -1;
         }
         dst.put(data[readOffset++]);
@@ -81,7 +81,7 @@ public class SingleByteMockFileChannel extends FileChannel {
     @Override
     public int read(ByteBuffer dst, long position) {
         byte[] data = received.toByteArray();
-        dst.put(data, (int)position, (int) (data.length - position));
+        dst.put(data, (int) position, (int) (data.length - position));
         return dst.limit();
     }
 

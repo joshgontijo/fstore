@@ -13,15 +13,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- *
  * Loads properties from various resources, including classpath.
  * Example: classpath:my-config.properties
- *
+ * <p>
  * Loads properties in sequence:
  * 1. Specified by order of the locations provided
  * 2. From System environment using {@link System#getenv()}
  * 3. From System properties using {@link System#getProperties()}
- *
  */
 public class AppProperties {
 
