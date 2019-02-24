@@ -21,11 +21,11 @@ public abstract class MemStorage implements Storage {
 
     private final ByteBuffer[] buffers;
 
-    protected MemStorage(String name, long size, BiFunction<Long, Integer, ByteBuffer> supplier) {
+    MemStorage(String name, long size, BiFunction<Long, Integer, ByteBuffer> supplier) {
         this(name, size, MAX_BUFFER_SIZE, supplier);
     }
 
-    protected MemStorage(String name, long size, int bufferSize, BiFunction<Long, Integer, ByteBuffer> supplier) {
+    MemStorage(String name, long size, int bufferSize, BiFunction<Long, Integer, ByteBuffer> supplier) {
         this.name = name;
         this.size = size;
         this.bufferSize = bufferSize;

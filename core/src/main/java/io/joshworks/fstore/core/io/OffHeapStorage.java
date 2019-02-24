@@ -4,11 +4,11 @@ import java.nio.ByteBuffer;
 
 public class OffHeapStorage extends MemStorage {
 
-    public OffHeapStorage(String name, long size) {
+    OffHeapStorage(String name, long size) {
         super(name, size, OffHeapStorage::create);
     }
 
-    public OffHeapStorage(String name, long size, int bufferSize) {
+    OffHeapStorage(String name, long size, int bufferSize) {
         super(name, size, bufferSize, OffHeapStorage::create);
     }
 

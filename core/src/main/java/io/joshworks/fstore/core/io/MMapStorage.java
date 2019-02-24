@@ -11,12 +11,12 @@ public class MMapStorage extends MemStorage {
     private static final boolean isWindows = System.getProperty("os.name").toLowerCase().startsWith("win");
     protected final DiskStorage diskStorage;
 
-    public MMapStorage(DiskStorage diskStorage) {
+    MMapStorage(DiskStorage diskStorage) {
         super(diskStorage.name(), diskStorage.length(), (from, size) -> map(diskStorage, from, size));
         this.diskStorage = diskStorage;
     }
 
-    public MMapStorage(DiskStorage diskStorage, int bufferSize) {
+    MMapStorage(DiskStorage diskStorage, int bufferSize) {
         super(diskStorage.name(), diskStorage.length(), bufferSize, (from, size) -> map(diskStorage, from, size));
         this.diskStorage = diskStorage;
     }
