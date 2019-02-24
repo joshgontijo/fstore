@@ -1,5 +1,6 @@
 package io.joshworks.fstore.core.io;
 
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.utils.Utils;
 import org.junit.After;
 import org.junit.Before;
@@ -10,13 +11,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.joshworks.fstore.core.io.DiskStorage.EOF;
-import static io.joshworks.fstore.core.utils.Utils.sleep;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -24,17 +21,18 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class StorageTest {
 
-    protected static final int DEFAULT_LENGTH = 5242880;
-    protected static final String TEST_DATA = "TEST-DATA";
-    protected Storage storage;
-    protected File testFile;
+    private static final int STORAGE_SIZE = 5242880; //must not be greater than Integer.MAX_VALUE
+    private static final int BUFFER_SIZE = STORAGE_SIZE;
+    private static final String TEST_DATA = "TEST-DATA";
+    private Storage storage;
+    private File testFile;
 
-    protected abstract Storage store(File file, long size);
+    protected abstract Storage store(File file, long size, int bufferSize);
 
     @Before
     public void setUp() {
         testFile = Utils.testFile();
-        storage = store(testFile, DEFAULT_LENGTH);
+        storage = store(testFile, STORAGE_SIZE, BUFFER_SIZE);
     }
 
     @After
@@ -43,7 +41,7 @@ public abstract class StorageTest {
         Utils.tryDelete(testFile);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = StorageException.class)
     public void when_witting_empty_data_an_exception_is_thrown() {
         storage.write(ByteBuffer.allocate(0));
     }
@@ -61,10 +59,10 @@ public abstract class StorageTest {
         var buffer = ByteBuffer.allocate(recordSize);
         buffer.limit(buffer.capacity());
 
-        assertEquals(0, storage.position());
+        assertEquals(0, storage.writePosition());
 
         storage.write(buffer);
-        assertEquals(recordSize, storage.position());
+        assertEquals(recordSize, storage.writePosition());
     }
 
     @Test
@@ -76,62 +74,14 @@ public abstract class StorageTest {
         int read = storage.read(0, result);
 
         assertEquals(write, read);
-        assertTrue(Arrays.equals(bb.array(), result.array()));
-    }
-
-    @Test
-    public void when_10000_entries_are_written_it_should_read_all_of_them() {
-        int entrySize = 36; //uuid byte position
-
-        int items = 10000;
-        Set<String> inserted = new HashSet<>();
-        for (int i = 0; i < items; i++) {
-            String val = UUID.randomUUID().toString();
-            inserted.add(val);
-            storage.write(ByteBuffer.wrap(val.getBytes(StandardCharsets.UTF_8)));
-        }
-
-        long offset = 0;
-        int itemsRead = 0;
-        for (int i = 0; i < items; i++) {
-            ByteBuffer bb = ByteBuffer.allocate(entrySize);
-            int read = storage.read(offset, bb);
-            assertEquals("Failed on iteration " + i, entrySize, read);
-
-            bb.flip();
-            String found = new String(bb.array(), StandardCharsets.UTF_8);
-            assertTrue("Not found: [" + found + "] at offset " + offset + ", iteration: " + i, inserted.contains(found));
-            itemsRead++;
-            offset += entrySize;
-        }
-
-        assertEquals(items, itemsRead);
-    }
-
-    @Test
-    public void when_writing_large_entry_it_should_read_the_same_value() {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 10000; i++) {
-            sb.append(UUID.randomUUID().toString());
-        }
-
-        String longString = sb.toString();
-
-        ByteBuffer bb = ByteBuffer.wrap(longString.getBytes(StandardCharsets.UTF_8));
-        int write = storage.write(bb);
-
-        ByteBuffer result = ByteBuffer.allocate(bb.capacity());
-        int read = storage.read(0, result);
-
-        assertEquals(write, read);
-        assertTrue(Arrays.equals(bb.array(), result.array()));
+        assertArrayEquals(bb.array(), result.array());
     }
 
     @Test
     public void delete() throws Exception {
 
         File temp = Utils.testFile();
-        try (Storage store = store(temp, DEFAULT_LENGTH)) {
+        try (Storage store = store(temp, STORAGE_SIZE, STORAGE_SIZE)) {
             store.delete();
             assertFalse(Files.exists(temp.toPath()));
         } finally {
@@ -163,7 +113,7 @@ public abstract class StorageTest {
     @Test
     public void position_bigger_than_write_position_returns_EOF() {
         long writePosition = 4;
-        storage.position(writePosition);
+        storage.writePosition(writePosition);
         ByteBuffer read = ByteBuffer.allocate(1024);
         int bytesRead = storage.read(writePosition + 1, read);
         assertEquals(EOF, bytesRead);
@@ -191,9 +141,9 @@ public abstract class StorageTest {
     @Test
     public void position_is_updated() {
         long position = 10;
-        storage.position(position);
+        storage.writePosition(position);
 
-        long found = storage.position();
+        long found = storage.writePosition();
         assertEquals(position, found);
 
         int value = 123;
@@ -207,171 +157,174 @@ public abstract class StorageTest {
     }
 
     @Test
+    public void EOF_is_returned_when_write_doesnt_fit_in_file() {
+        int size = (int) storage.length();
+        int written = storage.write(ByteBuffer.wrap(new byte[size]));
+        assertEquals(size, written);
+
+        written = storage.write(ByteBuffer.wrap(new byte[]{1}));
+        assertEquals(EOF, written);
+    }
+
+    @Test
     public void writing_returns_correct_written_bytes() {
-        int entrySize = 255;
-        byte[] data = new byte[entrySize];
-        int totalItems = 1000000;
-        for (int i = 0; i < data.length; i++) {
-            data[i] = (byte) i;
-        }
-
-        for (int i = 0; i < totalItems; i++) {
-            int written = storage.write(ByteBuffer.wrap(data));
-            assertEquals("Failed at position " + storage.position() + " iteration: " + i, entrySize, written);
-        }
-
-        assertEquals(totalItems * entrySize, storage.position());
+        byte[] bytes = fillWithUniqueBytes();
+        int written = storage.write(ByteBuffer.wrap(bytes));
+        assertEquals(bytes.length, written);
     }
 
     @Test
-    public void position_is_updated_same_as_writen_bytes() {
-        int entrySize = 255;
-        byte[] data = new byte[entrySize];
-        int totalItems = 1000000;
-        for (int i = 0; i < data.length; i++) {
-            data[i] = (byte) i;
-        }
-
-        long totalWriten = 0;
-        for (int i = 0; i < totalItems; i++) {
-            totalWriten += storage.write(ByteBuffer.wrap(data));
-            assertEquals(totalWriten, storage.position());
-        }
-
-        assertEquals(totalItems * entrySize, storage.position());
+    public void position_is_updated_same_as_written_bytes() {
+        byte[] data = fillWithUniqueBytes();
+        int written;
+        long total = 0;
+        do {
+            written = storage.write(ByteBuffer.wrap(data));
+            total += written;
+            if (written != EOF) {
+                assertEquals(total, storage.writePosition());
+            }
+        } while (written > 0);
     }
 
     @Test
-    public void reading_return_the_same_writen_data() {
-        int entrySize = 255;
-        byte[] data = new byte[entrySize];
-        int totalItems = 5000000;
-        for (int i = 0; i < data.length; i++) {
-            data[i] = (byte) i;
-        }
+    public void reading_return_the_same_written_data() {
+        byte[] data = fillWithUniqueBytes();
 
-        for (int i = 0; i < totalItems; i++) {
-            int written = storage.write(ByteBuffer.wrap(data));
-            assertEquals("Failed at position " + storage.position() + " iteration: " + i, entrySize, written);
-        }
+        fillWith(storage, data);
 
+        int read;
         long readPos = 0;
-        for (int i = 0; i < totalItems; i++) {
-            var readBuffer = ByteBuffer.allocate(entrySize);
-            int read = storage.read(readPos, readBuffer);
-            assertEquals("Failed on pos " + readPos + " iteration " + i, entrySize, read);
-            assertArrayEquals("Failed on pos " + readPos + " iteration " + i, data, readBuffer.array());
+        do {
+            var readBuffer = ByteBuffer.allocate(data.length);
+            read = storage.read(readPos, readBuffer);
             readPos += read;
-        }
-
-        assertEquals(((long) totalItems * entrySize), storage.position());
+            if (read != EOF) {
+                readBuffer.flip();
+                assertArrayEquals("Failed on pos " + readPos, data, readBuffer.array());
+            }
+        } while (read != EOF);
     }
 
     @Test
     public void must_support_concurrent_reads_and_writes() throws InterruptedException {
 
         int items = 5000000;
-        int entrySize = 255;
 
-        byte[] data = new byte[entrySize];
-        for (int i = 0; i < data.length; i++) {
-            data[i] = (byte) i;
-        }
+        byte[] data = fillWithUniqueBytes();
+
         final AtomicBoolean done = new AtomicBoolean();
         final AtomicBoolean writeFailed = new AtomicBoolean();
         final AtomicBoolean readFailed = new AtomicBoolean();
 
-        Thread writer = new Thread(() -> {
-            for (int i = 0; i < items; i++) {
-                if (readFailed.get()) {
-                    break;
-                }
-                try {
-                    storage.write(ByteBuffer.wrap(data));
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    writeFailed.set(true);
-                }
-            }
-            done.set(true);
-        });
+        IOUtils.closeQuietly(storage);
 
-
-        Thread reader = new Thread(() -> {
-            int readPos = 0;
-            for (int i = 0; i < items; i++) {
-                while (storage.position() <= readPos) {
-                    sleep(2);
-                }
-                if (readFailed.get()) {
-                    break;
-                }
-                try {
-                    var readBuffer = ByteBuffer.allocate(entrySize);
-                    readPos += storage.read(readPos, readBuffer);
-                    readBuffer.flip();
-                    if (!Arrays.equals(data, readBuffer.array())) {
-                        System.err.println("POSITION: " + readPos);
-                        System.err.println("EXPECTED: " + Arrays.toString(data));
-                        System.err.println("FOUND   : " + Arrays.toString(readBuffer.array()));
-                        readFailed.set(true);
+        final var bigStorage = store(Utils.testFile(), Size.GB.of(1), Integer.MAX_VALUE - 8);
+        try {
+            Thread writer = new Thread(() -> {
+                for (int i = 0; i < items; i++) {
+                    try {
+                        fillWith(bigStorage, data);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        writeFailed.set(true);
+                        break;
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    readFailed.set(true);
                 }
-            }
-        });
+                done.set(true);
+            });
 
-        writer.start();
-        reader.start();
+            Thread reader = new Thread(() -> {
+                int readPos = 0;
+                int read;
+                do {
+                    try {
+                        var readBuffer = ByteBuffer.allocate(data.length);
+                        read = bigStorage.read(readPos, readBuffer);
+                        readPos += read;
+                        readBuffer.flip();
+                        if (read != EOF && !Arrays.equals(data, readBuffer.array())) {
+                            System.err.println("POSITION: " + readPos);
+                            System.err.println("EXPECTED: " + Arrays.toString(data));
+                            System.err.println("FOUND   : " + Arrays.toString(readBuffer.array()));
+                            readFailed.set(true);
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        readFailed.set(true);
+                        break;
+                    }
+                } while (read != EOF);
+            });
 
-        writer.join();
-        reader.join();
+            writer.start();
+            reader.start();
 
-        assertFalse(writeFailed.get());
-        assertFalse(readFailed.get());
+            writer.join();
+            reader.join();
+
+            assertFalse(writeFailed.get());
+            assertFalse(readFailed.get());
+        } finally {
+            IOUtils.closeQuietly(bigStorage);
+        }
+
+    }
+
+    private byte[] fillWithUniqueBytes() {
+        int entrySize = 255;
+        byte[] data = new byte[entrySize];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) i;
+        }
+        return data;
+    }
+
+    private void fillWith(Storage storage, byte[] data) {
+        int written;
+        do {
+            written = storage.write(ByteBuffer.wrap(data));
+        } while (written > 0);
     }
 
 
     public static class RafStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long size) {
-            return StorageProvider.of(StorageMode.RAF).create(file, size);
+        protected Storage store(File file, long size, int bufferSize) {
+            return new RafStorage(file, IOUtils.randomAccessFile(file, size));
         }
-
     }
 
     public static class RafCachedStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long size) {
-            return StorageProvider.of(StorageMode.RAF_CACHED).create(file, size);
+        protected Storage store(File file, long size, int bufferSize) {
+            return new MMapCache(new RafStorage(file, IOUtils.randomAccessFile(file, size)), bufferSize);
         }
-
     }
 
     public static class MMapStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long size) {
-            return StorageProvider.of(StorageMode.MMAP).create(file, size);
+        protected Storage store(File file, long size, int bufferSize) {
+            return new MMapStorage(new RafStorage(file, IOUtils.randomAccessFile(file, size)), bufferSize);
         }
+    }
 
+    public static class OffHeapStorageTest extends StorageTest {
 
-        @Test
-        public void buffer_grows_bigger_than_original_size() {
-            long originalLength = storage.length();
-            byte[] data = new byte[]{1};
+        @Override
+        protected Storage store(File file, long size, int bufferSize) {
+            return new OffHeapStorage(file.getName(), size, bufferSize);
+        }
+    }
 
-            while (storage.position() < originalLength) {
-                storage.write(ByteBuffer.wrap(data));
-            }
+    public static class HeapStorageTest extends StorageTest {
 
-            storage.write(ByteBuffer.wrap(data));
-
-            assertTrue(storage.length() > originalLength);
+        @Override
+        protected Storage store(File file, long size, int bufferSize) {
+            return new HeapStorage(file.getName(), size, bufferSize);
         }
     }
 

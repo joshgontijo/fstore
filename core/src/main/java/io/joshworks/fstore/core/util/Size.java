@@ -14,7 +14,7 @@ public abstract class Size {
 
         @Override
         public int intOf(int value) {
-            return Size.toInt(value);
+            return Size.toInt(of(value));
         }
     };
 
@@ -26,7 +26,7 @@ public abstract class Size {
 
         @Override
         public int intOf(int value) {
-            return Size.toInt(value);
+            return Size.toInt(of(value));
         }
     };
 
@@ -38,7 +38,7 @@ public abstract class Size {
 
         @Override
         public int intOf(int value) {
-            return Size.toInt(value);
+            return Size.toInt(of(value));
         }
     };
 
@@ -50,7 +50,7 @@ public abstract class Size {
 
         @Override
         public int intOf(int value) {
-            return Size.toInt(value);
+            return Size.toInt(of(value));
         }
     };
 
@@ -62,7 +62,7 @@ public abstract class Size {
 
         @Override
         public int intOf(int value) {
-            return Size.toInt(value);
+            return Size.toInt(of(value));
         }
     };
 

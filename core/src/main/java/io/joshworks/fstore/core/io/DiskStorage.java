@@ -1,7 +1,6 @@
 package io.joshworks.fstore.core.io;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
@@ -11,39 +10,36 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class DiskStorage implements Storage {
 
-    public static final int EOF = -1;
-
-    protected RandomAccessFile raf;
-    protected FileChannel channel;
-    protected File file;
-    protected FileLock lock;
-    protected AtomicLong position = new AtomicLong();
+    protected final RandomAccessFile raf;
+    final FileChannel channel;
+    protected final File file;
+    protected final FileLock lock;
+    protected final AtomicLong position = new AtomicLong();
+    private final long size;
 
     DiskStorage(File target, RandomAccessFile raf) {
         Objects.requireNonNull(target, "File must specified");
         this.raf = raf;
-        try {
-            this.file = target;
-            this.channel = raf.getChannel();
-            this.lock = this.channel.lock();
+        this.file = target;
+        this.channel = raf.getChannel();
 
+        try {
+            this.lock = this.channel.lock();
+            this.size = this.raf.length();
         } catch (Exception e) {
             IOUtils.closeQuietly(raf);
             IOUtils.closeQuietly(channel);
-            throw new StorageException("Failed to open storage of " + target.getName(), e);
+            throw new StorageException("Failed acquire file lock: " + target.getName(), e);
         }
     }
 
     @Override
     public long length() {
-        try {
-            return raf.length();
-        } catch (IOException e) {
-            throw new StorageException(e);
-        }
+        return size;
     }
 
-    public void position(long position) {
+    public void writePosition(long position) {
+        validateWriteAddress(position);
         try {
             this.channel.position(position);
             this.position.set(position);
@@ -53,7 +49,7 @@ public abstract class DiskStorage implements Storage {
     }
 
     @Override
-    public long position() {
+    public long writePosition() {
         return position.get();
     }
 

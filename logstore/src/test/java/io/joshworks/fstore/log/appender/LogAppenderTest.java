@@ -263,7 +263,7 @@ public abstract class LogAppenderTest {
         //write broken data
         File file = new File(testDirectory, segmentName);
         try (Storage storage = StorageProvider.of(StorageMode.RAF).open(file)) {
-            storage.position(Log.START);
+            storage.writePosition(Log.START);
             ByteBuffer broken = ByteBuffer.allocate(RecordHeader.HEADER_OVERHEAD + 4);
             broken.putInt(444); //expected length
             broken.putInt(123456); // broken checksum

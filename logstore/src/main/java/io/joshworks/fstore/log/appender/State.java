@@ -108,7 +108,7 @@ public class State implements Closeable {
 
     private void write(ByteBuffer data) {
         try {
-            storage.position(0);
+            storage.writePosition(0);
             storage.write(data);
             storage.flush();
             dirty = false;

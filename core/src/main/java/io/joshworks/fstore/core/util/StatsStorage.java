@@ -31,7 +31,7 @@ public class StatsStorage implements Storage {
     @Override
     public int write(ByteBuffer data) {
         int remaining = data.remaining();
-        if(remaining > biggestEntry) {
+        if (remaining > biggestEntry) {
             biggestEntry = remaining;
         }
         writes.incrementAndGet();
@@ -58,13 +58,13 @@ public class StatsStorage implements Storage {
     }
 
     @Override
-    public void position(long position) {
-        delegate.position(position);
+    public void writePosition(long position) {
+        delegate.writePosition(position);
     }
 
     @Override
-    public long position() {
-        return delegate.position();
+    public long writePosition() {
+        return delegate.writePosition();
     }
 
     @Override

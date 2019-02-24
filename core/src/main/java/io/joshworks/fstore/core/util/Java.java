@@ -4,7 +4,8 @@ import java.util.StringTokenizer;
 
 public final class Java {
 
-    private Java() { }
+    private Java() {
+    }
 
     private static final Version VERSION = parseVersion(System.getProperty("java.specification.version"));
 

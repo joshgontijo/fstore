@@ -1,7 +1,7 @@
 package io.joshworks.fstore.core.seda;
 
 @FunctionalInterface
-public interface StageHandler<T>  {
+public interface StageHandler<T> {
 
     default void handle(final EventContext<T> elem) {
         try {

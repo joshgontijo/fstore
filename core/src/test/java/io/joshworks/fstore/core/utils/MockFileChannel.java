@@ -19,7 +19,7 @@ public class MockFileChannel extends FileChannel {
     public int read(ByteBuffer dst) throws IOException {
         //always send fully, no splitting happens with this mock
         ByteArrayInputStream bais = new ByteArrayInputStream(received.toByteArray());
-        while(dst.hasRemaining()) {
+        while (dst.hasRemaining()) {
             dst.put((byte) bais.read());
         }
         return dst.limit();
@@ -34,7 +34,7 @@ public class MockFileChannel extends FileChannel {
     @Override
     public int write(ByteBuffer src) {
         int receivedBytes = src.limit(); //always read everything
-        while(src.hasRemaining()) {
+        while (src.hasRemaining()) {
             received.write(src.get());
         }
         return receivedBytes;
@@ -83,7 +83,7 @@ public class MockFileChannel extends FileChannel {
     @Override
     public int read(ByteBuffer dst, long position) throws IOException {
         byte[] data = received.toByteArray();
-        dst.put(data, (int)position, (int) (data.length - position));
+        dst.put(data, (int) position, (int) (data.length - position));
         return dst.limit();
     }
 

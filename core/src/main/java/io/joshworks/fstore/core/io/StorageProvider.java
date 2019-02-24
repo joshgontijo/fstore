@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.StatsStorage;
 
 import java.io.File;
-import java.io.RandomAccessFile;
 import java.nio.file.Files;
 
 import static java.util.Objects.requireNonNull;
@@ -23,9 +22,11 @@ public class StorageProvider {
 
     public Storage create(File file, long size) {
         requireNonNull(file, "File must be provided");
+        if (size <= 0) {
+            throw new IllegalArgumentException("Storage size must be greater than zero");
+        }
         long alignedSize = align(size);
-        RandomAccessFile raf = IOUtils.randomAccessFile(file, alignedSize);
-        Storage storage = getStorage(file, raf);
+        Storage storage = getStorage(file, alignedSize);
         return new StatsStorage(storage);
     }
 
@@ -37,20 +38,25 @@ public class StorageProvider {
         if (file.length() <= 0) {
             throw new IllegalStateException("File " + file.getName() + " has length equals to zero");
         }
-        RandomAccessFile raf = IOUtils.randomAccessFile(file);
-        Storage storage = getStorage(file, raf);
-        storage.position(file.length());
+        Storage storage = getStorage(file, file.length());
+        storage.writePosition(file.length());
         return new StatsStorage(storage);
     }
 
-    private Storage getStorage(File file, RandomAccessFile raf) {
+    private Storage getStorage(File file, long alignedSize) {
         switch (mode) {
             case MMAP:
-                return new MMapStorage(file, raf);
+                RafStorage diskStorage1 = new RafStorage(file, IOUtils.randomAccessFile(file, alignedSize));
+                return new MMapStorage(diskStorage1);
             case RAF:
-                return new RafStorage(file, raf);
+                return new RafStorage(file, IOUtils.randomAccessFile(file, alignedSize));
             case RAF_CACHED:
-                return new MMapCache(file, raf);
+                RafStorage diskStorage2 = new RafStorage(file, IOUtils.randomAccessFile(file, alignedSize));
+                return new MMapCache(diskStorage2);
+            case OFF_HEAP:
+                return new OffHeapStorage(file.getAbsolutePath(), alignedSize);
+            case HEAP:
+                return new HeapStorage(file.getName(), alignedSize);
             default:
                 throw new IllegalArgumentException("Invalid storage mode: " + mode);
         }

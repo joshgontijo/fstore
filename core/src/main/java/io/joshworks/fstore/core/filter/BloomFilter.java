@@ -1,8 +1,8 @@
 package io.joshworks.fstore.core.filter;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 
 import java.io.File;

@@ -46,8 +46,8 @@ public class LogHeader {
     }
 
     public static LogHeader read(Storage storage) {
-        if(storage.position() < LogHeader.BYTES) {
-            storage.position(LogHeader.BYTES);
+        if(storage.writePosition() < LogHeader.BYTES) {
+            storage.writePosition(LogHeader.BYTES);
         }
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
         storage.read(0, bb);
@@ -115,12 +115,12 @@ public class LogHeader {
             withChecksumAndLength.put(headerData);
             withChecksumAndLength.position(0);//do not flip, the header will always have the fixed size
 
-            long prevPos = storage.position();
-            storage.position(0);
+            long prevPos = storage.writePosition();
+            storage.writePosition(0);
             if (storage.write(withChecksumAndLength) != LogHeader.BYTES) {
                 throw new IllegalStateException("Unexpected written header length");
             }
-            storage.position(prevPos);
+            storage.writePosition(prevPos);
             return header;
         } catch (Exception e) {
             throw new RuntimeException("Failed to write header", e);

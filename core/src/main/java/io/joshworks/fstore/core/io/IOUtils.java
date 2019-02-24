@@ -161,7 +161,7 @@ public final class IOUtils {
     }
 
     public static String toString(InputStream is) {
-        try(Scanner scanner = new Scanner( is, StandardCharsets.UTF_8)) {
+        try (Scanner scanner = new Scanner(is, StandardCharsets.UTF_8)) {
             return scanner.useDelimiter("\\A").next();
         }
     }

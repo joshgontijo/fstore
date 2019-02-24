@@ -66,7 +66,7 @@ public class BloomFilterTest {
 
         @Override
         public ByteBuffer toBytes(Long data) {
-           return ByteBuffer.allocate(Long.BYTES).putLong(data).flip();
+            return ByteBuffer.allocate(Long.BYTES).putLong(data).flip();
         }
 
         @Override
