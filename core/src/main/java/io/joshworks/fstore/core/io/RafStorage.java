@@ -10,7 +10,7 @@ import java.nio.ByteBuffer;
 
 public class RafStorage extends DiskStorage {
 
-    public RafStorage(File target, RandomAccessFile raf) {
+    RafStorage(File target, RandomAccessFile raf) {
         super(target, raf);
     }
 

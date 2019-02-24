@@ -4,11 +4,11 @@ import java.nio.ByteBuffer;
 
 public class HeapStorage extends MemStorage {
 
-    public HeapStorage(String name, long size) {
+    HeapStorage(String name, long size) {
         super(name, size, HeapStorage::create);
     }
 
-    public HeapStorage(String name, long size, int bufferSize) {
+    HeapStorage(String name, long size, int bufferSize) {
         super(name, size, bufferSize, HeapStorage::create);
     }
 
