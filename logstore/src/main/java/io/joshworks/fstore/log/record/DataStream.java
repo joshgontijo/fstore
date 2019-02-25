@@ -81,6 +81,7 @@ public class DataStream implements IDataStream {
         validateStoragePosition(storagePos);
 
         ByteBuffer writeBuffer = bufferPool.allocate(Memory.PAGE_SIZE);
+        writeBuffer.clear();//set limit to capacity, used to avoid havin BufferOverflow for entry > PAGE_SIZE
 
         try {
             write(data, serializer, writeBuffer);
