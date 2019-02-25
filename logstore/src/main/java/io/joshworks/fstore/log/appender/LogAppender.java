@@ -291,8 +291,9 @@ public class LogAppender<T> implements Closeable {
 
         int segments = levels.numSegments();
         long positionOnSegment = current.append(data);
-        if (autoRoll && current.logicalSize() > metadata.segmentSize) {
+        if (autoRoll && positionOnSegment == Storage.EOF) {
             roll();
+            return append(data);
         }
         if (FlushMode.ALWAYS.equals(metadata.flushMode)) {
             flush();

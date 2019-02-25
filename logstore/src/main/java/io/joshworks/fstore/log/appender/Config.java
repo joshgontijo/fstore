@@ -22,7 +22,7 @@ public class Config<T> {
     private static final int COMPACTION_THRESHOLD = 3;
     private static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(256);
     private static final double DEFAULT_CHECKSUM_PROB = 1.0;
-    private static final long DEFAULT_MAX_ENTRY_SIZE = 1024 * 1024 * 5L;
+    private static final int DEFAULT_MAX_ENTRY_SIZE = 1024 * 1024 * 5;
 
     final File directory;
     final Serializer<T> serializer;
@@ -40,7 +40,7 @@ public class Config<T> {
     boolean threadPerLevel;
     boolean compactionDisabled;
     boolean autoRoll = true;
-    long maxEntrySize = DEFAULT_MAX_ENTRY_SIZE;
+    int maxEntrySize = DEFAULT_MAX_ENTRY_SIZE;
 
     Config(File directory, Serializer<T> serializer) {
         this.directory = requireNonNull(directory, "directory cannot be null");;
@@ -52,8 +52,7 @@ public class Config<T> {
         return this;
     }
 
-    //-1, no limit
-    public Config<T> maxEntrySize(long maxEntrySize) {
+    public Config<T> maxEntrySize(int maxEntrySize) {
         if(maxEntrySize == 0) {
             throw new IllegalArgumentException("maxEntrySize must not be zero");
         }

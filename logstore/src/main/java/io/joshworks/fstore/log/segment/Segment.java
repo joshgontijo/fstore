@@ -10,7 +10,10 @@ import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.BufferRef;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
-import io.joshworks.fstore.log.segment.header.LogHeader;
+import io.joshworks.fstore.log.segment.header.CompletedHeader;
+import io.joshworks.fstore.log.segment.header.CreatedHeader;
+import io.joshworks.fstore.log.segment.header.DeletedHeader;
+import io.joshworks.fstore.log.segment.header.Header;
 import io.joshworks.fstore.log.segment.header.Type;
 import org.slf4j.Logger;
 
@@ -33,7 +36,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * File format:
  * <p>
- * |---- HEADER ----|----- LOG -----|--- END OF LOG (8bytes) ---|--- HEADER ---|
+ * |---- CREATED_HEADER ----|----- LOG_DATA -----|--- END OF LOG (8bytes) ---|--- COMPLETED_HEADER ---|--- DELETED_HEADER ---|
  */
 public class Segment<T> implements Log<T> {
 
@@ -48,7 +51,13 @@ public class Segment<T> implements Log<T> {
     final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
-    private LogHeader header;
+    //must range only from within LOG_DATA section
+    //duplication of storage position, so when header is being written, this keeps consistent state of the actual data pos
+    private final AtomicLong writerPosition = new AtomicLong();
+
+    private CreatedHeader createdHeader;
+    private CompletedHeader completedHeader;
+    private DeletedHeader deletedHeader;
 
     private final Object READER_LOCK = new Object();
     private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
@@ -63,27 +72,25 @@ public class Segment<T> implements Log<T> {
             this.magic = requireNonNull(magic, "Magic must be provided");
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
-            LogHeader foundHeader = LogHeader.read(storage);
-            if (foundHeader == null) { //new segment
-                if (type == null) {
-                    throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
-                }
-                this.header = LogHeader.writeNew(storage, magic, type, storage.length());
-
+            this.createdHeader = CreatedHeader.read(storage);
+            if (this.createdHeader == null) { //new segment
+                this.createdHeader = CreatedHeader.write(storage, magic, System.currentTimeMillis(), type, storage.length());
                 this.position(Log.START);
-                this.entries.set(this.header.entries);
-
-            } else { //existing segment
-                this.header = foundHeader;
-                this.entries.set(foundHeader.entries);
-                this.position(foundHeader.logicalSize);
-                if (Type.LOG_HEAD.equals(foundHeader.type)) {
-                    SegmentState result = rebuildState(Segment.START);
-                    this.position(result.position);
-                    this.entries.set(result.entries);
-                }
             }
-            LogHeader.validateMagic(this.header.magic, magic);
+
+            if (Type.LOG_HEAD.equals(this.createdHeader.type)) { //log head
+                SegmentState result = rebuildState(Segment.START);
+                this.position(result.position);
+                this.entries.set(result.entries);
+            }
+
+            completedHeader = CompletedHeader.read(storage);
+            if (completedHeader != null) { //rolled segment
+                this.position(Header.BYTES + completedHeader.logicalSize);
+                this.entries.set(completedHeader.entries);
+            }
+
+            Header.validateMagic(this.createdHeader.magic, magic);
 
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
@@ -93,9 +100,13 @@ public class Segment<T> implements Log<T> {
 
     private void position(long position) {
         if (position < START) {
-            throw new IllegalArgumentException("Position must be at least " + LogHeader.BYTES);
+            throw new IllegalArgumentException("Position cannot be less than " + START);
+        }
+        if (completedHeader != null && position > Header.BYTES + completedHeader.logicalSize) {
+            throw new IllegalArgumentException("Position cannot greater " + (Header.BYTES + completedHeader.logicalSize));
         }
         this.storage.writePosition(position);
+        this.writerPosition.set(position);
     }
 
     @Override
@@ -142,7 +153,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public long logicalSize() {
-        return readOnly() ? header.logicalSize : position();
+        return readOnly() ? createdHeader.logicalSize : position();
     }
 
     @Override
@@ -150,12 +161,20 @@ public class Segment<T> implements Log<T> {
         return storage.name();
     }
 
+    public boolean head() {
+        return completedHeader == null && Type.LOG_HEAD.equals(createdHeader.type);
+    }
+
+    public boolean deleted() {
+        return deletedHeader != null;
+    }
+
     @Override
     public SegmentIterator<T> iterator(Direction direction) {
         if (Direction.FORWARD.equals(direction)) {
             return iterator(START, direction);
         }
-        long startPos = readOnly() ? header.logicalSize : position();
+        long startPos = readOnly() ? createdHeader.logicalSize : position();
         return iterator(startPos, direction);
 
     }
@@ -196,7 +215,7 @@ public class Segment<T> implements Log<T> {
         if (lastKnownPosition < START) {
             throw new IllegalStateException("Invalid lastKnownPosition: " + lastKnownPosition + ",value must be at least " + START);
         }
-        this.position(storage.length());
+        this.position(storage.length() - 1);
         long position = lastKnownPosition;
         int foundEntries = 0;
         long start = System.currentTimeMillis();
@@ -238,7 +257,7 @@ public class Segment<T> implements Log<T> {
             if (!markedForDeletion.compareAndSet(false, true)) {
                 return;
             }
-            LogHeader.writeDeleted(storage, this.header);
+            this.deletedHeader = DeletedHeader.write(storage, System.currentTimeMillis());
             if (readers.isEmpty()) {
                 deleteInternal();
             } else {
@@ -264,7 +283,7 @@ public class Segment<T> implements Log<T> {
 
         long currPos = storage.writePosition();
         writeEndOfLog();
-        this.header = LogHeader.writeCompleted(storage, this.header, entries.get(), level, currPos);
+        this.completedHeader = CompletedHeader.write(storage, entries.get(), level, System.currentTimeMillis(), currPos - Header.BYTES);
 
     }
 
@@ -305,7 +324,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public boolean readOnly() {
-        return Type.READ_ONLY.equals(header.type);
+        return completedHeader != null;
     }
 
     @Override
@@ -315,17 +334,17 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public int level() {
-        return header.level;
+        return completedHeader == null ? 1 : completedHeader.level;
     }
 
     @Override
     public long created() {
-        return header.created;
+        return createdHeader.created;
     }
 
     @Override
     public Type type() {
-        return header.type;
+        return createdHeader.type;
     }
 
 
@@ -347,7 +366,7 @@ public class Segment<T> implements Log<T> {
     public String toString() {
         return "LogSegment{" + "handler=" + storage.name() +
                 ", entries=" + entries() +
-                ", header=" + header +
+                ", header=" + createdHeader +
                 ", readers=" + Arrays.toString(readers.toArray()) +
                 '}';
     }
