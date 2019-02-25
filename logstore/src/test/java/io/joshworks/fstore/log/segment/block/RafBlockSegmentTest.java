@@ -14,7 +14,7 @@ import java.io.File;
 
 public class RafBlockSegmentTest extends BlockSegmentTest {
 
-    private static final long MAX_ENTRY_SIZE = 1024 * 1024 * 5L;
+    private static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
     private static final double CHCKSUM_PROB = 1;
 
     @Override

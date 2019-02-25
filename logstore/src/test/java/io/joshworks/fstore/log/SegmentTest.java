@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.StorageException;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
@@ -9,6 +10,7 @@ import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
+import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -31,8 +33,8 @@ import static org.junit.Assert.assertTrue;
 public abstract class SegmentTest {
 
     protected static final double CHECKSUM_PROB = 1;
-    protected static final long SEGMENT_SIZE = Size.KB.of(128);
-    protected static final long MAX_ENTRY_SIZE = SEGMENT_SIZE;
+    protected static final int SEGMENT_SIZE = Size.KB.intOf(128);
+    protected static final int MAX_ENTRY_SIZE = SEGMENT_SIZE;
 
     protected Log<String> segment;
     private File testFile;
@@ -62,17 +64,17 @@ public abstract class SegmentTest {
         }
     }
 
-    @Test
-    public void segment_expands_larger_than_original_size() {
-        long originalSize = segment.fileSize();
-        while (segment.logicalSize() <= originalSize) {
-            segment.append("a");
-        }
-
-        segment.append("a");
-
-        assertTrue(segment.fileSize() > originalSize);
-    }
+//    @Test
+//    public void segment_expands_larger_than_original_size() {
+//        long originalSize = segment.fileSize();
+//        while (segment.logicalSize() <= originalSize) {
+//            segment.append("a");
+//        }
+//
+//        segment.append("a");
+//
+//        assertTrue(segment.fileSize() > originalSize);
+//    }
 
     @Test
     public void writePosition_reopen() throws IOException {
@@ -138,11 +140,12 @@ public abstract class SegmentTest {
     @Test
     public void big_entry() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < MAX_ENTRY_SIZE - RecordHeader.HEADER_OVERHEAD; i++) {
+        for (int i = 0; i < segment.fileSize() - RecordHeader.HEADER_OVERHEAD - LogHeader.BYTES; i++) {
             sb.append("a");
         }
         String data = sb.toString();
-        segment.append(data);
+        long pos = segment.append(data);
+        assertEquals(Log.START, pos);
 
         LogIterator<String> logIterator1 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator1.hasNext());
@@ -247,12 +250,7 @@ public abstract class SegmentTest {
 
     @Test
     public void segment_read_backwards() throws IOException {
-        int entries = 100000;
-        for (int i = 0; i < entries; i++) {
-            long pos = segment.append(String.valueOf(i));
-            assertTrue("Entry was not inserted", pos > 0);
-        }
-
+        int entries = writeFully(segment).size();
         segment.flush();
 
         int current = entries - 1;
@@ -267,7 +265,6 @@ public abstract class SegmentTest {
 
     @Test
     public void iterator_continuously_read_from_disk() {
-
         LogIterator<String> iterator = segment.iterator(Direction.FORWARD);
         assertFalse(iterator.hasNext());
 
@@ -280,12 +277,7 @@ public abstract class SegmentTest {
 
     @Test
     public void reader_forward_maintain_correct_position() throws IOException {
-        int entries = 300000;
-        List<Long> positions = new ArrayList<>();
-        for (int i = 0; i < entries; i++) {
-            long pos = segment.append(String.valueOf(i));
-            positions.add(pos);
-        }
+        List<Long> positions = writeFully(segment);
         segment.flush();
 
         try (LogIterator<String> iterator = segment.iterator(Direction.FORWARD)) {
@@ -299,14 +291,7 @@ public abstract class SegmentTest {
 
     @Test
     public void reader_backward_maintain_correct_position() throws IOException {
-        int entries = 100000;
-        List<Long> positions = new ArrayList<>();
-        for (int i = 0; i < entries; i++) {
-            long pos = segment.append(String.valueOf(i));
-            assertTrue("Entry was not inserted", pos > 0);
-            positions.add(pos);
-        }
-
+        List<Long> positions = writeFully(segment);
         segment.flush();
 
         Collections.reverse(positions);
@@ -324,6 +309,16 @@ public abstract class SegmentTest {
         try (LogIterator<String> iterator = segment.iterator(Direction.BACKWARD)) {
             assertFalse(iterator.hasNext());
         }
+    }
+
+    private List<Long> writeFully(Log<String> segment) {
+        List<Long> positions = new ArrayList<>();
+        long pos;
+        int i = 0;
+        while((pos = segment.append(String.valueOf(i++))) > 0) {
+            positions.add(pos);
+        }
+        return positions;
     }
 
     private void testScanner(int items) {
@@ -356,7 +351,6 @@ public abstract class SegmentTest {
                     "magic",
                     Type.LOG_HEAD);
         }
-
     }
 
     public static class MMapSegmentTest extends RafSegmentTest {
