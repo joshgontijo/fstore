@@ -15,7 +15,6 @@ import java.util.concurrent.ThreadLocalRandom;
 //THREAD SAFE
 public class DataStream implements IDataStream {
 
-    private static final double DEFAULT_CHECKSUM_PROB = 1;
     public static final int MAX_BULK_READ_RESULT = 100;
 
     static final int READ_BUFFER_SIZE = Memory.PAGE_SIZE;
@@ -24,7 +23,7 @@ public class DataStream implements IDataStream {
     //hard limit is required to avoid memory issues in case of broken record
 
     private final double checksumProb;
-    private final long maxEntrySize;
+    private final int maxEntrySize;
     private final ThreadLocalRandom rand = ThreadLocalRandom.current();
     private final RecordReader forwardReader = new ForwardRecordReader();
     private final RecordReader bulkForwardReader = new BulkForwardRecordReader();
@@ -32,7 +31,7 @@ public class DataStream implements IDataStream {
     private final RecordReader backwardReader = new BackwardRecordReader();
     private final BufferPool bufferPool;
 
-    public DataStream(BufferPool bufferPool, double checksumProb, long maxEntrySize) {
+    public DataStream(BufferPool bufferPool, double checksumProb, int maxEntrySize) {
         this.checksumProb = (int) (checksumProb * 100);
         this.maxEntrySize = maxEntrySize;
         this.bufferPool = Objects.requireNonNull(bufferPool, "BufferPool must be provided");
@@ -76,17 +75,24 @@ public class DataStream implements IDataStream {
 
         ByteBuffer writeBuffer = bufferPool.allocate(Memory.PAGE_SIZE);
         try {
-            writeBuffer.limit(writeBuffer.capacity());
             writeBuffer.position(RecordHeader.MAIN_HEADER);
 
+            //data
             serializer.writeTo(data, writeBuffer);
 
             int entrySize = writeBuffer.position() - RecordHeader.MAIN_HEADER;
+
+            //extract checksum
             writeBuffer.limit(writeBuffer.position());
             writeBuffer.position(RecordHeader.MAIN_HEADER);
             int checksum = Checksum.crc32(writeBuffer);
+
+            //secondary header
             writeBuffer.limit(writeBuffer.limit() + RecordHeader.SECONDARY_HEADER);
+            writeBuffer.position(RecordHeader.MAIN_HEADER + entrySize);
             writeBuffer.putInt(entrySize); //secondary length
+
+            //main header
             writeBuffer.position(0);
             writeBuffer.putInt(entrySize); //length
             writeBuffer.putInt(checksum); //checksum
@@ -101,8 +107,12 @@ public class DataStream implements IDataStream {
             resizeBuffer(byteBuffer.limit());
             return write(storage, byteBuffer);
         }
-        storage.write(writeBuffer);
-        return storagePos;
+        try {
+            storage.write(writeBuffer);
+            return storagePos;
+        } finally {
+            bufferPool.free(writeBuffer);
+        }
     }
 
     private void resizeBuffer(int size) {
