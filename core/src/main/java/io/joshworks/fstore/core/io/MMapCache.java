@@ -32,12 +32,8 @@ public class MMapCache extends MMapStorage {
 
     @Override
     public void writePosition(long position) {
-        try {
-            diskStorage.writePosition(position);
-            super.writePosition(position);
-        } catch (Exception e) {
-            throw new StorageException(e);
-        }
+        diskStorage.writePosition(position);
+        super.writePosition(position);
     }
 
     @Override
