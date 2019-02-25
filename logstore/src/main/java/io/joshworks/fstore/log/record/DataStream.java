@@ -47,9 +47,7 @@ public class DataStream implements IDataStream {
 
         int recordSize = RecordHeader.HEADER_OVERHEAD + bytes.remaining();
 
-        if (recordSize > maxEntrySize) {
-            throw new IllegalArgumentException("Record cannot exceed " + maxEntrySize + " bytes");
-        }
+        checkRecordSize(recordSize);
 
         ByteBuffer bb = bufferPool.allocate(recordSize);
         try {
@@ -60,11 +58,20 @@ public class DataStream implements IDataStream {
             bb.putInt(entrySize);
 
             bb.flip();
-            storage.write(bb);
+            int written = storage.write(bb);
+            if (written == Storage.EOF) {
+                return Storage.EOF;
+            }
             return storagePos;
 
         } finally {
             bufferPool.free(bb);
+        }
+    }
+
+    private void checkRecordSize(int recordSize) {
+        if (recordSize > maxEntrySize) {
+            throw new IllegalArgumentException("Record cannot exceed " + maxEntrySize + " bytes");
         }
     }
 
@@ -74,50 +81,56 @@ public class DataStream implements IDataStream {
         validateStoragePosition(storagePos);
 
         ByteBuffer writeBuffer = bufferPool.allocate(Memory.PAGE_SIZE);
+
         try {
-            writeBuffer.position(RecordHeader.MAIN_HEADER);
-
-            //data
-            serializer.writeTo(data, writeBuffer);
-
-            int entrySize = writeBuffer.position() - RecordHeader.MAIN_HEADER;
-
-            //extract checksum
-            writeBuffer.limit(writeBuffer.position());
-            writeBuffer.position(RecordHeader.MAIN_HEADER);
-            int checksum = Checksum.crc32(writeBuffer);
-
-            //secondary header
-            writeBuffer.limit(writeBuffer.limit() + RecordHeader.SECONDARY_HEADER);
-            writeBuffer.position(RecordHeader.MAIN_HEADER + entrySize);
-            writeBuffer.putInt(entrySize); //secondary length
-
-            //main header
-            writeBuffer.position(0);
-            writeBuffer.putInt(entrySize); //length
-            writeBuffer.putInt(checksum); //checksum
-            writeBuffer.position(0);
-            writeBuffer.limit(RecordHeader.HEADER_OVERHEAD + entrySize);
+            write(data, serializer, writeBuffer);
         } catch (BufferOverflowException boe) {
-            if (writeBuffer.capacity() > maxEntrySize) {
+            int bufferCapacity = writeBuffer.capacity();
+            bufferPool.free(writeBuffer);
+            if (bufferCapacity > maxEntrySize) {
                 throw new IllegalArgumentException("Record cannot exceed " + maxEntrySize + " bytes");
             }
-            bufferPool.free(writeBuffer);
-            ByteBuffer byteBuffer = serializer.toBytes(data);
-            resizeBuffer(byteBuffer.limit());
-            return write(storage, byteBuffer);
+            int entrySize = serializer.toBytes(data).limit() + RecordHeader.HEADER_OVERHEAD;
+            writeBuffer = bufferPool.allocate(entrySize);
+            write(data, serializer, writeBuffer);
         }
         try {
-            storage.write(writeBuffer);
+            checkRecordSize(writeBuffer.capacity());
+            int written = storage.write(writeBuffer);
+            if (written == Storage.EOF) {
+                return Storage.EOF;
+            }
             return storagePos;
         } finally {
             bufferPool.free(writeBuffer);
         }
     }
 
-    private void resizeBuffer(int size) {
-        ByteBuffer writeBuffer = bufferPool.allocate(size);
-        bufferPool.free(writeBuffer);
+    private <T> void write(T data, Serializer<T> serializer, ByteBuffer buffer) {
+        buffer.limit(buffer.capacity());
+        buffer.position(RecordHeader.MAIN_HEADER);
+
+        //data
+        serializer.writeTo(data, buffer);
+
+        int entrySize = buffer.position() - RecordHeader.MAIN_HEADER;
+
+        //extract checksum
+        buffer.limit(buffer.position());
+        buffer.position(RecordHeader.MAIN_HEADER);
+        int checksum = Checksum.crc32(buffer);
+
+        //secondary header
+        buffer.limit(buffer.limit() + RecordHeader.SECONDARY_HEADER);
+        buffer.position(RecordHeader.MAIN_HEADER + entrySize);
+        buffer.putInt(entrySize); //secondary length
+
+        //main header
+        buffer.position(0);
+        buffer.putInt(entrySize); //length
+        buffer.putInt(checksum); //checksum
+        buffer.position(0);
+        buffer.limit(RecordHeader.HEADER_OVERHEAD + entrySize);
     }
 
     private void validateStoragePosition(long storagePos) {

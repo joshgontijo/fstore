@@ -39,7 +39,7 @@ public class StorageProvider {
             throw new IllegalStateException("File " + file.getName() + " has length equals to zero");
         }
         Storage storage = getStorage(file, file.length());
-        storage.writePosition(file.length());
+        storage.writePosition(file.length() - 1);
         return new StatsStorage(storage);
     }
 
