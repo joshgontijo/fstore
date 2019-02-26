@@ -11,7 +11,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.DataStream;
-import io.joshworks.fstore.log.segment.headers.Type;
+import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -35,7 +35,7 @@ public class IndexSegmentTest {
     private File segmentFile;
     private File indexDir;
 
-    private static final long MAX_ENTRY_SIZE = 1024 * 1024 * 5L;
+    private static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
     private static final double CHCKSUM_PROB = 1;
 
     private IndexSegment segment;
