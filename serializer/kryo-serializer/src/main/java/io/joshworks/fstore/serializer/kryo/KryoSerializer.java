@@ -75,12 +75,14 @@ public class KryoSerializer<T> implements Serializer<T> {
         return new KryoSerializer<>(kryo, null);
     }
 
-    public void register(Class type) {
+    public KryoSerializer<T> register(Class type) {
         kryo.register(type);
+        return this;
     }
 
-    public void register(Class type, com.esotericsoftware.kryo.Serializer serializer) {
+    public KryoSerializer<T> register(Class type, com.esotericsoftware.kryo.Serializer serializer) {
         kryo.register(type, serializer);
+        return this;
     }
 
     @Override
