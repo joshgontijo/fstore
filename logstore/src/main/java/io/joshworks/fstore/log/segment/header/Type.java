@@ -2,9 +2,7 @@ package io.joshworks.fstore.log.segment.header;
 
 public enum Type {
     LOG_HEAD(2),
-    MERGE_OUT(3),
-    READ_ONLY(4),
-    DELETED(5);
+    MERGE_OUT(3);
 
     final int val;
 
