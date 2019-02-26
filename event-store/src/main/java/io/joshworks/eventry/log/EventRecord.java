@@ -1,11 +1,13 @@
 package io.joshworks.eventry.log;
 
 import com.google.gson.reflect.TypeToken;
+import io.joshworks.eventry.MapRecordSerializer;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -14,8 +16,10 @@ import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class EventRecord {
 
-//    private static final Serializer<Map<String, Object>> serializer = new MapRecordSerializer();
-    private static final Serializer<Map<String, Object>> serializer = JsonSerializer.of(new TypeToken<Map<String, Object>>(){}.getType());
+    private static final Serializer<Map<String, Object>> serializer = new MapRecordSerializer();
+//    private static final Serializer<Map<String, Object>> serializer = JsonSerializer.of(new TypeToken<Map<String, Object>>(){}.getType());
+
+//    private static final KryoStoreSerializer<Map<String, Object>> serializer = new KryoStoreSerializer<>();
 
     public final String stream;
     public final String type;

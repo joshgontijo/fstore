@@ -18,7 +18,7 @@ import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.segment.headers.Type;
+import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.Closeable;
 import java.io.File;
