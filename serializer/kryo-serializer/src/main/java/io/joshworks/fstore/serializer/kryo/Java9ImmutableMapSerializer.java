@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-public class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>> {
+class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>> {
 
     private static final boolean DOES_NOT_ACCEPT_NULL = true;
     private static final boolean IMMUTABLE = true;

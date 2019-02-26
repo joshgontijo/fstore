@@ -4,6 +4,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers;
+import com.esotericsoftware.kryo.serializers.MapSerializer;
 import de.javakaffee.kryoserializers.ArraysAsListSerializer;
 import de.javakaffee.kryoserializers.GregorianCalendarSerializer;
 import de.javakaffee.kryoserializers.JdkProxySerializer;
@@ -15,24 +16,36 @@ import org.objenesis.strategy.StdInstantiatorStrategy;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.InvocationHandler;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class KryoStoreSerializer<T> implements Serializer<T> {
+import static java.util.Objects.requireNonNull;
+
+public class KryoSerializer<T> implements Serializer<T> {
 
     private final Kryo kryo;
     private final Class<T> type;
 
-    public KryoStoreSerializer(Class<T> type) {
+    private KryoSerializer(Kryo kryo, Class<T> type) {
+        this.kryo = kryo;
         this.type = type;
-        kryo = newKryoInstance(type);
     }
 
-    private static Kryo newKryoInstance(Class<?> type) {
+    private static Kryo newInstance() {
         Kryo kryo = new Kryo();
+        kryo.register(HashMap.class);
+        kryo.register(LinkedHashMap.class, new MapSerializer());
+        kryo.register(LinkedHashMap.class, new MapSerializer());
+        kryo.register(ConcurrentHashMap.class, new MapSerializer());
+        kryo.register(ArrayList.class);
+        kryo.register(LinkedList.class);
         kryo.setInstantiatorStrategy(new Kryo.DefaultInstantiatorStrategy(new StdInstantiatorStrategy()));
-        kryo.register(type);
         kryo.register(Arrays.asList("").getClass(), new ArraysAsListSerializer());
         kryo.register(Collections.emptyList().getClass(), new DefaultSerializers.CollectionsEmptyListSerializer());
         kryo.register(Collections.emptyMap().getClass(), new DefaultSerializers.CollectionsEmptyMapSerializer());
@@ -45,31 +58,63 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
         UnmodifiableCollectionsSerializer.registerSerializers(kryo);
         SynchronizedCollectionsSerializer.registerSerializers(kryo);
         Java9ImmutableMapSerializer.registerSerializers(kryo);
+        Java9ImmutableListSerializer.registerSerializers(kryo);
+        Java9ImmutableSetSerializer.registerSerializers(kryo);
         return kryo;
+    }
+
+    public static <T> KryoSerializer<T> of(Class<T> type) {
+        requireNonNull(type, "Type must be provided");
+        Kryo kryo = newInstance();
+        kryo.register(type);
+        return new KryoSerializer<>(kryo, type);
+    }
+
+    public static <T> KryoSerializer<T> untyped() {
+        Kryo kryo = newInstance();
+        return new KryoSerializer<>(kryo, null);
+    }
+
+    public void register(Class type) {
+        kryo.register(type);
+    }
+
+    public void register(Class type, com.esotericsoftware.kryo.Serializer serializer) {
+        kryo.register(type, serializer);
     }
 
     @Override
     public ByteBuffer toBytes(T data) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try(Output output = new Output(baos)) {
-            kryo.writeObject(output, data);
-        }
+        writeTo(data, baos);
         return ByteBuffer.wrap(baos.toByteArray());
     }
+
 
     @Override
     public void writeTo(T data, ByteBuffer dest) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try(Output output = new Output(baos)) {
-            kryo.writeObject(output, data);
-        }
+        writeTo(data, baos);
         dest.put(baos.toByteArray());
     }
 
     @Override
     public T fromBytes(ByteBuffer data) {
-        return kryo.readObject(new Input(data.array()), type);
+        Input input = new Input(data.array());
+        if (type == null) {
+            return (T) kryo.readClassAndObject(input);
+        }
+        return kryo.readObject(input, type);
     }
 
+    private void writeTo(T data, ByteArrayOutputStream baos) {
+        try (Output output = new Output(baos)) {
+            if (type == null) {
+                kryo.writeClassAndObject(output, data);
+            } else {
+                kryo.writeObject(output, data);
+            }
+        }
+    }
 
 }
