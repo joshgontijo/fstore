@@ -20,7 +20,7 @@ import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
-import io.joshworks.fstore.log.segment.headers.Type;
+import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
