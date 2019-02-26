@@ -78,6 +78,11 @@ public class StatsStorage implements Storage {
     }
 
     @Override
+    public void truncate() {
+        delegate.truncate();
+    }
+
+    @Override
     public void close() throws IOException {
         delegate.close();
     }

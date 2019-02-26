@@ -1,6 +1,8 @@
 package io.joshworks.fstore.core.io;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
@@ -12,48 +14,45 @@ public abstract class MemStorage implements Storage {
 
     private static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
 
-    private final int bufferSize;
-    protected final AtomicLong position = new AtomicLong();
+    protected final int bufferSize;
+    private final BiFunction<Long, Integer, ByteBuffer> bufferSupplier;
+    protected final AtomicLong writePosition = new AtomicLong();
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final String name;
-    protected final long size;
 
-    private final ByteBuffer[] buffers;
+    protected final List<ByteBuffer> buffers = new ArrayList<>();
 
     MemStorage(String name, long size, BiFunction<Long, Integer, ByteBuffer> supplier) {
         this(name, size, MAX_BUFFER_SIZE, supplier);
     }
 
-    MemStorage(String name, long size, int bufferSize, BiFunction<Long, Integer, ByteBuffer> supplier) {
+    MemStorage(String name, long size, int bufferSize, BiFunction<Long, Integer, ByteBuffer> bufferSupplier) {
         this.name = name;
-        this.size = size;
         this.bufferSize = bufferSize;
+        this.bufferSupplier = bufferSupplier;
         int numBuffers = calculateNumBuffers(size, bufferSize);
-        try {
-            this.buffers = initBuffers(numBuffers, size, bufferSize, supplier);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        this.buffers.addAll(initBuffers(numBuffers, size, bufferSize, bufferSupplier));
     }
 
     protected abstract void destroy(ByteBuffer buffer);
 
-    private ByteBuffer[] initBuffers(int numBuffers, long fileLength, int bufferSize, BiFunction<Long, Integer, ByteBuffer> supplier) {
-        ByteBuffer[] buffers = new ByteBuffer[numBuffers];
+    protected List<ByteBuffer> initBuffers(int numBuffers, long fileLength, int bufferSize, BiFunction<Long, Integer, ByteBuffer> supplier) {
+        List<ByteBuffer> buffers = new ArrayList<>();
         long total = 0;
         int size = bufferSize;
         for (int i = 0; i < numBuffers; i++) {
             if (i + 1 == numBuffers) {
                 size = (int) (fileLength - total);
             }
-            buffers[i] = supplier.apply(i * (long) size, size);
+            ByteBuffer bb = supplier.apply(i * (long) size, size);
+            buffers.add(bb);
             total += size;
         }
         return buffers;
     }
 
-    private int calculateNumBuffers(long fileLength, int bufferSize) {
+    protected int calculateNumBuffers(long fileLength, int bufferSize) {
         int numFullBuffers = (int) (fileLength / bufferSize);
         long diff = fileLength % bufferSize;
         return diff == 0 ? numFullBuffers : numFullBuffers + 1;
@@ -61,7 +60,7 @@ public abstract class MemStorage implements Storage {
 
     ByteBuffer getBuffer(long pos) {
         int idx = bufferIdx(pos);
-        return buffers[idx];
+        return buffers.get(idx);
     }
 
     private void destroyBuffers() {
@@ -77,7 +76,7 @@ public abstract class MemStorage implements Storage {
         }
     }
 
-    private int posOnBuffer(long pos) {
+    protected int posOnBuffer(long pos) {
         return (int) (pos % Integer.MAX_VALUE);
     }
 
@@ -86,7 +85,7 @@ public abstract class MemStorage implements Storage {
     }
 
     int numBuffers() {
-        return buffers.length;
+        return buffers.size();
     }
 
     private void checkClosed() {
@@ -129,7 +128,7 @@ public abstract class MemStorage implements Storage {
                 }
             }
 
-            position.addAndGet(written);
+            writePosition.addAndGet(written);
             return written;
         } finally {
             lock.unlock();
@@ -165,7 +164,7 @@ public abstract class MemStorage implements Storage {
             int srcRemaining = src.remaining();
             if (dstRemaining > srcRemaining) {
                 dst.put(src);
-                if (idx + 1 >= buffers.length) { //no more buffers
+                if (idx + 1 >= buffers.size()) { //no more buffers
                     return srcRemaining;
                 }
                 int read = read(readPos + srcRemaining, dst);
@@ -185,7 +184,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public long length() {
-        return size;
+        return buffers.stream().mapToLong(ByteBuffer::capacity).sum();
     }
 
     @Override
@@ -196,10 +195,10 @@ public abstract class MemStorage implements Storage {
         try {
             checkClosed();
             int idx = bufferIdx(position);
-            ByteBuffer buffer = buffers[idx];
+            ByteBuffer buffer = buffers.get(idx);
             int bufferAddress = posOnBuffer(position);
             buffer.position(bufferAddress);
-            this.position.set(position);
+            this.writePosition.set(position);
         } finally {
             lock.unlock();
         }
@@ -207,7 +206,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public long writePosition() {
-        return position.get();
+        return writePosition.get();
     }
 
     @Override
@@ -228,5 +227,28 @@ public abstract class MemStorage implements Storage {
     @Override
     public void flush() {
         //do nothing
+    }
+
+    @Override
+    public void truncate() {
+        long pos = writePosition.get();
+        int idx = bufferIdx(pos);
+        int bPos = posOnBuffer(pos);
+        ByteBuffer bb = getBuffer(pos);
+        bb.limit(bPos);
+        bb.position(0);
+
+        long unused = -1L;
+        ByteBuffer newBuffer = bufferSupplier.apply(unused, bPos);
+        newBuffer.put(bb);
+        buffers.set(idx, newBuffer);
+
+        if(bPos == 0) {
+            buffers.remove(idx);
+        }
+        for (int i = idx + 1; i < buffers.size(); i++) {
+            ByteBuffer removed = buffers.remove(idx);
+            destroy(removed);
+        }
     }
 }
