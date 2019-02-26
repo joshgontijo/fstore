@@ -26,7 +26,7 @@ public class MMapCache extends MMapStorage {
         { //READS ARE NOT GUARANTEED TO SEE CHANGES MADE TO THE UNDERLYING FILE, RE-READ IS NEEDED UNTIL ALL DATA IS AVAILABLE
             read += super.read(readPos, dst);
             readPos += read;
-        } while (read > 0 && read < tobeRead && (readPos < this.position.get()));
+        } while (read > 0 && read < tobeRead && (readPos < diskStorage.writePosition()));
         return read;
     }
 

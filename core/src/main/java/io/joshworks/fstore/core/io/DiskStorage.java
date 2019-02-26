@@ -15,7 +15,7 @@ public abstract class DiskStorage implements Storage {
     protected final File file;
     protected final FileLock lock;
     protected final AtomicLong position = new AtomicLong();
-    private final long size;
+    private long size;
 
     DiskStorage(File target, RandomAccessFile raf) {
         Objects.requireNonNull(target, "File must specified");
@@ -87,6 +87,17 @@ public abstract class DiskStorage implements Storage {
     @Override
     public String name() {
         return file.getName();
+    }
+
+    @Override
+    public void truncate() {
+        try {
+            long pos = writePosition();
+            channel.truncate(pos);
+            size = pos;
+        } catch (Exception e) {
+            throw new StorageException("Failed to truncate", e);
+        }
     }
 
 }

@@ -4,9 +4,11 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.utils.Utils;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -188,6 +190,26 @@ public abstract class StorageTest {
     }
 
     @Test
+    @Ignore("Volatile storage will not work")
+    public void data_is_present_after_reopened() throws IOException {
+        byte[] data = fillWithUniqueBytes();
+        storage.write(ByteBuffer.wrap(data));
+        storage.write(ByteBuffer.wrap(data));
+
+        storage.close();
+        storage = store(testFile, STORAGE_SIZE, BUFFER_SIZE);
+        storage.writePosition(data.length * 2);
+
+        var bb = ByteBuffer.allocate(data.length);
+        storage.read(0, bb);
+        assertArrayEquals(data, bb.array());
+
+        bb = ByteBuffer.allocate(data.length);
+        storage.read(data.length, bb);
+        assertArrayEquals(data, bb.array());
+    }
+
+    @Test
     public void reading_return_the_same_written_data() {
         byte[] data = fillWithUniqueBytes();
 
@@ -268,6 +290,31 @@ public abstract class StorageTest {
         } finally {
             IOUtils.closeQuietly(bigStorage);
         }
+
+    }
+
+    @Test
+    public void truncate() {
+        byte[] data = fillWithUniqueBytes();
+
+        storage.write(ByteBuffer.wrap(data));
+        storage.write(ByteBuffer.wrap(data));
+
+        long pos = storage.writePosition();
+        storage.truncate();
+
+        long afterPos = storage.writePosition();
+        long length = storage.length();
+        assertEquals(pos, afterPos);
+        assertEquals(afterPos, length);
+
+        var bb = ByteBuffer.allocate(data.length);
+        storage.read(0, bb);
+        assertArrayEquals(data, bb.array());
+
+        bb = ByteBuffer.allocate(data.length);
+        storage.read(data.length, bb);
+        assertArrayEquals(data, bb.array());
 
     }
 

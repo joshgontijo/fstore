@@ -22,6 +22,8 @@ public interface Storage extends Flushable, Closeable {
 
     String name();
 
+    void truncate();
+
     default boolean hasEnoughSpace(int dataSize) {
         long position = writePosition();
         long size = length();
