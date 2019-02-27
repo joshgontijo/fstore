@@ -75,7 +75,7 @@ public class LogAppender<T> implements Closeable {
 
     private final ScheduledExecutorService flushWorker;
     private final SedaContext sedaContext = new SedaContext("compaction");
-    private final Set<ForwardLogReader> forwardReaders = new HashSet<>();
+    private final Set<ForwardLogReader<T>> forwardReaders = new HashSet<>();
     private final Compactor<T> compactor;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
@@ -270,7 +270,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     private void notifyPollers(Log<T> newSegment) {
-        for (ForwardLogReader reader : forwardReaders) {
+        for (ForwardLogReader<T> reader : forwardReaders) {
             reader.addSegment(newSegment);
         }
     }
@@ -358,7 +358,7 @@ public class LogAppender<T> implements Closeable {
         return applyToSegments(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::fileSize).sum());
     }
 
-    public synchronized void close() {
+    public void close() {
         if (!closed.compareAndSet(false, true)) {
             return;
         }

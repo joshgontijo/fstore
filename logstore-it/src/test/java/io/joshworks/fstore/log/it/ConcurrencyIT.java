@@ -48,7 +48,7 @@ public abstract class ConcurrencyIT {
     @Test
     public void full_scan() throws InterruptedException {
 
-        int parallelReads = 2;
+        int parallelReads = 50;
         int totalItems = 20000000;
         ExecutorService executor = Executors.newFixedThreadPool(parallelReads);
 
