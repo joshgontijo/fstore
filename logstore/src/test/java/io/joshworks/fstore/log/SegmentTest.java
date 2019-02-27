@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageException;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
@@ -208,23 +209,40 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void scanner_0() {
-        testScanner(0);
+    public void entries_are_not_incremented_when_segment_is_full() {
+        writeFully(segment);
+        long entries = segment.entries();
+        segment.append("a");
+        assertEquals(entries, segment.entries());
     }
 
     @Test
-    public void scanner_1() {
-        testScanner(1);
+    public void position_is_not_incremented_when_segment_is_full() {
+        writeFully(segment);
+        long position = segment.position();
+        segment.append("a");
+        assertEquals(position, segment.position());
     }
 
     @Test
-    public void scanner_10() {
-        testScanner(10);
+    public void EOF_is_returned_when_no_space_is_available() {
+        writeFully(segment);
+        long pos = segment.append("a");
+        assertEquals(Storage.EOF, pos);
     }
 
     @Test
-    public void scanner_1000() {
-        testScanner(1000);
+    public void iterator_return_all_entries() {
+        List<Long> positions = writeFully(segment);
+        long entries = Iterators.stream(segment.iterator(Direction.FORWARD)).count();
+        assertEquals(entries, positions.size());
+    }
+
+    @Test
+    public void entries_matches_actual() {
+        List<Long> positions = writeFully(segment);
+        segment.flush();
+        assertEquals(segment.entries(), positions.size());
     }
 
     @Test
@@ -319,25 +337,6 @@ public abstract class SegmentTest {
             positions.add(pos);
         }
         return positions;
-    }
-
-    private void testScanner(int items) {
-        List<String> values = new ArrayList<>();
-        for (int i = 0; i < items; i++) {
-            String value = UUID.randomUUID().toString();
-            values.add(value);
-            segment.append(value);
-        }
-        segment.flush();
-
-        int i = 0;
-
-        LogIterator<String> logIterator = segment.iterator(Direction.FORWARD);
-        while (logIterator.hasNext()) {
-            assertEquals("Failed on iteration " + i, values.get(i), logIterator.next());
-            i++;
-        }
-        assertEquals(items, i);
     }
 
     public static class CachedSegmentTest extends SegmentTest {

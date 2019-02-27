@@ -137,6 +137,11 @@ public class IndexSegment implements Log<IndexEntry> {
     }
 
     @Override
+    public boolean closed() {
+        return closed.get();
+    }
+
+    @Override
     public long entries() {
         return delegate.entries();
     }
@@ -269,7 +274,7 @@ public class IndexSegment implements Log<IndexEntry> {
         List<IndexEntry> entries = foundBlock.entries();
         int idx = Collections.binarySearch(entries, start);
         idx = idx >= 0 ? idx : Math.abs(idx) - 1;
-        if(idx >= entries.size()) {
+        if (idx >= entries.size()) {
             return IndexEntry.NO_VERSION;
         }
         IndexEntry lastVersion = entries.get(idx);

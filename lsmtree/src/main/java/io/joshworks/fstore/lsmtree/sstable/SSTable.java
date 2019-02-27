@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
@@ -35,6 +36,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     private final File directory;
     private final BlockSegment<Entry<K, V>> delegate;
     private final Map<K, Long> cache = new HashMap<>();
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     public SSTable(Storage storage,
                    Serializer<K> keySerializer,
@@ -128,6 +130,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
+    public boolean closed() {
+        return closed.get();
+    }
+
+    @Override
     public long entries() {
         return delegate.entries();
     }
@@ -188,8 +195,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
     @Override
     public void close() {
-        delegate.close();
-        index.close();
+        if(closed.compareAndSet(false, true)) {
+            delegate.close();
+            index.close();
+        }
     }
 
     @Override

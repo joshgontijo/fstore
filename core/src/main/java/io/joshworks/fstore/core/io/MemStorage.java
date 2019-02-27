@@ -20,6 +20,7 @@ public abstract class MemStorage implements Storage {
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final String name;
+    private final AtomicLong size = new AtomicLong();
 
     protected final List<ByteBuffer> buffers = new ArrayList<>();
 
@@ -33,6 +34,7 @@ public abstract class MemStorage implements Storage {
         this.bufferSupplier = bufferSupplier;
         int numBuffers = calculateNumBuffers(size, bufferSize);
         this.buffers.addAll(initBuffers(numBuffers, size, bufferSize, bufferSupplier));
+        updateLength();
     }
 
     protected abstract void destroy(ByteBuffer buffer);
@@ -137,7 +139,9 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public int read(long readPos, ByteBuffer dst) {
-
+        if(!dst.hasRemaining()) {
+            return 0;
+        }
         Lock lock = rwLock.readLock();
         lock.lock();
         try {
@@ -184,7 +188,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public long length() {
-        return buffers.stream().mapToLong(ByteBuffer::capacity).sum();
+        return size.get();
     }
 
     @Override
@@ -250,5 +254,10 @@ public abstract class MemStorage implements Storage {
             ByteBuffer removed = buffers.remove(idx);
             destroy(removed);
         }
+        updateLength();
+    }
+
+    private void updateLength() {
+        this.size.set(buffers.stream().mapToLong(ByteBuffer::capacity).sum());
     }
 }

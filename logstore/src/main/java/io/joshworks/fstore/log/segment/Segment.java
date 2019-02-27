@@ -8,7 +8,6 @@ import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.BufferRef;
-import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
@@ -16,16 +15,17 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.IntStream;
 
 import static java.util.Objects.requireNonNull;
@@ -40,10 +40,9 @@ import static java.util.Objects.requireNonNull;
  * LOG: 1024 -> fileSize - 8
  * EOL: fileSize - 8 -> fileSize
  * </p>
- *
+ * <p>
  * Segment is not thread safe for append method. But it does guarantee concurrent access of multiple readers at same time.
  * Multiple readers can also read (iterator and get) while a record is being appended
- *
  */
 public class Segment<T> implements Log<T> {
 
@@ -54,15 +53,14 @@ public class Segment<T> implements Log<T> {
     private final IDataStream dataStream;
     private final String magic;
 
-    protected AtomicLong entries = new AtomicLong();
+    protected final AtomicLong entries = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
     private final AtomicLong writePosition = new AtomicLong();
 
-
     private LogHeader header;
 
-    private final Object READER_LOCK = new Object();
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
@@ -104,8 +102,8 @@ public class Segment<T> implements Log<T> {
     }
 
     private void position(long position) {
-        if (position < START) {
-            throw new IllegalArgumentException("Position must be at least " + LogHeader.BYTES);
+        if (position < START || position >= fileSize()) {
+            throw new IllegalArgumentException("Position must be between " + LogHeader.BYTES + " and " + fileSize());
         }
         this.storage.writePosition(position);
         this.writePosition.set(position);
@@ -113,11 +111,15 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public long append(T data) {
+        checkNotClosed();
         if (readOnly()) {
             throw new IllegalStateException("Segment is read only");
         }
         ByteBuffer bytes = serializer.toBytes(data);
         long recordPosition = dataStream.write(storage, bytes);
+        if (recordPosition == Storage.EOF) {
+            return recordPosition;
+        }
         writePosition.set(storage.writePosition());
         incrementEntry();
         return recordPosition;
@@ -129,23 +131,19 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public T get(long position) {
-        checkBounds(position);
-        try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position)) {
-            ByteBuffer bb = ref.get();
-            if (bb.remaining() == 0) { //EOF
-                return null;
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        try {
+            checkBounds(position);
+            try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position)) {
+                ByteBuffer bb = ref.get();
+                if (bb.remaining() == 0) { //EOF
+                    return null;
+                }
+                return serializer.fromBytes(bb);
             }
-            return serializer.fromBytes(bb);
-        }
-    }
-
-    private void checkBounds(long position) {
-        if (position < START) {
-            throw new IllegalArgumentException("Position must be greater or equals to " + START + ", got: " + position);
-        }
-        long writePosition = position();
-        if (position > writePosition) {
-            throw new IllegalArgumentException("Position must be less than writePosition " + writePosition + ", got " + position);
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -161,18 +159,32 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public SegmentIterator<T> iterator(Direction direction) {
-        if (Direction.FORWARD.equals(direction)) {
-            return iterator(START, direction);
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        try {
+            if (Direction.FORWARD.equals(direction)) {
+                return iterator(START, direction);
+            }
+            long startPos = readOnly() ? header.logicalSize : position();
+            return iterator(startPos, direction);
+        } finally {
+            lock.unlock();
         }
-        long startPos = readOnly() ? header.logicalSize : position();
-        return iterator(startPos, direction);
-
     }
 
     @Override
     public SegmentIterator<T> iterator(long position, Direction direction) {
-        checkClosed();
-        return newLogReader(position, direction);
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        try {
+            checkNotClosed();
+            checkBounds(position);
+            SegmentReader<T> segmentReader = new SegmentReader<>(this, storage, dataStream, serializer, position, direction);
+            return acquireReader(segmentReader);
+        } finally {
+            lock.unlock();
+        }
+
     }
 
     @Override
@@ -182,12 +194,16 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void close() {
-        synchronized (READER_LOCK) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
             if (!closed.compareAndSet(false, true)) {
                 return;
             }
             readers.clear(); //evict readers
             IOUtils.closeQuietly(storage);
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -243,7 +259,9 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void delete() {
-        synchronized (READER_LOCK) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
             if (!markedForDeletion.compareAndSet(false, true)) {
                 return;
             }
@@ -253,14 +271,9 @@ public class Segment<T> implements Log<T> {
             } else {
                 logger.info("{} active readers while deleting, marked for deletion", readers.size());
             }
+        } finally {
+            lock.unlock();
         }
-    }
-
-    private void deleteInternal() {
-        String name = name();
-        logger.info("Deleting {}", name);
-        storage.delete();
-        close();
     }
 
     @Override
@@ -273,40 +286,14 @@ public class Segment<T> implements Log<T> {
         this.header = LogHeader.writeCompleted(storage, this.header, entries.get(), level, currPos);
     }
 
-    private <R extends TimeoutReader> R acquireReader(R reader) {
-        synchronized (READER_LOCK) {
-            if (closed.get()) {
-                throw new RuntimeException("Could not acquire segment reader: Closed");
-            }
-            if (markedForDeletion.get()) {
-                throw new RuntimeException("Could not acquire segment reader: Marked for deletion");
-            }
-            readers.add(reader);
-            return reader;
-        }
-    }
-
-    private <R extends TimeoutReader> void removeFromReaders(R reader) {
-        synchronized (READER_LOCK) {
-            boolean removed = readers.remove(reader);
-            if (removed) { //may be called multiple times for the same reader
-                if (markedForDeletion.get() && readers.isEmpty()) {
-                    deleteInternal();
-                }
-            }
-        }
-    }
-
-    private SegmentReader newLogReader(long pos, Direction direction) {
-        checkClosed();
-        checkBounds(pos);
-        SegmentReader segmentReader = new SegmentReader(this, dataStream, serializer, pos, direction);
-        return acquireReader(segmentReader);
-    }
-
     @Override
     public boolean readOnly() {
         return Type.READ_ONLY.equals(header.type);
+    }
+
+    @Override
+    public boolean closed() {
+        return closed.get();
     }
 
     @Override
@@ -329,6 +316,71 @@ public class Segment<T> implements Log<T> {
         return header.type;
     }
 
+    //safely check if the given position is at the end of the log
+    boolean endOfLog(long position) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            return readOnly() && position >= position();
+        }finally {
+            lock.unlock();
+        }
+    }
+
+    private void checkNotClosed() {
+        if (closed.get()) {
+            throw new SegmentClosedException("Segment " + name() + "is closed");
+        }
+    }
+
+    private void checkBounds(long position) {
+        if (position < START) {
+            throw new IllegalArgumentException("Position must be greater or equals to " + START + ", got: " + position);
+        }
+        long writePosition = position();
+        if (position > writePosition) {
+            throw new IllegalArgumentException("Position must be less than writePosition " + writePosition + ", got " + position);
+        }
+    }
+
+    private <R extends TimeoutReader> R acquireReader(R reader) {
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        try {
+            if (closed.get()) {
+                throw new RuntimeException("Could not acquire segment reader: Closed");
+            }
+            if (markedForDeletion.get()) {
+                throw new RuntimeException("Could not acquire segment reader: Marked for deletion");
+            }
+            readers.add(reader);
+            return reader;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    <R extends TimeoutReader> void removeFromReaders(R reader) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            boolean removed = readers.remove(reader);
+            if (removed) { //may be called multiple times for the same reader
+                if (markedForDeletion.get() && readers.isEmpty()) {
+                    deleteInternal();
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void deleteInternal() {
+        String name = name();
+        logger.info("Deleting {}", name);
+        storage.delete();
+        close();
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -352,104 +404,4 @@ public class Segment<T> implements Log<T> {
                 ", readers=" + Arrays.toString(readers.toArray()) +
                 '}';
     }
-
-    private void checkClosed() {
-        if (closed.get()) {
-            throw new SegmentClosedException("Segment " + name() + "is closed");
-        }
-    }
-
-    private class SegmentReader extends TimeoutReader implements SegmentIterator<T> {
-
-        private Segment segment;
-        private final IDataStream dataStream;
-        private final Serializer<T> serializer;
-        private final Direction direction;
-        private final Queue<T> pageQueue = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
-        private final Queue<Integer> entriesSizes = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
-
-        protected long readPosition;
-
-        SegmentReader(Segment segment, IDataStream dataStream, Serializer<T> serializer, long initialPosition, Direction direction) {
-            this.segment = segment;
-            this.dataStream = dataStream;
-            this.direction = direction;
-            this.serializer = serializer;
-            this.readPosition = initialPosition;
-            this.lastReadTs = System.currentTimeMillis();
-        }
-
-        @Override
-        public long position() {
-            return readPosition;
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (pageQueue.isEmpty()) {
-                fetchEntries();
-            }
-            return !pageQueue.isEmpty();
-        }
-
-        @Override
-        public T next() {
-            T poll = getNext();
-            if (poll != null) {
-                return poll;
-            }
-            fetchEntries();
-            return getNext();
-        }
-
-        private T getNext() {
-            T entry = pageQueue.poll();
-            lastReadTs = System.currentTimeMillis();
-            if (entry != null) {
-                int recordSize = entriesSizes.poll();
-                readPosition = Direction.FORWARD.equals(direction) ? readPosition + recordSize : readPosition - recordSize;
-            }
-            return entry;
-        }
-
-        private void fetchEntries() {
-            if (segment.closed.get()) {
-                throw new RuntimeException("Closed segment");
-            }
-            if (Direction.FORWARD.equals(direction) && readPosition >= segment.position()) {
-                return;
-            }
-            if (Direction.BACKWARD.equals(direction) && readPosition <= Log.START) {
-                return;
-            }
-            try (BufferRef ref = dataStream.bulkRead(segment.storage, direction, readPosition)) {
-                int[] entriesLength = ref.readAllInto(pageQueue, serializer);
-                for (int length : entriesLength) {
-                    entriesSizes.add(length);
-                }
-                if (entriesLength.length == 0) {
-                    logger.warn("Empty read");
-                }
-            }
-        }
-
-        @Override
-        public void close() {
-            segment.removeFromReaders(this);
-        }
-
-        @Override
-        public String toString() {
-            return "SegmentReader{ position=" + readPosition +
-                    ", order=" + direction +
-                    ", lastReadTs=" + lastReadTs +
-                    '}';
-        }
-
-        @Override
-        public boolean endOfLog() {
-            return Segment.this.readOnly() && readPosition >= Segment.this.position();
-        }
-    }
-
 }

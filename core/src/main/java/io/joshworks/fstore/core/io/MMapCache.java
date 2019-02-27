@@ -19,8 +19,10 @@ public class MMapCache extends MMapStorage {
 
     @Override
     public int read(long readPos, ByteBuffer dst) {
-
         int tobeRead = dst.remaining();
+        if(tobeRead == 0) {
+            return 0;
+        }
         int read = 0;
         int lastRead;
         do

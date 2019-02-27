@@ -352,6 +352,11 @@ public class LevelsTest {
         }
 
         @Override
+        public boolean closed() {
+            return false;
+        }
+
+        @Override
         public long entries() {
             return 0;
         }
