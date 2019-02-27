@@ -39,7 +39,6 @@ public class Config<T> {
     int compactionThreshold = COMPACTION_THRESHOLD;
     boolean threadPerLevel;
     boolean compactionDisabled;
-    boolean autoRoll = true;
     int maxEntrySize = DEFAULT_MAX_ENTRY_SIZE;
 
     Config(File directory, Serializer<T> serializer) {
@@ -62,11 +61,6 @@ public class Config<T> {
 
     public Config<T> storageMode(StorageMode mode) {
         this.mode = requireNonNull(mode);
-        return this;
-    }
-
-    public Config<T> disableAutoRoll() {
-        this.autoRoll = false;
         return this;
     }
 

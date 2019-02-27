@@ -43,7 +43,6 @@ public class IndexAppender implements Closeable {
                 .compactionStrategy(new IndexCompactor(streamSupplier))
                 .compactionThreshold(3)
                 .segmentSize(logSize)
-                .disableAutoRoll()
                 .name(STORE_NAME)
                 .flushMode(FlushMode.ON_ROLL)
                 .storageMode(StorageMode.MMAP)

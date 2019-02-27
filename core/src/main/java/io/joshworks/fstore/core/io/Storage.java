@@ -27,13 +27,13 @@ public interface Storage extends Flushable, Closeable {
     default boolean hasEnoughSpace(int dataSize) {
         long position = writePosition();
         long size = length();
-        return position + dataSize <= size;
+        return position + dataSize < size;
     }
 
     default void validateWriteAddress(long position) {
         if (position < 0 || position >= length()) {
             long size = length();
-            throw new StorageException("Invalid position: " + position + ", valid range: 0 to " + size);
+            throw new StorageException("Invalid position: " + position + ", valid range: 0 to " + (size - 1));
         }
     }
 

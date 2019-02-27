@@ -34,7 +34,7 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class LogAppenderTest {
 
-    private static final int SEGMENT_SIZE = (int) Size.KB.of(128);//64kb
+    private static final int SEGMENT_SIZE = (int) Size.KB.of(128);//128kb
     private static final int MAX_ENTRY_SIZE = SEGMENT_SIZE;//64kb
 
     private LogAppender<String> appender;

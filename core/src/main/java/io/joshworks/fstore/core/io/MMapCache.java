@@ -22,11 +22,15 @@ public class MMapCache extends MMapStorage {
 
         int tobeRead = dst.remaining();
         int read = 0;
+        int lastRead;
         do
         { //READS ARE NOT GUARANTEED TO SEE CHANGES MADE TO THE UNDERLYING FILE, RE-READ IS NEEDED UNTIL ALL DATA IS AVAILABLE
-            read += super.read(readPos, dst);
-            readPos += read;
-        } while (read > 0 && read < tobeRead && (readPos < diskStorage.writePosition()));
+            lastRead = super.read(readPos, dst);
+            if (lastRead != EOF) {
+                readPos += lastRead;
+                read += lastRead;
+            }
+        } while (read < tobeRead && lastRead != EOF);
         return read;
     }
 
