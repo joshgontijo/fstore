@@ -59,6 +59,7 @@ public class Segment<T> implements Log<T> {
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
     private final AtomicLong writePosition = new AtomicLong();
 
+
     private LogHeader header;
 
     private final Object READER_LOCK = new Object();
@@ -252,7 +253,6 @@ public class Segment<T> implements Log<T> {
             } else {
                 logger.info("{} active readers while deleting, marked for deletion", readers.size());
             }
-
         }
     }
 
@@ -368,20 +368,20 @@ public class Segment<T> implements Log<T> {
         private final Queue<T> pageQueue = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
         private final Queue<Integer> entriesSizes = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
 
-        protected long position;
+        protected long readPosition;
 
         SegmentReader(Segment segment, IDataStream dataStream, Serializer<T> serializer, long initialPosition, Direction direction) {
             this.segment = segment;
             this.dataStream = dataStream;
             this.direction = direction;
             this.serializer = serializer;
-            this.position = initialPosition;
+            this.readPosition = initialPosition;
             this.lastReadTs = System.currentTimeMillis();
         }
 
         @Override
         public long position() {
-            return position;
+            return readPosition;
         }
 
         @Override
@@ -407,7 +407,7 @@ public class Segment<T> implements Log<T> {
             lastReadTs = System.currentTimeMillis();
             if (entry != null) {
                 int recordSize = entriesSizes.poll();
-                position = Direction.FORWARD.equals(direction) ? position + recordSize : position - recordSize;
+                readPosition = Direction.FORWARD.equals(direction) ? readPosition + recordSize : readPosition - recordSize;
             }
             return entry;
         }
@@ -416,13 +416,13 @@ public class Segment<T> implements Log<T> {
             if (segment.closed.get()) {
                 throw new RuntimeException("Closed segment");
             }
-            if (Direction.FORWARD.equals(direction) && position >= segment.position()) {
+            if (Direction.FORWARD.equals(direction) && readPosition >= segment.position()) {
                 return;
             }
-            if (Direction.BACKWARD.equals(direction) && position <= Log.START) {
+            if (Direction.BACKWARD.equals(direction) && readPosition <= Log.START) {
                 return;
             }
-            try (BufferRef ref = dataStream.bulkRead(segment.storage, direction, position)) {
+            try (BufferRef ref = dataStream.bulkRead(segment.storage, direction, readPosition)) {
                 int[] entriesLength = ref.readAllInto(pageQueue, serializer);
                 for (int length : entriesLength) {
                     entriesSizes.add(length);
@@ -440,7 +440,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public String toString() {
-            return "SegmentReader{ position=" + position +
+            return "SegmentReader{ position=" + readPosition +
                     ", order=" + direction +
                     ", lastReadTs=" + lastReadTs +
                     '}';
@@ -448,7 +448,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public boolean endOfLog() {
-            return Segment.this.readOnly() && position >= Segment.this.writePosition.get();
+            return Segment.this.readOnly() && readPosition >= Segment.this.position();
         }
     }
 
