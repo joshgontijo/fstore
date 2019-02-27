@@ -10,7 +10,6 @@ import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
@@ -26,18 +25,14 @@ import org.slf4j.Logger;
 import java.io.Closeable;
 import java.io.File;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -246,7 +241,7 @@ public class LogAppender<T> implements Closeable {
         }
     }
 
-    int getSegment(long position) {
+    static int getSegment(long position) {
         long segmentIdx = (position >>> SEGMENT_ADDRESS_BITS);
         if (segmentIdx > MAX_SEGMENTS) {
             throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + MAX_SEGMENTS);
@@ -255,7 +250,7 @@ public class LogAppender<T> implements Closeable {
         return (int) segmentIdx;
     }
 
-    long toSegmentedPosition(long segmentIdx, long position) {
+    static long toSegmentedPosition(long segmentIdx, long position) {
         if (segmentIdx < 0) {
             throw new IllegalArgumentException("Segment index must be greater than zero");
         }
@@ -265,7 +260,7 @@ public class LogAppender<T> implements Closeable {
         return (segmentIdx << SEGMENT_ADDRESS_BITS) | position;
     }
 
-    long getPositionOnSegment(long position) {
+    static long getPositionOnSegment(long position) {
         long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
         return (position & mask);
     }
@@ -313,11 +308,15 @@ public class LogAppender<T> implements Closeable {
 
     public LogIterator<T> iterator(Direction direction, long position) {
         if (Direction.FORWARD.equals(direction)) {
-            ForwardLogReader forwardLogReader = new ForwardLogReader(position);
+            ForwardLogReader<T> forwardLogReader = new ForwardLogReader<>(position, levels, this::removeReader);
             forwardReaders.add(forwardLogReader);
             return forwardLogReader;
         }
-        return new BackwardLogReader(position);
+        return new BackwardLogReader<>(position, levels);
+    }
+
+    private void removeReader(ForwardLogReader reader) {
+        forwardReaders.remove(reader);
     }
 
     public long position() {
@@ -328,7 +327,7 @@ public class LogAppender<T> implements Closeable {
     public T get(long position) {
         return levels.apply(Direction.FORWARD, segments -> {
             int segmentIdx = getSegment(position);
-            validateSegmentIdx(segmentIdx, position);
+            validateSegmentIdx(segmentIdx, position, levels);
             long positionOnSegment = getPositionOnSegment(position);
 
             if (segmentIdx < 0 || segmentIdx >= segments.size()) {
@@ -339,7 +338,7 @@ public class LogAppender<T> implements Closeable {
 
     }
 
-    private void validateSegmentIdx(int segmentIdx, long pos) {
+    static <T> void validateSegmentIdx(int segmentIdx, long pos, Levels<T> levels) {
         if (segmentIdx < 0 || segmentIdx > levels.numSegments()) {
             throw new IllegalArgumentException("No segment for address " + pos + " (segmentIdx: " + segmentIdx + "), available segments: " + levels.numSegments());
         }
@@ -347,7 +346,6 @@ public class LogAppender<T> implements Closeable {
 
     public long size() {
         return levels.apply(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::fileSize).sum());
-
     }
 
     public long size(int level) {
@@ -442,165 +440,6 @@ public class LogAppender<T> implements Closeable {
 
     Log<T> current() {
         return levels.current();
-    }
-
-    //FORWARD SCAN: When at the end of a segment, advance to the next, so the current position is correct
-    //----
-    //BACKWARD SCAN: At the beginning of a segment, do not move to previous until next is called.
-    // hasNext calls will always return true, since the previous segment always has data
-    private class ForwardLogReader implements LogIterator<T> {
-
-        private final Queue<SegmentIterator<T>> segmentsQueue = new ArrayDeque<>();
-        private SegmentIterator<T> current;
-        private int segmentIdx;
-
-        ForwardLogReader(long startPosition) {
-            levels.apply(Direction.FORWARD, segs -> {
-                this.segmentIdx = getSegment(startPosition);
-
-                validateSegmentIdx(segmentIdx, startPosition);
-                long positionOnSegment = getPositionOnSegment(startPosition);
-
-
-                LogIterator<Log<T>> segments = Iterators.of(segs);
-                // skip
-                for (int i = 0; i < this.segmentIdx; i++) {
-                    segments.next();
-                }
-
-                if (segments.hasNext()) {
-                    this.current = segments.next().iterator(positionOnSegment, Direction.FORWARD);
-                }
-
-                while (segments.hasNext()) {
-                    this.segmentsQueue.add(segments.next().iterator(Direction.FORWARD));
-                }
-
-                return segmentsQueue;
-            });
-
-        }
-
-        @Override
-        public long position() {
-            return toSegmentedPosition(segmentIdx, current.position());
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (current == null) {
-                return false;
-            }
-            if (current.endOfLog()) {
-                IOUtils.closeQuietly(current);
-                if (segmentsQueue.isEmpty()) {
-                    return false;
-                }
-                current = segmentsQueue.poll();
-                segmentIdx++;
-            }
-            return current.hasNext();
-        }
-
-        @Override
-        public T next() {
-            if (!hasNext()) {
-                return null;
-            }
-            T next = current.next();
-            if (next == null && current.endOfLog()) {
-                IOUtils.closeQuietly(current);
-                if (!segmentsQueue.isEmpty()) {
-                    current = segmentsQueue.poll();
-                    segmentIdx++;
-                }
-            }
-            return next;
-        }
-
-        @Override
-        public void close() {
-            IOUtils.closeQuietly(current);
-            segmentsQueue.forEach(IOUtils::closeQuietly);
-            segmentsQueue.clear();
-            forwardReaders.remove(this);
-        }
-
-        private void addSegment(Log<T> segment) {
-            segmentsQueue.add(segment.iterator(Direction.FORWARD));
-        }
-    }
-
-    private class BackwardLogReader implements LogIterator<T> {
-
-        private final Iterator<LogIterator<T>> segmentsIterators;
-        private LogIterator<T> current;
-        private int segmentIdx;
-
-        BackwardLogReader(long startPosition) {
-            this.segmentsIterators = levels.apply(Direction.BACKWARD, segs -> {
-                int numSegments = levels.numSegments();
-                int segIdx = getSegment(startPosition);
-
-                this.segmentIdx = numSegments - (numSegments - segIdx);
-                int skips = (numSegments - 1) - segIdx;
-
-                validateSegmentIdx(segmentIdx, startPosition);
-                long positionOnSegment = getPositionOnSegment(startPosition);
-
-
-                LogIterator<Log<T>> segments = Iterators.of(segs);
-
-                // skip
-                for (int i = 0; i < skips; i++) {
-                    segments.next();
-                }
-
-                if (segments.hasNext()) {
-                    this.current = segments.next().iterator(positionOnSegment, Direction.BACKWARD);
-                }
-
-                List<LogIterator<T>> subsequentIterators = new ArrayList<>();
-                while (segments.hasNext()) {
-                    subsequentIterators.add(segments.next().iterator(Direction.BACKWARD));
-                }
-                return subsequentIterators.iterator();
-            });
-
-
-        }
-
-        @Override
-        public long position() {
-            return toSegmentedPosition(segmentIdx, current.position());
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (current == null) {
-                return false;
-            }
-            return current.hasNext() || segmentsIterators.hasNext();
-        }
-
-        @Override
-        public T next() {
-            if ((current == null || !current.hasNext()) && segmentsIterators.hasNext()) {
-                IOUtils.closeQuietly(current);
-                current = segmentsIterators.next();
-                segmentIdx--;
-            }
-            if (current == null || !hasNext()) {
-                return null;
-            }
-            return current.next();
-        }
-
-        @Override
-        public void close() {
-            IOUtils.closeQuietly(current);
-            segmentsIterators.forEachRemaining(IOUtils::closeQuietly);
-        }
     }
 
 }
