@@ -368,6 +368,7 @@ public class LogAppender<T> implements Closeable {
 //        stateScheduler.shutdown();
 
         sedaContext.shutdown();
+        shutdownFlushWorker();
 
         Log<T> currentSegment = levels.current();
         if (currentSegment != null) {
@@ -397,6 +398,19 @@ public class LogAppender<T> implements Closeable {
             }
         });
 
+    }
+
+    private void shutdownFlushWorker() {
+        if (flushWorker == null) {
+            return;
+        }
+        try {
+            flushWorker.shutdown();
+            flushWorker.awaitTermination(FLUSH_INTERVAL_SEC * 2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("Failed to close flush worker");
+        }
     }
 
     public synchronized void flush() {
@@ -510,24 +524,10 @@ public class LogAppender<T> implements Closeable {
 
         @Override
         public void close() {
-            shutdownFlushWorker();
             IOUtils.closeQuietly(current);
             segmentsQueue.forEach(IOUtils::closeQuietly);
             segmentsQueue.clear();
             forwardReaders.remove(this);
-        }
-
-        private void shutdownFlushWorker() {
-            if (flushWorker == null) {
-                return;
-            }
-            try {
-                flushWorker.shutdown();
-                flushWorker.awaitTermination(FLUSH_INTERVAL_SEC * 2, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.error("Failed to close flush worker");
-            }
         }
 
         private void addSegment(Log<T> segment) {
