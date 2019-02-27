@@ -85,8 +85,9 @@ public class MMapStorage extends MemStorage {
         long pos = writePosition();
         diskStorage.writePosition(pos);
         diskStorage.truncate();
-        int numBuffers = calculateNumBuffers(pos, bufferSize);
-        List<ByteBuffer> newBuffers = initBuffers(numBuffers, pos, bufferSize, mmap(diskStorage));
+        long newLength = diskStorage.length();
+        int numBuffers = calculateNumBuffers(newLength, bufferSize);
+        List<ByteBuffer> newBuffers = initBuffers(numBuffers, newLength, bufferSize, mmap(diskStorage));
         this.buffers.addAll(newBuffers);
     }
 }

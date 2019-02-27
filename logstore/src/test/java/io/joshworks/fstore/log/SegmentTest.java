@@ -140,7 +140,7 @@ public abstract class SegmentTest {
     @Test
     public void big_entry() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < segment.fileSize() - RecordHeader.HEADER_OVERHEAD - LogHeader.BYTES; i++) {
+        for (int i = 0; i < segment.fileSize() - RecordHeader.HEADER_OVERHEAD - LogHeader.BYTES - 1; i++) {
             sb.append("a");
         }
         String data = sb.toString();

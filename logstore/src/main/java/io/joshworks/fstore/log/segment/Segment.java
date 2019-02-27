@@ -34,6 +34,12 @@ import static java.util.Objects.requireNonNull;
  * File format:
  * <p>
  * |---- HEADER ----|----- LOG -----|--- END OF LOG (8bytes) ---|
+ * </p>
+ * <p>
+ *  HEADER: 0 -> 1023
+ *  LOG: 1024 -> fileSize - 8
+ *  EOL: fileSize - 8 -> fileSize
+ * </p>
  */
 public class Segment<T> implements Log<T> {
 
@@ -152,8 +158,6 @@ public class Segment<T> implements Log<T> {
         return storage.name();
     }
 
-
-
     @Override
     public SegmentIterator<T> iterator(Direction direction) {
         if (Direction.FORWARD.equals(direction)) {
@@ -257,7 +261,6 @@ public class Segment<T> implements Log<T> {
         logger.info("Deleting {}", name);
         storage.delete();
         close();
-        logger.info("Deleted {}", name);
     }
 
     @Override

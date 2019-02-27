@@ -46,7 +46,7 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
             long totalSize = segments.stream().mapToLong(Log::logicalSize).sum();
 
             String names = Arrays.toString(segments.stream().map(Log::name).toArray());
-            logger.info("Compacting {} from level {} using {}, new segment size: {}", names, level, combiner.getClass().getSimpleName(), totalSize);
+            logger.info("Compacting {} from level {} using {}, new segment size with initial size of: {}", names, level, combiner.getClass().getSimpleName(), totalSize);
 
             for (int i = 0; i < segments.size(); i++) {
                 Log<T> segment = segments.get(i);
@@ -61,7 +61,9 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
             combiner.merge(segments, output);
             output.flush();
 
-            logger.info("Result Segment {} - size: {}, entries: {}", output.name(), totalSize, output.entries());
+            storage.truncate();
+
+            logger.info("Result Segment {} - final size: {}, entries: {}", output.name(), storage.length(), output.entries());
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
             context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.success(segments, output, level));

@@ -19,7 +19,8 @@ import static org.junit.Assert.assertEquals;
 
 public abstract class CompactionIT {
 
-    public static final long SEGMENT_SIZE = Size.MB.of(128);
+    public static final long SEGMENT_SIZE = Size.MB.of(5);
+    public static final int COMPACTION_THRESHOLD = 2;
     private LogAppender<String> appender;
 
     protected abstract LogAppender<String> appender(File testDirectory);
@@ -39,19 +40,15 @@ public abstract class CompactionIT {
         FileUtils.tryDelete(testDirectory);
     }
 
-
     @Test
-    public void compaction_maintains_record_order() throws InterruptedException {
-        File testDir = FileUtils.testFolder();
-        LogAppender<String> appender = LogAppender.builder(testDir, Serializers.STRING).segmentSize(Size.MB.of(10)).compactionThreshold(2).open();
-
+    public void compaction_maintains_record_order() {
         int items = 20000000;
         for (int i = 0; i < items; i++) {
             appender.append(String.valueOf(i));
         }
 
-        System.out.println("Waiting for compaction");
-        Thread.sleep(120000); //TODO improve this
+        appender.close(); //close will wait for compaction
+        appender = appender(testDirectory);
 
         LogIterator<String> iterator = appender.iterator(Direction.FORWARD);
 
@@ -70,6 +67,7 @@ public abstract class CompactionIT {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF_CACHED)
+                    .compactionThreshold(COMPACTION_THRESHOLD)
                     .open();
         }
     }
@@ -81,6 +79,7 @@ public abstract class CompactionIT {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.MMAP)
+                    .compactionThreshold(COMPACTION_THRESHOLD)
                     .open();
         }
     }
@@ -92,6 +91,7 @@ public abstract class CompactionIT {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF)
+                    .compactionThreshold(COMPACTION_THRESHOLD)
                     .open();
         }
     }

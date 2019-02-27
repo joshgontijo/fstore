@@ -93,8 +93,9 @@ public abstract class DiskStorage implements Storage {
     public void truncate() {
         try {
             long pos = writePosition();
-            channel.truncate(pos);
-            size = pos;
+            long newSize = pos + 1;
+            channel.truncate(newSize);
+            size = newSize;
         } catch (Exception e) {
             throw new StorageException("Failed to truncate", e);
         }
