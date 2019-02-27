@@ -214,6 +214,11 @@ public class RecordCleanupTest {
         }
 
         @Override
+        public boolean closed() {
+            return false;
+        }
+
+        @Override
         public long entries() {
             return records.size();
         }

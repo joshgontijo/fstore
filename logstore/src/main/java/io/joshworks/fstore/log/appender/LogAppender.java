@@ -432,10 +432,6 @@ public class LogAppender<T> implements Closeable {
         return levels.apply(direction, function);
     }
 
-    public void acquireSegments(Direction direction, Consumer<List<Log<T>>> function) {
-        levels.acquire(direction, function);
-    }
-
     public int depth() {
         return levels.depth();
     }

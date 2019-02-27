@@ -48,7 +48,7 @@ public abstract class ConcurrencyIT {
     @Test
     public void full_scan() throws InterruptedException {
 
-        int parallelReads = 50;
+        int parallelReads = 2;
         int totalItems = 20000000;
         ExecutorService executor = Executors.newFixedThreadPool(parallelReads);
 
@@ -86,6 +86,7 @@ public abstract class ConcurrencyIT {
                         }
                         String next = iterator.next();
                         reads.incrementAndGet();
+//                        System.out.println(next);
 
                         if (lastEntry == null) {
                             lastEntry = next;

@@ -92,7 +92,11 @@ public class Iterators {
     }
 
     public static <T> Stream<T> stream(Collection<T> collection) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(collection.iterator(), Spliterator.ORDERED), false);
+        return stream(collection.iterator());
+    }
+
+    public static <T> Stream<T> stream(Iterator<T> iterator) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
     }
 
     private static class EmptyIterator<T> implements LogIterator<T> {
