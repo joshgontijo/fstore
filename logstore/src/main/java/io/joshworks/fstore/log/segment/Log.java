@@ -26,8 +26,6 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     long fileSize();
 
-    long logicalSize();
-
     SegmentState rebuildState(long lastKnownPosition);
 
     void delete();

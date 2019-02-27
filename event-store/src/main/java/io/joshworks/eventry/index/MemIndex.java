@@ -128,7 +128,7 @@ public class MemIndex implements Closeable {
 //    }
 
     public LogIterator<IndexEntry> iterator() {
-        var copy = new HashSet<>(index.entrySet()); //sorted is a stateful operation
+        var copy = new HashSet<>(index.entrySet()); //iterator is a stateful operation
         List<IndexEntry> ordered = copy.stream()
                 .map(Map.Entry::getValue)
                 .flatMap(Collection::stream)

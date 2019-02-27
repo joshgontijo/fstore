@@ -172,11 +172,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
-    public long logicalSize() {
-        return delegate.fileSize();
-    }
-
-    @Override
     public String name() {
         return delegate.name();
     }
