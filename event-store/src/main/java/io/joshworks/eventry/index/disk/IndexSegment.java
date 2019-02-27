@@ -112,11 +112,6 @@ public class IndexSegment implements Log<IndexEntry> {
     }
 
     @Override
-    public long logicalSize() {
-        return delegate.logicalSize();
-    }
-
-    @Override
     public SegmentState rebuildState(long lastKnownPosition) {
         return delegate.rebuildState(lastKnownPosition);
     }

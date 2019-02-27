@@ -10,10 +10,8 @@ import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
-import io.joshworks.fstore.lsmtree.mem.MemTable;
 
 import java.io.File;
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,20 +23,14 @@ public class SSTables<K extends Comparable<K>, V> {
         this.appender = LogAppender.builder(dir, new EntrySerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new SSTableCompactor<>())
                 .name(name + "-sstable")
-                .disableAutoRoll()
                 .flushMode(FlushMode.ON_ROLL)
                 .open(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold));
     }
 
     //TODO SSTABLE must guarantee that all data from memtable is stored in a single segment
     //it currently is size based, for this, the segment would have to be unbounded, and rolling, manual
-    public void write(MemTable<K, V> memTable) {
-        Collection<Entry<K, V>> sorted = memTable.sorted();
-
-        for (Entry<K, V> kvEntry : sorted) {
-            appender.append(kvEntry);
-        }
-        appender.roll();
+    public long write(Entry<K, V> entry) {
+        return appender.append(entry);
     }
 
     public V getByKey(K key) {

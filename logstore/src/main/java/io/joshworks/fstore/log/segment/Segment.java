@@ -36,10 +36,14 @@ import static java.util.Objects.requireNonNull;
  * |---- HEADER ----|----- LOG -----|--- END OF LOG (8bytes) ---|
  * </p>
  * <p>
- *  HEADER: 0 -> 1023
- *  LOG: 1024 -> fileSize - 8
- *  EOL: fileSize - 8 -> fileSize
+ * HEADER: 0 -> 1023
+ * LOG: 1024 -> fileSize - 8
+ * EOL: fileSize - 8 -> fileSize
  * </p>
+ *
+ * Segment is not thread safe for append method. But it does guarantee concurrent access of multiple readers at same time.
+ * Multiple readers can also read (iterator and get) while a record is being appended
+ *
  */
 public class Segment<T> implements Log<T> {
 
@@ -51,9 +55,9 @@ public class Segment<T> implements Log<T> {
     private final String magic;
 
     protected AtomicLong entries = new AtomicLong();
-    final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
-    private final AtomicLong writerPosition = new AtomicLong();
+    private final AtomicLong writePosition = new AtomicLong();
 
     private LogHeader header;
 
@@ -103,7 +107,7 @@ public class Segment<T> implements Log<T> {
             throw new IllegalArgumentException("Position must be at least " + LogHeader.BYTES);
         }
         this.storage.writePosition(position);
-        this.writerPosition.set(position);
+        this.writePosition.set(position);
     }
 
     @Override
@@ -113,6 +117,7 @@ public class Segment<T> implements Log<T> {
         }
         ByteBuffer bytes = serializer.toBytes(data);
         long recordPosition = dataStream.write(storage, bytes);
+        writePosition.set(storage.writePosition());
         incrementEntry();
         return recordPosition;
     }
@@ -137,20 +142,15 @@ public class Segment<T> implements Log<T> {
         if (position < START) {
             throw new IllegalArgumentException("Position must be greater or equals to " + START + ", got: " + position);
         }
-        long logicalSize = logicalSize();
-        if (position > logicalSize) {
-            throw new IllegalArgumentException("Position must be less than logicalSize " + logicalSize + ", got " + position);
+        long writePosition = position();
+        if (position > writePosition) {
+            throw new IllegalArgumentException("Position must be less than writePosition " + writePosition + ", got " + position);
         }
     }
 
     @Override
     public long fileSize() {
         return storage.length();
-    }
-
-    @Override
-    public long logicalSize() {
-        return readOnly() ? header.logicalSize : position();
     }
 
     @Override
@@ -176,7 +176,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public long position() {
-        return storage.writePosition();
+        return writePosition.get();
     }
 
     @Override
@@ -270,9 +270,7 @@ public class Segment<T> implements Log<T> {
         }
 
         long currPos = storage.writePosition();
-        writeEndOfLog();
         this.header = LogHeader.writeCompleted(storage, this.header, entries.get(), level, currPos);
-
     }
 
     private <R extends TimeoutReader> R acquireReader(R reader) {
@@ -297,10 +295,6 @@ public class Segment<T> implements Log<T> {
                 }
             }
         }
-    }
-
-    private void writeEndOfLog() {
-        storage.write(ByteBuffer.wrap(Log.EOL));
     }
 
     private SegmentReader newLogReader(long pos, Direction direction) {
@@ -422,7 +416,7 @@ public class Segment<T> implements Log<T> {
             if (segment.closed.get()) {
                 throw new RuntimeException("Closed segment");
             }
-            if (Direction.FORWARD.equals(direction) && position >= segment.logicalSize()) {
+            if (Direction.FORWARD.equals(direction) && position >= segment.position()) {
                 return;
             }
             if (Direction.BACKWARD.equals(direction) && position <= Log.START) {
@@ -454,7 +448,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public boolean endOfLog() {
-            return Segment.this.readOnly() && position >= Segment.this.logicalSize();
+            return Segment.this.readOnly() && position >= Segment.this.writePosition.get();
         }
     }
 

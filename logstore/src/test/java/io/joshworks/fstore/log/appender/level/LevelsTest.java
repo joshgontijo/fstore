@@ -331,11 +331,6 @@ public class LevelsTest {
         }
 
         @Override
-        public long logicalSize() {
-            return 0;
-        }
-
-        @Override
         public SegmentState rebuildState(long lastKnownPosition) {
             return null;
         }

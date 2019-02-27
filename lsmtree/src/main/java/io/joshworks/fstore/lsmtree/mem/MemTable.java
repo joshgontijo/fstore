@@ -2,7 +2,7 @@ package io.joshworks.fstore.lsmtree.mem;
 
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 
-import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -26,19 +26,19 @@ public class MemTable<K extends Comparable<K>, V> {
         return found != null ? found.value : null;
     }
 
-    public Collection<Entry<K, V>> sorted() {
-        return table.values();
+    public Iterator<Map.Entry<K, Entry<K, V>>> iterator() {
+        return table.entrySet().iterator();
     }
 
     public Map<K, Entry<K, V>> copy() {
         return new TreeMap<>(table);
     }
 
-    public void clear() {
-        table.clear();
-    }
-
     public int size() {
         return table.size();
+    }
+
+    public boolean isEmpty() {
+        return size() == 0;
     }
 }

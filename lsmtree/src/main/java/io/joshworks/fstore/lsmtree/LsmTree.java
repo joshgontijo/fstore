@@ -2,6 +2,7 @@ package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -47,7 +49,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     public synchronized void put(K key, V value) {
         log.append(Record.add(key, value));
-        if(memTable.size() >= flushThreshold) {
+        if (memTable.size() >= flushThreshold) {
             flushMemTable();
         }
         memTable.add(key, value);
@@ -93,13 +95,24 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     private synchronized void flushMemTable() {
-        if(memTable.size() < flushThreshold) {
+        if (memTable.size() < flushThreshold) {
             return;
         }
-        sstables.write(memTable);
-        sstables.roll();
-        memTable.clear();
+
+        while (!memTable.isEmpty()) {
+            Iterator<Map.Entry<K, Entry<K, V>>> iterator = memTable.iterator();
+            long lastPos = 0;
+            while (iterator.hasNext() && lastPos != Storage.EOF) {
+                Map.Entry<K, Entry<K, V>> entry = iterator.next();
+                lastPos = sstables.write(entry.getValue());
+                if (lastPos != Storage.EOF) {
+                    iterator.remove();
+                }
+            }
+            sstables.roll();
+        }
         log.markFlushed();
+
     }
 
     private void restore(Record<K, V> record) {
@@ -133,7 +146,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 entry = getNextEntry(segments);
             } while (entry != null && hasNext() && !EntryType.ADD.equals(entry.type));
             removeSegmentIfCompleted();
-            if(entry == null) {
+            if (entry == null) {
                 throw new NoSuchElementException();
             }
             return entry;
@@ -166,7 +179,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             if (!segmentIterators.isEmpty()) {
                 Iterators.PeekingIterator<Entry<K, V>> prev = null;
                 for (Iterators.PeekingIterator<Entry<K, V>> curr : segmentIterators) {
-                    if(!curr.hasNext()) {
+                    if (!curr.hasNext()) {
                         continue; //will be removed afterwards
                     }
                     if (prev == null) {
