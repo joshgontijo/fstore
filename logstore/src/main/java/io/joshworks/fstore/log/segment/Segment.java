@@ -360,7 +360,7 @@ public class Segment<T> implements Log<T> {
         }
     }
 
-    <R extends TimeoutReader> void removeFromReaders(R reader) {
+    <R extends TimeoutReader> void releaseReader(R reader) {
         Lock lock = rwLock.writeLock();
         lock.lock();
         try {

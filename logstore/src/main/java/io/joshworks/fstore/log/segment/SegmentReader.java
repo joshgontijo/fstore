@@ -92,7 +92,7 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
 
     @Override
     public void close() {
-        segment.removeFromReaders(this);
+        segment.releaseReader(this);
     }
 
     @Override
