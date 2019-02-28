@@ -110,10 +110,9 @@ public class SedaContext implements Closeable {
         }
 
         boolean completed;
+        long lastLog = System.currentTimeMillis();
         try {
             do {
-                logger.info("Waiting for stages to complete");
-
                 completed = true;
                 for (Stage stage : stages.values()) {
                     StageStats stats = stage.stats();
@@ -122,6 +121,11 @@ public class SedaContext implements Closeable {
                 }
 
                 if (!completed) {
+                    long now = System.currentTimeMillis();
+                    if (now - lastLog > TimeUnit.SECONDS.toMillis(5)) {
+                        logger.info("Waiting for stages to complete");
+                        lastLog = now;
+                    }
                     sleep();
                 }
             } while (!completed);
