@@ -23,6 +23,9 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
     private final Queue<Integer> entriesSizes = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
 
     private final AtomicLong readPosition = new AtomicLong();
+    private final AtomicLong emptyReads = new AtomicLong();
+    private final AtomicLong bytesRead = new AtomicLong();
+    private final AtomicLong entriesRead = new AtomicLong();
 
     SegmentReader(Segment segment, Storage storage, IDataStream dataStream, Serializer<T> serializer, long initialPosition, Direction direction) {
         this.segment = segment;
@@ -62,6 +65,8 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
         lastReadTs = System.currentTimeMillis();
         if (entry != null) {
             int recordSize = entriesSizes.poll();
+            bytesRead.addAndGet(recordSize);
+            entriesRead.incrementAndGet();
             readPosition.updateAndGet(p -> Direction.FORWARD.equals(direction) ? p + recordSize : p - recordSize);
         }
         return entry;
@@ -84,10 +89,14 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
                 entriesSizes.add(length);
             }
             if (entriesLength.length == 0) {
-                //TODO remove
-                System.err.println("Empty read");
+                emptyReads.incrementAndGet();
             }
         }
+    }
+
+    @Override
+    public boolean endOfLog() {
+        return segment.endOfLog(readPosition.get());
     }
 
     @Override
@@ -97,14 +106,14 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
 
     @Override
     public String toString() {
-        return "SegmentReader{ position=" + readPosition +
-                ", order=" + direction +
+        return "SegmentReader{" + "segment=" + segment.name() +
+                ", direction=" + direction +
+                ", pageQueue=" + pageQueue.size() +
+                ", readPosition=" + readPosition +
+                ", emptyReads=" + emptyReads +
+                ", bytesRead=" + bytesRead +
+                ", entriesRead=" + entriesRead +
                 ", lastReadTs=" + lastReadTs +
                 '}';
-    }
-
-    @Override
-    public boolean endOfLog() {
-        return segment.endOfLog(readPosition.get());
     }
 }
