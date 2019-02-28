@@ -5,10 +5,10 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.segment.Log;
 
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Queue;
 import java.util.function.Consumer;
 
@@ -23,32 +23,23 @@ class ForwardLogReader<T> implements LogIterator<T> {
     private SegmentIterator<T> current;
     private int segmentIdx;
 
-    ForwardLogReader(long startPosition, Levels<T> levels, Consumer<ForwardLogReader<T>> closeListener) {
+    ForwardLogReader(long startPosition, List<Log<T>> segments, int segmentIdx, Consumer<ForwardLogReader<T>> closeListener) {
         this.closeListener = closeListener;
-        levels.apply(Direction.FORWARD, segs -> {
-            this.segmentIdx = LogAppender.getSegment(startPosition);
+        this.segmentIdx = segmentIdx;
 
-            LogAppender.validateSegmentIdx(segmentIdx, startPosition, levels);
-            long positionOnSegment = LogAppender.getPositionOnSegment(startPosition);
+        LogIterator<Log<T>> segIt = Iterators.of(segments);
+        // skip
+        for (int i = 0; i < this.segmentIdx; i++) {
+            segIt.next();
+        }
 
+        if (segIt.hasNext()) {
+            this.current = segIt.next().iterator(startPosition, Direction.FORWARD);
+        }
 
-            LogIterator<Log<T>> segments = Iterators.of(segs);
-            // skip
-            for (int i = 0; i < this.segmentIdx; i++) {
-                segments.next();
-            }
-
-            if (segments.hasNext()) {
-                this.current = segments.next().iterator(positionOnSegment, Direction.FORWARD);
-            }
-
-            while (segments.hasNext()) {
-                this.segmentsQueue.add(segments.next().iterator(Direction.FORWARD));
-            }
-
-            return segmentsQueue;
-        });
-
+        while (segIt.hasNext()) {
+            this.segmentsQueue.add(segIt.next().iterator(Direction.FORWARD));
+        }
     }
 
     @Override
