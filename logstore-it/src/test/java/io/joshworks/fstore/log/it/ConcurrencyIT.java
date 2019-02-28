@@ -180,7 +180,6 @@ public abstract class ConcurrencyIT {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF)
-//                    .disableCompaction()
                     .open();
         }
     }
@@ -202,8 +201,18 @@ public abstract class ConcurrencyIT {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
-                    .storageMode(StorageMode.MMAP)
-                    .disableCompaction()
+                    .storageMode(StorageMode.RAF_CACHED)
+                    .open();
+        }
+    }
+
+    public static class OffHeapTest extends ConcurrencyIT {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory) {
+            return LogAppender.builder(testDirectory, Serializers.STRING)
+                    .segmentSize(SEGMENT_SIZE)
+                    .storageMode(StorageMode.OFF_HEAP)
                     .open();
         }
     }
