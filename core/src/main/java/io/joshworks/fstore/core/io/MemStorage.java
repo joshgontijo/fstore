@@ -139,7 +139,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public int read(long readPos, ByteBuffer dst) {
-        if(!dst.hasRemaining()) {
+        if (!dst.hasRemaining()) {
             return 0;
         }
         Lock lock = rwLock.readLock();
@@ -235,26 +235,32 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public void truncate() {
-        long pos = writePosition.get();
-        int idx = bufferIdx(pos);
-        int bPos = posOnBuffer(pos);
-        ByteBuffer bb = getBuffer(pos);
-        bb.limit(bPos);
-        bb.position(0);
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            long pos = writePosition.get();
+            int idx = bufferIdx(pos);
+            int bPos = posOnBuffer(pos);
+            ByteBuffer bb = getBuffer(pos);
+            bb.limit(bPos);
+            bb.position(0);
 
-        long unused = -1L;
-        ByteBuffer newBuffer = bufferSupplier.apply(unused, bPos);
-        newBuffer.put(bb);
-        buffers.set(idx, newBuffer);
+            long unused = -1L;
+            ByteBuffer newBuffer = bufferSupplier.apply(unused, bPos + 1);
+            newBuffer.put(bb);
+            buffers.set(idx, newBuffer);
 
-        if(bPos == 0) {
-            buffers.remove(idx);
+            if (bPos == 0) {
+                buffers.remove(idx);
+            }
+            for (int i = idx + 1; i < buffers.size(); i++) {
+                ByteBuffer removed = buffers.remove(idx);
+                destroy(removed);
+            }
+            updateLength();
+        } finally {
+            lock.unlock();
         }
-        for (int i = idx + 1; i < buffers.size(); i++) {
-            ByteBuffer removed = buffers.remove(idx);
-            destroy(removed);
-        }
-        updateLength();
     }
 
     private void updateLength() {
