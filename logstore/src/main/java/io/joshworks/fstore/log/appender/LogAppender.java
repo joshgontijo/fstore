@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -75,7 +76,7 @@ public class LogAppender<T> implements Closeable {
 
     private final ScheduledExecutorService flushWorker;
     private final SedaContext sedaContext = new SedaContext("compaction");
-    private final Set<ForwardLogReader<T>> forwardReaders = new HashSet<>();
+    private final List<ForwardLogReader<T>> forwardReaders = new CopyOnWriteArrayList<>();
     private final Compactor<T> compactor;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
@@ -206,39 +207,41 @@ public class LogAppender<T> implements Closeable {
         }
     }
 
-    public synchronized void roll() {
-        try {
-            Log<T> current = levels.current();
-            if (FlushMode.ON_ROLL.equals(metadata.flushMode)) {
-                current.flush();
+    public void roll() {
+        levels.lock(() -> {
+            try {
+                Log<T> current = levels.current();
+                if (FlushMode.ON_ROLL.equals(metadata.flushMode)) {
+                    current.flush();
+                }
+                if (current.entries() == 0) {
+                    logger.warn("No entries in the current segment: {}", current.name());
+                    return;
+                }
+                logger.info("Rolling segment: {}", current);
+
+                current.roll(1);
+
+                Log<T> newSegment = createCurrentSegment();
+                levels.appendSegment(newSegment);
+
+                notifyPollers(newSegment);
+
+                long currentPosition = toSegmentedPosition(levels.numSegments() - 1L, current.position());
+                state.position(currentPosition);
+                state.addEntryCount(current.entries());
+                state.lastRollTime(System.currentTimeMillis());
+                state.flush();
+
+                if (!compactionDisabled) {
+                    compactor.requestCompaction(1);
+                }
+
+
+            } catch (Exception e) {
+                throw new RuntimeIOException("Could not roll segment file", e);
             }
-            if (current.entries() == 0) {
-                logger.warn("No entries in the current segment: {}", current.name());
-                return;
-            }
-            logger.info("Rolling segment: {}", current);
-
-            current.roll(1);
-
-            Log<T> newSegment = createCurrentSegment();
-            levels.appendSegment(newSegment);
-
-            notifyPollers(newSegment);
-
-            long currentPosition = toSegmentedPosition(levels.numSegments() - 1L, current.position());
-            state.position(currentPosition);
-            state.addEntryCount(current.entries());
-            state.lastRollTime(System.currentTimeMillis());
-            state.flush();
-
-            if (!compactionDisabled) {
-                compactor.requestCompaction(1);
-            }
-
-
-        } catch (Exception e) {
-            throw new RuntimeIOException("Could not roll segment file", e);
-        }
+        });
     }
 
     static int getSegment(long position) {
@@ -308,11 +311,39 @@ public class LogAppender<T> implements Closeable {
 
     public LogIterator<T> iterator(Direction direction, long position) {
         if (Direction.FORWARD.equals(direction)) {
-            ForwardLogReader<T> forwardLogReader = new ForwardLogReader<>(position, levels, this::removeReader);
+            return forwardIterator(position);
+        }
+        return backwardIterator(position);
+    }
+
+    private LogIterator<T> backwardIterator(long position) {
+        return levels.apply(Direction.BACKWARD, segments -> {
+            int numSegments = segments.size();
+            int segIdx = LogAppender.getSegment(position);
+
+            segIdx = numSegments - (numSegments - segIdx);
+            int skips = (numSegments - 1) - segIdx;
+
+            LogAppender.validateSegmentIdx(segIdx, position, levels);
+            long startPosition = LogAppender.getPositionOnSegment(position);
+            LogIterator<Log<T>> it = Iterators.of(segments);
+            // skip
+            for (int i = 0; i < skips; i++) {
+                it.next();
+            }
+            return new BackwardLogReader<>(it, startPosition, segIdx);
+        });
+    }
+
+    private LogIterator<T> forwardIterator(long position) {
+        return levels.apply(Direction.FORWARD, segments -> {
+            int segmentIdx = LogAppender.getSegment(position);
+            long startPosition = LogAppender.getPositionOnSegment(position);
+            LogAppender.validateSegmentIdx(segmentIdx, startPosition, levels);
+            ForwardLogReader<T> forwardLogReader = new ForwardLogReader<>(startPosition, segments, segmentIdx, this::removeReader);
             forwardReaders.add(forwardLogReader);
             return forwardLogReader;
-        }
-        return new BackwardLogReader<>(position, levels);
+        });
     }
 
     private void removeReader(ForwardLogReader reader) {

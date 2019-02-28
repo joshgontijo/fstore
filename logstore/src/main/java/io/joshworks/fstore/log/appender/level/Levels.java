@@ -64,6 +64,16 @@ public class Levels<T> {
         }
     }
 
+    public void lock(Runnable runnable) {
+        Lock lock = this.rwLock.writeLock();
+        lock.lock();
+        try {
+            runnable.run();
+        } finally {
+            lock.unlock();
+        }
+    }
+
     public void acquire(Direction direction, Consumer<List<Log<T>>> function) {
         Lock lock = this.rwLock.readLock();
         lock.lock();

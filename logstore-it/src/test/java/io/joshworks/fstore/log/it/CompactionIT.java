@@ -19,8 +19,8 @@ import static org.junit.Assert.assertEquals;
 
 public abstract class CompactionIT {
 
-    public static final long SEGMENT_SIZE = Size.MB.of(5);
-    public static final int COMPACTION_THRESHOLD = 2;
+    private static final long SEGMENT_SIZE = Size.MB.of(5);
+    private static final int COMPACTION_THRESHOLD = 2;
     private LogAppender<String> appender;
 
     protected abstract LogAppender<String> appender(File testDirectory);
@@ -38,6 +38,21 @@ public abstract class CompactionIT {
     public void cleanup() {
         IOUtils.closeQuietly(appender);
         FileUtils.tryDelete(testDirectory);
+    }
+
+    @Test
+    public void all_records_are_available_after_compaction() {
+        long items = 20000000;
+        for (int i = 0; i < items; i++) {
+            appender.append(String.valueOf(i));
+        }
+
+        appender.close(); //close will wait for compaction
+        appender = appender(testDirectory);
+
+        long found = appender.stream(Direction.FORWARD).count();
+        assertEquals(items, found);
+
     }
 
     @Test
