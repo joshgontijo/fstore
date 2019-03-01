@@ -59,9 +59,7 @@ final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
             }
 
             int originalLimit = buffer.limit();
-            int i = 0;
-            while (i < DataStream.MAX_BULK_READ_RESULT) {
-
+            while (true) {
                 buffer.limit(originalLimit);
                 buffer.position(originalLimit);
 
@@ -94,14 +92,11 @@ final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
                 entries.add(new RecordEntry<>(len, entry));
 
                 originalLimit = pos;
-                i++;
 
                 if (originalLimit - RecordHeader.SECONDARY_HEADER <= 0) {
                     return entries;
                 }
             }
-
-            return entries;
         } finally {
             bufferPool.free(buffer);
         }
