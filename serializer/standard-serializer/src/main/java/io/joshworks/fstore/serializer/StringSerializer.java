@@ -22,9 +22,7 @@ public class StringSerializer implements Serializer<String> {
         if(!buffer.hasArray()) {
             return copyBytes(buffer);
         }
-        String val = new String(buffer.array(), buffer.position(), buffer.remaining(), StandardCharsets.UTF_8);
-        buffer.position(buffer.limit());
-        return val;
+        return new String(buffer.array(), buffer.position(), buffer.remaining(), StandardCharsets.UTF_8);
     }
 
     private String copyBytes(ByteBuffer buffer) {
