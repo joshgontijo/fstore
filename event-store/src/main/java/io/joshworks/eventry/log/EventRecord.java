@@ -54,7 +54,6 @@ public class EventRecord {
         return new EventRecord(stream, type, -1, -1, data, metadata);
     }
 
-    //TODO use in the response
     public String dataAsString() {
         return new String(body, StandardCharsets.UTF_8);
     }

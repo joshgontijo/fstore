@@ -1,16 +1,19 @@
 package io.joshworks.eventry.projections;
 
-import com.google.gson.reflect.TypeToken;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
 public class JsonEvent {
+
+    private static final Serializer<Map<String, Object>> serializer = KryoSerializer.untyped();
 
     public final String type;
     public final long timestamp;
@@ -30,8 +33,8 @@ public class JsonEvent {
     }
 
     public static JsonEvent from(EventRecord event) {
-        Map<String, Object> data = JsonSerializer.toMap(new String(event.body));
-        Map<String, Object> metadata = JsonSerializer.toMap(new String(event.metadata));
+        Map<String, Object> data = serializer.fromBytes(ByteBuffer.wrap(event.body));
+        Map<String, Object> metadata = serializer.fromBytes(ByteBuffer.wrap(event.metadata));
         return new JsonEvent(event.type, event.timestamp, event.stream, event.version, data, metadata);
     }
 
