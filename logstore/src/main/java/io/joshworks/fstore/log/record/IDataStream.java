@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 public interface IDataStream {
 
@@ -12,8 +13,8 @@ public interface IDataStream {
 
     <T> long write(Storage storage, T data, Serializer<T> serializer);
 
-    BufferRef read(Storage storage, Direction direction, long position);
+    <T> RecordEntry<T> read(Storage storage, Direction direction, long position, Serializer<T> serializer);
 
-    BufferRef bulkRead(Storage storage, Direction direction, long position);
+    <T> List<RecordEntry<T>> bulkRead(Storage storage, Direction direction, long position, Serializer<T> serializer);
 
 }

@@ -4,11 +4,12 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.record.BufferRef;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
+import io.joshworks.fstore.log.record.RecordEntry;
 
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -19,8 +20,7 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
     private final IDataStream dataStream;
     private final Serializer<T> serializer;
     private final Direction direction;
-    private final Queue<T> pageQueue = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
-    private final Queue<Integer> entriesSizes = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
+    private final Queue<RecordEntry<T>> pageQueue = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
 
     private final AtomicLong readPosition = new AtomicLong();
     private final AtomicLong emptyReads = new AtomicLong();
@@ -61,15 +61,16 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
     }
 
     private T getNext() {
-        T entry = pageQueue.poll();
+        RecordEntry<T> entry = pageQueue.poll();
         lastReadTs = System.currentTimeMillis();
-        if (entry != null) {
-            int recordSize = entriesSizes.poll();
-            bytesRead.addAndGet(recordSize);
-            entriesRead.incrementAndGet();
-            readPosition.updateAndGet(p -> Direction.FORWARD.equals(direction) ? p + recordSize : p - recordSize);
+        if (entry == null) {
+            return null;
         }
-        return entry;
+        int recordSize = entry.recordSize();
+        bytesRead.addAndGet(recordSize);
+        entriesRead.incrementAndGet();
+        readPosition.updateAndGet(p -> Direction.FORWARD.equals(direction) ? p + recordSize : p - recordSize);
+        return entry.entry();
     }
 
     private void fetchEntries() {
@@ -83,14 +84,10 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
         if (Direction.BACKWARD.equals(direction) && pos <= Log.START) {
             return;
         }
-        try (BufferRef ref = dataStream.bulkRead(storage, direction, pos)) {
-            int[] entriesLength = ref.readAllInto(pageQueue, serializer);
-            for (int length : entriesLength) {
-                entriesSizes.add(length);
-            }
-            if (entriesLength.length == 0) {
-                emptyReads.incrementAndGet();
-            }
+        List<RecordEntry<T>> entries = dataStream.bulkRead(storage, direction, pos, serializer);
+        pageQueue.addAll(entries);
+        if (entries.isEmpty()) {
+            emptyReads.incrementAndGet();
         }
     }
 

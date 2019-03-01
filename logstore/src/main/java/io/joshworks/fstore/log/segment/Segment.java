@@ -7,15 +7,14 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.record.BufferRef;
 import io.joshworks.fstore.log.record.IDataStream;
+import io.joshworks.fstore.log.record.RecordEntry;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -26,7 +25,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.IntStream;
 
 import static java.util.Objects.requireNonNull;
 
@@ -135,13 +133,8 @@ public class Segment<T> implements Log<T> {
         lock.lock();
         try {
             checkBounds(position);
-            try (BufferRef ref = dataStream.read(storage, Direction.FORWARD, position)) {
-                ByteBuffer bb = ref.get();
-                if (bb.remaining() == 0) { //EOF
-                    return null;
-                }
-                return serializer.fromBytes(bb);
-            }
+            RecordEntry<T> entry = dataStream.read(storage, Direction.FORWARD, position, serializer);
+            return entry == null ? null : entry.entry();
         } finally {
             lock.unlock();
         }
@@ -229,15 +222,11 @@ public class Segment<T> implements Log<T> {
             logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
             int lastRead;
             do {
-                try (BufferRef ref = dataStream.bulkRead(storage, Direction.FORWARD, position)) {
-                    List<T> items = new ArrayList<>();
-                    int[] recordSizes = ref.readAllInto(items, serializer);
-                    if (!items.isEmpty()) {
-                        foundEntries += processEntries(items);
-                    }
-                    lastRead = IntStream.of(recordSizes).sum();
-                    position += lastRead;
-                }
+                List<RecordEntry<T>> entries = dataStream.bulkRead(storage, Direction.FORWARD, position, serializer);
+                foundEntries += processEntries(entries);
+                lastRead = entries.stream().mapToInt(RecordEntry::recordSize).sum();
+                position += lastRead;
+
             } while (lastRead > 0);
 
         } catch (Exception e) {
@@ -253,7 +242,7 @@ public class Segment<T> implements Log<T> {
         return new SegmentState(foundEntries, position);
     }
 
-    protected long processEntries(List<T> items) {
+    protected long processEntries(List<RecordEntry<T>> items) {
         return items.size();
     }
 
@@ -322,7 +311,7 @@ public class Segment<T> implements Log<T> {
         lock.lock();
         try {
             return readOnly() && position >= position();
-        }finally {
+        } finally {
             lock.unlock();
         }
     }

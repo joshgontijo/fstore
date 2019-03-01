@@ -17,12 +17,11 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class DataStreamTest {
 
@@ -62,10 +61,9 @@ public class DataStreamTest {
         ByteBuffer data1 = Serializers.STRING.toBytes("1");
         long pos1 = stream.write(storage, data1);
 
-        try (BufferRef read = stream.read(storage, Direction.FORWARD, pos1)) {
-            String read1 = Serializers.STRING.fromBytes(read.get());
-            assertEquals("1", read1.intern());
-        }
+        RecordEntry<String> found = stream.read(storage, Direction.FORWARD, pos1, Serializers.STRING);
+        assertNotNull(found);
+        assertEquals("1", found.entry().intern());
     }
 
     @Test
@@ -75,10 +73,9 @@ public class DataStreamTest {
         stream.write(storage, data1);
 
         long pos = storage.writePosition();
-        try (BufferRef read = stream.read(storage, Direction.BACKWARD, pos)) {
-            String read1 = Serializers.STRING.fromBytes(read.get());
-            assertEquals("1", read1.intern());
-        }
+        RecordEntry<String> read = stream.read(storage, Direction.BACKWARD, pos, Serializers.STRING);
+        assertNotNull(read);
+        assertEquals("1", read.entry().intern());
     }
 
     @Test
@@ -89,15 +86,12 @@ public class DataStreamTest {
             stream.write(storage, Serializers.INTEGER.toBytes(i));
         }
 
-        List<Integer> found = new ArrayList<>();
-        try (BufferRef ref = stream.bulkRead(storage, Direction.FORWARD, Log.START)) {
-            ref.readAllInto(found, Serializers.INTEGER);
-            assertEquals(numItems, found.size());
+        List<RecordEntry<Integer>> entries = stream.bulkRead(storage, Direction.FORWARD, Log.START, Serializers.INTEGER);
+        assertEquals(numItems, entries.size());
 
-            for (int i = 0; i < numItems; i++) {
-                assertEquals(Integer.valueOf(i), found.get(i));
+        for (int i = 0; i < numItems; i++) {
+            assertEquals(Integer.valueOf(i), entries.get(i).entry());
 
-            }
         }
     }
 
@@ -109,32 +103,25 @@ public class DataStreamTest {
             stream.write(storage, Serializers.LONG.toBytes(i));
         }
 
-        List<Long> found = new ArrayList<>();
-        try (BufferRef ref = stream.bulkRead(storage, Direction.BACKWARD, storage.writePosition())) {
-            ref.readAllInto(found, Serializers.LONG);
-            assertEquals(numItems, found.size());
-            Collections.reverse(found);
+        List<RecordEntry<Long>> found = stream.bulkRead(storage, Direction.BACKWARD, storage.writePosition(), Serializers.LONG);
+        assertEquals(numItems, found.size());
+        Collections.reverse(found);
+        for (int i = 0; i < numItems; i++) {
+            assertEquals(Long.valueOf(i), found.get(i).entry());
 
-            for (int i = 0; i < numItems; i++) {
-                assertEquals(Long.valueOf(i), found.get(i));
-
-            }
         }
     }
 
     @Test
-    public void reading_allInto_size() {
+    public void returned_size_matches_actual_entry_size() {
 
         int numItems = 10;
         for (int i = 0; i < numItems; i++) {
             stream.write(storage, Serializers.INTEGER.toBytes(i));
         }
 
-        List<Integer> found = new ArrayList<>();
-        try (BufferRef ref = stream.bulkRead(storage, Direction.FORWARD, Log.START)) {
-            int[] read = ref.readAllInto(found, Serializers.INTEGER);
-            assertEquals((numItems * (Integer.BYTES + RecordHeader.HEADER_OVERHEAD)), IntStream.of(read).sum());
-        }
+        List<RecordEntry<Integer>> found = stream.bulkRead(storage, Direction.FORWARD, Log.START, Serializers.INTEGER);
+        assertEquals((numItems * (Integer.BYTES + RecordHeader.HEADER_OVERHEAD)), found.stream().mapToInt(RecordEntry::recordSize).sum());
     }
 
     @Test
@@ -146,12 +133,9 @@ public class DataStreamTest {
         String second = ofSize(Memory.PAGE_SIZE / 2);
         stream.write(storage, Serializers.STRING.toBytes(second));
 
-        List<String> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, Direction.FORWARD, Log.START)) {
-            ref.readAllInto(found, Serializers.STRING);
-            assertEquals(1, found.size());
-            assertEquals(first, found.get(0));
-        }
+        RecordEntry<String> found = stream.read(storage, Direction.FORWARD, Log.START, Serializers.STRING);
+        assertNotNull(found);
+        assertEquals(first, found.entry());
     }
 
     @Test
@@ -163,12 +147,9 @@ public class DataStreamTest {
         String second = ofSize(Memory.PAGE_SIZE / 2);
         stream.write(storage, Serializers.STRING.toBytes(second));
 
-        List<String> found = new ArrayList<>();
-        try (BufferRef ref = stream.read(storage, Direction.BACKWARD, storage.writePosition())) {
-            ref.readAllInto(found, Serializers.STRING);
-            assertEquals(1, found.size());
-            assertEquals(second, found.get(0));
-        }
+        RecordEntry<String> read = stream.read(storage, Direction.BACKWARD, storage.writePosition(), Serializers.STRING);
+        assertNotNull(read);
+        assertEquals(second, read.entry());
     }
 
     @Test
@@ -178,10 +159,9 @@ public class DataStreamTest {
         ByteBuffer data = Serializers.STRING.toBytes(content);
         long pos = stream.write(storage, data);
 
-        try (BufferRef read = stream.read(storage, Direction.FORWARD, pos)) {
-            String readContent = Serializers.STRING.fromBytes(read.get());
-            assertEquals(content, readContent.intern());
-        }
+        RecordEntry<String> found = stream.read(storage, Direction.FORWARD, pos, Serializers.STRING);
+        assertNotNull(found);
+        assertEquals(content, found.entry().intern());
     }
 
     @Test
@@ -192,10 +172,9 @@ public class DataStreamTest {
         stream.write(storage, data);
 
         long pos = storage.writePosition();
-        try (BufferRef read = stream.read(storage, Direction.BACKWARD, pos)) {
-            String read1 = Serializers.STRING.fromBytes(read.get());
-            assertEquals(content, read1.intern());
-        }
+        RecordEntry<String> found = stream.read(storage, Direction.BACKWARD, pos, Serializers.STRING);
+        assertNotNull(found);
+        assertEquals(content, found.entry().intern());
     }
 
     @Test
@@ -210,12 +189,9 @@ public class DataStreamTest {
         String secondEntry = ofSize(secondEntryLength);
         stream.write(storage, Serializers.STRING.toBytes(secondEntry));
 
-        try (BufferRef read = stream.bulkRead(storage, Direction.FORWARD, Log.START)) {
-            assertEquals(1, read.lengths().size());
-
-            String read1 = Serializers.STRING.fromBytes(read.get());
-            assertEquals(firstEntry, read1.intern());
-        }
+        List<RecordEntry<String>> read = stream.bulkRead(storage, Direction.FORWARD, Log.START, Serializers.STRING);
+        assertEquals(1, read.size());
+        assertEquals(firstEntry, read.get(0).entry().intern());
     }
 
     @Test
@@ -230,12 +206,9 @@ public class DataStreamTest {
         String secondEntry = ofSize(secondEntryLength);
         stream.write(storage, Serializers.STRING.toBytes(secondEntry));
 
-        try (BufferRef read = stream.bulkRead(storage, Direction.BACKWARD, storage.writePosition())) {
-            assertEquals(1, read.lengths().size());
-
-            String read1 = Serializers.STRING.fromBytes(read.get());
-            assertEquals(secondEntry, read1.intern());
-        }
+        List<RecordEntry<String>> read = stream.bulkRead(storage, Direction.BACKWARD, storage.writePosition(), Serializers.STRING);
+        assertEquals(1, read.size());
+        assertEquals(secondEntry, read.get(0).entry().intern());
     }
 
     private static String ofSize(int size) {

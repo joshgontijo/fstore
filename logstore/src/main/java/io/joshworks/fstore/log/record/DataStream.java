@@ -9,8 +9,8 @@ import io.joshworks.fstore.log.segment.Log;
 
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ThreadLocalRandom;
 
 //THREAD SAFE
 public class DataStream implements IDataStream {
@@ -24,17 +24,21 @@ public class DataStream implements IDataStream {
 
     private final double checksumProb;
     private final int maxEntrySize;
-    private final ThreadLocalRandom rand = ThreadLocalRandom.current();
-    private final RecordReader forwardReader = new ForwardRecordReader();
-    private final RecordReader bulkForwardReader = new BulkForwardRecordReader();
-    private final RecordReader bulkBackwardReader = new BulkBackwardRecordReader();
-    private final RecordReader backwardReader = new BackwardRecordReader();
+
+    private final Reader forwardReader;
+    private final BulkReader bulkForwardReader;
+    private final BulkReader bulkBackwardReader;
+    private final Reader backwardReader;
     private final BufferPool bufferPool;
 
     public DataStream(BufferPool bufferPool, double checksumProb, int maxEntrySize) {
         this.checksumProb = (int) (checksumProb * 100);
         this.maxEntrySize = maxEntrySize;
         this.bufferPool = Objects.requireNonNull(bufferPool, "BufferPool must be provided");
+        this.forwardReader = new ForwardRecordReader(checksumProb, maxEntrySize, READ_BUFFER_SIZE);
+        this.backwardReader = new BackwardRecordReader(checksumProb, maxEntrySize, READ_BUFFER_SIZE);
+        this.bulkForwardReader = new BulkForwardRecordReader(checksumProb, maxEntrySize, BULK_READ_BUFFER_SIZE);
+        this.bulkBackwardReader = new BulkBackwardRecordReader(checksumProb, maxEntrySize, BULK_READ_BUFFER_SIZE);
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
         }
@@ -141,301 +145,22 @@ public class DataStream implements IDataStream {
     }
 
     @Override
-    public BufferRef read(Storage storage, Direction direction, long position) {
+    public <T> RecordEntry<T> read(Storage storage, Direction direction, long position, Serializer<T> serializer) {
         try {
-            RecordReader reader = Direction.FORWARD.equals(direction) ? forwardReader : backwardReader;
-            return reader.read(storage, bufferPool, position);
-
+            Reader reader = Direction.FORWARD.equals(direction) ? forwardReader : backwardReader;
+            return reader.read(storage, bufferPool, position, serializer);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to read at position " + position, e);
         }
     }
 
     @Override
-    public BufferRef bulkRead(Storage storage, Direction direction, long position) {
+    public <T> List<RecordEntry<T>> bulkRead(Storage storage, Direction direction, long position, Serializer<T> serializer) {
         try {
-            RecordReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : bulkBackwardReader;
-            return reader.read(storage, bufferPool, position);
+            BulkReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : bulkBackwardReader;
+            return reader.read(storage, bufferPool, position, serializer);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to read at position " + position, e);
-        }
-    }
-
-    private void checksum(int expected, ByteBuffer data, long position) {
-        if (checksumProb == 0) {
-            return;
-        }
-        if (checksumProb >= 100 && Checksum.crc32(data) != expected) {
-            throw new ChecksumException(position);
-        }
-        if (rand.nextInt(100) < checksumProb && Checksum.crc32(data) != expected) {
-            throw new ChecksumException(position);
-        }
-    }
-
-    private final class ForwardRecordReader implements RecordReader {
-
-        @Override
-        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-            ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
-            try {
-                storage.read(position, buffer);
-                buffer.flip();
-
-                if (buffer.remaining() < RecordHeader.MAIN_HEADER) {
-                    return BufferRef.ofEmpty(buffer, bufferPool);
-                }
-
-                int length = buffer.getInt();
-                checkRecordLength(length, position);
-                if (length == 0) {
-                    return BufferRef.ofEmpty(buffer, bufferPool);
-                }
-
-                int recordSize = length + RecordHeader.HEADER_OVERHEAD;
-                if (recordSize > buffer.limit()) {
-                    bufferPool.free(buffer);
-                    buffer = bufferPool.allocate(recordSize);
-                    storage.read(position, buffer);
-                    buffer.flip();
-                    buffer.getInt(); //skip length
-                }
-
-                int checksum = buffer.getInt();
-                buffer.limit(buffer.position() + length);
-                checksum(checksum, buffer, position);
-                return BufferRef.of(buffer, bufferPool);
-            } finally {
-                bufferPool.free(buffer);
-            }
-        }
-    }
-
-    private final class BulkForwardRecordReader implements RecordReader {
-
-        @Override
-        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-            ByteBuffer buffer = bufferPool.allocate(BULK_READ_BUFFER_SIZE);
-            try {
-                storage.read(position, buffer);
-                buffer.flip();
-
-                if (buffer.remaining() < RecordHeader.MAIN_HEADER) {
-                    return BufferRef.ofEmpty(buffer, bufferPool);
-                }
-
-                int length = buffer.getInt();
-                checkRecordLength(length, position);
-                if (length == 0) {
-                    return BufferRef.ofEmpty(buffer, bufferPool);
-                }
-
-                int recordSize = length + RecordHeader.HEADER_OVERHEAD;
-                if (recordSize > buffer.limit()) {
-                    bufferPool.free(buffer);
-                    buffer = bufferPool.allocate(recordSize);
-                    storage.read(position, buffer);
-                    buffer.flip();
-                    buffer.getInt(); //skip length
-                }
-
-                buffer.position(buffer.position() - Integer.BYTES);
-                int[] markers = new int[MAX_BULK_READ_RESULT];
-                int[] lengths = new int[MAX_BULK_READ_RESULT];
-                int i = 0;
-                int originalLimit = buffer.limit();
-                while (buffer.hasRemaining() && buffer.remaining() > RecordHeader.MAIN_HEADER && i < MAX_BULK_READ_RESULT) {
-                    int pos = buffer.position();
-                    int len = buffer.getInt();
-                    checkRecordLength(len, position);
-                    if (len == 0) {
-                        return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-                    }
-                    if (buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
-                        return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-                    }
-                    markers[i] = pos + RecordHeader.MAIN_HEADER;
-                    lengths[i] = len;
-
-                    int checksum = buffer.getInt();
-                    buffer.limit(buffer.position() + len);
-                    checksum(checksum, buffer, position + pos);
-                    buffer.limit(originalLimit);
-
-                    i++;
-                    int newPos = buffer.position() + len + RecordHeader.SECONDARY_HEADER;
-                    if (newPos > buffer.limit()) {
-                        return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-                    }
-                    buffer.position(newPos);
-                }
-                return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-            } finally {
-                bufferPool.free(buffer);
-            }
-        }
-    }
-
-    private final class BulkBackwardRecordReader implements RecordReader {
-
-        @Override
-        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-            ByteBuffer buffer = bufferPool.allocate(BULK_READ_BUFFER_SIZE);
-            try {
-
-                int limit = buffer.limit();
-                if (position - limit < Log.START) {
-                    int available = (int) (position - Log.START);
-                    if (available == 0) {
-                        return BufferRef.ofEmpty(buffer, bufferPool);
-                    }
-                    buffer.limit(available);
-                    limit = available;
-                }
-
-                storage.read(position - limit, buffer);
-                buffer.flip();
-                if (buffer.remaining() == 0) {
-                    return BufferRef.ofEmpty(buffer, bufferPool);
-                }
-
-                int recordDataEnd = buffer.limit() - RecordHeader.SECONDARY_HEADER;
-                int length = buffer.getInt(recordDataEnd);
-                checkRecordLength(length, position);
-                if (length == 0) {
-                    return BufferRef.ofEmpty(buffer, bufferPool);
-                }
-
-                int recordSize = length + RecordHeader.HEADER_OVERHEAD;
-
-                if (recordSize > buffer.limit()) {
-                    bufferPool.free(buffer);
-                    buffer = bufferPool.allocate(recordSize);
-
-                    buffer.limit(recordSize); //limit to the entry size, excluding the secondary header
-                    long readStart = position - recordSize;
-                    storage.read(readStart, buffer);
-                    buffer.flip();
-                }
-
-                int[] markers = new int[MAX_BULK_READ_RESULT];
-                int[] lengths = new int[MAX_BULK_READ_RESULT];
-                int i = 0;
-                int originalLimit = buffer.limit();
-                while (i < MAX_BULK_READ_RESULT) {
-
-                    buffer.limit(originalLimit);
-                    buffer.position(originalLimit);
-
-                    int len = buffer.getInt(originalLimit - RecordHeader.SECONDARY_HEADER);
-                    int recordStart = originalLimit - len - RecordHeader.HEADER_OVERHEAD;
-                    if (recordStart < 0) {
-                        return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-                    }
-                    buffer.position(originalLimit - len - RecordHeader.HEADER_OVERHEAD);
-                    checkRecordLength(length, position);
-
-                    int pos = buffer.position();
-                    if (len == 0) {
-                        return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-                    }
-                    if (buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
-                        return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-                    }
-                    checkRecordLength(len, pos);
-
-                    if (buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
-                        return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-                    }
-
-                    markers[i] = pos + RecordHeader.MAIN_HEADER;
-                    lengths[i] = len;
-
-                    buffer.getInt(); //skip length
-                    int checksum = buffer.getInt();
-                    buffer.limit(buffer.position() + len);
-                    checksum(checksum, buffer, position + pos);
-
-                    originalLimit = pos;
-                    i++;
-
-                    if (originalLimit - RecordHeader.SECONDARY_HEADER <= 0) {
-                        return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-                    }
-                }
-
-                return BufferRef.withMarker(buffer, bufferPool, markers, lengths, i);
-            } finally {
-                bufferPool.free(buffer);
-            }
-
-
-        }
-    }
-
-    private final class BackwardRecordReader implements RecordReader {
-
-        @Override
-        public BufferRef read(Storage storage, BufferPool bufferPool, long position) {
-            ByteBuffer buffer = bufferPool.allocate(READ_BUFFER_SIZE);
-            try {
-                int limit = buffer.limit();
-                if (position - limit < Log.START) {
-                    int available = (int) (position - Log.START);
-                    if (available == 0) {
-                        return BufferRef.ofEmpty(buffer, bufferPool);
-                    }
-                    buffer.limit(available);
-                    limit = available;
-                }
-
-                storage.read(position - limit, buffer);
-                buffer.flip();
-                if (buffer.remaining() == 0) {
-                    return BufferRef.ofEmpty(buffer, bufferPool);
-                }
-
-                int recordDataEnd = buffer.limit() - RecordHeader.SECONDARY_HEADER;
-                int length = buffer.getInt(recordDataEnd);
-                checkRecordLength(length, position);
-                if (length == 0) {
-                    return BufferRef.ofEmpty(buffer, bufferPool);
-                }
-
-                int recordSize = length + RecordHeader.HEADER_OVERHEAD;
-
-                if (recordSize > buffer.limit()) {
-                    bufferPool.free(buffer);
-                    buffer = bufferPool.allocate(recordSize);
-
-                    buffer.limit(recordSize - RecordHeader.SECONDARY_HEADER); //limit to the entry size, excluding the secondary header
-                    long readStart = position - recordSize;
-                    storage.read(readStart, buffer);
-                    buffer.flip();
-
-                    int foundLength = buffer.getInt();
-                    checkRecordLength(foundLength, position);
-                    int checksum = buffer.getInt();
-                    checksum(checksum, buffer, position);
-                    return BufferRef.of(buffer, bufferPool);
-                }
-
-                buffer.limit(recordDataEnd);
-                buffer.position(recordDataEnd - length - RecordHeader.CHECKSUM_SIZE);
-                int checksum = buffer.getInt();
-                checksum(checksum, buffer, position);
-                return BufferRef.of(buffer, bufferPool);
-
-            } finally {
-                bufferPool.free(buffer);
-            }
-
-        }
-    }
-
-    private void checkRecordLength(int length, long position) {
-        if (length < 0 || length > maxEntrySize) {
-            throw new IllegalStateException("Invalid record length " + length + " at position " + position);
         }
     }
 

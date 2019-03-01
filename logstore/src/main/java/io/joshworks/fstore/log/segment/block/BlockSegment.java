@@ -7,6 +7,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
+import io.joshworks.fstore.log.record.RecordEntry;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.header.Type;
 
@@ -114,10 +115,10 @@ public class BlockSegment<T> extends Segment<Block<T>> {
     }
 
     @Override
-    protected long processEntries(List<Block<T>> items) {
+    protected long processEntries(List<RecordEntry<Block<T>>> items) {
         long entryCount = 0;
-        for (Block<T> item : items) {
-            entryCount += item.entryCount();
+        for (RecordEntry<Block<T>> item : items) {
+            entryCount += item.entry().entryCount();
         }
         return entryCount;
     }
