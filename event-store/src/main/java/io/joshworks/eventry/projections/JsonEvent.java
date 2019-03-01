@@ -34,7 +34,7 @@ public class JsonEvent {
 
     public static JsonEvent from(EventRecord event) {
         Map<String, Object> data = serializer.fromBytes(ByteBuffer.wrap(event.body));
-        Map<String, Object> metadata = serializer.fromBytes(ByteBuffer.wrap(event.metadata));
+        Map<String, Object> metadata = event.metadata == null ? new HashMap<>() : serializer.fromBytes(ByteBuffer.wrap(event.metadata));
         return new JsonEvent(event.type, event.timestamp, event.stream, event.version, data, metadata);
     }
 
@@ -43,8 +43,8 @@ public class JsonEvent {
         String stream = (String) event.get("stream");
         long timestamp = (int) event.getOrDefault("timestamp", -1);
         int version = (int) event.getOrDefault("version", NO_VERSION);
-        Map<String, Object> metadata = (Map<String, Object>) event.getOrDefault("metadata", new HashMap<String, Object>());
-        Map<String, Object> data = (Map<String, Object>) event.getOrDefault("body", new HashMap<String, Object>());
+        Map<String, Object> data = (Map<String, Object>) event.getOrDefault("body", new HashMap<>());
+        Map<String, Object> metadata = (Map<String, Object>) event.getOrDefault("metadata", new HashMap<>());
         return new JsonEvent(type, timestamp, stream, version, data, metadata);
     }
 

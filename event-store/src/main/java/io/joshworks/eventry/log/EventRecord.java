@@ -13,9 +13,6 @@ import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class EventRecord {
 
-//    private static final Serializer<Map<String, Object>> serializer = new MapRecordSerializer();
-//    private static final Serializer<Map<String, Object>> serializer = JsonSerializer.of(new TypeToken<Map<String, Object>>(){}.getType());
-
     private static final Serializer<Map<String, Object>> serializer = KryoSerializer.untyped();
 
     public final String stream;
@@ -42,12 +39,8 @@ public class EventRecord {
         return create(stream, type, StringUtils.toUtf8Bytes(data));
     }
 
-    public static EventRecord create(String stream, String type, String data, String metadata) {
-        return create(stream, type, StringUtils.toUtf8Bytes(data), StringUtils.toUtf8Bytes(metadata));
-    }
-
     public static EventRecord create(String stream, String type, byte[] data) {
-        return create(stream, type, data, new byte[0]);
+        return create(stream, type, data, null);
     }
 
     public static EventRecord create(String stream, String type, byte[] data, byte[] metadata) {
