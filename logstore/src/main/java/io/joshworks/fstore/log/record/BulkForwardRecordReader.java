@@ -61,7 +61,7 @@ final class BulkForwardRecordReader extends BaseReader implements BulkReader{
                 T entry = serializer.fromBytes(buffer);
                 entries.add(new RecordEntry<>(len, entry));
 
-                int newPos = buffer.position() + RecordHeader.SECONDARY_HEADER;
+                int newPos = pos + len + RecordHeader.HEADER_OVERHEAD;
                 newPos = Math.min(originalLimit, newPos);
                 buffer.limit(originalLimit);
                 if (newPos > buffer.limit()) {
