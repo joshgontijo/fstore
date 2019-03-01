@@ -41,29 +41,31 @@ class Java9ImmutableListSerializer extends Serializer<List<Object>> {
 
        final Java9ImmutableListSerializer serializer = new Java9ImmutableListSerializer();
 
-        Object key1 = new Object();
-        Object key2 = new Object();
-        Object key3 = new Object();
-        Object key4 = new Object();
-        Object key5 = new Object();
-        Object key6 = new Object();
-        Object key7 = new Object();
-        Object key8 = new Object();
-        Object key9 = new Object();
-        Object key10 = new Object();
-        Object value = new Object();
+
+        Object value0 = new Object();
+        Object value1 = new Object();
+        Object value2 = new Object();
+        Object value3 = new Object();
+        Object value4 = new Object();
+        Object value5 = new Object();
+        Object value6 = new Object();
+        Object value7 = new Object();
+        Object value8 = new Object();
+        Object value9 = new Object();
+        Object value10 = new Object();
+        Object value11 = new Object();
 
 
-        kryo.register(List.of(key1, value).getClass(), serializer);
-        kryo.register(List.of(key1, value, key2, value).getClass(), serializer);
-        kryo.register(List.of(key1, value, key2, value, key3, value).getClass(), serializer);
-        kryo.register(List.of(key1, value, key2, value, key3, value, key4, value).getClass(), serializer);
-        kryo.register(List.of(key1, value, key2, value, key3, value, key4, value, key5, value).getClass(), serializer);
-        kryo.register(List.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value).getClass(), serializer);
-        kryo.register(List.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value).getClass(), serializer);
-        kryo.register(List.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value).getClass(), serializer);
-        kryo.register(List.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value, key9, value).getClass(), serializer);
-        kryo.register(List.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value, key9, value, key10, value).getClass(), serializer);
+        kryo.register(List.of().getClass(), serializer);
+        kryo.register(List.of(value0).getClass(), serializer);
+        kryo.register(List.of(value0, value1).getClass(), serializer);
+        kryo.register(List.of(value0, value1, value2, value3).getClass(), serializer);
+        kryo.register(List.of(value0, value1, value2, value3, value4, value5).getClass(), serializer);
+        kryo.register(List.of(value0, value1, value2, value3, value4, value5, value6, value7).getClass(), serializer);
+        kryo.register(List.of(value0, value1, value2, value3, value4, value5, value6, value7, value8, value9).getClass(), serializer);
+        kryo.register(List.of(value0, value1, value2, value3, value4, value5, value6, value7, value8, value9, value10).getClass(), serializer);
+        kryo.register(List.of(value0, value1, value2, value3, value4, value5, value6, value7, value8, value9, value10, value11).getClass(), serializer);
+        kryo.register(List.copyOf(new ArrayList<>()).getClass(), serializer);
 
     }
 }

@@ -30,7 +30,7 @@ import static java.util.Objects.requireNonNull;
 public class KryoSerializer<T> implements Serializer<T> {
 
     private final Kryo kryo;
-    private final Class<T> type;
+    private final Class<? super T> type;
 
     private KryoSerializer(Kryo kryo, Class<T> type) {
         this.kryo = kryo;
@@ -106,7 +106,7 @@ public class KryoSerializer<T> implements Serializer<T> {
         if (type == null) {
             return (T) kryo.readClassAndObject(input);
         }
-        return kryo.readObject(input, type);
+        return (T) kryo.readObject(input, type);
     }
 
     private void writeTo(T data, ByteArrayOutputStream baos) {
