@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.utils.Utils;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -190,23 +189,76 @@ public abstract class StorageTest {
     }
 
     @Test
-    @Ignore("Volatile storage will not work")
-    public void data_is_present_after_reopened() throws IOException {
-        byte[] data = fillWithUniqueBytes();
+    public void data_can_be_written_up_to_storage_length() {
+        int storeLen = (int) storage.length();
+        byte[] data = new byte[storeLen];
+        for (int i = 0; i < storeLen; i++) {
+            data[i] = 0x1;
+        }
+        int written = storage.write(ByteBuffer.wrap(data));
+        assertEquals(storeLen, written);
+
+        long pos = storage.writePosition();
+        assertEquals(storeLen, pos);
+
+        var bb = ByteBuffer.allocate(storeLen);
+        int read = storage.read(0, bb);
+        bb.flip();
+        assertEquals(storeLen, read);
+        assertEquals(storeLen, bb.remaining());
+    }
+
+    @Test
+    public void position_can_be_set_up_to_more_than_fileLength() {
+        long storeLen = storage.length();
+        storage.writePosition(storeLen);
+
+        assertEquals(storeLen, storage.writePosition());
+    }
+
+    @Test(expected = StorageException.class)
+    public void position_cannot_be_set_to_more_than_fileLength() {
+        long storeLen = storage.length();
+        storage.writePosition(storeLen + 1);
+    }
+
+    @Test
+    public void when_position_is_equals_fileLength_then_trying_to_write_should_return_EOF() {
+        int storeLen = (int) storage.length();
+        byte[] data = new byte[storeLen];
+        for (int i = 0; i < storeLen; i++) {
+            data[i] = 0x1;
+        }
         storage.write(ByteBuffer.wrap(data));
+        int written = storage.write(ByteBuffer.wrap(new byte[]{1}));
+        assertEquals(EOF, written);
+    }
+
+    @Test
+    public void when_position_is_equals_fileLength_then_trying_to_read_should_return_EOF() {
+        int storeLen = (int) storage.length();
+        byte[] data = new byte[storeLen];
+        for (int i = 0; i < storeLen; i++) {
+            data[i] = 0x1;
+        }
         storage.write(ByteBuffer.wrap(data));
+        var bb = ByteBuffer.allocate(storeLen);
+        int read = storage.read(storeLen, bb);
+        assertEquals(EOF, read);
+    }
 
-        storage.close();
-        storage = store(testFile, STORAGE_SIZE, BUFFER_SIZE);
-        storage.writePosition(data.length * 2);
-
-        var bb = ByteBuffer.allocate(data.length);
-        storage.read(0, bb);
-        assertArrayEquals(data, bb.array());
-
-        bb = ByteBuffer.allocate(data.length);
-        storage.read(data.length, bb);
-        assertArrayEquals(data, bb.array());
+    @Test
+    public void when_position_is_equals_fileLength_then_trying_to_read_should_return_no_data() {
+        int storeLen = (int) storage.length();
+        byte[] data = new byte[storeLen];
+        for (int i = 0; i < storeLen; i++) {
+            data[i] = 0x1;
+        }
+        storage.write(ByteBuffer.wrap(data));
+        var bb = ByteBuffer.allocate(storeLen);
+        storage.read(storeLen, bb);
+        bb.flip();
+        assertEquals(0, bb.remaining());
     }
 
     @Test
@@ -252,6 +304,9 @@ public abstract class StorageTest {
                         writeFailed.set(true);
                         break;
                     }
+                    if (!readFailed.get() && !writeFailed.get()) {
+                        break;
+                    }
                 }
                 done.set(true);
             });
@@ -276,7 +331,7 @@ public abstract class StorageTest {
                         readFailed.set(true);
                         break;
                     }
-                } while (read != EOF);
+                } while (read != EOF && !readFailed.get() && !writeFailed.get());
             });
 
             writer.start();
@@ -306,7 +361,7 @@ public abstract class StorageTest {
         long afterPos = storage.writePosition();
         long length = storage.length();
         assertEquals(pos, afterPos);
-        assertEquals(afterPos, length);
+        assertEquals(afterPos + 1, length);
 
         var bb = ByteBuffer.allocate(data.length);
         storage.read(0, bb);
@@ -334,12 +389,34 @@ public abstract class StorageTest {
         } while (written > 0);
     }
 
+    public void data_is_present_after_reopened_test() throws IOException {
+        byte[] data = fillWithUniqueBytes();
+        storage.write(ByteBuffer.wrap(data));
+        storage.write(ByteBuffer.wrap(data));
+
+        storage.close();
+        storage = store(testFile, STORAGE_SIZE, BUFFER_SIZE);
+        storage.writePosition(data.length * 2);
+
+        var bb = ByteBuffer.allocate(data.length);
+        storage.read(0, bb);
+        assertArrayEquals(data, bb.array());
+
+        bb = ByteBuffer.allocate(data.length);
+        storage.read(data.length, bb);
+        assertArrayEquals(data, bb.array());
+    }
 
     public static class RafStorageTest extends StorageTest {
 
         @Override
         protected Storage store(File file, long size, int bufferSize) {
             return new RafStorage(file, IOUtils.randomAccessFile(file, size));
+        }
+
+        @Test
+        public void data_is_present_after_reopened() throws IOException {
+            data_is_present_after_reopened_test();
         }
     }
 
@@ -349,6 +426,11 @@ public abstract class StorageTest {
         protected Storage store(File file, long size, int bufferSize) {
             return new MMapCache(new RafStorage(file, IOUtils.randomAccessFile(file, size)), bufferSize);
         }
+
+        @Test
+        public void data_is_present_after_reopened() throws IOException {
+            data_is_present_after_reopened_test();
+        }
     }
 
     public static class MMapStorageTest extends StorageTest {
@@ -356,6 +438,11 @@ public abstract class StorageTest {
         @Override
         protected Storage store(File file, long size, int bufferSize) {
             return new MMapStorage(new RafStorage(file, IOUtils.randomAccessFile(file, size)), bufferSize);
+        }
+
+        @Test
+        public void data_is_present_after_reopened() throws IOException {
+            data_is_present_after_reopened_test();
         }
     }
 

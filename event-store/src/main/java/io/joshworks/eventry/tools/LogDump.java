@@ -8,7 +8,11 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.SegmentIterator;
+import io.joshworks.fstore.log.segment.Log;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -55,6 +59,20 @@ public class LogDump {
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static <T> void dump(File file, LogIterator<T> iterator) {
+        try (var fileWriter = new FileWriter(file)) {
+            while (iterator.hasNext()) {
+                long position = iterator.position();
+                T item = iterator.next();
+                fileWriter.write(position + " | " + item + System.lineSeparator());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            IOUtils.closeQuietly(iterator);
         }
     }
 

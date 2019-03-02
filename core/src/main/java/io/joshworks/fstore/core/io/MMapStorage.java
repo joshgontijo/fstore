@@ -89,5 +89,6 @@ public class MMapStorage extends MemStorage {
         int numBuffers = calculateNumBuffers(newLength, bufferSize);
         List<ByteBuffer> newBuffers = initBuffers(numBuffers, newLength, bufferSize, mmap(diskStorage));
         this.buffers.addAll(newBuffers);
+        computeLength();
     }
 }

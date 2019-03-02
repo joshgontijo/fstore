@@ -34,7 +34,7 @@ public abstract class MemStorage implements Storage {
         this.bufferSupplier = bufferSupplier;
         int numBuffers = calculateNumBuffers(size, bufferSize);
         this.buffers.addAll(initBuffers(numBuffers, size, bufferSize, bufferSupplier));
-        updateLength();
+        computeLength();
     }
 
     protected abstract void destroy(ByteBuffer buffer);
@@ -199,9 +199,11 @@ public abstract class MemStorage implements Storage {
         try {
             checkClosed();
             int idx = bufferIdx(position);
-            ByteBuffer buffer = buffers.get(idx);
-            int bufferAddress = posOnBuffer(position);
-            buffer.position(bufferAddress);
+            if (idx < buffers.size()) {
+                ByteBuffer buffer = buffers.get(idx);
+                int bufferAddress = posOnBuffer(position);
+                buffer.position(bufferAddress);
+            }
             this.writePosition.set(position);
         } finally {
             lock.unlock();
@@ -257,13 +259,13 @@ public abstract class MemStorage implements Storage {
                 ByteBuffer removed = buffers.remove(idx);
                 destroy(removed);
             }
-            updateLength();
+            computeLength();
         } finally {
             lock.unlock();
         }
     }
 
-    private void updateLength() {
+    protected void computeLength() {
         this.size.set(buffers.stream().mapToLong(ByteBuffer::capacity).sum());
     }
 }
