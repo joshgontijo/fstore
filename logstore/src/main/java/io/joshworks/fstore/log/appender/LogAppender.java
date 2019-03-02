@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.util.Logging;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -17,6 +18,7 @@ import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
+import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.utils.BitUtil;
 import io.joshworks.fstore.log.utils.LogFileUtils;
@@ -154,9 +156,17 @@ public class LogAppender<T> implements Closeable {
     }
 
     private Log<T> createCurrentSegment() {
+        long alignedSize = align(LogHeader.BYTES + metadata.segmentSize); //log + header
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
-        Storage storage = storageProvider.create(segmentFile, metadata.segmentSize);
+        Storage storage = storageProvider.create(segmentFile, alignedSize);
         return factory.createOrOpen(storage, serializer, dataStream, metadata.magic, Type.LOG_HEAD);
+    }
+
+    private static long align(long fileSize) {
+        if (fileSize % Memory.PAGE_SIZE == 0) {
+            return fileSize;
+        }
+        return Memory.PAGE_SIZE * ((fileSize / Memory.PAGE_SIZE) + 1);
     }
 
     private Levels<T> loadSegments() {

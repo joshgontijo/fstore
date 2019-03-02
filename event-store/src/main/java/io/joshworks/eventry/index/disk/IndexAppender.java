@@ -16,8 +16,10 @@ import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.record.IDataStream;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
+import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.Closeable;
@@ -36,13 +38,14 @@ public class IndexAppender implements Closeable {
     private static final String STORE_NAME = "index";
     private final LogAppender<IndexEntry> appender;
 
-    public IndexAppender(File rootDir, Function<Long, StreamMetadata> streamSupplier, int logSize, int numElements, boolean useCompression) {
+    public IndexAppender(File rootDir, Function<Long, StreamMetadata> streamSupplier, int numElements, boolean useCompression) {
         Codec codec = useCompression ? new SnappyCodec() : Codec.noCompression();
         File indexDirectory = new File(rootDir, INDEX_DIR);
+        long segmentSize = numElements * IndexEntry.BYTES;
         this.appender = LogAppender.builder(indexDirectory, new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor(streamSupplier))
                 .compactionThreshold(3)
-                .segmentSize(logSize)
+                .segmentSize(segmentSize)
                 .name(STORE_NAME)
                 .flushMode(FlushMode.ON_ROLL)
                 .storageMode(StorageMode.MMAP)
@@ -72,10 +75,12 @@ public class IndexAppender implements Closeable {
         //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
-                IndexSegment indexSegment = (IndexSegment) segment;
-                Optional<IndexEntry> fromDisk = indexSegment.get(stream, version);
-                if (fromDisk.isPresent()) {
-                    return fromDisk;
+                if(segment.readOnly()) { //only query completed segments
+                    IndexSegment indexSegment = (IndexSegment) segment;
+                    Optional<IndexEntry> fromDisk = indexSegment.get(stream, version);
+                    if (fromDisk.isPresent()) {
+                        return fromDisk;
+                    }
                 }
             }
             return Optional.empty();
@@ -102,10 +107,12 @@ public class IndexAppender implements Closeable {
         //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
-                IndexSegment indexSegment = (IndexSegment) segment;
-                int version = indexSegment.lastVersionOf(stream);
-                if (version >= 0) {
-                    return version;
+                if(segment.readOnly()) { //only query completed segments
+                    IndexSegment indexSegment = (IndexSegment) segment;
+                    int version = indexSegment.lastVersionOf(stream);
+                    if (version >= 0) {
+                        return version;
+                    }
                 }
             }
             return NO_VERSION;
@@ -122,7 +129,17 @@ public class IndexAppender implements Closeable {
 
     //this method must ensure that, all the memtable entries are stored in the same segment file
     public synchronized void writeToDisk(MemIndex memIndex) {
-        memIndex.iterator().forEachRemaining(appender::append);
+        LogIterator<IndexEntry> iterator = memIndex.iterator();
+        while(iterator.hasNext()) {
+            IndexEntry indexEntry = iterator.next();
+            if(indexEntry.stream == 39155) {
+                System.out.println(indexEntry);
+            }
+            long pos = appender.append(indexEntry);
+            if(pos == Storage.EOF) {
+                throw new IllegalStateException("Reached end of segment while flushing index to disk");
+            }
+        }
         appender.roll();
     }
 

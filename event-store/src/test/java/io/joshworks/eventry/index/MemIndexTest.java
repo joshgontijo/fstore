@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.LogIterator;
 import org.junit.Test;
 
 import java.util.Iterator;
@@ -17,7 +18,6 @@ import static org.junit.Assert.assertTrue;
 public class MemIndexTest {
 
     private MemIndex index = new MemIndex();
-
 
     @Test
     public void stream_return_same_number_of_events_of_same_stream() {
@@ -120,7 +120,7 @@ public class MemIndexTest {
         int count = 0;
         IndexEntry last = null;
         Iterator<IndexEntry> iterator = index.iterator();
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             if (last != null) {
                 assertEquals(last.stream + 1, next.stream);
@@ -422,6 +422,31 @@ public class MemIndexTest {
         //then
         Stream<IndexEntry> stream = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
         assertEquals(6, stream.count());
+    }
+
+    @Test
+    public void iterator_returns_all_entries() {
+        //given
+        int streams = 1000000;
+        for (int i = 0; i < streams; i++) {
+            index.add(IndexEntry.of(i, 1, 0));
+        }
+        assertEquals(streams, index.iterator().stream().count());
+    }
+
+    @Test
+    public void iterator_returns_entries_in_order() {
+        //given
+        int items = 1000000;
+        for (int i = 0; i < items; i++) {
+            index.add(IndexEntry.of(i, 1, 0));
+        }
+
+        LogIterator<IndexEntry> iterator = index.iterator();
+        for (int i = 0; i < items; i++) {
+            IndexEntry ie = iterator.next();
+            assertEquals(i, ie.stream);
+        }
     }
 
     @Test

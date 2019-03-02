@@ -251,6 +251,9 @@ public class IndexSegment implements Log<IndexEntry> {
         List<IndexEntry> entries = foundBlock.entries();
         int idx = Collections.binarySearch(entries, end);
         idx = idx >= 0 ? idx : Math.abs(idx) - 2;
+        if(idx < 0) {
+            return IndexEntry.NO_VERSION;
+        }
         IndexEntry lastVersion = entries.get(idx);
         if (lastVersion.stream != stream) { //false positive on the bloom filter
             return IndexEntry.NO_VERSION;

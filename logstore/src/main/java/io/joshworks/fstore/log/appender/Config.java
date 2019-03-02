@@ -48,6 +48,7 @@ public class Config<T> {
 
     public Config<T> segmentSize(long segmentSize) {
         this.segmentSize = segmentSize;
+        this.maxEntrySize = maxEntrySize > segmentSize ? (int) segmentSize : maxEntrySize;
         return this;
     }
 
@@ -55,7 +56,8 @@ public class Config<T> {
         if(maxEntrySize == 0) {
             throw new IllegalArgumentException("maxEntrySize must not be zero");
         }
-        this.maxEntrySize = maxEntrySize;
+        int segSize = segmentSize > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) segmentSize;
+        this.maxEntrySize = maxEntrySize > segSize ? maxEntrySize : segSize;
         return this;
     }
 

@@ -2,11 +2,11 @@ package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.log.utils.LogFileUtils;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.utils.LogFileUtils;
 
 import java.io.Closeable;
 import java.io.File;
@@ -70,7 +70,10 @@ public class State implements Closeable {
         try {
             storage = StorageProvider.of(StorageMode.RAF).open(file);
             ByteBuffer data = ByteBuffer.allocate(BYTES);
-            storage.read(0, data);
+            int read = storage.read(0, data);
+            if (read != BYTES) {
+                throw new IllegalStateException("Expected " + BYTES + " bytes data, got " + read);
+            }
 
             data.flip();
 
@@ -109,7 +112,10 @@ public class State implements Closeable {
     private void write(ByteBuffer data) {
         try {
             storage.writePosition(0);
-            storage.write(data);
+            int written = storage.write(data);
+            if (written == Storage.EOF) {
+                throw new IllegalStateException("Failed to write state got EOF from storage");
+            }
             storage.flush();
             dirty = false;
         } catch (IOException e) {

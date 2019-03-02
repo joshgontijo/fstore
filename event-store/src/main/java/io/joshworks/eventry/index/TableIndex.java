@@ -47,7 +47,7 @@ public class TableIndex implements Closeable {
     }
 
     TableIndex(File rootDirectory, Function<Long, StreamMetadata> streamSupplier, int flushThreshold, boolean useCompression) {
-        this.diskIndex = new IndexAppender(rootDirectory, streamSupplier, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
+        this.diskIndex = new IndexAppender(rootDirectory, streamSupplier, flushThreshold, useCompression);
         this.flushThreshold = flushThreshold;
     }
 

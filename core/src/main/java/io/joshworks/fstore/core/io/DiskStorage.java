@@ -22,7 +22,6 @@ public abstract class DiskStorage implements Storage {
         this.raf = raf;
         this.file = target;
         this.channel = raf.getChannel();
-
         try {
             this.lock = this.channel.lock();
             this.size.set(this.raf.length());

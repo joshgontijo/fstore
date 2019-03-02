@@ -4,8 +4,8 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -15,7 +15,6 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 
 import static org.junit.Assert.assertEquals;
 
@@ -28,14 +27,14 @@ public class IndexAppenderTest {
     @Before
     public void setUp() {
         location = FileUtils.testFolder();
-        appender = new IndexAppender(location, e -> emptyStreamMeta(), (int) Size.MB.of(10), 10000, true);
+        appender = new IndexAppender(location, e -> emptyStreamMeta(),  10000, true);
         memIndex = new MemIndex();
     }
 
     @After
     public void tearDown() {
         appender.close();
-//        FileUtils.tryDelete(location);
+        FileUtils.tryDelete(location);
     }
 
     @Test
@@ -51,7 +50,6 @@ public class IndexAppenderTest {
         assertEquals(3, entries);
     }
 
-
     @Test
     public void entry_count_after_close() {
 
@@ -62,14 +60,12 @@ public class IndexAppenderTest {
         appender.writeToDisk(memIndex);
         appender.close();
 
-        appender = new IndexAppender(location, e -> null, (int) Size.MB.of(10), 10000, true);
+        appender = new IndexAppender(location, e -> null,  10000, true);
         long entries = appender.entries();
 
         assertEquals(3, entries);
     }
 
-
-    //FIXME
     @Test
     public void entries_are_returned_in_order_from_multiple_segments() throws IOException {
 
@@ -100,29 +96,15 @@ public class IndexAppenderTest {
     }
 
     @Test
-    public void write() {
-
-        long start = System.currentTimeMillis();
+    public void writeToDisk_persists_all_memtable_entries() {
         for (int i = 0; i < 1000000; i++) {
             memIndex.add(IndexEntry.of(i, 1, 0));
         }
         appender.writeToDisk(memIndex);
-        System.out.println("WRITE " + (System.currentTimeMillis() - start));
 
+        long count = Iterators.closeableStream(appender.iterator(Direction.FORWARD)).count();
 
-        start = System.currentTimeMillis();
-        int count = 0;
-        IndexEntry last = null;
-        Iterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD);
-        while (iterator.hasNext()) {
-            last = iterator.next();
-            count++;
-        }
-
-        System.out.println(last);
-        System.out.println("READ " + (System.currentTimeMillis() - start));
         assertEquals(1000000, count);
-
     }
 
     @Test
