@@ -141,7 +141,6 @@ public class ProjectionIT {
         assertEquals(100, events.size());
 
 
-
     }
 
 }

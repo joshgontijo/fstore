@@ -31,15 +31,13 @@ public class EsClient {
 //                            .contentType(MediaType.APPLICATION_JSON_TYPE)
 //                            .body(object)
                             .asString();
-                    if(!response.isSuccessful()) {
+                    if (!response.isSuccessful()) {
                         System.err.println("Error: " + response.getBody());
                     }
                 }
 
             });
         }
-
-
 
 
     }

@@ -15,7 +15,7 @@ state({
 function onEvent(event, state) {
     state.valueSum += event.data.value;
     state.evCounter++;
-    if(state.evCounter % 10000 == 0) {
+    if (state.evCounter % 10000 == 0) {
         print("Processed: " + state.evCounter)
     }
 }

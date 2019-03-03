@@ -43,21 +43,21 @@ public class GithubIT {
 
         try (BufferedReader reader = openReader(SOURCE)) {
             String line;
-            while((line = reader.readLine()) != null) {
+            while ((line = reader.readLine()) != null) {
                 EventRecord record = EventRecord.create(stream, evType, line);
                 store.append(record);
             }
         }
 
-        try(LogIterator<EventRecord> iterator = store.eventLog.iterator(Direction.FORWARD)) {
-            while(iterator.hasNext()) {
+        try (LogIterator<EventRecord> iterator = store.eventLog.iterator(Direction.FORWARD)) {
+            while (iterator.hasNext()) {
                 EventRecord next = iterator.next();
                 JsonEvent from = JsonEvent.from(next);
                 System.out.println(from);
             }
         }
     }
-    
+
 
     private static BufferedReader openReader(String file) {
         return new BufferedReader(new InputStreamReader(GithubIT.class.getClassLoader().getResourceAsStream(file)));

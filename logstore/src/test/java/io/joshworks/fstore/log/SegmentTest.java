@@ -2,7 +2,6 @@ package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.StorageException;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
@@ -25,7 +24,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -333,7 +331,7 @@ public abstract class SegmentTest {
         List<Long> positions = new ArrayList<>();
         long pos;
         int i = 0;
-        while((pos = segment.append(String.valueOf(i++))) > 0) {
+        while ((pos = segment.append(String.valueOf(i++))) > 0) {
             positions.add(pos);
         }
         return positions;

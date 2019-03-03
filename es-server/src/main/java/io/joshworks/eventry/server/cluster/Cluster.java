@@ -162,7 +162,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     private void updateNodeStatus(Address address, NodeStatus status) {
         Node node = nodes.get(address);
-        if(node == null) {
+        if (node == null) {
             throw new IllegalArgumentException("No such node for: " + address);
         }
         node.status = status;

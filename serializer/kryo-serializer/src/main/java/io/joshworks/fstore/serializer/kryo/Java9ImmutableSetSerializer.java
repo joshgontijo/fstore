@@ -7,7 +7,6 @@ import com.esotericsoftware.kryo.io.Output;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 class Java9ImmutableSetSerializer extends Serializer<Set<Object>> {
@@ -38,7 +37,7 @@ class Java9ImmutableSetSerializer extends Serializer<Set<Object>> {
      */
     public static void registerSerializers(final Kryo kryo) {
 
-       final Java9ImmutableSetSerializer serializer = new Java9ImmutableSetSerializer();
+        final Java9ImmutableSetSerializer serializer = new Java9ImmutableSetSerializer();
 
         Object value0 = new Object();
         Object value1 = new Object();

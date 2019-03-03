@@ -45,7 +45,7 @@ public class SubscriptionEndpoint {
                         .filter(Objects::nonNull)
                         .collect(Collectors.toSet());
 
-                if(streams.isEmpty()) {
+                if (streams.isEmpty()) {
                     try {
                         connection.close();
                     } catch (IOException e) {

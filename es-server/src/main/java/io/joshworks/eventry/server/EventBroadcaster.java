@@ -36,7 +36,7 @@ public class EventBroadcaster implements Closeable {
 
     public EventBroadcaster(long waitTime, int numWorkers) {
         this.numWorkers = numWorkers;
-        if(numWorkers == 0) {
+        if (numWorkers == 0) {
             return;
         }
         this.executor = Executors.newFixedThreadPool(numWorkers, r -> {
@@ -56,15 +56,15 @@ public class EventBroadcaster implements Closeable {
 
 
     public boolean add(LogIterator<EventRecord> poller) {
-        if(closed.get()) {
+        if (closed.get()) {
             logger.warn("Event broadcaster is closed");
             return false;
         }
-        if(numWorkers == 0) {
+        if (numWorkers == 0) {
             logger.warn("Event broadcaster has no workers, push is disabled");
             return false;
         }
-        if(workers.isEmpty()) {
+        if (workers.isEmpty()) {
             logger.warn("No worker is available");
             return false;
         }
@@ -84,17 +84,17 @@ public class EventBroadcaster implements Closeable {
 
     @Override
     public void close() {
-        if(!closed.compareAndSet(false, true)) {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
         logger.info("Shutting down event broadcaster");
         for (BroadcastWorker worker : workers) {
             worker.close();
         }
-        if(executor != null) {
+        if (executor != null) {
             executor.shutdown();
             try {
-                if(!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
                     executor.shutdownNow();
                 }
             } catch (InterruptedException e) {
@@ -121,7 +121,7 @@ public class EventBroadcaster implements Closeable {
             while (!closed.get()) {
                 try {
 
-                    if(pollers.isEmpty()) {
+                    if (pollers.isEmpty()) {
                         Thread.sleep(10000);
                     }
 

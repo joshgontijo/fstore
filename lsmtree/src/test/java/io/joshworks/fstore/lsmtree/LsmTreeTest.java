@@ -94,7 +94,7 @@ public class LsmTreeTest {
         }
 
         try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator()) {
-            while(iterator.hasNext()) {
+            while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
                 System.out.println(entry);
             }

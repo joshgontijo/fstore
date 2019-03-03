@@ -18,14 +18,14 @@ public final class StringUtils {
     }
 
     public static String requireNonBlank(String val, String name) {
-        if(isBlank(val)) {
+        if (isBlank(val)) {
             throw new IllegalArgumentException(name + " must not be null or empty");
         }
         return val;
     }
 
     public static byte[] toUtf8Bytes(String val) {
-        if(val == null) {
+        if (val == null) {
             return new byte[0];
         }
         return val.getBytes(StandardCharsets.UTF_8);

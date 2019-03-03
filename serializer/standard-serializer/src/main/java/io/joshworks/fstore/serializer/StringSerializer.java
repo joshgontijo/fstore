@@ -19,7 +19,7 @@ public class StringSerializer implements Serializer<String> {
 
     @Override
     public String fromBytes(ByteBuffer buffer) {
-        if(!buffer.hasArray()) {
+        if (!buffer.hasArray()) {
             return copyBytes(buffer);
         }
         return new String(buffer.array(), buffer.position(), buffer.remaining(), StandardCharsets.UTF_8);

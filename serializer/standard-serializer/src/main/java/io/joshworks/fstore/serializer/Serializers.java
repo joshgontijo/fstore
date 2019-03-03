@@ -26,6 +26,7 @@ public class Serializers {
     private Serializers() {
 
     }
+
     //No serializer
     public static final Serializer<ByteBuffer> BYTE_BUFFER = new DirectSerializer();
 

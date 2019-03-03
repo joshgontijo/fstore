@@ -59,7 +59,7 @@ public class GithubFileParser {
         long start = System.currentTimeMillis();
         AtomicInteger counter = new AtomicInteger();
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(output), 1021*1024);
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(output), 1021 * 1024);
              Stream<String> lines = Files.lines(file.toPath())) {
             lines.map(line -> toMap(gson, line))
                     .map(GithubFileParser::mapJson)

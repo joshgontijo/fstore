@@ -124,7 +124,7 @@ public class RecordCleanupTest {
     }
 
     private EventRecord systemRecord() {
-        return new EventRecord(SystemStreams.STREAMS, LinkTo.TYPE,  0, 0, new byte[0], new byte[0]);
+        return new EventRecord(SystemStreams.STREAMS, LinkTo.TYPE, 0, 0, new byte[0], new byte[0]);
     }
 
     private void appendTo(Log<EventRecord> segment, EventRecord record) {

@@ -10,7 +10,7 @@ public class RecordEntry<T> {
         this.entry = entry;
     }
 
-    public T entry(){
+    public T entry() {
         return entry;
     }
 

@@ -1,4 +1,3 @@
-
 <!--
   Default stack using IP multicasting. It is similar to the "udp"
   stack in stacks.xml, but doesn't use streaming state transfer and flushing
@@ -22,7 +21,7 @@
     <UFC/>
     <MFC/>
     <!-- SEQUENCER could also be placed just under GMS, if messages and views need to be totally ordered -->
-    <SEQUENCER />
+    <SEQUENCER/>
     <FRAG2/>
-    <pbcast.STATE_TRANSFER />
+    <pbcast.STATE_TRANSFER/>
 </config>

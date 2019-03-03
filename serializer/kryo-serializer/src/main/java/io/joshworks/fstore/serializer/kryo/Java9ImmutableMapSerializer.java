@@ -39,7 +39,7 @@ class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>> {
      */
     public static void registerSerializers(final Kryo kryo) {
 
-       final Java9ImmutableMapSerializer serializer = new Java9ImmutableMapSerializer();
+        final Java9ImmutableMapSerializer serializer = new Java9ImmutableMapSerializer();
 
         Object key1 = new Object();
         Object key2 = new Object();

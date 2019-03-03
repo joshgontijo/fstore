@@ -18,6 +18,6 @@ public class SSTableCompactor<K extends Comparable<K>, V> extends UniqueMergeCom
 
     @Override
     public boolean filter(Entry<K, V> entry) {
-       return EntryType.ADD.equals(entry.type);
+        return EntryType.ADD.equals(entry.type);
     }
 }

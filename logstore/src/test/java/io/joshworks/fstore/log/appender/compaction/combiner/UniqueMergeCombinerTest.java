@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender.compaction.combiner;
 
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
 import io.joshworks.fstore.core.util.Memory;

@@ -12,7 +12,7 @@ state({
 
 function onEvent(event, state) {
     state.count++;
-    if(state.count % 10000 == 0) {
+    if (state.count % 10000 == 0) {
         emit("my-state", {type: "STATE_UPDATED", body: state});
         print("Processed: " + state.count)
     }

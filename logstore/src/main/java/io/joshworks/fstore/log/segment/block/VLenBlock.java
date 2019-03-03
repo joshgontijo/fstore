@@ -1,14 +1,8 @@
 package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Codec;
-import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 public class VLenBlock extends BaseBlock {
 

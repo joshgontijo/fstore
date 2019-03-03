@@ -8,7 +8,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-final class BulkForwardRecordReader extends BaseReader implements BulkReader{
+final class BulkForwardRecordReader extends BaseReader implements BulkReader {
 
 
     public BulkForwardRecordReader(double checksumProb, int maxEntrySize, int bufferSize) {

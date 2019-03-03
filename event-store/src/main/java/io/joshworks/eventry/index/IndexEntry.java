@@ -13,10 +13,10 @@ public class IndexEntry implements Comparable<IndexEntry> {
     public static final int NO_VERSION = -1;
 
     private IndexEntry(long stream, int version, long position) {
-        if(version <= NO_VERSION) {
+        if (version <= NO_VERSION) {
             throw new IllegalArgumentException("Version must be at least zero");
         }
-        if(position < 0) {
+        if (position < 0) {
             throw new IllegalArgumentException("Position must be positive");
         }
         this.stream = stream;

@@ -13,7 +13,7 @@ public class TaskError {
         this.reason = reason;
         this.logPosition = logPosition;
         this.event = event;
-        if(event != null) {
+        if (event != null) {
             this.stream = event.stream;
             this.version = event.version;
         } else {

@@ -1,10 +1,7 @@
-
-
-
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xmlns="urn:org:jgroups"
         xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/jgroups.xsd">
-    <UDP />
+    <UDP/>
     <PING/>
     <MERGE3/>
     <FD_ALL timeout="8000" interval="3000"/>
@@ -13,11 +10,11 @@
 
     <!-- Symmetric encryption with a keystore -->
     <SYM_ENCRYPT
-        provider="SunJCE"
-        sym_algorithm="AES"
-        encrypt_entire_message="true"
-        keystore_name="/home/bela/JGroups/keystore/defaultStore.keystore" 
-        store_password="changeit" alias="myKey"/>
+            provider="SunJCE"
+            sym_algorithm="AES"
+            encrypt_entire_message="true"
+            keystore_name="/home/bela/JGroups/keystore/defaultStore.keystore"
+            store_password="changeit" alias="myKey"/>
     <pbcast.NAKACK2/>
     <UNICAST3/>
     <pbcast.STABLE/>
@@ -26,5 +23,5 @@
     <AUTH auth_class="org.jgroups.auth.MD5Token"
           auth_value="chris"
           token_hash="MD5"/>
-    <pbcast.GMS join_timeout="2000" />
+    <pbcast.GMS join_timeout="2000"/>
 </config>

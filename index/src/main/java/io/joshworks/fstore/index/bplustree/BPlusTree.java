@@ -42,7 +42,7 @@ public class BPlusTree<K extends Comparable<K>, V> implements Tree<K, V> {
     }
 
     public static <K extends Comparable<K>, V> BPlusTree<K, V> of(BlockStore<K, V> store) {
-       return of(store, DEFAULT_BRANCHING_FACTOR);
+        return of(store, DEFAULT_BRANCHING_FACTOR);
     }
 
     public static <K extends Comparable<K>, V> BPlusTree<K, V> of(BlockStore<K, V> store, int order) {

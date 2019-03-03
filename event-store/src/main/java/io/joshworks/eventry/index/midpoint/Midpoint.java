@@ -5,7 +5,7 @@ import io.joshworks.eventry.index.IndexEntry;
 
 import java.util.Objects;
 
-public class Midpoint implements Comparable<IndexEntry>{
+public class Midpoint implements Comparable<IndexEntry> {
 
     public static final int BYTES = IndexEntry.BYTES + Long.BYTES;
 

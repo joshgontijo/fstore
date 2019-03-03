@@ -39,7 +39,7 @@ public class StateTest {
         state.close();
 
         //when
-        try(State found = State.readFrom(testFile)) {
+        try (State found = State.readFrom(testFile)) {
             //then
             assertEquals(state.position(), found.position());
             assertEquals(state.entryCount(), found.entryCount());

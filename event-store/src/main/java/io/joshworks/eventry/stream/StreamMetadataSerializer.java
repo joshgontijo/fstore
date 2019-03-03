@@ -22,7 +22,7 @@ public class StreamMetadataSerializer implements Serializer<StreamMetadata> {
         int permissionsMapLength = Integer.BYTES;
         int metadataMapLength = Integer.BYTES;
         ByteBuffer bb = ByteBuffer.allocate(
-                        nameSize +
+                nameSize +
                         (Long.BYTES * 3) +
                         Integer.BYTES +
                         permissionsSize +

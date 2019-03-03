@@ -21,21 +21,21 @@
     <TCPPING async_discovery="true"
              initial_hosts="${jgroups.tcpping.initial_hosts:localhost[7900],localhost[7901]}"
              port_range="2"/>
-    <MERGE3  min_interval="10000"
-             max_interval="30000"/>
+    <MERGE3 min_interval="10000"
+            max_interval="30000"/>
     <FD_SOCK/>
-    <FD timeout="3000" max_tries="3" />
-    <VERIFY_SUSPECT timeout="1500"  />
-    <BARRIER />
+    <FD timeout="3000" max_tries="3"/>
+    <VERIFY_SUSPECT timeout="1500"/>
+    <BARRIER/>
     <pbcast.NAKACK2 use_mcast_xmit="false"
-                   discard_delivered_msgs="true"/>
-    <UNICAST3 />
+                    discard_delivered_msgs="true"/>
+    <UNICAST3/>
     <pbcast.STABLE desired_avg_gossip="50000"
                    max_bytes="4M"/>
     <pbcast.GMS print_local_addr="true" join_timeout="2000"/>
     <MFC max_credits="2M"
          min_threshold="0.4"/>
-    <FRAG2 frag_size="60K"  />
+    <FRAG2 frag_size="60K"/>
     <!--RSVP resend_interval="2000" timeout="10000"/-->
     <pbcast.STATE_TRANSFER/>
 </config>

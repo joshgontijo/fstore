@@ -2,7 +2,7 @@ package io.joshworks.eventry.log.cache;
 
 import java.util.function.Predicate;
 
-public interface Cache  {
+public interface Cache {
 
     CachedEntry get(long position);
 

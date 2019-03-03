@@ -6,10 +6,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 class Java9ImmutableListSerializer extends Serializer<List<Object>> {
 
@@ -39,7 +36,7 @@ class Java9ImmutableListSerializer extends Serializer<List<Object>> {
      */
     public static void registerSerializers(final Kryo kryo) {
 
-       final Java9ImmutableListSerializer serializer = new Java9ImmutableListSerializer();
+        final Java9ImmutableListSerializer serializer = new Java9ImmutableListSerializer();
 
 
         Object value0 = new Object();

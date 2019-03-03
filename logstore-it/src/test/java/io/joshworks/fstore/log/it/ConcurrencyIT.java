@@ -143,7 +143,7 @@ public abstract class ConcurrencyIT {
         TimeWatch watch = TimeWatch.start();
         for (int i = 0; i < writeItems; i++) {
             executor.execute(() -> {
-                try  {
+                try {
                     appender.append(String.valueOf(writes.getAndIncrement()));
                 } catch (Exception e) {
                     failed.incrementAndGet();
