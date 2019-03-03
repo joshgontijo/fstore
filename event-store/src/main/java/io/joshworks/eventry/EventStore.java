@@ -381,21 +381,11 @@ public class EventStore implements IEventStore {
         return resolve(record);
     }
 
-
-    //FIXME at io.joshworks.eventry.EventStore.get(EventStore.java:420)
-    //	at io.joshworks.eventry.EventStore.resolve(EventStore.java:440)
-    //	at io.joshworks.eventry.EventStore.get(EventStore.java:434)
-    //	at io.joshworks.eventry.EventStore.get(EventStore.java:426)
-    //	at io.joshworks.eventry.EventStore.resolve(EventStore.java:440)
-    //	at io.joshworks.eventry.EventStore.get(EventStore.java:434)
-    //	at io.joshworks.eventry.EventStore.get(EventStore.java:426)
-    //	at io.joshworks.eventry.EventStore.resolve(EventStore.java:440)
-    //	at io.joshworks.eventry.EventStore.get(EventStore.java:434)
-    //	at io.joshworks.eventry.EventStore.get(EventStore.java:426)
     @Override
     public EventRecord resolve(EventRecord record) {
         if (record.isLinkToEvent()) {
-            return get(record.streamName());
+            LinkTo linkTo = LinkTo.from(record);
+            return get(StreamName.of(linkTo.stream, linkTo.version));
         }
         return record;
     }
