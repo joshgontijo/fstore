@@ -93,10 +93,10 @@ public class EventStoreIT {
         String stream1 = "test-stream";
         String stream2 = "test-stream2";
         for (int i = 0; i < size; i++) {
-            store.append(EventRecord.create(stream1, "" + i, "{\"value\": " + i + "}"));
+            store.append(EventRecord.create(stream1, "" + i, Map.of("value", i)));
         }
         for (int i = 0; i < size; i++) {
-            store.append(EventRecord.create(stream2, "" + i, "{\"value\": " + i + "}"));
+            store.append(EventRecord.create(stream2, "" + i, Map.of("value", i)));
         }
 
         State state = new State();

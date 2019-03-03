@@ -5,30 +5,28 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 
-public class BlockSerializer<T> implements Serializer<Block<T>> {
+public class BlockSerializer implements Serializer<Block> {
 
     private final Codec codec;
-    private final BlockFactory<T> blockFactory;
-    private final Serializer<T> serializer;
+    private final BlockFactory blockFactory;
 
-    public BlockSerializer(Codec codec, BlockFactory<T> blockFactory, Serializer<T> serializer) {
+    public BlockSerializer(Codec codec, BlockFactory blockFactory) {
         this.codec = codec;
         this.blockFactory = blockFactory;
-        this.serializer = serializer;
     }
 
     @Override
-    public ByteBuffer toBytes(Block<T> data) {
+    public ByteBuffer toBytes(Block data) {
         return data.pack(codec);
     }
 
     @Override
-    public void writeTo(Block<T> data, ByteBuffer dest) {
+    public void writeTo(Block data, ByteBuffer dest) {
         //do nothing
     }
 
     @Override
-    public Block<T> fromBytes(ByteBuffer buffer) {
-        return blockFactory.load(serializer, codec, buffer);
+    public Block fromBytes(ByteBuffer buffer) {
+        return blockFactory.load(codec, buffer);
     }
 }

@@ -52,11 +52,11 @@ public class Segment<T> implements Log<T> {
     private final String magic;
 
     protected final AtomicLong entries = new AtomicLong();
+    protected final AtomicLong writePosition = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
-    private final AtomicLong writePosition = new AtomicLong();
 
-    private LogHeader header;
+    protected LogHeader header;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
@@ -76,7 +76,7 @@ public class Segment<T> implements Log<T> {
                 if (type == null) {
                     throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
                 }
-                this.header = LogHeader.writeNew(storage, magic, type, storage.length());
+                this.header = LogHeader.writeNew(storage, magic, type, storage.length(), false); //TODO update for ENCRYPTION
 
                 this.position(Log.START);
                 this.entries.set(this.header.entries);
@@ -84,7 +84,7 @@ public class Segment<T> implements Log<T> {
             } else { //existing segment
                 this.header = foundHeader;
                 this.entries.set(foundHeader.entries);
-                this.position(foundHeader.logicalSize);
+                this.position(foundHeader.writePosition);
                 if (Type.LOG_HEAD.equals(foundHeader.type)) {
                     SegmentState result = rebuildState(Segment.START);
                     this.position(result.position);
@@ -146,6 +146,16 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
+    public long logSize() {
+        return fileSize() - LogHeader.BYTES;
+    }
+
+    @Override
+    public long remaining() {
+        return logSize() - position();
+    }
+
+    @Override
     public String name() {
         return storage.name();
     }
@@ -155,11 +165,8 @@ public class Segment<T> implements Log<T> {
         Lock lock = rwLock.readLock();
         lock.lock();
         try {
-            if (Direction.FORWARD.equals(direction)) {
-                return iterator(START, direction);
-            }
-            long startPos = readOnly() ? header.logicalSize : position();
-            return iterator(startPos, direction);
+            long position = Direction.FORWARD.equals(direction) ? Log.START : position();
+            return iterator(position, direction);
         } finally {
             lock.unlock();
         }
@@ -272,7 +279,8 @@ public class Segment<T> implements Log<T> {
         }
 
         long currPos = storage.writePosition();
-        this.header = LogHeader.writeCompleted(storage, this.header, entries.get(), level, currPos);
+        long uncompressedSize = uncompressedSize();
+        this.header = LogHeader.writeCompleted(storage, this.header, entries.get(), level, currPos, uncompressedSize);
     }
 
     @Override
@@ -298,6 +306,11 @@ public class Segment<T> implements Log<T> {
     @Override
     public long created() {
         return header.created;
+    }
+
+    @Override
+    public long uncompressedSize() {
+        return logSize();
     }
 
     @Override

@@ -194,6 +194,16 @@ public class RecordCleanupTest {
         }
 
         @Override
+        public long logSize() {
+            return 0;
+        }
+
+        @Override
+        public long remaining() {
+            return 0;
+        }
+
+        @Override
         public SegmentState rebuildState(long lastKnownPosition) {
             return null;
         }
@@ -230,6 +240,11 @@ public class RecordCleanupTest {
 
         @Override
         public long created() {
+            return 0;
+        }
+
+        @Override
+        public long uncompressedSize() {
             return 0;
         }
 

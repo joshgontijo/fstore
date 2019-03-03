@@ -132,13 +132,7 @@ public class IndexAppender implements Closeable {
         LogIterator<IndexEntry> iterator = memIndex.iterator();
         while(iterator.hasNext()) {
             IndexEntry indexEntry = iterator.next();
-            if(indexEntry.stream == 39155) {
-                System.out.println(indexEntry);
-            }
-            long pos = appender.append(indexEntry);
-            if(pos == Storage.EOF) {
-                throw new IllegalStateException("Reached end of segment while flushing index to disk");
-            }
+            appender.append(indexEntry);
         }
         appender.roll();
     }

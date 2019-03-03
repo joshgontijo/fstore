@@ -1,14 +1,13 @@
 package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Codec;
-import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 
-public interface BlockFactory<T> {
+public interface BlockFactory {
 
-    Block<T> create(Serializer<T> serializer, int maxBlockSize);
+    Block create(int maxBlockSize);
 
-    Block<T> load(Serializer<T> serializer, Codec codec, ByteBuffer data);
+    Block load(Codec codec, ByteBuffer data);
 
 }

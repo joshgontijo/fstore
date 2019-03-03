@@ -4,6 +4,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.eventry.tools.LogDump;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -15,8 +16,10 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class IndexAppenderTest {
 
@@ -97,14 +100,29 @@ public class IndexAppenderTest {
 
     @Test
     public void writeToDisk_persists_all_memtable_entries() {
-        for (int i = 0; i < 1000000; i++) {
+        int numEntries = 1000000;
+        for (int i = 0; i < numEntries; i++) {
             memIndex.add(IndexEntry.of(i, 1, 0));
         }
         appender.writeToDisk(memIndex);
 
-        long count = Iterators.closeableStream(appender.iterator(Direction.FORWARD)).count();
+        for (int i = 0; i < numEntries; i++) {
+            Optional<IndexEntry> indexEntry = appender.get(i, 1);
+            assertTrue("Failed on " + i, indexEntry.isPresent());
+        }
 
-        assertEquals(1000000, count);
+        LogIterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD);
+        IndexEntry last = null;
+        while (iterator.hasNext()) {
+            IndexEntry ie = iterator.next();
+            if(last == null) {
+                last = ie;
+                continue;
+            }
+            assertEquals(last.stream + 1, ie.stream);
+            last = ie;
+        }
+
     }
 
     @Test

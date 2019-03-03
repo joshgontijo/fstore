@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.appender.compaction.combiner;
 
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.segment.Log;
 
@@ -32,7 +33,10 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
 
             T nextEntry = getNextEntry(segmentIterators);
             if (nextEntry != null && filter(nextEntry)) {
-                output.append(nextEntry);
+                long pos = output.append(nextEntry);
+                if(pos == Storage.EOF) {
+                    throw new IllegalStateException("Insufficient output segment space: " + output.fileSize());
+                }
             }
         }
     }

@@ -14,15 +14,16 @@ public class EventSerializer implements Serializer<EventRecord> {
         int typeLength = VStringSerializer.sizeOf(data.type);
         int streamNameLength = VStringSerializer.sizeOf(data.stream);
 
+        int metadataLen = data.metadata == null ? 0 : data.metadata.length;
         ByteBuffer bb = ByteBuffer.allocate(
-                        typeLength +
+                typeLength +
                         streamNameLength +
                         Integer.BYTES +
                         Long.BYTES +
                         Integer.BYTES +
                         data.body.length +
                         Integer.BYTES +
-                        data.metadata.length);
+                        metadataLen);
 
         writeTo(data, bb);
 
@@ -39,8 +40,11 @@ public class EventSerializer implements Serializer<EventRecord> {
         dest.putInt(data.body.length);
         dest.put(data.body);
 
-        dest.putInt(data.metadata.length);
-        dest.put(data.metadata);
+        int metadataLen = data.metadata == null ? 0 : data.metadata.length;
+        dest.putInt(metadataLen);
+        if (metadataLen > 0) {
+            dest.put(data.metadata);
+        }
     }
 
 
@@ -56,8 +60,11 @@ public class EventSerializer implements Serializer<EventRecord> {
         buffer.get(data);
 
         int metadataLength = buffer.getInt();
-        byte[] metadata = new byte[metadataLength];
-        buffer.get(metadata);
+        byte[] metadata = null;
+        if (metadataLength > 0) {
+            metadata = new byte[metadataLength];
+            buffer.get(metadata);
+        }
 
         return new EventRecord(stream, type, version, timestamp, data, metadata);
     }

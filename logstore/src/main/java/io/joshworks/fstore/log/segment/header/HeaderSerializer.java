@@ -32,11 +32,13 @@ public class HeaderSerializer implements Serializer<LogHeader> {
         dest.putLong(data.created);
         dest.putInt(data.type.val);
         dest.putLong(data.fileSize);
+        dest.putInt(data.encrypted ? 1 : 0);
 
         dest.putInt(data.level);
         dest.putLong(data.entries);
-        dest.putLong(data.logicalSize);
+        dest.putLong(data.writePosition);
         dest.putLong(data.rolled);
+        dest.putLong(data.uncompressedSize);
     }
 
     @Override
@@ -45,12 +47,14 @@ public class HeaderSerializer implements Serializer<LogHeader> {
         long created = buffer.getLong();
         int type = buffer.getInt();
         long fileSize = buffer.getLong();
+        boolean encrypted = buffer.getInt() == 1;
 
         int level = buffer.getInt();
         long entries = buffer.getLong();
         long logicalSize = buffer.getLong();
         long rolled = buffer.getLong();
+        long uncompressedSize = buffer.getLong();
 
-        return new LogHeader(magic, entries, created, level, Type.of(type), rolled, fileSize, logicalSize);
+        return new LogHeader(magic, entries, created, level, Type.of(type), rolled, fileSize, encrypted, logicalSize, uncompressedSize);
     }
 }

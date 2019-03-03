@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.segment.block;
 
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -13,11 +14,13 @@ import java.util.Queue;
 
 public class BlockIterator<T> implements SegmentIterator<T> {
 
-    private final SegmentIterator<Block<T>> delegate;
+    private final Serializer<T> serializer;
+    private final SegmentIterator<Block> delegate;
     private final Direction direction;
     private final Queue<T> cached = new LinkedList<>();
 
-    public BlockIterator(SegmentIterator<Block<T>> delegate, Direction direction) {
+    public BlockIterator(Serializer<T> serializer, SegmentIterator<Block> delegate, Direction direction) {
+        this.serializer = serializer;
         this.delegate = delegate;
         this.direction = direction;
     }
@@ -27,8 +30,8 @@ public class BlockIterator<T> implements SegmentIterator<T> {
             IOUtils.closeQuietly(this);
             return;
         }
-        Block<T> block = delegate.next();
-        List<T> entries = block.entries();
+        Block block = delegate.next();
+        List<T> entries = block.deserialize(serializer);
         if (Direction.BACKWARD.equals(direction)) {
             Collections.reverse(entries);
         }
