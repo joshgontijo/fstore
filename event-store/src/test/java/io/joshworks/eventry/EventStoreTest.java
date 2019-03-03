@@ -85,6 +85,32 @@ public class EventStoreTest {
         assertEquals(maxCount, eventCounter);
     }
 
+    @Test
+    public void truncated_events_are_not_returned() {
+        //given
+
+        String stream = "test-stream";
+        int versions = 100;
+
+        for (int version = 0; version < versions; version++) {
+            store.append(EventRecord.create(stream, "type", "body-" + stream));
+        }
+
+        store.truncate(stream, 60);
+
+        long count = store.fromStream(StreamName.parse(stream)).stream().count();
+        assertEquals(40, count);
+
+        Iterator<EventRecord> eventStream = store.fromStream(StreamName.parse(stream));
+
+        int expectedVersion = 60;
+        while (eventStream.hasNext()) {
+            EventRecord event = eventStream.next();
+            assertEquals(expectedVersion, event.version);
+            expectedVersion++;
+        }
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void stream_name_cannot_start_with_system_reserved_prefix() {
         store.append(EventRecord.create(StreamName.SYSTEM_PREFIX + "stream", "a", "asa"));

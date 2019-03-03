@@ -37,6 +37,7 @@ public class EventRecord {
         return create(stream, type, serializer.toBytes(data).array());
     }
 
+    //TODO DELETE ME ????????
     public static EventRecord create(String stream, String type, String data) {
         return create(stream, type, StringUtils.toUtf8Bytes(data));
     }
