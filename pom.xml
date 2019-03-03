@@ -16,11 +16,8 @@
         <module>codec</module>
         <module>event-store</module>
         <module>es-server</module>
-        <module>event-store-cli</module>
         <module>lsmtree</module>
         <module>test-utils</module>
-        <module>event-store-it</module>
-        <module>logstore-it</module>
         <module>es-projection</module>
     </modules>
 
