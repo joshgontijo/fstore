@@ -425,14 +425,6 @@ public class EventStore implements IEventStore {
         return new MaxAgeFilteringIterator(metadataMap, iterator);
     }
 
-    private LogIterator<IndexEntry> withTruncatedFilter(long streamHash, LogIterator<IndexEntry> iterator) {
-        return streams.get(streamHash)
-                .map(stream -> stream.maxCount)
-                .filter(maxCount -> maxCount > 0)
-                .map(maxCount -> MaxCountFilteringIterator.of(maxCount, streams.version(streamHash), iterator))
-                .orElse(iterator);
-    }
-
     @Override
     public synchronized void close() {
         //Order matters
