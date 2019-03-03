@@ -16,6 +16,8 @@ import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
+import io.joshworks.eventry.writer.EventWriter;
+import io.joshworks.eventry.writer.Writer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
@@ -36,8 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
@@ -49,11 +51,13 @@ public class EventStore implements IEventStore {
 
     //TODO expose
     private static final int LRU_CACHE_SIZE = 1000000;
+    private static final int WRITE_QUEUE_SIZE = 1000000;
 
-    private final ExecutorService writer = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("event-store-writer"));
+
     private final TableIndex index;
     private final Streams streams;
-    public final IEventLog eventLog;
+    private final IEventLog eventLog;
+    private final EventWriter eventWriter;
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
@@ -69,6 +73,7 @@ public class EventStore implements IEventStore {
                 .disableCompaction()
                 .compactionStrategy(new RecordCleanup(streams)));
 
+        this.eventWriter = new EventWriter(streams, eventLog, index, WRITE_QUEUE_SIZE);
         try {
             this.loadIndex();
             logger.info("Started event store in {}ms", (System.currentTimeMillis() - start));
@@ -76,6 +81,7 @@ public class EventStore implements IEventStore {
             IOUtils.closeQuietly(index);
             IOUtils.closeQuietly(streams);
             IOUtils.closeQuietly(eventLog);
+            IOUtils.closeQuietly(eventWriter);
             throw new RuntimeException(e);
         }
     }
@@ -125,6 +131,20 @@ public class EventStore implements IEventStore {
         logger.info("Loaded {} index entries in {}ms", loaded, (System.currentTimeMillis() - start));
     }
 
+    @Override
+    public EventRecord append(EventRecord event) {
+        return append(event, NO_VERSION);
+    }
+
+    @Override
+    public EventRecord append(EventRecord event, int expectedVersion) {
+        validateEvent(event);
+        Future<EventRecord> future = eventWriter.queue(writer -> {
+            StreamMetadata metadata = getOrCreateStream(writer, event.stream);
+            return writer.append(event, expectedVersion, metadata);
+        });
+        return Threads.awaitFor(future);
+    }
 
     @Override
     public void compact() {
@@ -144,13 +164,22 @@ public class EventStore implements IEventStore {
 
     @Override
     public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
-        StreamMetadata created = streams.create(stream, maxAge, maxCount, permissions, metadata);
-        if (created == null) {
-            throw new IllegalStateException("Stream '" + stream + "' already exist");
+        Future<StreamMetadata> future = eventWriter.queue(writer -> {
+            StreamMetadata created = streams.create(stream, maxAge, maxCount, permissions, metadata);
+            if (created == null) {
+                throw new IllegalStateException("Stream '" + stream + "' already exist");
+            }
+            EventRecord eventRecord = StreamCreated.create(created);
+            writer.append(eventRecord, -2, created);
+            return created;
+        });
+
+        try {
+            return future.get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
         }
-        EventRecord eventRecord = StreamCreated.create(created);
-        this.appendSystemEvent(eventRecord);
-        return created;
+
     }
 
     @Override
@@ -172,10 +201,14 @@ public class EventStore implements IEventStore {
 
     @Override
     public void truncate(String stream, int version) {
-        StreamMetadata metadata = streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
-        streams.truncate(stream, version);
-        EventRecord eventRecord = StreamTruncated.create(metadata.name, version);
-        this.appendSystemEvent(eventRecord);
+        Future<Void> op = eventWriter.queue(writer -> {
+            StreamMetadata metadata = streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
+            streams.truncate(stream, version);
+            EventRecord eventRecord = StreamTruncated.create(metadata.name, version);
+            writer.append(eventRecord, -1, metadata);
+        });
+
+        Threads.awaitFor(op);
     }
 
     @Override
@@ -251,27 +284,43 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventRecord linkTo(String stream, EventRecord event) {
-        if (event.isLinkToEvent()) {
-            //resolve event
-            event = get(event.streamName());
-        }
-        EventRecord linkTo = LinkTo.create(stream, StreamName.from(event));
-        return this.appendSystemEvent(linkTo);
+    public EventRecord linkTo(String stream, final EventRecord event) {
+        Future<EventRecord> future = eventWriter.queue(writer -> {
+            EventRecord e = event;
+            if (e.isLinkToEvent()) {
+                //resolve event
+                e = get(event.streamName());
+            }
+            StreamMetadata metadata = getOrCreateStream(writer, stream);
+            EventRecord linkTo = LinkTo.create(stream, StreamName.from(e));
+            return writer.append(linkTo, NO_VERSION, metadata); // TODO expected version for LinkTo
+        });
+
+        return Threads.awaitFor(future);
     }
 
     @Override
     public EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
-        if (LinkTo.TYPE.equals(sourceType)) {
-            //resolve event
-            EventRecord resolvedEvent = get(source);
-            StreamName resolvedStream = resolvedEvent.streamName();
-            EventRecord linkTo = LinkTo.create(dstStream, resolvedStream);
-            return this.appendSystemEvent(linkTo);
-        }
-        EventRecord linkTo = LinkTo.create(dstStream, source);
-        return this.appendSystemEvent(linkTo);
+        Future<EventRecord> future = eventWriter.queue(writer -> {
+            EventRecord linkTo = LinkTo.create(dstStream, source);
+            StreamMetadata metadata = getOrCreateStream(writer, dstStream);
+            if (LinkTo.TYPE.equals(sourceType)) {
+                //resolve event
+                EventRecord resolvedEvent = get(source);
+                StreamName resolvedStream = resolvedEvent.streamName();
+                linkTo = LinkTo.create(dstStream, resolvedStream);
+            }
+            return writer.append(linkTo, NO_VERSION, metadata);
+        });
+        return Threads.awaitFor(future);
 
+    }
+
+    private StreamMetadata getOrCreateStream(Writer writer, String stream) {
+        return streams.createIfAbsent(stream, created -> {
+            EventRecord eventRecord = StreamCreated.create(created);
+            writer.append(eventRecord, -1, created);
+        });
     }
 
     @Override
@@ -324,65 +373,13 @@ public class EventStore implements IEventStore {
         }
     }
 
-    @Override
-    public EventRecord append(EventRecord event) {
-        return append(event, NO_VERSION);
-    }
-
-    @Override
-    public EventRecord append(EventRecord event, int expectedVersion) {
-        validateEvent(event);
-        try {
-            return writer.submit(() -> {
-                StreamMetadata metadata = getOrCreateStream(event.stream);
-                return appendInternal(metadata, event, expectedVersion);
-            }).get();
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public EventRecord appendSystemEvent(EventRecord event) {
-        if (!event.isSystemEvent()) {
-            throw new IllegalArgumentException("System events must start with " + StreamName.SYSTEM_PREFIX);
-        }
-        StreamMetadata metadata = getOrCreateStream(event.stream);
-        return appendInternal(metadata, event, NO_VERSION);
-    }
-
-    private EventRecord appendInternal(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
-        if (streamMetadata == null) {
-            throw new IllegalArgumentException("EventStream cannot be null");
-        }
-
-        long streamHash = event.streamName().hash();
-
-        if (streamMetadata.name.equals(event.stream) && streamMetadata.hash != streamHash) {
-            //TODO improve ??
-            throw new IllegalStateException("Hash collision of closeableStream: " + event.stream + " with existing name: " + streamMetadata.name);
-        }
-
-        int version = streams.tryIncrementVersion(streamHash, expectedVersion);
-        var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.body, event.metadata);
-
-        long position = eventLog.append(record);
-        index.add(streamHash, version, position);
-
-        return record;
-    }
-
     private void onIndexWrite(TableIndex.FlushInfo flushInfo) {
-        var indexFlushedEvent = IndexFlushed.create(flushInfo.timeTaken, flushInfo.entries);
-        this.appendSystemEvent(indexFlushedEvent);
-    }
-
-    private StreamMetadata getOrCreateStream(String stream) {
-        return streams.createIfAbsent(stream, created -> {
-            EventRecord eventRecord = StreamCreated.create(created);
-            this.appendSystemEvent(eventRecord);
+        eventWriter.queue(writer -> {
+            var indexFlushedEvent = IndexFlushed.create(flushInfo.timeTaken, flushInfo.entries);
+            StreamMetadata metadata = getOrCreateStream(writer, indexFlushedEvent.stream);
+            writer.append(indexFlushedEvent, NO_VERSION, metadata);
         });
+
     }
 
     private LogIterator<IndexEntry> withMaxCountFilter(long streamHash, LogIterator<IndexEntry> iterator) {
@@ -413,10 +410,11 @@ public class EventStore implements IEventStore {
 
     @Override
     public synchronized void close() {
-        index.close();
+        //Order matters
+        index.close(); //#1
+        eventWriter.close();//#2
         eventLog.close();
         streams.close();
-        writer.shutdown();
     }
 
 }

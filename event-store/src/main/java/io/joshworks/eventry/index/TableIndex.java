@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -109,14 +110,15 @@ public class TableIndex implements Closeable {
 
     public void close() {
 //        this.flush(); //no need to flush, just reload from disk on startup
-        diskIndex.close();
-        for (IndexIterator poller : pollers) {
-            IOUtils.closeQuietly(poller);
+        if(closed.compareAndSet(false, true)) {
+            Threads.awaitTerminationOf(indexWriter, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting index writer to complete"));
+            diskIndex.close();
+            for (IndexIterator poller : pollers) {
+                IOUtils.closeQuietly(poller);
+            }
+            pollers.clear();
         }
-        pollers.clear();
-
     }
-
 
     //TODO: IMPLEMENT BACKWARD SCANNING: Backwards scan requires fetching the latest version and adding to the map
     //backward here means that the version will be fetched from higher to lower
@@ -172,7 +174,7 @@ public class TableIndex implements Closeable {
             }
 
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to poll for mem index entries to write", e);
+            throw new IllegalStateException("Failed write index", e);
         }
     }
 
