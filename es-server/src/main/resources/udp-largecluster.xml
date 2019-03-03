@@ -1,4 +1,3 @@
-
 <!--
   UDP based stack modified to run well in clusters of large size. This is ongoing work<p/>
   JIRA: https://issues.jboss.org/browse/JGRP-100
@@ -25,13 +24,13 @@
          thread_pool.max_threads="500"
          thread_pool.keep_alive_time="5000"/>
 
-    <PING break_on_coord_rsp="true" />
+    <PING break_on_coord_rsp="true"/>
     <MERGE3 max_interval="30000"
             min_interval="10000"/>
     <FD_SOCK/>
     <FD_ALL/>
-    <VERIFY_SUSPECT timeout="1500"  />
-    <BARRIER />
+    <VERIFY_SUSPECT timeout="1500"/>
+    <BARRIER/>
     <pbcast.NAKACK2 xmit_interval="500"
                     xmit_table_num_rows="100"
                     xmit_table_msgs_per_row="2000"
@@ -39,21 +38,21 @@
                     use_mcast_xmit="true"
                     discard_delivered_msgs="true"/>
     <UNICAST3
-              xmit_table_num_rows="100"
-              xmit_table_msgs_per_row="1000"
-              xmit_table_max_compaction_time="30000"/>
+            xmit_table_num_rows="100"
+            xmit_table_msgs_per_row="1000"
+            xmit_table_max_compaction_time="30000"/>
     <pbcast.STABLE desired_avg_gossip="60000"
                    max_bytes="4M"/>
     <pbcast.GMS print_local_addr="true"
                 join_timeout="10000"
                 merge_timeout="5000"
                 resume_task_timeout="15000"
-            />
+    />
     <UFC max_credits="4M"
          min_threshold="0.4"/>
     <MFC max_credits="4M"
          min_threshold="0.4"/>
-    <FRAG2 frag_size="60K"  />
+    <FRAG2 frag_size="60K"/>
     <RSVP resend_interval="2000" timeout="10000"/>
-    <pbcast.STATE_TRANSFER />
+    <pbcast.STATE_TRANSFER/>
 </config>

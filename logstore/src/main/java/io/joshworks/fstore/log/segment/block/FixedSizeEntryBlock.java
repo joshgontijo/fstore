@@ -1,10 +1,8 @@
 package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Codec;
-import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 
 public class FixedSizeEntryBlock extends BaseBlock {
 

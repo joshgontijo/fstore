@@ -24,7 +24,6 @@
     <profiles>
 
 
-
         <profile>
             <id>jboss-releases-repository</id>
             <repositories>

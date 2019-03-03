@@ -26,7 +26,7 @@ public class BlockIterator<T> implements SegmentIterator<T> {
     }
 
     private void readNextBlock() {
-        if(!delegate.hasNext()) {
+        if (!delegate.hasNext()) {
             IOUtils.closeQuietly(this);
             return;
         }
@@ -40,10 +40,10 @@ public class BlockIterator<T> implements SegmentIterator<T> {
 
     @Override
     public boolean hasNext() {
-        if(!cached.isEmpty()) {
+        if (!cached.isEmpty()) {
             return true;
         }
-        if(delegate.hasNext()) {
+        if (delegate.hasNext()) {
             return true;
         }
         IOUtils.closeQuietly(this);
@@ -56,7 +56,7 @@ public class BlockIterator<T> implements SegmentIterator<T> {
             readNextBlock();
         }
         T found = cached.poll();
-        if(found == null && !delegate.hasNext()) {
+        if (found == null && !delegate.hasNext()) {
             IOUtils.closeQuietly(delegate);
             throw new NoSuchElementException();
         }

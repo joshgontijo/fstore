@@ -16,7 +16,7 @@ import static org.junit.Assert.assertEquals;
 public abstract class TreeIteratorBase {
 
     protected abstract BPlusTree<Integer, String> create(int order);
-    
+
     @Test
     public void iterator() {
         BPlusTree<Integer, String> tree = create(3);
@@ -138,10 +138,10 @@ public abstract class TreeIteratorBase {
     private void assertIterator(Iterator<Entry<Integer, String>> iterator, int expectedSize, int expectedFirstKey, int expectedLastKey) {
         long last = expectedFirstKey - 1;
         int count = 0;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             Entry<Integer, String> next = iterator.next();
             System.out.println(next);
-            assertThat(next.key, greaterThan((int)last));
+            assertThat(next.key, greaterThan((int) last));
             assertThat(next.key, greaterThanOrEqualTo(expectedFirstKey));
             assertThat(next.key, lessThanOrEqualTo(expectedLastKey));
             last = next.key;

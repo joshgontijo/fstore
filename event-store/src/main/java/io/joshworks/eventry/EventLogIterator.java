@@ -40,7 +40,8 @@ public interface EventLogIterator extends LogIterator<EventRecord> {
         }
 
         public void match() {
-            iterator.stream().filter(er -> matchers.containsKey(er.type)).forEach(ev -> matchers.getOrDefault(ev.type, e ->{}).accept(ev));
+            iterator.stream().filter(er -> matchers.containsKey(er.type)).forEach(ev -> matchers.getOrDefault(ev.type, e -> {
+            }).accept(ev));
         }
     }
 

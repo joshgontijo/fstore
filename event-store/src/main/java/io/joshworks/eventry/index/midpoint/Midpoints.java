@@ -4,8 +4,8 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.utils.Memory;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 
 import java.io.File;
@@ -98,7 +98,7 @@ public class Midpoints {
                     loadedMidpoints.add(midpoint);
                     pos += Midpoint.BYTES;
                     loaded++;
-                    if(loaded >= entries) {
+                    if (loaded >= entries) {
                         break;
                     }
                 }

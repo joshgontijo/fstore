@@ -42,8 +42,10 @@ public class Config<T> {
     int maxEntrySize = DEFAULT_MAX_ENTRY_SIZE;
 
     Config(File directory, Serializer<T> serializer) {
-        this.directory = requireNonNull(directory, "directory cannot be null");;
-        this.serializer = requireNonNull(serializer, "serializer cannot be null");;
+        this.directory = requireNonNull(directory, "directory cannot be null");
+        ;
+        this.serializer = requireNonNull(serializer, "serializer cannot be null");
+        ;
     }
 
     public Config<T> segmentSize(long segmentSize) {
@@ -53,7 +55,7 @@ public class Config<T> {
     }
 
     public Config<T> maxEntrySize(int maxEntrySize) {
-        if(maxEntrySize == 0) {
+        if (maxEntrySize == 0) {
             throw new IllegalArgumentException("maxEntrySize must not be zero");
         }
         int segSize = segmentSize > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) segmentSize;
@@ -67,7 +69,7 @@ public class Config<T> {
     }
 
     public Config<T> checksumProbability(double checksumProbability) {
-        if(checksumProbability < 0 || checksumProbability > 1) {
+        if (checksumProbability < 0 || checksumProbability > 1) {
             throw new IllegalStateException("Checksum probability must be between 0 and 1");
         }
         this.checksumProbability = checksumProbability;

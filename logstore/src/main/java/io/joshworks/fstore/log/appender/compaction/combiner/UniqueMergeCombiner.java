@@ -34,7 +34,7 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
             T nextEntry = getNextEntry(segmentIterators);
             if (nextEntry != null && filter(nextEntry)) {
                 long pos = output.append(nextEntry);
-                if(pos == Storage.EOF) {
+                if (pos == Storage.EOF) {
                     throw new IllegalStateException("Insufficient output segment space: " + output.fileSize());
                 }
             }

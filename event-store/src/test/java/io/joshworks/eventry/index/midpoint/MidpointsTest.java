@@ -67,7 +67,7 @@ public class MidpointsTest {
     @Test
     public void mark_as_dirty_when_first_pair_of_midpoins_is_added() {
         assertFalse(midpoints.dirty);
-        midpoints.add(midpoint(1, 1), midpoint(1,2));
+        midpoints.add(midpoint(1, 1), midpoint(1, 2));
         assertTrue(midpoints.dirty);
     }
 

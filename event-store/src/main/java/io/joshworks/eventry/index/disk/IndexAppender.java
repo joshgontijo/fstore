@@ -16,10 +16,8 @@ import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.record.IDataStream;
-import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.Closeable;
@@ -73,7 +71,7 @@ public class IndexAppender implements Closeable {
         //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
-                if(segment.readOnly()) { //only query completed segments
+                if (segment.readOnly()) { //only query completed segments
                     IndexSegment indexSegment = (IndexSegment) segment;
                     Optional<IndexEntry> fromDisk = indexSegment.get(stream, version);
                     if (fromDisk.isPresent()) {
@@ -89,11 +87,11 @@ public class IndexAppender implements Closeable {
         //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
-                if(!segment.readOnly()) { //only rolled segments must be used
+                if (!segment.readOnly()) { //only rolled segments must be used
                     continue;
                 }
                 IndexSegment indexSegment = (IndexSegment) segment;
-                if(segment.readOnly()) { //only query completed segments
+                if (segment.readOnly()) { //only query completed segments
                     List<IndexEntry> indexEntries = indexSegment.readBlockEntries(stream, version);
                     if (!indexEntries.isEmpty()) {
                         return indexEntries;
@@ -108,7 +106,7 @@ public class IndexAppender implements Closeable {
         //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
-                if(segment.readOnly()) { //only query completed segments
+                if (segment.readOnly()) { //only query completed segments
                     IndexSegment indexSegment = (IndexSegment) segment;
                     int version = indexSegment.lastVersionOf(stream);
                     if (version >= 0) {
@@ -131,7 +129,7 @@ public class IndexAppender implements Closeable {
     //this method must ensure that, all the memtable entries are stored in the same segment file
     public synchronized void writeToDisk(MemIndex memIndex) {
         LogIterator<IndexEntry> iterator = memIndex.iterator();
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             IndexEntry indexEntry = iterator.next();
             appender.append(indexEntry);
         }

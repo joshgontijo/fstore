@@ -77,7 +77,7 @@ public class MMapStorage extends MemStorage {
     @Override
     public void truncate() {
         Iterator<ByteBuffer> iterator = buffers.iterator();
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             MappedByteBuffer buffer = (MappedByteBuffer) iterator.next();
             MappedByteBuffers.unmap(buffer);
             iterator.remove();

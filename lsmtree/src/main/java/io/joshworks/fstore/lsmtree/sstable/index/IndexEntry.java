@@ -3,7 +3,7 @@ package io.joshworks.fstore.lsmtree.sstable.index;
 
 import java.util.Objects;
 
-public class IndexEntry<K extends Comparable<K>> implements Comparable<K>{
+public class IndexEntry<K extends Comparable<K>> implements Comparable<K> {
 
     public final K key;
     public final long position;

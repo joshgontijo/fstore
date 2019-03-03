@@ -541,9 +541,9 @@ public class Iterators {
             }
             Iterator<PeekingIterator<T>> itit = iterators.iterator();
             Iterators.PeekingIterator<T> prev = null;
-            while(itit.hasNext()) {
+            while (itit.hasNext()) {
                 PeekingIterator<T> curr = itit.next();
-                if(!curr.hasNext()) {
+                if (!curr.hasNext()) {
                     itit.remove();
                     continue;
                 }
@@ -569,7 +569,7 @@ public class Iterators {
         }
 
         @Override
-        public void close()  {
+        public void close() {
             iterators.forEach(IOUtils::closeQuietly);
         }
 

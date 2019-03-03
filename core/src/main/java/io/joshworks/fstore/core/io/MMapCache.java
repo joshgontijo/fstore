@@ -24,7 +24,7 @@ public class MMapCache extends MMapStorage {
             return 0;
         }
         long srcAvailable = diskStorage.writePosition() - readPos;
-        if(srcAvailable <= 0) {
+        if (srcAvailable <= 0) {
             return EOF;
         }
         long toBeRead = Math.min(dstRemaining, srcAvailable);

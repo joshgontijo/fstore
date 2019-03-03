@@ -41,7 +41,7 @@ public class Projections implements Closeable {
         for (String projectionName : running) {
             logger.info("Resuming projection {}", projectionName);
             Projection projection = projectionsMap.get(projectionName);
-            if(projection == null) {
+            if (projection == null) {
                 logger.warn("No projection found for name '{}'", projectionName);
                 //TODO emit projection failed event
             }

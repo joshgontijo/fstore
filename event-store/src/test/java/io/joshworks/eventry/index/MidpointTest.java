@@ -3,7 +3,8 @@ package io.joshworks.eventry.index;
 import io.joshworks.eventry.index.midpoint.Midpoint;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class MidpointTest {
 

@@ -11,7 +11,7 @@ class Node<K, V> implements Map.Entry<K, V> {
     private int memory;
 
     Node(K key) {
-       this(key, null);
+        this(key, null);
     }
 
     Node(K key, V value) {

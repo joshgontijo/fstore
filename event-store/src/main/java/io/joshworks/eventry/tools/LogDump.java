@@ -6,13 +6,9 @@ import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
-import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.segment.Log;
 
 import java.io.File;
 import java.io.FileWriter;

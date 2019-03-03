@@ -49,7 +49,7 @@ public final class LogFileUtils {
 
     public static String fileName(String prefix, int level) {
         String extension = ".L" + level;
-        return  prefix +  extension;
+        return prefix + extension;
     }
 
 //    public static String fileName(String prefix, int idxOnLevel, int level) {
@@ -60,7 +60,7 @@ public final class LogFileUtils {
         try {
 //            String fileName = name.endsWith(SEGMENT_EXTENSION) ? name : name + SEGMENT_EXTENSION;
             File file = new File(directory, name);
-            if(!file.exists()) {
+            if (!file.exists()) {
                 throw new RuntimeIOException("Segment file " + name + " doesn't exist");
             }
 //            if(!isSegmentFile(name)) {

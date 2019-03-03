@@ -88,7 +88,7 @@ public class HeapBlockStore<K extends Comparable<K>, V> implements BlockStore<K,
     /**
      * Write a node
      *
-     * @param node    the node
+     * @param node the node
      */
     @Override
     public void writeBlock(Node<K, V> node) {

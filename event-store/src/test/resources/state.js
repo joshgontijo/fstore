@@ -7,7 +7,7 @@ config({
     publishState: false
 });
 
-state({ count: 10});
+state({count: 10});
 
 function onEvent(event, state) {
     state.count++;

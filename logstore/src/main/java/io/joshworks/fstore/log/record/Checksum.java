@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 
 public class Checksum {
-    private Checksum(){
+    private Checksum() {
 
     }
 

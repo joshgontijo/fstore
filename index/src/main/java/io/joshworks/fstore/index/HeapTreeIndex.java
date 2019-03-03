@@ -52,7 +52,7 @@ public class HeapTreeIndex<K extends Comparable<K>, V> implements SortedIndex<K,
 
         Iterator<Map.Entry<K, V>> iterator = subMap.entrySet().iterator();
         for (int i = 0; i < range.skip; i++) {
-            if(iterator.hasNext()) {
+            if (iterator.hasNext()) {
                 iterator.next();
             }
         }

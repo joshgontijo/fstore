@@ -68,7 +68,8 @@ public class GithubPump {
         AtomicInteger counter = new AtomicInteger();
 
         final Gson gson = new Gson();
-        Type type = new TypeToken<Map<String, Object>>(){}.getType();
+        Type type = new TypeToken<Map<String, Object>>() {
+        }.getType();
 
         try (Stream<String> lines = Files.lines(file.toPath())) {
             lines.filter(line -> line != null && !line.isEmpty())

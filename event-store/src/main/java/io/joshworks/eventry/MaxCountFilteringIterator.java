@@ -43,7 +43,7 @@ public class MaxCountFilteringIterator implements LogIterator<IndexEntry> {
         IndexEntry last;
         do {
             last = nextEntry();
-        }while(last != null && lessThanMaxCount(last));
+        } while (last != null && lessThanMaxCount(last));
         return last != null && lessThanMaxCount(last) ? null : last;
     }
 

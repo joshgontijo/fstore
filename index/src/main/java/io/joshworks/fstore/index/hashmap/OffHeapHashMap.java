@@ -87,7 +87,7 @@ public class OffHeapHashMap<K, V> implements Map<K, V> {
             readOnly.position(dataIdx);
 
             Node<K, V> entry = serializer.fromBytes(readOnly);
-            if(entry.getKey().equals(key)) { // duplicated replace
+            if (entry.getKey().equals(key)) { // duplicated replace
                 //sync
                 entry.setValue(value);
                 ByteBuffer entryBuffer = serializer.toBytes(entry);
@@ -96,7 +96,6 @@ public class OffHeapHashMap<K, V> implements Map<K, V> {
             }
 
         }
-
 
 
         //sync

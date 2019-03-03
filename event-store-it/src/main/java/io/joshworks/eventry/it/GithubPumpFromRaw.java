@@ -61,6 +61,7 @@ public class GithubPumpFromRaw {
     }
 
     private static Gson gson = new Gson();
+
     private static void importFromFile(File file) throws Exception {
         String stream = "github";
         String evType = "evType";
@@ -70,7 +71,8 @@ public class GithubPumpFromRaw {
         try (BufferedReader reader = openReader(file)) {
             String line;
             while ((line = reader.readLine()) != null) {
-                Map<String, Object> map = gson.fromJson(line, new TypeToken<Map<String, Object>>() {}.getType());
+                Map<String, Object> map = gson.fromJson(line, new TypeToken<Map<String, Object>>() {
+                }.getType());
                 EventRecord record = EventRecord.create(stream, evType, map);
                 records.add(record);
             }

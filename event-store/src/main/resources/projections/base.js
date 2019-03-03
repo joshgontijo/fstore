@@ -2,7 +2,7 @@ var _out_events = [];
 
 function _process_events(events, state) {
     _out_events = [];
-    while(!events.isEmpty()) {
+    while (!events.isEmpty()) {
         var event = events.peek();
         onEvent(event, state);
         events.poll();
@@ -58,7 +58,7 @@ function emit(stream, event) {
         throw Error("Event data must be provided");
     }
 
-    if ((event.metadata && event.metadata !== null) &&  typeof event.metadata !== 'object') {
+    if ((event.metadata && event.metadata !== null) && typeof event.metadata !== 'object') {
         throw Error("Event metadata must be an object");
     }
 

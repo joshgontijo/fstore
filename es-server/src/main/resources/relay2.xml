@@ -27,7 +27,7 @@
 
         <site name="sfo">
             <bridges>
-                <bridge config="/home/bela/global.xml" name="global" />
+                <bridge config="/home/bela/global.xml" name="global"/>
             </bridges>
         </site>
     </sites>

@@ -4,11 +4,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.eventry.tools.LogDump;
-import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -19,8 +15,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Optional;
-import java.util.HashMap;
-import java.util.Iterator;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -34,7 +28,7 @@ public class IndexAppenderTest {
     @Before
     public void setUp() {
         location = FileUtils.testFolder();
-        appender = new IndexAppender(location, e -> emptyStreamMeta(),  10000, true);
+        appender = new IndexAppender(location, e -> emptyStreamMeta(), 10000, true);
         memIndex = new MemIndex();
     }
 
@@ -67,7 +61,7 @@ public class IndexAppenderTest {
         appender.writeToDisk(memIndex);
         appender.close();
 
-        appender = new IndexAppender(location, e -> null,  10000, true);
+        appender = new IndexAppender(location, e -> null, 10000, true);
         long entries = appender.entries();
 
         assertEquals(3, entries);
@@ -119,7 +113,7 @@ public class IndexAppenderTest {
         IndexEntry last = null;
         while (iterator.hasNext()) {
             IndexEntry ie = iterator.next();
-            if(last == null) {
+            if (last == null) {
                 last = ie;
                 continue;
             }
@@ -160,7 +154,7 @@ public class IndexAppenderTest {
     }
 
     private static StreamMetadata emptyStreamMeta() {
-        return new StreamMetadata("", 0L,-1L,-1L,-1,-1, new HashMap<>(), new HashMap<>(), 0);
+        return new StreamMetadata("", 0L, -1L, -1L, -1, -1, new HashMap<>(), new HashMap<>(), 0);
     }
 
 }

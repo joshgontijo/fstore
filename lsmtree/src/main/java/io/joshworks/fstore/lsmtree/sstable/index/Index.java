@@ -2,8 +2,8 @@ package io.joshworks.fstore.lsmtree.sstable.index;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -144,7 +144,7 @@ public class Index<K extends Comparable<K>> implements Closeable {
 
 
     @Override
-    public void close()  {
+    public void close() {
         dataFile.close();
     }
 }

@@ -1,6 +1,6 @@
 package io.joshworks.fstore.index;
 
-public class Range<K extends Comparable<K>>{
+public class Range<K extends Comparable<K>> {
 
     static final int NO_LIMIT = -1;
     static final int SKIP_NONE = 0;

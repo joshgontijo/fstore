@@ -32,7 +32,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                 long oldPosition = iterator.position();
 
                 EventRecord record = iterator.next();
-                if(record.isSystemEvent()) {
+                if (record.isSystemEvent()) {
                     output.append(record);
                     continue;
                 }

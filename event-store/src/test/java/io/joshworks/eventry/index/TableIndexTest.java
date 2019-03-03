@@ -34,7 +34,8 @@ public class TableIndexTest {
     @Before
     public void setUp() {
         testDirectory = FileUtils.testFolder();
-        tableIndex = new TableIndex(testDirectory, e -> dummyMetadata(), fi -> {}, FLUSH_THRESHOLD, 1, USE_COMPRESSION);
+        tableIndex = new TableIndex(testDirectory, e -> dummyMetadata(), fi -> {
+        }, FLUSH_THRESHOLD, 1, USE_COMPRESSION);
     }
 
     @After
@@ -191,7 +192,8 @@ public class TableIndexTest {
 
         //given
         int streams = 100000;
-        try (TableIndex index = new TableIndex(testDirectory, e -> null, fi -> {}, 500000, 1, USE_COMPRESSION)) {
+        try (TableIndex index = new TableIndex(testDirectory, e -> null, fi -> {
+        }, 500000, 1, USE_COMPRESSION)) {
 
             for (int i = 0; i < streams; i++) {
                 index.add(i, 1, 0);

@@ -12,7 +12,8 @@ import java.util.Map;
 public class EventBody {
 
     private static final Gson gson = new Gson();
-    private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>(){}.getType());
+    private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>() {
+    }.getType());
 
     public final String type;
     public final long timestamp;

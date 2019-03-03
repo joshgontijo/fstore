@@ -68,7 +68,7 @@ public class FileHelper {
 
     public static String latest() {
         OptionalLong max = filesAsTimestamps().max();
-        if(!max.isPresent()) {
+        if (!max.isPresent()) {
             return null; //no file was found, test should ignore
         }
         return String.valueOf(filesAsTimestamps().max()) + EXT;
@@ -77,7 +77,7 @@ public class FileHelper {
     private static LongStream filesAsTimestamps() {
         File file = new File(FILE_DIR);
         String[] files = file.list();
-        if(files == null) {
+        if (files == null) {
             return LongStream.empty();
         }
         return Stream.of(files).mapToLong(f -> Long.valueOf(f.split("\\.")[0]));
@@ -86,10 +86,6 @@ public class FileHelper {
     private static String toFileName(long timestamp) {
         return timestamp + EXT;
     }
-
-
-
-
 
 
 }

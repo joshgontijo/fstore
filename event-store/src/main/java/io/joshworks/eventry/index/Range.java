@@ -10,7 +10,7 @@ public class Range {
     private static final int UNUSED = 0;
 
     private Range(long stream, int startVersionInclusive, int endVersionExclusive) {
-        if(startVersionInclusive < START_VERSION) {
+        if (startVersionInclusive < START_VERSION) {
             throw new IllegalArgumentException("Version range must be greater or equals zero");
         }
         this.stream = stream;

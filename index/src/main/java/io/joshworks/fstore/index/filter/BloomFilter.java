@@ -14,7 +14,7 @@ public class BloomFilter<T> {
     /**
      * Create a new bloom filter.
      *
-     * @param elementSize Expected number of elements
+     * @param elementSize  Expected number of elements
      * @param numberOfBits Desired position of the container in bits
      **/
     public BloomFilter(int elementSize, int numberOfBits, Hash<T> hash) {

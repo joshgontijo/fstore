@@ -7,7 +7,7 @@ import io.joshworks.fstore.log.segment.Log;
 
 import java.nio.ByteBuffer;
 
-final class BackwardRecordReader extends BaseReader implements Reader{
+final class BackwardRecordReader extends BaseReader implements Reader {
 
 
     public BackwardRecordReader(double checksumProb, int maxEntrySize, int bufferSize) {

@@ -12,13 +12,13 @@ public class DataDump {
 
     public static void main(String[] args) throws IOException {
 
-        try(BufferedReader reader = new BufferedReader(new FileReader("C:\\Users\\jgontijo\\Projects\\next-best-offer\\clickstream-dump.txt"))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader("C:\\Users\\jgontijo\\Projects\\next-best-offer\\clickstream-dump.txt"))) {
             String line;
-            while((line = reader.readLine()) != null) {
-            HttpResponse<String> response = Unirest.post("http://localhost:9000/streams/clickstream")
-                    .contentType(MediaType.APPLICATION_JSON_TYPE)
-                    .body(line)
-                    .asString();
+            while ((line = reader.readLine()) != null) {
+                HttpResponse<String> response = Unirest.post("http://localhost:9000/streams/clickstream")
+                        .contentType(MediaType.APPLICATION_JSON_TYPE)
+                        .body(line)
+                        .asString();
 
                 if (!response.isSuccessful()) {
                     System.err.println(response.getBody());

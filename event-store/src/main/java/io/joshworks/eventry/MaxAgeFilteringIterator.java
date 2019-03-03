@@ -32,11 +32,11 @@ public class MaxAgeFilteringIterator implements EventLogIterator {
     }
 
     private EventRecord takeWhile() {
-        if(next != null) {
+        if (next != null) {
             return next;
         }
         EventRecord last = nextEntry();
-        while(last != null && !withinMaxAge(last)) {
+        while (last != null && !withinMaxAge(last)) {
             last = nextEntry();
         }
         return last != null && withinMaxAge(last) ? last : null;

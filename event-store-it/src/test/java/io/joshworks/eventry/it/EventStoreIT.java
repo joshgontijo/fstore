@@ -147,7 +147,7 @@ public class EventStoreIT {
         for (int i = 0; i < size; i++) {
             Stream<EventRecord> events = store.fromStream(StreamName.of(streamPrefix + i)).stream();
             assertEquals("Failed on iteration " + i, 1, events.count());
-            if(i % 10000 == 0) {
+            if (i % 10000 == 0) {
                 System.out.println("Processed " + i);
             }
         }
@@ -356,7 +356,7 @@ public class EventStoreIT {
         store.append(EventRecord.create(stream, "test", "body1"));
         store.append(EventRecord.create(stream, "test", "body2"));
 
-        try(var it = store.fromStream(StreamName.of(stream))) {
+        try (var it = store.fromStream(StreamName.of(stream))) {
             assertTrue(it.hasNext());
             assertEquals(0, it.next().version);
 
@@ -372,7 +372,7 @@ public class EventStoreIT {
         store.append(EventRecord.create(stream1, "test", "body1"));
         store.append(EventRecord.create(stream2, "test", "body2"));
 
-        try(var it = store.fromStreams(Set.of(StreamName.of(stream1), StreamName.of(stream2)))) {
+        try (var it = store.fromStreams(Set.of(StreamName.of(stream1), StreamName.of(stream2)))) {
             assertTrue(it.hasNext());
             assertEquals(0, it.next().version);
 
@@ -688,7 +688,7 @@ public class EventStoreIT {
 
         int total = 0;
         for (int i = 0; i < size; i++) {
-            if(i == 999997) {
+            if (i == 999997) {
                 System.out.println("");
             }
             assertTrue(iterator.hasNext());
@@ -750,7 +750,7 @@ public class EventStoreIT {
         int hits = 0;
         for (EventRecord streamRecord : foundStreams) {
             StreamMetadata streamMetadata = StreamCreated.from(streamRecord);
-            if(createdStreams.contains(streamMetadata.name)) {
+            if (createdStreams.contains(streamMetadata.name)) {
                 hits++;
             }
         }
@@ -762,7 +762,7 @@ public class EventStoreIT {
 
         int size = 1000;
         int truncateBeforeVersion = 400;
-        String stream ="stream-123";
+        String stream = "stream-123";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "test", "body"));
         }
@@ -779,7 +779,7 @@ public class EventStoreIT {
 
         int size = 3000000;
         int truncateBeforeVersion = 400;
-        String stream ="stream-123";
+        String stream = "stream-123";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "test", "body"));
         }
@@ -788,7 +788,7 @@ public class EventStoreIT {
 
 
         long count = store.fromStream(StreamName.of(stream)).stream().count();
-        assertEquals(size - truncateBeforeVersion , count);
+        assertEquals(size - truncateBeforeVersion, count);
     }
 
     private void testWith(int streams, int numVersionPerStream) {
