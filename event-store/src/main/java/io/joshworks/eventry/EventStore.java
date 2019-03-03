@@ -2,16 +2,8 @@ package io.joshworks.eventry;
 
 import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
-import io.joshworks.eventry.data.ProjectionCreated;
-import io.joshworks.eventry.data.ProjectionDeleted;
-import io.joshworks.eventry.data.ProjectionFailed;
-import io.joshworks.eventry.data.ProjectionResumed;
-import io.joshworks.eventry.data.ProjectionStarted;
-import io.joshworks.eventry.data.ProjectionStopped;
-import io.joshworks.eventry.data.ProjectionUpdated;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
-import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.TableIndex;
@@ -20,13 +12,6 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.log.RecordCleanup;
-import io.joshworks.eventry.projections.Projection;
-import io.joshworks.eventry.projections.ProjectionExecutor;
-import io.joshworks.eventry.projections.Projections;
-import io.joshworks.eventry.projections.State;
-import io.joshworks.eventry.projections.result.Metrics;
-import io.joshworks.eventry.projections.result.TaskStatus;
-import io.joshworks.eventry.query.Jsr223QueryPredicate;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
@@ -44,8 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -71,12 +54,10 @@ public class EventStore implements IEventStore {
     private final TableIndex index;
     private final Streams streams;
     public final IEventLog eventLog;
-    private final Projections projections;
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
         this.index = new TableIndex(rootDir, this::fetchMetadata, this::onIndexWrite, 50000, 5, true);
-        this.projections = new Projections(new ProjectionExecutor(rootDir, this));
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
@@ -90,11 +71,9 @@ public class EventStore implements IEventStore {
 
         try {
             this.loadIndex();
-            this.loadProjections();
             logger.info("Started event store in {}ms", (System.currentTimeMillis() - start));
         } catch (Exception e) {
             IOUtils.closeQuietly(index);
-            IOUtils.closeQuietly(projections);
             IOUtils.closeQuietly(streams);
             IOUtils.closeQuietly(eventLog);
             throw new RuntimeException(e);
@@ -146,35 +125,6 @@ public class EventStore implements IEventStore {
         logger.info("Loaded {} index entries in {}ms", loaded, (System.currentTimeMillis() - start));
     }
 
-    private void loadProjections() {
-        logger.info("Loading projections");
-        long start = System.currentTimeMillis();
-
-        Set<String> running = new HashSet<>();
-
-        fromStream(StreamName.of(SystemStreams.PROJECTIONS))
-                .when(ProjectionCreated.TYPE, ev -> projections.add(ProjectionCreated.from(ev)))
-                .when(ProjectionUpdated.TYPE, ev -> projections.add(ProjectionCreated.from(ev)))
-                .when(ProjectionDeleted.TYPE, ev -> projections.delete(ProjectionDeleted.from(ev).name))
-                .when(ProjectionStarted.TYPE, ev -> running.add(ProjectionStarted.from(ev).name))
-                .when(ProjectionResumed.TYPE, ev -> running.add(ProjectionResumed.from(ev).name))
-                .when(ProjectionStopped.TYPE, ev -> running.remove(ProjectionStopped.from(ev).name))
-                .when(ProjectionFailed.TYPE, ev -> running.remove(ProjectionFailed.from(ev).name))
-                .match();
-
-
-        int loaded = projections.all().size();
-        logger.info("Loaded {} projections in {}ms", loaded, (System.currentTimeMillis() - start));
-        if (loaded == 0) {
-            logger.info("Creating system projections");
-            for (Projection projection : this.projections.loadSystemProjections()) {
-                createProjection(projection);
-                projections.add(projection);
-            }
-        }
-
-        projections.bootstrapProjections(this, running);
-    }
 
     @Override
     public void compact() {
@@ -187,92 +137,6 @@ public class EventStore implements IEventStore {
         createStream(name, -1, -1);
     }
 
-    @Override
-    public Collection<Projection> projections() {
-        return new ArrayList<>(projections.all());
-    }
-
-    @Override
-    public Projection projection(String name) {
-        return projections.get(name);
-    }
-
-    @Override
-    public synchronized Projection createProjection(String script) {
-        Projection projection = projections.create(script);
-        return createProjection(projection);
-    }
-
-    private synchronized Projection createProjection(Projection projection) {
-        EventRecord eventRecord = ProjectionCreated.create(projection);
-        this.appendSystemEvent(eventRecord);
-        return projection;
-    }
-
-    @Override
-    public synchronized Projection updateProjection(String name, String script) {
-        Projection projection = projections.update(name, script);
-        EventRecord eventRecord = ProjectionUpdated.create(projection);
-        this.appendSystemEvent(eventRecord);
-
-        return projection;
-    }
-
-    @Override
-    public synchronized void deleteProjection(String name) {
-        projections.delete(name);
-        EventRecord eventRecord = ProjectionDeleted.create(name);
-        this.appendSystemEvent(eventRecord);
-    }
-
-    @Override
-    public synchronized void runProjection(String name) {
-        projections.run(name, this);
-        EventRecord eventRecord = ProjectionStarted.create(name);
-        this.appendSystemEvent(eventRecord);
-    }
-
-    @Override
-    public void resetProjection(String name) {
-        projections.reset(name);
-    }
-
-    @Override
-    public void stopProjectionExecution(String name) {
-        projections.stop(name);
-    }
-
-    @Override
-    public void disableProjection(String name) {
-        Projection projection = projections.get(name);
-        if (!projection.enabled) {
-            return;
-        }
-        projection.enabled = false;
-        EventRecord eventRecord = ProjectionUpdated.create(projection);
-        this.appendSystemEvent(eventRecord);
-    }
-
-    @Override
-    public void enableProjection(String name) {
-        Projection projection = projections.get(name);
-        if (projection.enabled) {
-            return;
-        }
-        projection.enabled = true;
-        EventRecord eventRecord = ProjectionUpdated.create(projection);
-        this.appendSystemEvent(eventRecord);
-    }
-
-    @Override
-    public Map<String, TaskStatus> projectionExecutionStatus(String name) {
-        return projections.executionStatus(name);
-    }
-
-    @Override
-    public Collection<Metrics> projectionExecutionStatuses() {
-        return projections.executionStatuses();
-    }
 
     @Override
     public void createStream(String name, int maxCount, long maxAge) {
@@ -315,11 +179,6 @@ public class EventStore implements IEventStore {
         this.appendSystemEvent(eventRecord);
     }
 
-    public State query(Set<String> streams, State state, String script) {
-        EventLogIterator raw = fromStreams(streams.stream().map(StreamName::of).collect(Collectors.toSet()));
-        return new Jsr223QueryPredicate(script, raw).query(state);
-    }
-
     @Override
     public EventLogIterator fromStream(StreamName stream) {
         requireNonNull(stream, "Stream must be provided");
@@ -341,7 +200,6 @@ public class EventStore implements IEventStore {
         }).orElseGet(EventLogIterator::empty);
 
     }
-
 
     @Override
     public EventLogIterator fromStreams(String streamPattern) {
@@ -556,7 +414,6 @@ public class EventStore implements IEventStore {
 
     @Override
     public synchronized void close() {
-        projections.close(); //must be closed first since it can emit events on close
         index.close();
         eventLog.close();
         streams.close();
