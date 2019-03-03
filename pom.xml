@@ -21,6 +21,7 @@
         <module>test-utils</module>
         <module>event-store-it</module>
         <module>logstore-it</module>
+        <module>es-projection</module>
     </modules>
 
     <properties>
