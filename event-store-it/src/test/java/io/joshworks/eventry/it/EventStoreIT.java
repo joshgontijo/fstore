@@ -13,7 +13,6 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.projections.State;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
@@ -85,25 +84,6 @@ public class EventStoreIT {
         if (found != size) {
             throw new RuntimeException("Expected " + size + " Got " + found);
         }
-    }
-
-    @Test
-    public void query() {
-        final int size = 100;
-        String stream1 = "test-stream";
-        String stream2 = "test-stream2";
-        for (int i = 0; i < size; i++) {
-            store.append(EventRecord.create(stream1, "" + i, "{\"value\": " + i + "}"));
-        }
-        for (int i = 0; i < size; i++) {
-            store.append(EventRecord.create(stream2, "" + i, "{\"value\": " + i + "}"));
-        }
-
-        State state = new State();
-        state.put("stream1", 0L);
-        state.put("stream2", 0L);
-        State result = store.query(Set.of(stream1, stream2), state, "if (stream === 'test-stream') state.stream1 += timestamp; else state.stream2 += version;");
-        System.out.println(result);
     }
 
     @Test
