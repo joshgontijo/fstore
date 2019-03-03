@@ -17,6 +17,7 @@ import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -59,12 +60,27 @@ public class Iterators {
         return new BufferingIterator<>(iterator, bufferSize);
     }
 
+    public static <T> LogIterator<List<T>> batching(LogIterator<T> iterator, int batchSize) {
+        return new BatchingIterator<>(iterator, batchSize);
+    }
+
     public static <T> LogIterator<T> limiting(LogIterator<T> iterator, int limit) {
         return new LimitIterator<>(iterator, limit);
     }
 
     public static <T> LogIterator<T> skipping(LogIterator<T> iterator, int skips) {
         return new SkippingIterator<>(iterator, skips);
+    }
+
+    /**
+     * For <b>UNIQUE</b> and <b>SORTED</b> iterators only.
+     */
+    public static <T, C extends Comparable<C>> LogIterator<T> ordered(Collection<? extends LogIterator<T>> iterators, Function<T, C> mapper) {
+        return new OrderedIterator<>(iterators, mapper);
+    }
+
+    public static <T> LogIterator<T> zipping(Collection<T> iterators, int skips) {
+        throw new UnsupportedOperationException("TODO");
     }
 
     public static <T> PeekingIterator<T> peekingIterator(LogIterator<T> iterator) {
@@ -93,6 +109,10 @@ public class Iterators {
 
     public static <T> Stream<T> stream(Collection<T> collection) {
         return stream(collection.iterator());
+    }
+
+    public static <T> Stream<T> stream(Iterator<T> iterator) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
     }
 
     public static <T> Stream<T> stream(Iterator<T> iterator) {
@@ -396,13 +416,61 @@ public class Iterators {
         }
 
         private boolean buffer() {
-            int buffered = 0;
-            while (buffered <= bufferSize && delegate.hasNext()) {
+            int buffered = buffer.size();
+            while (buffered < bufferSize && delegate.hasNext()) {
                 buffer.add(delegate.next());
                 buffered++;
             }
             return buffered > 0;
         }
+    }
+
+    private static final class BatchingIterator<T> implements LogIterator<List<T>> {
+
+        private final LogIterator<T> delegate;
+        private final int bufferSize;
+        private List<T> buffer = new ArrayList<>();
+
+        private BatchingIterator(LogIterator<T> delegate, int bufferSize) {
+            this.delegate = delegate;
+            this.bufferSize = bufferSize;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return !buffer.isEmpty() || batch();
+        }
+
+        @Override
+        public List<T> next() {
+            if (buffer.isEmpty() && !batch()) {
+                throw new NoSuchElementException();
+            }
+            List<T> tmp = buffer;
+            buffer = new ArrayList<>();
+            return tmp;
+        }
+
+        private boolean batch() {
+            int buffered = buffer.size();
+            while (buffered < bufferSize && delegate.hasNext()) {
+                buffer.add(delegate.next());
+                buffered++;
+            }
+            return buffered > 0;
+        }
+
+
     }
 
     private static final class LimitIterator<T> implements LogIterator<T> {
@@ -444,6 +512,68 @@ public class Iterators {
             processed.incrementAndGet();
             return delegate.next();
         }
+    }
+
+    private static final class OrderedIterator<T, C extends Comparable<C>> implements LogIterator<T> {
+
+        private final List<PeekingIterator<T>> iterators;
+        private final Function<T, C> mapper;
+
+        private OrderedIterator(Collection<? extends LogIterator<T>> iterators, Function<T, C> mapper) {
+            this.iterators = iterators.stream().map(PeekingIterator::new).collect(Collectors.toList());
+            this.mapper = mapper;
+        }
+
+        @Override
+        public boolean hasNext() {
+            for (PeekingIterator<T> next : iterators) {
+                if (next.hasNext()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public T next() {
+            if (iterators.isEmpty()) {
+                throw new NoSuchElementException();
+            }
+            Iterator<PeekingIterator<T>> itit = iterators.iterator();
+            Iterators.PeekingIterator<T> prev = null;
+            while(itit.hasNext()) {
+                PeekingIterator<T> curr = itit.next();
+                if(!curr.hasNext()) {
+                    itit.remove();
+                    continue;
+                }
+                if (prev == null) {
+                    prev = curr;
+                    continue;
+                }
+
+                C prevItem = mapper.apply(prev.peek());
+                C currItem = mapper.apply(curr.peek());
+                int c = prevItem.compareTo(currItem);
+                prev = c >= 0 ? curr : prev;
+            }
+            if (prev != null) {
+                return prev.next();
+            }
+            return null;
+        }
+
+        @Override
+        public long position() {
+            throw new UnsupportedOperationException("Position is not supported here");
+        }
+
+        @Override
+        public void close()  {
+            iterators.forEach(IOUtils::closeQuietly);
+        }
+
+
     }
 
     private static final class SkippingIterator<T> implements LogIterator<T> {

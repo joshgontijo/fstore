@@ -15,7 +15,7 @@ public class ProjectionCompleted {
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_RUN_COMPLETED";
     private static final Serializer<ProjectionCompleted> serializer = JsonSerializer.of(ProjectionCompleted.class);
 
-    public ProjectionCompleted(String id, long processedItems) {
+    private ProjectionCompleted(String id, long processedItems) {
         this.id = id;
         this.processedItems = processedItems;
     }

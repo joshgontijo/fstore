@@ -16,7 +16,7 @@ public class ProjectionStopped {
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_RUN_STOPPED";
     private static final Serializer<ProjectionStopped> serializer = JsonSerializer.of(ProjectionStopped.class);
 
-    public ProjectionStopped(String name, String reason, long processedItems) {
+    private ProjectionStopped(String name, String reason, long processedItems) {
         this.name = name;
         this.reason = reason;
         this.processedItems = processedItems;

@@ -104,7 +104,7 @@ public class LogAppender<T> implements Closeable {
                 throw new IllegalArgumentException("Maximum segment size allowed is " + MAX_SEGMENT_ADDRESS);
             }
             if (config.maxEntrySize > config.segmentSize) {
-                throw new IllegalArgumentException("Max entry size (" + config.maxEntrySize + ") must be less than segment size (" + config.segmentSize + ")");
+                throw new IllegalArgumentException("Max entry size (" + config.maxEntrySize + ") must be less or equals than segment size (" + config.segmentSize + ")");
             }
 
             LogFileUtils.createRoot(directory);
