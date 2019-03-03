@@ -1,13 +1,15 @@
 package io.joshworks.eventry.projection;
 
-import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+
+import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
 public class JsonEvent {
 
