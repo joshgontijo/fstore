@@ -214,7 +214,6 @@ public class MemIndexTest {
     public void close_doesnt_clear_the_map_and_size() {
         //given
         index.add(IndexEntry.of(0, 1, 0));
-        index.close();
 
         //when
         boolean empty = index.isEmpty();

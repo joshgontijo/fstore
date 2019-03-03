@@ -62,6 +62,10 @@ public class StreamName {
         return new StreamName(eventRecord.stream, eventRecord.version);
     }
 
+    public static long hash(String streamName) {
+        return hasher.hash(streamName);
+    }
+
     private static StreamName parse(String streamVersion) {
         if (StringUtils.isBlank(streamVersion)) {
             throw new IllegalArgumentException("Null or empty stream value");

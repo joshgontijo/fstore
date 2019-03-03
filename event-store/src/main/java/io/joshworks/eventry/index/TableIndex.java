@@ -4,7 +4,9 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.index.disk.IndexAppender;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,15 +18,27 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -35,28 +49,40 @@ public class TableIndex implements Closeable {
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
     public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
     public static final boolean DEFAULT_USE_COMPRESSION = false;
+    public static final int DEFAULT_WRITE_QUEUE_SIZE = 5;
     private final int flushThreshold; //TODO externalize
 
     private final IndexAppender diskIndex;
-    private MemIndex memIndex = new MemIndex();
+    private final List<MemIndex> writeQueue;
+    private final ExecutorService indexWriter = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("index-writer"));
+    private final AtomicBoolean closed = new AtomicBoolean();
+    private final int maxWriteQueueSize;
 
     private final Set<IndexIterator> pollers = new HashSet<>();
+    private final Consumer<FlushInfo> indexFlushListener;
 
-    public TableIndex(File rootDirectory, Function<Long, StreamMetadata> streamSupplier) {
-        this(rootDirectory, streamSupplier, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
+    private MemIndex memIndex = new MemIndex();
+
+    public TableIndex(File rootDirectory, Function<Long, StreamMetadata> streamSupplier, Consumer<FlushInfo> indexFlushListener) {
+        this(rootDirectory, streamSupplier, indexFlushListener, DEFAULT_FLUSH_THRESHOLD, DEFAULT_WRITE_QUEUE_SIZE, DEFAULT_USE_COMPRESSION);
     }
 
-    TableIndex(File rootDirectory, Function<Long, StreamMetadata> streamSupplier, int flushThreshold, boolean useCompression) {
-        this.diskIndex = new IndexAppender(rootDirectory, streamSupplier, flushThreshold, useCompression);
+    public TableIndex(File rootDirectory, Function<Long, StreamMetadata> streamSupplier, Consumer<FlushInfo> indexFlushListener, int flushThreshold, int maxWriteQueueSize, boolean useCompression) {
+        this.maxWriteQueueSize = maxWriteQueueSize;
+        this.diskIndex = new IndexAppender(rootDirectory, streamSupplier, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
         this.flushThreshold = flushThreshold;
+        this.indexFlushListener = indexFlushListener;
+        this.writeQueue = new CopyOnWriteArrayList<>();
+        this.indexWriter.execute(this::writeIndex);
+
     }
 
-    public FlushInfo add(StreamName stream, long position) {
-        return add(stream.hash(), stream.version(), position);
+    public void add(StreamName stream, long position) {
+        add(stream.hash(), stream.version(), position);
     }
 
     //returns true if flushed to disk
-    public FlushInfo add(long stream, int version, long position) {
+    public void add(long stream, int version, long position) {
         if (version <= IndexEntry.NO_VERSION) {
             throw new IllegalArgumentException("Version must be greater than or equals to zero");
         }
@@ -67,19 +93,22 @@ public class TableIndex implements Closeable {
         memIndex.add(entry);
 
         if (memIndex.size() >= flushThreshold) {
-            return flush();
+            flushAsync();
         }
-        return null;
     }
 
     public int version(long stream) {
-        int version = memIndex.version(stream);
-        if (version > IndexEntry.NO_VERSION) {
-            return version;
+        Iterator<MemIndex> it = memIndices(Direction.BACKWARD);
+        while (it.hasNext()) {
+            MemIndex index = it.next();
+            int version = index.version(stream);
+            if (version > IndexEntry.NO_VERSION) {
+                return version;
+            }
         }
-
         return diskIndex.version(stream);
     }
+
 
     public long size() {
         return diskIndex.entries() + memIndex.size();
@@ -87,7 +116,6 @@ public class TableIndex implements Closeable {
 
     public void close() {
 //        this.flush(); //no need to flush, just reload from disk on startup
-        memIndex.close();
         diskIndex.close();
         for (IndexIterator poller : pollers) {
             IOUtils.closeQuietly(poller);
@@ -121,29 +149,65 @@ public class TableIndex implements Closeable {
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
-        Optional<IndexEntry> fromMemory = memIndex.get(stream, version);
-        if (fromMemory.isPresent()) {
-            return fromMemory;
+        Iterator<MemIndex> it = memIndices(Direction.BACKWARD);
+        while (it.hasNext()) {
+            MemIndex index = it.next();
+            Optional<IndexEntry> fromMemory = index.get(stream, version);
+            if (fromMemory.isPresent()) {
+                return fromMemory;
+            }
         }
         return diskIndex.get(stream, version);
     }
 
-    public FlushInfo flush() {
-        logger.info("Writing index to disk");
+    private void writeIndex() {
+        try {
+            while (!closed.get()) {
+                if (writeQueue.isEmpty()) {
+                    Threads.sleep(200);
+                    continue;
+                }
+                logger.info("Writing index to disk");
 
-        long start = System.currentTimeMillis();
-        diskIndex.writeToDisk(memIndex);
-        long timeTaken = System.currentTimeMillis() - start;
-        logger.info("Index write took {}ms", timeTaken);
+                long start = System.currentTimeMillis();
+                MemIndex index = writeQueue.get(0);
+                diskIndex.writeToDisk(index);
+                writeQueue.remove(0);
+                long timeTaken = System.currentTimeMillis() - start;
+                logger.info("Index write took {}ms", timeTaken);
+                indexFlushListener.accept(new FlushInfo(index.size(), timeTaken));
+            }
 
-        memIndex.close();
-        memIndex = new MemIndex();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to poll for mem index entries to write", e);
+        }
+    }
 
-        return new FlushInfo(memIndex.size(), timeTaken);
+    //Adds a job to the queue
+    public void flushAsync() {
+        try {
+            logger.info("Adding mem index to write queue");
+            while (writeQueue.size() > maxWriteQueueSize) {
+                Threads.sleep(100);
+            }
+            writeQueue.add(memIndex);
+            memIndex = new MemIndex();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to add mem index to write queue");
+        }
     }
 
     public void compact() {
         diskIndex.compact();
+    }
+
+    private Iterator<MemIndex> memIndices(Direction direction) {
+        List<MemIndex> indices = new ArrayList<>();
+        indices.addAll(writeQueue);
+        indices.add(memIndex);
+
+        return Direction.FORWARD.equals(direction) ? indices.iterator() : Iterators.reversed(indices);
+
     }
 
     public class IndexIterator implements LogIterator<IndexEntry> {
@@ -213,7 +277,19 @@ public class TableIndex implements Closeable {
             if (!filtered.isEmpty()) {
                 return filtered;
             }
-            List<IndexEntry> fromMemory = memIndex.indexedIterator(Direction.FORWARD, Range.of(stream, nextVersion)).stream().collect(Collectors.toList());
+            LogIterator<MemIndex> writeQueueIt = Iterators.of(writeQueue);
+            while (writeQueueIt.hasNext()) {
+                MemIndex index = writeQueueIt.next();
+                List<IndexEntry> memEntries = fromMem(index, stream, nextVersion);
+                if (!memEntries.isEmpty()) {
+                    return memEntries;
+                }
+            }
+            return fromMem(memIndex, stream, nextVersion);
+        }
+
+        private List<IndexEntry> fromMem(MemIndex index, long stream, int nextVersion) {
+            List<IndexEntry> fromMemory = index.indexedIterator(Direction.FORWARD, Range.of(stream, nextVersion)).stream().collect(Collectors.toList());
             return filtering(stream, fromMemory);
         }
 
@@ -256,6 +332,7 @@ public class TableIndex implements Closeable {
         @Override
         public void close() {
             closed.set(true);
+            indexWriter.shutdown();
         }
 
         public synchronized Map<Long, Integer> processed() {

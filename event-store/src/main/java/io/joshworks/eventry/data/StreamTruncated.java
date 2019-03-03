@@ -17,7 +17,7 @@ public class StreamTruncated {
 
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "STREAM_TRUNCATED";
 
-    public StreamTruncated(String stream, int versionAtDeletion) {
+    private StreamTruncated(String stream, int versionAtDeletion) {
         this.stream = stream;
         this.versionAtDeletion = versionAtDeletion;
     }

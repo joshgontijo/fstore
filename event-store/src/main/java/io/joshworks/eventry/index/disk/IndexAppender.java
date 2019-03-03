@@ -56,6 +56,7 @@ public class IndexAppender implements Closeable {
     public LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
         return appender.applyToSegments(direction, segments -> {
             List<LogIterator<IndexEntry>> iterators = Iterators.stream(segments)
+                    .filter(Log::readOnly) //only rolled segments must be used
                     .map(seg -> (IndexSegment) seg)
                     .map(idxSeg -> idxSeg.indexedIterator(direction, range))
                     .collect(Collectors.toList());
@@ -63,12 +64,9 @@ public class IndexAppender implements Closeable {
         });
     }
 
-    public LogIterator<IndexEntry> iterator(Direction direction) {
+    //testing only
+    LogIterator<IndexEntry> iterator(Direction direction) {
         return appender.iterator(direction);
-    }
-
-    public LogIterator<IndexEntry> iterator(Direction direction, long position) {
-        return appender.iterator(direction, position);
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
@@ -91,6 +89,9 @@ public class IndexAppender implements Closeable {
         //always backward
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<IndexEntry> segment : segments) {
+                if(!segment.readOnly()) { //only rolled segments must be used
+                    continue;
+                }
                 IndexSegment indexSegment = (IndexSegment) segment;
                 if(segment.readOnly()) { //only query completed segments
                     List<IndexEntry> indexEntries = indexSegment.readBlockEntries(stream, version);

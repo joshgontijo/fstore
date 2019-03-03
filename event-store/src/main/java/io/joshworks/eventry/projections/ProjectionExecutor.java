@@ -25,7 +25,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 public class ProjectionExecutor implements Closeable {
 
@@ -33,13 +32,13 @@ public class ProjectionExecutor implements Closeable {
 
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10, new ProjectionThreadFactory());
 
-    private final Consumer<EventRecord> systemRecordAppender;
+    private final IEventStore eventStore;
     private final Map<String, ProjectionTask> running = new HashMap<>();
     private final Checkpointer checkpointer;
 
-    public ProjectionExecutor(File root, Consumer<EventRecord> systemRecordAppender) {
+    public ProjectionExecutor(File root, IEventStore eventStore) {
         this.checkpointer = new Checkpointer(root);
-        this.systemRecordAppender = systemRecordAppender;
+        this.eventStore = eventStore;
     }
 
     void run(Projection projection, IEventStore store) {
@@ -86,15 +85,15 @@ public class ProjectionExecutor implements Closeable {
         long processed = result.tasks.stream().mapToLong(t -> t.metrics.processed).sum();
         if (Status.COMPLETED.equals(status)) {
             EventRecord completed = ProjectionCompleted.create(projectionName, processed);
-            systemRecordAppender.accept(completed);
+            eventStore.appendSystemEvent(completed);
             projectionTask.complete();
         } else if (Status.STOPPED.equals(status)) {
             EventRecord stopped = ProjectionStopped.create(projectionName, "STOPPED BY USER", processed);
-            systemRecordAppender.accept(stopped);
+            eventStore.appendSystemEvent(stopped);
         } else if (Status.FAILED.equals(status)) {
             TaskError taskError = result.tasks.stream().filter(t -> t.taskError != null).map(t -> t.taskError).findFirst().get();
             EventRecord failed = ProjectionFailed.create(projectionName, taskError.reason, processed, taskError.stream, taskError.version);
-            systemRecordAppender.accept(failed);
+            eventStore.appendSystemEvent(failed);
         } else {
             throw new RuntimeException("Invalid task status " + status);
         }

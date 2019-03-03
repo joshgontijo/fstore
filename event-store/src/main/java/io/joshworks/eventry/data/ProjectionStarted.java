@@ -14,7 +14,7 @@ public class ProjectionStarted {
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_RUN_STARTED";
     private static final Serializer<ProjectionStarted> serializer = JsonSerializer.of(ProjectionStarted.class);
 
-    public ProjectionStarted(String name) {
+    private ProjectionStarted(String name) {
         this.name = name;
     }
 
