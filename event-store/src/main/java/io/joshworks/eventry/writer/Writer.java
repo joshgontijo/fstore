@@ -26,7 +26,7 @@ public class Writer {
             throw new IllegalStateException("Hash collision of closeableStream: " + event.stream + " with existing name: " + metadata.name);
         }
 
-        int version = streams.tryIncrementVersion(streamHash, expectedVersion);
+        int version = streams.tryIncrementVersion(metadata, expectedVersion);
         var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.body, event.metadata);
 
         long position = eventLog.append(record);

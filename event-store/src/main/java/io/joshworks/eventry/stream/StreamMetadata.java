@@ -4,7 +4,6 @@ import java.util.Map;
 
 public class StreamMetadata {
 
-
     //not using enums for easier serialization
     public static final int PERMISSION_NONE = 0;
     public static final int PERMISSION_READ = 1;
