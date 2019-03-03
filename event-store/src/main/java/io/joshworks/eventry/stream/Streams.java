@@ -119,8 +119,6 @@ public class Streams implements Closeable {
                 .filter(stream -> stream.name.equals(value))
                 .map(stream -> stream.name)
                 .collect(Collectors.toSet());
-
-
     }
 
     public int version(long stream) {
@@ -141,17 +139,15 @@ public class Streams implements Closeable {
     }
 
     //lock not required, it uses getVersion
-    public int tryIncrementVersion(long stream, int expected) {
-        if (!get(stream).isPresent()) {
-            System.out.println("No metadata found for stream: " + stream);
-        }
-        AtomicInteger versionCounter = getVersion(stream);
+    public int tryIncrementVersion(StreamMetadata metadata, int expected) {
+        long hash = metadata.hash;
+        AtomicInteger versionCounter = getVersion(hash);
         if (expected <= NO_VERSION) {
             return versionCounter.incrementAndGet();
         }
         int newValue = expected + 1;
         if (!versionCounter.compareAndSet(expected, newValue)) {
-            throw new IllegalArgumentException("Version mismatch: expected stream " + stream + " version is higher than expected: " + expected);
+            throw new IllegalArgumentException("Version mismatch for '" + metadata.name + "': version is higher than expected '" + expected + "'");
         }
         return newValue;
     }
@@ -171,8 +167,7 @@ public class Streams implements Closeable {
         }
     }
 
-    public void truncate(String stream, int version) {
-        StreamMetadata metadata = get(stream).orElseThrow(() -> new IllegalArgumentException("No metadata found for stream " + stream));
+    public void truncate(StreamMetadata metadata, int version) {
         int currentVersion = version(metadata.hash);
         if (currentVersion <= NO_VERSION) {
             throw new IllegalArgumentException("Version must be greater or equals zero");

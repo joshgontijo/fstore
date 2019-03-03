@@ -203,7 +203,7 @@ public class EventStore implements IEventStore {
     public void truncate(String stream, int version) {
         Future<Void> op = eventWriter.queue(writer -> {
             StreamMetadata metadata = streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
-            streams.truncate(stream, version);
+            streams.truncate(metadata, version);
             EventRecord eventRecord = StreamTruncated.create(metadata.name, version);
             writer.append(eventRecord, -1, metadata);
         });

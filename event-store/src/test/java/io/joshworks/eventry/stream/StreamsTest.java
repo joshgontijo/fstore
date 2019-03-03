@@ -6,6 +6,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -66,23 +67,24 @@ public class StreamsTest {
 
     @Test
     public void version_of_nonExisting_stream_returns_zero() {
-        int version = streams.tryIncrementVersion(123, -1);
+        int version = streams.tryIncrementVersion(metadata(123), -1);
         assertEquals(0, version);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void unexpected_version_throws_exception() {
-        streams.tryIncrementVersion(123, 1);
+        streams.tryIncrementVersion(metadata(123), 1);
         fail("Expected version mismatch");
     }
 
     @Test
     public void existing_stream_returns_correct_version() {
-        streams.tryIncrementVersion(123, -1);
-        int version1 = streams.tryIncrementVersion(123, 0);
+        StreamMetadata metadata = streams.create("stream-123");
+        streams.tryIncrementVersion(metadata, -1);
+        int version1 = streams.tryIncrementVersion(metadata, 0);
         assertEquals(1, version1);
 
-        int version2 = streams.tryIncrementVersion(123, 1);
+        int version2 = streams.tryIncrementVersion(metadata, 1);
         assertEquals(2, version2);
     }
 
@@ -108,12 +110,17 @@ public class StreamsTest {
         String stream = "stream-123";
         int tbVersion = 0;
         StreamMetadata metadata = streams.create(stream);
-        streams.tryIncrementVersion(metadata.hash, NO_VERSION); //0
-        streams.tryIncrementVersion(metadata.hash, NO_VERSION); //1
+        streams.tryIncrementVersion(metadata, NO_VERSION); //0
+        streams.tryIncrementVersion(metadata, NO_VERSION); //1
 
-        streams.truncate(stream, tbVersion);
+        streams.truncate(metadata, tbVersion);
 
         StreamMetadata found = streams.get(stream).get();
         assertEquals(found.truncateBefore, tbVersion);
     }
+
+    private static StreamMetadata metadata(long hash) {
+        return new StreamMetadata(String.valueOf(hash), hash, 0, -1, -1, -1, Map.of(), Map.of(), StreamMetadata.STREAM_ACTIVE);
+    }
+
 }
