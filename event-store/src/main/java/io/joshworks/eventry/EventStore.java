@@ -80,16 +80,16 @@ public class EventStore implements IEventStore {
         }
     }
 
+    public static EventStore open(File rootDir) {
+        return new EventStore(rootDir);
+    }
+
     private StreamMetadata fetchMetadata(long stream) {
         Optional<StreamMetadata> streamMetadata = streams.get(stream);
         if (!streamMetadata.isPresent()) {
             throw new IllegalArgumentException("Could not find stream metadata for " + stream);
         }
         return streamMetadata.get();
-    }
-
-    public static EventStore open(File rootDir) {
-        return new EventStore(rootDir);
     }
 
     private void loadIndex() {
@@ -136,7 +136,6 @@ public class EventStore implements IEventStore {
     public void createStream(String name) {
         createStream(name, -1, -1);
     }
-
 
     @Override
     public void createStream(String name, int maxCount, long maxAge) {
@@ -252,7 +251,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized EventRecord linkTo(String stream, EventRecord event) {
+    public EventRecord linkTo(String stream, EventRecord event) {
         if (event.isLinkToEvent()) {
             //resolve event
             event = get(event.streamName());
@@ -262,7 +261,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
+    public EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
         if (LinkTo.TYPE.equals(sourceType)) {
             //resolve event
             EventRecord resolvedEvent = get(source);

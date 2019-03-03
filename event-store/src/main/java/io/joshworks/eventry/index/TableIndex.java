@@ -195,8 +195,7 @@ public class TableIndex implements Closeable {
     }
 
     private Iterator<MemIndex> memIndices(Direction direction) {
-        List<MemIndex> indices = new ArrayList<>();
-        indices.addAll(writeQueue);
+        List<MemIndex> indices = new ArrayList<>(writeQueue);
         indices.add(memIndex);
 
         return Direction.FORWARD.equals(direction) ? indices.iterator() : Iterators.reversed(indices);
