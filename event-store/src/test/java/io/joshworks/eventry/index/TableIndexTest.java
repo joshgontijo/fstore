@@ -123,20 +123,6 @@ public class TableIndexTest {
     }
 
     @Test
-    public void size_returns_the_total_of_inMemory_and_disk() {
-        long stream = 1;
-        tableIndex.add(stream, 1, 0);
-
-        tableIndex.flushAsync();
-
-        tableIndex.add(stream, 2, 0);
-
-        long size = tableIndex.size();
-
-        assertEquals(2, size);
-    }
-
-    @Test
     public void range_stream_with_range_returns_data_from_disk_and_memory() {
         long stream = 1;
 
