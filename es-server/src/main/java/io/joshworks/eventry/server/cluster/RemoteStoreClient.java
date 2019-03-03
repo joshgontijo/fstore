@@ -74,11 +74,6 @@ public class RemoteStoreClient implements IEventStore {
     }
 
     @Override
-    public EventRecord appendSystemEvent(EventRecord event) {
-        return null;
-    }
-
-    @Override
     public EventLogIterator fromStream(StreamName stream) {
         return null;
     }

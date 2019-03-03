@@ -1,6 +1,10 @@
 package io.joshworks.fstore.core.util;
 
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 public class Threads {
     private Threads() {
@@ -12,8 +16,7 @@ public class Threads {
     }
 
     public static Thread thread(String name, boolean daemon, Runnable runnable) {
-        Thread thread = new Thread(runnable);
-        thread.setName(name);
+        Thread thread = new Thread(runnable, name);
         thread.setDaemon(daemon);
         return thread;
     }
@@ -35,5 +38,38 @@ public class Threads {
         }
     }
 
+    public static <T> T awaitFor(Future<T> task) {
+        try {
+            return task.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    public static void awaitTerminationOf(ExecutorService executor, long timeout, TimeUnit timeUnit) {
+        try {
+            executor.shutdown();
+            executor.awaitTermination(timeout, timeUnit);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void awaitTerminationOf(ExecutorService executor, long checkInterval, TimeUnit timeUnit, Runnable heartbeatTask) {
+        try {
+            executor.shutdown();
+            while (!executor.awaitTermination(checkInterval, timeUnit)) {
+                heartbeatTask.run();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
 
 }
