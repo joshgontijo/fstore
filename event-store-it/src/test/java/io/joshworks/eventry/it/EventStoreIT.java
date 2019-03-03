@@ -668,9 +668,6 @@ public class EventStoreIT {
 
         int total = 0;
         for (int i = 0; i < size; i++) {
-            if (i == 999997) {
-                System.out.println("");
-            }
             assertTrue(iterator.hasNext());
             EventRecord next = iterator.next();
             assertEquals(i, next.version);
