@@ -4,6 +4,7 @@ import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
+import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.TableIndex;
@@ -76,6 +77,7 @@ public class EventStore implements IEventStore {
         this.eventWriter = new EventWriter(streams, eventLog, index, WRITE_QUEUE_SIZE);
         try {
             this.loadIndex();
+            this.initializeStreamsStreams();
             logger.info("Started event store in {}ms", (System.currentTimeMillis() - start));
         } catch (Exception e) {
             IOUtils.closeQuietly(index);
@@ -84,6 +86,38 @@ public class EventStore implements IEventStore {
             IOUtils.closeQuietly(eventWriter);
             throw new RuntimeException(e);
         }
+    }
+
+    private void initializeStreamsStreams() {
+        Optional<IndexEntry> entry = index.get(streams.hashOf(SystemStreams.STREAMS), 0);
+        if (entry.isPresent()) {
+            logger.info("System stream already initialized");
+            return;
+        }
+
+        logger.info("Initializing system streams");
+        Future<Void> task1 = eventWriter.queue(writer -> {
+            StreamMetadata metadata = streams.create(SystemStreams.STREAMS);
+            EventRecord record = StreamCreated.create(metadata);
+            writer.append(record, NO_VERSION, metadata);
+        });
+
+        Future<Void> task2 = eventWriter.queue(writer -> {
+            StreamMetadata metadata = streams.create(SystemStreams.PROJECTIONS);
+            EventRecord record = StreamCreated.create(metadata);
+            writer.append(record, NO_VERSION, metadata);
+        });
+
+        Future<Void> task3 = eventWriter.queue(writer -> {
+            StreamMetadata metadata = streams.create(SystemStreams.INDEX);
+            EventRecord record = StreamCreated.create(metadata);
+            writer.append(record, NO_VERSION, metadata);
+        });
+
+        Threads.awaitFor(task1);
+        Threads.awaitFor(task2);
+        Threads.awaitFor(task3);
+
     }
 
     public static EventStore open(File rootDir) {
@@ -170,7 +204,8 @@ public class EventStore implements IEventStore {
                 throw new IllegalStateException("Stream '" + stream + "' already exist");
             }
             EventRecord eventRecord = StreamCreated.create(created);
-            writer.append(eventRecord, -2, created);
+            StreamMetadata streamsStreamMeta = streams.get(SystemStreams.STREAMS).get();
+            writer.append(eventRecord, -2, streamsStreamMeta);
             return created;
         });
 
@@ -319,7 +354,8 @@ public class EventStore implements IEventStore {
     private StreamMetadata getOrCreateStream(Writer writer, String stream) {
         return streams.createIfAbsent(stream, created -> {
             EventRecord eventRecord = StreamCreated.create(created);
-            writer.append(eventRecord, -1, created);
+            StreamMetadata metadata = streams.get(SystemStreams.STREAMS).get();
+            writer.append(eventRecord, -1, metadata);
         });
     }
 
