@@ -331,6 +331,16 @@ public class LevelsTest {
         }
 
         @Override
+        public long logSize() {
+            return 0;
+        }
+
+        @Override
+        public long remaining() {
+            return 0;
+        }
+
+        @Override
         public SegmentState rebuildState(long lastKnownPosition) {
             return null;
         }
@@ -369,6 +379,11 @@ public class LevelsTest {
         @Override
         public long created() {
             return createdDate;
+        }
+
+        @Override
+        public long uncompressedSize() {
+            return 0;
         }
 
         @Override

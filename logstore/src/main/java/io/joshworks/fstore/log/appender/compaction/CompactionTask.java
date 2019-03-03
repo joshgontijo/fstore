@@ -2,15 +2,16 @@ package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.seda.EventContext;
 import io.joshworks.fstore.core.seda.StageHandler;
-import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.core.io.StorageProvider;
+import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.SegmentFactory;
+import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
-import io.joshworks.fstore.core.util.Logging;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -43,10 +44,11 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
         Log<T> output = null;
         try {
 
-            long totalSize = segments.stream().mapToLong(Log::position).sum();
+            long newSegmentLogSize = segments.stream().mapToLong(Log::uncompressedSize).sum();
+            long logSize = newSegmentLogSize + LogHeader.BYTES;
 
             String names = Arrays.toString(segments.stream().map(Log::name).toArray());
-            logger.info("Compacting {} from level {} using {}, new segment size with initial size of: {}", names, level, combiner.getClass().getSimpleName(), totalSize);
+            logger.info("Compacting {} from level {} using {}, new segment logSize: {} fileSize: {}", names, level, combiner.getClass().getSimpleName(), newSegmentLogSize, logSize);
 
             for (int i = 0; i < segments.size(); i++) {
                 Log<T> segment = segments.get(i);
@@ -55,7 +57,7 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
 
             long start = System.currentTimeMillis();
 
-            Storage storage = storageProvider.create(segmentFile, totalSize);
+            Storage storage = storageProvider.create(segmentFile, logSize);
             output = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, Type.MERGE_OUT);
 
             combiner.merge(segments, output);

@@ -3,6 +3,8 @@ package io.joshworks.eventry.index.disk;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.segment.block.Block;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -14,6 +16,7 @@ import static org.junit.Assert.assertTrue;
 
 public class IndexBlockTest {
 
+    private final Serializer<IndexEntry> serializer = new IndexEntrySerializer();
 
     @Test
     public void packing_empty_block_returns_empty_buffer() {
@@ -25,7 +28,7 @@ public class IndexBlockTest {
     @Test
     public void packed_buffer_is_ready_to_read_from() {
         var block = new IndexBlock(4096);
-        block.add(IndexEntry.of(1,1,1));
+        addTo(block, IndexEntry.of(1, 1, 1));
         var packed = block.pack(Codec.noCompression());
         assertTrue(packed.remaining() > 0);
     }
@@ -38,16 +41,16 @@ public class IndexBlockTest {
         int version = 0;
         long position = 456;
 
-        boolean limitReached;
+        boolean added;
         do {
-            limitReached = block.add(IndexEntry.of(stream, version, position));
-        } while (!limitReached);
+            added = addTo(block, IndexEntry.of(stream, version, position));
+        } while (added);
 
 
         Codec codec = new SnappyCodec();
         ByteBuffer packed = block.pack(codec);
 
-        var unpacked = new IndexBlock(packed, codec);
+        var unpacked = new IndexBlock(codec, packed);
 
         assertThat(block.entries(), is(unpacked.entries()));
     }
@@ -61,10 +64,15 @@ public class IndexBlockTest {
         long stream = 123;
         long position = 456;
         for (int i = 0; i < items; i++) {
-            block.add(IndexEntry.of(stream, i, position));
+            addTo(block, IndexEntry.of(stream, i, position));
         }
 
         assertEquals(items, block.entryCount());
     }
+
+    private boolean addTo(Block block, IndexEntry ie) {
+        return block.add(serializer.toBytes(ie));
+    }
+
 
 }

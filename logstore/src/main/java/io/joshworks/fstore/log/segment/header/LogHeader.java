@@ -18,14 +18,16 @@ public class LogHeader {
     public final long created;
     public final Type type;
     public final long fileSize;
+    public final boolean encrypted;
 
     //completed info
     public final int level; //segments created are implicit level zero
     public final long entries;
-    public final long logicalSize; //actual written bytes, including header
+    public final long writePosition; //actual written bytes, including header
     public final long rolled;
+    public final long uncompressedSize;
 
-    LogHeader(String magic, long entries, long created, int level, Type type, long rolled, long fileSize, long logicalSize) {
+    LogHeader(String magic, long entries, long created, int level, Type type, long rolled, long fileSize, boolean encrypted, long writePosition, long uncompressedSize) {
         this.magic = magic;
         this.entries = entries;
         this.created = created;
@@ -33,7 +35,9 @@ public class LogHeader {
         this.type = type;
         this.rolled = rolled;
         this.fileSize = fileSize;
-        this.logicalSize = logicalSize;
+        this.encrypted = encrypted;
+        this.writePosition = writePosition;
+        this.uncompressedSize = uncompressedSize;
     }
 
 
@@ -46,7 +50,7 @@ public class LogHeader {
     }
 
     public static LogHeader read(Storage storage) {
-        if(storage.writePosition() < LogHeader.BYTES) {
+        if (storage.writePosition() < LogHeader.BYTES) {
             storage.writePosition(LogHeader.BYTES);
         }
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
@@ -68,13 +72,13 @@ public class LogHeader {
         return headerSerializer.fromBytes(bb);
     }
 
-    public static LogHeader writeNew(Storage storage, String magic, Type type, long fileSize) {
-        LogHeader newHeader = new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, 0, fileSize, BYTES);
+    public static LogHeader writeNew(Storage storage, String magic, Type type, long fileSize, boolean encrypted) {
+        LogHeader newHeader = new LogHeader(magic, 0, System.currentTimeMillis(), 0, type, 0, fileSize, encrypted, BYTES, 0);
         write(storage, newHeader);
         return newHeader;
     }
 
-    public static LogHeader writeCompleted(Storage storage, LogHeader initialHeader, long entries, int level, long logicalSize) {
+    public static LogHeader writeCompleted(Storage storage, LogHeader initialHeader, long entries, int level, long logicalSize, long uncompressedSize) {
         LogHeader newHeader = new LogHeader(
                 initialHeader.magic,
                 entries,
@@ -83,7 +87,9 @@ public class LogHeader {
                 Type.READ_ONLY,
                 System.currentTimeMillis(),
                 initialHeader.fileSize,
-                logicalSize);
+                initialHeader.encrypted,
+                logicalSize,
+                uncompressedSize);
         write(storage, newHeader);
         return newHeader;
     }
@@ -97,7 +103,8 @@ public class LogHeader {
                 Type.READ_ONLY,
                 System.currentTimeMillis(),
                 initialHeader.fileSize,
-                -1);
+                initialHeader.encrypted, -1,
+                initialHeader.uncompressedSize);
 
         write(storage, newHeader);
         return newHeader;
@@ -135,7 +142,7 @@ public class LogHeader {
                 ", fileSize=" + fileSize +
                 ", level=" + level +
                 ", entries=" + entries +
-                ", logicalSize=" + logicalSize +
+                ", logicalSize=" + writePosition +
                 ", rolled=" + rolled +
                 '}';
     }

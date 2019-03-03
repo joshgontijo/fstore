@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -66,5 +67,39 @@ public abstract class BlockSegmentTest {
         segment.close();
         segment = open(testFile);
         assertEquals(1, segment.entries());
+    }
+
+    @Test
+    public void when_new_block_doesnt_fit_in_the_segment_append_returns_EOF() {
+        long bPos;
+        do {
+            bPos = segment.add("a");
+        } while (bPos != Storage.EOF);
+
+        assertEquals(Storage.EOF, segment.add("a"));
+    }
+
+    @Test
+    public void uncompressed_size_is_the_approximation_of_block_size() {
+        long bPos;
+        do {
+            bPos = segment.add("a");
+        } while (bPos != Storage.EOF);
+
+        assertEquals(segment.blocks() * segment.blockSize(), segment.uncompressedSize());
+    }
+
+    @Test
+    public void uncompressed_is_restored_when_segment_is_reopened() {
+        long bPos;
+        do {
+            bPos = segment.add("a");
+        } while (bPos != Storage.EOF);
+
+        long uncompressedSize = segment.uncompressedSize();
+
+        segment.close();
+        segment = open(testFile);
+        assertEquals(uncompressedSize, segment.uncompressedSize());
     }
 }

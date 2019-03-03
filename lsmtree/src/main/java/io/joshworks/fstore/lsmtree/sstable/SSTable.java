@@ -37,6 +37,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     private final BlockSegment<Entry<K, V>> delegate;
     private final Map<K, Long> cache = new HashMap<>();
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final EntrySerializer<K, V> kvSerializer;
 
     public SSTable(Storage storage,
                    Serializer<K> keySerializer,
@@ -47,12 +48,13 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                    File directory,
                    int numElements) {
 
+        this.kvSerializer = new EntrySerializer<>(keySerializer, valueSerializer);
         this.delegate = new BlockSegment<>(
                 storage,
                 dataStream,
                 magic,
                 type,
-                new EntrySerializer<>(keySerializer, valueSerializer),
+                kvSerializer,
                 VLenBlock.factory(),
                 new SnappyCodec(),
                 MAX_BLOCK_SIZE);
@@ -77,7 +79,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         }
 
         Long pos = cache.get(key);
-        if(pos == null) {
+        if (pos == null) {
             IndexEntry indexEntry = index.get(key);
             if (indexEntry == null) {
                 return null;
@@ -86,8 +88,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
             cache.put(key, pos);
         }
 
-        Block<Entry<K, V>> foundBlock = delegate.get(pos);
-        List<Entry<K, V>> entries = foundBlock.entries();
+        Block foundBlock = delegate.get(pos);
+        List<Entry<K, V>> entries = foundBlock.deserialize(kvSerializer);
         int idx = Collections.binarySearch(entries, Entry.keyOf(key));
         if (idx < 0) {
             return null;
@@ -150,6 +152,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
+    public long uncompressedSize() {
+        return delegate.uncompressedSize();
+    }
+
+    @Override
     public Type type() {
         return delegate.type();
     }
@@ -179,6 +186,16 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
+    public long logSize() {
+        return delegate.logSize();
+    }
+
+    @Override
+    public long remaining() {
+        return delegate.remaining();
+    }
+
+    @Override
     public String name() {
         return delegate.name();
     }
@@ -195,7 +212,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
     @Override
     public void close() {
-        if(closed.compareAndSet(false, true)) {
+        if (closed.compareAndSet(false, true)) {
             delegate.close();
             index.close();
         }

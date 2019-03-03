@@ -40,6 +40,7 @@ public class IndexSegment implements Log<IndexEntry> {
     private final AtomicBoolean closed = new AtomicBoolean();
     final Midpoints midpoints;
     private final File directory;
+    private final IndexEntrySerializer indexEntrySerializer = new IndexEntrySerializer();
     BloomFilter<Long> filter;
 
     private final BlockSegment<IndexEntry> delegate;
@@ -51,23 +52,27 @@ public class IndexSegment implements Log<IndexEntry> {
                  File directory,
                  Codec codec,
                  int numElements) {
-
-        this.delegate = new BlockSegment<>(storage, reader, magic, type, new IndexEntrySerializer(), new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
+        this.delegate = new BlockSegment<>(storage, reader, magic, type, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
     }
 
-    protected synchronized void onBlockWrite(Long blockPos, Block<IndexEntry> block) {
-        Midpoint head = new Midpoint(block.first(), blockPos);
-        Midpoint tail = new Midpoint(block.last(), blockPos);
+    protected synchronized void onBlockWrite(Long blockPos, Block block) {
+        IndexEntry first = indexEntrySerializer.fromBytes(block.first());
+        IndexEntry last = indexEntrySerializer.fromBytes(block.last());
+        Midpoint head = new Midpoint(first, blockPos);
+        Midpoint tail = new Midpoint(last, blockPos);
         midpoints.add(head, tail);
     }
 
     @Override
     public long append(IndexEntry data) {
-        filter.add(data.stream);
-        return delegate.add(data);
+        long pos = delegate.add(data);
+        if (pos != Storage.EOF) {
+            filter.add(data.stream);
+        }
+        return pos;
     }
 
     @Override
@@ -88,12 +93,12 @@ public class IndexSegment implements Log<IndexEntry> {
 
     @Override
     public SegmentIterator<IndexEntry> iterator(long position, Direction direction) {
-        return new BlockIterator<>(delegate.iterator(position, direction), direction);
+        return new BlockIterator<>(indexEntrySerializer, delegate.iterator(position, direction), direction);
     }
 
     @Override
     public SegmentIterator<IndexEntry> iterator(Direction direction) {
-        return new BlockIterator<>(delegate.iterator(direction), direction);
+        return new BlockIterator<>(indexEntrySerializer, delegate.iterator(direction), direction);
     }
 
     @Override
@@ -109,6 +114,16 @@ public class IndexSegment implements Log<IndexEntry> {
     @Override
     public long fileSize() {
         return delegate.fileSize();
+    }
+
+    @Override
+    public long logSize() {
+        return delegate.logSize();
+    }
+
+    @Override
+    public long remaining() {
+        return delegate.remaining();
     }
 
     @Override
@@ -154,6 +169,11 @@ public class IndexSegment implements Log<IndexEntry> {
     @Override
     public long created() {
         return delegate.created();
+    }
+
+    @Override
+    public long uncompressedSize() {
+        return delegate.uncompressedSize();
     }
 
     @Override
@@ -203,12 +223,12 @@ public class IndexSegment implements Log<IndexEntry> {
             return Collections.emptyList();
         }
         IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
-        List<IndexEntry> entries = foundBlock.entries();
+        List<IndexEntry> entries = foundBlock.deserialize(indexEntrySerializer);
         int idx = Collections.binarySearch(entries, start);
         if (idx < 0) { //if not exact match, wasn't found
             return Collections.emptyList();
         }
-        return foundBlock.entries();
+        return entries;
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
@@ -223,7 +243,7 @@ public class IndexSegment implements Log<IndexEntry> {
         }
 
         IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
-        List<IndexEntry> entries = foundBlock.entries();
+        List<IndexEntry> entries = foundBlock.deserialize(indexEntrySerializer);
         int idx = Collections.binarySearch(entries, start);
         if (idx < 0) { //if not exact match, wasn't found
             return Optional.empty();
@@ -248,10 +268,10 @@ public class IndexSegment implements Log<IndexEntry> {
         }
 
         IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
-        List<IndexEntry> entries = foundBlock.entries();
+        List<IndexEntry> entries = foundBlock.deserialize(indexEntrySerializer);
         int idx = Collections.binarySearch(entries, end);
         idx = idx >= 0 ? idx : Math.abs(idx) - 2;
-        if(idx < 0) {
+        if (idx < 0) {
             return IndexEntry.NO_VERSION;
         }
         IndexEntry lastVersion = entries.get(idx);
@@ -274,7 +294,7 @@ public class IndexSegment implements Log<IndexEntry> {
         }
 
         IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
-        List<IndexEntry> entries = foundBlock.entries();
+        List<IndexEntry> entries = foundBlock.deserialize(indexEntrySerializer);
         int idx = Collections.binarySearch(entries, start);
         idx = idx >= 0 ? idx : Math.abs(idx) - 1;
         if (idx >= entries.size()) {
@@ -310,7 +330,7 @@ public class IndexSegment implements Log<IndexEntry> {
         private long lastBlockPos;
         private int lastReadVersion;
         private Queue<IndexEntry> entries = new LinkedList<>();
-        private SegmentIterator<Block<IndexEntry>> lock;
+        private SegmentIterator<Block> lock;
 
         private RangeIndexEntryIterator(Direction direction, Range range, int startVersion, int endVersion) {
             this.direction = direction;
@@ -334,7 +354,7 @@ public class IndexSegment implements Log<IndexEntry> {
             }
             IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
             this.lastBlockPos = lowBound.position;
-            List<IndexEntry> blockEntries = foundBlock.entries();
+            List<IndexEntry> blockEntries = foundBlock.deserialize(indexEntrySerializer);
             if (Direction.BACKWARD.equals(direction)) {
                 Collections.reverse(blockEntries);
             }

@@ -26,6 +26,10 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     long fileSize();
 
+    long logSize();
+
+    long remaining();
+
     SegmentState rebuildState(long lastKnownPosition);
 
     void delete();
@@ -41,6 +45,8 @@ public interface Log<T> extends Writer<T>, Closeable {
     int level();
 
     long created();
+
+    long uncompressedSize();
 
     Type type();
 

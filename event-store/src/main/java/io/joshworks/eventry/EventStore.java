@@ -101,7 +101,11 @@ public class EventStore implements IEventStore {
     }
 
     private StreamMetadata fetchMetadata(long stream) {
-        return streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Could not find stream metadata for " + stream));
+        Optional<StreamMetadata> streamMetadata = streams.get(stream);
+        if (!streamMetadata.isPresent()) {
+            throw new IllegalArgumentException("Could not find stream metadata for " + stream);
+        }
+        return streamMetadata.get();
     }
 
     public static EventStore open(File rootDir) {
@@ -434,6 +438,17 @@ public class EventStore implements IEventStore {
         return resolve(record);
     }
 
+
+    //FIXME at io.joshworks.eventry.EventStore.get(EventStore.java:420)
+    //	at io.joshworks.eventry.EventStore.resolve(EventStore.java:440)
+    //	at io.joshworks.eventry.EventStore.get(EventStore.java:434)
+    //	at io.joshworks.eventry.EventStore.get(EventStore.java:426)
+    //	at io.joshworks.eventry.EventStore.resolve(EventStore.java:440)
+    //	at io.joshworks.eventry.EventStore.get(EventStore.java:434)
+    //	at io.joshworks.eventry.EventStore.get(EventStore.java:426)
+    //	at io.joshworks.eventry.EventStore.resolve(EventStore.java:440)
+    //	at io.joshworks.eventry.EventStore.get(EventStore.java:434)
+    //	at io.joshworks.eventry.EventStore.get(EventStore.java:426)
     @Override
     public EventRecord resolve(EventRecord record) {
         if (record.isLinkToEvent()) {
@@ -460,7 +475,7 @@ public class EventStore implements IEventStore {
         @Override
         public Thread newThread(Runnable r) {
             Thread t = new Thread(r);
-            t.setName("event-store-writer");
+            t.setName("");
             return t;
         }
     });
@@ -550,6 +565,7 @@ public class EventStore implements IEventStore {
         index.close();
         eventLog.close();
         streams.close();
+        writer.shutdown();
     }
 
 }
