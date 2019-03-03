@@ -274,7 +274,7 @@ public class EventStore implements IEventStore {
         if (eventStreams.isEmpty()) {
             return EventLogIterator.empty();
         }
-        return fromStreams(eventStreams.stream().map(StreamName::of).collect(Collectors.toSet()));
+        return fromStreams(eventStreams.stream().map(StreamName::parse).collect(Collectors.toSet()));
     }
 
     @Override
@@ -321,13 +321,9 @@ public class EventStore implements IEventStore {
     @Override
     public EventRecord linkTo(String stream, final EventRecord event) {
         Future<EventRecord> future = eventWriter.queue(writer -> {
-            EventRecord e = event;
-            if (e.isLinkToEvent()) {
-                //resolve event
-                e = get(event.streamName());
-            }
+            EventRecord resolved = resolve(event);
             StreamMetadata metadata = getOrCreateStream(writer, stream);
-            EventRecord linkTo = LinkTo.create(stream, StreamName.from(e));
+            EventRecord linkTo = LinkTo.create(stream, StreamName.from(resolved));
             return writer.append(linkTo, NO_VERSION, metadata); // TODO expected version for LinkTo
         });
 
@@ -335,20 +331,18 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
+    public EventRecord linkTo(String stream, StreamName tgtEvent, String sourceType) {
         Future<EventRecord> future = eventWriter.queue(writer -> {
-            EventRecord linkTo = LinkTo.create(dstStream, source);
-            StreamMetadata metadata = getOrCreateStream(writer, dstStream);
+            EventRecord linkTo = LinkTo.create(stream, tgtEvent);
+            StreamMetadata metadata = getOrCreateStream(writer, stream);
             if (LinkTo.TYPE.equals(sourceType)) {
-                //resolve event
-                EventRecord resolvedEvent = get(source);
+                EventRecord resolvedEvent = get(tgtEvent);
                 StreamName resolvedStream = resolvedEvent.streamName();
-                linkTo = LinkTo.create(dstStream, resolvedStream);
+                linkTo = LinkTo.create(stream, resolvedStream);
             }
             return writer.append(linkTo, NO_VERSION, metadata);
         });
         return Threads.awaitFor(future);
-
     }
 
     private StreamMetadata getOrCreateStream(Writer writer, String stream) {
@@ -361,6 +355,12 @@ public class EventStore implements IEventStore {
 
     @Override
     public EventRecord get(StreamName stream) {
+        EventRecord record = getInternal(stream);
+        return resolve(record);
+    }
+
+    //get WITHOUT RESOLVING
+    public EventRecord getInternal(StreamName stream) {
         if (!stream.hasVersion()) {
             throw new IllegalArgumentException("Version must be greater than " + NO_VERSION);
         }
@@ -370,22 +370,19 @@ public class EventStore implements IEventStore {
             throw new RuntimeException("IndexEntry not found for " + stream);
         }
 
-        return get(indexEntry.get());
+        IndexEntry ie = indexEntry.get();
+        return eventLog.get(ie.position);
     }
 
-    @Override
-    public EventRecord get(IndexEntry indexEntry) {
-        requireNonNull(indexEntry, "IndexEntry mus not be null");
-
-        EventRecord record = eventLog.get(indexEntry.position);
-        return resolve(record);
-    }
-
-    @Override
-    public EventRecord resolve(EventRecord record) {
+    private EventRecord resolve(EventRecord record) {
         if (record.isLinkToEvent()) {
             LinkTo linkTo = LinkTo.from(record);
-            return get(StreamName.of(linkTo.stream, linkTo.version));
+            StreamName targetEvent = StreamName.of(linkTo.stream, linkTo.version);
+            EventRecord resolved = getInternal(targetEvent);
+            if (resolved.isLinkToEvent()) {
+                throw new IllegalStateException("Found second level LinkTo event");
+            }
+            return resolved;
         }
         return record;
     }
@@ -397,6 +394,9 @@ public class EventStore implements IEventStore {
         if (event.stream.startsWith(StreamName.SYSTEM_PREFIX)) {
             throw new IllegalArgumentException("Stream cannot start with " + StreamName.SYSTEM_PREFIX);
         }
+        if (LinkTo.TYPE.equals(event.type)) {
+            throw new IllegalArgumentException("Stream type cannot be " + LinkTo.TYPE);
+        }
     }
 
     private void onIndexWrite(TableIndex.FlushInfo flushInfo) {
@@ -405,7 +405,6 @@ public class EventStore implements IEventStore {
             StreamMetadata metadata = getOrCreateStream(writer, indexFlushedEvent.stream);
             writer.append(indexFlushedEvent, NO_VERSION, metadata);
         });
-
     }
 
     private LogIterator<IndexEntry> withMaxCountFilter(long streamHash, LogIterator<IndexEntry> iterator) {

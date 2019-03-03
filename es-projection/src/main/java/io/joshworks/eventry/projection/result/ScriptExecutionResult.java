@@ -60,7 +60,6 @@ public class ScriptExecutionResult {
             this.srcType = StringUtils.requireNonBlank(srcType);
         }
 
-
         @Override
         public void handle(IEventAppender appender) {
             appender.linkTo(dstStream, StreamName.of(srcStream, srcVersion), srcType);

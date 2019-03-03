@@ -139,7 +139,7 @@ public class ProjectionTask implements Callable<ExecutionResult> {
                 if (isAllStream) {
                     source = store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE);
                 } else {
-                    Set<StreamName> streamNames = projection.sources.stream().map(StreamName::of).collect(Collectors.toSet());
+                    Set<StreamName> streamNames = projection.sources.stream().map(StreamName::parse).collect(Collectors.toSet());
                     source = store.fromStreams(streamNames);
                 }
             }
@@ -167,7 +167,7 @@ public class ProjectionTask implements Callable<ExecutionResult> {
     private static Set<StreamName> mergeCheckpoint(Projection projection, Checkpointer.Checkpoint checkpoint) {
         //All the streams
         Map<String, StreamName> allStreams = projection.sources.stream()
-                .map(StreamName::of)
+                .map(StreamName::parse)
                 .collect(Collectors.toMap(StreamName::name, Function.identity()));
 
         //from checkpoint
@@ -185,7 +185,7 @@ public class ProjectionTask implements Callable<ExecutionResult> {
         Checkpointer.Checkpoint checkpoint = checkpointer.get(taskId);
         //Only single stream here
         if (checkpoint == null || checkpoint.lastProcessed.size() != 1) {
-            return StreamName.of(stream);
+            return StreamName.parse(stream);
         }
         return checkpoint.lastProcessed.iterator().next();
     }

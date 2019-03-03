@@ -65,19 +65,6 @@ public abstract class MemStorage implements Storage {
         return buffers.get(idx);
     }
 
-    private void destroyBuffers() {
-        Lock lock = rwLock.writeLock();
-        lock.lock();
-        try {
-            closed.set(true);
-            for (ByteBuffer buffer : buffers) {
-                destroy(buffer);
-            }
-        } finally {
-            lock.unlock();
-        }
-    }
-
     protected int posOnBuffer(long pos) {
         return (int) (pos % Integer.MAX_VALUE);
     }
@@ -195,7 +182,7 @@ public abstract class MemStorage implements Storage {
     public void writePosition(long position) {
         validateWriteAddress(position);
         Lock lock = rwLock.writeLock();
-        lock.lock();
+        lockInterruptibly(lock);
         try {
             checkClosed();
             int idx = bufferIdx(position);
@@ -217,7 +204,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public void delete() {
-        destroyBuffers();
+        close();
     }
 
     @Override
@@ -227,7 +214,17 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public void close() {
-        destroyBuffers();
+        if(closed.compareAndSet(false, true)) {
+            Lock lock = rwLock.writeLock();
+            lockInterruptibly(lock);
+            try {
+                for (ByteBuffer buffer : buffers) {
+                    destroy(buffer);
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
     }
 
     @Override
@@ -238,7 +235,7 @@ public abstract class MemStorage implements Storage {
     @Override
     public void truncate() {
         Lock lock = rwLock.writeLock();
-        lock.lock();
+        lockInterruptibly(lock);
         try {
             long pos = writePosition.get();
             int idx = bufferIdx(pos);
@@ -268,4 +265,14 @@ public abstract class MemStorage implements Storage {
     protected void computeLength() {
         this.size.set(buffers.stream().mapToLong(ByteBuffer::capacity).sum());
     }
+
+    private void lockInterruptibly(Lock lock) {
+        try {
+            lock.lockInterruptibly();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
 }

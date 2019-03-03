@@ -34,7 +34,7 @@ public class LogDump {
     }
 
     public static void dumpStream(String stream, File file, IEventStore store) {
-        try (var fileWriter = new FileWriter(file); var iterator = store.fromStream(StreamName.of(stream))) {
+        try (var fileWriter = new FileWriter(file); var iterator = store.fromStream(StreamName.parse(stream))) {
             while (iterator.hasNext()) {
                 long position = iterator.position();
                 EventRecord event = iterator.next();

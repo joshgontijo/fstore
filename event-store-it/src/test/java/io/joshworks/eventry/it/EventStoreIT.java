@@ -71,7 +71,7 @@ public class EventStoreIT {
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
 
-        Iterator<EventRecord> events = store.fromStream(StreamName.of(stream));
+        Iterator<EventRecord> events = store.fromStream(StreamName.parse(stream));
         int found = 0;
 
         start = System.currentTimeMillis();
@@ -88,8 +88,6 @@ public class EventStoreIT {
 
     @Test
     public void insert_1M_same_stream() {
-
-
         long start = System.currentTimeMillis();
         int size = 1000000;
 
@@ -102,7 +100,7 @@ public class EventStoreIT {
 
         start = System.currentTimeMillis();
 
-        Stream<EventRecord> events = store.fromStream(StreamName.of(stream)).stream();
+        Stream<EventRecord> events = store.fromStream(StreamName.parse(stream)).stream();
 
         System.out.println("SIZE: " + events.count());
         System.out.println("READ: " + (System.currentTimeMillis() - start));
@@ -125,7 +123,7 @@ public class EventStoreIT {
         start = System.currentTimeMillis();
 
         for (int i = 0; i < size; i++) {
-            Stream<EventRecord> events = store.fromStream(StreamName.of(streamPrefix + i)).stream();
+            Stream<EventRecord> events = store.fromStream(StreamName.parse(streamPrefix + i)).stream();
             assertEquals("Failed on iteration " + i, 1, events.count());
             if (i % 10000 == 0) {
                 System.out.println("Processed " + i);
@@ -184,7 +182,7 @@ public class EventStoreIT {
 
         try (IEventStore store = EventStore.open(directory)) {
             for (int i = 0; i < size; i++) {
-                Stream<EventRecord> events = store.fromStream(StreamName.of(streamPrefix + i)).stream();
+                Stream<EventRecord> events = store.fromStream(StreamName.parse(streamPrefix + i)).stream();
                 assertEquals("Failed on iteration " + i, 1, events.count());
             }
         }
@@ -231,32 +229,6 @@ public class EventStoreIT {
     }
 
     @Test
-    public void index_is_loaded_with_correct_stream_version_order() {
-        String stream = "stream-a";
-        store.append(EventRecord.create(stream, "type", "body"));
-        store.append(EventRecord.create(stream, "type", "body"));
-        store.append(EventRecord.create(stream, "type", "body"));
-
-        store.close();
-
-        store = EventStore.open(directory);
-
-        LogIterator<EventRecord> iter = store.fromStream(StreamName.of(stream));
-
-        EventRecord event = iter.next();
-        assertEquals(stream, event.stream);
-        assertEquals(0, event.version);
-
-        event = iter.next();
-        assertEquals(stream, event.stream);
-        assertEquals(1, event.version);
-
-        event = iter.next();
-        assertEquals(stream, event.stream);
-        assertEquals(2, event.version);
-    }
-
-    @Test
     public void events_have_stream_and_version() {
         int numStreams = 1000;
         String streamPrefix = "stream-";
@@ -286,7 +258,7 @@ public class EventStoreIT {
 
         //when
         for (int i = 0; i < numEvents; i++) {
-            Iterator<EventRecord> events = store.fromStream(StreamName.of(streamPrefix + i));
+            Iterator<EventRecord> events = store.fromStream(StreamName.parse(streamPrefix + i));
 
             assertTrue(events.hasNext());
 
@@ -316,7 +288,7 @@ public class EventStoreIT {
             }
         }
 
-        List<StreamName> streams = Stream.of("test-0", "test-1", "test-10", "test-100", "test-1000").map(StreamName::of).collect(Collectors.toList());
+        List<StreamName> streams = Stream.of("test-0", "test-1", "test-10", "test-100", "test-1000").map(StreamName::parse).collect(Collectors.toList());
 
         Iterator<EventRecord> eventStream = store.fromStreams(new HashSet<>(streams));
 
@@ -336,7 +308,7 @@ public class EventStoreIT {
         store.append(EventRecord.create(stream, "test", "body1"));
         store.append(EventRecord.create(stream, "test", "body2"));
 
-        try (var it = store.fromStream(StreamName.of(stream))) {
+        try (var it = store.fromStream(StreamName.parse(stream))) {
             assertTrue(it.hasNext());
             assertEquals(0, it.next().version);
 
@@ -352,7 +324,7 @@ public class EventStoreIT {
         store.append(EventRecord.create(stream1, "test", "body1"));
         store.append(EventRecord.create(stream2, "test", "body2"));
 
-        try (var it = store.fromStreams(Set.of(StreamName.of(stream1), StreamName.of(stream2)))) {
+        try (var it = store.fromStreams(Set.of(StreamName.parse(stream1), StreamName.parse(stream2)))) {
             assertTrue(it.hasNext());
             assertEquals(0, it.next().version);
 
@@ -392,7 +364,7 @@ public class EventStoreIT {
             }
         }
 
-        StreamName eventToQuery = StreamName.of("test-1");
+        StreamName eventToQuery = StreamName.parse("test-1");
         Iterator<EventRecord> eventStream = store.fromStreams(Set.of(eventToQuery));
 
         int eventCounter = 0;
@@ -403,53 +375,6 @@ public class EventStoreIT {
         }
 
         assertEquals(numVersions, eventCounter);
-    }
-
-    @Test
-    public void fromStream_returns_data_within_maxCount() {
-        //given
-
-        String stream = "test-stream";
-        int maxCount = 10;
-        int numVersions = 50;
-        store.createStream(stream, maxCount, -1);
-
-        for (int version = 0; version < numVersions; version++) {
-            store.append(EventRecord.create(stream, "type", "body-" + stream));
-        }
-
-        Iterator<EventRecord> eventStream = store.fromStream(StreamName.of(stream));
-
-        int eventCounter = 0;
-        while (eventStream.hasNext()) {
-            EventRecord event = eventStream.next();
-            assertTrue(event.version >= numVersions - maxCount);
-            eventCounter++;
-        }
-
-        assertEquals(maxCount, eventCounter);
-    }
-
-    @Test
-    public void fromStream_returns_data_within_maxAge() throws InterruptedException {
-        //given
-
-        String stream = "test-stream";
-        int maxAgeSeconds = 5;
-        int numVersions = 50;
-        store.createStream(stream, -1, maxAgeSeconds);
-
-        for (int version = 0; version < numVersions; version++) {
-            store.append(EventRecord.create(stream, "type", "body-" + stream));
-        }
-
-        long count = store.fromStream(StreamName.of(stream)).stream().count();
-        assertEquals(numVersions, count);
-
-        Thread.sleep(maxAgeSeconds * 1000);
-
-        count = store.fromStream(StreamName.of(stream)).stream().count();
-        assertEquals(numVersions, count);
     }
 
     @Test
@@ -465,20 +390,20 @@ public class EventStoreIT {
 //        LogDump.dumpIndex(new File("index1.txt"), store);
 
         System.out.println("LinkTo 1");
-        store.fromStream(StreamName.of(streamName)).stream().forEach(e -> {
+        store.fromStream(StreamName.parse(streamName)).stream().forEach(e -> {
             String firstLetter = Arrays.toString(e.body).substring(0, 1);
             store.linkTo("letter-" + firstLetter, e);
         });
 
 //        LogDump.dumpIndex(new File("index2.txt"), store);
         System.out.println("LinkTo 2");
-        store.fromStream(StreamName.of(streamName)).stream().forEach(e -> {
+        store.fromStream(StreamName.parse(streamName)).stream().forEach(e -> {
             String firstLetter = Arrays.toString(e.body).substring(0, 2);
             store.linkTo("letter-" + firstLetter, e);
         });
 
         System.out.println("LinkTo 3");
-        store.fromStream(StreamName.of(streamName)).stream().forEach(e -> {
+        store.fromStream(StreamName.parse(streamName)).stream().forEach(e -> {
             String firstLetter = Arrays.toString(e.body).substring(0, 3);
             store.linkTo("letter-" + firstLetter, e);
         });
@@ -529,20 +454,20 @@ public class EventStoreIT {
 
         int numOtherIndexes = 5;
 
-        assertEquals(size, store.fromStream(StreamName.of(allStream)).stream().count());
+        assertEquals(size, store.fromStream(StreamName.parse(allStream)).stream().count());
 
         IntStream.range(0, numOtherIndexes).forEach(i -> {
             long start = System.currentTimeMillis();
-            store.fromStream(StreamName.of(allStream)).stream().forEach(e -> store.linkTo(String.valueOf(i), e));
+            store.fromStream(StreamName.parse(allStream)).stream().forEach(e -> store.linkTo(String.valueOf(i), e));
             System.out.println("LinkTo " + size + " events to stream " + i + " in " + (System.currentTimeMillis() - start));
         });
 
 
-        assertEquals(size, store.fromStream(StreamName.of(allStream)).stream().count());
+        assertEquals(size, store.fromStream(StreamName.parse(allStream)).stream().count());
 
         for (int i = 0; i < numOtherIndexes; i++) {
             String streamName = String.valueOf(i);
-            long foundSize = store.fromStream(StreamName.of(streamName)).stream().count();
+            long foundSize = store.fromStream(StreamName.parse(streamName)).stream().count();
             assertEquals("Failed on iteration: " + i, size, foundSize);
         }
     }
@@ -664,7 +589,7 @@ public class EventStoreIT {
         store.close();
         store = EventStore.open(directory);
 
-        EventLogIterator iterator = store.fromStream(StreamName.of(stream));
+        EventLogIterator iterator = store.fromStream(StreamName.parse(stream));
 
         int total = 0;
         for (int i = 0; i < size; i++) {
@@ -687,21 +612,11 @@ public class EventStoreIT {
             store.append(EventRecord.create(stream, "type-1", "body-" + 1));
         }
 
-        List<EventRecord> indexEvents = store.fromStream(StreamName.of(SystemStreams.INDEX)).stream().collect(Collectors.toList());
+        List<EventRecord> indexEvents = store.fromStream(StreamName.parse(SystemStreams.INDEX)).stream().collect(Collectors.toList());
         assertEquals(1, indexEvents.size());
         var record = indexEvents.get(0);
         var indexFlushed = IndexFlushed.from(record);
         assertEquals(TableIndex.DEFAULT_FLUSH_THRESHOLD, indexFlushed.entries);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void stream_name_cannot_start_with_system_reserved_prefix() {
-        store.append(EventRecord.create(StreamName.SYSTEM_PREFIX + "stream", "a", "asa"));
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void event_type_is_mandatory() {
-        store.append(EventRecord.create("stream", null, "asa"));
     }
 
     @Test
@@ -719,7 +634,7 @@ public class EventStoreIT {
 
         store = EventStore.open(directory);
 
-        List<EventRecord> foundStreams = store.fromStream(StreamName.of(SystemStreams.STREAMS)).stream().collect(Collectors.toList());
+        List<EventRecord> foundStreams = store.fromStream(StreamName.parse(SystemStreams.STREAMS)).stream().collect(Collectors.toList());
 
         //stream also contains the stream definition itself
         assertTrue(foundStreams.size() >= createdStreams.size());
@@ -735,23 +650,6 @@ public class EventStoreIT {
     }
 
     @Test
-    public void fromStream_returns_items_after_truncated_version() {
-
-        int size = 1000;
-        int truncateBeforeVersion = 400;
-        String stream = "stream-123";
-        for (int i = 0; i < size; i++) {
-            store.append(EventRecord.create(stream, "test", "body"));
-        }
-
-        store.truncate(stream, truncateBeforeVersion);
-
-        List<EventRecord> events = store.fromStream(StreamName.of(stream)).stream().collect(Collectors.toList());
-        assertEquals(600, events.size());
-        assertEquals(400, events.get(0).version);
-    }
-
-    @Test
     public void compaction_removes_truncated_entries() {
 
         int size = 3000000;
@@ -764,7 +662,7 @@ public class EventStoreIT {
         store.truncate(stream, truncateBeforeVersion);
 
 
-        long count = store.fromStream(StreamName.of(stream)).stream().count();
+        long count = store.fromStream(StreamName.parse(stream)).stream().count();
         assertEquals(size - truncateBeforeVersion, count);
     }
 
@@ -795,7 +693,7 @@ public class EventStoreIT {
                 assertEquals(numVersionPerStream - 1, foundVersion);
 
                 //FROM STREAM
-                try (Stream<EventRecord> events = store.fromStream(StreamName.of(streamName)).stream()) {
+                try (Stream<EventRecord> events = store.fromStream(StreamName.parse(streamName)).stream()) {
                     assertEquals(numVersionPerStream, events.collect(Collectors.toList()).size());
 
                     for (int version = 0; version < numVersionPerStream; version++) {
