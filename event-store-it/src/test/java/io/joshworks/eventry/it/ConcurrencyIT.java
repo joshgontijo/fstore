@@ -78,7 +78,7 @@ public class ConcurrencyIT {
 
 
         //READ
-        Iterator<EventRecord> events = store.fromStream(StreamName.of(stream));
+        Iterator<EventRecord> events = store.fromStream(StreamName.parse(stream));
         int found = 0;
 
         while (events.hasNext()) {
@@ -124,7 +124,7 @@ public class ConcurrencyIT {
         for (int readTask = 0; readTask < readThreads; readTask++) {
             readExecutor.execute(() -> {
                 AtomicInteger localCounter = new AtomicInteger();
-                try (EventLogIterator iterator = store.fromStream(StreamName.of(stream))) {
+                try (EventLogIterator iterator = store.fromStream(StreamName.parse(stream))) {
                     while (localCounter.get() < totalWrites) {
                         while (!iterator.hasNext()) {
                             sleep(1000);
@@ -200,7 +200,7 @@ public class ConcurrencyIT {
         //READ
 
         Map<String, AtomicInteger> counter = new HashMap<>();
-        Set<StreamName> streamHashes = streamNames.stream().map(StreamName::of).collect(Collectors.toSet());
+        Set<StreamName> streamHashes = streamNames.stream().map(StreamName::parse).collect(Collectors.toSet());
         try (EventLogIterator events = store.fromStreams(streamHashes)) {
             for (int i = 0; i < itemPerThread * threads; i++) {
                 assertTrue("Failed on " + i, events.hasNext());

@@ -7,7 +7,9 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 
 import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
@@ -65,6 +67,27 @@ public class EventRecord {
 
     public StreamName streamName() {
         return StreamName.of(stream, version);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EventRecord record = (EventRecord) o;
+        return version == record.version &&
+                timestamp == record.timestamp &&
+                Objects.equals(stream, record.stream) &&
+                Objects.equals(type, record.type) &&
+                Arrays.equals(body, record.body) &&
+                Arrays.equals(metadata, record.metadata);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(stream, type, version, timestamp);
+        result = 31 * result + Arrays.hashCode(body);
+        result = 31 * result + Arrays.hashCode(metadata);
+        return result;
     }
 
     @Override

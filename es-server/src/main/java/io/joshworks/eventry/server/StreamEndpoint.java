@@ -180,7 +180,7 @@ public class StreamEndpoint {
         if (zip != null && !zip.isEmpty()) {
             for (String val : zip) {
                 if (val != null && !val.isEmpty()) {
-                    streams.add(StreamName.of(val));
+                    streams.add(StreamName.parse(val));
                 }
             }
         }

@@ -54,19 +54,7 @@ public class StreamName {
         return new StreamName(parsed.name, version);
     }
 
-    public static StreamName of(String stream) {
-        return parse(stream);
-    }
-
-    public static StreamName from(EventRecord eventRecord) {
-        return new StreamName(eventRecord.stream, eventRecord.version);
-    }
-
-    public static long hash(String streamName) {
-        return hasher.hash(streamName);
-    }
-
-    private static StreamName parse(String streamVersion) {
+    public static StreamName parse(String streamVersion) {
         if (StringUtils.isBlank(streamVersion)) {
             throw new IllegalArgumentException("Null or empty stream value");
         }
@@ -79,6 +67,15 @@ public class StreamName {
         int version = getVersion(split, streamVersion);
         return new StreamName(name, version);
     }
+
+    public static StreamName from(EventRecord eventRecord) {
+        return new StreamName(eventRecord.stream, eventRecord.version);
+    }
+
+    public static long hash(String streamName) {
+        return hasher.hash(streamName);
+    }
+
 
     private static String validateStreamName(String[] split, String original) {
         String streamName = split[0];
