@@ -62,7 +62,7 @@ public class TableIndex implements Closeable {
 
     public TableIndex(File rootDirectory, Function<Long, StreamMetadata> streamSupplier, Consumer<FlushInfo> indexFlushListener, int flushThreshold, int maxWriteQueueSize, boolean useCompression) {
         this.maxWriteQueueSize = maxWriteQueueSize;
-        this.diskIndex = new IndexAppender(rootDirectory, streamSupplier, flushThreshold * IndexEntry.BYTES, flushThreshold, useCompression);
+        this.diskIndex = new IndexAppender(rootDirectory, streamSupplier, flushThreshold, useCompression);
         this.flushThreshold = flushThreshold;
         this.indexFlushListener = indexFlushListener;
         this.writeQueue = new CopyOnWriteArrayList<>();

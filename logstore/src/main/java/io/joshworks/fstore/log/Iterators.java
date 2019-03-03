@@ -115,10 +115,6 @@ public class Iterators {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
     }
 
-    public static <T> Stream<T> stream(Iterator<T> iterator) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
-    }
-
     private static class EmptyIterator<T> implements LogIterator<T> {
 
         @Override

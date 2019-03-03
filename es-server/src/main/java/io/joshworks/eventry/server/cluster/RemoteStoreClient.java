@@ -7,10 +7,6 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.projections.Projection;
-import io.joshworks.eventry.projections.State;
-import io.joshworks.eventry.projections.result.Metrics;
-import io.joshworks.eventry.projections.result.TaskStatus;
 import io.joshworks.eventry.server.cluster.client.ClusterClient;
 import io.joshworks.eventry.server.cluster.messages.Append;
 import io.joshworks.eventry.server.cluster.messages.AppendSuccess;
@@ -25,7 +21,6 @@ import io.joshworks.fstore.log.LogIterator;
 import org.jgroups.Address;
 
 import java.util.ArrayDeque;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -49,11 +44,6 @@ public class RemoteStoreClient implements IEventStore {
     @Override
     public void compact() {
 
-    }
-
-    @Override
-    public State query(Set<String> streams, State state, String script) {
-        return null;
     }
 
     @Override
@@ -112,66 +102,6 @@ public class RemoteStoreClient implements IEventStore {
     public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
         IteratorCreated it = client.send(address, new FromAll(10000, 20, partitionId, linkToPolicy, systemEventPolicy, lastEvent)).as(IteratorCreated::new);
         return new RemoteStoreClientIterator(client, address, it.iteratorId);
-    }
-
-    @Override
-    public Collection<Projection> projections() {
-        return null;
-    }
-
-    @Override
-    public Projection projection(String name) {
-        return null;
-    }
-
-    @Override
-    public Projection createProjection(String script) {
-        return null;
-    }
-
-    @Override
-    public Projection updateProjection(String name, String script) {
-        return null;
-    }
-
-    @Override
-    public void deleteProjection(String name) {
-
-    }
-
-    @Override
-    public void runProjection(String name) {
-
-    }
-
-    @Override
-    public void resetProjection(String name) {
-
-    }
-
-    @Override
-    public void stopProjectionExecution(String name) {
-
-    }
-
-    @Override
-    public void disableProjection(String name) {
-
-    }
-
-    @Override
-    public void enableProjection(String name) {
-
-    }
-
-    @Override
-    public Map<String, TaskStatus> projectionExecutionStatus(String name) {
-        return null;
-    }
-
-    @Override
-    public Collection<Metrics> projectionExecutionStatuses() {
-        return null;
     }
 
     @Override
