@@ -35,7 +35,7 @@ public class Server {
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
         SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store, broadcast);
         StreamEndpoint streams = new StreamEndpoint(store);
-        ProjectionsEndpoint projections = new ProjectionsEndpoint(store);
+//        ProjectionsEndpoint projections = new ProjectionsEndpoint(store);
 
 
         Parsers.register(MediaType.valueOf(JAVASCRIPT_MIME), new PlainTextParser());
@@ -53,23 +53,23 @@ public class Server {
             });
         });
 
-        group("/projections", () -> {
-            get(projections::getAll);
-            post(projections::create, consumes(JAVASCRIPT_MIME));
-            post("AD-HOC-QUERY-TODO", projections::create); //TODO
-            group("{name}", () -> {
-                put(projections::update, consumes(JAVASCRIPT_MIME));
-                get(projections::get);
-                delete(projections::delete);
-                get("script", projections::getScript, produces(JAVASCRIPT_MIME));
-                post("stop", projections::stop);
-                post("start", projections::run);
-                post("reset", projections::reset);
-                post("disable", projections::disable);
-                post("enable", projections::enable);
-                get("status", projections::executionStatus);
-            });
-        });
+//        group("/projections", () -> {
+//            get(projections::getAll);
+//            post(projections::create, consumes(JAVASCRIPT_MIME));
+//            post("AD-HOC-QUERY-TODO", projections::create); //TODO
+//            group("{name}", () -> {
+//                put(projections::update, consumes(JAVASCRIPT_MIME));
+//                get(projections::get);
+//                delete(projections::delete);
+//                get("script", projections::getScript, produces(JAVASCRIPT_MIME));
+//                post("stop", projections::stop);
+//                post("start", projections::run);
+//                post("reset", projections::reset);
+//                post("disable", projections::disable);
+//                post("enable", projections::enable);
+//                get("status", projections::executionStatus);
+//            });
+//        });
 
         group("/push", () -> sse(subscriptions.newPushHandler()));
 
