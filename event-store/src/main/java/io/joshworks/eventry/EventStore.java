@@ -5,7 +5,9 @@ import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
 import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.log.EventLog;
@@ -34,7 +36,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -250,15 +251,12 @@ public class EventStore implements IEventStore {
     public EventLogIterator fromStream(StreamName stream) {
         requireNonNull(stream, "Stream must be provided");
         int version = stream.version();
-        String name = stream.name();
         long hash = stream.hash();
 
         return streams.get(hash).map(metadata -> {
-            int startVersion = version == NO_VERSION ? Range.START_VERSION : version;
-            int finalVersion = metadata.truncated() && startVersion < metadata.truncateBefore ? metadata.truncateBefore : startVersion;
-            StreamName start = StreamName.of(name, finalVersion - 1);
+            int finalVersion = metadata.truncated() && version < metadata.truncateBefore ? metadata.truncateBefore : version;
 
-            LogIterator<IndexEntry> indexIterator = index.indexedIterator(Map.of(start.hash(), start.version()));
+            LogIterator<IndexEntry> indexIterator = index.indexedIterator(Checkpoint.of(hash, finalVersion));
             indexIterator = withMaxCountFilter(hash, indexIterator);
             IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
             EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(hash), indexedLogIterator);
@@ -269,27 +267,23 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStreams(String streamPattern) {
-        Set<String> eventStreams = streams.streamMatching(streamPattern);
+    public EventLogIterator fromStreams(String streamPattern, boolean ordered) {
+        Set<String> eventStreams = streams.match(streamPattern);
         if (eventStreams.isEmpty()) {
             return EventLogIterator.empty();
         }
-        return fromStreams(eventStreams.stream().map(StreamName::parse).collect(Collectors.toSet()));
+        return fromStreams(eventStreams.stream().map(StreamName::parse).collect(Collectors.toSet()), ordered);
     }
 
     @Override
-    public EventLogIterator fromStreams(Set<StreamName> streamNames) {
+    public EventLogIterator fromStreams(Set<StreamName> streamNames, boolean ordered) {
         if (streamNames.size() == 1) {
             return fromStream(streamNames.iterator().next());
         }
 
-        Map<Long, Integer> streamVersions = streamNames.stream()
-                .filter(sn -> StringUtils.nonBlank(sn.name()))
-                .collect(Collectors.toMap(StreamName::hash, StreamName::version));
+        Set<Long> hashes = streamNames.stream().map(StreamName::hash).collect(Collectors.toSet());
 
-        Set<Long> hashes = new HashSet<>(streamVersions.keySet());
-
-        TableIndex.IndexIterator indexIterator = index.indexedIterator(streamVersions);
+        IndexIterator indexIterator = index.indexedIterator(Checkpoint.from(streamNames), ordered);
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
         EventLogIterator ageFilterIterator = withMaxAgeFilter(hashes, indexedLogIterator);
         return new LinkToResolveIterator(ageFilterIterator, this::resolve);

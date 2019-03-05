@@ -10,7 +10,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;

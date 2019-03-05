@@ -100,7 +100,7 @@ public class Streams implements Closeable {
 
     //Only supports 'startingWith' wildcard
     //EX: users-*
-    public Set<String> streamMatching(String value) {
+    public Set<String> match(String value) {
         if (value == null) {
             return new HashSet<>();
         }

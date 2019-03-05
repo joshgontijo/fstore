@@ -4,8 +4,9 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.CloseableIterator;
-import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.lsmtree.log.Record;
 import io.joshworks.fstore.lsmtree.log.TransactionLog;
 import io.joshworks.fstore.lsmtree.mem.MemTable;
@@ -126,7 +127,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     private static class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
 
-        private final List<Iterators.PeekingIterator<Entry<K, V>>> segments;
+        private final List<PeekingIterator<Entry<K, V>>> segments;
 
         private LsmTreeIterator(List<LogIterator<Entry<K, V>>> segmentsIterators, Collection<Entry<K, V>> memItems) {
             LogIterator<Entry<K, V>> memIterator = Iterators.of(memItems);
@@ -153,9 +154,9 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
 
         private void removeSegmentIfCompleted() {
-            Iterator<Iterators.PeekingIterator<Entry<K, V>>> itit = segments.iterator();
+            Iterator<PeekingIterator<Entry<K, V>>> itit = segments.iterator();
             while (itit.hasNext()) {
-                Iterators.PeekingIterator<Entry<K, V>> seg = itit.next();
+                PeekingIterator<Entry<K, V>> seg = itit.next();
                 if (!seg.hasNext()) {
                     IOUtils.closeQuietly(seg);
                     itit.remove();
@@ -165,7 +166,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
         @Override
         public void close() throws IOException {
-            for (Iterators.PeekingIterator<Entry<K, V>> availableSegment : segments) {
+            for (PeekingIterator<Entry<K, V>> availableSegment : segments) {
                 availableSegment.close();
             }
         }
@@ -175,10 +176,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return !segments.isEmpty();
         }
 
-        private Entry<K, V> getNextEntry(List<Iterators.PeekingIterator<Entry<K, V>>> segmentIterators) {
+        private Entry<K, V> getNextEntry(List<PeekingIterator<Entry<K, V>>> segmentIterators) {
             if (!segmentIterators.isEmpty()) {
-                Iterators.PeekingIterator<Entry<K, V>> prev = null;
-                for (Iterators.PeekingIterator<Entry<K, V>> curr : segmentIterators) {
+                PeekingIterator<Entry<K, V>> prev = null;
+                for (PeekingIterator<Entry<K, V>> curr : segmentIterators) {
                     if (!curr.hasNext()) {
                         continue; //will be removed afterwards
                     }

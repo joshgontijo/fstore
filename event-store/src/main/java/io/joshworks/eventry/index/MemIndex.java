@@ -2,7 +2,7 @@ package io.joshworks.eventry.index;
 
 
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 
 import java.util.ArrayList;

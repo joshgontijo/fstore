@@ -7,6 +7,8 @@ import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
 
+import java.util.Objects;
+
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 
 public class StreamName {
@@ -104,6 +106,20 @@ public class StreamName {
             return stream;
         }
         return stream + STREAM_VERSION_SEPARATOR + version;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StreamName that = (StreamName) o;
+        return version == that.version &&
+                Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, version);
     }
 
     @Override

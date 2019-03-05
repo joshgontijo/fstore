@@ -9,7 +9,7 @@ import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
