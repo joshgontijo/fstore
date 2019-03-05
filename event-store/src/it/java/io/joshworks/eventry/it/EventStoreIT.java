@@ -290,7 +290,7 @@ public class EventStoreIT {
 
         List<StreamName> streams = Stream.of("test-0", "test-1", "test-10", "test-100", "test-1000").map(StreamName::parse).collect(Collectors.toList());
 
-        Iterator<EventRecord> eventStream = store.fromStreams(new HashSet<>(streams));
+        Iterator<EventRecord> eventStream = store.fromStreams(new HashSet<>(streams), true);
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -324,7 +324,7 @@ public class EventStoreIT {
         store.append(EventRecord.create(stream1, "test", "body1"));
         store.append(EventRecord.create(stream2, "test", "body2"));
 
-        try (var it = store.fromStreams(Set.of(StreamName.parse(stream1), StreamName.parse(stream2)))) {
+        try (var it = store.fromStreams(Set.of(StreamName.parse(stream1), StreamName.parse(stream2)), true)) {
             assertTrue(it.hasNext());
             assertEquals(0, it.next().version);
 
@@ -365,7 +365,7 @@ public class EventStoreIT {
         }
 
         StreamName eventToQuery = StreamName.parse("test-1");
-        Iterator<EventRecord> eventStream = store.fromStreams(Set.of(eventToQuery));
+        Iterator<EventRecord> eventStream = store.fromStreams(Set.of(eventToQuery), true);
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -490,7 +490,7 @@ public class EventStoreIT {
             store.append(EventRecord.create("someOtherStream", String.valueOf("type"), "body-" + version));
         }
 
-        Iterator<EventRecord> eventStream = store.fromStreams(streamPrefix + "*");
+        Iterator<EventRecord> eventStream = store.fromStreams(streamPrefix + "*", true);
 
         assertTrue(eventStream.hasNext());
 

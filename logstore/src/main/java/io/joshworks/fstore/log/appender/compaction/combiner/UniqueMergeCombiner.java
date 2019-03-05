@@ -1,7 +1,8 @@
 package io.joshworks.fstore.log.appender.compaction.combiner;
 
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.iterators.Iterators;
+import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.log.segment.Log;
 
 import java.util.ArrayList;
@@ -16,14 +17,14 @@ import java.util.List;
 public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<T> {
 
     @Override
-    public void mergeItems(List<Iterators.PeekingIterator<T>> items, Log<T> output) {
+    public void mergeItems(List<PeekingIterator<T>> items, Log<T> output) {
 
         while (!items.isEmpty()) {
-            List<Iterators.PeekingIterator<T>> segmentIterators = new ArrayList<>();
+            List<PeekingIterator<T>> segmentIterators = new ArrayList<>();
             //reversed guarantees that the most recent data is kept when duplicate keys are found
-            Iterator<Iterators.PeekingIterator<T>> itit = Iterators.reversed(items);
+            Iterator<PeekingIterator<T>> itit = Iterators.reversed(items);
             while (itit.hasNext()) {
-                Iterators.PeekingIterator<T> seg = itit.next();
+                PeekingIterator<T> seg = itit.next();
                 if (!seg.hasNext()) {
                     itit.remove();
                     continue;
@@ -41,12 +42,12 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
         }
     }
 
-    private T getNextEntry(List<Iterators.PeekingIterator<T>> segmentIterators) {
+    private T getNextEntry(List<PeekingIterator<T>> segmentIterators) {
         if (segmentIterators.isEmpty()) {
             return null;
         }
-        Iterators.PeekingIterator<T> prev = null;
-        for (Iterators.PeekingIterator<T> curr : segmentIterators) {
+        PeekingIterator<T> prev = null;
+        for (PeekingIterator<T> curr : segmentIterators) {
             if (prev == null) {
                 prev = curr;
                 continue;

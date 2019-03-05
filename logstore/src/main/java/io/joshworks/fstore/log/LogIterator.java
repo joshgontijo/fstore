@@ -1,5 +1,7 @@
 package io.joshworks.fstore.log;
 
+import io.joshworks.fstore.log.iterators.Iterators;
+
 import java.util.stream.Stream;
 
 public interface LogIterator<T> extends CloseableIterator<T>, IPosition {

@@ -1,7 +1,7 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;

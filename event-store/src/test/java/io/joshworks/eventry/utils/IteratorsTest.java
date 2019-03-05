@@ -1,6 +1,6 @@
 package io.joshworks.eventry.utils;
 
-import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import org.junit.Test;
 

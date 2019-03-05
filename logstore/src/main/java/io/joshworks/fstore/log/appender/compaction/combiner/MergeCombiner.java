@@ -2,8 +2,9 @@ package io.joshworks.fstore.log.appender.compaction.combiner;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.log.segment.Log;
 
 import java.util.ArrayList;
@@ -15,7 +16,7 @@ public abstract class MergeCombiner<T> implements SegmentCombiner<T> {
     @Override
     public void merge(List<? extends Log<T>> segments, Log<T> output) {
 
-        List<Iterators.PeekingIterator<T>> iterators = segments.stream()
+        List<PeekingIterator<T>> iterators = segments.stream()
                 .map(s -> s.iterator(Direction.FORWARD))
                 .map(Iterators::peekingIterator)
                 .collect(Collectors.toList());
@@ -27,5 +28,5 @@ public abstract class MergeCombiner<T> implements SegmentCombiner<T> {
         }
     }
 
-    public abstract void mergeItems(List<Iterators.PeekingIterator<T>> items, Log<T> output);
+    public abstract void mergeItems(List<PeekingIterator<T>> items, Log<T> output);
 }
