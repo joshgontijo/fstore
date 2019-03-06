@@ -1,22 +1,15 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.index.disk.IndexAppender;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.LogIterator;
 
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class SingleIndexIterator implements IndexIterator {
@@ -66,7 +59,7 @@ public class SingleIndexIterator implements IndexIterator {
         }
         int nextVersion = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
         List<IndexEntry> fromDisk = diskIndex.getBlockEntries(stream, nextVersion);
-        List<IndexEntry> filtered = filtering(fromDisk);
+        List<IndexEntry> filtered = filter(fromDisk);
         if (!filtered.isEmpty()) {
             addToBuffer(filtered);
             return true;
@@ -74,9 +67,9 @@ public class SingleIndexIterator implements IndexIterator {
         Iterator<MemIndex> writeQueueIt = memIndex.apply(direction);
         while (writeQueueIt.hasNext()) {
             MemIndex index = writeQueueIt.next();
-            List<IndexEntry> memEntries = fromMem(index, stream, nextVersion);
-            if (!memEntries.isEmpty()) {
-                addToBuffer(memEntries);
+            List<IndexEntry> memFiltered = fromMem(index, stream, nextVersion);
+            if (!memFiltered.isEmpty()) {
+                addToBuffer(memFiltered);
                 return true;
             }
         }
@@ -93,14 +86,11 @@ public class SingleIndexIterator implements IndexIterator {
 
     private List<IndexEntry> fromMem(MemIndex index, long stream, int nextVersion) {
         List<IndexEntry> fromMemory = index.indexedIterator(Direction.FORWARD, Range.of(stream, nextVersion)).stream().collect(Collectors.toList());
-        return filtering(fromMemory);
+        return filter(fromMemory);
     }
 
-    private List<IndexEntry> filtering(List<IndexEntry> original) {
+    private List<IndexEntry> filter(List<IndexEntry> original) {
         return original.stream().filter(ie -> {
-//            if(ie.version == 2499999) {
-//                System.out.println();
-//            }
             if (ie.stream != stream) {
                 return false;
             }

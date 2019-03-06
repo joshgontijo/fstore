@@ -16,7 +16,6 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -45,7 +44,7 @@ import static org.junit.Assert.fail;
 public class EventStoreIT {
 
     private File directory;
-    private IEventStore store;
+    private EventStore store;
 
     @Before
     public void setUp() {
@@ -275,7 +274,6 @@ public class EventStoreIT {
         }
     }
 
-    //TODO this is no longer the case, each stream should independent, and no ordering is guaranteed across multiple streams
     @Test
     public void fromStreams_return_all_streams_based_on_the_position() {
         //given

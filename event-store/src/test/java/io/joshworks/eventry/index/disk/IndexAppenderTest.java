@@ -4,6 +4,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -28,7 +29,7 @@ public class IndexAppenderTest {
     @Before
     public void setUp() {
         location = FileUtils.testFolder();
-        appender = new IndexAppender(location, e -> emptyStreamMeta(), 10000, true);
+        appender = new IndexAppender(location, e -> emptyStreamMeta(), 10000, new SnappyCodec());
         memIndex = new MemIndex();
     }
 
@@ -61,7 +62,7 @@ public class IndexAppenderTest {
         appender.writeToDisk(memIndex);
         appender.close();
 
-        appender = new IndexAppender(location, e -> null, 10000, true);
+        appender = new IndexAppender(location, e -> null, 10000, new SnappyCodec());
         long entries = appender.entries();
 
         assertEquals(3, entries);

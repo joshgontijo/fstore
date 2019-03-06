@@ -8,7 +8,6 @@ import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
-import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
@@ -21,6 +20,7 @@ import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.writer.EventWriter;
 import io.joshworks.eventry.writer.Writer;
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
@@ -30,6 +30,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.segment.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,9 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 import static java.util.Objects.requireNonNull;
@@ -54,6 +55,7 @@ public class EventStore implements IEventStore {
     //TODO expose
     private static final int LRU_CACHE_SIZE = 1000000;
     private static final int WRITE_QUEUE_SIZE = 1000000;
+    private static final int INDEX_FLUSH_THRESHOLD = 50000;
 
 
     private final TableIndex index;
@@ -63,7 +65,7 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
-        this.index = new TableIndex(rootDir, this::fetchMetadata, this::onIndexWrite, 50000, 5, true);
+        this.index = new TableIndex(rootDir, this::fetchMetadata, this::onIndexFlushed, INDEX_FLUSH_THRESHOLD, 5, new SnappyCodec());
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
@@ -77,8 +79,8 @@ public class EventStore implements IEventStore {
 
         this.eventWriter = new EventWriter(streams, eventLog, index, WRITE_QUEUE_SIZE);
         try {
+            this.initializeSystemStreams();
             this.loadIndex();
-            this.initializeStreamsStreams();
             logger.info("Started event store in {}ms", (System.currentTimeMillis() - start));
         } catch (Exception e) {
             IOUtils.closeQuietly(index);
@@ -89,7 +91,7 @@ public class EventStore implements IEventStore {
         }
     }
 
-    private void initializeStreamsStreams() {
+    private void initializeSystemStreams() {
         Optional<IndexEntry> entry = index.get(streams.hashOf(SystemStreams.STREAMS), 0);
         if (entry.isPresent()) {
             logger.info("System stream already initialized");
@@ -97,28 +99,18 @@ public class EventStore implements IEventStore {
         }
 
         logger.info("Initializing system streams");
+        StreamMetadata metadata = streams.create(SystemStreams.STREAMS);
         Future<Void> task1 = eventWriter.queue(writer -> {
-            StreamMetadata metadata = streams.create(SystemStreams.STREAMS);
-            EventRecord record = StreamCreated.create(metadata);
-            writer.append(record, NO_VERSION, metadata);
-        });
+            writer.append(StreamCreated.create(metadata), NO_VERSION, metadata);
 
-        Future<Void> task2 = eventWriter.queue(writer -> {
-            StreamMetadata metadata = streams.create(SystemStreams.PROJECTIONS);
-            EventRecord record = StreamCreated.create(metadata);
-            writer.append(record, NO_VERSION, metadata);
-        });
+            StreamMetadata projectionsMetadata = streams.create(SystemStreams.PROJECTIONS);
+            writer.append(StreamCreated.create(projectionsMetadata), NO_VERSION, metadata);
 
-        Future<Void> task3 = eventWriter.queue(writer -> {
-            StreamMetadata metadata = streams.create(SystemStreams.INDEX);
-            EventRecord record = StreamCreated.create(metadata);
-            writer.append(record, NO_VERSION, metadata);
+            StreamMetadata indexMetadata = streams.create(SystemStreams.INDEX);
+            writer.append(StreamCreated.create(indexMetadata), NO_VERSION, metadata);
         });
 
         Threads.awaitFor(task1);
-        Threads.awaitFor(task2);
-        Threads.awaitFor(task3);
-
     }
 
     public static EventStore open(File rootDir) {
@@ -139,15 +131,23 @@ public class EventStore implements IEventStore {
         int loaded = 0;
         long p = 0;
 
-        Map<EventRecord, Long> backwardsIndex = new HashMap<>(500000);
-        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
+        long lastLogPosition;
+        try (Stream<EventRecord> stream = fromStream(StreamName.of(SystemStreams.INDEX)).stream()) {
+            lastLogPosition = stream.filter(ev -> IndexFlushed.TYPE.equals(ev.type))
+                    .max(Comparator.comparingInt(ev -> ev.version))
+                    .map(IndexFlushed::from)
+                    .map(indexFlushed -> indexFlushed.logPosition)
+                    .orElse(Log.START);
+        }
 
+        logger.info("Loading index from position {}", lastLogPosition);
+
+        Map<EventRecord, Long> backwardsIndex = new HashMap<>();
+        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.FORWARD, lastLogPosition)) {
             while (iterator.hasNext()) {
+                long logPos = iterator.position();
                 EventRecord next = iterator.next();
-                if (IndexFlushed.TYPE.equals(next.type)) {
-                    break;
-                }
-                backwardsIndex.put(next, iterator.position());
+                backwardsIndex.put(next, logPos);
                 if (++loaded % 50000 == 0) {
                     logger.info("Loaded {} index entries", loaded);
                 }
@@ -156,7 +156,8 @@ public class EventStore implements IEventStore {
             backwardsIndex.entrySet().stream().sorted(Comparator.comparingLong(Map.Entry::getValue)).forEach(e -> {
                 EventRecord entry = e.getKey();
                 long position = e.getValue();
-                index.add(entry.streamName(), position);
+                StreamName streamName = entry.streamName();
+                index.add(streamName.hash(), streamName.version(), position);
             });
 
         } catch (Exception e) {
@@ -199,7 +200,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
-        Future<StreamMetadata> future = eventWriter.queue(writer -> {
+        Future<StreamMetadata> task = eventWriter.queue(writer -> {
             StreamMetadata created = streams.create(stream, maxAge, maxCount, permissions, metadata);
             if (created == null) {
                 throw new IllegalStateException("Stream '" + stream + "' already exist");
@@ -210,11 +211,7 @@ public class EventStore implements IEventStore {
             return created;
         });
 
-        try {
-            return future.get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+        return Threads.awaitFor(task);
 
     }
 
@@ -353,8 +350,8 @@ public class EventStore implements IEventStore {
         return resolve(record);
     }
 
-    //get WITHOUT RESOLVING
-    public EventRecord getInternal(StreamName stream) {
+    //GET WITHOUT RESOLVING
+    private EventRecord getInternal(StreamName stream) {
         if (!stream.hasVersion()) {
             throw new IllegalArgumentException("Version must be greater than " + NO_VERSION);
         }
@@ -393,9 +390,9 @@ public class EventStore implements IEventStore {
         }
     }
 
-    private void onIndexWrite(TableIndex.FlushInfo flushInfo) {
+    private void onIndexFlushed(TableIndex.FlushInfo flushInfo) {
         eventWriter.queue(writer -> {
-            var indexFlushedEvent = IndexFlushed.create(flushInfo.timeTaken, flushInfo.entries);
+            var indexFlushedEvent = IndexFlushed.create(flushInfo.logPosition, flushInfo.timeTaken, flushInfo.entries);
             StreamMetadata metadata = getOrCreateStream(writer, indexFlushedEvent.stream);
             writer.append(indexFlushedEvent, NO_VERSION, metadata);
         });
