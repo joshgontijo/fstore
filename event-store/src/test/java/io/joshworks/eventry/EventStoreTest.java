@@ -1,5 +1,6 @@
 package io.joshworks.eventry;
 
+import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -12,8 +13,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -32,6 +35,38 @@ public class EventStoreTest {
     public void tearDown() {
         store.close();
         FileUtils.tryDelete(directory);
+    }
+
+    @Test
+    public void system_events_are_loaded_on_reopen() {
+
+        store.close();
+        store = EventStore.open(directory);
+
+        EventRecord record = store.get(StreamName.of(SystemStreams.STREAMS, 0));
+        assertNotNull(record);
+        assertEquals(0, record.version);
+        assertEquals(SystemStreams.STREAMS, record.stream);
+    }
+
+    @Test
+    public void fromStream_returns_all_items_when_store_is_reopened() {
+
+        //given
+        int size = 10000;
+        String streamPrefix = "test-stream-";
+        for (int i = 0; i < size; i++) {
+            store.append(EventRecord.create(streamPrefix + i, "" + i, "body-" + i));
+        }
+
+        store.close();
+
+        try (IEventStore store = EventStore.open(directory)) {
+            for (int i = 0; i < size; i++) {
+                Stream<EventRecord> events = store.fromStream(StreamName.parse(streamPrefix + i)).stream();
+                assertEquals("Failed on iteration " + i, 1, events.count());
+            }
+        }
     }
 
     @Test

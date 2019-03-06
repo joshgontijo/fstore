@@ -171,38 +171,6 @@ public class EventStoreIT {
 
 
     @Test
-    public void system_events_are_loaded_on_reopen() {
-
-        store.close();
-        store = EventStore.open(directory);
-
-        EventRecord record = store.get(StreamName.of(SystemStreams.STREAMS, 0));
-        assertNotNull(record);
-        assertEquals(0, record.version);
-        assertEquals(SystemStreams.STREAMS, record.stream);
-    }
-
-    @Test
-    public void fromStream_returns_all_items_when_store_is_reopened() {
-
-        //given
-        int size = 10000;
-        String streamPrefix = "test-stream-";
-        for (int i = 0; i < size; i++) {
-            store.append(EventRecord.create(streamPrefix + i, "" + i, "body-" + i));
-        }
-
-        store.close();
-
-        try (IEventStore store = EventStore.open(directory)) {
-            for (int i = 0; i < size; i++) {
-                Stream<EventRecord> events = store.fromStream(StreamName.parse(streamPrefix + i)).stream();
-                assertEquals("Failed on iteration " + i, 1, events.count());
-            }
-        }
-    }
-
-    @Test
     public void fromAll_returns_all_items_when_store_is_reopened() {
 
         //given
