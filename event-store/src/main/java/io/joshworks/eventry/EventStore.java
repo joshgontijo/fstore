@@ -92,6 +92,7 @@ public class EventStore implements IEventStore {
     }
 
     private void initializeSystemStreams() {
+        //TODO use streams to get the Stream instead, no need to use index here... fix system_events_are_loaded_on_reopen firs
         Optional<IndexEntry> entry = index.get(streams.hashOf(SystemStreams.STREAMS), 0);
         if (entry.isPresent()) {
             logger.info("System stream already initialized");

@@ -31,10 +31,7 @@ import java.util.stream.Collectors;
 public class TableIndex implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
-    public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
-    public static final boolean DEFAULT_USE_COMPRESSION = false;
-    public static final int DEFAULT_WRITE_QUEUE_SIZE = 5;
-    private final int flushThreshold; //TODO externalize
+    private final int flushThreshold;
 
     private final IndexAppender diskIndex;
     private final BlockingQueue<FlushTask> writeQueue;
