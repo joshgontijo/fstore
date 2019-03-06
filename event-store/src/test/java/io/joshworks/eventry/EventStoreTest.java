@@ -193,13 +193,13 @@ public class EventStoreTest {
     public void fromStream_returns_items_after_truncated_version() {
 
         int size = 1000;
-        int truncateBeforeVersion = 400;
+        int truncateFrom = 399;
         String stream = "stream-123";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "test", "body"));
         }
 
-        store.truncate(stream, truncateBeforeVersion);
+        store.truncate(stream, truncateFrom);
 
         List<EventRecord> events = store.fromStream(StreamName.parse(stream)).stream().collect(Collectors.toList());
         assertEquals(600, events.size());

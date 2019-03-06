@@ -26,7 +26,7 @@ public class StreamMetadata {
     public final long maxAge;
     public final int maxCount;
 
-    public final int truncateBefore;
+    public final int truncated;
 
     public final int state;
 
@@ -34,13 +34,13 @@ public class StreamMetadata {
     final Map<String, Integer> permissions;
     final Map<String, String> metadata;
 
-    public StreamMetadata(String name, long hash, long created, long maxAge, int maxCount, int truncateBefore, Map<String, Integer> permissions, Map<String, String> metadata, int state) {
+    public StreamMetadata(String name, long hash, long created, long maxAge, int maxCount, int truncated, Map<String, Integer> permissions, Map<String, String> metadata, int state) {
         this.name = name;
         this.hash = hash;
         this.created = created;
         this.maxAge = maxAge;
         this.maxCount = maxCount;
-        this.truncateBefore = truncateBefore;
+        this.truncated = truncated;
         this.permissions = permissions;
         this.metadata = metadata;
         this.state = state;
@@ -68,7 +68,7 @@ public class StreamMetadata {
     }
 
     public boolean truncated() {
-        return truncateBefore > 0;
+        return truncated > 0;
     }
 
     public String metadata(String key) {
@@ -87,7 +87,7 @@ public class StreamMetadata {
                 ", hash=" + hash +
                 ", created=" + created +
                 ", maxAge=" + maxAge +
-                ", truncateBefore=" + truncateBefore +
+                ", truncateBefore=" + truncated +
                 ", maxCount=" + maxCount +
                 ", state=" + state +
                 ", permissions=" + permissions +

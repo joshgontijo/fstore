@@ -16,6 +16,7 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -257,6 +258,7 @@ public class EventStoreIT {
         }
     }
 
+    //FIXME -----------------------------------------------------
     @Test
     public void fromStreams_return_all_streams_based_on_the_position() {
         //given
@@ -612,6 +614,7 @@ public class EventStoreIT {
             store.append(EventRecord.create(stream, "test", "body"));
         }
 
+        Threads.sleep(20000);
         store.close();
 
         store = EventStore.open(directory);

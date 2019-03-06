@@ -116,7 +116,7 @@ public class StreamsTest {
         streams.truncate(metadata, tbVersion);
 
         StreamMetadata found = streams.get(stream).get();
-        assertEquals(found.truncateBefore, tbVersion);
+        assertEquals(found.truncated, tbVersion);
     }
 
     private static StreamMetadata metadata(long hash) {

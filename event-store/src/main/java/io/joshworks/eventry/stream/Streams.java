@@ -167,17 +167,17 @@ public class Streams implements Closeable {
         }
     }
 
-    public void truncate(StreamMetadata metadata, int version) {
+    public void truncate(StreamMetadata metadata, int fromVersion) {
         int currentVersion = version(metadata.hash);
         if (currentVersion <= NO_VERSION) {
             throw new IllegalArgumentException("Version must be greater or equals zero");
         }
         int streamVersion = version(metadata.hash);
-        if (version > streamVersion) {
-            throw new IllegalArgumentException("Truncate version: " + version + " must be less or equals stream version: " + streamVersion);
+        if (fromVersion > streamVersion) {
+            throw new IllegalArgumentException("Truncate version: " + fromVersion + " must be less or equals stream version: " + streamVersion);
         }
 
-        StreamMetadata streamMeta = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, version, metadata.permissions, metadata.metadata, metadata.state);
+        StreamMetadata streamMeta = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, fromVersion, metadata.permissions, metadata.metadata, metadata.state);
         streamStore.update(streamMeta);
     }
 }
