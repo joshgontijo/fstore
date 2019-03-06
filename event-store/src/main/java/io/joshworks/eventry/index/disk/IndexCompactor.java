@@ -28,6 +28,6 @@ public class IndexCompactor extends UniqueMergeCombiner<IndexEntry> {
     @Override
     public boolean filter(IndexEntry entry) {
         StreamMetadata metadata = streamSupplier.apply(entry.stream);
-        return !metadata.truncated() || metadata.truncateBefore <= entry.version;
+        return !metadata.truncated() || metadata.truncated <= entry.version;
     }
 }

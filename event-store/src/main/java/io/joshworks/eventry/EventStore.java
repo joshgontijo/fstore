@@ -79,8 +79,8 @@ public class EventStore implements IEventStore {
 
         this.eventWriter = new EventWriter(streams, eventLog, index, WRITE_QUEUE_SIZE);
         try {
-            this.initializeSystemStreams();
             this.loadIndex();
+            this.initializeSystemStreams();
             logger.info("Started event store in {}ms", (System.currentTimeMillis() - start));
         } catch (Exception e) {
             IOUtils.closeQuietly(index);
@@ -92,8 +92,7 @@ public class EventStore implements IEventStore {
     }
 
     private void initializeSystemStreams() {
-        //TODO use streams to get the Stream instead, no need to use index here... fix system_events_are_loaded_on_reopen firs
-        Optional<IndexEntry> entry = index.get(streams.hashOf(SystemStreams.STREAMS), 0);
+        Optional<StreamMetadata> entry = streams.get(streams.hashOf(SystemStreams.STREAMS));
         if (entry.isPresent()) {
             logger.info("System stream already initialized");
             return;
@@ -234,12 +233,14 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public void truncate(String stream, int version) {
+    public void truncate(String stream, int fromVersion) {
         Future<Void> op = eventWriter.queue(writer -> {
             StreamMetadata metadata = streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
-            streams.truncate(metadata, version);
-            EventRecord eventRecord = StreamTruncated.create(metadata.name, version);
-            writer.append(eventRecord, -1, metadata);
+            streams.truncate(metadata, fromVersion);
+            EventRecord eventRecord = StreamTruncated.create(metadata.name, fromVersion);
+
+            StreamMetadata streamsMetadata = streams.get(SystemStreams.STREAMS).get();
+            writer.append(eventRecord, -1, streamsMetadata);
         });
 
         Threads.awaitFor(op);
@@ -252,7 +253,7 @@ public class EventStore implements IEventStore {
         long hash = stream.hash();
 
         return streams.get(hash).map(metadata -> {
-            int finalVersion = metadata.truncated() && version < metadata.truncateBefore ? metadata.truncateBefore : version;
+            int finalVersion = metadata.truncated() && version < metadata.truncated ? metadata.truncated : version;
 
             LogIterator<IndexEntry> indexIterator = index.indexedIterator(Checkpoint.of(hash, finalVersion));
             indexIterator = withMaxCountFilter(hash, indexIterator);
