@@ -30,7 +30,10 @@ public class Writer {
         var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.body, event.metadata);
 
         long position = eventLog.append(record);
-        index.add(streamHash, version, position);
+
+        if (index.add(streamHash, version, position)) {
+            index.flushAsync(eventLog.position());
+        }
         return record;
     }
 }

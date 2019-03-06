@@ -49,6 +49,10 @@ public class StreamName {
         return version > NO_VERSION;
     }
 
+    public static StreamName of(String stream) {
+        return of(stream, NO_VERSION);
+    }
+
     public static StreamName of(String stream, int version) {
         StringUtils.requireNonBlank(stream);
         StreamName parsed = parse(stream);

@@ -12,18 +12,20 @@ public class IndexFlushed {
 
     private static final Serializer<IndexFlushed> serializer = JsonSerializer.of(IndexFlushed.class);
 
+    public final long logPosition;
     public final long timeTaken;
     public final int entries;
 
     public static final String TYPE = SYSTEM_PREFIX + "INDEX_FLUSHED";
 
-    private IndexFlushed(long timeTaken, int entries) {
+    private IndexFlushed(long logPosition, long timeTaken, int entries) {
+        this.logPosition = logPosition;
         this.timeTaken = timeTaken;
         this.entries = entries;
     }
 
-    public static EventRecord create(long timeTaken, int entries) {
-        var indexFlushed = new IndexFlushed(timeTaken, entries);
+    public static EventRecord create(long logPosition, long timeTaken, int entries) {
+        var indexFlushed = new IndexFlushed(logPosition, timeTaken, entries);
         var data = serializer.toBytes(indexFlushed);
         return EventRecord.create(SystemStreams.INDEX, TYPE, data.array());
     }

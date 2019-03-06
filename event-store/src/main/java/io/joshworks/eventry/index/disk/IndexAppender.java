@@ -29,6 +29,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static java.util.Objects.requireNonNull;
 
 public class IndexAppender implements Closeable {
 
@@ -36,8 +37,8 @@ public class IndexAppender implements Closeable {
     private static final String STORE_NAME = "index";
     private final LogAppender<IndexEntry> appender;
 
-    public IndexAppender(File rootDir, Function<Long, StreamMetadata> streamSupplier, int numElements, boolean useCompression) {
-        Codec codec = useCompression ? new SnappyCodec() : Codec.noCompression();
+    public IndexAppender(File rootDir, Function<Long, StreamMetadata> streamSupplier, int numElements, Codec codec) {
+        requireNonNull(codec, "Codec must be provided");
         File indexDirectory = new File(rootDir, INDEX_DIR);
         long segmentSize = numElements * IndexEntry.BYTES;
         this.appender = LogAppender.builder(indexDirectory, new IndexEntrySerializer())

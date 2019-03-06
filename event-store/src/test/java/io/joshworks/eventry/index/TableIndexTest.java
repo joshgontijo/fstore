@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -31,13 +32,12 @@ public class TableIndexTest {
     private TableIndex tableIndex;
     private File testDirectory;
     private static final int FLUSH_THRESHOLD = 1000000;
-    private static final boolean USE_COMPRESSION = true;
 
     @Before
     public void setUp() {
         testDirectory = FileUtils.testFolder();
         tableIndex = new TableIndex(testDirectory, e -> dummyMetadata(), fi -> {
-        }, FLUSH_THRESHOLD, 1, USE_COMPRESSION);
+        }, FLUSH_THRESHOLD, 1, new SnappyCodec());
     }
 
     @After
@@ -56,11 +56,11 @@ public class TableIndexTest {
         long stream = 1;
 
         tableIndex.add(stream, 0, 0);
-        tableIndex.flushAsync();
+        tableIndex.flush();
         tableIndex.add(stream, 1, 0);
-        tableIndex.flushAsync();
+        tableIndex.flush();
         tableIndex.add(stream, 2, 0);
-        tableIndex.flushAsync();
+        tableIndex.flush();
         tableIndex.add(stream, 3, 0); //memory
 
         LogIterator<IndexEntry> it = tableIndex.indexedIterator(Checkpoint.of(stream));
@@ -91,7 +91,7 @@ public class TableIndexTest {
         int version = 0;
         tableIndex.add(stream, version, 0);
 
-        tableIndex.flushAsync();
+        tableIndex.flush();
 
         Optional<IndexEntry> indexEntry = tableIndex.get(stream, version);
 
@@ -117,7 +117,7 @@ public class TableIndexTest {
         int version = 0;
         tableIndex.add(stream, version, 0);
 
-        tableIndex.flushAsync();
+        tableIndex.flush();
 
         int foundVersion = tableIndex.version(stream);
 
@@ -129,7 +129,7 @@ public class TableIndexTest {
         long stream = 1;
 
         tableIndex.add(stream, 0, 0);
-        tableIndex.flushAsync();
+        tableIndex.flush();
         tableIndex.add(stream, 1, 0);
 
         Stream<IndexEntry> dataStream = tableIndex.indexedIterator(Checkpoint.of(stream)).stream();
@@ -181,7 +181,7 @@ public class TableIndexTest {
         //given
         int streams = 100000;
         try (TableIndex index = new TableIndex(testDirectory, e -> null, fi -> {
-        }, 500000, 1, USE_COMPRESSION)) {
+        }, 500000, 1, new SnappyCodec())) {
 
             for (int i = 0; i < streams; i++) {
                 index.add(i, 1, 0);
@@ -290,7 +290,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        tableIndex.flushAsync();
+        tableIndex.flush();
 
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
 
@@ -313,7 +313,7 @@ public class TableIndexTest {
         for (int i = 0; i < entries; i++) {
             tableIndex.add(stream, i, 0);
         }
-        tableIndex.flushAsync();
+        tableIndex.flush();
 
         for (int i = entries; i < entries * 2; i++) {
             tableIndex.add(stream, i, 0);
@@ -357,7 +357,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        tableIndex.flushAsync();
+        tableIndex.flush();
 
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(someOtherStream))) {
             for (int i = 0; i < entries; i++) {
@@ -433,7 +433,7 @@ public class TableIndexTest {
         long stream2 = 456L;
 
         tableIndex.add(stream2, 0, 0);
-        tableIndex.flushAsync();
+        tableIndex.flush();
         tableIndex.add(stream2, 1, 0);
 
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(Set.of(stream1, stream2)))) {
@@ -461,7 +461,7 @@ public class TableIndexTest {
         assertEquals(stream, polled.stream);
         assertEquals(0, polled.version);
 
-        tableIndex.flushAsync();
+        tableIndex.flush();
 
         polled = iterator.next();
         assertEquals(stream, polled.stream);
@@ -481,7 +481,7 @@ public class TableIndexTest {
             assertEquals(0, polled.version);
 
             tableIndex.add(stream, 1, 0);
-            tableIndex.flushAsync();
+            tableIndex.flush();
 
             polled = iterator.next();
             assertEquals(stream, polled.stream);
