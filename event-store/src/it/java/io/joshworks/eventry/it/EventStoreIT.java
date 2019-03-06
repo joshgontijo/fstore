@@ -16,6 +16,7 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -37,6 +38,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -165,6 +167,19 @@ public class EventStoreIT {
     @Test
     public void insert_1000_streams_with_1000_version_each() {
         testWith(1000, 1000);
+    }
+
+
+    @Test
+    public void system_events_are_loaded_on_reopen() {
+
+        store.close();
+        store = EventStore.open(directory);
+
+        EventRecord record = store.get(StreamName.of(SystemStreams.STREAMS, 0));
+        assertNotNull(record);
+        assertEquals(0, record.version);
+        assertEquals(SystemStreams.STREAMS, record.stream);
     }
 
     @Test
@@ -579,7 +594,7 @@ public class EventStoreIT {
         //given
         String stream = "stream-1";
         //1 segment + in memory
-        int size = TableIndex.DEFAULT_FLUSH_THRESHOLD + (TableIndex.DEFAULT_FLUSH_THRESHOLD / 2);
+        int size = 2000000; //flushThreshold must be less than this value
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "type-1", "body-" + 1));
         }
@@ -605,16 +620,17 @@ public class EventStoreIT {
 
         //given
         String stream = "stream-1";
-        int size = TableIndex.DEFAULT_FLUSH_THRESHOLD + (TableIndex.DEFAULT_FLUSH_THRESHOLD / 2);
+        int size = 2000000; //flushThreshold must be less than this value
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "type-1", "body-" + 1));
         }
 
-        List<EventRecord> indexEvents = store.fromStream(StreamName.parse(SystemStreams.INDEX)).stream().collect(Collectors.toList());
-        assertEquals(1, indexEvents.size());
-        var record = indexEvents.get(0);
-        var indexFlushed = IndexFlushed.from(record);
-        assertEquals(TableIndex.DEFAULT_FLUSH_THRESHOLD, indexFlushed.entries);
+        EventLogIterator iterator = store.fromStream(StreamName.parse(SystemStreams.INDEX));
+        if(!Iterators.await(iterator, 1000, 10000)) {
+            fail("Did not receive any events");
+        }
+        List<EventRecord> indexEvents = iterator.stream().collect(Collectors.toList());
+        assertFalse(indexEvents.isEmpty());
     }
 
     @Test

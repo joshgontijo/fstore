@@ -31,15 +31,16 @@ public class Iterators {
         }
     }
 
-    public static void await(LogIterator<?> it, long pollMs, long maxTime) {
+    public static boolean await(LogIterator<?> it, long pollMs, long maxTime) {
         pollMs = Math.min(pollMs, maxTime);
         long start = System.currentTimeMillis();
         while(!it.hasNext()) {
             if(System.currentTimeMillis() - start > maxTime) {
-                throw new RuntimeException("Did not received any events");
+                return false;
             }
             Threads.sleep(pollMs);
         }
+        return true;
     }
 
     public static <T> LogIterator<T> of(Collection<T> original) {
