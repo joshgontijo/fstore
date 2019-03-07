@@ -1,5 +1,6 @@
 package io.joshworks.eventry.stream;
 
+import io.joshworks.eventry.tools.LogDump;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -91,7 +92,7 @@ public class StreamsTest {
     @Test
     public void streams_are_loaded_after_restarting() {
 
-        int numStreams = 1000;
+        int numStreams = 1000001;
         for (int i = 0; i < numStreams; i++) {
             streams.create(String.valueOf(i));
         }
@@ -101,7 +102,7 @@ public class StreamsTest {
 
         for (int i = 0; i < numStreams; i++) {
             Optional<StreamMetadata> streamInfo = streams.get(String.valueOf(i));
-            assertTrue(streamInfo.isPresent());
+            assertTrue("Failed on " + i, streamInfo.isPresent());
         }
     }
 

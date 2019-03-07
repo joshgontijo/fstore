@@ -60,7 +60,7 @@ public class FileUtils {
         return testFile(UUID.randomUUID().toString().substring(0, 8));
     }
 
-    private static File testFile(String name) {
+    public static File testFile(String name) {
         return new File(testFolder(), name);
     }
 

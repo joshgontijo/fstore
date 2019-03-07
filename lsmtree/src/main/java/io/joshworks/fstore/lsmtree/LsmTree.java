@@ -50,10 +50,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     public synchronized void put(K key, V value) {
         log.append(Record.add(key, value));
+        memTable.add(key, value);
         if (memTable.size() >= flushThreshold) {
             flushMemTable();
         }
-        memTable.add(key, value);
     }
 
     public synchronized V get(K key) {

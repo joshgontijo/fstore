@@ -47,6 +47,9 @@ public class EventStoreTest {
         assertNotNull(record);
         assertEquals(0, record.version);
         assertEquals(SystemStreams.STREAMS, record.stream);
+
+        List<EventRecord> stream = store.fromStream(StreamName.of(SystemStreams.STREAMS)).stream().collect(Collectors.toList());
+        assertEquals(3, stream.size());
     }
 
     @Test

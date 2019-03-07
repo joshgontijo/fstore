@@ -2,8 +2,8 @@ package io.joshworks.eventry.index;
 
 
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -19,13 +20,15 @@ import java.util.stream.Collectors;
 public class MemIndex {
 
     private AtomicInteger size = new AtomicInteger();
-    private final Map<Long, List<IndexEntry>> index = new TreeMap<>();
+    private final SortedMap<Long, List<IndexEntry>> index = new TreeMap<>();
 
     public synchronized void add(IndexEntry entry) {
         index.compute(entry.stream, (k, v) -> {
             if (v == null)
                 v = new ArrayList<>();
-            v.add(entry);
+            synchronized (v) {
+                v.add(entry);
+            }
             return v;
         });
         size.incrementAndGet();
@@ -77,7 +80,7 @@ public class MemIndex {
     }
 
     public LogIterator<IndexEntry> iterator() {
-        var copy = new HashSet<>(index.entrySet()); //iterator is a stateful operation
+        var copy = new HashSet<>(index.entrySet()); //iterator is a stateful operation here
         List<IndexEntry> ordered = copy.stream()
                 .map(Map.Entry::getValue)
                 .flatMap(Collection::stream)

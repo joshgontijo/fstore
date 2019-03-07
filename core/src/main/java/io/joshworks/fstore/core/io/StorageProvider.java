@@ -44,12 +44,12 @@ public class StorageProvider {
     private Storage getStorage(File file, long alignedSize) {
         switch (mode) {
             case MMAP:
-                RafStorage diskStorage1 = new RafStorage(file, IOUtils.randomAccessFile(file, alignedSize));
+                RafStorage diskStorage1 = new RafStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
                 return new MMapStorage(diskStorage1);
             case RAF:
-                return new RafStorage(file, IOUtils.randomAccessFile(file, alignedSize));
+                return new RafStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
             case RAF_CACHED:
-                RafStorage diskStorage2 = new RafStorage(file, IOUtils.randomAccessFile(file, alignedSize));
+                RafStorage diskStorage2 = new RafStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
                 return new MMapCache(diskStorage2);
             case OFF_HEAP:
                 return new OffHeapStorage(file.getAbsolutePath(), alignedSize);

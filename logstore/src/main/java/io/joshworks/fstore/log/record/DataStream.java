@@ -22,7 +22,6 @@ public class DataStream implements IDataStream {
 
     //hard limit is required to avoid memory issues in case of broken record
 
-    private final double checksumProb;
     private final int maxEntrySize;
 
     private final Reader forwardReader;
@@ -32,16 +31,16 @@ public class DataStream implements IDataStream {
     private final BufferPool bufferPool;
 
     public DataStream(BufferPool bufferPool, double checksumProb, int maxEntrySize) {
-        this.checksumProb = (int) (checksumProb * 100);
+        if (checksumProb < 0 || checksumProb > 1) {
+            throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
+        }
+        checksumProb = (int) (checksumProb * 100);
         this.maxEntrySize = maxEntrySize;
         this.bufferPool = Objects.requireNonNull(bufferPool, "BufferPool must be provided");
         this.forwardReader = new ForwardRecordReader(checksumProb, maxEntrySize, READ_BUFFER_SIZE);
         this.backwardReader = new BackwardRecordReader(checksumProb, maxEntrySize, READ_BUFFER_SIZE);
         this.bulkForwardReader = new BulkForwardRecordReader(checksumProb, maxEntrySize, BULK_READ_BUFFER_SIZE);
         this.bulkBackwardReader = new BulkBackwardRecordReader(checksumProb, maxEntrySize, BULK_READ_BUFFER_SIZE);
-        if (checksumProb < 0 || checksumProb > 1) {
-            throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
-        }
     }
 
     @Override
