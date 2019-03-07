@@ -8,6 +8,7 @@ import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.extra.DataFile;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.header.Type;
@@ -22,24 +23,15 @@ import java.util.Objects;
 
 public class Index<K extends Comparable<K>> implements Closeable {
 
-    private static final long DEFAULT_FILE_SIZE = Size.MB.of(5);
-
     private final List<IndexEntry<K>> entries;
-    private final File handler;
-    private final Segment<IndexEntry<K>> dataFile;
+    private final DataFile<IndexEntry<K>> dataFile;
 
     private boolean dirty;
 
-    public Index(File indexDir, String segmentFileName, Serializer<K> keySerializer, IDataStream dataStream, String magic) {
-        this.handler = getFile(indexDir, segmentFileName);
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(handler, DEFAULT_FILE_SIZE);
-        this.dataFile = new Segment<>(
-                storage,
-                new IndexEntrySerializer<>(keySerializer),
-                dataStream,
-                magic,
-                Type.LOG_HEAD);
-        this.entries = load(handler);
+    public Index(File indexDir, String segmentFileName, Serializer<K> keySerializer, String magic) {
+        File file = getFile(indexDir, segmentFileName);
+        this.dataFile = DataFile.of(new IndexEntrySerializer<>(keySerializer)).withMagic(magic).open(file);
+        this.entries = load(file);
     }
 
     public void add(K key, long pos) {
@@ -53,7 +45,7 @@ public class Index<K extends Comparable<K>> implements Closeable {
             return;
         }
         for (IndexEntry<K> indexEntry : entries) {
-            dataFile.append(indexEntry);
+            dataFile.add(indexEntry);
         }
         dirty = false;
     }
@@ -78,10 +70,10 @@ public class Index<K extends Comparable<K>> implements Closeable {
         return new File(indexDir, segmentName.split("\\.")[0] + ".idx");
     }
 
-    public int getMidpointIdx(K entry) {
+    private int getMidpointIdx(K entry) {
         int idx = Collections.binarySearch(entries, entry);
         if (idx < 0) {
-            idx = Math.abs(idx) - 2; // -1 for the actual position, -1 for the offset where to queuedTime scanning
+            idx = Math.abs(idx) - 2; // -1 for the actual position, -1 for the offset where to start scanning
             idx = idx < 0 ? 0 : idx;
         }
         if (idx >= entries.size()) {
@@ -99,7 +91,7 @@ public class Index<K extends Comparable<K>> implements Closeable {
     }
 
     public void roll() {
-        dataFile.roll(0);
+        dataFile.markAsReadOnly();
     }
 
     public void delete() {

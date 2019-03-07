@@ -16,7 +16,7 @@ public class StreamStore implements Closeable {
 
     private static final String DIR = "streams";
     private static final String STORE_NAME = "streams";
-    private final LsmTree<Long, StreamMetadata> store;
+    public final LsmTree<Long, StreamMetadata> store;
     private final Map<Long, StreamMetadata> cache;
 
     StreamStore(File root, int cacheSize) {
@@ -62,8 +62,7 @@ public class StreamStore implements Closeable {
 
     public StreamMetadata remove(long stream) {
         cache.remove(stream);
-        StreamMetadata fromDisk = store.remove(stream);
-        return fromDisk;
+        return store.remove(stream);
     }
 
     public Stream<Entry<Long, StreamMetadata>> stream() {

@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -141,6 +140,10 @@ public class TableIndex implements Closeable {
     }
 
     public synchronized void flush() {
+        if (closed.get()) {
+            logger.warn("Index closed, not flushing");
+            return;
+        }
         do {
             logger.info("Writing memindex to disk");
             long start = System.currentTimeMillis();

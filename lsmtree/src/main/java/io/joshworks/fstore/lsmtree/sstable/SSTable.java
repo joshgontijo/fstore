@@ -60,7 +60,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                 MAX_BLOCK_SIZE);
 
         this.keySerializer = keySerializer;
-        this.index = new Index<>(directory, storage.name(), keySerializer, dataStream, magic);
+        this.index = new Index<>(directory, storage.name(), keySerializer, magic);
         this.directory = directory;
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(keySerializer));
     }

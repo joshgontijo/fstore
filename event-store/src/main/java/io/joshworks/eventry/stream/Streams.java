@@ -32,7 +32,7 @@ public class Streams implements Closeable {
     //TODO LRU cache ? there's no way of getting item by stream name, need to use an indexed lsm-tree
     //LRU map that reads the last version from the index
     private final Map<Long, AtomicInteger> versions;
-    private final StreamStore streamStore;
+    public final StreamStore streamStore;
     private final StreamHasher hasher;
     private final Function<Long, Integer> versionFetcher;
 

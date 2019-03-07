@@ -2,6 +2,8 @@ package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -23,6 +25,7 @@ public class SSTables<K extends Comparable<K>, V> {
         this.appender = LogAppender.builder(dir, new EntrySerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new SSTableCompactor<>())
                 .name(name + "-sstable")
+                .storageMode(StorageMode.MMAP)
                 .flushMode(FlushMode.ON_ROLL)
                 .open(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold));
     }

@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 
 public class MMapCache extends MMapStorage {
 
-    MMapCache(DiskStorage diskStorage) {
+    public MMapCache(DiskStorage diskStorage) {
         super(diskStorage);
     }
 

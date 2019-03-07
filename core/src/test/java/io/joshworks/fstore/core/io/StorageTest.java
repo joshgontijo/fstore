@@ -410,8 +410,8 @@ public abstract class StorageTest {
     public static class RafStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long size, int bufferSize) {
-            return new RafStorage(file, IOUtils.randomAccessFile(file, size));
+        protected Storage store(File file, long length, int bufferSize) {
+            return new RafStorage(file, length, IOUtils.randomAccessFile(file, length));
         }
 
         @Test
@@ -423,8 +423,8 @@ public abstract class StorageTest {
     public static class RafCachedStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long size, int bufferSize) {
-            return new MMapCache(new RafStorage(file, IOUtils.randomAccessFile(file, size)), bufferSize);
+        protected Storage store(File file, long length, int bufferSize) {
+            return new MMapCache(new RafStorage(file, length,IOUtils.randomAccessFile(file, length)), bufferSize);
         }
 
         @Test
@@ -436,8 +436,8 @@ public abstract class StorageTest {
     public static class MMapStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long size, int bufferSize) {
-            return new MMapStorage(new RafStorage(file, IOUtils.randomAccessFile(file, size)), bufferSize);
+        protected Storage store(File file, long length, int bufferSize) {
+            return new MMapStorage(new RafStorage(file, length, IOUtils.randomAccessFile(file, length)), bufferSize);
         }
 
         @Test

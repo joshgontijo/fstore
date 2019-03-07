@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -606,7 +607,7 @@ public class EventStoreIT {
     @Test
     public void all_streams_are_loaded_on_reopen() {
 
-        int size = 3000000;
+        int size = 1000010;
         var createdStreams = new HashSet<String>();
         for (int i = 0; i < size; i++) {
             var stream = "stream-" + i;
@@ -614,12 +615,13 @@ public class EventStoreIT {
             store.append(EventRecord.create(stream, "test", "body"));
         }
 
+        Optional<StreamMetadata> entry = store.streams.get(store.streams.hashOf(SystemStreams.STREAMS));
+
         Threads.sleep(20000);
         store.close();
-
         store = EventStore.open(directory);
 
-        List<EventRecord> foundStreams = store.fromStream(StreamName.parse(SystemStreams.STREAMS)).stream().collect(Collectors.toList());
+        List<EventRecord> foundStreams = store.fromStream(StreamName.of(SystemStreams.STREAMS)).stream().collect(Collectors.toList());
 
         //stream also contains the stream definition itself
         assertTrue(foundStreams.size() >= createdStreams.size());
