@@ -87,7 +87,7 @@ public class LogAppender<T> implements Closeable {
         this.directory = config.directory;
         this.serializer = config.serializer;
         this.factory = config.segmentFactory;
-        this.storageProvider = StorageProvider.of(config.mode);
+        this.storageProvider = StorageProvider.of(config.storageMode);
         this.namingStrategy = config.namingStrategy;
         this.dataStream = new DataStream(config.bufferPool, config.checksumProbability, config.maxEntrySize);
         this.compactionDisabled = config.compactionDisabled;
@@ -123,7 +123,7 @@ public class LogAppender<T> implements Closeable {
         }
 
         this.levels = loadLevels();
-        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataStream, namingStrategy, metadata.compactionThreshold, metadata.magic, config.name, levels, sedaContext, config.threadPerLevel);
+        this.compactor = new Compactor<>(directory, config.combiner, factory, StorageProvider.of(config.compactionStorage), serializer, dataStream, namingStrategy, metadata.compactionThreshold, metadata.magic, config.name, levels, sedaContext, config.threadPerLevel);
         logConfig(config);
 
 //        sedaContext.addStage(writerName, this::appendInternalAsync, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
@@ -141,7 +141,7 @@ public class LogAppender<T> implements Closeable {
         logger.info("FLUSH MODE: {}", config.flushMode);
         logger.info("COMPACTION ENABLED: {}", !this.compactionDisabled);
         logger.info("COMPACTION THRESHOLD: {}", config.compactionThreshold);
-        logger.info("STORAGE MODE: {}", config.mode);
+        logger.info("STORAGE MODE: {}", config.storageMode);
     }
 
     private Levels<T> loadLevels() {

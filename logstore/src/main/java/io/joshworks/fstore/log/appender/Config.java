@@ -34,12 +34,13 @@ public class Config<T> {
     String name = DEFAULT_APPENDER_NAME;
     long segmentSize = DEFAULT_SEGMENT_SIZE;
     double checksumProbability = DEFAULT_CHECKSUM_PROB;
-    StorageMode mode = StorageMode.RAF;
+    StorageMode storageMode = StorageMode.RAF;
     FlushMode flushMode = FlushMode.MANUAL;
     int compactionThreshold = COMPACTION_THRESHOLD;
     boolean threadPerLevel;
     boolean compactionDisabled;
     int maxEntrySize = DEFAULT_MAX_ENTRY_SIZE;
+    StorageMode compactionStorage;
 
     Config(File directory, Serializer<T> serializer) {
         this.directory = requireNonNull(directory, "directory cannot be null");
@@ -64,7 +65,12 @@ public class Config<T> {
     }
 
     public Config<T> storageMode(StorageMode mode) {
-        this.mode = requireNonNull(mode);
+        this.storageMode = requireNonNull(mode);
+        return this;
+    }
+
+    public Config<T> compactionStorageMode(StorageMode mode) {
+        this.compactionStorage = requireNonNull(mode);
         return this;
     }
 
@@ -128,6 +134,7 @@ public class Config<T> {
     public LogAppender<T> open(SegmentFactory<T> segmentFactory) {
         requireNonNull(segmentFactory, "SegmentFactory must be provided");
         this.segmentFactory = segmentFactory;
+        this.compactionStorage = this.compactionStorage == null ? storageMode : compactionStorage;
         return new LogAppender<>(this);
     }
 
