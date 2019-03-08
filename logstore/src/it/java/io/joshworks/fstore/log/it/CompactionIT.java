@@ -107,6 +107,7 @@ public abstract class CompactionIT {
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF)
                     .compactionThreshold(COMPACTION_THRESHOLD)
+                    .compactionStorageMode(StorageMode.MMAP)
                     .open();
         }
     }
