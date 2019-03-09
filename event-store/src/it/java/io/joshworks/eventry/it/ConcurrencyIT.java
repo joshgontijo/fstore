@@ -157,7 +157,6 @@ public class ConcurrencyIT {
 
     }
 
-
     @Test
     public void concurrent_write_thread_per_stream() throws InterruptedException, IOException {
 

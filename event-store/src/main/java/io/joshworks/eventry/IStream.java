@@ -19,6 +19,6 @@ public interface IStream {
 
     Optional<StreamInfo> streamMetadata(String stream);
 
-    void truncate(String stream, int version);
+    void truncate(String stream, int fromVersion);
 
 }
