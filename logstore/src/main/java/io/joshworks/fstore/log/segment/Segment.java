@@ -237,7 +237,7 @@ public class Segment<T> implements Log<T> {
             } while (lastRead > 0);
 
         } catch (Exception e) {
-            logger.warn("Found inconsistent entry on position " + position + ", segment '" + name() + "': " + e.getMessage() + "", e);
+            logger.warn("Found inconsistent entry on position " + position + ", segment '" + name() + "': " + e.getMessage());
             storage.writePosition(position);
             dataStream.write(storage, ByteBuffer.wrap(EOL));
             storage.writePosition(position);
