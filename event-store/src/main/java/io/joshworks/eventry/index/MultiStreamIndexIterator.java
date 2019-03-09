@@ -20,7 +20,7 @@ public class MultiStreamIndexIterator implements IndexIterator {
     }
 
     private LogIterator<IndexEntry> newIterator() {
-        return ordered ? Iterators.ordered(iterators) : Iterators.concat(iterators);
+        return ordered ? Iterators.ordered(iterators, ie -> ie.position) : Iterators.concat(iterators);
     }
 
     @Override

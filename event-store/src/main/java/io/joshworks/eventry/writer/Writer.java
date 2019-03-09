@@ -3,6 +3,7 @@ package io.joshworks.eventry.writer;
 import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.IEventLog;
+import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 
@@ -22,7 +23,7 @@ public class Writer {
         long streamHash = event.streamName().hash();
 
         if (metadata.name.equals(event.stream) && metadata.hash != streamHash) {
-            throw new IllegalStateException("Hash collision of closeableStream: " + event.stream + " with existing name: " + metadata.name);
+            throw new StreamException("Hash collision of stream: " + event.stream + " with existing name: " + metadata.name);
         }
 
         int version = streams.tryIncrementVersion(metadata, expectedVersion);

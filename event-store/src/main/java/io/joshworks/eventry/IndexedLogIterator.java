@@ -7,6 +7,9 @@ import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
 
+/**
+ * Random access log iterator
+ */
 public class IndexedLogIterator implements EventLogIterator {
 
     private final LogIterator<IndexEntry> indexIterator;

@@ -138,7 +138,6 @@ public class Streams implements Closeable {
         return found;
     }
 
-    //lock not required, it uses getVersion
     public int tryIncrementVersion(StreamMetadata metadata, int expected) {
         long hash = metadata.hash;
         AtomicInteger versionCounter = getVersion(hash);
@@ -147,7 +146,8 @@ public class Streams implements Closeable {
         }
         int newValue = expected + 1;
         if (!versionCounter.compareAndSet(expected, newValue)) {
-            throw new IllegalArgumentException("Version mismatch for '" + metadata.name + "': version is higher than expected '" + expected + "'");
+            int currVersion = versionCounter.get();
+            throw new StreamException("Version mismatch for '" + metadata.name + "': expected: " + expected + " current :" + currVersion);
         }
         return newValue;
     }
@@ -160,21 +160,21 @@ public class Streams implements Closeable {
     private void validateName(String streamName) {
         StringUtils.requireNonBlank(streamName, "Stream name must be provided");
         if (streamName.contains(" ")) {
-            throw new IllegalArgumentException("Stream name must not contain whitespaces");
+            throw new StreamException("Stream name must not contain whitespaces");
         }
         if (streamName.contains(StreamName.STREAM_VERSION_SEPARATOR)) {
-            throw new IllegalArgumentException("Stream name must not contain " + StreamName.STREAM_VERSION_SEPARATOR);
+            throw new StreamException("Stream name must not contain " + StreamName.STREAM_VERSION_SEPARATOR);
         }
     }
 
     public void truncate(StreamMetadata metadata, int fromVersion) {
         int currentVersion = version(metadata.hash);
         if (currentVersion <= NO_VERSION) {
-            throw new IllegalArgumentException("Version must be greater or equals zero");
+            throw new StreamException("Version must be greater or equals zero");
         }
         int streamVersion = version(metadata.hash);
         if (fromVersion > streamVersion) {
-            throw new IllegalArgumentException("Truncate version: " + fromVersion + " must be less or equals stream version: " + streamVersion);
+            throw new StreamException("Truncate version: " + fromVersion + " must be less or equals stream version: " + streamVersion);
         }
 
         StreamMetadata streamMeta = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, fromVersion, metadata.permissions, metadata.metadata, metadata.state);
