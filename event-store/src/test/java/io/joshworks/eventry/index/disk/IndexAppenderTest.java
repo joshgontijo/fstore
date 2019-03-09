@@ -3,6 +3,7 @@ package io.joshworks.eventry.index.disk;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
+import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.log.Direction;
@@ -151,7 +152,7 @@ public class IndexAppenderTest {
     @Test
     public void version_is_minus_one_for_non_existing_stream() {
         int version = appender.version(1234);
-        assertEquals(IndexEntry.NO_VERSION, version);
+        assertEquals(EventRecord.NO_VERSION, version);
     }
 
     private static StreamMetadata emptyStreamMeta() {

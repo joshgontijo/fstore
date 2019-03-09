@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
@@ -199,7 +200,7 @@ public class TableIndexTest {
     @Test
     public void version_is_minus_one_for_non_existing_stream() {
         int version = tableIndex.version(1234);
-        assertEquals(IndexEntry.NO_VERSION, version);
+        assertEquals(EventRecord.NO_VERSION, version);
     }
 
     @Test
@@ -592,7 +593,7 @@ public class TableIndexTest {
 
         final Map<Long, Integer> tracker = new HashMap<>();
         for (Long stream : streams) {
-            tracker.put(stream, IndexEntry.NO_VERSION);
+            tracker.put(stream, EventRecord.NO_VERSION);
         }
 
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(streams))) {

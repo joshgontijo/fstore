@@ -3,7 +3,7 @@ package io.joshworks.eventry.data;
 import io.joshworks.eventry.StreamName;
 import org.junit.Test;
 
-import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

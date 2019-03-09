@@ -2,7 +2,6 @@ package io.joshworks.eventry.log;
 
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.SystemStreams;
-import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;
@@ -132,7 +131,7 @@ public class RecordCleanupTest {
     private void appendTo(Log<EventRecord> segment, EventRecord record) {
         segment.append(record);
         StreamMetadata metadata = new StreamMetadata(record.stream, streams.hashOf(record.stream), 0, -1, -1, -1, Map.of(), Map.of(), StreamMetadata.STREAM_ACTIVE);
-        streams.tryIncrementVersion(metadata, IndexEntry.NO_VERSION);
+        streams.tryIncrementVersion(metadata, EventRecord.NO_VERSION);
     }
 
 

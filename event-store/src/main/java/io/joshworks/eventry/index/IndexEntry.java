@@ -1,5 +1,7 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.log.EventRecord;
+
 import java.util.Objects;
 
 public class IndexEntry implements Comparable<IndexEntry> {
@@ -10,10 +12,8 @@ public class IndexEntry implements Comparable<IndexEntry> {
     public final int version;
     public final long position;
 
-    public static final int NO_VERSION = -1;
-
     private IndexEntry(long stream, int version, long position) {
-        if (version <= NO_VERSION) {
+        if (version <= EventRecord.NO_VERSION) {
             throw new IllegalArgumentException("Version must be at least zero");
         }
         if (position < 0) {

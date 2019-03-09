@@ -4,6 +4,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.midpoint.Midpoint;
 import io.joshworks.eventry.index.midpoint.Midpoints;
+import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.fstore.core.filter.BloomFilterHasher;
@@ -258,13 +259,13 @@ public class IndexSegment implements Log<IndexEntry> {
     int lastVersionOf(long stream) {
         Range range = Range.anyOf(stream);
         if (definitelyNotPresent(range)) {
-            return IndexEntry.NO_VERSION;
+            return EventRecord.NO_VERSION;
         }
 
         IndexEntry end = range.end();
         Midpoint lowBound = midpoints.getMidpointFor(end);
         if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
-            return IndexEntry.NO_VERSION;
+            return EventRecord.NO_VERSION;
         }
 
         IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
@@ -272,11 +273,11 @@ public class IndexSegment implements Log<IndexEntry> {
         int idx = Collections.binarySearch(entries, end);
         idx = idx >= 0 ? idx : Math.abs(idx) - 2;
         if (idx < 0) {
-            return IndexEntry.NO_VERSION;
+            return EventRecord.NO_VERSION;
         }
         IndexEntry lastVersion = entries.get(idx);
         if (lastVersion.stream != stream) { //false positive on the bloom filter
-            return IndexEntry.NO_VERSION;
+            return EventRecord.NO_VERSION;
         }
         return lastVersion.version;
     }
@@ -284,13 +285,13 @@ public class IndexSegment implements Log<IndexEntry> {
     int firstVersionOf(long stream) {
         Range range = Range.anyOf(stream);
         if (definitelyNotPresent(range)) {
-            return IndexEntry.NO_VERSION;
+            return EventRecord.NO_VERSION;
         }
 
         IndexEntry start = range.start();
         Midpoint lowBound = midpoints.getMidpointFor(start);
         if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
-            return IndexEntry.NO_VERSION;
+            return EventRecord.NO_VERSION;
         }
 
         IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
@@ -298,11 +299,11 @@ public class IndexSegment implements Log<IndexEntry> {
         int idx = Collections.binarySearch(entries, start);
         idx = idx >= 0 ? idx : Math.abs(idx) - 1;
         if (idx >= entries.size()) {
-            return IndexEntry.NO_VERSION;
+            return EventRecord.NO_VERSION;
         }
         IndexEntry lastVersion = entries.get(idx);
         if (lastVersion.stream != stream) { //false positive on the bloom filter
-            return IndexEntry.NO_VERSION;
+            return EventRecord.NO_VERSION;
         }
         return lastVersion.version;
     }

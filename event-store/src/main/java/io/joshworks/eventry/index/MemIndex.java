@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index;
 
 
+import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -37,7 +38,7 @@ public class MemIndex {
     public int version(long stream) {
         List<IndexEntry> entries = index.get(stream);
         if (entries == null) {
-            return IndexEntry.NO_VERSION;
+            return EventRecord.NO_VERSION;
         }
         synchronized (entries) {
             return entries.get(entries.size() - 1).version;

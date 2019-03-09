@@ -1,7 +1,6 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.data.SystemStreams;
-import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamInfo;
@@ -13,18 +12,24 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -170,8 +175,6 @@ public class EventStoreTest {
 
     @Test
     public void fromStream_returns_data_within_maxAge() throws InterruptedException {
-        //given
-
         String stream = "test-stream";
         int maxAgeSeconds = 5;
         int numVersions = 50;
@@ -248,10 +251,37 @@ public class EventStoreTest {
         store.append(null);
     }
 
-    @Test(expected = StreamException.class)
-    public void stream_version_must_match_expected_version() {
-        int expectedVersion = 0;
-        store.append(EventRecord.create("test-stream", "type", Map.of()), expectedVersion);
+    @Test
+    public void appending_with_expected_version_appends_event() {
+        EventRecord created = store.append(EventRecord.create("test-stream", "type", Map.of()), NO_EXPECTED_VERSION);
+        assertEquals(0, created.version);
+        created = store.append(EventRecord.create("test-stream", "type", Map.of()), NO_EXPECTED_VERSION);
+        assertEquals(1, created.version);
+    }
+
+    @Test
+    public void expected_no_event_version_in_the_newly_created_stream() {
+        EventRecord created = store.append(EventRecord.create("test-stream", "type", Map.of()), NO_VERSION);
+        assertEquals(0, created.version);
+    }
+
+    @Test
+    public void get_returns_null_if_event_is_not_found() {
+        EventRecord record = store.get(StreamName.of("some-stream", 0));
+        assertNull(record);
+    }
+
+    @Test
+    public void event_is_not_appended_if_version_mismatches() {
+        String stream = "test-stream";
+        try {
+            store.append(EventRecord.create(stream, "type", Map.of()), 9999);
+        } catch (Exception e) {
+            assertTrue(e instanceof StreamException);
+            assertEquals(NO_VERSION, store.version(stream));
+            EventRecord record = store.get(StreamName.of(stream, 0));
+            assertNull(record);
+        }
     }
 
     @Test
@@ -263,7 +293,7 @@ public class EventStoreTest {
 
         StreamInfo info = streamInfo.get();
         assertEquals(stream, info.name);
-        assertEquals(IndexEntry.NO_VERSION, info.version);
+        assertEquals(NO_VERSION, info.version);
         assertEquals(NO_MAX_AGE, info.maxAge);
         assertEquals(StreamMetadata.NO_MAX_COUNT, info.maxCount);
     }
@@ -281,49 +311,79 @@ public class EventStoreTest {
 
         StreamInfo info = streamInfo.get();
         assertEquals(stream, info.name);
-        assertEquals(IndexEntry.NO_VERSION, info.version);
+        assertEquals(NO_VERSION, info.version);
         assertEquals(maxAge, info.maxAge);
         assertEquals(maxCount, info.maxCount);
     }
 
     @Test
-    public void streamMetadata() {
-        fail("IMPLEMENT ME");
+    public void fromStream_returns_all_entries_ordered_by_version() {
+        String stream = "abc";
+        int numStreams = 1000;
+        for (int i = 0; i < numStreams; i++) {
+            store.append(EventRecord.create(stream, "type-abc", Map.of()));
+        }
+
+        List<EventRecord> found = store.fromStream(StreamName.of(stream)).stream().collect(Collectors.toList());
+        assertEquals(numStreams, found.size());
+        int lastVersion = NO_VERSION;
+        for (EventRecord record : found) {
+            assertEquals(lastVersion + 1, record.version);
+            lastVersion++;
+        }
     }
 
     @Test
-    public void fromStream() {
-        fail("IMPLEMENT ME");
+    public void fromStreams_returns_all_entries_ordered_by_version() {
+        int numStreams = 1000;
+        Set<StreamName> streams = new HashSet<>();
+        Map<String, Integer> expectedVersions = new HashMap<>();
+        for (int i = 0; i < numStreams; i++) {
+            String sName = String.valueOf(i);
+            streams.add(StreamName.of(sName));
+            expectedVersions.put(sName, NO_VERSION);
+            store.append(EventRecord.create(sName, "type-abc", Map.of()));
+        }
+
+        List<EventRecord> found = store.fromStreams(streams, true).stream().collect(Collectors.toList());
+        assertEquals(numStreams, found.size());
+        for (EventRecord record : found) {
+            Integer version = expectedVersions.get(record.stream);
+            assertEquals(version + 1, record.version);
+            expectedVersions.put(record.stream, version + 1);
+        }
     }
 
     @Test
-    public void fromStreams() {
-        fail("IMPLEMENT ME");
-    }
+    public void fromStream_returns_data_starting_from_given_version() {
+        String stream = "abc";
+        int numStreams = 1000;
+        for (int i = 0; i < numStreams; i++) {
+            store.append(EventRecord.create(stream, "type-abc", Map.of()));
+        }
 
-
-    @Test
-    public void version() {
-        fail("IMPLEMENT ME");
-    }
-
-    @Test
-    public void fromAll() {
-        fail("IMPLEMENT ME");
-    }
-
-    @Test
-    public void fromAll1() {
-        fail("IMPLEMENT ME");
+        int startVersion = 50;
+        List<EventRecord> found = store.fromStream(StreamName.of(stream, startVersion)).stream().collect(Collectors.toList());
+        assertEquals(numStreams - startVersion - 1, found.size());
+        int lastVersion = startVersion;
+        for (EventRecord record : found) {
+            assertEquals(lastVersion + 1, record.version);
+            lastVersion++;
+        }
     }
 
     @Test
-    public void get() {
-        fail("IMPLEMENT ME");
+    public void stream_version_is_NO_VERSION_if_event_is_in_the_stream() {
+        assertEquals(NO_VERSION, store.version("some-stream"));
     }
 
     @Test
-    public void close() {
-        fail("IMPLEMENT ME");
+    public void stream_version() {
+        String stream = "stream-123";
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        assertEquals(0, store.version(stream));
+
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        assertEquals(1, store.version(stream));
     }
 }

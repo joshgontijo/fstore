@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import org.junit.Test;
@@ -451,7 +452,7 @@ public class MemIndexTest {
     @Test
     public void version_is_minus_one_for_non_existing_stream() {
         int version = index.version(1234);
-        assertEquals(IndexEntry.NO_VERSION, version);
+        assertEquals(EventRecord.NO_VERSION, version);
     }
 
 }
