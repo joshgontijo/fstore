@@ -2,12 +2,10 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.StreamName;
 
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Set;
 
-import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
 public class Checkpoint extends HashMap<Long, Integer> {
 

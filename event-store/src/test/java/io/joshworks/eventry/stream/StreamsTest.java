@@ -1,6 +1,5 @@
 package io.joshworks.eventry.stream;
 
-import io.joshworks.eventry.tools.LogDump;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -11,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;

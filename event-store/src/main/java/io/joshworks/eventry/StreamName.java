@@ -9,7 +9,7 @@ import io.joshworks.fstore.core.hash.XXHash;
 
 import java.util.Objects;
 
-import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
 public class StreamName {
 

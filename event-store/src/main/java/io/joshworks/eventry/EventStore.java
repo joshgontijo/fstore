@@ -44,7 +44,8 @@ import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
-import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static java.util.Objects.requireNonNull;
@@ -169,7 +170,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public EventRecord append(EventRecord event) {
-        return append(event, NO_VERSION);
+        return append(event, NO_EXPECTED_VERSION);
     }
 
     @Override
@@ -240,7 +241,7 @@ public class EventStore implements IEventStore {
             EventRecord eventRecord = StreamTruncated.create(metadata.name, fromVersion);
 
             StreamMetadata streamsMetadata = streams.get(SystemStreams.STREAMS).get();
-            writer.append(eventRecord, NO_VERSION, streamsMetadata);
+            writer.append(eventRecord, NO_EXPECTED_VERSION, streamsMetadata);
         });
 
         Threads.awaitFor(op);
@@ -317,7 +318,7 @@ public class EventStore implements IEventStore {
             EventRecord resolved = resolve(event);
             StreamMetadata metadata = getOrCreateStream(writer, stream);
             EventRecord linkTo = LinkTo.create(stream, StreamName.from(resolved));
-            return writer.append(linkTo, NO_VERSION, metadata); // TODO expected version for LinkTo
+            return writer.append(linkTo, NO_EXPECTED_VERSION, metadata); // TODO expected version for LinkTo
         });
 
         return Threads.awaitFor(future);
@@ -333,7 +334,7 @@ public class EventStore implements IEventStore {
                 StreamName resolvedStream = resolvedEvent.streamName();
                 linkTo = LinkTo.create(stream, resolvedStream);
             }
-            return writer.append(linkTo, NO_VERSION, metadata);
+            return writer.append(linkTo, NO_EXPECTED_VERSION, metadata);
         });
         return Threads.awaitFor(future);
     }
@@ -342,7 +343,7 @@ public class EventStore implements IEventStore {
         return streams.createIfAbsent(stream, created -> {
             EventRecord eventRecord = StreamCreated.create(created);
             StreamMetadata metadata = streams.get(SystemStreams.STREAMS).get();
-            writer.append(eventRecord, NO_VERSION, metadata);
+            writer.append(eventRecord, NO_EXPECTED_VERSION, metadata);
         });
     }
 
@@ -359,8 +360,7 @@ public class EventStore implements IEventStore {
         }
         Optional<IndexEntry> indexEntry = index.get(stream.hash(), stream.version());
         if (!indexEntry.isPresent()) {
-            //TODO improve this to a non exception response
-            throw new RuntimeException("IndexEntry not found for " + stream);
+            return null;
         }
 
         IndexEntry ie = indexEntry.get();
@@ -368,11 +368,14 @@ public class EventStore implements IEventStore {
     }
 
     private EventRecord resolve(EventRecord record) {
+        if(record == null) {
+            return null;
+        }
         if (record.isLinkToEvent()) {
             LinkTo linkTo = LinkTo.from(record);
             StreamName targetEvent = StreamName.of(linkTo.stream, linkTo.version);
             EventRecord resolved = getInternal(targetEvent);
-            if (resolved.isLinkToEvent()) {
+            if (resolved != null && resolved.isLinkToEvent()) {
                 throw new IllegalStateException("Found second level LinkTo event");
             }
             return resolved;
@@ -396,7 +399,7 @@ public class EventStore implements IEventStore {
         eventWriter.queue(writer -> {
             var indexFlushedEvent = IndexFlushed.create(flushInfo.logPosition, flushInfo.timeTaken, flushInfo.entries);
             StreamMetadata metadata = getOrCreateStream(writer, indexFlushedEvent.stream);
-            writer.append(indexFlushedEvent, NO_VERSION, metadata);
+            writer.append(indexFlushedEvent, NO_EXPECTED_VERSION, metadata);
         });
     }
 

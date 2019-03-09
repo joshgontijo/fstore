@@ -4,7 +4,6 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.MemIndex;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
@@ -28,7 +27,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 import static java.util.Objects.requireNonNull;
 
 public class IndexAppender implements Closeable {

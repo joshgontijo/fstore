@@ -20,7 +20,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
+import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
@@ -141,7 +142,7 @@ public class Streams implements Closeable {
     public int tryIncrementVersion(StreamMetadata metadata, int expected) {
         long hash = metadata.hash;
         AtomicInteger versionCounter = getVersion(hash);
-        if (expected <= NO_VERSION) {
+        if (expected <= NO_EXPECTED_VERSION) {
             return versionCounter.incrementAndGet();
         }
         int newValue = expected + 1;

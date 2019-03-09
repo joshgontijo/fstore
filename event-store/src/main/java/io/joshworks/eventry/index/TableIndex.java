@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.index.disk.IndexAppender;
+import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.IOUtils;
@@ -52,7 +53,7 @@ public class TableIndex implements Closeable {
 
     //returns true if flushed to disk
     public boolean add(long stream, int version, long position) {
-        if (version <= IndexEntry.NO_VERSION) {
+        if (version <= EventRecord.NO_VERSION) {
             throw new IndexException("Version must be greater than or equals to zero");
         }
         if (position < 0) {
@@ -69,7 +70,7 @@ public class TableIndex implements Closeable {
         while (it.hasNext()) {
             MemIndex index = it.next();
             int version = index.version(stream);
-            if (version > IndexEntry.NO_VERSION) {
+            if (version > EventRecord.NO_VERSION) {
                 return version;
             }
         }
