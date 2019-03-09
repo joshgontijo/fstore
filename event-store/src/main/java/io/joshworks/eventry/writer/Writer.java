@@ -22,7 +22,6 @@ public class Writer {
         long streamHash = event.streamName().hash();
 
         if (metadata.name.equals(event.stream) && metadata.hash != streamHash) {
-            //TODO improve ??
             throw new IllegalStateException("Hash collision of closeableStream: " + event.stream + " with existing name: " + metadata.name);
         }
 

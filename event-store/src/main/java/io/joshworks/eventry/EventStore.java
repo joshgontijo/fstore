@@ -416,8 +416,7 @@ public class EventStore implements IEventStore {
         return new MaxAgeFilteringIterator(metadataMap, iterator);
     }
 
-    //FIXME: Not quite right. Order should be:
-    //
+    //TODO circular data flow between index and eventWriter might cause data to be lost in very specific scenarios
     @Override
     public synchronized void close() {
         //Order matters
