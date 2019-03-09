@@ -53,10 +53,10 @@ public class TableIndex implements Closeable {
     //returns true if flushed to disk
     public boolean add(long stream, int version, long position) {
         if (version <= IndexEntry.NO_VERSION) {
-            throw new IllegalArgumentException("Version must be greater than or equals to zero");
+            throw new IndexException("Version must be greater than or equals to zero");
         }
         if (position < 0) {
-            throw new IllegalArgumentException("Position must be greater than zero");
+            throw new IndexException("Position must be greater than zero");
         }
         IndexEntry entry = IndexEntry.of(stream, version, position);
         memIndex.add(entry);
@@ -170,7 +170,7 @@ public class TableIndex implements Closeable {
             }
             memIndex = new MemIndex();
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to add mem index to write queue");
+            throw new IndexException("Failed to add mem index to write queue");
         }
     }
 

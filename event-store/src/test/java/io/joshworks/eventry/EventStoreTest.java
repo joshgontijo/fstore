@@ -9,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -210,8 +211,40 @@ public class EventStoreTest {
     }
 
     @Test
-    public void append() {
-        fail("IMPLEMENT ME");
+    public void fromStreams_return_all_streams_based_on_the_position() {
+        //given
+        int numStreams = 10000;
+        int numVersions = 50;
+        String streamPrefix = "test-";
+        for (int stream = 0; stream < numStreams; stream++) {
+            for (int version = 1; version <= numVersions; version++) {
+                store.append(EventRecord.create(streamPrefix + stream, "type", "body-" + stream));
+            }
+        }
+
+        List<StreamName> streams = Stream.of("test-0", "test-1", "test-10", "test-100", "test-1000").map(StreamName::parse).collect(Collectors.toList());
+
+        Iterator<EventRecord> eventStream = store.fromStreams(new HashSet<>(streams), true);
+
+        int eventCounter = 0;
+        while (eventStream.hasNext()) {
+            EventRecord event = eventStream.next();
+            int streamIdx = eventCounter++ / numVersions;
+            assertEquals(streams.get(streamIdx).name(), event.stream);
+        }
+
+        assertEquals(streams.size() * numVersions, eventCounter);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void null_event_cannot_be_append() {
+        store.append(null);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void stream_version_must_match_expected_version() {
+        int expectedVersion = 0;
+        store.append(EventRecord.create("test-stream", "type", Map.of()), expectedVersion);
     }
 
 
