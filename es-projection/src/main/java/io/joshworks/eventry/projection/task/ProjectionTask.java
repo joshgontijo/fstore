@@ -133,14 +133,14 @@ public class ProjectionTask implements Callable<ExecutionResult> {
                     source = store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE, start);
                 } else {
                     Set<StreamName> mergedStreamStartVersions = mergeCheckpoint(projection, checkpoint);
-                    source = store.fromStreams(mergedStreamStartVersions);
+                    source = store.fromStreams(mergedStreamStartVersions, true);
                 }
             } else {
                 if (isAllStream) {
                     source = store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE);
                 } else {
                     Set<StreamName> streamNames = projection.sources.stream().map(StreamName::parse).collect(Collectors.toSet());
-                    source = store.fromStreams(streamNames);
+                    source = store.fromStreams(streamNames, true);
                 }
             }
 

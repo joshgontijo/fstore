@@ -34,24 +34,24 @@ public class Server {
 
         EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
         SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store, broadcast);
-        StreamEndpoint streams = new StreamEndpoint(store);
+//        StreamEndpoint streams = new StreamEndpoint(store);
 //        ProjectionsEndpoint projections = new ProjectionsEndpoint(store);
 
 
-        Parsers.register(MediaType.valueOf(JAVASCRIPT_MIME), new PlainTextParser());
-
-        group("/streams", () -> {
-            post("/", streams::create);
-            get("/", streams::streamsQuery);
-            get("/metadata", streams::listStreams);
-
-            group("{streamId}", () -> {
-                get(streams::fetchStream);
-                post(streams::append, consumes(MediaType.APPLICATION_JSON, MediaType.APPLICATION_OCTET_STREAM));
-                delete(streams::delete);
-                get("/metadata", streams::metadata);
-            });
-        });
+//        Parsers.register(MediaType.valueOf(JAVASCRIPT_MIME), new PlainTextParser());
+//
+//        group("/streams", () -> {
+//            post("/", streams::create);
+//            get("/", streams::streamsQuery);
+//            get("/metadata", streams::listStreams);
+//
+//            group("{streamId}", () -> {
+//                get(streams::fetchStream);
+//                post(streams::append, consumes(MediaType.APPLICATION_JSON, MediaType.APPLICATION_OCTET_STREAM));
+//                delete(streams::delete);
+//                get("/metadata", streams::metadata);
+//            });
+//        });
 
 //        group("/projections", () -> {
 //            get(projections::getAll);
@@ -71,7 +71,7 @@ public class Server {
 //            });
 //        });
 
-        group("/push", () -> sse(subscriptions.newPushHandler()));
+//        group("/push", () -> sse(subscriptions.newPushHandler()));
 
 
         onShutdown(store::close);

@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
+import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
 import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class EventRecord {
@@ -37,21 +38,12 @@ public class EventRecord {
         return create(stream, type, serializer.toBytes(data).array());
     }
 
-    //TODO DELETE ME ????????
-    public static EventRecord create(String stream, String type, String data) {
-        return create(stream, type, StringUtils.toUtf8Bytes(data));
-    }
-
     public static EventRecord create(String stream, String type, byte[] data) {
         return create(stream, type, data, null);
     }
 
     public static EventRecord create(String stream, String type, byte[] data, byte[] metadata) {
-        return new EventRecord(stream, type, -1, -1, data, metadata);
-    }
-
-    public String dataAsString() {
-        return new String(body, StandardCharsets.UTF_8);
+        return new EventRecord(stream, type, NO_VERSION, -1, data, metadata);
     }
 
     public String eventId() {

@@ -93,7 +93,7 @@ public class Iterators {
     }
 
     /**
-     * For <b>UNIQUE</b> and <b>SORTED</b> iterators only.
+     * For <b>SORTED</b> iterators only.
      */
     public static <T, C extends Comparable<C>> LogIterator<T> ordered(Collection<? extends LogIterator<T>> iterators, Function<T, C> mapper) {
         return new OrderedIterator<>(iterators, mapper);

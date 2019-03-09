@@ -85,15 +85,15 @@ public class ProjectionExecutor implements Closeable {
         long processed = result.tasks.stream().mapToLong(t -> t.metrics.processed).sum();
         if (Status.COMPLETED.equals(status)) {
             EventRecord completed = ProjectionCompleted.create(projectionName, processed);
-            eventStore.appendSystemEvent(completed);
+            eventStore.append(completed);
             projectionTask.complete();
         } else if (Status.STOPPED.equals(status)) {
             EventRecord stopped = ProjectionStopped.create(projectionName, "STOPPED BY USER", processed);
-            eventStore.appendSystemEvent(stopped);
+            eventStore.append(stopped);
         } else if (Status.FAILED.equals(status)) {
             TaskError taskError = result.tasks.stream().filter(t -> t.taskError != null).map(t -> t.taskError).findFirst().get();
             EventRecord failed = ProjectionFailed.create(projectionName, taskError.reason, processed, taskError.stream, taskError.version);
-            eventStore.appendSystemEvent(failed);
+            eventStore.append(failed);
         } else {
             throw new RuntimeException("Invalid task status " + status);
         }

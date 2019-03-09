@@ -31,28 +31,28 @@ public class StreamMetadata {
     public final int state;
 
     //TODO lot of memory usage when creating many streams
-    final Map<String, Integer> permissions;
+    final Map<String, Integer> acl;
     final Map<String, String> metadata;
 
-    public StreamMetadata(String name, long hash, long created, long maxAge, int maxCount, int truncated, Map<String, Integer> permissions, Map<String, String> metadata, int state) {
+    public StreamMetadata(String name, long hash, long created, long maxAge, int maxCount, int truncated, Map<String, Integer> acl, Map<String, String> metadata, int state) {
         this.name = name;
         this.hash = hash;
         this.created = created;
         this.maxAge = maxAge;
         this.maxCount = maxCount;
         this.truncated = truncated;
-        this.permissions = permissions;
+        this.acl = acl;
         this.metadata = metadata;
         this.state = state;
     }
 
 
     public boolean hasReadPermission(String id) {
-        return permissions.getOrDefault(id, PERMISSION_NONE).equals(PERMISSION_READ);
+        return acl.getOrDefault(id, PERMISSION_NONE).equals(PERMISSION_READ);
     }
 
     public boolean hasWritePermission(String id) {
-        return permissions.getOrDefault(id, PERMISSION_NONE).equals(PERMISSION_WRITE);
+        return acl.getOrDefault(id, PERMISSION_NONE).equals(PERMISSION_WRITE);
     }
 
     public boolean streamDeleted() {
@@ -90,7 +90,7 @@ public class StreamMetadata {
                 ", truncateBefore=" + truncated +
                 ", maxCount=" + maxCount +
                 ", state=" + state +
-                ", permissions=" + permissions +
+                ", acl=" + acl +
                 ", metadata=" + metadata +
                 '}';
     }

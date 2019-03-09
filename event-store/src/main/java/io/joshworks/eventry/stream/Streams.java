@@ -87,8 +87,8 @@ public class Streams implements Closeable {
     }
 
     //must not hold the lock, since
-    private StreamMetadata createInternal(String stream, long maxAge, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata, long hash) {
-        StreamMetadata streamMeta = new StreamMetadata(stream, hash, System.currentTimeMillis(), maxAge, maxCount, NO_TRUNCATE, permissions, metadata, STREAM_ACTIVE);
+    private StreamMetadata createInternal(String stream, long maxAge, int maxCount, Map<String, Integer> acl, Map<String, String> metadata, long hash) {
+        StreamMetadata streamMeta = new StreamMetadata(stream, hash, System.currentTimeMillis(), maxAge, maxCount, NO_TRUNCATE, acl, metadata, STREAM_ACTIVE);
         streamStore.create(hash, streamMeta); //must be called before version
         versions.put(hash, new AtomicInteger(NO_VERSION));
         return streamMeta;
@@ -130,7 +130,7 @@ public class Streams implements Closeable {
         if (counter != null) {
             return counter;
         }
-        Integer fromDisk = versionFetcher.apply(stream);//may return -1 (NO_VERSION)
+        Integer fromDisk = versionFetcher.apply(stream);//may return NO_VERSION
         AtomicInteger found = new AtomicInteger(fromDisk);
         if (fromDisk > NO_VERSION) {
             versions.put(stream, found);
@@ -177,7 +177,7 @@ public class Streams implements Closeable {
             throw new StreamException("Truncate version: " + fromVersion + " must be less or equals stream version: " + streamVersion);
         }
 
-        StreamMetadata streamMeta = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, fromVersion, metadata.permissions, metadata.metadata, metadata.state);
+        StreamMetadata streamMeta = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, fromVersion, metadata.acl, metadata.metadata, metadata.state);
         streamStore.update(streamMeta);
     }
 }
