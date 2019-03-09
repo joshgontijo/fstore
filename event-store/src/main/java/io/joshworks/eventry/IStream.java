@@ -13,7 +13,7 @@ public interface IStream {
 
     void createStream(String name, int maxCount, long maxAge);
 
-    StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata);
+    StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata);
 
     List<StreamInfo> streamsMetadata();
 

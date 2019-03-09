@@ -45,10 +45,13 @@ public class Threads {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if(cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
             throw new RuntimeException(e);
         }
     }
-
 
     public static void awaitTerminationOf(ExecutorService executor, long timeout, TimeUnit timeUnit) {
         try {

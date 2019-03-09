@@ -79,12 +79,12 @@ public class RemoteStoreClient implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStreams(String streamPattern) {
+    public EventLogIterator fromStreams(String streamPattern, boolean ordered) {
         return null;
     }
 
     @Override
-    public EventLogIterator fromStreams(Set<StreamName> streams) {
+    public EventLogIterator fromStreams(Set<StreamName> streams, boolean ordered) {
         return null;
     }
 
@@ -110,7 +110,7 @@ public class RemoteStoreClient implements IEventStore {
     }
 
     @Override
-    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
+    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
         return null;
     }
 
@@ -131,16 +131,6 @@ public class RemoteStoreClient implements IEventStore {
 
     @Override
     public EventRecord get(StreamName stream) {
-        return null;
-    }
-
-    @Override
-    public EventRecord get(IndexEntry entry) {
-        return null;
-    }
-
-    @Override
-    public EventRecord resolve(EventRecord record) {
         return null;
     }
 

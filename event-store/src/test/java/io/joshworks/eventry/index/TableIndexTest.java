@@ -47,7 +47,7 @@ public class TableIndexTest {
     }
 
     private static StreamMetadata dummyMetadata() {
-        return new StreamMetadata("dummy", 123, 0, -1, -1, -1, new HashMap<>(), new HashMap<>(), StreamMetadata.STREAM_ACTIVE);
+        return new StreamMetadata("dummy", 123, 0, StreamMetadata.NO_MAX_AGE, StreamMetadata.NO_MAX_COUNT, StreamMetadata.NO_TRUNCATE, new HashMap<>(), new HashMap<>(), StreamMetadata.STREAM_ACTIVE);
     }
 
     @Test

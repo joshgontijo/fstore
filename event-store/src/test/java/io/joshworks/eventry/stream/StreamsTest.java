@@ -39,7 +39,7 @@ public class StreamsTest {
     }
 
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = StreamException.class)
     public void stream_with_same_name_is_not_created() {
         streams.create("a");
         streams.create("a");
@@ -68,11 +68,11 @@ public class StreamsTest {
 
     @Test
     public void version_of_nonExisting_stream_returns_zero() {
-        int version = streams.tryIncrementVersion(metadata(123), -1);
+        int version = streams.tryIncrementVersion(metadata(123), NO_VERSION);
         assertEquals(0, version);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = StreamException.class)
     public void unexpected_version_throws_exception() {
         streams.tryIncrementVersion(metadata(123), 1);
         fail("Expected version mismatch");
@@ -81,7 +81,7 @@ public class StreamsTest {
     @Test
     public void existing_stream_returns_correct_version() {
         StreamMetadata metadata = streams.create("stream-123");
-        streams.tryIncrementVersion(metadata, -1);
+        streams.tryIncrementVersion(metadata, NO_VERSION);
         int version1 = streams.tryIncrementVersion(metadata, 0);
         assertEquals(1, version1);
 
@@ -121,7 +121,7 @@ public class StreamsTest {
     }
 
     private static StreamMetadata metadata(long hash) {
-        return new StreamMetadata(String.valueOf(hash), hash, 0, -1, -1, -1, Map.of(), Map.of(), StreamMetadata.STREAM_ACTIVE);
+        return new StreamMetadata(String.valueOf(hash), hash, 0, StreamMetadata.NO_MAX_AGE, StreamMetadata.NO_MAX_COUNT, StreamMetadata.NO_TRUNCATE, Map.of(), Map.of(), StreamMetadata.STREAM_ACTIVE);
     }
 
 }

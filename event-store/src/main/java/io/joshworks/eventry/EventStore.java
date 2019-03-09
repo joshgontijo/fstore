@@ -45,6 +45,8 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.index.IndexEntry.NO_VERSION;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static java.util.Objects.requireNonNull;
 
 public class EventStore implements IEventStore {
@@ -188,7 +190,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public void createStream(String name) {
-        createStream(name, -1, -1);
+        createStream(name, NO_MAX_COUNT, NO_MAX_AGE);
     }
 
     @Override
@@ -197,9 +199,9 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
+    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
         Future<StreamMetadata> task = eventWriter.queue(writer -> {
-            StreamMetadata created = streams.create(stream, maxAge, maxCount, permissions, metadata);
+            StreamMetadata created = streams.create(stream, maxAge, maxCount, acl, metadata);
             if (created == null) {
                 throw new IllegalStateException("Stream '" + stream + "' already exist");
             }
@@ -238,7 +240,7 @@ public class EventStore implements IEventStore {
             EventRecord eventRecord = StreamTruncated.create(metadata.name, fromVersion);
 
             StreamMetadata streamsMetadata = streams.get(SystemStreams.STREAMS).get();
-            writer.append(eventRecord, -1, streamsMetadata);
+            writer.append(eventRecord, NO_VERSION, streamsMetadata);
         });
 
         Threads.awaitFor(op);
@@ -340,7 +342,7 @@ public class EventStore implements IEventStore {
         return streams.createIfAbsent(stream, created -> {
             EventRecord eventRecord = StreamCreated.create(created);
             StreamMetadata metadata = streams.get(SystemStreams.STREAMS).get();
-            writer.append(eventRecord, -1, metadata);
+            writer.append(eventRecord, NO_VERSION, metadata);
         });
     }
 

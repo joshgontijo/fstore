@@ -1,7 +1,11 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.stream.StreamException;
+import io.joshworks.eventry.stream.StreamInfo;
+import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -13,9 +17,12 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -60,7 +67,7 @@ public class EventStoreTest {
         int size = 10000;
         String streamPrefix = "test-stream-";
         for (int i = 0; i < size; i++) {
-            store.append(EventRecord.create(streamPrefix + i, "" + i, "body-" + i));
+            store.append(EventRecord.create(streamPrefix + i, "" + i, Map.of()));
         }
 
         store.close();
@@ -76,9 +83,9 @@ public class EventStoreTest {
     @Test
     public void index_is_loaded_with_correct_stream_version_order() {
         String stream = "stream-a";
-        store.append(EventRecord.create(stream, "type", "body"));
-        store.append(EventRecord.create(stream, "type", "body"));
-        store.append(EventRecord.create(stream, "type", "body"));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
 
         store.close();
 
@@ -106,10 +113,10 @@ public class EventStoreTest {
         String stream = "test-stream";
         int maxCount = 10;
         int numVersions = 50;
-        store.createStream(stream, maxCount, -1);
+        store.createStream(stream, maxCount, NO_MAX_AGE);
 
         for (int version = 0; version < numVersions; version++) {
-            store.append(EventRecord.create(stream, "type", "body-" + stream));
+            store.append(EventRecord.create(stream, "type", Map.of()));
         }
 
         Iterator<EventRecord> eventStream = store.fromStream(StreamName.parse(stream));
@@ -132,7 +139,7 @@ public class EventStoreTest {
         int versions = 100;
 
         for (int version = 0; version < versions; version++) {
-            store.append(EventRecord.create(stream, "type", "body-" + stream));
+            store.append(EventRecord.create(stream, "type", Map.of()));
         }
 
         store.truncate(stream, 59);
@@ -152,12 +159,12 @@ public class EventStoreTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void stream_name_cannot_start_with_system_reserved_prefix() {
-        store.append(EventRecord.create(StreamName.SYSTEM_PREFIX + "stream", "a", "asa"));
+        store.append(EventRecord.create(StreamName.SYSTEM_PREFIX + "stream", "a", Map.of()));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void event_type_is_mandatory() {
-        store.append(EventRecord.create("stream", null, "asa"));
+        store.append(EventRecord.create("stream", null, Map.of()));
     }
 
 
@@ -168,10 +175,10 @@ public class EventStoreTest {
         String stream = "test-stream";
         int maxAgeSeconds = 5;
         int numVersions = 50;
-        store.createStream(stream, -1, maxAgeSeconds);
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
 
         for (int version = 0; version < numVersions; version++) {
-            store.append(EventRecord.create(stream, "type", "body-" + stream));
+            store.append(EventRecord.create(stream, "type", Map.of()));
         }
 
         long count = store.fromStream(StreamName.parse(stream)).stream().count();
@@ -200,7 +207,7 @@ public class EventStoreTest {
         int truncateFrom = 399;
         String stream = "stream-123";
         for (int i = 0; i < size; i++) {
-            store.append(EventRecord.create(stream, "test", "body"));
+            store.append(EventRecord.create(stream, "test", Map.of()));
         }
 
         store.truncate(stream, truncateFrom);
@@ -213,27 +220,27 @@ public class EventStoreTest {
     @Test
     public void fromStreams_return_all_streams_based_on_the_position() {
         //given
-        int numStreams = 10000;
+        int numStreams = 1000;
         int numVersions = 50;
         String streamPrefix = "test-";
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 1; version <= numVersions; version++) {
-                store.append(EventRecord.create(streamPrefix + stream, "type", "body-" + stream));
+                store.append(EventRecord.create(streamPrefix + stream, "type", Map.of()));
             }
         }
 
-        List<StreamName> streams = Stream.of("test-0", "test-1", "test-10", "test-100", "test-1000").map(StreamName::parse).collect(Collectors.toList());
+        List<StreamName> streams = Stream.of("test-0", "test-1", "test-10", "test-100", "test-500").map(StreamName::parse).collect(Collectors.toList());
 
         Iterator<EventRecord> eventStream = store.fromStreams(new HashSet<>(streams), true);
 
-        int eventCounter = 0;
+        int foundEvents = 0;
         while (eventStream.hasNext()) {
             EventRecord event = eventStream.next();
-            int streamIdx = eventCounter++ / numVersions;
+            int streamIdx = foundEvents++ / numVersions;
             assertEquals(streams.get(streamIdx).name(), event.stream);
         }
 
-        assertEquals(streams.size() * numVersions, eventCounter);
+        assertEquals(streams.size() * numVersions, foundEvents);
     }
 
     @Test(expected = NullPointerException.class)
@@ -241,36 +248,42 @@ public class EventStoreTest {
         store.append(null);
     }
 
-    @Test(expected = NullPointerException.class)
+    @Test(expected = StreamException.class)
     public void stream_version_must_match_expected_version() {
         int expectedVersion = 0;
         store.append(EventRecord.create("test-stream", "type", Map.of()), expectedVersion);
     }
 
-
     @Test
-    public void compact() {
-        fail("IMPLEMENT ME");
+    public void createStream_with_defaults() {
+        var stream = "stream-123";
+        store.createStream(stream);
+        Optional<StreamInfo> streamInfo = store.streamMetadata(stream);
+        assertTrue(streamInfo.isPresent());
+
+        StreamInfo info = streamInfo.get();
+        assertEquals(stream, info.name);
+        assertEquals(IndexEntry.NO_VERSION, info.version);
+        assertEquals(NO_MAX_AGE, info.maxAge);
+        assertEquals(StreamMetadata.NO_MAX_COUNT, info.maxCount);
     }
 
     @Test
-    public void createStream() {
-        fail("IMPLEMENT ME");
-    }
+    public void createStream_with_provided_values() {
+        var stream = "stream-123";
+        int maxCount = 2;
+        int maxAge = 10;
+        var metadata = Map.of("key1", "value1");
+        var acl = Map.of("key1", 1);
+        store.createStream(stream, maxCount, maxAge, acl, metadata);
+        Optional<StreamInfo> streamInfo = store.streamMetadata(stream);
+        assertTrue(streamInfo.isPresent());
 
-    @Test
-    public void createStream1() {
-        fail("IMPLEMENT ME");
-    }
-
-    @Test
-    public void createStream2() {
-        fail("IMPLEMENT ME");
-    }
-
-    @Test
-    public void streamsMetadata() {
-        fail("IMPLEMENT ME");
+        StreamInfo info = streamInfo.get();
+        assertEquals(stream, info.name);
+        assertEquals(IndexEntry.NO_VERSION, info.version);
+        assertEquals(maxAge, info.maxAge);
+        assertEquals(maxCount, info.maxCount);
     }
 
     @Test

@@ -17,7 +17,7 @@ public class StreamMetadataSerializer implements Serializer<StreamMetadata> {
     @Override
     public ByteBuffer toBytes(StreamMetadata data) {
         int nameSize = VStringSerializer.sizeOf(data.name);
-        int permissionsSize = MapSerializer.sizeOfMap(data.permissions, VStringSerializer::sizeOf, v -> Integer.BYTES);
+        int permissionsSize = MapSerializer.sizeOfMap(data.acl, VStringSerializer::sizeOf, v -> Integer.BYTES);
         int metadataSize = MapSerializer.sizeOfMap(data.metadata, VStringSerializer::sizeOf, VStringSerializer::sizeOf);
         int permissionsMapLength = Integer.BYTES;
         int metadataMapLength = Integer.BYTES;
@@ -45,7 +45,7 @@ public class StreamMetadataSerializer implements Serializer<StreamMetadata> {
         dest.putInt(data.truncated);
         dest.put(Serializers.VSTRING.toBytes(data.name));
 
-        permissionSerializer.writeTo(data.permissions, dest);
+        permissionSerializer.writeTo(data.acl, dest);
         metadataSerializer.writeTo(data.metadata, dest);
     }
 
