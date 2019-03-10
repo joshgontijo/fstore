@@ -16,3 +16,5 @@ project(':serializer:json-serializer').projectDir = file('serializer/json-serial
 project(':serializer:kryo-serializer').projectDir = file('serializer/kryo-serializer')
 project(':serializer:standard-serializer').projectDir = file('serializer/standard-serializer')
 project(':codec:snappy-codec').projectDir = file('codec/snappy-codec')
+include(':networking')
+

@@ -9,3 +9,30 @@ dependencies {
     testCompile project(':test-utils')
     testCompile 'org.slf4j:slf4j-simple:1.7.25'
 }
+
+
+sourceSets {
+
+    integrationTest {
+        java.srcDir 'src/it-test/java'
+        resources.srcDir 'src/it-test/resources'
+        compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+task integrationTest(type: Test) {
+    description 'Runs the integration tests.'
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+}
+
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+
+    integrationTestCompile sourceSets.main.output
+    integrationTestCompile configurations.testCompile
+    integrationTestCompile sourceSets.test.output
+    integrationTestRuntime configurations.testRuntime
+}
