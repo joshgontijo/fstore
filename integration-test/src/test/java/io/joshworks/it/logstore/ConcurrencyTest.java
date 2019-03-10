@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.it;
+package io.joshworks.it.logstore;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
