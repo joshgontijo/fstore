@@ -22,7 +22,7 @@
 //import static org.junit.Assert.assertFalse;
 //import static org.junit.Assert.assertTrue;
 //
-//public class ProjectionIT {
+//public class ProjectionTest {
 //
 //    private File directory;
 //    private EventStore store;
