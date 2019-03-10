@@ -20,7 +20,6 @@
         <module>test-utils</module>
         <module>es-projection</module>
         <module>networking</module>
-        <module>integration-test</module>
     </modules>
 
     <properties>
@@ -108,5 +107,13 @@
         </dependencies>
     </dependencyManagement>
 
+    <profiles>
+        <profile>
+            <id>integration-test</id>
+            <modules>
+                <module>integration-test</module>
+            </modules>
+        </profile>
+    </profiles>
 
 </project>
