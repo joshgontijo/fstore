@@ -1,4 +1,4 @@
-package io.joshworks.it.eventstore;
+package io.joshworks.eventry.it;
 
 import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;

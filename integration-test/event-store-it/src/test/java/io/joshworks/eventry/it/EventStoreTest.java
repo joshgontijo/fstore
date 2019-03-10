@@ -1,4 +1,4 @@
-package io.joshworks.it.eventstore;
+package io.joshworks.eventry.it;
 
 import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
@@ -6,10 +6,12 @@ import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
+import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.StreamHasher;
+import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
@@ -23,6 +25,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
