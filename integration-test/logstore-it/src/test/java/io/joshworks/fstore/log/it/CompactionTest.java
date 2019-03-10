@@ -17,7 +17,7 @@ import java.io.File;
 import static org.junit.Assert.assertEquals;
 
 
-public abstract class CompactionIT {
+public abstract class CompactionTest {
 
     private static final long SEGMENT_SIZE = Size.MB.of(5);
     private static final int COMPACTION_THRESHOLD = 2;
@@ -75,7 +75,7 @@ public abstract class CompactionIT {
     }
 
 
-    public static class CachedRafLogAppenderIT extends CompactionIT {
+    public static class CachedRafLogAppenderTest extends CompactionTest {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {
@@ -87,7 +87,7 @@ public abstract class CompactionIT {
         }
     }
 
-    public static class MMapLogAppenderIT extends CompactionIT {
+    public static class MMapLogAppenderTest extends CompactionTest {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {
@@ -99,7 +99,7 @@ public abstract class CompactionIT {
         }
     }
 
-    public static class RafLogAppenderIT extends CompactionIT {
+    public static class RafLogAppenderTest extends CompactionTest {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {

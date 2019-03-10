@@ -31,7 +31,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class ConcurrencyIT {
+public class ConcurrencyTest {
 
     private File directory;
     private IEventStore store;
