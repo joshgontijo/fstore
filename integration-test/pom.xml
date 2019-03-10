@@ -17,4 +17,15 @@
         <module>event-store-it</module>
     </modules>
 
+    <dependencies>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>test-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
+    </dependencies>
+
 </project>
