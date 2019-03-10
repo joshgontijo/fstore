@@ -24,7 +24,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 
-public abstract class LogAppenderIT {
+public abstract class LogAppenderTest {
 
     public static final long SEGMENT_SIZE = Size.MB.of(128);
     private LogAppender<String> appender;
@@ -274,7 +274,7 @@ public abstract class LogAppenderIT {
     }
 
 
-    public static class CachedRafLogAppenderIT extends LogAppenderIT {
+    public static class CachedRafLogAppenderTest extends LogAppenderTest {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {
@@ -285,7 +285,7 @@ public abstract class LogAppenderIT {
         }
     }
 
-    public static class MMapLogAppenderIT extends LogAppenderIT {
+    public static class MMapLogAppenderTest extends LogAppenderTest {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {
@@ -297,7 +297,7 @@ public abstract class LogAppenderIT {
         }
     }
 
-    public static class RafLogAppenderIT extends LogAppenderIT {
+    public static class RafLogAppenderTest extends LogAppenderTest {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {
