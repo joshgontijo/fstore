@@ -5,6 +5,7 @@ import io.joshworks.eventry.projection.result.ScriptExecutionResult;
 import io.joshworks.eventry.projection.task.ProjectionContext;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
+@Ignore
 public class Jsr223HandlerTest {
 
     private static final String ENGINE_NAME = "nashorn";
