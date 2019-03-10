@@ -10,14 +10,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>integration-test</artifactId>
-    <packaging>pom</packaging>
-
-    <modules>
-        <module>logstore-it</module>
-        <module>event-store-it</module>
-    </modules>
 
     <dependencies>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>event-store</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>test-utils</artifactId>
