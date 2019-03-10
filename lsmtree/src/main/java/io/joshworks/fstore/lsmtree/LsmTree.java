@@ -4,8 +4,8 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.CloseableIterator;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.lsmtree.log.Record;
 import io.joshworks.fstore.lsmtree.log.TransactionLog;
@@ -173,7 +173,12 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
         @Override
         public boolean hasNext() {
-            return !segments.isEmpty();
+            for (PeekingIterator<Entry<K, V>> segment : segments) {
+                if (segment.hasNext()) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private Entry<K, V> getNextEntry(List<PeekingIterator<Entry<K, V>>> segmentIterators) {
