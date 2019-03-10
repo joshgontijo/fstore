@@ -1,6 +1,6 @@
-//package io.joshworks.eventry.server.cluster;
+//package io.joshworks.eventry.network;
 //
-//import io.joshworks.eventry.server.cluster.partition.FileHeader;
+//import io.joshworks.eventry.network.partition.FileHeader;
 //import org.jgroups.JChannel;
 //import org.jgroups.Message;
 //import org.jgroups.ReceiverAdapter;

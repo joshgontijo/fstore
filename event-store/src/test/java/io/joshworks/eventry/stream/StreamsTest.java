@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
 import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -110,8 +111,8 @@ public class StreamsTest {
         String stream = "stream-123";
         int tbVersion = 0;
         StreamMetadata metadata = streams.create(stream);
-        streams.tryIncrementVersion(metadata, NO_VERSION); //0
-        streams.tryIncrementVersion(metadata, NO_VERSION); //1
+        streams.tryIncrementVersion(metadata, NO_EXPECTED_VERSION); //0
+        streams.tryIncrementVersion(metadata, NO_EXPECTED_VERSION); //1
 
         streams.truncate(metadata, tbVersion);
 

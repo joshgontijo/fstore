@@ -733,7 +733,7 @@ public class IndexSegmentTest {
     @Test
     public void readBlockEntries_returns_correct_block_for_all_entries() {
         int streams = 1000;
-        int versions = 1000;
+        int versions = 10;
         IndexSegment segment = indexWithXStreamsWithYEventsEach(streams, versions);
 
         for (int stream = 0; stream < streams; stream++) {
