@@ -1,7 +1,22 @@
+plugins {
+    id 'application'
+}
+
 dependencies {
     compile project(':event-store')
     compile project(':serializer:json-serializer')
     compile 'io.joshworks.snappy:snappy:0.3'
     compile 'org.jgroups:jgroups:4.0.10.Final'
     testCompile 'junit:junit:4.12'
+}
+
+mainClassName = "io.joshworks.eventry.server.Server"
+
+jar {
+    manifest {
+        attributes "Main-Class": "$mainClassName"
+    }
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
 }

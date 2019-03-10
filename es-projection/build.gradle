@@ -1,5 +1,9 @@
 dependencies {
     testCompile 'junit:junit:4.12'
     testCompile project(':test-utils')
+    testCompile project(':logstore')
+    testCompile project(':core')
+    testCompile project(':event-store')
+    
     compileOnly project(':event-store')
 }

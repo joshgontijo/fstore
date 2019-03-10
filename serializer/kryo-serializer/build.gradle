@@ -1,4 +1,5 @@
 dependencies {
+    compile project(':core')
     compile 'com.esotericsoftware:kryo:4.0.1'
     compile 'de.javakaffee:kryo-serializers:0.42'
 }
