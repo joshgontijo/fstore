@@ -7,7 +7,6 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.server.cluster.client.ClusterClient;
-import io.joshworks.eventry.server.cluster.client.NodeMessage;
 import io.joshworks.eventry.server.cluster.messages.ClusterMessage;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
 import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
@@ -60,13 +59,13 @@ public class ClusterStore {
     }
 
     private void registerHandlers() {
-        cluster.register(NodeJoined.CODE, this::onNodeJoined);
-        cluster.register(NodeLeft.CODE, this::onNodeLeft);
-        cluster.register(NodeInfoRequested.CODE, this::onNodeInfoRequested);
-        cluster.register(NodeInfo.CODE, this::onNodeInfoReceived);
-        cluster.register(PartitionForkRequested.CODE, this::onPartitionForkRequested);
-        cluster.register(PartitionForkCompleted.CODE, this::onPartitionForkCompleted);
-        cluster.register(FromAll.CODE, this::fromAllRequested);
+//        cluster.register(NodeJoined.class, this::onNodeJoined);
+//        cluster.register(NodeLeft.class, this::onNodeLeft);
+//        cluster.register(NodeInfoRequested.class, this::onNodeInfoRequested);
+//        cluster.register(NodeInfo.class, this::onNodeInfoReceived);
+//        cluster.register(PartitionForkRequested.class, this::onPartitionForkRequested);
+//        cluster.register(PartitionForkCompleted.class, this::onPartitionForkCompleted);
+//        cluster.register(FromAll.class, this::fromAllRequested);
     }
 
     public static ClusterStore connect(File rootDir, String name) {
@@ -89,7 +88,7 @@ public class ClusterStore {
                     logger.info("Forking partitions");
                     //TODO forking 2 partition from each
                     for (NodeMessage response : responses) {
-                        NodeInfo nodeInfo = new NodeInfo(response.buffer);
+                        NodeInfo nodeInfo = null;//new NodeInfo(response.buffer);
                         Iterator<Integer> it = nodeInfo.partitions.iterator();
                         for (int i = 0; i < 2; i++) {
                             if (it.hasNext()) {
@@ -112,8 +111,7 @@ public class ClusterStore {
         }
     }
 
-    private ClusterMessage fromAllRequested(NodeMessage message) {
-        FromAll fromAll = message.as(FromAll::new);
+    private ClusterMessage fromAllRequested(FromAll fromAll) {
         LogIterator<EventRecord> iterator = partitions.get(fromAll.partitionId).store().fromAll(fromAll.linkToPolicy, fromAll.systemEventPolicy);
         String iteratorId = remoteIterators.add(-1, -1, iterator);
         return new IteratorCreated(iteratorId);
@@ -129,40 +127,34 @@ public class ClusterStore {
         cluster.client().cast(new PartitionForkCompleted(partitionId));
     }
 
-    private void onNodeJoined(NodeMessage message) {
-        NodeJoined nodeJoined = message.as(NodeJoined::new);
+    private void onNodeJoined(Address address, NodeJoined nodeJoined) {
         logger.info("Node joined: '{}': {}", nodeJoined.nodeId, nodeJoined);
         nodeLog.append(new NodeJoinedEvent(nodeJoined.nodeId));
         for (int ownedPartition : nodeJoined.partitions) {
-            Partition remotePartition = initRemotePartition(message.address, ownedPartition);
+            Partition remotePartition = initRemotePartition(address, ownedPartition);
             partitions.put(ownedPartition, remotePartition);
         }
     }
 
-    private void onNodeLeft(NodeMessage message) {
-        NodeLeft nodeJoined = message.as(NodeLeft::new);
+    private void onNodeLeft(NodeLeft nodeJoined) {
         logger.info("Node left: '{}'", nodeJoined.nodeId);
         nodeLog.append(new NodeLeftEvent(nodeJoined.nodeId));
     }
 
-    private ClusterMessage onNodeInfoRequested(NodeMessage message) {
-        NodeInfoRequested nodeInfoRequested = message.as(NodeInfoRequested::new);
+    private ClusterMessage onNodeInfoRequested(NodeInfoRequested nodeInfoRequested) {
         logger.info("Node info requested from {}", nodeInfoRequested.nodeId);
         return new NodeInfo(descriptor.nodeId, partitions.keySet());
     }
 
-    private void onNodeInfoReceived(NodeMessage message) {
-        NodeInfo nodeInfo = message.as(NodeInfo::new);
+    private void onNodeInfoReceived(NodeInfo nodeInfo) {
         logger.info("Node info received from {}: {}", nodeInfo.nodeId, nodeInfo);
     }
 
-    private void onPartitionForkRequested(NodeMessage message) {
-        PartitionForkRequested fork = message.as(PartitionForkRequested::new);
+    private void onPartitionForkRequested(PartitionForkRequested fork) {
         logger.info("Partition fork requested: {}", fork);
     }
 
-    private void onPartitionForkCompleted(NodeMessage message) {
-        PartitionForkCompleted fork = message.as(PartitionForkCompleted::new);
+    private void onPartitionForkCompleted(PartitionForkCompleted fork) {
         logger.info("Partition fork completed: {}", fork.partitionId);
         //TODO ownership of the partition should be transferred
     }

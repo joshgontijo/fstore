@@ -1,5 +1,7 @@
 package io.joshworks.eventry.server.cluster.client;
 
+import io.joshworks.eventry.server.cluster.NodeMessage;
+
 import java.util.List;
 
 public class ClusterResponse {

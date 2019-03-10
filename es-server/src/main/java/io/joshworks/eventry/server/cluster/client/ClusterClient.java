@@ -1,6 +1,10 @@
 package io.joshworks.eventry.server.cluster.client;
 
+import io.joshworks.eventry.server.cluster.NodeMessage;
 import io.joshworks.eventry.server.cluster.messages.ClusterMessage;
+import io.joshworks.eventry.server.cluster.messages.MessageError;
+import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
 import org.jgroups.Message;
 import org.jgroups.blocks.MessageDispatcher;
@@ -9,6 +13,7 @@ import org.jgroups.util.Buffer;
 import org.jgroups.util.Rsp;
 import org.jgroups.util.RspList;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -19,17 +24,27 @@ import static java.util.Objects.requireNonNull;
 public class ClusterClient {
 
     private final MessageDispatcher dispatcher;
+    private final KryoStoreSerializer serializer;
 
-    public ClusterClient(MessageDispatcher dispatcher) {
+    public ClusterClient(MessageDispatcher dispatcher, KryoStoreSerializer serializer) {
         this.dispatcher = dispatcher;
+        this.serializer = serializer;
     }
 
     /**
      * Sends a synchronous request and wait for a response
      */
-    public NodeMessage send(Address address, ClusterMessage message) {
+    public <T extends ClusterMessage> T send(Address address, ClusterMessage message) {
         Message response = send(address, message, RequestOptions.SYNC());
-        return response == null ? null : new NodeMessage(response);
+        if(response == null) {
+            return null;
+        }
+
+        ClusterMessage cMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(response.buffer()));
+        if(cMessage instanceof MessageError) {
+            throw new RuntimeException("TODO " + cMessage);
+        }
+        return (T) cMessage;
     }
 
     /**
@@ -57,7 +72,8 @@ public class ClusterClient {
         for (Rsp<Message> response : responses) {
             requireNonNull(response, "Response cannot be null");
             Message respMsg = response.getValue();
-            nodeResponses.add(new NodeMessage(respMsg));
+            ClusterMessage cm = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(respMsg.buffer()));
+            nodeResponses.add(new NodeMessage(respMsg.src(), cm));
         }
         return nodeResponses;
     }
@@ -78,7 +94,7 @@ public class ClusterClient {
 
     private Message send(Address address, ClusterMessage message, RequestOptions options) {
         try {
-            return dispatcher.sendMessage(address, new Buffer(message.toBytes()), options);
+            return dispatcher.sendMessage(address, new Buffer(serializer.toBytes(message).array()), options);
         } catch (Exception e) {
             throw new ClusterClientException("Failed sending message to " + address + ": ", e);
         }
@@ -86,7 +102,7 @@ public class ClusterClient {
 
     private RspList<Message> cast(Collection<Address> addresses, ClusterMessage message, RequestOptions options) {
         try {
-            return dispatcher.castMessage(addresses, new Buffer(message.toBytes()), options);
+            return dispatcher.castMessage(addresses, new Buffer(serializer.toBytes(message).array()), options);
         } catch (Exception e) {
             throw new ClusterClientException("Failed sending message to " + Arrays.toString(addresses.toArray()) + ": ", e);
         }

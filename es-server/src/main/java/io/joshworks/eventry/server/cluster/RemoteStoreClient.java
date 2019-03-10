@@ -78,8 +78,8 @@ public class RemoteStoreClient implements IEventStore {
 
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
-        Append append = new Append(event, expectedVersion);
-        AppendSuccess response = client.send(address, append).as(AppendSuccess::new);
+//        Append append = new Append(event, expectedVersion);
+//        AppendSuccess response = client.send(address, append).as(AppendSuccess::new);
         return null; //TODO
     }
 
@@ -110,8 +110,9 @@ public class RemoteStoreClient implements IEventStore {
 
     @Override
     public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
-        IteratorCreated it = client.send(address, new FromAll(10000, 20, partitionId, linkToPolicy, systemEventPolicy, lastEvent)).as(IteratorCreated::new);
-        return new RemoteStoreClientIterator(client, address, it.iteratorId);
+//        IteratorCreated it = client.send(address, new FromAll(10000, 20, partitionId, linkToPolicy, systemEventPolicy, lastEvent)).as(IteratorCreated::new);
+//        return new RemoteStoreClientIterator(client, address, it.iteratorId);
+        return null;
     }
 
     @Override
@@ -266,8 +267,8 @@ public class RemoteStoreClient implements IEventStore {
         }
 
         private void fetch() {
-            EventData eventData = client.send(address, new IteratorNext(iteratorId)).as(EventData::new);
-            cached.add(eventData.record);
+//            EventData eventData = client.send(address, new IteratorNext(iteratorId)).as(EventData::new);
+//            cached.add(eventData.record);
         }
 
     }
