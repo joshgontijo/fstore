@@ -23,7 +23,7 @@ public class VStringSerializer implements Serializer<String> {
     @Override
     public String fromBytes(ByteBuffer buffer) {
         int length = buffer.getInt();
-        if (!buffer.hasArray()) {
+        if(!buffer.hasArray()) {
             byte[] data = new byte[length];
             buffer.get(data);
             return new String(data, StandardCharsets.UTF_8);
@@ -35,7 +35,7 @@ public class VStringSerializer implements Serializer<String> {
     }
 
     public static int sizeOf(String value) {
-        if (value == null) {
+        if(value == null) {
             return Integer.BYTES;
         }
         return value.length() + Integer.BYTES;

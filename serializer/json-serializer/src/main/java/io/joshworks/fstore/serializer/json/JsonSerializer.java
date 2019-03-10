@@ -8,7 +8,6 @@ import io.joshworks.fstore.serializer.StringSerializer;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
 import java.util.Map;
 
 
@@ -31,24 +30,14 @@ public class JsonSerializer<T> implements Serializer<T> {
         return new JsonSerializer<>(type);
     }
 
-    public static Map<String, Object> fromString(String json) {
-        return gson.fromJson(json, new TypeToken<Map<String, Object>>() {
-        }.getType());
-    }
-
-    public static Map<String, Object> toMap(Object pojo) {
-        if (pojo == null) {
-            throw new IllegalArgumentException("Cannot convert null object");
-        }
-        if (!canBeSerialized(pojo)) {
-            throw new IllegalArgumentException("Cannot convert " + pojo + " into json, not a valid json object");
-        }
-        return fromString(gson.toJson(pojo));
+    public static Map<String, Object> toMap(String json) {
+        return gson.fromJson(json, new TypeToken<Map<String, Object>>(){}.getType());
     }
 
     public static String toJson(Object data) {
         return gson.toJson(data);
     }
+
 
     public static byte[] toJsonBytes(Map<String, Object> data) {
         return toJson(data).getBytes(StandardCharsets.UTF_8);
@@ -68,24 +57,4 @@ public class JsonSerializer<T> implements Serializer<T> {
     public T fromBytes(ByteBuffer data) {
         return gson.fromJson(stringSerializer.fromBytes(data), type);
     }
-
-    private static boolean canBeSerialized(Object o) {
-        if (o == null) {
-            return false;
-        }
-        if (o instanceof String) {
-            return false;
-        }
-        if (o instanceof Number) {
-            return false;
-        }
-        if (o instanceof Boolean) {
-            return false;
-        }
-        if (o instanceof Collection) {
-            return false;
-        }
-        return true;
-    }
-
 }

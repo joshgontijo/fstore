@@ -1,4 +1,4 @@
-package io.joshworks.eventry.server.cluster.client;
+package io.joshworks.eventry.network.client;
 
 public class NoResponseException extends RuntimeException {
 

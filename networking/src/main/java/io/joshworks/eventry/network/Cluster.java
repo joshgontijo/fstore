@@ -1,10 +1,8 @@
-package io.joshworks.eventry.server.cluster;
+package io.joshworks.eventry.network;
 
-import io.joshworks.eventry.server.NodeStatus;
-import io.joshworks.eventry.server.cluster.client.ClusterClient;
-import io.joshworks.eventry.server.cluster.client.NodeMessage;
-import io.joshworks.eventry.server.cluster.messages.ClusterMessage;
+import io.joshworks.eventry.network.client.ClusterClient;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
 import org.jgroups.JChannel;
 import org.jgroups.MembershipListener;
@@ -12,10 +10,12 @@ import org.jgroups.Message;
 import org.jgroups.View;
 import org.jgroups.blocks.MessageDispatcher;
 import org.jgroups.blocks.RequestHandler;
+import org.jgroups.blocks.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -29,17 +29,18 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     private final String clusterName;
     private final String nodeUuid;
+    private final KryoStoreSerializer serializer;
 
     private JChannel channel;
     private View state;
     private MessageDispatcher dispatcher;
     private ClusterClient clusterClient;
 
-    private final Map<Address, Node> nodes = new ConcurrentHashMap<>();
-    private final Map<Integer, Function<NodeMessage, ClusterMessage>> handlers = new ConcurrentHashMap<>();
+    private final Map<Address, ClusterNode> nodes = new ConcurrentHashMap<>();
+    private final Map<Class, Function<NodeMessage, ClusterMessage>> handlers = new ConcurrentHashMap<>();
 
-    private static final Function<NodeMessage, ClusterMessage> NO_OP = bb -> {
-        logger.warn("No message handler for code {}", bb.code);
+    private static final Function<NodeMessage, ClusterMessage> NO_OP = msg -> {
+        logger.warn("No message handler for code {}", msg.getClass().getName());
         return null; //This will cause sync clients to fail
     };
 
@@ -47,6 +48,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     public Cluster(String clusterName, String nodeUuid) {
         this.clusterName = clusterName;
         this.nodeUuid = nodeUuid;
+        this.serializer = new KryoStoreSerializer();
     }
 
     public synchronized void join() {
@@ -56,14 +58,15 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         logger.info("Joining cluster '{}'", clusterName);
         try {
             //event channel
-            channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp.xml"));
+            channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("udp.xml"));
             channel.setDiscardOwnMessages(true);
             channel.setName(nodeUuid);
 
             dispatcher = new MessageDispatcher(channel, this);
             dispatcher.setMembershipListener(this);
+            dispatcher.setAsynDispatching(true);
 
-            clusterClient = new ClusterClient(dispatcher);
+            clusterClient = new ClusterClient(dispatcher, serializer);
 
             channel.connect(clusterName, null, 10000); //connect + getState
             addNode(channel.address());
@@ -77,12 +80,14 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return clusterClient;
     }
 
-    public synchronized void register(int code, Function<NodeMessage, ClusterMessage> handler) {
-        handlers.put(code, handler);
+    public synchronized void register(Class<? extends ClusterMessage> type, Function<NodeMessage, ClusterMessage> handler) {
+        serializer.register(type);
+        handlers.put(type, handler);
     }
 
-    public synchronized void register(int code, Consumer<NodeMessage> handler) {
-        handlers.put(code, bb -> {
+    public synchronized void register(Class<? extends ClusterMessage> type, Consumer<NodeMessage> handler) {
+        serializer.register(type);
+        handlers.put(type, bb -> {
             handler.accept(bb);
             return null;
         });
@@ -97,7 +102,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         channel.close();
     }
 
-    public List<Node> nodes() {
+    public List<ClusterNode> nodes() {
         return new ArrayList<>(nodes.values());
     }
 
@@ -143,28 +148,34 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     @Override
     public Object handle(Message msg) {
         try {
-            NodeMessage nodeMessage = new NodeMessage(msg);
-            ClusterMessage response = handlers.getOrDefault(nodeMessage.code, NO_OP).apply(nodeMessage);
+            ClusterMessage clusterMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(msg.buffer()));
+            NodeMessage nodeMessage = new NodeMessage(msg.src(), clusterMessage);
+            ClusterMessage response = handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(nodeMessage);
             if (response == null) {
                 return null; //TODO will null actually send a response message ?
             }
-            byte[] replyData = response.toBytes();
-            return new Message(msg.src(), replyData).setSrc(address());
+            ByteBuffer data = serializer.toBytes(response);
+            return new Message(msg.src(), data.array()).setSrc(address());
         } catch (Exception e) {
             logger.error("Failed to receive message: " + msg, e);
             throw new RuntimeException(e);//TODO improve
         }
     }
 
+    @Override
+    public void handle(Message request, Response response) throws Exception {
+        System.err.println("##########################");
+    }
+
     private void addNode(Address address) {
-        nodes.put(address, new Node(address));
+        nodes.put(address, new ClusterNode(address));
     }
 
     private void updateNodeStatus(Address address, NodeStatus status) {
-        Node node = nodes.get(address);
-        if (node == null) {
+        ClusterNode clusterNode = nodes.get(address);
+        if (clusterNode == null) {
             throw new IllegalArgumentException("No such node for: " + address);
         }
-        node.status = status;
+        clusterNode.status = status;
     }
 }

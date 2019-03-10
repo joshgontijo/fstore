@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>> {
+public class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>> {
 
     private static final boolean DOES_NOT_ACCEPT_NULL = true;
     private static final boolean IMMUTABLE = true;
@@ -39,7 +39,7 @@ class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>> {
      */
     public static void registerSerializers(final Kryo kryo) {
 
-        final Java9ImmutableMapSerializer serializer = new Java9ImmutableMapSerializer();
+       final Java9ImmutableMapSerializer serializer = new Java9ImmutableMapSerializer();
 
         Object key1 = new Object();
         Object key2 = new Object();

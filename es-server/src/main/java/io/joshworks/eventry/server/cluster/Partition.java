@@ -8,12 +8,10 @@ public class Partition implements Closeable {
 
     public final int id;
     private boolean master;
-    public final boolean local;
     private final IEventStore owner;
 
-    public Partition(int id, boolean local, IEventStore owner) {
+    public Partition(int id, IEventStore owner) {
         this.id = id;
-        this.local = local;
         this.owner = owner;
     }
 

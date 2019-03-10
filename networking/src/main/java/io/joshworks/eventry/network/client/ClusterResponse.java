@@ -1,4 +1,6 @@
-package io.joshworks.eventry.server.cluster.client;
+package io.joshworks.eventry.network.client;
+
+import io.joshworks.eventry.network.NodeMessage;
 
 import java.util.List;
 

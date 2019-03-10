@@ -36,7 +36,7 @@ public class RecordCleanupTest {
     @Before
     public void setUp() {
         dummyFile = FileUtils.testFolder();
-        streams = new Streams(dummyFile, 100000, hash -> 0);
+        streams = new Streams(dummyFile, 10, hash -> 0);
         cleanup = new RecordCleanup(streams);
     }
 
@@ -131,7 +131,7 @@ public class RecordCleanupTest {
     private void appendTo(Log<EventRecord> segment, EventRecord record) {
         segment.append(record);
         StreamMetadata metadata = new StreamMetadata(record.stream, streams.hashOf(record.stream), 0, -1, -1, -1, Map.of(), Map.of(), StreamMetadata.STREAM_ACTIVE);
-        streams.tryIncrementVersion(metadata, EventRecord.NO_VERSION);
+        streams.tryIncrementVersion(metadata, EventRecord.NO_EXPECTED_VERSION);
     }
 
 
