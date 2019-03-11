@@ -5,15 +5,14 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
@@ -75,7 +74,6 @@ public class LogAppender<T> implements Closeable {
     private AtomicBoolean closed = new AtomicBoolean();
 
     private final ScheduledExecutorService flushWorker;
-    private final SedaContext sedaContext = new SedaContext("compaction");
     private final List<ForwardLogReader<T>> forwardReaders = new CopyOnWriteArrayList<>();
     private final Compactor<T> compactor;
 
@@ -123,10 +121,24 @@ public class LogAppender<T> implements Closeable {
         }
 
         this.levels = loadLevels();
-        this.compactor = new Compactor<>(directory, config.combiner, factory, StorageProvider.of(config.compactionStorage), serializer, dataStream, namingStrategy, metadata.compactionThreshold, metadata.magic, config.name, levels, sedaContext, config.threadPerLevel);
-        logConfig(config);
+        this.compactor = new Compactor<>(
+                directory,
+                config.combiner,
+                factory,
+                StorageProvider.of(config.compactionStorage),
+                serializer,
+                dataStream,
+                namingStrategy,
+                metadata.compactionThreshold,
+                metadata.magic,
+                config.name,
+                levels,
+                config.threadPerLevel);
 
-//        sedaContext.addStage(writerName, this::appendInternalAsync, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
+        logConfig(config);
+        if (!compactionDisabled) {
+            compactor.compact();
+        }
     }
 
     private void logConfig(Config<T> config) {
@@ -242,7 +254,7 @@ public class LogAppender<T> implements Closeable {
                 state.flush();
 
                 if (!compactionDisabled) {
-                    compactor.requestCompaction(1);
+                    compactor.compact();
                 }
 
 
@@ -274,10 +286,6 @@ public class LogAppender<T> implements Closeable {
     static long getPositionOnSegment(long position) {
         long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
         return (position & mask);
-    }
-
-    public void compact() {
-        compactor.forceCompaction(1);
     }
 
     private void notifyPollers(Log<T> newSegment) {
@@ -397,14 +405,14 @@ public class LogAppender<T> implements Closeable {
         return applyToSegments(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::fileSize).sum());
     }
 
+    @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
         logger.info("Closing log appender {}", directory.getName());
-//        stateScheduler.shutdown();
 
-        sedaContext.shutdown();
+        compactor.close();
         shutdownFlushWorker();
 
         Log<T> currentSegment = levels.current();
@@ -413,7 +421,6 @@ public class LogAppender<T> implements Closeable {
             state.position(this.position());
         }
 
-//        state.flush();
         state.close();
         closeSegments();
 

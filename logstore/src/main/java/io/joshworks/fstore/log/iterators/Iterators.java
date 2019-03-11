@@ -25,10 +25,11 @@ public class Iterators {
 
     }
 
-    public static void await(LogIterator<?> it, long pollMs) {
+    public static <T> T await(LogIterator<T> it, long pollMs) {
         while(!it.hasNext()) {
             Threads.sleep(pollMs);
         }
+        return it.next();
     }
 
     public static boolean await(LogIterator<?> it, long pollMs, long maxTime) {
