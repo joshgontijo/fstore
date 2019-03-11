@@ -30,23 +30,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class Compactor<T> implements Closeable {
 
     private final Logger logger;
-
     private final AtomicBoolean closed = new AtomicBoolean();
-
-    private File directory;
+    private final File directory;
     private final SegmentCombiner<T> segmentCombiner;
-
     private final SegmentFactory<T> segmentFactory;
     private final StorageProvider storageProvider;
-    private Serializer<T> serializer;
-    private IDataStream dataStream;
-    private NamingStrategy namingStrategy;
+    private final Serializer<T> serializer;
+    private final IDataStream dataStream;
+    private final NamingStrategy namingStrategy;
     private final int compactionThreshold;
     private final String magic;
     private final String name;
-    private Levels<T> levels;
+    private final Levels<T> levels;
     private final boolean threadPerLevel;
-
     private final Set<Log<T>> compacting = new HashSet<>();
 
     private final Map<String, ExecutorService> levelCompaction = new ConcurrentHashMap<>();
