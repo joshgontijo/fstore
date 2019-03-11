@@ -3,8 +3,6 @@ package io.joshworks.fstore.log.appender.compaction;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.seda.EventContext;
-import io.joshworks.fstore.core.seda.StageHandler;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.record.IDataStream;
@@ -15,32 +13,42 @@ import io.joshworks.fstore.log.segment.header.Type;
 import org.slf4j.Logger;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
-import static io.joshworks.fstore.log.appender.compaction.Compactor.COMPACTION_CLEANUP_STAGE;
+public class CompactionTask<T> implements Runnable {
 
-public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
+    private final Logger logger;
 
+    private final String magic;
+    private final int level;
+    private final File segmentFile;
+    private final SegmentCombiner<T> combiner;
+    private final List<Log<T>> segments;
+    private final IDataStream dataStream;
+    private final Serializer<T> serializer;
+    private final StorageProvider storageProvider;
+    private final SegmentFactory<T> segmentFactory;
+    private final Consumer<CompactionResult<T>> onComplete;
+
+    public CompactionTask(CompactionEvent<T> event) {
+        this.logger = Logging.namedLogger(event.name, "compaction-task-" + event.level);
+        this.magic = event.magic;
+        this.level = event.level;
+        this.segmentFile = event.segmentFile;
+        this.combiner = event.combiner;
+        this.segments = new ArrayList<>(event.segments);
+        this.dataStream = event.dataStream;
+        this.serializer = event.serializer;
+        this.storageProvider = event.storageProvider;
+        this.segmentFactory = event.segmentFactory;
+        this.onComplete = event.onComplete;
+    }
 
     @Override
-    public void onEvent(EventContext<CompactionEvent<T>> context) {
-
-        CompactionEvent<T> data = context.data;
-
-        String magic = data.magic;
-        int level = data.level;
-        String name = data.name;
-        File segmentFile = data.segmentFile;
-        SegmentCombiner<T> combiner = data.combiner;
-        List<Log<T>> segments = data.segments;
-        IDataStream dataStream = data.dataStream;
-        Serializer<T> serializer = data.serializer;
-        StorageProvider storageProvider = data.storageProvider;
-        SegmentFactory<T> segmentFactory = data.segmentFactory;
-
-        final Logger logger = Logging.namedLogger(name, "compaction-task-" + level);
-
+    public void run() {
         Log<T> output = null;
         try {
 
@@ -68,11 +76,11 @@ public class CompactionTask<T> implements StageHandler<CompactionEvent<T>> {
             logger.info("Result Segment {} - final size: {}, entries: {}", output.name(), storage.length(), output.entries());
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
-            context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.success(segments, output, level));
+            onComplete.accept(CompactionResult.success(segments, output, level));
 
         } catch (Exception e) {
             logger.error("Failed to compact", e);
-            context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.failure(segments, output, level, e));
+            onComplete.accept(CompactionResult.failure(segments, output, level, e));
         }
     }
 }

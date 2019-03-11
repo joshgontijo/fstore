@@ -1,5 +1,6 @@
 package io.joshworks.fstore.core.seda;
 
+import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +49,9 @@ class BoundedExecutor {
         try {
             executor.execute(SedaTask.wrap(() -> {
                 try {
-                    r.run();
+                    if (!closed.get()) {
+                        r.run();
+                    }
                 } finally {
                     semaphore.release();
                 }
@@ -65,6 +68,11 @@ class BoundedExecutor {
     public void shutdown() {
         closed.set(true);
         executor.shutdown();
+    }
+
+    public List<Runnable> shutdownNow() {
+        closed.set(true);
+        return executor.shutdownNow();
     }
 
     public void awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {

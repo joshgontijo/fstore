@@ -103,8 +103,16 @@ public class SedaContext implements Closeable {
         state.set(ContextState.CLOSED);
     }
 
+    public void shutdownNow() {
+        shutdownInternal(false);
+    }
+
     //Close the context and process remaining items in the stages
     public void shutdown() {
+        shutdownInternal(true);
+    }
+
+    private void shutdownInternal(boolean waitTasks) {
         if (!state.compareAndSet(ContextState.RUNNING, ContextState.AWAITING_COMPLETION)) {
             return;
         }

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionHandler;
@@ -98,6 +99,11 @@ public class Stage<T> implements Closeable {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+    }
+
+    public void closeNow() {
+        List<Runnable> tasks = executor.shutdownNow();
+        logger.info("Stopped {} active tasks", tasks.size());
     }
 
     public String name() {

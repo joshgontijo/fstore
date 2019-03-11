@@ -2,10 +2,8 @@ package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.seda.EventContext;
-import io.joshworks.fstore.core.seda.SedaContext;
-import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.core.util.Logging;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
@@ -15,19 +13,25 @@ import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.utils.LogFileUtils;
 import org.slf4j.Logger;
 
+import java.io.Closeable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class Compactor<T> {
+public class Compactor<T> implements Closeable {
 
     private final Logger logger;
 
-    static final String COMPACTION_CLEANUP_STAGE = "compaction-cleanup";
-    static final String COMPACTION_MANAGER = "compaction-manager";
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     private File directory;
     private final SegmentCombiner<T> segmentCombiner;
@@ -41,12 +45,13 @@ public class Compactor<T> {
     private final String magic;
     private final String name;
     private Levels<T> levels;
-    private final SedaContext sedaContext;
     private final boolean threadPerLevel;
 
     private final Set<Log<T>> compacting = new HashSet<>();
 
-    private final CompactionTask<T> compactionTask = new CompactionTask<>();
+    private final Map<String, ExecutorService> levelCompaction = new ConcurrentHashMap<>();
+    private final ExecutorService cleanupWorker = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compaction-cleanup"));
+    private final ExecutorService coordinator = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compaction-coordinator"));
 
     public Compactor(File directory,
                      SegmentCombiner<T> segmentCombiner,
@@ -59,7 +64,6 @@ public class Compactor<T> {
                      String magic,
                      String name,
                      Levels<T> levels,
-                     SedaContext sedaContext,
                      boolean threadPerLevel) {
         this.directory = directory;
         this.segmentCombiner = segmentCombiner;
@@ -72,106 +76,97 @@ public class Compactor<T> {
         this.magic = magic;
         this.name = name;
         this.levels = levels;
-        this.sedaContext = sedaContext;
         this.threadPerLevel = threadPerLevel;
         this.logger = Logging.namedLogger(name, "compactor");
-
-        sedaContext.addStage(COMPACTION_CLEANUP_STAGE, this::cleanup, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
-        sedaContext.addStage(COMPACTION_MANAGER, this::compact, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
     }
 
-    public void forceCompaction(int level) {
-        if (level <= 0) {
-            throw new IllegalArgumentException("Level must be greater than 1");
-        }
-        sedaContext.submit(COMPACTION_MANAGER, new CompactionRequest(level, true));
+    public void compact() {
+        scheduleCompaction(1);
     }
 
-    public void requestCompaction(int level) {
-        if (level <= 0) {
-            throw new IllegalArgumentException("Level must be greater than 1");
-        }
-        sedaContext.submit(COMPACTION_MANAGER, new CompactionRequest(level, false));
-    }
-
-    private synchronized void compact(EventContext<CompactionRequest> event) {
-        int level = event.data.level;
-        boolean force = event.data.force;
-
-        synchronized (this) {
-            if (!requiresCompaction(level) && !force) {
-                return;
-            }
-            List<Log<T>> segmentsForCompaction = segmentsForCompaction(level);
-            if (segmentsForCompaction.isEmpty()) {
-                logger.warn("Level {} is empty, nothing to compact", level);
-                return;
-            }
-            if (segmentsForCompaction.size() < compactionThreshold) {
-                logger.warn("Number of segments below threshold on level {}", level);
-                return;
-            }
-            compacting.addAll(segmentsForCompaction);
-
-            logger.info("Compacting level {}", level);
-
-            File targetFile = LogFileUtils.newSegmentFile(directory, namingStrategy, level + 1);
-
-            String stageName = stageName(level);
-            if (!sedaContext.stages().contains(stageName)) {
-                sedaContext.addStage(stageName, compactionTask, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
-            }
-            event.submit(stageName, new CompactionEvent<>(segmentsForCompaction, segmentCombiner, targetFile, segmentFactory, storageProvider, serializer, dataStream, name, level, magic));
-        }
-    }
-
-    private String stageName(int level) {
-        return threadPerLevel ? "compaction-level-" + level : "compaction";
-    }
-
-    private synchronized void cleanup(EventContext<CompactionResult<T>> context) {
-        CompactionResult<T> result = context.data;
-        Log<T> target = result.target;
-        int level = result.level;
-        List<Log<T>> sources = Collections.unmodifiableList(result.sources);
-
-        if (!result.successful()) {
-            //TODO
-            logger.error("Compaction error", result.exception);
-            logger.info("Deleting failed merge result segment");
-            target.delete();
+    private void scheduleCompaction(int level) {
+        if (closed.get()) {
+            logger.info("Close requested, ignoring compaction request");
             return;
         }
-
-        if (target.entries() == 0) {
-            logger.info("No entries were found in the result segment {}, deleting", target.name());
-            deleteAll(List.of(target));
-            levels.remove(sources);
-        } else {
-            levels.merge(sources, target);
-        }
-
-        compacting.removeAll(sources);
-
-        context.submit(COMPACTION_MANAGER, new CompactionRequest(level, false));
-        context.submit(COMPACTION_MANAGER, new CompactionRequest(level + 1, false));
-
-        deleteAll(sources);
+        coordinator.execute(() -> processCompaction(level));
     }
 
-    private synchronized boolean requiresCompaction(int level) {
-        if (compactionThreshold <= 0 || level < 0) {
-            return false;
+    private void processCompaction(int level) {
+        if (closed.get()) {
+            logger.info("Close requested, ignoring compaction");
+            return;
         }
+        List<Log<T>> segmentsForCompaction = segmentsForCompaction(level);
+        if (segmentsForCompaction.size() < compactionThreshold) {
+            return;
+        }
+        compacting.addAll(segmentsForCompaction);
 
-        long compactingForLevel = new ArrayList<>(compacting).stream().filter(l -> l.level() == level).count();
-        return levels.apply(level, segments -> {
-            int levelSize = segments.size();
-            return levelSize - compactingForLevel >= compactionThreshold;
+        logger.info("Compacting level {}", level);
+
+        File targetFile = LogFileUtils.newSegmentFile(directory, namingStrategy, level + 1);
+        var event = new CompactionEvent<>(
+                segmentsForCompaction,
+                segmentCombiner,
+                targetFile,
+                segmentFactory,
+                storageProvider,
+                serializer,
+                dataStream,
+                name,
+                level,
+                magic,
+                this::cleanup);
+
+        submitCompaction(event);
+
+    }
+
+    private void submitCompaction(CompactionEvent<T> event) {
+        executorFor(event.level).submit(() -> {
+            if (closed.get()) {
+                return;
+            }
+            new CompactionTask<>(event).run();
         });
     }
 
-    private synchronized List<Log<T>> segmentsForCompaction(int level) {
+    private String executorName(int level) {
+        return threadPerLevel ? "compaction-level-" + level : "compaction";
+    }
+
+    private void cleanup(CompactionResult<T> result) {
+        cleanupWorker.execute(() -> {
+            Log<T> target = result.target;
+            int level = result.level;
+            List<Log<T>> sources = Collections.unmodifiableList(result.sources);
+
+            if (!result.successful()) {
+                //TODO
+                logger.error("Compaction error", result.exception);
+                logger.info("Deleting failed merge result segment");
+                target.delete();
+                return;
+            }
+
+            if (target.entries() == 0) {
+                logger.info("No entries were found in the result segment {}, deleting", target.name());
+                deleteAll(List.of(target));
+                levels.remove(sources);
+            } else {
+                levels.merge(sources, target);
+            }
+
+            compacting.removeAll(sources);
+
+            scheduleCompaction(level);
+            scheduleCompaction(level + 1);
+            deleteAll(sources);
+        });
+    }
+
+    private List<Log<T>> segmentsForCompaction(int level) {
         if (level <= 0) {
             throw new IllegalArgumentException("Level must be greater than zero");
         }
@@ -187,8 +182,6 @@ public class Compactor<T> {
             }
             return toBeCompacted;
         });
-
-
     }
 
     //delete all source segments only if all of them are not being used
@@ -203,14 +196,25 @@ public class Compactor<T> {
         }
     }
 
-    private static class CompactionRequest {
-        private final int level;
-        private final boolean force;
-
-        private CompactionRequest(int level, boolean force) {
-            this.level = level;
-            this.force = force;
-        }
+    private ExecutorService executorFor(int level) {
+        String executorName = executorName(level);
+        return levelCompaction.compute(executorName, (k, v) -> {
+            if (v == null) {
+                return Executors.newSingleThreadExecutor(Threads.namedThreadFactory(executorName));
+            }
+            return v;
+        });
     }
 
+
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true)) {
+            logger.info("Closing compactor");
+            //Order matters here
+            coordinator.shutdown();
+            levelCompaction.values().forEach(exec -> Threads.awaitTerminationOf(exec, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction task")));
+            Threads.awaitTerminationOf(cleanupWorker, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction cleanup task"));
+        }
+    }
 }

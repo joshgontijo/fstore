@@ -4,11 +4,14 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.seda.TimeWatch;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
+import io.joshworks.fstore.testutils.ThreadUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -17,10 +20,12 @@ import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public abstract class ConcurrencyTest {
 
@@ -53,46 +58,46 @@ public abstract class ConcurrencyTest {
         ExecutorService executor = Executors.newFixedThreadPool(parallelReads);
 
         AtomicInteger completedTasks = new AtomicInteger();
+        AtomicBoolean writeFailed = new AtomicBoolean();
         AtomicLong failed = new AtomicLong();
         AtomicLong reads = new AtomicLong();
         AtomicLong writes = new AtomicLong();
 
-
         Thread writeThread = new Thread(() -> {
-            int counter = 0;
-            do {
-                appender.append(String.valueOf(counter++));
-            } while (writes.incrementAndGet() < totalItems);
+            try {
+                int counter = 0;
+                do {
+                    appender.append(String.valueOf(counter++));
+                } while (writes.incrementAndGet() < totalItems);
+
+            } catch (Exception e) {
+                writeFailed.set(true);
+            }
         });
         writeThread.start();
 
-
-        Thread reportThread = new Thread(() -> {
-            while (completedTasks.get() < parallelReads) {
-                System.out.println("READ TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
-                sleep(2000);
-            }
+        ThreadUtils.watcher(() -> {
+            System.out.println("READ TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
         });
-        reportThread.start();
 
-
+        
         for (int i = 0; i < parallelReads; i++) {
             executor.execute(() -> {
                 String lastEntry = null;
                 try (LogIterator<String> iterator = appender.iterator(Direction.FORWARD)) {
                     for (int j = 0; j < totalItems; j++) {
-                        while (!iterator.hasNext()) {
+                        while (!writeFailed.get() && !iterator.hasNext()) {
                             Thread.sleep(100);
+                        }
+                        if(writeFailed.get()) {
+                            break;
                         }
                         String next = iterator.next();
                         reads.incrementAndGet();
-//                        System.out.println(next);
-
                         if (lastEntry == null) {
                             lastEntry = next;
                             continue;
                         }
-
                         long prev = Long.parseLong(lastEntry);
                         long curr = Long.parseLong(next);
                         assertEquals(prev + 1, curr);
@@ -108,14 +113,13 @@ public abstract class ConcurrencyTest {
             });
         }
 
-
         writeThread.join();
-        executor.shutdown();
-        executor.awaitTermination(2, TimeUnit.HOURS);
+        Threads.awaitTerminationOf(executor, 10, TimeUnit.MINUTES);
 
         System.out.println("Completed");
         System.out.println("TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
 
+        assertFalse(writeFailed.get());
         assertEquals(0, failed.get());
         assertEquals(totalItems, writes.get());
         assertEquals(parallelReads * totalItems, reads.get());
