@@ -488,4 +488,7 @@ public class LogAppender<T> implements Closeable {
         return levels.current();
     }
 
+    public void compact() {
+        compactor.compact();
+    }
 }
