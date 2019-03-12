@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-public abstract class ConcurrencyTest {
+public abstract class ConcurrencyIT {
 
     private LogAppender<String> appender;
 
@@ -175,7 +175,7 @@ public abstract class ConcurrencyTest {
         }
     }
 
-    public static class RafTest extends ConcurrencyTest {
+    public static class RafIT extends ConcurrencyIT {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {
@@ -186,7 +186,7 @@ public abstract class ConcurrencyTest {
         }
     }
 
-    public static class MMapTest extends ConcurrencyTest {
+    public static class MMapIT extends ConcurrencyIT {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {
@@ -197,7 +197,7 @@ public abstract class ConcurrencyTest {
         }
     }
 
-    public static class CachedRafTest extends ConcurrencyTest {
+    public static class CachedRafIT extends ConcurrencyIT {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {
@@ -208,7 +208,7 @@ public abstract class ConcurrencyTest {
         }
     }
 
-    public static class OffHeapTest extends ConcurrencyTest {
+    public static class OffHeapIT extends ConcurrencyIT {
 
         @Override
         protected LogAppender<String> appender(File testDirectory) {

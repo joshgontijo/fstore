@@ -45,7 +45,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class EventStoreTest {
+public class EventStoreIT {
 
     private File directory;
     private EventStore store;
