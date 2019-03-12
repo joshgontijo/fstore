@@ -66,7 +66,7 @@ public class Threads {
     public static void awaitTerminationOf(ExecutorService executor, long checkInterval, TimeUnit timeUnit, Runnable heartbeatTask) {
         try {
             executor.shutdown();
-            while (!executor.awaitTermination(checkInterval, timeUnit)) {
+            while (!executor.isShutdown() && !executor.awaitTermination(checkInterval, timeUnit)) {
                 heartbeatTask.run();
             }
         } catch (InterruptedException e) {
