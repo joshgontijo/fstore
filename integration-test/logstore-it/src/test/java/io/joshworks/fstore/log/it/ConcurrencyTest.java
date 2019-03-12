@@ -8,7 +8,6 @@ import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import io.joshworks.fstore.testutils.ThreadUtils;
@@ -80,7 +79,7 @@ public abstract class ConcurrencyTest {
             System.out.println("READ TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
         });
 
-        
+
         for (int i = 0; i < parallelReads; i++) {
             executor.execute(() -> {
                 String lastEntry = null;
@@ -89,7 +88,7 @@ public abstract class ConcurrencyTest {
                         while (!writeFailed.get() && !iterator.hasNext()) {
                             Thread.sleep(100);
                         }
-                        if(writeFailed.get()) {
+                        if (writeFailed.get()) {
                             break;
                         }
                         String next = iterator.next();
@@ -128,9 +127,7 @@ public abstract class ConcurrencyTest {
     @Test
     public void writes() throws InterruptedException {
 
-        int threads = 50;
         int writeItems = 10000000;
-        ExecutorService executor = Executors.newFixedThreadPool(threads);
 
         AtomicInteger completedTasks = new AtomicInteger();
         AtomicLong failed = new AtomicLong();
@@ -145,8 +142,8 @@ public abstract class ConcurrencyTest {
         reportThread.start();
 
         TimeWatch watch = TimeWatch.start();
-        for (int i = 0; i < writeItems; i++) {
-            executor.execute(() -> {
+        Thread writeThread = new Thread(() -> {
+            for (int i = 0; i < writeItems; i++) {
                 try {
                     appender.append(String.valueOf(writes.getAndIncrement()));
                 } catch (Exception e) {
@@ -155,11 +152,10 @@ public abstract class ConcurrencyTest {
                 } finally {
                     completedTasks.incrementAndGet();
                 }
-            });
-        }
-
-        executor.shutdown();
-        executor.awaitTermination(2, TimeUnit.HOURS);
+            }
+        });
+        writeThread.start();
+        writeThread.join();
 
         System.out.println("COMPLETED IN " + watch.time());
         System.out.println("TASKS COMPLETED: " + completedTasks.get() + " | FAILED: " + failed.get());
