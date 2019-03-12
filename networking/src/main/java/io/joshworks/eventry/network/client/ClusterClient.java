@@ -72,7 +72,7 @@ public class ClusterClient {
             requireNonNull(response, "Response cannot be null");
             Message respMsg = response.getValue();
             ClusterMessage cm = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(respMsg.buffer()));
-            nodeResponses.add(new NodeMessage(respMsg.src(), cm));
+            nodeResponses.add(new NodeMessage(respMsg.src(), cm, respMsg.src(), , response, serializer));
         }
         return nodeResponses;
     }

@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -29,12 +31,14 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     private final String clusterName;
     private final String nodeUuid;
-    private final KryoStoreSerializer serializer;
+    private final KryoStoreSerializer serializer = new KryoStoreSerializer();
 
     private JChannel channel;
     private View state;
     private MessageDispatcher dispatcher;
     private ClusterClient clusterClient;
+
+    private final ExecutorService consumerPool = Executors.newFixedThreadPool(10);
 
     private final Map<Address, ClusterNode> nodes = new ConcurrentHashMap<>();
     private final Map<Class, Function<NodeMessage, ClusterMessage>> handlers = new ConcurrentHashMap<>();
@@ -44,11 +48,10 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return null; //This will cause sync clients to fail
     };
 
-
     public Cluster(String clusterName, String nodeUuid) {
         this.clusterName = clusterName;
         this.nodeUuid = nodeUuid;
-        this.serializer = new KryoStoreSerializer();
+
     }
 
     public synchronized void join() {
@@ -149,7 +152,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     public Object handle(Message msg) {
         try {
             ClusterMessage clusterMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(msg.buffer()));
-            NodeMessage nodeMessage = new NodeMessage(msg.src(), clusterMessage);
+            NodeMessage nodeMessage = new NodeMessage(msg.src(), clusterMessage, msg.src(), response, serializer);
             ClusterMessage response = handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(nodeMessage);
             if (response == null) {
                 return null; //TODO will null actually send a response message ?
@@ -164,6 +167,11 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     @Override
     public void handle(Message request, Response response) throws Exception {
+        MessageResponse resp = new MessageResponse(request.src(), address(), response, serializer);
+        consumerPool.execute(() ->{
+            handle(request);
+        });
+
         System.err.println("##########################");
     }
 
