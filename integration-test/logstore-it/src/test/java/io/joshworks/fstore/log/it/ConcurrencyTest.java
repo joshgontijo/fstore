@@ -10,7 +10,6 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
-import io.joshworks.fstore.testutils.ThreadUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -75,8 +74,11 @@ public abstract class ConcurrencyTest {
         });
         writeThread.start();
 
-        ThreadUtils.watcher(() -> {
-            System.out.println("READ TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
+        Thread thread = new Thread(() -> {
+            while (writeThread.isAlive() || !executor.isShutdown()) {
+                System.out.println("READ TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
+            }
+
         });
 
 
