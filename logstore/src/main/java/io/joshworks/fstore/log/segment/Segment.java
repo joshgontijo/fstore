@@ -341,7 +341,7 @@ public class Segment<T> implements Log<T> {
         }
         long writePosition = position();
         if (position > writePosition) {
-            throw new IllegalArgumentException("Position must be less than writePosition " + writePosition + ", got " + position);
+            throw new IllegalArgumentException("Position (" + position + ") must be less than writePosition " + writePosition);
         }
     }
 

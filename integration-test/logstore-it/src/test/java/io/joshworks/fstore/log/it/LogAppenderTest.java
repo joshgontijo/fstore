@@ -61,12 +61,9 @@ public abstract class LogAppenderTest {
     public void reopening_after_shrinking_returns_all_data() {
 
         String data = "DATA";
-        long position;
         String name;
 
-
         appender.append(data);
-        position = appender.position();
         name = appender.currentSegment();
         appender.roll();
 
@@ -170,6 +167,9 @@ public abstract class LogAppenderTest {
         long totalRead = 0;
 
         for (Long position : positions) {
+            if(79641452 == position) {
+                System.out.println();
+            }
 
             String val = appender.get(position);
             assertEquals(val, val);
@@ -280,6 +280,7 @@ public abstract class LogAppenderTest {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
+                    .disableCompaction()
                     .storageMode(StorageMode.RAF_CACHED)
                     .open();
         }
@@ -292,6 +293,7 @@ public abstract class LogAppenderTest {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
                     .threadPerLevelCompaction()
+                    .disableCompaction()
                     .storageMode(StorageMode.MMAP)
                     .open();
         }
@@ -303,6 +305,7 @@ public abstract class LogAppenderTest {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
+                    .disableCompaction()
                     .storageMode(StorageMode.RAF)
                     .open();
         }
