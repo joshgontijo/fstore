@@ -18,15 +18,16 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.GregorianCalendar;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * This class is NOT thread safe
+ */
 public class KryoStoreSerializer implements Serializer<Object> {
 
-    private final Kryo kryo;
-
-
-    public KryoStoreSerializer() {
-        kryo = newKryoInstance();
-    }
+    private static final Set<Class> registered = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    static private final ThreadLocal<Kryo> localKryo = ThreadLocal.withInitial(KryoStoreSerializer::newKryoInstance);
 
     private static Kryo newKryoInstance() {
         Kryo kryo = new Kryo();
@@ -43,18 +44,22 @@ public class KryoStoreSerializer implements Serializer<Object> {
         UnmodifiableCollectionsSerializer.registerSerializers(kryo);
         SynchronizedCollectionsSerializer.registerSerializers(kryo);
         Java9ImmutableMapSerializer.registerSerializers(kryo);
+        for (Class type : registered) {
+            kryo.register(type);
+        }
         return kryo;
     }
 
     public void register(Class type) {
-        kryo.register(type);
+        registered.add(type);
+        localKryo.get().register(type);
     }
 
     @Override
     public ByteBuffer toBytes(Object data) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try(Output output = new Output(baos)) {
-            kryo.writeClassAndObject(output, data);
+            localKryo.get().writeClassAndObject(output, data);
         }
         return ByteBuffer.wrap(baos.toByteArray());
     }
@@ -63,14 +68,14 @@ public class KryoStoreSerializer implements Serializer<Object> {
     public void writeTo(Object data, ByteBuffer dest) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try(Output output = new Output(baos)) {
-            kryo.writeClassAndObject(output, data);
+            localKryo.get().writeClassAndObject(output, data);
         }
         dest.put(baos.toByteArray());
     }
 
     @Override
     public Object fromBytes(ByteBuffer data) {
-        return kryo.readClassAndObject(new Input(data.array()));
+        return localKryo.get().readClassAndObject(new Input(data.array()));
     }
 
 
