@@ -16,6 +16,7 @@
             <artifactId>jgroups</artifactId>
             <version>4.0.10.Final</version>
         </dependency>
+
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>kryo-serializer</artifactId>

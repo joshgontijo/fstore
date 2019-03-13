@@ -2,7 +2,7 @@ package io.joshworks.eventry.network.client;
 
 import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.network.MessageError;
-import io.joshworks.eventry.network.NodeMessage;
+import io.joshworks.eventry.network.MulticastResponse;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
 import org.jgroups.Message;
@@ -56,23 +56,23 @@ public class ClusterClient {
     /**
      * Sends a synchronous request and wait for all responses
      */
-    public List<NodeMessage> cast(ClusterMessage message) {
+    public List<MulticastResponse> cast(ClusterMessage message) {
         return cast(null, message);
     }
 
     /**
      * Sends a synchronous request to the specified nodes and wait for all responses, responses must not be null,
      */
-    public List<NodeMessage> cast(List<Address> addresses, ClusterMessage message) {
+    public List<MulticastResponse> cast(List<Address> addresses, ClusterMessage message) {
         RspList<Message> responses = cast(addresses, message, RequestOptions.SYNC());
         requireNonNull(responses, "Responses cannot be null");
 
-        List<NodeMessage> nodeResponses = new ArrayList<>();
+        List<MulticastResponse> nodeResponses = new ArrayList<>();
         for (Rsp<Message> response : responses) {
             requireNonNull(response, "Response cannot be null");
             Message respMsg = response.getValue();
             ClusterMessage cm = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(respMsg.buffer()));
-            nodeResponses.add(new NodeMessage(respMsg.src(), cm, respMsg.src(), , response, serializer));
+            nodeResponses.add(new MulticastResponse(respMsg.src(), cm));
         }
         return nodeResponses;
     }

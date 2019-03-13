@@ -1,22 +1,15 @@
 package io.joshworks.eventry.network;
 
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
-import org.jgroups.blocks.Response;
 
-public class NodeMessage {
+public class MessageContext {
 
     public final ClusterMessage message;
-    boolean sent;
-    private final Address dst;
-    private final Response response;
-    private final KryoStoreSerializer serializer;
+    private final Address src;
 
-    public NodeMessage(ClusterMessage message, Address dst, Response response, KryoStoreSerializer serializer) {
+    public MessageContext(ClusterMessage message, Address src) {
         this.message = message;
-        this.dst = dst;
-        this.response = response;
-        this.serializer = serializer;
+        this.src = src;
     }
 
     public <T> T get() {
@@ -32,5 +25,9 @@ public class NodeMessage {
 
     public boolean isError() {
         return !isEmpty() && message instanceof MessageError;
+    }
+
+    public Address src() {
+        return src;
     }
 }
