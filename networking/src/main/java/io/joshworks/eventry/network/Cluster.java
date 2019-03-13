@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 public class Cluster implements MembershipListener, RequestHandler, Closeable {
@@ -41,9 +41,11 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private final ExecutorService consumerPool = Executors.newFixedThreadPool(10);
 
     private final Map<Address, ClusterNode> nodes = new ConcurrentHashMap<>();
-    private final Map<Class, Function<NodeMessage, ClusterMessage>> handlers = new ConcurrentHashMap<>();
+    private final Map<Class, Function> handlers = new ConcurrentHashMap<>();
 
-    private static final Function<NodeMessage, ClusterMessage> NO_OP = msg -> {
+    private final List<BiConsumer<Message, ClusterMessage>> interceptors = new ArrayList<>();
+
+    private static final Function<? super ClusterMessage, ClusterMessage> NO_OP = msg -> {
         logger.warn("No message handler for code {}", msg.getClass().getName());
         return null; //This will cause sync clients to fail
     };
@@ -51,7 +53,6 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     public Cluster(String clusterName, String nodeUuid) {
         this.clusterName = clusterName;
         this.nodeUuid = nodeUuid;
-
     }
 
     public synchronized void join() {
@@ -83,18 +84,22 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return clusterClient;
     }
 
-    public synchronized void register(Class<? extends ClusterMessage> type, Function<NodeMessage, ClusterMessage> handler) {
+    public synchronized <T extends ClusterMessage> void register(Class<T> type, Function<T, ClusterMessage> handler) {
         serializer.register(type);
         handlers.put(type, handler);
     }
 
-    public synchronized void register(Class<? extends ClusterMessage> type, Consumer<NodeMessage> handler) {
-        serializer.register(type);
-        handlers.put(type, bb -> {
-            handler.accept(bb);
-            return null;
-        });
+    public synchronized void interceptor(BiConsumer<Message, ClusterMessage> interceptor) {
+        interceptors.add(interceptor);
     }
+
+//    public synchronized <T extends ClusterMessage> void register(Class<T> type, Consumer<T> handler) {
+//        serializer.register(type);
+//        handlers.put(type, bb -> {
+//            handler.accept((T)bb);
+//            return null;
+//        });
+//    }
 
     public Address address() {
         return channel.getAddress();
@@ -151,13 +156,22 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     @Override
     public Object handle(Message msg) {
         try {
-            ClusterMessage clusterMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(msg.buffer()));
-            NodeMessage nodeMessage = new NodeMessage(msg.src(), clusterMessage, msg.src(), response, serializer);
-            ClusterMessage response = handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(nodeMessage);
-            if (response == null) {
-                return null; //TODO will null actually send a response message ?
+            ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
+            if (!bb.hasRemaining()) {
+                logger.warn("Empty message received from {}", msg.getSrc());
+                intercept(msg, null);
+                return null;
             }
-            ByteBuffer data = serializer.toBytes(response);
+            ClusterMessage clusterMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(msg.buffer()));
+
+            intercept(msg, clusterMessage);
+
+            ClusterMessage resp = (ClusterMessage) handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
+            if (resp == null) {
+                //should never return null, otherwise client will block
+                return null;
+            }
+            ByteBuffer data = serializer.toBytes(resp);
             return new Message(msg.src(), data.array()).setSrc(address());
         } catch (Exception e) {
             logger.error("Failed to receive message: " + msg, e);
@@ -166,13 +180,60 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     @Override
-    public void handle(Message request, Response response) throws Exception {
-        MessageResponse resp = new MessageResponse(request.src(), address(), response, serializer);
-        consumerPool.execute(() ->{
-            handle(request);
-        });
+    public void handle(Message msg, Response response) {
+        consumerPool.execute(() -> {
+            try {
+                ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
+                if (!bb.hasRemaining()) {
+                    logger.warn("Empty message received from {}", msg.getSrc());
+                    sendResponse(response, null);
+                    intercept(msg, null);
+                    return;
+                }
+                ClusterMessage clusterMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(msg.buffer()));
 
-        System.err.println("##########################");
+                intercept(msg, clusterMessage);
+
+                ClusterMessage resp = (ClusterMessage) handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
+                if (resp == null) {
+                    //should never return null, otherwise client will block
+                    sendResponse(response, null);
+                    return;
+                }
+                ByteBuffer data = serializer.toBytes(resp);
+                Message reply = new Message(msg.src(), data.array()).setSrc(address());
+                sendResponse(response, reply);
+            } catch (Exception e) {
+                logger.error("Failed to receive message: " + msg, e);
+                throw new RuntimeException(e);//TODO improve
+            }
+        });
+    }
+
+    private void sendResponse(Response response, Message entity) {
+        if (response == null) {
+            if (entity != null) {
+                logger.warn("Async request did not expect response from this node, message will be ignored");
+                return;
+            }
+        } else {
+            if (entity == null) {
+                response.send(new Message().setSrc(address()), false);
+            } else {
+                response.send(entity, false);
+            }
+        }
+    }
+
+    private void intercept(Message message, ClusterMessage entity) {
+        for (BiConsumer<Message, ClusterMessage> interceptor : interceptors) {
+            try {
+                interceptor.accept(message, entity);
+            } catch (Exception e) {
+                logger.warn("Failed to process interceptor '{}': {}", interceptor.getClass(), e.getMessage());
+                return;
+            }
+        }
     }
 
     private void addNode(Address address) {

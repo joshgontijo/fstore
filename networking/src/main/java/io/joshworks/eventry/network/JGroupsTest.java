@@ -11,18 +11,17 @@ public class JGroupsTest {
 
         Cluster cluster = new Cluster("test", nodeId);
 
-        cluster.register(StringMessage.class, nm -> {
-            StringMessage stringMessage = nm.get();
+        cluster.register(StringMessage.class, stringMessage -> {
             System.out.println("RECEIVED MESSAGE: " + stringMessage.data);
+            return null;
         });
-        cluster.register(PingMessage.class, nm -> {
-            StringMessage stringMessage = nm.get();
-            System.out.println("RECEIVED PING: " + stringMessage.data);
-            cluster.client().sendAsync(nm.address, new PongMessage());
+        cluster.register(PingMessage.class, ping -> {
+            System.out.println("RECEIVED PING: " + ping);
+            return new PongMessage();
         });
-        cluster.register(PongMessage.class, nm -> {
-            StringMessage stringMessage = nm.get();
-            System.out.println("RECEIVED PONG: " + stringMessage.data);
+        cluster.register(PongMessage.class, pong -> {
+            System.out.println("RECEIVED PONG: " + pong);
+            return null;
         });
 
         cluster.join();

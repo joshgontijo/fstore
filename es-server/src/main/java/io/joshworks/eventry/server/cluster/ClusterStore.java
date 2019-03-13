@@ -8,7 +8,7 @@ import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterMessage;
-import io.joshworks.eventry.network.NodeMessage;
+import io.joshworks.eventry.network.MessageContext;
 import io.joshworks.eventry.network.client.ClusterClient;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
 import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
@@ -83,13 +83,13 @@ public class ClusterStore {
             Set<Integer> ownedPartitions = store.nodeLog.ownedPartitions();
             clusterClient.cast(new NodeJoined(store.descriptor.nodeId, ownedPartitions));
 
-            List<NodeMessage> responses = clusterClient.cast(new NodeInfoRequested(descriptor.nodeId));
+            List<MessageContext> responses = clusterClient.cast(new NodeInfoRequested(descriptor.nodeId));
             if (store.descriptor.isNew) {
                 store.nodeLog.append(new NodeCreatedEvent(descriptor.nodeId));
                 if (!responses.isEmpty()) {
                     logger.info("Forking partitions");
                     //TODO forking 2 partition from each
-                    for (NodeMessage response : responses) {
+                    for (MessageContext response : responses) {
                         NodeInfo nodeInfo = null;//new NodeInfo(response.buffer);
                         Iterator<Integer> it = nodeInfo.partitions.iterator();
                         for (int i = 0; i < 2; i++) {
