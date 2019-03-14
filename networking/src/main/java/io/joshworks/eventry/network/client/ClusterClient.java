@@ -34,12 +34,12 @@ public class ClusterClient {
      * Sends a synchronous request and wait for a response
      */
     public <T extends ClusterMessage> T send(Address address, ClusterMessage message) {
-        Message response = send(address, message, RequestOptions.SYNC());
+        byte[] response = send(address, message, RequestOptions.SYNC());
         if(response == null) {
             return null;
         }
 
-        ClusterMessage cMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(response.buffer()));
+        ClusterMessage cMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(response));
         if(cMessage instanceof MessageError) {
             throw new RuntimeException("TODO " + cMessage);
         }
@@ -64,15 +64,18 @@ public class ClusterClient {
      * Sends a synchronous request to the specified nodes and wait for all responses, responses must not be null,
      */
     public List<MulticastResponse> cast(List<Address> addresses, ClusterMessage message) {
-        RspList<Message> responses = cast(addresses, message, RequestOptions.SYNC());
+        RspList<byte[]> responses = cast(addresses, message, RequestOptions.SYNC());
         requireNonNull(responses, "Responses cannot be null");
 
         List<MulticastResponse> nodeResponses = new ArrayList<>();
-        for (Rsp<Message> response : responses) {
+        for (Rsp<byte[]> response : responses) {
             requireNonNull(response, "Response cannot be null");
-            Message respMsg = response.getValue();
-            ClusterMessage cm = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(respMsg.buffer()));
-            nodeResponses.add(new MulticastResponse(respMsg.src(), cm));
+            byte[] respMsg = response.getValue();
+            if(respMsg != null) {
+                ClusterMessage cm = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(respMsg));
+                nodeResponses.add(new MulticastResponse(null, cm));
+            }
+
         }
         return nodeResponses;
     }
@@ -91,15 +94,17 @@ public class ClusterClient {
         cast(addresses, message, RequestOptions.ASYNC());
     }
 
-    private Message send(Address address, ClusterMessage message, RequestOptions options) {
+    private byte[] send(Address address, ClusterMessage message, RequestOptions options) {
         try {
-            return dispatcher.sendMessage(address, new Buffer(serializer.toBytes(message).array()), options);
+            byte[] data = serializer.toBytes(message).array();
+            Object o = dispatcher.sendMessage(address, new Buffer(data), options);
+            return (byte[]) o;
         } catch (Exception e) {
             throw new ClusterClientException("Failed sending message to " + address + ": ", e);
         }
     }
 
-    private RspList<Message> cast(Collection<Address> addresses, ClusterMessage message, RequestOptions options) {
+    private RspList<byte[]> cast(Collection<Address> addresses, ClusterMessage message, RequestOptions options) {
         try {
             return dispatcher.castMessage(addresses, new Buffer(serializer.toBytes(message).array()), options);
         } catch (Exception e) {
