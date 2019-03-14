@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class Cluster implements MembershipListener, RequestHandler, Closeable {
@@ -86,22 +87,22 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return clusterClient;
     }
 
+    public synchronized void interceptor(BiConsumer<Message, ClusterMessage> interceptor) {
+        interceptors.add(interceptor);
+    }
+
     public synchronized <T extends ClusterMessage> void register(Class<T> type, Function<T, ClusterMessage> handler) {
         serializer.register(type);
         handlers.put(type, handler);
     }
 
-    public synchronized void interceptor(BiConsumer<Message, ClusterMessage> interceptor) {
-        interceptors.add(interceptor);
+    public synchronized <T extends ClusterMessage> void register(Class<T> type, Consumer<T> handler) {
+        serializer.register(type);
+        handlers.put(type, bb -> {
+            handler.accept((T)bb);
+            return null;
+        });
     }
-
-//    public synchronized <T extends ClusterMessage> void register(Class<T> type, Consumer<T> handler) {
-//        serializer.register(type);
-//        handlers.put(type, bb -> {
-//            handler.accept((T)bb);
-//            return null;
-//        });
-//    }
 
     public Address address() {
         return channel.getAddress();

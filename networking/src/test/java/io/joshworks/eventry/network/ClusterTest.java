@@ -48,7 +48,7 @@ public class ClusterTest {
 
         final var pong = new PongMessage();
         node1.register(PingMessage.class, ping -> pong);
-        node2.register(PongMessage.class, png -> null);
+        node2.register(PongMessage.class, png -> {});
 
         ClusterMessage resp = node2.client().send(node1.address(), new PingMessage());
         assertEquals(pong, resp);
@@ -76,7 +76,7 @@ public class ClusterTest {
 
         final var pong = new PongMessage();
         node1.register(PingMessage.class, ping -> pong);
-        node2.register(PongMessage.class, png -> null);
+        node2.register(PongMessage.class, png -> {});
 
         List<MulticastResponse> responses = node2.client().cast(new PingMessage());
         assertEquals(1, responses.size());
