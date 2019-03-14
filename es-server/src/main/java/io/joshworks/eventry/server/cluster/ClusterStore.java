@@ -24,6 +24,7 @@ import io.joshworks.eventry.server.cluster.nodelog.NodeLeftEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
 import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.PartitionCreatedEvent;
+import io.joshworks.eventry.server.cluster.partition.Partition;
 import io.joshworks.fstore.log.LogIterator;
 import org.jgroups.Address;
 import org.slf4j.Logger;
@@ -122,7 +123,7 @@ public class ClusterStore {
     //TODO this is totally wrong, append here will create events from scratch
     private void forkPartition(int partitionId) {
         LogIterator<EventRecord> iterator = partitions.get(partitionId).store().fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.INCLUDE);
-        Partition partition = createPartition(rootDir, partitionId);
+        Partition partition = createEmptyPartition(partitionId);
         IEventStore store = partition.store();
         iterator.forEachRemaining(store::append);
 
@@ -164,17 +165,26 @@ public class ClusterStore {
     private Map<Integer, Partition> initializePartitions(File root) {
         Map<Integer, Partition> newPartitions = new HashMap<>();
         for (int i = 0; i < PARTITIONS; i++) {
-            newPartitions.put(i, createPartition(root, i));
+            newPartitions.put(i, createEmptyPartition(i, root));
         }
         return newPartitions;
     }
 
-    private Partition createPartition(File root, int id) {
+    private Partition createLocalPartition(int id, File root) {
         String pId = "partition-" + id;
         File partitionRoot = new File(root, pId);
         IEventStore store = EventStore.open(partitionRoot);
-        nodeLog.append(new PartitionCreatedEvent(id));
+//        nodeLog.append(new PartitionCreatedEvent(id));
         return new Partition(id, store);
+    }
+
+    private Partition createEmptyPartition(int id) {
+        return new Partition(id, null);
+    }
+
+    private Partition createRemotePartition(int id, ClusterClient client) {
+        var rpc = new RemotePartitionClient(id, client, null);
+        return new Partition(id, rpc);
     }
 
     private Partition loadPartition(File root, int id) {
@@ -183,7 +193,7 @@ public class ClusterStore {
 
     private Partition initRemotePartition(Address address, int partitionId) {
         throw new UnsupportedOperationException("TODO");
-//        IEventStore store = new RemoteStoreClient(cluster.client(), address, partitionId);
+//        IEventStore store = new RemotePartition(cluster.client(), address, partitionId);
 //        return new Partition(partitionId, store);
     }
 
@@ -191,6 +201,13 @@ public class ClusterStore {
     private Partition select(String stream) {
         long hash = StreamName.hash(stream);
         int idx = (int) (Math.abs(hash) % PARTITIONS);
-        return partitions.get(idx);
+        Partition partition = partitions.get(idx);
+        if(!partition.initialised()) {
+            synchronized (partition) {
+                if(!partition.initialised()) {
+
+                }
+            }
+        }
     }
 }

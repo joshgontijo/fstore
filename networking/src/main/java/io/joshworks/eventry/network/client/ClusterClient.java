@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.Lock;
 
 import static java.util.Objects.requireNonNull;
 
@@ -37,14 +38,12 @@ public class ClusterClient {
         this.serializer = serializer;
     }
 
-
-
     public ExecutorService executor() {
         return executionService;
     }
 
-    public ExecutorService lock() {
-        return executionService;
+    public Lock lock(String name) {
+        return lockService.getLock(name);
     }
 
     /**
