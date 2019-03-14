@@ -11,6 +11,8 @@ import org.jgroups.View;
 import org.jgroups.blocks.MessageDispatcher;
 import org.jgroups.blocks.RequestHandler;
 import org.jgroups.blocks.Response;
+import org.jgroups.util.ByteArrayDataOutputStream;
+import org.jgroups.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +64,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         logger.info("Joining cluster '{}'", clusterName);
         try {
             //event channel
-            channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("udp.xml"));
+            channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp.xml"));
             channel.setDiscardOwnMessages(true);
             channel.setName(nodeUuid);
 
@@ -183,6 +185,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     public void handle(Message msg, Response response) {
         consumerPool.execute(() -> {
             try {
+                final KryoStoreSerializer serializer = new KryoStoreSerializer();
                 ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
                 if (!bb.hasRemaining()) {
                     logger.warn("Empty message received from {}", msg.getSrc());
@@ -190,8 +193,9 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                     intercept(msg, null);
                     return;
                 }
-                ClusterMessage clusterMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(msg.buffer()));
 
+                byte[] buffer = msg.buffer();
+                ClusterMessage clusterMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(buffer));
                 intercept(msg, clusterMessage);
 
                 ClusterMessage resp = (ClusterMessage) handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
@@ -200,9 +204,13 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                     sendResponse(response, null);
                     return;
                 }
+                //This is required to get JGroups to work with Message
                 ByteBuffer data = serializer.toBytes(resp);
-                Message reply = new Message(msg.src(), data.array()).setSrc(address());
-                sendResponse(response, reply);
+                ByteArrayDataOutputStream out = new ByteArrayDataOutputStream(data.limit() + Integer.BYTES, true);
+                Util.objectToStream(data.array(), out);
+                Message rsp = new Message(msg.getSrc(), out.getBuffer());
+
+                sendResponse(response, rsp);
             } catch (Exception e) {
                 logger.error("Failed to receive message: " + msg, e);
                 throw new RuntimeException(e);//TODO improve
@@ -210,17 +218,17 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         });
     }
 
-    private void sendResponse(Response response, Message entity) {
+    private void sendResponse(Response response, Message reply) {
         if (response == null) {
-            if (entity != null) {
+            if (reply != null) {
                 logger.warn("Async request did not expect response from this node, message will be ignored");
                 return;
             }
         } else {
-            if (entity == null) {
+            if (reply == null) {
                 response.send(new Message().setSrc(address()), false);
             } else {
-                response.send(entity, false);
+                response.send(reply, false);
             }
         }
     }

@@ -11,7 +11,7 @@ public class ClusterNode {
     public NodeStatus status = NodeStatus.UP;
 
     public ClusterNode(Address address) {
-        this.uuid = address.toString(); //Jgroups will use the logical channel name as the address string
+        this.uuid = address.toString(); //Jgroups uses the logical channel name as the address string
         this.address = address;
         this.since = System.currentTimeMillis();
     }
