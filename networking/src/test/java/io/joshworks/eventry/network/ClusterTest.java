@@ -7,12 +7,22 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
+import static io.joshworks.fstore.core.util.Threads.futureGet;
 import static org.junit.Assert.assertEquals;
 
 public class ClusterTest {
@@ -99,5 +109,23 @@ public class ClusterTest {
         latch.await(10, TimeUnit.SECONDS);
         assertEquals(ping, captured.get());
     }
+
+
+    @Test
+    public void executor() throws ExecutionException, InterruptedException {
+
+        var task = (Callable<String> & Serializable) () -> {
+            System.out.println("STARTING TASK");
+            Threads.sleep(1000);
+            System.out.println("COMPLETED TASK");
+            return UUID.randomUUID().toString();
+        };
+
+        IntStream.range(0, 20).boxed().map(i -> node2.client().executor().submit(task))
+                .map(v -> "RESULT: " + futureGet(v)).forEach(System.out::println);
+
+        Threads.sleep(60000);
+    }
+
 
 }

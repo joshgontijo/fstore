@@ -75,4 +75,15 @@ public class Threads {
         }
     }
 
+    public static <T> T futureGet(Future<T> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }
