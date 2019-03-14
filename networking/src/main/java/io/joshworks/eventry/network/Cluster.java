@@ -11,6 +11,9 @@ import org.jgroups.View;
 import org.jgroups.blocks.MessageDispatcher;
 import org.jgroups.blocks.RequestHandler;
 import org.jgroups.blocks.Response;
+import org.jgroups.blocks.executor.ExecutionRunner;
+import org.jgroups.blocks.executor.ExecutionService;
+import org.jgroups.blocks.locking.LockService;
 import org.jgroups.util.ByteArrayDataOutputStream;
 import org.jgroups.util.Util;
 import org.slf4j.Logger;
@@ -40,8 +43,11 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private View state;
     private MessageDispatcher dispatcher;
     private ClusterClient clusterClient;
+    private ExecutionService executionService;
+    private ExecutionRunner executionRunner;
 
     private final ExecutorService consumerPool = Executors.newFixedThreadPool(10);
+    private final ExecutorService taskPool = Executors.newFixedThreadPool(1);
 
     private final Map<Address, ClusterNode> nodes = new ConcurrentHashMap<>();
     private final Map<Class, Function> handlers = new ConcurrentHashMap<>();
@@ -65,7 +71,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         logger.info("Joining cluster '{}'", clusterName);
         try {
             //event channel
-            channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("tcp.xml"));
+            channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("jgroups-stack.xml"));
             channel.setDiscardOwnMessages(true);
             channel.setName(nodeUuid);
 
@@ -73,7 +79,15 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             dispatcher.setMembershipListener(this);
             dispatcher.setAsynDispatching(true);
 
-            clusterClient = new ClusterClient(dispatcher, serializer);
+            LockService lockService = new LockService(channel);
+            executionService = new ExecutionService(channel);
+
+            executionRunner = new ExecutionRunner(channel);
+            for (int i = 0; i < 1; i++) {
+                taskPool.submit(executionRunner);
+            }
+
+            clusterClient = new ClusterClient(dispatcher, lockService, executionService, serializer);
 
             channel.connect(clusterName, null, 10000); //connect + getState
             addNode(channel.address());
@@ -99,7 +113,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     public synchronized <T extends ClusterMessage> void register(Class<T> type, Consumer<T> handler) {
         serializer.register(type);
         handlers.put(type, bb -> {
-            handler.accept((T)bb);
+            handler.accept((T) bb);
             return null;
         });
     }
@@ -152,8 +166,13 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     @Override
     public void close() {
-        channel.disconnect();
+        if (channel != null) {
+            channel.disconnect();
+        }
         IOUtils.closeQuietly(dispatcher);
+        if (executionService != null) {
+            executionService.shutdown();
+        }
     }
 
     @Override

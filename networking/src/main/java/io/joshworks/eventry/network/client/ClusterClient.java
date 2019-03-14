@@ -5,9 +5,10 @@ import io.joshworks.eventry.network.MessageError;
 import io.joshworks.eventry.network.MulticastResponse;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
-import org.jgroups.Message;
 import org.jgroups.blocks.MessageDispatcher;
 import org.jgroups.blocks.RequestOptions;
+import org.jgroups.blocks.executor.ExecutionService;
+import org.jgroups.blocks.locking.LockService;
 import org.jgroups.util.Buffer;
 import org.jgroups.util.Rsp;
 import org.jgroups.util.RspList;
@@ -17,17 +18,33 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static java.util.Objects.requireNonNull;
 
 public class ClusterClient {
 
     private final MessageDispatcher dispatcher;
+    private final LockService lockService;
+    private final ExecutionService executionService;
     private final KryoStoreSerializer serializer;
 
-    public ClusterClient(MessageDispatcher dispatcher, KryoStoreSerializer serializer) {
+    public ClusterClient(MessageDispatcher dispatcher, LockService lockService, ExecutionService executionService, KryoStoreSerializer serializer) {
         this.dispatcher = dispatcher;
+        this.lockService = lockService;
+        this.executionService = executionService;
         this.serializer = serializer;
+    }
+
+
+
+    public ExecutorService executor() {
+        return executionService;
+    }
+
+    public ExecutorService lock() {
+        return executionService;
     }
 
     /**
