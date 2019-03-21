@@ -17,6 +17,9 @@ public class MulticastResponse {
     }
 
     public <T extends ClusterMessage> T message() {
+        if(message instanceof NullMessage) {
+            return null;
+        }
         return (T) message;
     }
 }

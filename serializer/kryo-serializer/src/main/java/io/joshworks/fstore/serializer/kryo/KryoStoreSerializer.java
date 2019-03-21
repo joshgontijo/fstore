@@ -50,9 +50,8 @@ public class KryoStoreSerializer implements Serializer<Object> {
         return kryo;
     }
 
-    public void register(Class type) {
+    public static void register(Class type) {
         registered.add(type);
-        localKryo.get().register(type);
     }
 
     @Override

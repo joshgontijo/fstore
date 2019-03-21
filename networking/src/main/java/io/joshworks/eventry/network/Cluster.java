@@ -22,8 +22,10 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -49,7 +51,8 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private final ExecutorService consumerPool = Executors.newFixedThreadPool(10);
     private final ExecutorService taskPool = Executors.newFixedThreadPool(1);
 
-    private final Map<Address, ClusterNode> nodes = new ConcurrentHashMap<>();
+    private final Map<Address, ClusterNode> nodesByAddress = new ConcurrentHashMap<>();
+    private final Map<String, ClusterNode> nodeById = new ConcurrentHashMap<>();
     private final Map<Class, Function> handlers = new ConcurrentHashMap<>();
 
     private final List<BiConsumer<Message, ClusterMessage>> interceptors = new ArrayList<>();
@@ -90,7 +93,6 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             clusterClient = new ClusterClient(dispatcher, lockService, executionService, serializer);
 
             channel.connect(clusterName, null, 10000); //connect + getState
-            addNode(channel.address());
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to join cluster", e);
@@ -106,12 +108,12 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     public synchronized <T extends ClusterMessage> void register(Class<T> type, Function<T, ClusterMessage> handler) {
-        serializer.register(type);
+//        KryoStoreSerializer.register(type);
         handlers.put(type, handler);
     }
 
     public synchronized <T extends ClusterMessage> void register(Class<T> type, Consumer<T> handler) {
-        serializer.register(type);
+//        KryoStoreSerializer.register(type);
         handlers.put(type, bb -> {
             handler.accept((T) bb);
             return null;
@@ -122,13 +124,16 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return channel.getAddress();
     }
 
+    public ClusterNode node(String nodeId) {
+        return nodeById.get(nodeId);
+    }
+
     public synchronized void leave() {
-        updateNodeStatus(channel.address(), NodeStatus.DOWN);
-        channel.close();
+        IOUtils.closeQuietly(channel);
     }
 
     public List<ClusterNode> nodes() {
-        return new ArrayList<>(nodes.values());
+        return new ArrayList<>(nodesByAddress.values());
     }
 
     @Override
@@ -137,13 +142,13 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         if (state != null) {
             for (Address address : view.getMembers()) {
                 if (!state.containsMember(address)) {
-                    System.out.println("Node joined: " + address);
+                    System.out.println("[" + address() + "] Node joined: " + address);
                     addNode(address);
                 }
             }
             for (Address address : state.getMembers()) {
                 if (!view.containsMember(address)) {
-                    System.out.println("Node left: " + address);
+                    System.out.println("[" + address() + "] Node left: " + address);
                     updateNodeStatus(address, NodeStatus.DOWN);
                 }
             }
@@ -151,7 +156,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         } else {
             for (Address address : view.getMembers()) {
                 if (!this.channel.getAddress().equals(address)) {
-                    System.out.println("Already connected nodes: " + address);
+                    System.out.println("[" + address() + "] Already connected nodes: " + address);
                     addNode(address);
                 }
             }
@@ -205,11 +210,11 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     public void handle(Message msg, Response response) {
         consumerPool.execute(() -> {
             try {
+                //TODO improve the instantiation of the serializer
                 final KryoStoreSerializer serializer = new KryoStoreSerializer();
                 ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
                 if (!bb.hasRemaining()) {
                     logger.warn("Empty message received from {}", msg.getSrc());
-                    sendResponse(response, null);
                     intercept(msg, null);
                     return;
                 }
@@ -219,18 +224,8 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                 intercept(msg, clusterMessage);
 
                 ClusterMessage resp = (ClusterMessage) handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
-                if (resp == null) {
-                    //should never return null, otherwise client will block
-                    sendResponse(response, null);
-                    return;
-                }
-                //This is required to get JGroups to work with Message
-                ByteBuffer data = serializer.toBytes(resp);
-                ByteArrayDataOutputStream out = new ByteArrayDataOutputStream(data.limit() + Integer.BYTES, true);
-                Util.objectToStream(data.array(), out);
-                Message rsp = new Message(msg.getSrc(), out.getBuffer());
 
-                sendResponse(response, rsp);
+                sendResponse(response, resp, msg.src());
             } catch (Exception e) {
                 logger.error("Failed to receive message: " + msg, e);
                 throw new RuntimeException(e);//TODO improve
@@ -238,19 +233,18 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         });
     }
 
-    private void sendResponse(Response response, Message reply) {
+    private void sendResponse(Response response, ClusterMessage replyMessage, Address dst) throws Exception {
         if (response == null) {
-            if (reply != null) {
-                logger.warn("Async request did not expect response from this node, message will be ignored");
-                return;
-            }
-        } else {
-            if (reply == null) {
-                response.send(new Message().setSrc(address()), false);
-            } else {
-                response.send(reply, false);
-            }
+            return;
         }
+        replyMessage = Optional.ofNullable(replyMessage).orElse(new NullMessage());
+        ByteBuffer data = serializer.toBytes(replyMessage);
+        //This is required to get JGroups to work with Message
+        ByteArrayDataOutputStream out = new ByteArrayDataOutputStream(data.limit() + Integer.BYTES, true);
+        Util.objectToStream(data.array(), out);
+        Message rsp = new Message(dst, out.getBuffer());
+        System.out.println(">>>>>> " + dst + ": " + replyMessage + " ---- " + Arrays.toString(out.getBuffer().getBuf()));
+        response.send(rsp, false);
     }
 
     private void intercept(Message message, ClusterMessage entity) {
@@ -265,11 +259,13 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     private void addNode(Address address) {
-        nodes.put(address, new ClusterNode(address));
+        ClusterNode node = new ClusterNode(address);
+        nodesByAddress.put(address, node);
+        nodeById.put(address.toString(), node);
     }
 
     private void updateNodeStatus(Address address, NodeStatus status) {
-        ClusterNode clusterNode = nodes.get(address);
+        ClusterNode clusterNode = nodesByAddress.get(address);
         if (clusterNode == null) {
             throw new IllegalArgumentException("No such node for: " + address);
         }

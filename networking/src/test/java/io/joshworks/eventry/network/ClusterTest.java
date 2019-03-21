@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 
 import static io.joshworks.fstore.core.util.Threads.futureGet;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class ClusterTest {
 
@@ -110,9 +111,30 @@ public class ClusterTest {
         assertEquals(ping, captured.get());
     }
 
+    @Test
+    public void send_returns_null() {
+
+        PingMessage ping = new PingMessage();
+        node1.register(PingMessage.class, p -> null);
+
+        ClusterMessage result = node2.client().send(node1.address(), ping);
+        assertNull(result);
+    }
 
     @Test
-    public void executor() throws ExecutionException, InterruptedException {
+    public void cast_returns_null() {
+
+        PingMessage ping = new PingMessage();
+        node1.register(PingMessage.class, p -> null);
+
+        List<MulticastResponse> results = node2.client().cast(ping);
+        assertEquals(1, results.size());
+        assertNull(results.get(0).message());
+    }
+
+
+    @Test
+    public void executor() {
 
         var task = (Callable<String> & Serializable) () -> {
             System.out.println("STARTING TASK");
