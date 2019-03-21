@@ -8,6 +8,6 @@ public class LoggingInterceptor implements BiConsumer<Message, ClusterMessage> {
 
     @Override
     public void accept(Message message, ClusterMessage entity) {
-        System.err.println(String.format("Received message: %s => %s", message, entity));
+        System.err.println(String.format("<<<<<< %s => %s", message, entity));
     }
 }

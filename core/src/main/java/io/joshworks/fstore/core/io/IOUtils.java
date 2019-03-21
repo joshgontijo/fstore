@@ -152,7 +152,7 @@ public final class IOUtils {
 
     public static void releaseLock(FileLock lock) {
         try {
-            if (lock != null) {
+            if (lock != null && lock.isValid()) {
                 lock.release();
             }
         } catch (IOException e) {

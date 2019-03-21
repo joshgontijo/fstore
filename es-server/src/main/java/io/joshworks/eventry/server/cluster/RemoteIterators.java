@@ -1,15 +1,17 @@
 package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class RemoteIterators {
+public class RemoteIterators implements Closeable {
 
     private final Map<String, LogIterator<EventRecord>> items = new ConcurrentHashMap<>();
 
@@ -24,6 +26,12 @@ public class RemoteIterators {
 
     public Optional<LogIterator<EventRecord>> get(String uuid) {
         return Optional.ofNullable(items.get(uuid));
+    }
+
+    @Override
+    public void close() {
+        items.values().forEach(IOUtils::closeQuietly);
+        items.clear();
     }
 
 

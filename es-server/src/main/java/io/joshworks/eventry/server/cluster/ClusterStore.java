@@ -8,41 +8,44 @@ import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterMessage;
+import io.joshworks.eventry.network.ClusterNode;
+import io.joshworks.eventry.network.LoggingInterceptor;
 import io.joshworks.eventry.network.MulticastResponse;
-import io.joshworks.eventry.network.client.ClusterClient;
+import io.joshworks.eventry.server.cluster.messages.Append;
+import io.joshworks.eventry.server.cluster.messages.AppendResult;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
 import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
 import io.joshworks.eventry.server.cluster.messages.NodeInfo;
 import io.joshworks.eventry.server.cluster.messages.NodeInfoRequested;
 import io.joshworks.eventry.server.cluster.messages.NodeJoined;
 import io.joshworks.eventry.server.cluster.messages.NodeLeft;
+import io.joshworks.eventry.server.cluster.messages.PartitionAssigned;
 import io.joshworks.eventry.server.cluster.messages.PartitionForkCompleted;
 import io.joshworks.eventry.server.cluster.messages.PartitionForkRequested;
-import io.joshworks.eventry.server.cluster.nodelog.NodeCreatedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeJoinedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLeftEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
 import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.PartitionCreatedEvent;
 import io.joshworks.eventry.server.cluster.partition.Partition;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
-import org.jgroups.Address;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.io.File;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ClusterStore {
+public class ClusterStore implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterStore.class);
 
-    private static final int PARTITIONS = 4;
+    private final int numPartitions;
 
     private final Cluster cluster;
     private final Map<Integer, Partition> partitions = new ConcurrentHashMap<>();
@@ -52,57 +55,45 @@ public class ClusterStore {
     private final NodeLog nodeLog;
     private final RemoteIterators remoteIterators = new RemoteIterators();
 
-
-    private ClusterStore(File rootDir, Cluster cluster, ClusterDescriptor clusterDescriptor) {
+    private ClusterStore(File rootDir, Cluster cluster, ClusterDescriptor clusterDescriptor, int numPartitions) {
         this.rootDir = rootDir;
         this.descriptor = clusterDescriptor;
         this.cluster = cluster;
+        this.numPartitions = numPartitions;
         this.nodeLog = new NodeLog(rootDir);
         this.registerHandlers();
+
+        cluster.interceptor(new LoggingInterceptor());
+
     }
 
     private void registerHandlers() {
-//        cluster.register(NodeJoined.class, this::onNodeJoined);
-//        cluster.register(NodeLeft.class, this::onNodeLeft);
-//        cluster.register(NodeInfoRequested.class, this::onNodeInfoRequested);
-//        cluster.register(NodeInfo.class, this::onNodeInfoReceived);
-//        cluster.register(PartitionForkRequested.class, this::onPartitionForkRequested);
-//        cluster.register(PartitionForkCompleted.class, this::onPartitionForkCompleted);
-//        cluster.register(FromAll.class, this::fromAllRequested);
+        cluster.register(NodeJoined.class, this::onNodeJoined);
+        cluster.register(NodeLeft.class, this::onNodeLeft);
+        cluster.register(NodeInfoRequested.class, this::onNodeInfoRequested);
+        cluster.register(NodeInfo.class, this::onNodeInfoReceived);
+        cluster.register(PartitionForkRequested.class, this::onPartitionForkRequested);
+        cluster.register(PartitionForkCompleted.class, this::onPartitionForkCompleted);
+        cluster.register(FromAll.class, this::fromAllRequested);
+        cluster.register(PartitionAssigned.class, this::onPartitionAssigned);
+        cluster.register(Append.class, this::appendFromRemote);
     }
 
-    public static ClusterStore connect(File rootDir, String name) {
+    public static ClusterStore connect(File rootDir, String name, int numPartitions) {
+        ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
+        Cluster cluster = new Cluster(name, descriptor.nodeId);
+        ClusterStore store = new ClusterStore(rootDir, cluster, descriptor, numPartitions);
+        store.nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
         try {
-            ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
-            Cluster cluster = new Cluster(name, descriptor.nodeId);
-            ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
-            store.nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
 
-            ClusterClient clusterClient = cluster.client();
             cluster.join();
 
             Set<Integer> ownedPartitions = store.nodeLog.ownedPartitions();
-            clusterClient.cast(new NodeJoined(store.descriptor.nodeId, ownedPartitions));
-
-            List<MulticastResponse> responses = clusterClient.cast(new NodeInfoRequested(descriptor.nodeId));
-            if (store.descriptor.isNew) {
-                store.nodeLog.append(new NodeCreatedEvent(descriptor.nodeId));
-                if (!responses.isEmpty()) {
-                    logger.info("Forking partitions");
-                    //TODO forking 2 partition from each
-                    for (MulticastResponse response : responses) {
-                        NodeInfo nodeInfo = response.message();
-                        Iterator<Integer> it = nodeInfo.partitions.iterator();
-                        for (int i = 0; i < 2; i++) {
-                            if (it.hasNext()) {
-                                int partitionId = it.next();
-                                store.forkPartition(partitionId);
-                            }
-                        }
-                    }
-                } else {
-                    logger.info("No other nodes found, initializing partitions");
-                    store.partitions.putAll(store.initializePartitions(rootDir));
+            List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(store.descriptor.nodeId, ownedPartitions));
+            for (MulticastResponse response : responses) {
+                NodeInfo nodeInfo = response.message();
+                for (Integer partitionId : nodeInfo.partitions) {
+                    store.partitions.put(partitionId, store.createRemotePartition(nodeInfo.nodeId, partitionId));
                 }
             }
 
@@ -110,8 +101,43 @@ public class ClusterStore {
             return store;
 
         } catch (Exception e) {
+            IOUtils.closeQuietly(store);
+            IOUtils.closeQuietly(descriptor);
+            cluster.leave();
             throw new RuntimeException("Failed to connect to " + name, e);
         }
+    }
+
+//    private void initPartitions() {
+//        //TODO Lock
+//        List<MulticastResponse> responses = cluster.client().cast(new NodeInfoRequested(descriptor.nodeId));
+//        if (descriptor.isNew) {
+//            nodeLog.append(new NodeCreatedEvent(descriptor.nodeId));
+//            if (!responses.isEmpty()) {
+//                logger.info("Forking partitions");
+//                //TODO forking 2 partition from each
+//                for (MulticastResponse response : responses) {
+//                    NodeInfo nodeInfo = response.message();
+//                    Iterator<Integer> it = nodeInfo.partitions.iterator();
+//                    for (int i = 0; i < 2; i++) {
+//                        if (it.hasNext()) {
+//                            int partitionId = it.next();
+//                            forkPartition(partitionId);
+//                        }
+//                    }
+//                }
+//            } else {
+//                logger.info("No other nodes found, initializing partitions");
+//                partitions.putAll(initializePartitions());
+//            }
+//        }
+//    }
+
+    public void assignPartition(int partitionId) {
+        Partition localPartition = createLocalPartition(partitionId, rootDir);
+        partitions.put(localPartition.id, localPartition);
+        nodeLog.append(new PartitionCreatedEvent(partitionId));
+        cluster.client().cast(new PartitionAssigned(partitionId, descriptor.nodeId));
     }
 
     private ClusterMessage fromAllRequested(FromAll fromAll) {
@@ -130,13 +156,21 @@ public class ClusterStore {
         cluster.client().cast(new PartitionForkCompleted(partitionId));
     }
 
-    private void onNodeJoined(Address address, NodeJoined nodeJoined) {
+    private NodeInfo onNodeJoined(NodeJoined nodeJoined) {
         logger.info("Node joined: '{}': {}", nodeJoined.nodeId, nodeJoined);
         nodeLog.append(new NodeJoinedEvent(nodeJoined.nodeId));
         for (int ownedPartition : nodeJoined.partitions) {
-            Partition remotePartition = initRemotePartition(address, ownedPartition);
+            Partition remotePartition = createRemotePartition(nodeJoined.nodeId, ownedPartition);
             partitions.put(ownedPartition, remotePartition);
         }
+
+        return new NodeInfo(descriptor.nodeId, nodeLog.ownedPartitions());
+    }
+
+    private void onPartitionAssigned(PartitionAssigned partitionAssigned) {
+        logger.info("Partition assigned node: {}, partition: {}", partitionAssigned.nodeId, partitionAssigned.id);
+        Partition remotePartition = createRemotePartition(partitionAssigned.nodeId, partitionAssigned.id);
+        partitions.put(partitionAssigned.id, remotePartition);
     }
 
     private void onNodeLeft(NodeLeft nodeJoined) {
@@ -162,10 +196,10 @@ public class ClusterStore {
         //TODO ownership of the partition should be transferred
     }
 
-    private Map<Integer, Partition> initializePartitions(File root) {
+    private Map<Integer, Partition> initializePartitions() {
         Map<Integer, Partition> newPartitions = new HashMap<>();
-        for (int i = 0; i < PARTITIONS; i++) {
-            newPartitions.put(i, createEmptyPartition(i, root));
+        for (int i = 0; i < numPartitions; i++) {
+            newPartitions.put(i, createEmptyPartition(i));
         }
         return newPartitions;
     }
@@ -182,32 +216,51 @@ public class ClusterStore {
         return new Partition(id, null);
     }
 
-    private Partition createRemotePartition(int id, ClusterClient client) {
-        var rpc = new RemotePartitionClient(id, client, null);
-        return new Partition(id, rpc);
-    }
 
     private Partition loadPartition(File root, int id) {
         throw new UnsupportedOperationException("TODO");
     }
 
-    private Partition initRemotePartition(Address address, int partitionId) {
-        throw new UnsupportedOperationException("TODO");
-//        IEventStore store = new RemotePartition(cluster.client(), address, partitionId);
-//        return new Partition(partitionId, store);
+    private Partition createRemotePartition(String nodeId, int partitionId) {
+        ClusterNode node = cluster.node(nodeId);
+        IEventStore store = new RemotePartitionClient(node, partitionId, cluster.client());
+        return new Partition(partitionId, store);
     }
-
 
     private Partition select(String stream) {
         long hash = StreamName.hash(stream);
-        int idx = (int) (Math.abs(hash) % PARTITIONS);
-        Partition partition = partitions.get(idx);
-        if(!partition.initialised()) {
-            synchronized (partition) {
-                if(!partition.initialised()) {
+        int idx = (int) (Math.abs(hash) % numPartitions);
+        return partitions.get(idx);
+    }
 
-                }
-            }
+    //-------------------------------------------
+
+    public void append(EventRecord event) {
+        Partition partition = select(event.stream);
+        partition.store().append(event);
+    }
+
+    void appendInternal(EventRecord event, int partitionId) {
+        Partition partition = partitions.get(partitionId);
+        partition.store().append(event);
+    }
+
+    private AppendResult appendFromRemote(Append append) {
+        Partition partition = select(append.event.stream);
+        if(!(partition.store() instanceof EventStore)) {
+            //TODO
+            throw new IllegalArgumentException("No a local partition");
         }
+        EventRecord created = partition.store().append(append.event, append.expectedVersion);
+        return new AppendResult(true);
+    }
+
+    @Override
+    public void close() {
+        IOUtils.closeQuietly(descriptor);
+        cluster.leave();
+        IOUtils.closeQuietly(remoteIterators);
+        partitions.values().forEach(IOUtils::closeQuietly);
+        IOUtils.closeQuietly(nodeLog);
     }
 }

@@ -15,10 +15,6 @@ public class Partition implements Closeable {
         this.owner = owner;
     }
 
-    public boolean initialised() {
-        return owner != null;
-    }
-
     public boolean master() {
         return master;
     }

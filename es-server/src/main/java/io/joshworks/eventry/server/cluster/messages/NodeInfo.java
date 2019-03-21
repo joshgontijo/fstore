@@ -13,4 +13,11 @@ public class NodeInfo implements ClusterMessage {
         this.nodeId = nodeId;
         this.partitions = partitions;
     }
+
+    @Override
+    public String toString() {
+        return "NodeInfo{" + "nodeId='" + nodeId + '\'' +
+                ", partitions=" + partitions +
+                '}';
+    }
 }

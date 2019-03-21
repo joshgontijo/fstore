@@ -2,6 +2,7 @@ package io.joshworks.eventry.server.cluster.nodelog;
 
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -9,11 +10,13 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 
+import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
-public class NodeLog implements Iterable<EventRecord> {
+public class NodeLog implements Iterable<EventRecord>, Closeable {
 
     static final String PARTITIONS_STREAM = "PARTITIONS";
     static final String NODES_STREAM = "NODES";
@@ -55,5 +58,10 @@ public class NodeLog implements Iterable<EventRecord> {
     @Override
     public LogIterator<EventRecord> iterator() {
         return log.iterator(Direction.FORWARD);
+    }
+
+    @Override
+    public void close() {
+        IOUtils.closeQuietly(log);
     }
 }

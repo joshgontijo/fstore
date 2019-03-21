@@ -3,6 +3,7 @@ package io.joshworks.eventry.network.client;
 import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.network.MessageError;
 import io.joshworks.eventry.network.MulticastResponse;
+import io.joshworks.eventry.network.NullMessage;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
 import org.jgroups.blocks.MessageDispatcher;
@@ -58,6 +59,9 @@ public class ClusterClient {
         ClusterMessage cMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(response));
         if(cMessage instanceof MessageError) {
             throw new RuntimeException("TODO " + cMessage);
+        }
+        if(cMessage instanceof NullMessage) {
+            return null;
         }
         return (T) cMessage;
     }
