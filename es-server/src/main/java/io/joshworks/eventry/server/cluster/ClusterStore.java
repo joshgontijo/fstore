@@ -1,5 +1,6 @@
 package io.joshworks.eventry.server.cluster;
 
+import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
@@ -9,12 +10,14 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.network.ClusterNode;
-import io.joshworks.eventry.network.LoggingInterceptor;
 import io.joshworks.eventry.network.MulticastResponse;
 import io.joshworks.eventry.server.cluster.messages.Append;
 import io.joshworks.eventry.server.cluster.messages.AppendResult;
+import io.joshworks.eventry.server.cluster.messages.EventBatch;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
+import io.joshworks.eventry.server.cluster.messages.FromStream;
 import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
+import io.joshworks.eventry.server.cluster.messages.IteratorNext;
 import io.joshworks.eventry.server.cluster.messages.NodeInfo;
 import io.joshworks.eventry.server.cluster.messages.NodeInfoRequested;
 import io.joshworks.eventry.server.cluster.messages.NodeJoined;
@@ -63,7 +66,7 @@ public class ClusterStore implements Closeable {
         this.nodeLog = new NodeLog(rootDir);
         this.registerHandlers();
 
-        cluster.interceptor(new LoggingInterceptor());
+//        cluster.interceptor(new LoggingInterceptor());
 
     }
 
@@ -75,6 +78,8 @@ public class ClusterStore implements Closeable {
         cluster.register(PartitionForkRequested.class, this::onPartitionForkRequested);
         cluster.register(PartitionForkCompleted.class, this::onPartitionForkCompleted);
         cluster.register(FromAll.class, this::fromAllRequested);
+        cluster.register(FromStream.class, this::fromStreamRequested);
+        cluster.register(IteratorNext.class, this::onIteratorNext);
         cluster.register(PartitionAssigned.class, this::onPartitionAssigned);
         cluster.register(Append.class, this::appendFromRemote);
     }
@@ -142,8 +147,20 @@ public class ClusterStore implements Closeable {
 
     private ClusterMessage fromAllRequested(FromAll fromAll) {
         LogIterator<EventRecord> iterator = partitions.get(fromAll.partitionId).store().fromAll(fromAll.linkToPolicy, fromAll.systemEventPolicy);
-        String iteratorId = remoteIterators.add(-1, -1, iterator);
+        String iteratorId = remoteIterators.add(fromAll.timeout, fromAll.batchSize, iterator);
         return new IteratorCreated(iteratorId);
+    }
+
+    private ClusterMessage fromStreamRequested(FromStream fromStream) {
+        StreamName streamName = StreamName.parse(fromStream.streamName);
+        LogIterator<EventRecord> iterator = select(streamName.name()).store().fromStream(streamName);
+        String iteratorId = remoteIterators.add(fromStream.timeout, fromStream.batchSize, iterator);
+        return new IteratorCreated(iteratorId);
+    }
+
+    private ClusterMessage onIteratorNext(IteratorNext iteratorNext) {
+        List<EventRecord> records = remoteIterators.nextBatch(iteratorNext.uuid);
+        return new EventBatch(records);
     }
 
     //TODO this is totally wrong, append here will create events from scratch
@@ -230,26 +247,49 @@ public class ClusterStore implements Closeable {
     private Partition select(String stream) {
         long hash = StreamName.hash(stream);
         int idx = (int) (Math.abs(hash) % numPartitions);
-        return partitions.get(idx);
+        Partition partition = partitions.get(idx);
+        if (partition == null) {
+            throw new IllegalStateException("Partition not found for " + stream + ", idx " + idx);
+        }
+        return partition;
     }
 
-    //-------------------------------------------
+    //-------------- PUBLIC API ----------------------
 
     public void append(EventRecord event) {
         Partition partition = select(event.stream);
         partition.store().append(event);
     }
 
-    void appendInternal(EventRecord event, int partitionId) {
+    public EventRecord get(StreamName streamName) {
+        Partition partition = select(streamName.name());
+        return partition.store().get(streamName);
+    }
+
+    public EventLogIterator fromStream(StreamName streamName) {
+        Partition partition = select(streamName.name());
+        return partition.store().fromStream(streamName);
+    }
+
+
+    //-------------- CLUSTER CMDS ----------------------
+
+    //careful here to not send wrong stream to wrong partition
+    void appendToPartition(EventRecord event, int partitionId) {
+        Partition partition = partitions.get(partitionId);
+        partition.store().append(event);
+    }
+
+    void readFromPartition(EventRecord event, int partitionId) {
         Partition partition = partitions.get(partitionId);
         partition.store().append(event);
     }
 
     private AppendResult appendFromRemote(Append append) {
         Partition partition = select(append.event.stream);
-        if(!(partition.store() instanceof EventStore)) {
+        if (!(partition.store() instanceof EventStore)) {
             //TODO
-            throw new IllegalArgumentException("No a local partition");
+            throw new IllegalArgumentException("Not a local partition");
         }
         EventRecord created = partition.store().append(append.event, append.expectedVersion);
         return new AppendResult(true);
