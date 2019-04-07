@@ -4,9 +4,11 @@ import io.joshworks.eventry.network.client.ClusterClient;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
+import org.jgroups.Event;
 import org.jgroups.JChannel;
 import org.jgroups.MembershipListener;
 import org.jgroups.Message;
+import org.jgroups.PhysicalAddress;
 import org.jgroups.View;
 import org.jgroups.blocks.MessageDispatcher;
 import org.jgroups.blocks.RequestHandler;
@@ -14,15 +16,17 @@ import org.jgroups.blocks.Response;
 import org.jgroups.blocks.executor.ExecutionRunner;
 import org.jgroups.blocks.executor.ExecutionService;
 import org.jgroups.blocks.locking.LockService;
+import org.jgroups.stack.IpAddress;
 import org.jgroups.util.ByteArrayDataOutputStream;
 import org.jgroups.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -138,6 +142,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     @Override
     public synchronized void viewAccepted(View view) {
+
         logger.info("View updated: {}", view);
         if (state != null) {
             for (Address address : view.getMembers()) {
@@ -243,7 +248,6 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         ByteArrayDataOutputStream out = new ByteArrayDataOutputStream(data.limit() + Integer.BYTES, true);
         Util.objectToStream(data.array(), out);
         Message rsp = new Message(dst, out.getBuffer());
-        System.out.println(">>>>>> " + dst + ": " + replyMessage + " ---- " + Arrays.toString(out.getBuffer().getBuf()));
         response.send(rsp, false);
     }
 
@@ -259,9 +263,19 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     private void addNode(Address address) {
-        ClusterNode node = new ClusterNode(address);
-        nodesByAddress.put(address, node);
-        nodeById.put(address.toString(), node);
+        PhysicalAddress physicalAddress = (PhysicalAddress) channel.down(new Event(Event.GET_PHYSICAL_ADDRESS, address));
+        if (physicalAddress instanceof IpAddress) {
+            IpAddress ipAddr = (IpAddress) physicalAddress;
+            InetAddress inetAddr = ipAddr.getIpAddress();
+            ClusterNode node = new ClusterNode(address, new InetSocketAddress(inetAddr, ipAddr.getPort()));
+            nodesByAddress.put(address, node);
+            nodeById.put(address.toString(), node);
+        } else {
+            ClusterNode node = new ClusterNode(address);
+            nodesByAddress.put(address, node);
+            nodeById.put(address.toString(), node);
+        }
+
     }
 
     private void updateNodeStatus(Address address, NodeStatus status) {

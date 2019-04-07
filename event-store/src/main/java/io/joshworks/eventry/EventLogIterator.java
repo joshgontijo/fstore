@@ -13,10 +13,6 @@ import java.util.stream.Stream;
 
 public interface EventLogIterator extends LogIterator<EventRecord> {
 
-    default Stream<EventRecord> stream() {
-        return Iterators.closeableStream(this);
-    }
-
     default TypeMatch when(String type, Consumer<EventRecord> handler) {
         return new TypeMatch(this, type, handler);
     }
