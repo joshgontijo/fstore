@@ -15,12 +15,12 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class ClusterStoreTest {
+public class ClusterManagerTest {
 
     private static final String CLUSTER_NAME = "test-cluster";
     private static final int NUM_PARTITIONS = 2;
-    private ClusterStore node1; //all data should be written and read from this node
-    private ClusterStore _anotherNode; //do not communicate with this noe other than verification
+    private ClusterManager node1; //all data should be written and read from this node
+    private ClusterManager _anotherNode; //do not communicate with this noe other than verification
     private File testFile1;
     private File testFile2;
 
@@ -30,8 +30,8 @@ public class ClusterStoreTest {
         System.setProperty("jgroups.bind_addr", "127.0.0.1");
         testFile1 = FileUtils.testFolder();
         testFile2 = FileUtils.testFolder();
-        node1 = ClusterStore.connect(testFile1, CLUSTER_NAME, NUM_PARTITIONS);
-        _anotherNode = ClusterStore.connect(testFile2, CLUSTER_NAME, NUM_PARTITIONS);
+        node1 = ClusterManager.connect(testFile1, CLUSTER_NAME, NUM_PARTITIONS);
+        _anotherNode = ClusterManager.connect(testFile2, CLUSTER_NAME, NUM_PARTITIONS);
 
         node1.assignPartition(0);
         _anotherNode.assignPartition(1);
