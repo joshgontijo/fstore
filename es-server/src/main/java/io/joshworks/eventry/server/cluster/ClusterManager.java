@@ -44,9 +44,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ClusterStore implements Closeable {
+public class ClusterManager implements Closeable {
 
-    private static final Logger logger = LoggerFactory.getLogger(ClusterStore.class);
+    private static final Logger logger = LoggerFactory.getLogger(ClusterManager.class);
 
     private final int numPartitions;
 
@@ -58,7 +58,7 @@ public class ClusterStore implements Closeable {
     private final NodeLog nodeLog;
     private final RemoteIterators remoteIterators = new RemoteIterators();
 
-    private ClusterStore(File rootDir, Cluster cluster, ClusterDescriptor clusterDescriptor, int numPartitions) {
+    private ClusterManager(File rootDir, Cluster cluster, ClusterDescriptor clusterDescriptor, int numPartitions) {
         this.rootDir = rootDir;
         this.descriptor = clusterDescriptor;
         this.cluster = cluster;
@@ -84,10 +84,10 @@ public class ClusterStore implements Closeable {
         cluster.register(Append.class, this::appendFromRemote);
     }
 
-    public static ClusterStore connect(File rootDir, String name, int numPartitions) {
+    public static ClusterManager connect(File rootDir, String name, int numPartitions) {
         ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
         Cluster cluster = new Cluster(name, descriptor.nodeId);
-        ClusterStore store = new ClusterStore(rootDir, cluster, descriptor, numPartitions);
+        ClusterManager store = new ClusterManager(rootDir, cluster, descriptor, numPartitions);
         store.nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
         try {
 
