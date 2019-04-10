@@ -38,36 +38,31 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class ClusterManager implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterManager.class);
 
-    private final int numPartitions;
-
     private final Cluster cluster;
-    private final Map<Integer, Partition> partitions = new ConcurrentHashMap<>();
+    private final Partitions partitions;
     private final File rootDir;
     private final ClusterDescriptor descriptor;
 
     private final NodeLog nodeLog;
     private final RemoteIterators remoteIterators = new RemoteIterators();
+    private final ClusterStore store;
 
-    private ClusterManager(File rootDir, Cluster cluster, ClusterDescriptor clusterDescriptor, int numPartitions) {
+    private ClusterManager(File rootDir, Cluster cluster, Partitions partitions, ClusterDescriptor clusterDescriptor, ClusterStore store) {
         this.rootDir = rootDir;
+        this.partitions = partitions;
         this.descriptor = clusterDescriptor;
         this.cluster = cluster;
-        this.numPartitions = numPartitions;
+        this.store = store;
         this.nodeLog = new NodeLog(rootDir);
         this.registerHandlers();
-
-//        cluster.interceptor(new LoggingInterceptor());
-
     }
 
     private void registerHandlers() {
@@ -87,26 +82,29 @@ public class ClusterManager implements Closeable {
     public static ClusterManager connect(File rootDir, String name, int numPartitions) {
         ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
         Cluster cluster = new Cluster(name, descriptor.nodeId);
-        ClusterManager store = new ClusterManager(rootDir, cluster, descriptor, numPartitions);
-        store.nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
+
+        Partitions partitions = new Partitions(numPartitions);
+        ClusterStore store = new ClusterStore(partitions);
+        ClusterManager manager = new ClusterManager(rootDir, cluster, partitions, descriptor, store);
+        manager.nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
         try {
 
             cluster.join();
 
-            Set<Integer> ownedPartitions = store.nodeLog.ownedPartitions();
-            List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(store.descriptor.nodeId, ownedPartitions));
+            Set<Integer> ownedPartitions = manager.nodeLog.ownedPartitions();
+            List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(manager.descriptor.nodeId, ownedPartitions));
             for (MulticastResponse response : responses) {
                 NodeInfo nodeInfo = response.message();
                 for (Integer partitionId : nodeInfo.partitions) {
-                    store.partitions.put(partitionId, store.createRemotePartition(nodeInfo.nodeId, partitionId));
+                    manager.partitions.put(partitionId, manager.createRemotePartition(nodeInfo.nodeId, partitionId));
                 }
             }
 
             logger.info("Connected to {}", name);
-            return store;
+            return manager;
 
         } catch (Exception e) {
-            IOUtils.closeQuietly(store);
+            IOUtils.closeQuietly(manager);
             IOUtils.closeQuietly(descriptor);
             cluster.leave();
             throw new RuntimeException("Failed to connect to " + name, e);
@@ -153,7 +151,7 @@ public class ClusterManager implements Closeable {
 
     private ClusterMessage fromStreamRequested(FromStream fromStream) {
         StreamName streamName = StreamName.parse(fromStream.streamName);
-        LogIterator<EventRecord> iterator = select(streamName.name()).store().fromStream(streamName);
+        LogIterator<EventRecord> iterator = store.fromStream(streamName);
         String iteratorId = remoteIterators.add(fromStream.timeout, fromStream.batchSize, iterator);
         return new IteratorCreated(iteratorId);
     }
@@ -165,7 +163,7 @@ public class ClusterManager implements Closeable {
 
     //TODO this is totally wrong, append here will create events from scratch
     private void forkPartition(int partitionId) {
-        LogIterator<EventRecord> iterator = partitions.get(partitionId).store().fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.INCLUDE);
+        LogIterator<EventRecord> iterator = store.partition(partitionId).fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.INCLUDE);
         Partition partition = createEmptyPartition(partitionId);
         IEventStore store = partition.store();
         iterator.forEachRemaining(store::append);
@@ -197,7 +195,7 @@ public class ClusterManager implements Closeable {
 
     private ClusterMessage onNodeInfoRequested(NodeInfoRequested nodeInfoRequested) {
         logger.info("Node info requested from {}", nodeInfoRequested.nodeId);
-        return new NodeInfo(descriptor.nodeId, partitions.keySet());
+        return new NodeInfo(descriptor.nodeId, partitions.owned().stream().map(p -> p.id).collect(Collectors.toSet()));
     }
 
     private void onNodeInfoReceived(NodeInfo nodeInfo) {
@@ -213,24 +211,12 @@ public class ClusterManager implements Closeable {
         //TODO ownership of the partition should be transferred
     }
 
-    private Map<Integer, Partition> initializePartitions() {
-        Map<Integer, Partition> newPartitions = new HashMap<>();
-        for (int i = 0; i < numPartitions; i++) {
-            newPartitions.put(i, createEmptyPartition(i));
-        }
-        return newPartitions;
-    }
-
     private Partition createLocalPartition(int id, File root) {
         String pId = "partition-" + id;
         File partitionRoot = new File(root, pId);
         IEventStore store = EventStore.open(partitionRoot);
 //        nodeLog.append(new PartitionCreatedEvent(id));
         return new Partition(id, store);
-    }
-
-    private Partition createEmptyPartition(int id) {
-        return new Partition(id, null);
     }
 
 
@@ -243,34 +229,6 @@ public class ClusterManager implements Closeable {
         IEventStore store = new RemotePartitionClient(node, partitionId, cluster.client());
         return new Partition(partitionId, store);
     }
-
-    private Partition select(String stream) {
-        long hash = StreamName.hash(stream);
-        int idx = (int) (Math.abs(hash) % numPartitions);
-        Partition partition = partitions.get(idx);
-        if (partition == null) {
-            throw new IllegalStateException("Partition not found for " + stream + ", idx " + idx);
-        }
-        return partition;
-    }
-
-    //-------------- PUBLIC API ----------------------
-
-    public void append(EventRecord event) {
-        Partition partition = select(event.stream);
-        partition.store().append(event);
-    }
-
-    public EventRecord get(StreamName streamName) {
-        Partition partition = select(streamName.name());
-        return partition.store().get(streamName);
-    }
-
-    public EventLogIterator fromStream(StreamName streamName) {
-        Partition partition = select(streamName.name());
-        return partition.store().fromStream(streamName);
-    }
-
 
     //-------------- CLUSTER CMDS ----------------------
 
@@ -286,12 +244,7 @@ public class ClusterManager implements Closeable {
     }
 
     private AppendResult appendFromRemote(Append append) {
-        Partition partition = select(append.event.stream);
-        if (!(partition.store() instanceof EventStore)) {
-            //TODO
-            throw new IllegalArgumentException("Not a local partition");
-        }
-        EventRecord created = partition.store().append(append.event, append.expectedVersion);
+        EventRecord created = store.append(append.event, append.expectedVersion);
         return new AppendResult(true);
     }
 
@@ -300,7 +253,7 @@ public class ClusterManager implements Closeable {
         IOUtils.closeQuietly(descriptor);
         cluster.leave();
         IOUtils.closeQuietly(remoteIterators);
-        partitions.values().forEach(IOUtils::closeQuietly);
+        IOUtils.closeQuietly(store);
         IOUtils.closeQuietly(nodeLog);
     }
 }

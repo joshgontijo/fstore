@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
@@ -113,7 +114,7 @@ public class EventStore implements IEventStore {
             writer.append(StreamCreated.create(indexMetadata), 1, metadata);
         });
 
-        Threads.awaitFor(task);
+        Threads.waitFor(task);
         return true;
     }
 
@@ -168,6 +169,23 @@ public class EventStore implements IEventStore {
         logger.info("Loaded {} index entries in {}ms", index.size(), (System.currentTimeMillis() - start));
     }
 
+    //replication
+    public Future<EventRecord> add(EventRecord record) {
+        return eventWriter.queue(writer -> {
+            StreamMetadata metadata = getOrCreateStream(writer, record.stream);
+            return writer.append(record, NO_EXPECTED_VERSION, metadata);
+        });
+    }
+
+    public Future<Void> bulkAppend(List<EventRecord> events) {
+        return eventWriter.queue(writer -> {
+            for (EventRecord record : events) {
+                StreamMetadata metadata = getOrCreateStream(writer, record.stream);
+                writer.append(record, NO_EXPECTED_VERSION, metadata);
+            }
+        });
+    }
+
     @Override
     public EventRecord append(EventRecord event) {
         return append(event, NO_EXPECTED_VERSION);
@@ -180,7 +198,7 @@ public class EventStore implements IEventStore {
             StreamMetadata metadata = getOrCreateStream(writer, event.stream);
             return writer.append(event, expectedVersion, metadata);
         });
-        return Threads.awaitFor(future);
+        return Threads.waitFor(future);
     }
 
     @Override
@@ -212,7 +230,7 @@ public class EventStore implements IEventStore {
             return created;
         });
 
-        return Threads.awaitFor(task);
+        return Threads.waitFor(task);
 
     }
 
@@ -244,7 +262,7 @@ public class EventStore implements IEventStore {
             writer.append(eventRecord, NO_EXPECTED_VERSION, streamsMetadata);
         });
 
-        Threads.awaitFor(op);
+        Threads.waitFor(op);
     }
 
     @Override
@@ -321,7 +339,7 @@ public class EventStore implements IEventStore {
             return writer.append(linkTo, NO_EXPECTED_VERSION, metadata); // TODO expected version for LinkTo
         });
 
-        return Threads.awaitFor(future);
+        return Threads.waitFor(future);
     }
 
     @Override
@@ -336,7 +354,7 @@ public class EventStore implements IEventStore {
             }
             return writer.append(linkTo, NO_EXPECTED_VERSION, metadata);
         });
-        return Threads.awaitFor(future);
+        return Threads.waitFor(future);
     }
 
     private StreamMetadata getOrCreateStream(Writer writer, String stream) {
