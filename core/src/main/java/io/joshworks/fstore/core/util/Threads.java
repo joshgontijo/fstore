@@ -38,7 +38,7 @@ public class Threads {
         }
     }
 
-    public static <T> T awaitFor(Future<T> task) {
+    public static <T> T waitFor(Future<T> task) {
         try {
             return task.get();
         } catch (InterruptedException e) {

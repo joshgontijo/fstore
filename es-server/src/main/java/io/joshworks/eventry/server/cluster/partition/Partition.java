@@ -8,6 +8,7 @@ public class Partition implements Closeable {
 
     public final int id;
     private boolean master;
+    private String nodeId;
     private final IEventStore owner;
 
     public Partition(int id, IEventStore owner) {
@@ -23,6 +24,13 @@ public class Partition implements Closeable {
         return owner;
     }
 
+    public void updateNode(String newNodeId) {
+        this.nodeId = newNodeId;
+    }
+
+    public String nodeId() {
+        return nodeId;
+    }
 
     @Override
     public void close() {
