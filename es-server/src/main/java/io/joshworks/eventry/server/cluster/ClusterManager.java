@@ -1,11 +1,9 @@
 package io.joshworks.eventry.server.cluster;
 
-import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.StreamName;
-import io.joshworks.eventry.SystemEventPolicy;
+import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterMessage;
@@ -14,8 +12,11 @@ import io.joshworks.eventry.network.MulticastResponse;
 import io.joshworks.eventry.server.cluster.messages.Append;
 import io.joshworks.eventry.server.cluster.messages.AppendResult;
 import io.joshworks.eventry.server.cluster.messages.EventBatch;
+import io.joshworks.eventry.server.cluster.messages.EventData;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
 import io.joshworks.eventry.server.cluster.messages.FromStream;
+import io.joshworks.eventry.server.cluster.messages.FromStreams;
+import io.joshworks.eventry.server.cluster.messages.Get;
 import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
 import io.joshworks.eventry.server.cluster.messages.IteratorNext;
 import io.joshworks.eventry.server.cluster.messages.NodeInfo;
@@ -52,8 +53,9 @@ public class ClusterManager implements Closeable {
     private final ClusterDescriptor descriptor;
 
     private final NodeLog nodeLog;
-    private final RemoteIterators remoteIterators = new RemoteIterators();
+
     private final ClusterStore store;
+    private final StoreReceiver storeReceiver;
 
     private ClusterManager(File rootDir, Cluster cluster, Partitions partitions, ClusterDescriptor clusterDescriptor, ClusterStore store) {
         this.rootDir = rootDir;
@@ -62,6 +64,7 @@ public class ClusterManager implements Closeable {
         this.cluster = cluster;
         this.store = store;
         this.nodeLog = new NodeLog(rootDir);
+        this.storeReceiver = new StoreReceiver(store);
         this.registerHandlers();
     }
 
@@ -72,11 +75,29 @@ public class ClusterManager implements Closeable {
         cluster.register(NodeInfo.class, this::onNodeInfoReceived);
         cluster.register(PartitionForkRequested.class, this::onPartitionForkRequested);
         cluster.register(PartitionForkCompleted.class, this::onPartitionForkCompleted);
-        cluster.register(FromAll.class, this::fromAllRequested);
-        cluster.register(FromStream.class, this::fromStreamRequested);
-        cluster.register(IteratorNext.class, this::onIteratorNext);
         cluster.register(PartitionAssigned.class, this::onPartitionAssigned);
-        cluster.register(Append.class, this::appendFromRemote);
+
+        cluster.register(IteratorNext.class, storeReceiver::onIteratorNext);
+        cluster.register(FromAll.class, storeReceiver::fromAll);
+        cluster.register(FromStream.class, storeReceiver::fromStream);
+        cluster.register(FromStreams.class, storeReceiver::fromStreams);
+        cluster.register(Append.class, storeReceiver::append);
+        cluster.register(Get.class, storeReceiver::get);
+    }
+
+    private void requestNodeInfo() {
+        Set<Integer> ownedPartitions = nodeLog.ownedPartitions();
+        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(descriptor.nodeId, ownedPartitions));
+        for (MulticastResponse response : responses) {
+            NodeInfo nodeInfo = response.message();
+            for (Integer partitionId : nodeInfo.partitions) {
+                partitions.add(createRemotePartition(nodeInfo.nodeId, partitionId));
+            }
+        }
+    }
+
+    public IEventStore store() {
+        return store;
     }
 
     public static ClusterManager connect(File rootDir, String name, int numPartitions) {
@@ -86,23 +107,12 @@ public class ClusterManager implements Closeable {
         Partitions partitions = new Partitions(numPartitions);
         ClusterStore store = new ClusterStore(partitions);
         ClusterManager manager = new ClusterManager(rootDir, cluster, partitions, descriptor, store);
-        manager.nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
         try {
-
+            manager.nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
             cluster.join();
-
-            Set<Integer> ownedPartitions = manager.nodeLog.ownedPartitions();
-            List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(manager.descriptor.nodeId, ownedPartitions));
-            for (MulticastResponse response : responses) {
-                NodeInfo nodeInfo = response.message();
-                for (Integer partitionId : nodeInfo.partitions) {
-                    manager.partitions.put(partitionId, manager.createRemotePartition(nodeInfo.nodeId, partitionId));
-                }
-            }
-
             logger.info("Connected to {}", name);
+            manager.requestNodeInfo();
             return manager;
-
         } catch (Exception e) {
             IOUtils.closeQuietly(manager);
             IOUtils.closeQuietly(descriptor);
@@ -111,64 +121,11 @@ public class ClusterManager implements Closeable {
         }
     }
 
-//    private void initPartitions() {
-//        //TODO Lock
-//        List<MulticastResponse> responses = cluster.client().cast(new NodeInfoRequested(descriptor.nodeId));
-//        if (descriptor.isNew) {
-//            nodeLog.append(new NodeCreatedEvent(descriptor.nodeId));
-//            if (!responses.isEmpty()) {
-//                logger.info("Forking partitions");
-//                //TODO forking 2 partition from each
-//                for (MulticastResponse response : responses) {
-//                    NodeInfo nodeInfo = response.message();
-//                    Iterator<Integer> it = nodeInfo.partitions.iterator();
-//                    for (int i = 0; i < 2; i++) {
-//                        if (it.hasNext()) {
-//                            int partitionId = it.next();
-//                            forkPartition(partitionId);
-//                        }
-//                    }
-//                }
-//            } else {
-//                logger.info("No other nodes found, initializing partitions");
-//                partitions.putAll(initializePartitions());
-//            }
-//        }
-//    }
-
     public void assignPartition(int partitionId) {
         Partition localPartition = createLocalPartition(partitionId, rootDir);
-        partitions.put(localPartition.id, localPartition);
+        partitions.add(localPartition);
         nodeLog.append(new PartitionCreatedEvent(partitionId));
         cluster.client().cast(new PartitionAssigned(partitionId, descriptor.nodeId));
-    }
-
-    private ClusterMessage fromAllRequested(FromAll fromAll) {
-        LogIterator<EventRecord> iterator = partitions.get(fromAll.partitionId).store().fromAll(fromAll.linkToPolicy, fromAll.systemEventPolicy);
-        String iteratorId = remoteIterators.add(fromAll.timeout, fromAll.batchSize, iterator);
-        return new IteratorCreated(iteratorId);
-    }
-
-    private ClusterMessage fromStreamRequested(FromStream fromStream) {
-        StreamName streamName = StreamName.parse(fromStream.streamName);
-        LogIterator<EventRecord> iterator = store.fromStream(streamName);
-        String iteratorId = remoteIterators.add(fromStream.timeout, fromStream.batchSize, iterator);
-        return new IteratorCreated(iteratorId);
-    }
-
-    private ClusterMessage onIteratorNext(IteratorNext iteratorNext) {
-        List<EventRecord> records = remoteIterators.nextBatch(iteratorNext.uuid);
-        return new EventBatch(records);
-    }
-
-    //TODO this is totally wrong, append here will create events from scratch
-    private void forkPartition(int partitionId) {
-        LogIterator<EventRecord> iterator = store.partition(partitionId).fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.INCLUDE);
-        Partition partition = createEmptyPartition(partitionId);
-        IEventStore store = partition.store();
-        iterator.forEachRemaining(store::append);
-
-        cluster.client().cast(new PartitionForkCompleted(partitionId));
     }
 
     private NodeInfo onNodeJoined(NodeJoined nodeJoined) {
@@ -176,7 +133,7 @@ public class ClusterManager implements Closeable {
         nodeLog.append(new NodeJoinedEvent(nodeJoined.nodeId));
         for (int ownedPartition : nodeJoined.partitions) {
             Partition remotePartition = createRemotePartition(nodeJoined.nodeId, ownedPartition);
-            partitions.put(ownedPartition, remotePartition);
+            partitions.add(remotePartition);
         }
 
         return new NodeInfo(descriptor.nodeId, nodeLog.ownedPartitions());
@@ -185,7 +142,7 @@ public class ClusterManager implements Closeable {
     private void onPartitionAssigned(PartitionAssigned partitionAssigned) {
         logger.info("Partition assigned node: {}, partition: {}", partitionAssigned.nodeId, partitionAssigned.id);
         Partition remotePartition = createRemotePartition(partitionAssigned.nodeId, partitionAssigned.id);
-        partitions.put(partitionAssigned.id, remotePartition);
+        partitions.add(remotePartition);
     }
 
     private void onNodeLeft(NodeLeft nodeJoined) {
@@ -219,11 +176,6 @@ public class ClusterManager implements Closeable {
         return new Partition(id, store);
     }
 
-
-    private Partition loadPartition(File root, int id) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
     private Partition createRemotePartition(String nodeId, int partitionId) {
         ClusterNode node = cluster.node(nodeId);
         IEventStore store = new RemotePartitionClient(node, partitionId, cluster.client());
@@ -243,16 +195,11 @@ public class ClusterManager implements Closeable {
         partition.store().append(event);
     }
 
-    private AppendResult appendFromRemote(Append append) {
-        EventRecord created = store.append(append.event, append.expectedVersion);
-        return new AppendResult(true);
-    }
-
     @Override
     public void close() {
         IOUtils.closeQuietly(descriptor);
         cluster.leave();
-        IOUtils.closeQuietly(remoteIterators);
+        IOUtils.closeQuietly(storeReceiver);
         IOUtils.closeQuietly(store);
         IOUtils.closeQuietly(nodeLog);
     }

@@ -177,7 +177,7 @@ public class EventStore implements IEventStore {
         });
     }
 
-    public Future<Void> bulkAppend(List<EventRecord> events) {
+    public Future<Void> append(List<EventRecord> events) {
         return eventWriter.queue(writer -> {
             for (EventRecord record : events) {
                 StreamMetadata metadata = getOrCreateStream(writer, record.stream);
@@ -226,7 +226,7 @@ public class EventStore implements IEventStore {
             }
             EventRecord eventRecord = StreamCreated.create(created);
             StreamMetadata streamsStreamMeta = streams.get(SystemStreams.STREAMS).get();
-            writer.append(eventRecord, -2, streamsStreamMeta);
+            writer.append(eventRecord, NO_EXPECTED_VERSION, streamsStreamMeta);
             return created;
         });
 

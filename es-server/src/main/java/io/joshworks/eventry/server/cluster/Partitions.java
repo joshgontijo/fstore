@@ -27,8 +27,8 @@ public class Partitions implements AutoCloseable {
         return partition;
     }
 
-    public void put(int id, Partition partition) {
-        partitions.put(id, partition);
+    public void add(Partition partition) {
+        partitions.put(partition.id, partition);
     }
 
     public Partition get(int id) {
