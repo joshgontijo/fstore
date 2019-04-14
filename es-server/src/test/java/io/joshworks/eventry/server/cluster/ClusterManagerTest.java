@@ -1,6 +1,7 @@
 package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.EventLogIterator;
+import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.io.IOUtils;
@@ -24,6 +25,8 @@ public class ClusterManagerTest {
     private File testFile1;
     private File testFile2;
 
+    private IEventStore writeNode;
+
     @Before
     public void setUp() {
         System.setProperty("java.net.preferIPv4Stack", "true");
@@ -32,6 +35,8 @@ public class ClusterManagerTest {
         testFile2 = FileUtils.testFolder();
         node1 = ClusterManager.connect(testFile1, CLUSTER_NAME, NUM_PARTITIONS);
         _anotherNode = ClusterManager.connect(testFile2, CLUSTER_NAME, NUM_PARTITIONS);
+
+        writeNode = node1.store();
 
         node1.assignPartition(0);
         _anotherNode.assignPartition(1);
@@ -51,8 +56,8 @@ public class ClusterManagerTest {
         var streamName = StreamName.of(stream, 0);
         EventRecord event = EventRecord.create(streamName.name(), "type", Map.of());
 
-        node1.append(event);
-        EventRecord found = node1.get(streamName);
+        writeNode.append(event);
+        EventRecord found = writeNode.get(streamName);
 
         assertEquals(event.stream, found.stream);
         assertEquals(0, found.version);
@@ -64,9 +69,9 @@ public class ClusterManagerTest {
         EventRecord event1 = EventRecord.create(stream, "type", Map.of());
         EventRecord event2 = EventRecord.create(stream, "type", Map.of());
 
-        node1.append(event1);
-        node1.append(event2);
-        EventLogIterator it = node1.fromStream(StreamName.of(stream));
+        writeNode.append(event1);
+        writeNode.append(event2);
+        EventLogIterator it = writeNode.fromStream(StreamName.of(stream));
 
         assertTrue(it.hasNext());
         EventRecord found = it.next();
@@ -83,7 +88,7 @@ public class ClusterManagerTest {
     public void perf() {
         for (int i = 0; i < 5000000; i++) {
             EventRecord event1 = EventRecord.create("stream-" + i, "type", Map.of());
-            node1.append(event1);
+            writeNode.append(event1);
             if(i % 50000 == 0) {
                 System.out.println("-> " + i);
             }

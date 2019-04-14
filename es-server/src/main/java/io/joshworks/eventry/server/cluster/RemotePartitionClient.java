@@ -11,8 +11,10 @@ import io.joshworks.eventry.network.client.ClusterClient;
 import io.joshworks.eventry.server.cluster.messages.Append;
 import io.joshworks.eventry.server.cluster.messages.AppendResult;
 import io.joshworks.eventry.server.cluster.messages.EventBatch;
+import io.joshworks.eventry.server.cluster.messages.EventData;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
 import io.joshworks.eventry.server.cluster.messages.FromStream;
+import io.joshworks.eventry.server.cluster.messages.Get;
 import io.joshworks.eventry.server.cluster.messages.IteratorClose;
 import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
 import io.joshworks.eventry.server.cluster.messages.IteratorNext;
@@ -135,8 +137,9 @@ public class RemotePartitionClient implements IEventStore {
     }
 
     @Override
-    public EventRecord get(StreamName stream) {
-        return null;
+    public EventRecord get(StreamName streamName) {
+        EventData eventData = client.send(node.address, new Get(streamName));
+        return eventData.record;
     }
 
     @Override
