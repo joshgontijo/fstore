@@ -7,21 +7,21 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
 
-public class PartitionMovedEvent implements NodeEvent {
+public class PartitionTransferredEvent implements NodeEvent {
 
-    private static final Serializer<PartitionMovedEvent> serializer = JsonSerializer.of(PartitionMovedEvent.class);
+    private static final Serializer<PartitionTransferredEvent> serializer = JsonSerializer.of(PartitionTransferredEvent.class);
 
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "PARTITION_MOVED";
 
     public final int id;
     public final String newNodeId;
 
-    public PartitionMovedEvent(int id, String newNodeId) {
+    public PartitionTransferredEvent(int id, String newNodeId) {
         this.id = id;
         this.newNodeId = newNodeId;
     }
 
-    public static PartitionMovedEvent from(EventRecord record) {
+    public static PartitionTransferredEvent from(EventRecord record) {
         return serializer.fromBytes(ByteBuffer.wrap(record.body));
     }
 

@@ -8,9 +8,13 @@ import io.joshworks.eventry.network.ClusterMessage;
 public class AppendResult implements ClusterMessage {
 
     public final boolean success;
+    public final long timestamp;
+    public final int version;
 
-    public AppendResult(boolean success) {
+    public AppendResult(boolean success, long timestamp, int version) {
         this.success = success;
+        this.timestamp = timestamp;
+        this.version = version;
     }
 
     @Override

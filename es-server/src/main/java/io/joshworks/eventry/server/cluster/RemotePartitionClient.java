@@ -23,6 +23,7 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import org.jgroups.Address;
 
 import java.util.ArrayDeque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -33,6 +34,8 @@ import java.util.Set;
 import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
 import static io.joshworks.eventry.server.cluster.RemoteIterators.DEFAULT_BATCH_SIZE;
 import static io.joshworks.eventry.server.cluster.RemoteIterators.DEFAULT_TIMEOUT;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 
 //CLIENT
 public class RemotePartitionClient implements IEventStore {
@@ -76,7 +79,7 @@ public class RemotePartitionClient implements IEventStore {
     public EventRecord append(EventRecord event, int expectedVersion) {
         Append append = new Append(event, expectedVersion);
         AppendResult response = client.send(node.address, append);
-        return null; //TODO
+        return new EventRecord(event.stream, event.type, response.version, response.timestamp, event.body, event.metadata);
     }
 
     @Override
@@ -108,17 +111,17 @@ public class RemotePartitionClient implements IEventStore {
 
     @Override
     public void createStream(String name) {
-
+        createStream(name, NO_MAX_COUNT, NO_MAX_AGE);
     }
 
     @Override
     public void createStream(String name, int maxCount, long maxAge) {
-
+        createStream(name, NO_MAX_COUNT, NO_MAX_AGE, new HashMap<>(), new HashMap<>());
     }
 
     @Override
     public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
-        return null;
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override

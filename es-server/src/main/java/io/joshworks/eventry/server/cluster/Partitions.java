@@ -3,6 +3,7 @@ package io.joshworks.eventry.server.cluster;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.server.cluster.partition.Partition;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,7 +29,12 @@ public class Partitions implements AutoCloseable {
     }
 
     public void add(Partition partition) {
-        partitions.put(partition.id, partition);
+        if(partition == null) {
+            throw new IllegalArgumentException("Partition must not be empty");
+        }
+        if(partitions.putIfAbsent(partition.id, partition) != null) {
+            throw new IllegalStateException("Partition already exists");
+        }
     }
 
     public Partition get(int id) {
@@ -55,5 +61,9 @@ public class Partitions implements AutoCloseable {
     public void close()  {
         partitions.values().forEach(Partition::close);
         partitions.clear();
+    }
+
+    public Collection<Partition> all() {
+        return partitions.values();
     }
 }

@@ -2,43 +2,38 @@ package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.StreamName;
-import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.MulticastResponse;
 import io.joshworks.eventry.server.cluster.messages.Append;
-import io.joshworks.eventry.server.cluster.messages.AppendResult;
-import io.joshworks.eventry.server.cluster.messages.EventBatch;
-import io.joshworks.eventry.server.cluster.messages.EventData;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
 import io.joshworks.eventry.server.cluster.messages.FromStream;
 import io.joshworks.eventry.server.cluster.messages.FromStreams;
 import io.joshworks.eventry.server.cluster.messages.Get;
-import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
 import io.joshworks.eventry.server.cluster.messages.IteratorNext;
-import io.joshworks.eventry.server.cluster.messages.NodeInfo;
-import io.joshworks.eventry.server.cluster.messages.NodeInfoRequested;
-import io.joshworks.eventry.server.cluster.messages.NodeJoined;
-import io.joshworks.eventry.server.cluster.messages.NodeLeft;
-import io.joshworks.eventry.server.cluster.messages.PartitionAssigned;
-import io.joshworks.eventry.server.cluster.messages.PartitionForkCompleted;
-import io.joshworks.eventry.server.cluster.messages.PartitionForkRequested;
+import io.joshworks.eventry.server.cluster.events.NodeInfo;
+import io.joshworks.eventry.server.cluster.events.NodeInfoRequested;
+import io.joshworks.eventry.server.cluster.events.NodeJoined;
+import io.joshworks.eventry.server.cluster.events.NodeLeft;
+import io.joshworks.eventry.server.cluster.events.PartitionAssigned;
+import io.joshworks.eventry.server.cluster.events.PartitionForkCompleted;
+import io.joshworks.eventry.server.cluster.events.PartitionForkRequested;
 import io.joshworks.eventry.server.cluster.nodelog.NodeJoinedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLeftEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
 import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.PartitionCreatedEvent;
+import io.joshworks.eventry.server.cluster.nodelog.PartitionTransferredEvent;
 import io.joshworks.eventry.server.cluster.partition.Partition;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -87,12 +82,31 @@ public class ClusterManager implements Closeable {
 
     private void requestNodeInfo() {
         Set<Integer> ownedPartitions = nodeLog.ownedPartitions();
+        if (descriptor.isNew && ownedPartitions.isEmpty()) {
+            logger.info("No nodes connected and no partitions, initializing...");
+            initPartitions();
+            return;
+        }
+        loadPartitions();
+
+        logger.info("Fetching node info");
         List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(descriptor.nodeId, ownedPartitions));
         for (MulticastResponse response : responses) {
             NodeInfo nodeInfo = response.message();
+            logger.info("Got {}", nodeInfo);
             for (Integer partitionId : nodeInfo.partitions) {
-                partitions.add(createRemotePartition(nodeInfo.nodeId, partitionId));
+                Partition partition = createRemotePartition(nodeInfo.nodeId, partitionId);
+                partitions.add(partition);
             }
+        }
+    }
+
+    //Eagerly create partitions
+    private void initPartitions() {
+        for (int id = 0; id < partitions.numPartitions(); id++) {
+            nodeLog.append(new PartitionCreatedEvent(id));
+            Partition partition = createLocalPartition(id, rootDir);
+            partitions.add(partition);
         }
     }
 
@@ -118,6 +132,31 @@ public class ClusterManager implements Closeable {
             IOUtils.closeQuietly(descriptor);
             cluster.leave();
             throw new RuntimeException("Failed to connect to " + name, e);
+        }
+    }
+
+    private void loadPartitions() {
+        logger.info("Loading local partitions");
+        Set<Integer> owned = new HashSet<>();
+
+        for (EventRecord record : nodeLog) {
+            if (PartitionCreatedEvent.TYPE.equals(record.type)) {
+                owned.add(PartitionCreatedEvent.from(record).id);
+            }
+            if (PartitionTransferredEvent.TYPE.equals(record.type)) {
+                PartitionTransferredEvent transferred = PartitionTransferredEvent.from(record);
+                if (descriptor.nodeId.equals(transferred.newNodeId)) {
+                    owned.add(transferred.id);
+                } else {
+                    owned.remove(transferred.id);
+                }
+            }
+        }
+
+        logger.info("Found {} local partitions, opening", owned.size());
+        for (Integer partitionId : owned) {
+            Partition partition = createLocalPartition(partitionId, rootDir);
+            partitions.add(partition);
         }
     }
 
@@ -197,6 +236,7 @@ public class ClusterManager implements Closeable {
 
     @Override
     public void close() {
+        nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
         IOUtils.closeQuietly(descriptor);
         cluster.leave();
         IOUtils.closeQuietly(storeReceiver);
