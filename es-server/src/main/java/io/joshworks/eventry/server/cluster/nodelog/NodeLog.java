@@ -12,7 +12,6 @@ import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -48,8 +47,8 @@ public class NodeLog implements Iterable<EventRecord>, Closeable {
             switch (entry.type) {
                 case PartitionCreatedEvent.TYPE:
                     partitions.add(PartitionCreatedEvent.from(entry).id);
-                case PartitionMovedEvent.TYPE:
-                    partitions.remove(PartitionMovedEvent.from(entry).id);
+                case PartitionTransferredEvent.TYPE:
+                    partitions.remove(PartitionTransferredEvent.from(entry).id);
             }
         }
         return partitions;

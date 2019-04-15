@@ -10,6 +10,7 @@ public class Partition implements Closeable {
     private boolean master;
     private String nodeId;
     private final IEventStore owner;
+    public Status status; //TODO use, lock etc..
 
     public Partition(int id, IEventStore owner) {
         this.id = id;

@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.LogIterator;
-import org.jooq.lambda.Seq;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,7 +12,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Spliterator;
 import java.util.Spliterators;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;

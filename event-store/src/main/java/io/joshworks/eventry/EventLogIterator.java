@@ -1,15 +1,14 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 public interface EventLogIterator extends LogIterator<EventRecord> {
 
@@ -19,6 +18,10 @@ public interface EventLogIterator extends LogIterator<EventRecord> {
 
     static EventLogIterator empty() {
         return new EmptyEventLogIterator();
+    }
+
+    static EventLogIterator of(LogIterator<EventRecord> iterator) {
+        return new DelegateIterator(iterator);
     }
 
     class TypeMatch {
@@ -63,6 +66,35 @@ public interface EventLogIterator extends LogIterator<EventRecord> {
         @Override
         public EventRecord next() {
             return empty.next();
+        }
+    }
+
+    class DelegateIterator implements EventLogIterator {
+
+        private final LogIterator<EventRecord> delegate;
+
+        public DelegateIterator(LogIterator<EventRecord> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public long position() {
+            return delegate.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public EventRecord next() {
+            return delegate.next();
         }
     }
 

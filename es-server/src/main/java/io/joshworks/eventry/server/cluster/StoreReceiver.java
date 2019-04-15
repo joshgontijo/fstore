@@ -31,8 +31,8 @@ public class StoreReceiver implements Closeable {
     }
 
     AppendResult append(Append append) {
-        store.append(append.event, append.expectedVersion);
-        return new AppendResult(true);
+        EventRecord created = store.append(append.event, append.expectedVersion);
+        return new AppendResult(true, created.timestamp, created.version);
     }
 
     ClusterMessage get(Get get) {

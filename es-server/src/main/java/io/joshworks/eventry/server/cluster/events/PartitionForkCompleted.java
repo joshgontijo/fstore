@@ -1,4 +1,4 @@
-package io.joshworks.eventry.server.cluster.messages;
+package io.joshworks.eventry.server.cluster.events;
 
 import io.joshworks.eventry.network.ClusterMessage;
 
