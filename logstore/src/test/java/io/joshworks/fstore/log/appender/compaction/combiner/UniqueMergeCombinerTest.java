@@ -26,10 +26,11 @@ import static org.junit.Assert.assertEquals;
 public class UniqueMergeCombinerTest {
 
     private static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
-    private static final double CHCKSUM_PROB = 1;
+    private static final double CHECKSUM_PROB = 1;
+    private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
 
     private final List<Segment> segments = new ArrayList<>();
-    private DataStream dataStream = new DataStream(new GrowingThreadBufferPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE);
+    private DataStream dataStream = new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE);
 
     @After
     public void tearDown() {

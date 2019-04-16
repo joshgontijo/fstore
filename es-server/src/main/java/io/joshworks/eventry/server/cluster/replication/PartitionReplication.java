@@ -3,12 +3,10 @@ package io.joshworks.eventry.server.cluster.replication;
 import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.SystemEventPolicy;
-import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.server.cluster.RemoteIterators;
 import io.joshworks.eventry.server.cluster.partition.Partition;
 import io.joshworks.eventry.server.cluster.partition.Partitions;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -30,18 +28,18 @@ public class PartitionReplication {
     }
 
     private void fetchFromMaster() {
-        for (Partition replica : partitions.replicas()) {
-            String owner = replica.owner();
-            itMap.computeIfAbsent(owner, k -> {
-                var it = acquireIterator(replica);
-                return iterators.add(10, 100, it);
-            });
-
-            String itUuid = itMap.get(replica.owner());
-            List<EventRecord> records = iterators.nextBatch(itUuid);
-
-
-        }
+//        for (Replica replica : partitions.replicas()) {
+//            String owner = replica.owner();
+//            itMap.computeIfAbsent(owner, k -> {
+//                var it = acquireIterator(replica);
+//                return iterators.add(10, 100, it);
+//            });
+//
+//            String itUuid = itMap.get(replica.owner());
+//            List<EventRecord> records = iterators.nextBatch(itUuid);
+//
+//
+//        }
 
     }
 

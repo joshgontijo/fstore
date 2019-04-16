@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.io.MMapCache;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -30,7 +31,7 @@ public class DataFile<T> implements Flushable, Closeable {
         Storage storage = null;
         try {
             storage = createStorage(handler, mmap);
-            DataStream dataStream = new DataStream(new GrowingThreadBufferPool(), 1.0, maxEntrySize);
+            DataStream dataStream = new DataStream(new GrowingThreadBufferPool(), 1.0, maxEntrySize, Memory.PAGE_SIZE);
             this.segment = new Segment<>(storage, serializer, dataStream, magic, Type.LOG_HEAD);
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);

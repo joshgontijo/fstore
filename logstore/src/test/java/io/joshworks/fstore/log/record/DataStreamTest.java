@@ -32,7 +32,7 @@ public class DataStreamTest {
     private Storage storage;
     private static final long FILE_SIZE = Size.MB.of(10);
 
-    private final IDataStream stream = new DataStream(new GrowingThreadBufferPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE);
+    private final IDataStream stream = new DataStream(new GrowingThreadBufferPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE, Memory.PAGE_SIZE);
 
     @Before
     public void setUp() {
@@ -180,7 +180,7 @@ public class DataStreamTest {
     @Test
     public void forward_bulkRead_additional_entry_is_ignored_when_bigger_than_remaining_bytes() {
 
-        int bufferCapacity = DataStream.BULK_READ_BUFFER_SIZE;
+        int bufferCapacity = Memory.PAGE_SIZE;
         int firstEntryLength = bufferCapacity / 2; //second entry must have its header
         int secondEntryLength = bufferCapacity;
 
@@ -197,7 +197,7 @@ public class DataStreamTest {
     @Test
     public void backward_bulkRead_additional_entry_is_ignored_when_bigger_than_remaining_bytes() {
 
-        int bufferCapacity = DataStream.BULK_READ_BUFFER_SIZE;
+        int bufferCapacity = Memory.PAGE_SIZE;
         int firstEntryLength = bufferCapacity / 2; //second entry must have its header
         int secondEntryLength = bufferCapacity;
 
