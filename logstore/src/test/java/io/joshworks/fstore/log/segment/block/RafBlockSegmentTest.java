@@ -15,13 +15,14 @@ import java.io.File;
 public class RafBlockSegmentTest extends BlockSegmentTest {
 
     private static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
-    private static final double CHCKSUM_PROB = 1;
+    private static final double CHECKSUM_PROB = 1;
+    private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
 
     @Override
     BlockSegment<String> open(File file) {
         return new BlockSegment<>(
                 StorageProvider.of(StorageMode.RAF).create(file, Size.MB.of(10)),
-                new DataStream(new GrowingThreadBufferPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE),
+                new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                 "magic",
                 Type.LOG_HEAD,
                 Serializers.STRING,

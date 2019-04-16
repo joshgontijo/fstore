@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -36,7 +37,8 @@ public class IndexSegmentTest {
     private File indexDir;
 
     private static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
-    private static final double CHCKSUM_PROB = 1;
+    private static final double CHECKSUM_PROB = 1;
+    private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
 
     private IndexSegment segment;
     private static final int NUMBER_OF_ELEMENTS = 1000000; //bloom filter
@@ -57,7 +59,7 @@ public class IndexSegmentTest {
     private IndexSegment create(File location) {
         return new IndexSegment(
                 StorageProvider.of(StorageMode.RAF).create(location, Size.MB.of(100)),
-                new DataStream(new GrowingThreadBufferPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE),
+                new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,
@@ -68,7 +70,7 @@ public class IndexSegmentTest {
     private IndexSegment open(File location) {
         return new IndexSegment(
                 StorageProvider.of(StorageMode.RAF).open(location),
-                new DataStream(new GrowingThreadBufferPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE),
+                new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,
