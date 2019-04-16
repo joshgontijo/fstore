@@ -1,6 +1,8 @@
 package io.joshworks.eventry.server.cluster.messages;
 
-public class Replicate {
+import io.joshworks.eventry.network.ClusterMessage;
+
+public class Replicate implements ClusterMessage {
 
 
 }

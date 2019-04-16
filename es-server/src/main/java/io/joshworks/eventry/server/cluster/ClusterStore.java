@@ -8,6 +8,7 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.server.cluster.partition.Partition;
+import io.joshworks.eventry.server.cluster.partition.Partitions;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -95,7 +96,7 @@ public class ClusterStore implements IEventStore {
     public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
         //TODO each partition must keep track of the last read item
         //event-store should have its own iterator, that instead returning the position, returns the StreamName of last read
-        //Last read event should be a Checkpoing type instead, that can hold multiple StreamName
+        //Last read event should be a Checkpoint type instead, that can hold multiple StreamName
         throw new UnsupportedOperationException("TODO");
     }
 

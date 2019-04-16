@@ -27,6 +27,7 @@ import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.PartitionCreatedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.PartitionTransferredEvent;
 import io.joshworks.eventry.server.cluster.partition.Partition;
+import io.joshworks.eventry.server.cluster.partition.Partitions;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,10 +85,10 @@ public class ClusterManager implements Closeable {
         Set<Integer> ownedPartitions = nodeLog.ownedPartitions();
         if (descriptor.isNew && ownedPartitions.isEmpty()) {
             logger.info("No nodes connected and no partitions, initializing...");
-            initPartitions();
+            partitions.bootstrap(rootDir, nodeLog);
             return;
         }
-        loadPartitions();
+        partitions.load(nodeLog);
 
         logger.info("Fetching node info");
         List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(descriptor.nodeId, ownedPartitions));
@@ -95,18 +96,9 @@ public class ClusterManager implements Closeable {
             NodeInfo nodeInfo = response.message();
             logger.info("Got {}", nodeInfo);
             for (Integer partitionId : nodeInfo.partitions) {
-                Partition partition = createRemotePartition(nodeInfo.nodeId, partitionId);
+                Partition partition = createRemotePartitionClient(nodeInfo.nodeId, partitionId);
                 partitions.add(partition);
             }
-        }
-    }
-
-    //Eagerly create partitions
-    private void initPartitions() {
-        for (int id = 0; id < partitions.numPartitions(); id++) {
-            nodeLog.append(new PartitionCreatedEvent(id));
-            Partition partition = createLocalPartition(id, rootDir);
-            partitions.add(partition);
         }
     }
 
@@ -118,7 +110,7 @@ public class ClusterManager implements Closeable {
         ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
         Cluster cluster = new Cluster(name, descriptor.nodeId);
 
-        Partitions partitions = new Partitions(numPartitions);
+        Partitions partitions = new Partitions(numPartitions, descriptor.nodeId);
         ClusterStore store = new ClusterStore(partitions);
         ClusterManager manager = new ClusterManager(rootDir, cluster, partitions, descriptor, store);
         try {
@@ -135,30 +127,7 @@ public class ClusterManager implements Closeable {
         }
     }
 
-    private void loadPartitions() {
-        logger.info("Loading local partitions");
-        Set<Integer> owned = new HashSet<>();
 
-        for (EventRecord record : nodeLog) {
-            if (PartitionCreatedEvent.TYPE.equals(record.type)) {
-                owned.add(PartitionCreatedEvent.from(record).id);
-            }
-            if (PartitionTransferredEvent.TYPE.equals(record.type)) {
-                PartitionTransferredEvent transferred = PartitionTransferredEvent.from(record);
-                if (descriptor.nodeId.equals(transferred.newNodeId)) {
-                    owned.add(transferred.id);
-                } else {
-                    owned.remove(transferred.id);
-                }
-            }
-        }
-
-        logger.info("Found {} local partitions, opening", owned.size());
-        for (Integer partitionId : owned) {
-            Partition partition = createLocalPartition(partitionId, rootDir);
-            partitions.add(partition);
-        }
-    }
 
     public void assignPartition(int partitionId) {
         Partition localPartition = createLocalPartition(partitionId, rootDir);
@@ -171,7 +140,7 @@ public class ClusterManager implements Closeable {
         logger.info("Node joined: '{}': {}", nodeJoined.nodeId, nodeJoined);
         nodeLog.append(new NodeJoinedEvent(nodeJoined.nodeId));
         for (int ownedPartition : nodeJoined.partitions) {
-            Partition remotePartition = createRemotePartition(nodeJoined.nodeId, ownedPartition);
+            Partition remotePartition = createRemotePartitionClient(nodeJoined.nodeId, ownedPartition);
             partitions.add(remotePartition);
         }
 
@@ -180,7 +149,7 @@ public class ClusterManager implements Closeable {
 
     private void onPartitionAssigned(PartitionAssigned partitionAssigned) {
         logger.info("Partition assigned node: {}, partition: {}", partitionAssigned.nodeId, partitionAssigned.id);
-        Partition remotePartition = createRemotePartition(partitionAssigned.nodeId, partitionAssigned.id);
+        Partition remotePartition = createRemotePartitionClient(partitionAssigned.nodeId, partitionAssigned.id);
         partitions.add(remotePartition);
     }
 
@@ -191,7 +160,7 @@ public class ClusterManager implements Closeable {
 
     private ClusterMessage onNodeInfoRequested(NodeInfoRequested nodeInfoRequested) {
         logger.info("Node info requested from {}", nodeInfoRequested.nodeId);
-        return new NodeInfo(descriptor.nodeId, partitions.owned().stream().map(p -> p.id).collect(Collectors.toSet()));
+        return new NodeInfo(descriptor.nodeId, partitions.partitions().stream().map(p -> p.id).collect(Collectors.toSet()));
     }
 
     private void onNodeInfoReceived(NodeInfo nodeInfo) {
@@ -207,19 +176,7 @@ public class ClusterManager implements Closeable {
         //TODO ownership of the partition should be transferred
     }
 
-    private Partition createLocalPartition(int id, File root) {
-        String pId = "partition-" + id;
-        File partitionRoot = new File(root, pId);
-        IEventStore store = EventStore.open(partitionRoot);
-//        nodeLog.append(new PartitionCreatedEvent(id));
-        return new Partition(id, store);
-    }
 
-    private Partition createRemotePartition(String nodeId, int partitionId) {
-        ClusterNode node = cluster.node(nodeId);
-        IEventStore store = new RemotePartitionClient(node, partitionId, cluster.client());
-        return new Partition(partitionId, store);
-    }
 
     //-------------- CLUSTER CMDS ----------------------
 

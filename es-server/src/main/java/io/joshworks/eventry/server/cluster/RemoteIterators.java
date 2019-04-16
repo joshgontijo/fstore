@@ -46,7 +46,6 @@ public class RemoteIterators implements Closeable {
         return records;
     }
 
-
     @Override
     public void close() {
         items.values().forEach(IOUtils::closeQuietly);
