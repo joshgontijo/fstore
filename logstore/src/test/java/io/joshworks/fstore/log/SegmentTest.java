@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
+import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.record.DataStream;
@@ -345,7 +345,7 @@ public abstract class SegmentTest {
             return new Segment<>(
                     StorageProvider.of(StorageMode.RAF_CACHED).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new SingleBufferThreadCachedPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE),
+                    new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE),
                     "magic",
                     Type.LOG_HEAD);
         }
@@ -358,7 +358,7 @@ public abstract class SegmentTest {
             return new Segment<>(
                     StorageProvider.of(StorageMode.MMAP).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new SingleBufferThreadCachedPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE), "magic", Type.LOG_HEAD);
+                    new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE), "magic", Type.LOG_HEAD);
         }
     }
 
@@ -369,7 +369,7 @@ public abstract class SegmentTest {
             return new Segment<>(
                     StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new SingleBufferThreadCachedPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE),
+                    new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE),
                     "magic",
                     Type.LOG_HEAD);
         }

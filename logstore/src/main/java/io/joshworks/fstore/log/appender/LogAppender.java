@@ -87,7 +87,7 @@ public class LogAppender<T> implements Closeable {
         this.factory = config.segmentFactory;
         this.storageProvider = StorageProvider.of(config.storageMode);
         this.namingStrategy = config.namingStrategy;
-        this.dataStream = new DataStream(config.bufferPool, config.checksumProbability, config.maxEntrySize);
+        this.dataStream = new DataStream(config.bufferPool, config.checksumProbability, config.maxEntrySize, config.bufferSize);
         this.compactionDisabled = config.compactionDisabled;
         this.logger = Logging.namedLogger(config.name, "appender");
 
