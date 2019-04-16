@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
+import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -32,7 +32,7 @@ public class DataStreamTest {
     private Storage storage;
     private static final long FILE_SIZE = Size.MB.of(10);
 
-    private final IDataStream stream = new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE);
+    private final IDataStream stream = new DataStream(new GrowingThreadBufferPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE);
 
     @Before
     public void setUp() {

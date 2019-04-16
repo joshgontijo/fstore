@@ -9,21 +9,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Single dynamic sized buffer, cached per thread.
  * Throws IllegalState exception if the buffer is tried to be allocated without releasing it first
  */
-public class SingleBufferThreadCachedPool implements BufferPool {
+public class GrowingThreadBufferPool implements BufferPool {
 
-    private final ThreadLocal<BufferHolder> cache;
-    private final boolean direct;
+    protected final ThreadLocal<BufferHolder> cache;
+    protected final boolean direct;
 
-    public SingleBufferThreadCachedPool() {
+    public GrowingThreadBufferPool() {
         this(false);
     }
 
-    public SingleBufferThreadCachedPool(boolean direct) {
+    public GrowingThreadBufferPool(boolean direct) {
         this.direct = direct;
         this.cache = ThreadLocal.withInitial(() -> new BufferHolder(create(Memory.PAGE_SIZE)));
     }
 
-    private ByteBuffer create(int size) {
+    protected ByteBuffer create(int size) {
         return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
     }
 
@@ -46,9 +46,9 @@ public class SingleBufferThreadCachedPool implements BufferPool {
         cache.get().available.set(true);
     }
 
-    private static final class BufferHolder {
-        private ByteBuffer buffer;
-        private final AtomicBoolean available = new AtomicBoolean(true);
+    static final class BufferHolder {
+        ByteBuffer buffer;
+        final AtomicBoolean available = new AtomicBoolean(true);
 
         private BufferHolder(ByteBuffer buffer) {
             this.buffer = buffer;

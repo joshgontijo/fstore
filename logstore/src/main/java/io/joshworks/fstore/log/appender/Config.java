@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
+import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -23,13 +23,14 @@ public class Config<T> {
     private static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(256);
     private static final double DEFAULT_CHECKSUM_PROB = 1.0;
     private static final int DEFAULT_MAX_ENTRY_SIZE = Size.MB.intOf(5);
+    private static final int DEFAULT_BUFFER_SIZE = Size.KB.intOf(4);
 
     final File directory;
     final Serializer<T> serializer;
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
     SegmentFactory<T> segmentFactory;
-    BufferPool bufferPool = new SingleBufferThreadCachedPool(false);
+    BufferPool bufferPool = new GrowingThreadBufferPool(false);
 
     String name = DEFAULT_APPENDER_NAME;
     long segmentSize = DEFAULT_SEGMENT_SIZE;
@@ -40,13 +41,12 @@ public class Config<T> {
     boolean threadPerLevel;
     boolean compactionDisabled;
     int maxEntrySize = DEFAULT_MAX_ENTRY_SIZE;
+    int bufferSize = DEFAULT_BUFFER_SIZE;
     StorageMode compactionStorage;
 
     Config(File directory, Serializer<T> serializer) {
         this.directory = requireNonNull(directory, "directory cannot be null");
-        ;
         this.serializer = requireNonNull(serializer, "serializer cannot be null");
-        ;
     }
 
     public Config<T> segmentSize(long segmentSize) {
@@ -66,6 +66,14 @@ public class Config<T> {
 
     public Config<T> storageMode(StorageMode mode) {
         this.storageMode = requireNonNull(mode);
+        return this;
+    }
+
+    public Config<T> bufferSize(int bufferSize) {
+        if (bufferSize < 0) {
+            throw new IllegalArgumentException("bufferSize must be greater than zero");
+        }
+        this.bufferSize = bufferSize;
         return this;
     }
 

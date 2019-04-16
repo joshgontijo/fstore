@@ -17,9 +17,6 @@ public class DataStream implements IDataStream {
 
     public static final int MAX_BULK_READ_RESULT = 100;
 
-    static final int READ_BUFFER_SIZE = Memory.PAGE_SIZE;
-    static final int BULK_READ_BUFFER_SIZE = Memory.PAGE_SIZE * 2;
-
     //hard limit is required to avoid memory issues in case of broken record
 
     private final int maxEntrySize;
@@ -30,17 +27,17 @@ public class DataStream implements IDataStream {
     private final Reader backwardReader;
     private final BufferPool bufferPool;
 
-    public DataStream(BufferPool bufferPool, double checksumProb, int maxEntrySize) {
+    public DataStream(BufferPool bufferPool, double checksumProb, int maxEntrySize, int bufferSize) {
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
         }
         checksumProb = (int) (checksumProb * 100);
         this.maxEntrySize = maxEntrySize;
         this.bufferPool = Objects.requireNonNull(bufferPool, "BufferPool must be provided");
-        this.forwardReader = new ForwardRecordReader(checksumProb, maxEntrySize, READ_BUFFER_SIZE);
-        this.backwardReader = new BackwardRecordReader(checksumProb, maxEntrySize, READ_BUFFER_SIZE);
-        this.bulkForwardReader = new BulkForwardRecordReader(checksumProb, maxEntrySize, BULK_READ_BUFFER_SIZE);
-        this.bulkBackwardReader = new BulkBackwardRecordReader(checksumProb, maxEntrySize, BULK_READ_BUFFER_SIZE);
+        this.forwardReader = new ForwardRecordReader(checksumProb, maxEntrySize, bufferSize);
+        this.backwardReader = new BackwardRecordReader(checksumProb, maxEntrySize, bufferSize);
+        this.bulkForwardReader = new BulkForwardRecordReader(checksumProb, maxEntrySize, bufferSize);
+        this.bulkBackwardReader = new BulkBackwardRecordReader(checksumProb, maxEntrySize, bufferSize);
     }
 
     @Override

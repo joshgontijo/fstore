@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.appender.compaction.combiner;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
+import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -29,7 +29,7 @@ public class UniqueMergeCombinerTest {
     private static final double CHCKSUM_PROB = 1;
 
     private final List<Segment> segments = new ArrayList<>();
-    private DataStream dataStream = new DataStream(new SingleBufferThreadCachedPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE);
+    private DataStream dataStream = new DataStream(new GrowingThreadBufferPool(false), CHCKSUM_PROB, MAX_ENTRY_SIZE);
 
     @After
     public void tearDown() {

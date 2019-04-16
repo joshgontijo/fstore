@@ -23,7 +23,7 @@ import io.joshworks.eventry.writer.Writer;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
+import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.Direction;
@@ -42,7 +42,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
@@ -75,7 +74,7 @@ public class EventStore implements IEventStore {
                 .name("event-log")
                 .flushMode(FlushMode.MANUAL)
                 .storageMode(StorageMode.MMAP)
-                .bufferPool(new SingleBufferThreadCachedPool(false))
+                .bufferPool(new GrowingThreadBufferPool(false))
                 .checksumProbability(1)
                 .disableCompaction()
                 .compactionStrategy(new RecordCleanup(streams)));

@@ -1,7 +1,7 @@
 package io.joshworks.fstore.core.io;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.SingleBufferThreadCachedPool;
+import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -15,7 +15,7 @@ public class BufferPoolTest {
 
     @Before
     public void setUp() {
-        bufferPool = new SingleBufferThreadCachedPool(false);
+        bufferPool = new GrowingThreadBufferPool(false);
     }
 
     @Test
