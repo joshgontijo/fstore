@@ -28,12 +28,15 @@ public abstract class BaseBlock implements Block {
         this.maxSize = this.unpack(codec, data);
     }
 
-    //TODO changed contract
-    //true if added, false otherwise
+    //returns true if added, false otherwise
     @Override
     public boolean add(ByteBuffer data) {
         if (readOnly) {
             throw new IllegalStateException("Block is read only");
+        }
+        int entrySize = data.limit();
+        if (entrySize > maxSize) {
+            throw new IllegalArgumentException("Record size (" + entrySize + ") cannot be greater than blockSize (" + maxSize + ")");
         }
         if (totalSize + data.limit() > maxSize) {
             return false;

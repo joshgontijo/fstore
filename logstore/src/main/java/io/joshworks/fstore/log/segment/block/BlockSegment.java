@@ -3,12 +3,14 @@ package io.joshworks.fstore.log.segment.block;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.SegmentIterator;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
 import io.joshworks.fstore.log.segment.Segment;
+import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.nio.ByteBuffer;
@@ -64,7 +66,9 @@ public class BlockSegment<T> extends Segment<Block> {
         ByteBuffer bb = serializer.toBytes(entry);
         if (!block.add(bb)) {
             writeBlock();
-            return add(entry);
+            if (!block.add(bb)) {
+                throw new IllegalStateException("Could not write to new block after flushing, block must ensure entry can be written or thrown an error");
+            }
         }
         entries.incrementAndGet();
         return super.position();
@@ -161,4 +165,20 @@ public class BlockSegment<T> extends Segment<Block> {
     public int blockSize() {
         return blockSize;
     }
+
+    public static <T> SegmentFactory<T> factory(Codec codec) {
+        return factory(codec, Memory.PAGE_SIZE * 2);
+    }
+
+    public static <T> SegmentFactory<T> factory(Codec codec, int blockSize) {
+        return factory(codec, blockSize, VLenBlock.factory());
+    }
+
+    public static <T> SegmentFactory<T> factory(Codec codec, int blockSize, BlockFactory blockFactory) {
+        return (storage, serializer, reader, magic, type) -> {
+            BlockSegment<T> delegate = new BlockSegment<>(storage, reader, magic, type, serializer, blockFactory, codec, blockSize);
+            return new BlockSegmentWrapper<>(delegate);
+        };
+    }
+
 }

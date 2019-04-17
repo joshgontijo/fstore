@@ -7,7 +7,7 @@ import static java.lang.String.format;
 public class SequentialNaming implements NamingStrategy {
 
     private final AtomicInteger counter = new AtomicInteger();
-    private final int digits = (int) (Math.log10(Integer.MAX_VALUE) + 1);
+    private final int digits = (int) (Math.log10(Long.MAX_VALUE) + 1);
 
     @Override
     public String prefix() {
