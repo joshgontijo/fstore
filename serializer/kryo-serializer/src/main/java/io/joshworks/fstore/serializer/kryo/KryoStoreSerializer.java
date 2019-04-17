@@ -21,9 +21,7 @@ import java.util.GregorianCalendar;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * This class is NOT thread safe
- */
+
 public class KryoStoreSerializer implements Serializer<Object> {
 
     private static final Set<Class> registered = Collections.newSetFromMap(new ConcurrentHashMap<>());
