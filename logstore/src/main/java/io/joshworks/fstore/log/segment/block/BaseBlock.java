@@ -11,8 +11,9 @@ import java.util.stream.Collectors;
 public abstract class BaseBlock implements Block {
 
     private final int maxSize;
-    private int totalSize;
     protected boolean readOnly;
+
+    private int totalSize;
     protected final List<ByteBuffer> buffers = new ArrayList<>();
 
     //returns the uncompressed size
@@ -57,8 +58,9 @@ public abstract class BaseBlock implements Block {
         readOnly = true;
         int entryCount = entryCount();
 
-        ByteBuffer withHeader = ByteBuffer.allocate(totalSize + Integer.BYTES + (Integer.BYTES * entryCount));
+        ByteBuffer withHeader = ByteBuffer.allocate(Integer.BYTES + (Integer.BYTES * entryCount) + totalSize);
         withHeader.putInt(entryCount);
+
         for (int i = 0; i < entryCount; i++) {
             withHeader.putInt(buffers.get(i).remaining());
         }
@@ -146,7 +148,7 @@ public abstract class BaseBlock implements Block {
     }
 
     @Override
-    public long uncompressedSize() {
+    public int uncompressedSize() {
         return totalSize;
     }
 

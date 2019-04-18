@@ -292,7 +292,7 @@ public abstract class LogAppenderIT {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
-                    .threadPerLevelCompaction()
+                    .enableParallelCompaction()
                     .disableCompaction()
                     .storageMode(StorageMode.MMAP)
                     .open();

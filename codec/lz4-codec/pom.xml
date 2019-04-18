@@ -9,13 +9,13 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>snappy-codec</artifactId>
+    <artifactId>lz4-codec</artifactId>
 
     <dependencies>
         <dependency>
-            <groupId>org.xerial.snappy</groupId>
-            <artifactId>snappy-java</artifactId>
-            <version>1.1.7.1</version>
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
+            <version>1.5.1</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

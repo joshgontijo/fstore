@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Logging;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
@@ -105,6 +106,14 @@ public class Segment<T> implements Log<T> {
         }
         this.storage.writePosition(position);
         this.writePosition.set(position);
+    }
+
+    //logical truncation
+    public void truncate(long position) {
+        position(position);
+        int blankSize = (int) Math.min(Memory.PAGE_SIZE, logSize() - position);
+        this.storage.write(ByteBuffer.wrap(new byte[blankSize]));
+        position(position);
     }
 
     @Override
