@@ -56,7 +56,7 @@ public class BlockSegment<T> extends Segment<Block> {
         this.block = blockFactory.create(blockSize);
     }
 
-    public long add(T entry) {
+    public synchronized long add(T entry) {
         if (!hasSpaceAvailableForBlock()) {
             if (!block.isEmpty()) {
                 throw new IllegalStateException("Block was not empty");
@@ -66,6 +66,9 @@ public class BlockSegment<T> extends Segment<Block> {
         ByteBuffer bb = serializer.toBytes(entry);
         if (!block.add(bb)) {
             writeBlock();
+            if (!hasSpaceAvailableForBlock()) {
+                return Storage.EOF;
+            }
             if (!block.add(bb)) {
                 throw new IllegalStateException("Could not write to new block after flushing, block must ensure entry can be written or thrown an error");
             }
@@ -77,7 +80,7 @@ public class BlockSegment<T> extends Segment<Block> {
     private boolean hasSpaceAvailableForBlock() {
         long writePos = writePosition.get();
         long logSize = logSize();
-        return writePos + blockSize <= logSize;
+        return writePos + blockSize < logSize;
     }
 
     @Override
@@ -85,7 +88,7 @@ public class BlockSegment<T> extends Segment<Block> {
         //do nothing
     }
 
-    public void writeBlock() {
+    public synchronized void writeBlock() {
         if (block.isEmpty()) {
             return;
         }
@@ -128,12 +131,8 @@ public class BlockSegment<T> extends Segment<Block> {
         return super.get(position);
     }
 
-    public Block current() {
-        return block;
-    }
-
     @Override
-    public void flush() {
+    public synchronized void flush() {
         if (readOnly()) {
             return;
         }
@@ -142,7 +141,7 @@ public class BlockSegment<T> extends Segment<Block> {
     }
 
     @Override
-    public void roll(int level) {
+    public synchronized void roll(int level) {
         writeBlock();
         super.roll(level);
     }

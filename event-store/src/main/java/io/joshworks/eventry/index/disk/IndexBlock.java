@@ -12,6 +12,7 @@ import java.util.List;
 
 /**
  * Format:
+ * [UNCOMPRESSED_SIZE][ENTRY_COUNT]
  * |streamHash entryCount | version1 pos1 | version2 pos2 | versionN posN |
  * <p>
  * Where:
@@ -48,9 +49,12 @@ public class IndexBlock extends BaseBlock {
         if (buffers.isEmpty()) {
             return ByteBuffer.allocate(0);
         }
+
         int maxVersionSizeOverhead = entryCount() * Integer.BYTES;
         int actualSize = IndexEntry.BYTES * entryCount();
-        var packedBuffer = ByteBuffer.allocate(actualSize + maxVersionSizeOverhead);
+        var packedBuffer = ByteBuffer.allocate(Integer.BYTES + actualSize + maxVersionSizeOverhead);
+
+        packedBuffer.putInt(entryCount());
 
         IndexEntry last = null;
         List<Integer> versions = new ArrayList<>();
@@ -81,6 +85,7 @@ public class IndexBlock extends BaseBlock {
     @Override
     protected int unpack(Codec codec, ByteBuffer readBuffer) {
         ByteBuffer decompressed = codec.decompress(readBuffer);
+        int entryCount = decompressed.getInt();
         while (decompressed.hasRemaining()) {
             long stream = decompressed.getLong();
             int numVersions = decompressed.getInt();
@@ -90,6 +95,9 @@ public class IndexBlock extends BaseBlock {
                 IndexEntry ie = IndexEntry.of(stream, version, position);
                 buffers.add(serializer.toBytes(ie));
             }
+        }
+        if (buffers.size() != entryCount) {
+            throw new IllegalStateException("Expected " + entryCount + " got " + buffers.size());
         }
         return buffers.size() * IndexEntry.BYTES;
     }

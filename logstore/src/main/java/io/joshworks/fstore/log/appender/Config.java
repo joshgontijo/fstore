@@ -38,7 +38,7 @@ public class Config<T> {
     StorageMode storageMode = StorageMode.RAF;
     FlushMode flushMode = FlushMode.MANUAL;
     int compactionThreshold = COMPACTION_THRESHOLD;
-    boolean threadPerLevel;
+    boolean parallelCompaction;
     boolean compactionDisabled;
     int maxEntrySize = DEFAULT_MAX_ENTRY_SIZE;
     int bufferSize = DEFAULT_BUFFER_SIZE;
@@ -113,8 +113,8 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> threadPerLevelCompaction() {
-        this.threadPerLevel = true;
+    public Config<T> enableParallelCompaction() {
+        this.parallelCompaction = true;
         return this;
     }
 

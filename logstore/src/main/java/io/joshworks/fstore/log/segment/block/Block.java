@@ -10,6 +10,11 @@ public interface Block {
 
     boolean add(ByteBuffer data);
 
+    /**
+     * Must return a ByteBuffer containing at least 8 bytes header:
+     * UNCOMPRESED_SIZE
+     * ENTRY_COUNT
+     */
     ByteBuffer pack(Codec codec);
 
     int entryCount();
@@ -28,9 +33,17 @@ public interface Block {
 
     boolean isEmpty();
 
-    long uncompressedSize();
+    int uncompressedSize();
 
     List<Integer> entriesLength();
 
+
+    static int uncompressedSize(ByteBuffer compressed) {
+        return compressed.getInt(compressed.position());
+    }
+
+    static int entries(ByteBuffer compressed) {
+        return compressed.getInt(compressed.position() + Integer.BYTES);
+    }
 
 }

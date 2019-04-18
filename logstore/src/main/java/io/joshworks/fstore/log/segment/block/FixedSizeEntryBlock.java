@@ -29,11 +29,12 @@ public class FixedSizeEntryBlock extends BaseBlock {
         }
         readOnly = true;
         int entryCount = buffers.size();
-        int totalSize = entryCount * entrySize;
+        int uncompressedSize = uncompressedSize();
 
-        ByteBuffer withHeader = ByteBuffer.allocate(Integer.BYTES + Integer.BYTES + totalSize);
+        ByteBuffer withHeader = ByteBuffer.allocate((Integer.BYTES * 2) + uncompressedSize);
         withHeader.putInt(entryCount);
         withHeader.putInt(entrySize);
+
         for (ByteBuffer data : buffers) {
             if (data.limit() != entrySize) {
                 throw new IllegalStateException("Invalid entry size, expected " + entrySize + ", got " + data.limit());
@@ -48,7 +49,7 @@ public class FixedSizeEntryBlock extends BaseBlock {
     @Override
     protected int unpack(Codec codec, ByteBuffer blockData) {
         ByteBuffer decompressed = codec.decompress(blockData);
-        int entryCount = decompressed.getInt();
+        int entryCount = blockData.getInt();
         int entriesSize = decompressed.getInt();
         for (int i = 0; i < entryCount; i++) {
             int dataEnd = decompressed.position() + entriesSize;

@@ -133,7 +133,7 @@ public class LogAppender<T> implements Closeable {
                 metadata.magic,
                 config.name,
                 levels,
-                config.threadPerLevel);
+                config.parallelCompaction);
 
         logConfig(config);
         if (!compactionDisabled) {
