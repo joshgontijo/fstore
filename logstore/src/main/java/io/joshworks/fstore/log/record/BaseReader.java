@@ -20,10 +20,10 @@ public class BaseReader {
         if (checksumProb == 0) {
             return;
         }
-        if (checksumProb >= 100 && Checksum.crc32(data) != expected) {
+        if (checksumProb >= 100 && ByteBufferChecksum.crc32(data) != expected) {
             throw new ChecksumException(position);
         }
-        if (rand.nextInt(100) < checksumProb && Checksum.crc32(data) != expected) {
+        if (rand.nextInt(100) < checksumProb && ByteBufferChecksum.crc32(data) != expected) {
             throw new ChecksumException(position);
         }
     }

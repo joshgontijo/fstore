@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.segment.header;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.record.Checksum;
+import io.joshworks.fstore.log.record.ByteBufferChecksum;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -65,7 +65,7 @@ public class LogHeader {
         }
         int checksum = bb.getInt();
         bb.limit(bb.position() + length); //length + checksum
-        if (Checksum.crc32(bb) != checksum) {
+        if (ByteBufferChecksum.crc32(bb) != checksum) {
             throw new IllegalStateException("Log head checksum verification failed");
         }
 
@@ -118,7 +118,7 @@ public class LogHeader {
 
             int entrySize = headerData.remaining();
             withChecksumAndLength.putInt(entrySize);
-            withChecksumAndLength.putInt(Checksum.crc32(headerData));
+            withChecksumAndLength.putInt(ByteBufferChecksum.crc32(headerData));
             withChecksumAndLength.put(headerData);
             withChecksumAndLength.position(0);//do not flip, the header will always have the fixed size
 

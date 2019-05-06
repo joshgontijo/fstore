@@ -53,7 +53,7 @@ public class DataStream implements IDataStream {
         try {
             int entrySize = bytes.remaining();
             bb.putInt(entrySize);
-            bb.putInt(Checksum.crc32(bytes));
+            bb.putInt(ByteBufferChecksum.crc32(bytes));
             bb.put(bytes);
             bb.putInt(entrySize);
 
@@ -119,7 +119,7 @@ public class DataStream implements IDataStream {
         //extract checksum
         buffer.limit(buffer.position());
         buffer.position(RecordHeader.MAIN_HEADER);
-        int checksum = Checksum.crc32(buffer);
+        int checksum = ByteBufferChecksum.crc32(buffer);
 
         //secondary header
         buffer.limit(buffer.limit() + RecordHeader.SECONDARY_HEADER);
