@@ -25,6 +25,6 @@ public class FromAll implements ClusterMessage {
         this.partitionId = partitionId;
         this.linkToPolicy = linkToPolicy;
         this.systemEventPolicy = systemEventPolicy;
-        this.lastEvent = lastEvent.toString();
+        this.lastEvent = lastEvent == null ? null : lastEvent.toString();
     }
 }

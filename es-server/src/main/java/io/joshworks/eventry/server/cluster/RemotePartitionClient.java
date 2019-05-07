@@ -105,7 +105,8 @@ public class RemotePartitionClient implements IEventStore {
 
     @Override
     public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
-        IteratorCreated it = client.send(node.address, new FromAll(DEFAULT_TIMEOUT, DEFAULT_BATCH_SIZE, partitionId, linkToPolicy, systemEventPolicy, lastEvent));
+        FromAll fromAll = new FromAll(DEFAULT_TIMEOUT, DEFAULT_BATCH_SIZE, partitionId, linkToPolicy, systemEventPolicy, lastEvent);
+        IteratorCreated it = client.send(node.address, fromAll);
         return new RemoteStoreClientIterator(client, node.address, it.iteratorId);
     }
 
