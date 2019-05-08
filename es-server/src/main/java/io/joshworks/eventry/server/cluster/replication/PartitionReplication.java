@@ -17,7 +17,7 @@ public class PartitionReplication {
 
     private final Partitions partitions;
 
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(5);
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final RemoteIterators iterators = new RemoteIterators();
 
     private final Map<String, String> itMap = new ConcurrentHashMap<>();

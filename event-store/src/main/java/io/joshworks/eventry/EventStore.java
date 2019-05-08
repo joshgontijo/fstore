@@ -61,7 +61,7 @@ public class EventStore implements IEventStore {
 
 
     private final TableIndex index;
-    public final Streams streams;
+    private final Streams streams;
     private final IEventLog eventLog;
     private final EventWriter eventWriter;
 
