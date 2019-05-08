@@ -58,8 +58,6 @@ public class Iterators {
         return new IteratorIterator<>(Arrays.asList(originals));
     }
 
-
-
     public static <T, R> LogIterator<R> mapping(LogIterator<T> iterator, Function<T, R> mapper) {
         return new MappingIterator<>(iterator, mapper);
     }

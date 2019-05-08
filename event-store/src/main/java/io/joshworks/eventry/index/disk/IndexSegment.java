@@ -8,7 +8,6 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.fstore.core.filter.BloomFilterHasher;
-import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
@@ -26,11 +25,8 @@ import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class IndexSegment implements Log<IndexEntry> {
@@ -210,7 +206,8 @@ public class IndexSegment implements Log<IndexEntry> {
         int start = Math.max(range.start().version, firstVersion);
         int end = Math.min(range.end().version, lastVersion);
 
-        return new RangeIndexEntryIterator(direction, range, start, end);
+        SegmentIterator<Block> lock = delegate.iterator(Direction.FORWARD);
+        return new RangeIndexEntryIterator(this, direction, range, start, end, lock, delegate, indexEntrySerializer);
     }
 
     public List<IndexEntry> readBlockEntries(long stream, int version) {
@@ -319,98 +316,4 @@ public class IndexSegment implements Log<IndexEntry> {
         delegate.close();
         closed.set(true);
     }
-
-
-    private final class RangeIndexEntryIterator implements SegmentIterator<IndexEntry> {
-
-        private Direction direction;
-        private final Range range;
-        private final int startVersion;
-        private final int endVersion;
-
-        private long lastBlockPos;
-        private int lastReadVersion;
-        private Queue<IndexEntry> entries = new LinkedList<>();
-        private SegmentIterator<Block> lock;
-
-        private RangeIndexEntryIterator(Direction direction, Range range, int startVersion, int endVersion) {
-            this.direction = direction;
-            this.range = range;
-            this.startVersion = startVersion;
-            this.endVersion = endVersion;
-            this.lastReadVersion = Direction.FORWARD.equals(direction) ? startVersion - 1 : endVersion + 1;
-            this.lock = IndexSegment.this.delegate.iterator(Direction.FORWARD);
-        }
-
-        private void fetchEntries() {
-            int nextVersion = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
-            if (nextVersion < startVersion || nextVersion > endVersion) {
-                return;
-            }
-
-            IndexEntry key = IndexEntry.of(range.stream, nextVersion, 0);
-            Midpoint lowBound = midpoints.getMidpointFor(key);
-            if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
-                return;
-            }
-            IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
-            this.lastBlockPos = lowBound.position;
-            List<IndexEntry> blockEntries = foundBlock.deserialize(indexEntrySerializer);
-            if (Direction.BACKWARD.equals(direction)) {
-                Collections.reverse(blockEntries);
-            }
-
-            for (IndexEntry entry : blockEntries) {
-                if (range.match(entry) && !hasRead(entry)) {
-                    this.entries.add(entry);
-                }
-            }
-        }
-
-        private boolean hasRead(IndexEntry entry) {
-            if (Direction.FORWARD.equals(direction)) {
-                return entry.version <= lastReadVersion;
-            }
-            return entry.version >= lastReadVersion;
-        }
-
-        @Override
-        public IndexEntry next() {
-            if (!hasNext()) {
-                return null;
-            }
-            IndexEntry polled = entries.poll();
-            if (polled == null) {
-                throw new NoSuchElementException(); //should never happen
-            }
-            lastReadVersion = polled.version;
-            return polled;
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (!entries.isEmpty()) {
-                return true;
-            }
-            fetchEntries();
-            return !entries.isEmpty();
-        }
-
-        @Override
-        public void close() {
-            entries.clear();
-            IOUtils.closeQuietly(lock);
-        }
-
-        @Override
-        public long position() {
-            return lastBlockPos;
-        }
-
-        @Override
-        public boolean endOfLog() {
-            return IndexSegment.this.readOnly() && !hasNext();
-        }
-    }
-
 }
