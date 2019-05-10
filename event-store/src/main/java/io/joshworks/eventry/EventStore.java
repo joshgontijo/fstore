@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -61,7 +62,7 @@ public class EventStore implements IEventStore {
 
 
     private final TableIndex index;
-    private final Streams streams;
+    public final Streams streams; //TODO fix test to make this private
     private final IEventLog eventLog;
     private final EventWriter eventWriter;
 
@@ -79,7 +80,9 @@ public class EventStore implements IEventStore {
                 .disableCompaction()
                 .compactionStrategy(new RecordCleanup(streams)));
 
-        this.eventWriter = new EventWriter(streams, eventLog, index, WRITE_QUEUE_SIZE);
+        long sequence = initialSequence();
+        logger.info("Initial sequence: {}", sequence);
+        this.eventWriter = new EventWriter(streams, eventLog, index, WRITE_QUEUE_SIZE, sequence);
         try {
             if (!this.initializeSystemStreams()) {
                 this.loadIndex();
@@ -90,6 +93,17 @@ public class EventStore implements IEventStore {
             IOUtils.closeQuietly(streams);
             IOUtils.closeQuietly(eventLog);
             IOUtils.closeQuietly(eventWriter);
+            throw new RuntimeException(e);
+        }
+    }
+
+    private long initialSequence() {
+        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
+            if (iterator.hasNext()) {
+                return iterator.next().sequence + 1;
+            }
+            return 0;
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
@@ -316,7 +330,11 @@ public class EventStore implements IEventStore {
     public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
         LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD);
         NonIndexedLogIterator nonIndexedLogIterator = new NonIndexedLogIterator(logIterator);
-        return new EventPolicyFilterIterator(nonIndexedLogIterator, linkToPolicy, systemEventPolicy);
+        EventPolicyFilterIterator eventPolicyFilterIterator = new EventPolicyFilterIterator(nonIndexedLogIterator, linkToPolicy, systemEventPolicy);
+        if (LinkToPolicy.RESOLVE.equals(linkToPolicy)) {
+            return new LinkToResolveIterator(eventPolicyFilterIterator, this::resolve);
+        }
+        return eventPolicyFilterIterator;
     }
 
     @Override
@@ -326,7 +344,11 @@ public class EventStore implements IEventStore {
         IndexEntry entry = indexEntry.orElseThrow(() -> new IllegalArgumentException("No index entry found for " + lastEvent));
         LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD, entry.position);
         NonIndexedLogIterator nonIndexedLogIterator = new NonIndexedLogIterator(logIterator);
-        return new EventPolicyFilterIterator(nonIndexedLogIterator, linkToPolicy, systemEventPolicy);
+        EventPolicyFilterIterator eventPolicyFilterIterator = new EventPolicyFilterIterator(nonIndexedLogIterator, linkToPolicy, systemEventPolicy);
+        if (LinkToPolicy.RESOLVE.equals(linkToPolicy)) {
+            return new LinkToResolveIterator(eventPolicyFilterIterator, this::resolve);
+        }
+        return eventPolicyFilterIterator;
     }
 
     @Override
@@ -385,7 +407,7 @@ public class EventStore implements IEventStore {
     }
 
     private EventRecord resolve(EventRecord record) {
-        if(record == null) {
+        if (record == null) {
             return null;
         }
         if (record.isLinkToEvent()) {

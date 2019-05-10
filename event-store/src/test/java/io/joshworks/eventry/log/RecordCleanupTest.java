@@ -121,11 +121,11 @@ public class RecordCleanupTest {
 
 
     private EventRecord recordOf(String stream, int version, long timestamp) {
-        return new EventRecord(stream, "type", version, timestamp, new byte[0], new byte[0]);
+        return new EventRecord(stream, "type", version, 0, timestamp, new byte[0], new byte[0]);
     }
 
     private EventRecord systemRecord() {
-        return new EventRecord(SystemStreams.STREAMS, LinkTo.TYPE, 0, 0, new byte[0], new byte[0]);
+        return new EventRecord(SystemStreams.STREAMS, LinkTo.TYPE, 0, 0,0, new byte[0], new byte[0]);
     }
 
     private void appendTo(Log<EventRecord> segment, EventRecord record) {

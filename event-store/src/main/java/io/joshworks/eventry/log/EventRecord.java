@@ -90,6 +90,7 @@ public class EventRecord {
         return "EventRecord{" + "stream='" + stream + '\'' +
                 ", type='" + type + '\'' +
                 ", version=" + version +
+                ", sequence=" + sequence +
                 ", timestamp=" + timestamp +
                 '}';
     }

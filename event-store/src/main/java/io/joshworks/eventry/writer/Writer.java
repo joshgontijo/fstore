@@ -16,7 +16,7 @@ public class Writer {
     private final TableIndex index;
     private final AtomicLong sequence = new AtomicLong();
 
-    Writer(Streams streams, IEventLog eventLog, TableIndex index, int initialSequence) {
+    Writer(Streams streams, IEventLog eventLog, TableIndex index, long initialSequence) {
         this.streams = streams;
         this.eventLog = eventLog;
         this.index = index;

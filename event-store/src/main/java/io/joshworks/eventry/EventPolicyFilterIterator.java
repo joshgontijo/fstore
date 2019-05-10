@@ -18,7 +18,7 @@ public class EventPolicyFilterIterator implements EventLogIterator {
             if (LinkToPolicy.IGNORE.equals(linkToPolicy) && ev.isLinkToEvent()) {
                 return false;
             }
-            if (SystemEventPolicy.IGNORE.equals(systemEventPolicy) && ev.isSystemEvent()) {
+            if (SystemEventPolicy.IGNORE.equals(systemEventPolicy) && ev.isSystemEvent() && !ev.isLinkToEvent()) {
                 return false;
             }
             return true;
