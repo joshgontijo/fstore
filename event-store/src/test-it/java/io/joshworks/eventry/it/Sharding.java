@@ -3,6 +3,7 @@ package io.joshworks.eventry.it;
 import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
+import io.joshworks.eventry.Repartitioner;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.log.EventRecord;
@@ -21,11 +22,11 @@ import java.util.stream.Collectors;
 public class Sharding {
 
 
-    private static final String CA = "CA";
-    private static final String VP = "VP";
+    private static final String CA = "EV_CA";
+    private static final String VP = "EV_VP";
     private static final String OC = "OC";
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         File file1 = new File("D:\\ess\\store-1");
         File file2 = new File("D:\\ess\\store-2");
 
@@ -39,25 +40,64 @@ public class Sharding {
             events("user-1", "prod-2").forEach(store1::append);
             events("user-2", "prod-1").forEach(store2::append);
 
-            linkTo(store1, "user-1", ev -> ev.type);
-            linkTo(store2, "user-2", ev -> ev.type);
 
-            System.out.println("------ STORE 1 ------");
-            print(store1);
+            new Repartitioner(store1, "user-1", ev -> ev.type);
+            new Repartitioner(store2, "user-2", ev -> ev.type);
 
-            System.out.println("------ STORE 2 ------");
-            print(store2);
 
-            LogIterator<EventRecord> ordered = fromStream(StreamName.of(CA), store1, store2);
-            System.out.println("------ CAs ------");
-            print(ordered);
+            final LogIterator<EventRecord> ordered = fromStreams("EV_", store1, store2);
+            new Thread(() -> {
+                while (true) {
+                    System.out.println("------ CAs ------");
+                    print(ordered);
+
+                    Threads.sleep(2000);
+                }
+            }).run();
+
+            new Thread(() -> {
+                while (true) {
+                    events("user-1", "prod-2").forEach(store1::append);
+                    events("user-2", "prod-1").forEach(store2::append);
+                    Threads.sleep(1500);
+                }
+            }).run();
+
+            Thread.currentThread().join();
+
+//            linkTo(store1, "user-1", ev -> ev.type);
+//            linkTo(store2, "user-2", ev -> ev.type);
+
+
+//            System.out.println("------ STORE 1 ------");
+//            print(store1);
+//
+//            System.out.println("------ STORE 2 ------");
+//            print(store2);
+//
+//            LogIterator<EventRecord> ordered = fromStreams("EV_", store1, store2);
+//            System.out.println("------ CAs ------");
+//            print(ordered);
+//
+//            LogIterator<EventRecord> all = fromAll(store1, store2);
+//            System.out.println("------ ALL ------");
+//            print(all);
 
         }
-
     }
 
     private static LogIterator<EventRecord> fromStream(StreamName stream, EventStore... stores) {
         List<EventLogIterator> its = Arrays.stream(stores).map(s -> s.fromStream(stream)).collect(Collectors.toList());
+        return Iterators.ordered(its, er -> er.timestamp);
+    }
+
+    private static LogIterator<EventRecord> fromStreams(String prefix, EventStore... stores) {
+        List<EventLogIterator> its = Arrays.stream(stores).map(s -> s.fromStreams(prefix, true)).collect(Collectors.toList());
+        return Iterators.ordered(its, er -> er.timestamp);
+    }
+
+    private static LogIterator<EventRecord> fromAll(EventStore... stores) {
+        List<EventLogIterator> its = Arrays.stream(stores).map(s -> s.fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.IGNORE)).collect(Collectors.toList());
         return Iterators.ordered(its, er -> er.timestamp);
     }
 

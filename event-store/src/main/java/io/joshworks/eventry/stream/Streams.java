@@ -100,24 +100,16 @@ public class Streams implements Closeable {
     }
 
     //Only supports 'startingWith' wildcard
-    //EX: users-*
+    //EX: users-
     public Set<String> match(String value) {
         if (value == null) {
             return new HashSet<>();
         }
         //wildcard
-        if (value.endsWith(STREAM_WILDCARD)) {
-            final String prefix = value.substring(0, value.length() - 1);
-            return streamStore.stream()
-                    .map(e -> e.value)
-                    .filter(stream -> stream.name.startsWith(prefix))
-                    .map(stream -> stream.name)
-                    .collect(Collectors.toSet());
-        }
-
+        final String prefix = value.substring(0, value.length() - 1);
         return streamStore.stream()
                 .map(e -> e.value)
-                .filter(stream -> stream.name.equals(value))
+                .filter(stream -> stream.name.startsWith(prefix))
                 .map(stream -> stream.name)
                 .collect(Collectors.toSet());
     }
