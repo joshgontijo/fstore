@@ -284,17 +284,13 @@ public class EventStore implements IEventStore {
         int version = stream.version();
         long hash = stream.hash();
 
-        return streams.get(hash).map(metadata -> {
-            int finalVersion = metadata.truncated() && version < metadata.truncated ? metadata.truncated : version;
+        int startVersion = streams.get(hash).map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version).orElse(0);
 
-            LogIterator<IndexEntry> indexIterator = index.indexedIterator(Checkpoint.of(hash, finalVersion));
-            indexIterator = withMaxCountFilter(hash, indexIterator);
-            IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
-            EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(hash), indexedLogIterator);
-            return (EventLogIterator) new LinkToResolveIterator(ageFilterIterator, this::resolve);
-
-        }).orElseGet(EventLogIterator::empty);
-
+        LogIterator<IndexEntry> indexIterator = index.indexedIterator(Checkpoint.of(hash, startVersion));
+        indexIterator = withMaxCountFilter(hash, indexIterator);
+        IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
+        EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(hash), indexedLogIterator);
+        return new LinkToResolveIterator(ageFilterIterator, this::resolve);
     }
 
     @Override

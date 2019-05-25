@@ -104,10 +104,10 @@ public class TableIndex implements Closeable {
         }
 
         int maxEntries = 1000000; //Useful only for ordered to prevent OOM. configurable ?
-        int maxEntriesPerStream = ordered ? checkpoint.size() / maxEntries : -1;
+        int streamBufferSize = ordered ? checkpoint.size() / maxEntries : -1;
         List<IndexIterator> iterators = checkpoint.entrySet()
                 .stream()
-                .map(kv -> new SingleIndexIterator(diskIndex, this::memIndices, Direction.FORWARD, kv.getKey(), kv.getValue(), maxEntriesPerStream))
+                .map(kv -> new SingleIndexIterator(diskIndex, this::memIndices, Direction.FORWARD, kv.getKey(), kv.getValue(), streamBufferSize))
                 .collect(Collectors.toList());
 
         return new MultiStreamIndexIterator(iterators, ordered);
