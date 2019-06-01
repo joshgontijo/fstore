@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class SingleIndexIterator implements IndexIterator {
+class SingleIndexIterator implements IndexIterator {
 
     private final IndexAppender diskIndex;
     private final Function<Direction, Iterator<MemIndex>> memIndex;

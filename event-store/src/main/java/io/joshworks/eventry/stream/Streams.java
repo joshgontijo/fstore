@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
 import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
@@ -99,27 +100,28 @@ public class Streams implements Closeable {
         return streamStore.remove(streamHash);
     }
 
-    //Only supports 'startingWith' wildcard
-    //EX: users-*
-    public Set<String> match(String value) {
-        if (value == null) {
+    public Set<String> matchStreamName(String prefix) {
+        if (prefix == null) {
             return new HashSet<>();
         }
-        //wildcard
-        if (value.endsWith(STREAM_WILDCARD)) {
-            final String prefix = value.substring(0, value.length() - 1);
-            return streamStore.stream()
-                    .map(e -> e.value)
-                    .filter(stream -> stream.name.startsWith(prefix))
-                    .map(stream -> stream.name)
-                    .collect(Collectors.toSet());
-        }
-
-        return streamStore.stream()
-                .map(e -> e.value)
-                .filter(stream -> stream.name.equals(value))
+        return match(prefix)
                 .map(stream -> stream.name)
                 .collect(Collectors.toSet());
+    }
+
+    public Set<Long> matchStreamHash(String prefix) {
+        if (prefix == null) {
+            return new HashSet<>();
+        }
+        return match(prefix)
+                .map(stream -> stream.hash)
+                .collect(Collectors.toSet());
+    }
+
+    private Stream<StreamMetadata> match(String prefix) {
+        return streamStore.stream()
+                .map(e -> e.value)
+                .filter(stream -> stream.name.startsWith(prefix));
     }
 
     public int version(long stream) {

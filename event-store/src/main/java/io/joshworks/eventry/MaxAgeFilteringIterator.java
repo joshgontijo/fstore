@@ -1,20 +1,22 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.function.Function;
+
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 
 public class MaxAgeFilteringIterator implements EventLogIterator {
 
     private final LogIterator<EventRecord> delegate;
+    private final Function<String, StreamMetadata> metadataSupplier;
     private EventRecord next;
-    private final long timestamp = System.currentTimeMillis();
-    private Map<String, Long> maxAges;
 
-    MaxAgeFilteringIterator(Map<String, Long> metadataMap, LogIterator<EventRecord> delegate) {
-        this.maxAges = metadataMap;
+    MaxAgeFilteringIterator(Function<String, StreamMetadata> metadataSupplier, LogIterator<EventRecord> delegate) {
+        this.metadataSupplier = metadataSupplier;
         this.delegate = delegate;
     }
 
@@ -24,6 +26,7 @@ public class MaxAgeFilteringIterator implements EventLogIterator {
         return next != null;
     }
 
+    //guaranteed to return an element if hasNext evaluated to true
     @Override
     public EventRecord next() {
         EventRecord record = takeWhile();
@@ -43,8 +46,11 @@ public class MaxAgeFilteringIterator implements EventLogIterator {
     }
 
     private boolean withinMaxAge(EventRecord event) {
-        Long maxAge = maxAges.get(event.stream);
-        return maxAge == null || maxAge <= 0 || ((timestamp - event.timestamp) / 1000) <= maxAge;
+        StreamMetadata metadata = metadataSupplier.apply(event.stream);
+        long maxAge = metadata.maxAge;
+        long now = System.currentTimeMillis();
+        long diff = ((now - event.timestamp) / 1000);
+        return maxAge <= NO_MAX_AGE || diff <= maxAge;
     }
 
     private EventRecord nextEntry() {

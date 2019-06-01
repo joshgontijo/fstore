@@ -50,7 +50,7 @@ public class Iterators {
         return new ReversedIterator<>(original);
     }
 
-    public static <T> LogIterator<T> concat(List<? extends LogIterator<T>> original) {
+    public static <T> LogIterator<T> concat(Collection<? extends LogIterator<T>> original) {
         return new IteratorIterator<>(original);
     }
 

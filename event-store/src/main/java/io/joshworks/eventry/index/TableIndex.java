@@ -13,9 +13,12 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -37,14 +40,19 @@ public class TableIndex implements Closeable {
     private final BlockingQueue<FlushTask> writeQueue;
     private final ExecutorService indexWriter = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("index-writer"));
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final Function<Long, StreamMetadata> metadataSupplier;
 
     private final Set<SingleIndexIterator> pollers = new HashSet<>();
     private final Consumer<FlushInfo> indexFlushListener;
 
+    //TODO expose ?
+    private static final int MAX_ITEMS_PER_STREAM = 100;
+
     private MemIndex memIndex = new MemIndex();
 
-    public TableIndex(File rootDirectory, Function<Long, StreamMetadata> streamSupplier, Consumer<FlushInfo> indexFlushListener, int flushThreshold, int maxWriteQueueSize, Codec codec) {
-        this.diskIndex = new IndexAppender(rootDirectory, streamSupplier, flushThreshold, codec);
+    public TableIndex(File rootDirectory, Function<Long, StreamMetadata> metadataSupplier, Consumer<FlushInfo> indexFlushListener, int flushThreshold, int maxWriteQueueSize, Codec codec) {
+        this.diskIndex = new IndexAppender(rootDirectory, metadataSupplier, flushThreshold, codec);
+        this.metadataSupplier = metadataSupplier;
         this.flushThreshold = flushThreshold;
         this.indexFlushListener = indexFlushListener;
         this.writeQueue = new ArrayBlockingQueue<>(maxWriteQueueSize);
@@ -91,8 +99,7 @@ public class TableIndex implements Closeable {
             return indexedIterator(checkpoint, false);
         }
         long stream = checkpoint.keySet().iterator().next();
-        int lastVersion = checkpoint.get(stream);
-        return new SingleIndexIterator(diskIndex, this::memIndices, Direction.FORWARD, stream, lastVersion);
+        return createIterators(checkpoint).get(stream);
     }
 
     //TODO: IMPLEMENT BACKWARD SCANNING: Backwards scan requires fetching the latest version and adding to the map
@@ -103,15 +110,42 @@ public class TableIndex implements Closeable {
             return indexedIterator(checkpoint);
         }
 
-        int maxEntries = 1000000; //Useful only for ordered to prevent OOM. configurable ?
-        int maxEntriesPerStream = ordered ? checkpoint.size() / maxEntries : -1;
-        List<IndexIterator> iterators = checkpoint.entrySet()
-                .stream()
-                .map(kv -> new SingleIndexIterator(diskIndex, this::memIndices, Direction.FORWARD, kv.getKey(), kv.getValue(), maxEntriesPerStream))
-                .collect(Collectors.toList());
+        Collection<IndexIterator> iterators = createIterators(checkpoint).values();
 
         return new MultiStreamIndexIterator(iterators, ordered);
     }
+
+    public IndexIterator indexedIterator(String prefix, Function<String, Set<Long>> streamFetcher, Checkpoint checkpoint, boolean ordered) {
+
+        //contains all iterators that applies the checkpoints
+        Map<Long, IndexIterator> initialIterators = createIterators(checkpoint);
+
+        Function<String, Map<Long, IndexIterator>> iteratorFactory = (streamPrefix) -> createIteratorsForPrefix(streamPrefix, streamFetcher);
+
+        return new StreamPrefixIndexIterator(prefix, initialIterators, iteratorFactory, ordered);
+    }
+
+    private Map<Long, IndexIterator> createIteratorsForPrefix(String prefix, Function<String, Set<Long>> streamMatcher) {
+        Set<Long> found = streamMatcher.apply(prefix);
+        Checkpoint justAWrapper = Checkpoint.of(found);
+        return createIterators(justAWrapper);
+    }
+
+    private Map<Long, IndexIterator> createIterators(Checkpoint checkpoint) {
+        Map<Long, IndexIterator> iterators = new HashMap<>();
+        for (Map.Entry<Long, Integer> kv : checkpoint.entrySet()) {
+            IndexIterator singleIndexIterator = new SingleIndexIterator(diskIndex, this::memIndices, Direction.FORWARD, kv.getKey(), kv.getValue(), MAX_ITEMS_PER_STREAM);
+            IndexIterator truncatedAware = new TruncatedAwareIterator(metadataSupplier, singleIndexIterator);
+            IndexIterator withMaxCountFilter = withMaxCountFilter(truncatedAware);
+            iterators.put(kv.getKey(), withMaxCountFilter);
+        }
+        return iterators;
+    }
+
+    private IndexIterator withMaxCountFilter(IndexIterator iterator) {
+        return new MaxCountFilteringIterator(metadataSupplier, this::version, iterator);
+    }
+
 
     public Optional<IndexEntry> get(long stream, int version) {
         Iterator<MemIndex> it = memIndices(Direction.BACKWARD);

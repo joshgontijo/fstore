@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -112,7 +113,6 @@ public class EventStoreTest {
     @Test
     public void fromStream_returns_data_within_maxCount() {
         //given
-
         String stream = "test-stream";
         int maxCount = 10;
         int numVersions = 50;
@@ -127,7 +127,7 @@ public class EventStoreTest {
         int eventCounter = 0;
         while (eventStream.hasNext()) {
             EventRecord event = eventStream.next();
-            assertTrue(event.version >= numVersions - maxCount);
+            assertTrue("Failed on " + event, event.version >= numVersions - maxCount);
             eventCounter++;
         }
 
@@ -170,7 +170,6 @@ public class EventStoreTest {
         store.append(EventRecord.create("stream", null, Map.of()));
     }
 
-
     @Test
     public void fromStream_returns_data_within_maxAge() throws InterruptedException {
         String stream = "test-stream";
@@ -185,10 +184,134 @@ public class EventStoreTest {
         long count = store.fromStream(StreamName.parse(stream)).stream().count();
         assertEquals("MAY FAIL DUE TO TIMING", numVersions, count);
 
-        Thread.sleep(maxAgeSeconds * 1000);
+        Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
 
         count = store.fromStream(StreamName.parse(stream)).stream().count();
-        assertEquals(numVersions, count);
+        assertEquals(0, count);
+    }
+
+    @Test
+    public void fromStream_returns_data_within_maxAge_with_iterator_created_before_the_expire_time() throws InterruptedException {
+        String stream = "test-stream";
+        int maxAgeSeconds = 5;
+        int numVersions = 50;
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
+
+        for (int version = 0; version < numVersions; version++) {
+            store.append(EventRecord.create(stream, "type", Map.of()));
+        }
+
+        EventLogIterator iterator = store.fromStream(StreamName.parse(stream));
+        Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
+
+        long count = iterator.stream().count();
+        assertEquals(0, count);
+    }
+
+    @Test
+    public void fromStream_acquire_before_truncation_does_not_return_data_after_truncating() throws InterruptedException {
+        String stream = "test-stream";
+        int numVersions = 50;
+        int truncatedBefore = 30;
+
+        for (int version = 0; version < numVersions; version++) {
+            store.append(EventRecord.create(stream, "type", Map.of()));
+        }
+
+        EventLogIterator iterator = store.fromStream(StreamName.parse(stream));
+
+        store.truncate(stream, truncatedBefore);
+
+        long count = iterator.stream().count();
+        assertEquals(numVersions - truncatedBefore - 1, count);
+    }
+
+    @Test
+    public void fromStreams_returns_data_within_maxAge() throws InterruptedException {
+        String stream1 = "stream-1";
+        String stream2 = "stream-2";
+        int maxAgeSeconds = 5;
+        int numVersions = 50;
+        store.createStream(stream1, NO_MAX_COUNT, maxAgeSeconds);
+        store.createStream(stream2, NO_MAX_COUNT, maxAgeSeconds);
+
+        for (int version = 0; version < numVersions; version++) {
+            store.append(EventRecord.create(stream1, "type", Map.of()));
+        }
+
+        for (int version = 0; version < numVersions; version++) {
+            store.append(EventRecord.create(stream2, "type", Map.of()));
+        }
+
+        long count = store.fromStreams(Set.of(StreamName.parse(stream1), StreamName.parse(stream2)), true).stream().count();
+        assertEquals("MAY FAIL DUE TO TIMING", numVersions * 2, count);
+
+        Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
+
+        count = store.fromStreams("stream-", true).stream().count();
+        assertEquals(0, count);
+    }
+
+    @Test
+    public void fromStreams_returns_data_within_maxAge_with_iterator_created_before_the_expire_time() throws InterruptedException {
+        String stream = "test-stream";
+        int maxAgeSeconds = 5;
+        int numVersions = 50;
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
+
+        for (int version = 0; version < numVersions; version++) {
+            store.append(EventRecord.create(stream, "type", Map.of()));
+        }
+
+        EventLogIterator iterator = store.fromStreams(Set.of(StreamName.of(stream), StreamName.of("another-stream")), true);
+        Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
+
+        long count = iterator.stream().count();
+        assertEquals(0, count);
+    }
+
+    @Test
+    public void fromStreams_PATTERN_returns_data_within_maxAge() throws InterruptedException {
+        String stream1 = "stream-1";
+        String stream2 = "stream-2";
+        int maxAgeSeconds = 5;
+        int numVersions = 50;
+        store.createStream(stream1, NO_MAX_COUNT, maxAgeSeconds);
+        store.createStream(stream2, NO_MAX_COUNT, maxAgeSeconds);
+
+        for (int version = 0; version < numVersions; version++) {
+            store.append(EventRecord.create(stream1, "type", Map.of()));
+        }
+
+        for (int version = 0; version < numVersions; version++) {
+            store.append(EventRecord.create(stream2, "type", Map.of()));
+        }
+
+        long count = store.fromStreams("stream-", true).stream().count();
+        assertEquals("MAY FAIL DUE TO TIMING", numVersions * 2, count);
+
+        Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
+
+        count = store.fromStreams("stream-", true).stream().count();
+        assertEquals(0, count);
+    }
+
+    @Test
+    public void fromStreamsPATTERN_returns_data_within_maxAge_with_iterator_created_before_the_expire_time() throws InterruptedException {
+        String stream = "test-stream";
+        int maxAgeSeconds = 5;
+        int numVersions = 50;
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
+
+        for (int version = 0; version < numVersions; version++) {
+            store.append(EventRecord.create(stream, "type", Map.of()));
+        }
+
+        EventLogIterator iterator = store.fromStreams("test-", true);
+        Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
+
+        long count = iterator.stream().count();
+        assertEquals(0, count);
     }
 
     @Test
@@ -371,6 +494,105 @@ public class EventStoreTest {
     }
 
     @Test
+    public void fromStream_returns_data_when_instantiated_after_creating_stream_and_before_appending_event() {
+        String stream = "abc";
+
+        store.createStream(stream);
+        EventLogIterator iterator = store.fromStream(StreamName.of(stream));
+        store.append(EventRecord.create(stream, "type-abc", Map.of()));
+
+        assertTrue(iterator.hasNext());
+    }
+
+    @Test
+    public void fromStream_returns_data_when_instantiated_before_creating_stream_and_before_appending_event() {
+        String stream = "abc";
+
+        EventLogIterator iterator = store.fromStream(StreamName.of(stream));
+        store.append(EventRecord.create(stream, "type-abc", Map.of()));
+
+        assertTrue(iterator.hasNext());
+    }
+
+    @Test
+    public void fromStreams_returns_data_when_instantiated_after_creating_stream_and_before_appending_event() {
+        String stream1 = "abc";
+        String stream2 = "def";
+
+
+        store.createStream(stream1);
+        store.createStream(stream2);
+
+        Set<StreamName> streams = Set.of(StreamName.of(stream1), StreamName.of(stream2));
+        EventLogIterator iterator = store.fromStreams(streams, true);
+
+        store.append(EventRecord.create(stream1, "type-abc", Map.of()));
+        assertTrue(iterator.hasNext());
+        assertEquals(stream1, iterator.next().stream);
+
+        store.append(EventRecord.create(stream2, "type-abc", Map.of()));
+        assertTrue(iterator.hasNext());
+        assertEquals(stream2, iterator.next().stream);
+    }
+
+    @Test
+    public void fromStreams_returns_data_when_instantiated_before_creating_stream_and_before_appending_event() {
+        String stream1 = "abc";
+        String stream2 = "def";
+
+        Set<StreamName> streams = Set.of(StreamName.of(stream1), StreamName.of(stream2));
+
+        EventLogIterator iterator = store.fromStreams(streams, true);
+
+        store.append(EventRecord.create(stream1, "type-abc", Map.of()));
+        assertTrue(iterator.hasNext());
+        assertEquals(stream1, iterator.next().stream);
+
+        store.append(EventRecord.create(stream2, "type-abc", Map.of()));
+        assertTrue(iterator.hasNext());
+        assertEquals(stream2, iterator.next().stream);
+
+    }
+
+    @Test
+    public void fromStreamsPATTERN_returns_data_when_instantiated_after_creating_stream_and_before_appending_event() {
+        String stream1 = "stream-abc";
+        String stream2 = "stream-def";
+        String pattern = "stream-";
+
+        store.createStream(stream1);
+        store.createStream(stream2);
+
+        EventLogIterator iterator = store.fromStreams(pattern, true);
+
+        store.append(EventRecord.create(stream1, "type-abc", Map.of()));
+        assertTrue(iterator.hasNext());
+        assertEquals(stream1, iterator.next().stream);
+
+        store.append(EventRecord.create(stream2, "type-abc", Map.of()));
+        assertTrue(iterator.hasNext());
+        assertEquals(stream2, iterator.next().stream);
+    }
+
+    @Test
+    public void fromStreamsPATTERN_returns_data_when_instantiated_before_creating_stream_and_before_appending_event() {
+        String pattern = "stream-";
+        String stream1 = "stream-1";
+        String stream2 = "stream-2";
+
+        EventLogIterator iterator = store.fromStreams(pattern, true);
+
+        store.append(EventRecord.create(stream1, "type-abc", Map.of()));
+        assertTrue(iterator.hasNext());
+        assertEquals(stream1, iterator.next().stream);
+
+        store.append(EventRecord.create(stream2, "type-abc", Map.of()));
+        assertTrue(iterator.hasNext());
+        assertEquals(stream2, iterator.next().stream);
+
+    }
+
+    @Test
     public void stream_version_is_NO_VERSION_if_event_is_in_the_stream() {
         assertEquals(NO_VERSION, store.version("some-stream"));
     }
@@ -383,5 +605,36 @@ public class EventStoreTest {
 
         store.append(EventRecord.create(stream, "type", Map.of()));
         assertEquals(1, store.version(stream));
+    }
+
+    @Test
+    public void count_returns_zero_when_no_stream_is_present() {
+        assertEquals(0, store.count("stream-123"));
+    }
+
+    @Test
+    public void count_returns_correct_count_for_a_stream() {
+        String stream = "stream-123";
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+
+        assertEquals(5, store.count(stream));
+    }
+
+    @Test
+    public void count_returns_correct_count_for_truncated_stream() {
+        String stream = "stream-123";
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+
+        store.truncate(stream, 1);
+        store.fromStream(StreamName.parse(stream)).forEachRemaining(System.out::println);
+        assertEquals(3, store.count(stream));
     }
 }
