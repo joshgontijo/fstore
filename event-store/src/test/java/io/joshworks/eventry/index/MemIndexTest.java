@@ -379,7 +379,6 @@ public class MemIndexTest {
         index.add(ie2);
         index.add(ie5);
 
-
         Iterator<IndexEntry> iterator = index.iterator();
 
         assertEquals(ie1, iterator.next());

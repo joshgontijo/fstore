@@ -29,7 +29,7 @@ public interface Codec {
             @Override
             public ByteBuffer decompress(ByteBuffer compressed) {
                 compressed.position(compressed.position() + BLOCK_HEADER_SIZE);
-                return compressed;
+                return compressed.slice();
             }
         };
     }

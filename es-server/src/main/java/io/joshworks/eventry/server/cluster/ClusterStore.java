@@ -143,4 +143,9 @@ public class ClusterStore implements IEventStore {
     public int version(String stream) {
         return select(stream).version(stream);
     }
+
+    @Override
+    public int count(String stream) {
+        return select(stream).count(stream);
+    }
 }

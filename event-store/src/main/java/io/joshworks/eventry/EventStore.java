@@ -43,12 +43,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
 import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
 import static java.util.Objects.requireNonNull;
 
 public class EventStore implements IEventStore {
@@ -133,6 +135,10 @@ public class EventStore implements IEventStore {
 
     public static EventStore open(File rootDir) {
         return new EventStore(rootDir);
+    }
+
+    private StreamMetadata tryGetMetadata(String stream) {
+        return fetchMetadata(streams.hashOf(stream));
     }
 
     private StreamMetadata fetchMetadata(long stream) {
@@ -284,26 +290,24 @@ public class EventStore implements IEventStore {
         int version = stream.version();
         long hash = stream.hash();
 
-        return streams.get(hash).map(metadata -> {
-            int finalVersion = metadata.truncated() && version < metadata.truncated ? metadata.truncated : version;
+        int startVersion = streams.get(hash).map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version).orElse(version);
 
-            LogIterator<IndexEntry> indexIterator = index.indexedIterator(Checkpoint.of(hash, finalVersion));
-            indexIterator = withMaxCountFilter(hash, indexIterator);
-            IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
-            EventLogIterator ageFilterIterator = withMaxAgeFilter(Set.of(hash), indexedLogIterator);
-            return (EventLogIterator) new LinkToResolveIterator(ageFilterIterator, this::resolve);
-
-        }).orElseGet(EventLogIterator::empty);
-
+        LogIterator<IndexEntry> indexIterator = index.indexedIterator(Checkpoint.of(hash, startVersion));
+        IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
+        return createEventLogIterator(this::tryGetMetadata, indexedLogIterator);
     }
 
     @Override
-    public EventLogIterator fromStreams(String streamPattern, boolean ordered) {
-        Set<String> eventStreams = streams.match(streamPattern);
-        if (eventStreams.isEmpty()) {
-            return EventLogIterator.empty();
+    public EventLogIterator fromStreams(String streamPrefix, boolean ordered) {
+        if (StringUtils.isBlank(streamPrefix)) {
+            throw new IllegalArgumentException("stream prefix must not be empty");
         }
-        return fromStreams(eventStreams.stream().map(StreamName::parse).collect(Collectors.toSet()), ordered);
+
+        Set<Long> longs = streams.matchStreamHash(streamPrefix);
+        IndexIterator indexIterator = index.indexedIterator(streamPrefix, streams::matchStreamHash, Checkpoint.of(longs), ordered);
+
+        IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
+        return createEventLogIterator(this::tryGetMetadata, indexedLogIterator);
     }
 
     @Override
@@ -312,18 +316,31 @@ public class EventStore implements IEventStore {
             return fromStream(streamNames.iterator().next());
         }
 
+//        final Map<String, StreamMetadata> staticMetadata = streamNames.stream()
+//                .map(StreamName::hash)
+//                .map(this::fetchMetadata)
+//                .collect(Collectors.toMap(StreamMetadata::name, Function.identity()));
+
         Set<Long> hashes = streamNames.stream().map(StreamName::hash).collect(Collectors.toSet());
 
-        IndexIterator indexIterator = index.indexedIterator(Checkpoint.from(streamNames), ordered);
+
+        IndexIterator indexIterator = index.indexedIterator(Checkpoint.of(hashes), ordered);
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
-        EventLogIterator ageFilterIterator = withMaxAgeFilter(hashes, indexedLogIterator);
-        return new LinkToResolveIterator(ageFilterIterator, this::resolve);
+        return createEventLogIterator(this::tryGetMetadata, indexedLogIterator);
     }
 
     @Override
     public int version(String stream) {
         long streamHash = streams.hashOf(stream);
         return streams.version(streamHash);
+    }
+
+    @Override
+    public int count(String stream) {
+        return streams.get(stream).map(m -> {
+            int version = version(stream);
+            return m.truncated > NO_TRUNCATE ? version - m.truncated : version + 1;
+        }).orElse(0);
     }
 
     @Override
@@ -442,22 +459,9 @@ public class EventStore implements IEventStore {
         });
     }
 
-    private LogIterator<IndexEntry> withMaxCountFilter(long streamHash, LogIterator<IndexEntry> iterator) {
-        return streams.get(streamHash)
-                .map(stream -> stream.maxCount)
-                .filter(maxCount -> maxCount > 0)
-                .map(maxCount -> MaxCountFilteringIterator.of(maxCount, streams.version(streamHash), iterator))
-                .orElse(iterator);
-    }
-
-    private EventLogIterator withMaxAgeFilter(Set<Long> streamHashes, EventLogIterator iterator) {
-        Map<String, Long> metadataMap = streamHashes.stream()
-                .map(streams::get)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toMap(StreamMetadata::name, meta -> meta.maxAge));
-
-        return new MaxAgeFilteringIterator(metadataMap, iterator);
+    private EventLogIterator createEventLogIterator(Function<String, StreamMetadata> metadataSupplier, IndexedLogIterator indexedLogIterator) {
+        MaxAgeFilteringIterator maxAgeFilteringIterator = new MaxAgeFilteringIterator(metadataSupplier, indexedLogIterator);
+        return new LinkToResolveIterator(maxAgeFilteringIterator, this::resolve);
     }
 
     //TODO circular data flow between index and eventWriter might cause data to be lost in very specific scenarios

@@ -8,7 +8,6 @@ import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -72,11 +71,12 @@ public class MemIndex {
         }
 
         synchronized (entries) {
-            int idx = Collections.binarySearch(entries, IndexEntry.of(stream, version, 0));
-            if (idx >= 0) {
-                return Optional.of(entries.get(idx));
+            int firstVersion = entries.get(0).version;
+            int lastVersion = firstVersion + entries.size() - 1;
+            if (version > lastVersion || version < firstVersion) {
+                return Optional.empty();
             }
-            return Optional.empty();
+            return Optional.of(entries.get(version - firstVersion));
         }
     }
 
