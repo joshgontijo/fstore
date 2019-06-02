@@ -47,7 +47,7 @@ public final class LogFileUtils {
         return newFile;
     }
 
-    public static String fileName(String prefix, int level) {
+    private static String fileName(String prefix, int level) {
         String extension = ".L" + level;
         return prefix + extension;
     }

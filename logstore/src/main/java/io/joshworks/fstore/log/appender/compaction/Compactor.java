@@ -17,11 +17,11 @@ import java.io.Closeable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -43,7 +43,7 @@ public class Compactor<T> implements Closeable {
     private final String name;
     private final Levels<T> levels;
     private final boolean threadPerLevel;
-    private final Set<Log<T>> compacting = new HashSet<>();
+    private final Set<Log<T>> compacting = new CopyOnWriteArraySet<>();
 
     private final Map<String, ExecutorService> levelCompaction = new ConcurrentHashMap<>();
     private final ExecutorService cleanupWorker = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compaction-cleanup"));

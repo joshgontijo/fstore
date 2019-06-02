@@ -93,7 +93,7 @@ public class ConcurrencyIT {
     public void concurrent_write_read() throws InterruptedException {
 
         int writeThreads = 10;
-        int totalWrites = 100000000;
+        int totalWrites = 5000000;
         int readThreads = 20;
         String stream = "stream-0";
         ExecutorService writeExecutor = Executors.newFixedThreadPool(writeThreads);

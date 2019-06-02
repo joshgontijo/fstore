@@ -8,6 +8,7 @@ import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class MemIndex {
@@ -58,10 +60,27 @@ public class MemIndex {
             return Iterators.empty();
         }
         synchronized (entries) {
-            List<IndexEntry> copy = List.copyOf(entries);
-            LogIterator<IndexEntry> entriesIt = Direction.BACKWARD.equals(direction) ? Iterators.reversed(copy) : Iterators.of(copy);
-            return Iterators.filtering(entriesIt, ie -> ie.version >= range.startVersionInclusive && ie.version < range.endVersionExclusive);
+            List<IndexEntry> sliced = slice(entries, range);
+            LogIterator<IndexEntry> entriesIt = Direction.BACKWARD.equals(direction) ? Iterators.reversed(sliced) : Iterators.of(sliced);
+            return Iterators.filtering(entriesIt, inRange(range));
         }
+    }
+
+    //optimized to avoid reiterating over all entries in the mem list
+    private List<IndexEntry> slice(List<IndexEntry> entries, Range range) {
+        IndexEntry start = range.start();
+        int idx = Collections.binarySearch(entries, start);
+        if (idx < 0) { //not found in mem
+            return new ArrayList<>();
+        }
+        int lastIdx = idx + (range.end().version - start.version);
+        int endIdx = Math.min(entries.size(), lastIdx);
+        List<IndexEntry> subList = entries.subList(idx, endIdx);
+        return Collections.unmodifiableList(subList);
+    }
+
+    private Predicate<IndexEntry> inRange(Range range) { //safe guard
+        return ie -> ie.version >= range.startVersionInclusive && ie.version < range.endVersionExclusive;
     }
 
     public Optional<IndexEntry> get(long stream, int version) {

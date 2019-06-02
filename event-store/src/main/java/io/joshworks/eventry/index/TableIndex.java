@@ -46,7 +46,7 @@ public class TableIndex implements Closeable {
     private final Consumer<FlushInfo> indexFlushListener;
 
     //TODO expose ?
-    private static final int MAX_ITEMS_PER_STREAM = 100;
+    private static final int MAX_ITEMS_PER_STREAM = 10000;
 
     private MemIndex memIndex = new MemIndex();
 
