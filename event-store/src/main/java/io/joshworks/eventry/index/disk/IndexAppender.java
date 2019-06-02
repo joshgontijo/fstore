@@ -9,6 +9,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.appender.naming.SequentialNaming;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -42,12 +43,12 @@ public class IndexAppender implements Closeable {
         long segmentSize = numElements * IndexEntry.BYTES;
         this.appender = LogAppender.builder(indexDirectory, new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor(streamSupplier))
-                .compactionThreshold(3)
+                .compactionThreshold(3) // TODO expose
                 .segmentSize(segmentSize)
                 .name(STORE_NAME)
                 .flushMode(FlushMode.ON_ROLL)
                 .storageMode(StorageMode.MMAP)
-                .namingStrategy(new IndexNaming())
+                .namingStrategy(new SequentialNaming(rootDir))
                 .open(new IndexSegmentFactory(indexDirectory, numElements, codec));
     }
 

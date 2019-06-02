@@ -6,12 +6,10 @@ import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
-import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.index.StreamHasher;
-import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
@@ -25,7 +23,6 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -430,7 +427,7 @@ public class EventStoreIT {
     }
 
     @Test
-    public void fromStreamsStartingWith_returns_orderedEvents() {
+    public void fromStreamsPATTERN_returns_orderedEvents() {
         //given
         int numStreams = 1000;
         int numVersions = 50;
@@ -438,7 +435,7 @@ public class EventStoreIT {
 
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 1; version <= numVersions; version++) {
-                store.append(EventRecord.create(streamPrefix + stream, String.valueOf("type"), Map.of()));
+                store.append(EventRecord.create(streamPrefix + stream, "type", Map.of()));
             }
         }
 
@@ -447,7 +444,7 @@ public class EventStoreIT {
             store.append(EventRecord.create("someOtherStream", "type", Map.of()));
         }
 
-        Iterator<EventRecord> eventStream = store.fromStreams(streamPrefix + "*", true);
+        Iterator<EventRecord> eventStream = store.fromStreams(streamPrefix, true);
 
         assertTrue(eventStream.hasNext());
 
@@ -613,17 +610,18 @@ public class EventStoreIT {
     public void compaction_removes_truncated_entries() {
 
         int size = 3000000;
-        int truncateBeforeVersion = 400;
+        int truncateVersion = 400;
         String stream = "stream-123";
         for (int i = 0; i < size; i++) {
             store.append(EventRecord.create(stream, "test", Map.of()));
         }
 
-        store.truncate(stream, truncateBeforeVersion);
-
+        store.truncate(stream, truncateVersion);
+        store.compact();
+        Threads.sleep(TimeUnit.SECONDS.toMillis(5));
 
         long count = store.fromStream(StreamName.parse(stream)).stream().count();
-        assertEquals(size - truncateBeforeVersion, count);
+        assertEquals(size - truncateVersion - 1, count);
     }
 
     private void testWith(int streams, int numVersionPerStream) {

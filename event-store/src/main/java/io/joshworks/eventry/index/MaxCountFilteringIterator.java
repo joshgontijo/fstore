@@ -3,7 +3,6 @@ package io.joshworks.eventry.index;
 import io.joshworks.eventry.stream.StreamMetadata;
 
 import java.io.IOException;
-import java.util.NoSuchElementException;
 import java.util.function.Function;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
@@ -34,7 +33,7 @@ class MaxCountFilteringIterator implements IndexIterator {
     @Override
     public IndexEntry next() {
         if (!hasNext()) {
-            throw new NoSuchElementException();
+            return null;
         }
         IndexEntry temp = next;
         next = null;

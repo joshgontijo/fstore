@@ -30,6 +30,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.naming.SequentialNaming;
 import io.joshworks.fstore.log.segment.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +62,7 @@ public class EventStore implements IEventStore {
     private static final int LRU_CACHE_SIZE = 1000000;
     private static final int WRITE_QUEUE_SIZE = 1000000;
     private static final int INDEX_FLUSH_THRESHOLD = 50000;
+    private static final int INDEX_MAX_WRITE_QUEUE_SIZE = 5;
 
 
     private final TableIndex index;
@@ -70,7 +72,7 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
-        this.index = new TableIndex(rootDir, this::fetchMetadata, this::onIndexFlushed, INDEX_FLUSH_THRESHOLD, 5, new SnappyCodec());
+        this.index = new TableIndex(rootDir, this::fetchMetadata, this::onIndexFlushed, INDEX_FLUSH_THRESHOLD, INDEX_MAX_WRITE_QUEUE_SIZE, new SnappyCodec());
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
@@ -80,6 +82,7 @@ public class EventStore implements IEventStore {
                 .bufferPool(new GrowingThreadBufferPool(false))
                 .checksumProbability(1)
                 .disableCompaction()
+                .namingStrategy(new SequentialNaming(rootDir))
                 .compactionStrategy(new RecordCleanup(streams)));
 
         long sequence = initialSequence();
@@ -271,11 +274,11 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public void truncate(String stream, int fromVersion) {
+    public void truncate(String stream, int fromVersionInclusive) {
         Future<Void> op = eventWriter.queue(writer -> {
             StreamMetadata metadata = streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
-            streams.truncate(metadata, fromVersion);
-            EventRecord eventRecord = StreamTruncated.create(metadata.name, fromVersion);
+            streams.truncate(metadata, fromVersionInclusive);
+            EventRecord eventRecord = StreamTruncated.create(metadata.name, fromVersionInclusive);
 
             StreamMetadata streamsMetadata = streams.get(SystemStreams.STREAMS).get();
             writer.append(eventRecord, NO_EXPECTED_VERSION, streamsMetadata);

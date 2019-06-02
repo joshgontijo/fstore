@@ -558,7 +558,7 @@ public class TableIndexTest {
     public void indexedIterator_finds_all_entries() throws IOException {
 
         long[] streams = new long[]{12, -3, 10, 3000, -100, -300, 0, -20, 60};
-        int versions = 999999;
+        int versions = FLUSH_THRESHOLD - 1;
 
         for (long stream : streams) {
             for (int version = 0; version < versions; version++) {
