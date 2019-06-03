@@ -125,11 +125,6 @@ class SingleIndexIterator implements IndexIterator {
     }
 
     @Override
-    public Checkpoint processed() {
-        return Checkpoint.of(stream, lastReadVersion);
-    }
-
-    @Override
     public String toString() {
         return "IndexIterator{" + "direction=" + direction +
                 ", bufferSize=" + buffer.size() +
