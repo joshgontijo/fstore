@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
 import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
@@ -99,19 +100,28 @@ public class Streams implements Closeable {
         return streamStore.remove(streamHash);
     }
 
-    //Only supports 'startingWith' wildcard
-    //EX: users-
-    public Set<String> match(String value) {
-        if (value == null) {
+    public Set<String> matchStreamName(String prefix) {
+        if (prefix == null) {
             return new HashSet<>();
         }
-        //wildcard
-        final String prefix = value.substring(0, value.length() - 1);
-        return streamStore.stream()
-                .map(e -> e.value)
-                .filter(stream -> stream.name.startsWith(prefix))
+        return match(prefix)
                 .map(stream -> stream.name)
                 .collect(Collectors.toSet());
+    }
+
+    public Set<Long> matchStreamHash(String prefix) {
+        if (prefix == null) {
+            return new HashSet<>();
+        }
+        return match(prefix)
+                .map(stream -> stream.hash)
+                .collect(Collectors.toSet());
+    }
+
+    private Stream<StreamMetadata> match(String prefix) {
+        return streamStore.stream()
+                .map(e -> e.value)
+                .filter(stream -> stream.name.startsWith(prefix));
     }
 
     public int version(long stream) {
@@ -160,17 +170,17 @@ public class Streams implements Closeable {
         }
     }
 
-    public void truncate(StreamMetadata metadata, int fromVersion) {
+    public void truncate(StreamMetadata metadata, int fromVersionInclusive) {
         int currentVersion = version(metadata.hash);
         if (currentVersion <= NO_VERSION) {
             throw new StreamException("Version must be greater or equals zero");
         }
         int streamVersion = version(metadata.hash);
-        if (fromVersion > streamVersion) {
-            throw new StreamException("Truncate version: " + fromVersion + " must be less or equals stream version: " + streamVersion);
+        if (fromVersionInclusive > streamVersion) {
+            throw new StreamException("Truncate version: " + fromVersionInclusive + " must be less or equals stream version: " + streamVersion);
         }
 
-        StreamMetadata streamMeta = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, fromVersion, metadata.acl, metadata.metadata, metadata.state);
+        StreamMetadata streamMeta = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, fromVersionInclusive, metadata.acl, metadata.metadata, metadata.state);
         streamStore.update(streamMeta);
     }
 }

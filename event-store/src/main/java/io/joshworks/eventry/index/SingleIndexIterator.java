@@ -2,17 +2,18 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.index.disk.IndexAppender;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.util.ArrayDeque;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.function.Predicate;
 
-public class SingleIndexIterator implements IndexIterator {
+class SingleIndexIterator implements IndexIterator {
 
     private final IndexAppender diskIndex;
     private final Function<Direction, Iterator<MemIndex>> memIndex;
@@ -26,7 +27,7 @@ public class SingleIndexIterator implements IndexIterator {
         this(diskIndex, memIndex, direction, stream, lastReadVersion, -1);
     }
 
-    SingleIndexIterator(IndexAppender diskIndex, Function<Direction, Iterator<MemIndex>> memIndex, Direction direction,  long stream, int lastReadVersion, int bufferSize) {
+    SingleIndexIterator(IndexAppender diskIndex, Function<Direction, Iterator<MemIndex>> memIndex, Direction direction, long stream, int lastReadVersion, int bufferSize) {
         this.diskIndex = diskIndex;
         this.memIndex = memIndex;
         this.stream = stream;
@@ -58,17 +59,17 @@ public class SingleIndexIterator implements IndexIterator {
             return true;
         }
         int nextVersion = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
-        List<IndexEntry> fromDisk = diskIndex.getBlockEntries(stream, nextVersion);
-        List<IndexEntry> filtered = filter(fromDisk);
-        if (!filtered.isEmpty()) {
+        LogIterator<IndexEntry> fromDisk = Iterators.of(diskIndex.getBlockEntries(stream, nextVersion));
+        LogIterator<IndexEntry> filtered = Iterators.filtering(fromDisk, filter());
+        if (filtered.hasNext()) {
             addToBuffer(filtered);
             return true;
         }
         Iterator<MemIndex> writeQueueIt = memIndex.apply(direction);
         while (writeQueueIt.hasNext()) {
             MemIndex index = writeQueueIt.next();
-            List<IndexEntry> memFiltered = fromMem(index, stream, nextVersion);
-            if (!memFiltered.isEmpty()) {
+            LogIterator<IndexEntry> memFiltered = Iterators.filtering(fromMem(index, stream, nextVersion), filter());
+            if (memFiltered.hasNext()) {
                 addToBuffer(memFiltered);
                 return true;
             }
@@ -76,21 +77,20 @@ public class SingleIndexIterator implements IndexIterator {
         return false;
     }
 
-    private void addToBuffer(List<IndexEntry> entries) {
-        for (IndexEntry entry : entries) {
-            if(!buffer.offer(entry)) {
+    private void addToBuffer(LogIterator<IndexEntry> entries) {
+        while (entries.hasNext()) {
+            if (!buffer.offer(entries.next())) {
                 return;
             }
         }
     }
 
-    private List<IndexEntry> fromMem(MemIndex index, long stream, int nextVersion) {
-        List<IndexEntry> fromMemory = index.indexedIterator(Direction.FORWARD, Range.of(stream, nextVersion)).stream().collect(Collectors.toList());
-        return filter(fromMemory);
+    private LogIterator<IndexEntry> fromMem(MemIndex index, long stream, int nextVersion) {
+        return index.indexedIterator(Direction.FORWARD, Range.of(stream, nextVersion));
     }
 
-    private List<IndexEntry> filter(List<IndexEntry> original) {
-        return original.stream().filter(ie -> {
+    private Predicate<IndexEntry> filter() {
+        return ie -> {
             if (ie.stream != stream) {
                 return false;
             }
@@ -98,7 +98,7 @@ public class SingleIndexIterator implements IndexIterator {
                 return ie.version > lastReadVersion;
             }
             return ie.version < lastReadVersion;
-        }).collect(Collectors.toList());
+        };
     }
 
     @Override

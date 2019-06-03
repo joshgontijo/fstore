@@ -3,8 +3,8 @@ package io.joshworks.fstore.log.iterators;
 import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 
 class IteratorIterator<T> implements LogIterator<T> {
@@ -12,7 +12,7 @@ class IteratorIterator<T> implements LogIterator<T> {
     private final Iterator<? extends LogIterator<T>> it;
     private LogIterator<T> current;
 
-    IteratorIterator(List<? extends LogIterator<T>> iterators) {
+    IteratorIterator(Collection<? extends LogIterator<T>> iterators) {
         this.it = iterators.iterator();
         nextIterator();
     }

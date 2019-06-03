@@ -148,7 +148,12 @@ public class RemotePartitionClient implements IEventStore {
 
     @Override
     public int version(String stream) {
-        return 0;
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public int count(String stream) {
+        throw new UnsupportedOperationException("TODO");
     }
 
     private static class RemoteStoreClientIterator implements EventLogIterator {

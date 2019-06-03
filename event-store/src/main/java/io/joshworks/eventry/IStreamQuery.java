@@ -8,4 +8,6 @@ public interface IStreamQuery {
 
     int version(String stream);
 
+    int count(String stream);
+
 }

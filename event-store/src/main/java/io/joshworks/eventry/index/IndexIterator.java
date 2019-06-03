@@ -4,5 +4,4 @@ import io.joshworks.fstore.log.LogIterator;
 
 public interface IndexIterator extends LogIterator<IndexEntry> {
 
-    Checkpoint processed();
 }

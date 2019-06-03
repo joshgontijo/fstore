@@ -59,7 +59,7 @@ public class StreamsTest {
         streams.create("another1", 3, 0);
         streams.create("another2", 4, 0);
 
-        Set<String> names = streams.match("abc-*");
+        Set<String> names = streams.matchStreamName("abc-*");
 
         assertEquals(2, names.size());
         assertTrue(names.contains("abc-123"));

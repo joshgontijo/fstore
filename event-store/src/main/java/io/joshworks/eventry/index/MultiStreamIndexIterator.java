@@ -4,8 +4,9 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.NoSuchElementException;
 
 public class MultiStreamIndexIterator implements IndexIterator {
 
@@ -13,8 +14,8 @@ public class MultiStreamIndexIterator implements IndexIterator {
     private final boolean ordered;
     private LogIterator<IndexEntry> delegate;
 
-    public MultiStreamIndexIterator(List<? extends IndexIterator> iterators, boolean ordered) {
-        this.iterators = iterators;
+    MultiStreamIndexIterator(Collection<? extends IndexIterator> iterators, boolean ordered) {
+        this.iterators = new ArrayList<>(iterators);
         this.ordered = ordered;
         this.delegate = newIterator();
     }
@@ -52,9 +53,4 @@ public class MultiStreamIndexIterator implements IndexIterator {
         iterators.forEach(IOUtils::closeQuietly);
     }
 
-    @Override
-    public Checkpoint processed() {
-        return iterators.stream().map(IndexIterator::processed)
-                .reduce(Checkpoint.empty(), Checkpoint::merge);
-    }
 }
