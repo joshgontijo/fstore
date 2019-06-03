@@ -67,9 +67,4 @@ class StreamPrefixIndexIterator implements IndexIterator {
         IOUtils.closeQuietly(delegate);
     }
 
-    @Override
-    public synchronized Checkpoint processed() {
-        return iteratorMap.values().stream().map(IndexIterator::processed)
-                .reduce(Checkpoint.empty(), Checkpoint::merge);
-    }
 }

@@ -63,8 +63,4 @@ class TruncatedAwareIterator implements IndexIterator {
         delegate.close();
     }
 
-    @Override
-    public Checkpoint processed() {
-        return delegate.processed();
-    }
 }

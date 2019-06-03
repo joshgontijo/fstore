@@ -3,11 +3,31 @@ package io.joshworks.eventry.index;
 import io.joshworks.eventry.StreamName;
 
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
-public class Checkpoint extends HashMap<Long, Integer> {
+public class Checkpoint {
+
+    private final Map<Long, Integer> map = new HashMap<>();
+
+    public void put(long stream, int version) {
+        map.put(stream, version);
+    }
+
+    public Checkpoint merge(Checkpoint other) {
+        Checkpoint copy = new Checkpoint();
+        copy.map.putAll(map);
+
+        other.map.forEach((key, value) -> {
+            long stream = key;
+            int version = value;
+            copy.map.merge(stream, version, (v1, v2) -> v1 > v2 ? v1 : v2);
+        });
+
+        return copy;
+    }
 
     public static Checkpoint of(long stream) {
         Checkpoint checkpoint = new Checkpoint();
@@ -23,6 +43,12 @@ public class Checkpoint extends HashMap<Long, Integer> {
         return checkpoint;
     }
 
+    public static Checkpoint of(long stream, int lastReadVersion) {
+        Checkpoint checkpoint = new Checkpoint();
+        checkpoint.put(stream, lastReadVersion);
+        return checkpoint;
+    }
+
     public static Checkpoint from(Set<StreamName> streamNames) {
         Checkpoint checkpoint = new Checkpoint();
         for (StreamName streamName : streamNames) {
@@ -31,21 +57,15 @@ public class Checkpoint extends HashMap<Long, Integer> {
         return checkpoint;
     }
 
-    public static Checkpoint of(long stream, int lastReadVersion) {
+    public static Checkpoint from(StreamName streamName) {
         Checkpoint checkpoint = new Checkpoint();
-        checkpoint.put(stream, lastReadVersion);
+        checkpoint.put(streamName.hash(), streamName.version());
         return checkpoint;
     }
+
+
 
     public static Checkpoint empty() {
         return new Checkpoint();
     }
-
-    public Checkpoint merge(Checkpoint other) {
-        Checkpoint copy = new Checkpoint();
-        copy.putAll(this);
-        this.putAll(other);
-        return copy;
-    }
-
 }
