@@ -93,7 +93,7 @@ public class ConcurrencyIT {
     public void concurrent_write_read() throws InterruptedException {
 
         int writeThreads = 10;
-        int totalWrites = 1500000;
+        int totalWrites = 5000000;
         int readThreads = 20;
         String stream = "stream-0";
         ExecutorService writeExecutor = Executors.newFixedThreadPool(writeThreads);
@@ -113,12 +113,9 @@ public class ConcurrencyIT {
         });
         reportThread.start();
 
+        Runnable writer = () -> write(store, stream, writeLatch, writeCount);
         for (int writeItem = 0; writeItem < totalWrites; writeItem++) {
-            writeExecutor.execute(() -> {
-                int id = writeCount.getAndIncrement();
-                store.append(EventRecord.create(stream, "" + id, Map.of()));
-                writeLatch.countDown();
-            });
+            writeExecutor.execute(writer);
         }
 
         for (int readTask = 0; readTask < readThreads; readTask++) {
@@ -155,6 +152,12 @@ public class ConcurrencyIT {
 
         assertEquals(readThreads * totalWrites, reads.get());
 
+    }
+
+    private static void write(IEventStore store, String stream, CountDownLatch writeLatch, AtomicInteger writeCount) {
+        int id = writeCount.getAndIncrement();
+        store.append(EventRecord.create(stream, "" + id, Map.of()));
+        writeLatch.countDown();
     }
 
     @Test

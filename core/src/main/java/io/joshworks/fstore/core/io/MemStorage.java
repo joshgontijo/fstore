@@ -181,8 +181,7 @@ public abstract class MemStorage implements Storage {
     @Override
     public void writePosition(long position) {
         validateWriteAddress(position);
-        Lock lock = rwLock.writeLock();
-        lockInterruptibly(lock);
+        Lock lock = writeLockInterruptibly();
         try {
             checkClosed();
             int idx = bufferIdx(position);
@@ -215,8 +214,7 @@ public abstract class MemStorage implements Storage {
     @Override
     public void close() {
         if(closed.compareAndSet(false, true)) {
-            Lock lock = rwLock.writeLock();
-            lockInterruptibly(lock);
+            Lock lock = writeLockInterruptibly();
             try {
                 for (ByteBuffer buffer : buffers) {
                     destroy(buffer);
@@ -234,8 +232,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public void truncate() {
-        Lock lock = rwLock.writeLock();
-        lockInterruptibly(lock);
+        Lock lock = writeLockInterruptibly();
         try {
             long pos = writePosition.get();
             int idx = bufferIdx(pos);
@@ -266,9 +263,11 @@ public abstract class MemStorage implements Storage {
         this.size.set(buffers.stream().mapToLong(ByteBuffer::capacity).sum());
     }
 
-    private void lockInterruptibly(Lock lock) {
+    private Lock writeLockInterruptibly() {
         try {
-            lock.lockInterruptibly();
+            Lock writeLock = rwLock.writeLock();
+            writeLock.lockInterruptibly();
+            return writeLock;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);

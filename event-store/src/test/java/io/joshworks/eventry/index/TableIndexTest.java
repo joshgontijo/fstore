@@ -491,24 +491,6 @@ public class TableIndexTest {
     }
 
     @Test
-    public void iterator_returns_the_processed_stream_versions() throws IOException {
-        int versions = 10;
-        long stream = 456L;
-
-        for (int version = 0; version < versions; version++) {
-            tableIndex.add(stream, version, 0);
-        }
-
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
-            IndexEntry poll = iterator.next();
-            assertEquals(0, poll.version);
-
-            Map<Long, Integer> processed = iterator.processed();
-            assertEquals(Integer.valueOf(0), processed.get(stream));
-        }
-    }
-
-    @Test
     public void iterator_starts_from_the_provided_stream_versions() throws IOException {
         int versions = 10;
         long stream = 456L;
@@ -517,18 +499,14 @@ public class TableIndexTest {
             tableIndex.add(stream, version, 0);
         }
 
-        Checkpoint processed;
+        int lastVersion;
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
-            IndexEntry entry = iterator.next();
-            assertEquals(0, entry.version);
-
-            processed = iterator.processed();
-            assertEquals(Integer.valueOf(0), processed.get(stream));
+            lastVersion = iterator.next().version;
         }
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(processed)) {
+        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream, lastVersion))) {
             IndexEntry entry = iterator.next();
-            assertEquals(1, entry.version);
+            assertEquals(lastVersion + 1, entry.version);
         }
     }
 
@@ -558,7 +536,7 @@ public class TableIndexTest {
     public void indexedIterator_finds_all_entries() throws IOException {
 
         long[] streams = new long[]{12, -3, 10, 3000, -100, -300, 0, -20, 60};
-        int versions = 999999;
+        int versions = FLUSH_THRESHOLD - 1;
 
         for (long stream : streams) {
             for (int version = 0; version < versions; version++) {

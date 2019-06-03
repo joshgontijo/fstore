@@ -18,13 +18,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class ClusterStore implements IEventStore {
+public class PartitionedStore implements IEventStore {
 
     private final Partitions partitions;
 
-    public ClusterStore(Partitions partitions) {
+    PartitionedStore(Partitions partitions) {
         this.partitions = partitions;
     }
 
@@ -38,7 +39,7 @@ public class ClusterStore implements IEventStore {
 
     @Override
     public void compact() {
-        throw new UnsupportedOperationException("TODO");
+        partitions.all().stream().map(Partition::store).forEach(IEventStore::compact);
     }
 
     @Override
@@ -48,12 +49,12 @@ public class ClusterStore implements IEventStore {
 
     @Override
     public EventRecord linkTo(String stream, EventRecord event) {
-        return null;
+        return select(event.stream).linkTo(stream, event);
     }
 
     @Override
     public EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
-        return null;
+        return select(source.name()).linkTo(dstStream, source, sourceType);
     }
 
     @Override
@@ -71,25 +72,22 @@ public class ClusterStore implements IEventStore {
         return select(stream.name()).fromStream(stream);
     }
 
+    //TODO this also needs another methods that accepts a Checkpoint
     @Override
     public EventLogIterator fromStreams(String streamPattern, boolean ordered) {
-        throw new UnsupportedOperationException("TODO");
+        return applyToAll(store -> store.fromStreams(streamPattern, ordered));
     }
 
+    //TODO this is not ideal, since it will return iterator of all partitions
+    //the infinite iterators make more difficult to handle this this, since the stream can be created anywhere
     @Override
     public EventLogIterator fromStreams(Set<StreamName> streams, boolean ordered) {
-        throw new UnsupportedOperationException("TODO");
+        return applyToAll(store -> store.fromStreams(streams, ordered));
     }
 
     @Override
     public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-        List<EventLogIterator> iterators = partitions.all().stream()
-                .map(Partition::store)
-                .map(store -> store.fromAll(linkToPolicy, systemEventPolicy))
-                .collect(Collectors.toList());
-
-        return EventLogIterator.of(Iterators.concat(iterators));
-
+        return applyToAll(store -> store.fromAll(linkToPolicy, systemEventPolicy));
     }
 
     @Override
@@ -143,4 +141,20 @@ public class ClusterStore implements IEventStore {
     public int version(String stream) {
         return select(stream).version(stream);
     }
+
+    @Override
+    public int count(String stream) {
+        return select(stream).count(stream);
+    }
+
+    private EventLogIterator applyToAll(Function<IEventStore, EventLogIterator> func) {
+        List<EventLogIterator> iterators = partitions.all()
+                .stream()
+                .map(Partition::store)
+                .map(func)
+                .collect(Collectors.toList());
+
+        return EventLogIterator.of(Iterators.concat(iterators));
+    }
+
 }

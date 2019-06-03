@@ -15,7 +15,7 @@ public class IndexedLogIterator implements EventLogIterator {
     private final LogIterator<IndexEntry> indexIterator;
     private final IEventLog log;
 
-    public IndexedLogIterator(LogIterator<IndexEntry> indexIterator, IEventLog log) {
+    IndexedLogIterator(LogIterator<IndexEntry> indexIterator, IEventLog log) {
         this.indexIterator = indexIterator;
         this.log = log;
     }

@@ -37,16 +37,16 @@ public class Partitions implements AutoCloseable {
     }
 
     public void add(Partition partition) {
-        if(partition == null) {
+        if (partition == null) {
             throw new IllegalArgumentException("Partition must not be empty");
         }
-        if(global.putIfAbsent(partition.id, partition) != null) {
+        if (global.putIfAbsent(partition.id, partition) != null) {
             throw new IllegalStateException("Partition already exists");
         }
-        if(partition.ownedBy(nodeId)) {
+        if (partition.ownedBy(nodeId)) {
             partitions.put(partition.id, partition);
         }
-        if(partition.replicatedBy(nodeId)) {
+        if (partition.replicatedBy(nodeId)) {
             replicas.put(partition.id, new Replica());
         }
     }
@@ -72,7 +72,7 @@ public class Partitions implements AutoCloseable {
     }
 
     @Override
-    public void close()  {
+    public void close() {
         global.values().forEach(Partition::close);
         global.clear();
     }

@@ -25,8 +25,8 @@ public class MemIndexTest {
 
         int numEntries = 10000;
         long stream = 123;
-        for (int i = 1; i <= numEntries; i++) {
-            index.add(IndexEntry.of(stream, i, 0));
+        for (int version = 0; version < numEntries; version++) {
+            index.add(IndexEntry.of(stream, version, 0));
         }
 
         assertEquals(numEntries, index.indexedIterator(Direction.FORWARD, Range.anyOf(stream)).stream().count());
@@ -39,7 +39,7 @@ public class MemIndexTest {
         int versions = 1000;
         int streams = 50;
         for (int stream = 0; stream < streams; stream++) {
-            for (int version = 1; version <= versions; version++) {
+            for (int version = 0; version < versions; version++) {
                 index.add(IndexEntry.of(stream, version, 0));
             }
         }
@@ -59,13 +59,13 @@ public class MemIndexTest {
         int versions = 10000;
         long streams = 123;
         for (int stream = 0; stream < streams; stream++) {
-            for (int version = 1; version <= versions; version++) {
+            for (int version = 0; version < versions; version++) {
                 index.add(IndexEntry.of(stream, version, 0));
             }
         }
 
         for (int stream = 0; stream < streams; stream++) {
-            int lastVersion = 0;
+            int lastVersion = -1;
 
             //when
             Iterator<IndexEntry> iterator = index.indexedIterator(Direction.FORWARD, Range.anyOf(stream));
@@ -76,7 +76,7 @@ public class MemIndexTest {
                 assertEquals(lastVersion + 1, indexEntry.version);
                 lastVersion = indexEntry.version;
             }
-            assertEquals(versions, lastVersion);
+            assertEquals(versions - 1, lastVersion);
         }
     }
 
@@ -87,7 +87,7 @@ public class MemIndexTest {
         int versions = 1000;
         int streams = 50;
         for (int stream = 0; stream < streams; stream++) {
-            for (int version = 1; version <= versions; version++) {
+            for (int version = 0; version < versions; version++) {
                 index.add(IndexEntry.of(stream, version, 0));
             }
         }
@@ -95,7 +95,7 @@ public class MemIndexTest {
 
         //when
         for (int stream = 0; stream < streams; stream++) {
-            int lastVersion = 0;
+            int lastVersion = -1;
 
             Iterator<IndexEntry> iterator = index.indexedIterator(Direction.FORWARD, Range.anyOf(stream));
             while (iterator.hasNext()) {
@@ -106,7 +106,7 @@ public class MemIndexTest {
                 lastVersion = indexEntry.version;
             }
 
-            assertEquals(versions, lastVersion);
+            assertEquals(versions - 1, lastVersion);
         }
     }
 
@@ -378,7 +378,6 @@ public class MemIndexTest {
         index.add(ie4);
         index.add(ie2);
         index.add(ie5);
-
 
         Iterator<IndexEntry> iterator = index.iterator();
 
