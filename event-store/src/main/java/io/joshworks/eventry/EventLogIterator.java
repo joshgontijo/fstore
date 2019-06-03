@@ -2,7 +2,6 @@ package io.joshworks.eventry;
 
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -14,10 +13,6 @@ public interface EventLogIterator extends LogIterator<EventRecord> {
 
     default TypeMatch when(String type, Consumer<EventRecord> handler) {
         return new TypeMatch(this, type, handler);
-    }
-
-    static EventLogIterator empty() {
-        return new EmptyEventLogIterator();
     }
 
     static EventLogIterator of(LogIterator<EventRecord> iterator) {
@@ -41,31 +36,6 @@ public interface EventLogIterator extends LogIterator<EventRecord> {
         public void match() {
             iterator.stream().filter(er -> matchers.containsKey(er.type)).forEach(ev -> matchers.getOrDefault(ev.type, e -> {
             }).accept(ev));
-        }
-    }
-
-    class EmptyEventLogIterator implements EventLogIterator {
-
-        private final LogIterator<EventRecord> empty = Iterators.empty();
-
-        @Override
-        public long position() {
-            return empty.position();
-        }
-
-        @Override
-        public void close() throws IOException {
-            empty.close();
-        }
-
-        @Override
-        public boolean hasNext() {
-            return empty.hasNext();
-        }
-
-        @Override
-        public EventRecord next() {
-            return empty.next();
         }
     }
 

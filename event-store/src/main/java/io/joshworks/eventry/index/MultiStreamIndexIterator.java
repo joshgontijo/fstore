@@ -53,9 +53,4 @@ public class MultiStreamIndexIterator implements IndexIterator {
         iterators.forEach(IOUtils::closeQuietly);
     }
 
-    @Override
-    public Checkpoint processed() {
-        return iterators.stream().map(IndexIterator::processed)
-                .reduce(Checkpoint.empty(), Checkpoint::merge);
-    }
 }

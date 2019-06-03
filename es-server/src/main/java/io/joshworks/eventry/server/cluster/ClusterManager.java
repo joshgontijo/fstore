@@ -50,10 +50,10 @@ public class ClusterManager implements Closeable {
 
     private final NodeLog nodeLog;
 
-    private final ClusterStore store;
+    private final PartitionedStore store;
     private final StoreReceiver storeReceiver;
 
-    private ClusterManager(File rootDir, Cluster cluster, Partitions partitions, ClusterDescriptor clusterDescriptor, ClusterStore store) {
+    private ClusterManager(File rootDir, Cluster cluster, Partitions partitions, ClusterDescriptor clusterDescriptor, PartitionedStore store) {
         this.rootDir = rootDir;
         this.partitions = partitions;
         this.descriptor = clusterDescriptor;
@@ -111,7 +111,7 @@ public class ClusterManager implements Closeable {
         Cluster cluster = new Cluster(name, descriptor.nodeId);
 
         Partitions partitions = new Partitions(numPartitions, descriptor.nodeId);
-        ClusterStore store = new ClusterStore(partitions);
+        PartitionedStore store = new PartitionedStore(partitions);
         ClusterManager manager = new ClusterManager(rootDir, cluster, partitions, descriptor, store);
         try {
             manager.nodeLog.append(new NodeStartedEvent(descriptor.nodeId));

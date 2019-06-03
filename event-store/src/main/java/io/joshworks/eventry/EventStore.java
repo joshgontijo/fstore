@@ -288,11 +288,12 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStream(StreamName stream) {
-        requireNonNull(stream, "Stream must be provided");
-        int version = stream.version();
-        long hash = stream.hash();
+    public EventLogIterator fromStream(StreamName streamName) {
+        requireNonNull(streamName, "Stream must be provided");
+        int version = streamName.version();
+        long hash = streamName.hash();
 
+        //TODO this must be applied to fromStreams and fromStreamsPATTERN
         int startVersion = streams.get(hash).map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version).orElse(version);
 
         LogIterator<IndexEntry> indexIterator = index.indexedIterator(Checkpoint.of(hash, startVersion));
@@ -300,6 +301,7 @@ public class EventStore implements IEventStore {
         return createEventLogIterator(this::tryGetMetadata, indexedLogIterator);
     }
 
+    //TODO this requires another method that accepts checkpoint
     @Override
     public EventLogIterator fromStreams(String streamPrefix, boolean ordered) {
         if (StringUtils.isBlank(streamPrefix)) {
