@@ -1,6 +1,7 @@
 package io.joshworks.eventry.log;
 
 import io.joshworks.eventry.data.LinkTo;
+import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;
@@ -14,9 +15,11 @@ import java.util.Optional;
 public class RecordCleanup implements SegmentCombiner<EventRecord> {
 
     private final Streams streams;
+    private final TableIndex index;
 
-    public RecordCleanup(Streams streams) {
+    public RecordCleanup(Streams streams, TableIndex index) {
         this.streams = streams;
+        this.index = index;
     }
 
     @Override
@@ -33,10 +36,6 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                 long oldPosition = iterator.position();
 
                 EventRecord record = iterator.next();
-                if (record.isSystemEvent()) {
-                    output.append(record);
-                    continue;
-                }
 
                 StreamMetadata metadata = getMetadata(record.stream);
 
