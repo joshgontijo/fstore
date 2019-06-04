@@ -128,20 +128,117 @@ public class UniqueMergeCombinerTest {
     @Test
     public void when_duplicated_entry_keep_newest() {
 
-        Segment<TestEntry> seg1 = segmentWith(of(1, "a"), of(1, "a"));
-        Segment<TestEntry> seg2 = segmentWith("a", "b", "c");
-        Segment<TestEntry> out = outputSegment();
+        Segment<TestEntry> seg1 = segmentWith(of(1, "a"));
+        Segment<TestEntry> seg2 = segmentWith(of(1, "b"));
+        Segment<TestEntry> out = testEntryOutputSegment();
 
-        MergeCombiner<String> combiner = new UniqueMergeCombiner<>();
+        MergeCombiner<TestEntry> combiner = new UniqueMergeCombiner<>();
 
         combiner.merge(Arrays.asList(seg1, seg2), out);
 
-        List<String> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+        List<TestEntry> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
 
-        assertEquals("a", result.get(0));
-        assertEquals("b", result.get(1));
-        assertEquals("c", result.get(2));
-        assertEquals("d", result.get(3));
+        assertEquals(1, result.size());
+        assertEquals("b", result.get(0).label);
+    }
+
+    @Test
+    public void the_subsequent_entries_of_duplicated_entry_in_the_first_segment_are_kept() {
+
+        Segment<TestEntry> seg1 = segmentWith(of(1, "a"), of(2, "b"), of(3, "c"));
+        Segment<TestEntry> seg2 = segmentWith(of(1, "d"));
+        Segment<TestEntry> out = testEntryOutputSegment();
+
+        MergeCombiner<TestEntry> combiner = new UniqueMergeCombiner<>();
+
+        combiner.merge(Arrays.asList(seg1, seg2), out);
+
+        List<TestEntry> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+
+        assertEquals(3, result.size());
+        assertEquals("d", result.get(0).label);
+        assertEquals("b", result.get(1).label);
+        assertEquals("c", result.get(2).label);
+    }
+
+    @Test
+    public void the_subsequent_entries_of_duplicated_entry_in_the_second_segment_are_kept() {
+
+        Segment<TestEntry> seg1 = segmentWith(of(1, "a"));
+        Segment<TestEntry> seg2 = segmentWith(of(1, "b"), of(2, "c"), of(3, "d"));
+        Segment<TestEntry> out = testEntryOutputSegment();
+
+        MergeCombiner<TestEntry> combiner = new UniqueMergeCombiner<>();
+
+        combiner.merge(Arrays.asList(seg1, seg2), out);
+
+        List<TestEntry> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+
+        assertEquals(3, result.size());
+        assertEquals("b", result.get(0).label);
+        assertEquals("c", result.get(1).label);
+        assertEquals("d", result.get(2).label);
+    }
+
+    @Test
+    public void when_duplicated_entry_keep_newest_multiple_segments() {
+
+        Segment<TestEntry> seg1 = segmentWith(of(1, "a"));
+        Segment<TestEntry> seg2 = segmentWith(of(1, "b"));
+        Segment<TestEntry> seg3 = segmentWith(of(1, "c"));
+        Segment<TestEntry> out = testEntryOutputSegment();
+
+        MergeCombiner<TestEntry> combiner = new UniqueMergeCombiner<>();
+
+        combiner.merge(Arrays.asList(seg1, seg2, seg3), out);
+
+        List<TestEntry> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+
+        assertEquals(1, result.size());
+        assertEquals("c", result.get(0).label);
+    }
+
+    @Test
+    public void when_duplicated_entry_keep_newest_multiple_segments_2() {
+
+        Segment<TestEntry> seg1 = segmentWith(of(1, "a"), of(2, "b"));
+        Segment<TestEntry> seg2 = segmentWith(of(1, "c"));
+        Segment<TestEntry> seg3 = segmentWith(of(3, "d"));
+        Segment<TestEntry> out = testEntryOutputSegment();
+
+        MergeCombiner<TestEntry> combiner = new UniqueMergeCombiner<>();
+
+        combiner.merge(Arrays.asList(seg1, seg2, seg3), out);
+
+        List<TestEntry> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+
+        assertEquals(3, result.size());
+        assertEquals("c", result.get(0).label);
+        assertEquals("b", result.get(1).label);
+        assertEquals("d", result.get(2).label);
+    }
+
+    @Test
+    public void when_duplicated_entry_keep_newest_multiple_segments_3() {
+
+        Segment<TestEntry> seg1 = segmentWith(of(1, "a"), of(2, "b"));
+        Segment<TestEntry> seg2 = segmentWith(of(1, "c"), of(5, "d"));
+        Segment<TestEntry> seg3 = segmentWith(of(3, "e"));
+        Segment<TestEntry> seg4 = segmentWith(of(1, "f"), of(2, "g"), of(6, "h"));
+        Segment<TestEntry> out = testEntryOutputSegment();
+
+        MergeCombiner<TestEntry> combiner = new UniqueMergeCombiner<>();
+
+        combiner.merge(Arrays.asList(seg1, seg2, seg3, seg4), out);
+
+        List<TestEntry> result = Iterators.closeableStream(out.iterator(Direction.FORWARD)).collect(Collectors.toList());
+
+        assertEquals(5, result.size());
+        assertEquals("f", result.get(0).label);
+        assertEquals("g", result.get(1).label);
+        assertEquals("e", result.get(2).label);
+        assertEquals("d", result.get(3).label);
+        assertEquals("h", result.get(4).label);
     }
 
     private Segment<String> segmentWith(String... values) {
@@ -180,16 +277,16 @@ public class UniqueMergeCombinerTest {
         return segment;
     }
 
-    private Segment<String> outputSegment() {
+    private Segment<TestEntry> testEntryOutputSegment() {
         File file = FileUtils.testFile();
         Storage storage = StorageProvider.of(StorageMode.RAF).create(file, Memory.PAGE_SIZE);
-        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", Type.LOG_HEAD);
+        Segment<TestEntry> segment = new Segment<>(storage, new TestEntrySerializer(), dataStream, "magic", Type.LOG_HEAD);
         segments.add(segment);
         return segment;
     }
 
 
-    private static class TestEntry implements Comparable<TestEntry> {
+    static class TestEntry implements Comparable<TestEntry> {
 
         private final int id;
         private final String label;
@@ -205,7 +302,14 @@ public class UniqueMergeCombinerTest {
 
         @Override
         public int compareTo(TestEntry o) {
-            return label.compareTo(o.label);
+            return id - o.id;
+        }
+
+        @Override
+        public String toString() {
+            return "TestEntry{" + "id=" + id +
+                    ", label='" + label + '\'' +
+                    '}';
         }
     }
 
@@ -224,7 +328,6 @@ public class UniqueMergeCombinerTest {
         public void writeTo(TestEntry data, ByteBuffer dest) {
             dest.putInt(data.id);
             dest.put(stringSerializer.toBytes(data.label));
-            dest.flip();
         }
 
         @Override

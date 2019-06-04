@@ -56,9 +56,9 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
             T currItem = curr.peek();
             int c = prevItem.compareTo(currItem);
             if (c == 0) { //duplicate remove eldest entry
-                prev.next();
+                curr.next();
             }
-            if (c >= 0) {
+            if (c > 0) {
                 prev = curr;
             }
         }
