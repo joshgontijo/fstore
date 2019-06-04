@@ -52,6 +52,9 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
 
                 output.append(record);
 
+                //TODO add negative position to IndexEntry that should be removed
+                //TODO add logic to IndexCompactor to remove those entries
+
 
                 //TODO add position mapping to footer
                 //TODO New Segment class for the EventLog is needed to handle the mapping on read
