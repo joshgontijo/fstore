@@ -15,11 +15,9 @@ import java.util.Optional;
 public class RecordCleanup implements SegmentCombiner<EventRecord> {
 
     private final Streams streams;
-    private final TableIndex index;
 
-    public RecordCleanup(Streams streams, TableIndex index) {
+    public RecordCleanup(Streams streams) {
         this.streams = streams;
-        this.index = index;
     }
 
     @Override

@@ -811,6 +811,30 @@ public class IndexSegmentTest {
         }
     }
 
+    @Test
+    public void holes() {
+        long stream = 1;
+        segment.append(IndexEntry.of(stream, 1, 0));
+        segment.append(IndexEntry.of(stream, 2, 0));
+
+        segment.append(IndexEntry.of(stream, 1, -1));
+        segment.append(IndexEntry.of(stream, 2, -1));
+        segment.flush();
+
+        List<IndexEntry> indexEntries = segment.readBlockEntries(stream, 1);
+
+        assertEquals(2, indexEntries.size());
+
+        IndexEntry first = indexEntries.get(0);
+        assertEquals(1, first.version);
+        assertEquals(-1, first.position);
+
+        IndexEntry second = indexEntries.get(0);
+        assertEquals(1, second.version);
+        assertEquals(-1, second.position);
+
+    }
+
     private void assertIteratorHasAllEntries(long stream, int lastEventVersion, Iterator<IndexEntry> iterator) {
         int expectedVersion = 0;
         int count = 0;

@@ -191,7 +191,9 @@ public class IndexSegment implements Log<IndexEntry> {
         return !midpoints.inRange(range) || !filter.contains(stream);
     }
 
-    public LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
+
+    //TODO this should be for index internal use only. Use 'readBlockEntries'
+    LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
         if (definitelyNotPresent(range)) {
             return Iterators.empty();
         }

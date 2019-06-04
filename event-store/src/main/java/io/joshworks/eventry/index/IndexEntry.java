@@ -16,9 +16,9 @@ public class IndexEntry implements Comparable<IndexEntry> {
         if (version <= EventRecord.NO_VERSION) {
             throw new IllegalArgumentException("Version must be at least zero");
         }
-        if (position < 0) {
-            throw new IllegalArgumentException("Position must be positive");
-        }
+//        if (position < 0) {
+//            throw new IllegalArgumentException("Position must be positive");
+//        }
         this.stream = stream;
         this.version = version;
         this.position = position;
