@@ -1,5 +1,7 @@
 package io.joshworks.eventry.log;
 
+import io.joshworks.eventry.data.LinkTo;
+import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;
@@ -13,9 +15,11 @@ import java.util.Optional;
 public class RecordCleanup implements SegmentCombiner<EventRecord> {
 
     private final Streams streams;
+    private final TableIndex index;
 
-    public RecordCleanup(Streams streams) {
+    public RecordCleanup(Streams streams, TableIndex index) {
         this.streams = streams;
+        this.index = index;
     }
 
     @Override
@@ -32,42 +36,30 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                 long oldPosition = iterator.position();
 
                 EventRecord record = iterator.next();
-                if (record.isSystemEvent()) {
-                    output.append(record);
+
+                StreamMetadata metadata = getMetadata(record.stream);
+
+                int version = record.version;
+                long timestamp = record.timestamp;
+
+                if (skipEntry(metadata, version, timestamp)) {
                     continue;
                 }
 
-
-                Optional<StreamMetadata> metadataOpt = streams.get(record.stream);
-                if (!metadataOpt.isPresent()) {
-                    //TODO replace with a log warn
-                    throw new RuntimeException("No metadata available for stream: " + record.stream);
-                }
-                StreamMetadata metadata = metadataOpt.get();
-
-                boolean streamDeleted = metadata.streamDeleted();
-                if (streamDeleted) {
-                    //skip record
+                if (record.isLinkToEvent() && skipLinkToEntry(record, timestamp)) {
                     continue;
                 }
 
-                boolean expired = metadata.maxAge > 0 && System.currentTimeMillis() - record.timestamp > metadata.maxAge;
-                if (expired) {
-                    //skip record
-                    continue;
-                }
-                int currentStreamVersion = streams.version(metadata.hash);
-                boolean obsolete = metadata.maxCount > 0 && currentStreamVersion - record.version >= metadata.maxCount;
-                if (obsolete) {
-                    //skip record
-                    continue;
-                }
+                output.append(record);
 
-                long newPosition = output.append(record);
-                System.out.println("Mapping from position " + oldPosition + " to " + newPosition);
+                //TODO add negative position to IndexEntry that should be removed
+                //TODO add logic to IndexCompactor to remove those entries
+
+
                 //TODO add position mapping to footer
                 //TODO New Segment class for the EventLog is needed to handle the mapping on read
                 //TODO mapping should be relative offset that the deleted entry adds to the subsequent entries
+
             }
 
 
@@ -75,6 +67,46 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
             throw new RuntimeException(e);
         }
 
+    }
 
+    private boolean skipLinkToEntry(EventRecord record, long timestamp) {
+        LinkTo linkTo = LinkTo.from(record);
+        String targetStream = linkTo.stream;
+        int targetVersion = linkTo.version;
+
+        StreamMetadata tgtMetadata = getMetadata(targetStream);
+
+        //isExpired we can use the LinkTo event TS, since it will always be equals or greater than the original TS
+        return skipEntry(tgtMetadata, targetVersion, timestamp);
+    }
+
+    private boolean skipEntry(StreamMetadata metadata, int version, long timestamp) {
+        return isExpired(timestamp, metadata) || isObsolete(version, metadata) || isTruncatedEntry(version, metadata) || isStreamDeleted(metadata);
+    }
+
+    private StreamMetadata getMetadata(String stream) {
+        Optional<StreamMetadata> metadataOpt = streams.get(stream);
+        if (!metadataOpt.isPresent()) {
+            //TODO replace with a log warn
+            throw new RuntimeException("No metadata available for stream: " + stream);
+        }
+        return metadataOpt.get();
+    }
+
+    private boolean isTruncatedEntry(int recordVersion, StreamMetadata metadata) {
+        return metadata.truncated() && recordVersion <= metadata.truncated;
+    }
+
+    private boolean isObsolete(int recordVersion, StreamMetadata metadata) {
+        int currentStreamVersion = streams.version(metadata.hash);
+        return metadata.maxCount > 0 && currentStreamVersion - recordVersion >= metadata.maxCount;
+    }
+
+    private boolean isExpired(long recordTimestamp, StreamMetadata metadata) {
+        return metadata.maxAge > 0 && System.currentTimeMillis() - recordTimestamp > metadata.maxAge;
+    }
+
+    private boolean isStreamDeleted(StreamMetadata metadata) {
+        return metadata.streamDeleted();
     }
 }

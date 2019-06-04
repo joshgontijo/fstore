@@ -1,8 +1,8 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.io.IOException;
 
@@ -18,7 +18,7 @@ public class EventPolicyFilterIterator implements EventLogIterator {
             if (LinkToPolicy.IGNORE.equals(linkToPolicy) && ev.isLinkToEvent()) {
                 return false;
             }
-            if (SystemEventPolicy.IGNORE.equals(systemEventPolicy) && ev.isSystemEvent() && !ev.isLinkToEvent()) {
+            if (SystemEventPolicy.IGNORE.equals(systemEventPolicy) && ev.isSystemEvent()) {
                 return false;
             }
             return true;

@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 
 public class LinkTo {
 
-    public static final String TYPE = StreamName.SYSTEM_PREFIX + ">";
+    public static final String TYPE = ">";
 
     public final String stream;
     public final int version;

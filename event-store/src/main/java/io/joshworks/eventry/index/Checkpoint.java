@@ -64,8 +64,22 @@ public class Checkpoint {
     }
 
 
-
     public static Checkpoint empty() {
         return new Checkpoint();
+    }
+
+    //TODO improve this part
+
+    public int size() {
+        return map.size();
+    }
+
+    public Iterable<? extends Map.Entry<Long, Integer>> entrySet() {
+        return map.entrySet();
+    }
+
+
+    public Set<Long> keySet() {
+        return map.keySet();
     }
 }
