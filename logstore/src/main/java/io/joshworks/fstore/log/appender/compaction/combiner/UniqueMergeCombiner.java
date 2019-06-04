@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * For <b>UNIQUE</b> and <b>SORTED</b> segments only.
- * Guaranteed uniqueness only for segments that holds unique items.
+ * Guaranteed uniqueness only for segments that hold unique items.
  * For items that {@link Comparable#compareTo(Object)} returns equals. The last (newest) item in the list will be used.
  */
 public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<T> {
