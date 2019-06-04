@@ -1,9 +1,11 @@
 package io.joshworks.eventry.log;
 
+import io.joshworks.eventry.InMemorySegment;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
@@ -53,8 +55,8 @@ public class RecordCleanupTest {
     @Test(expected = IllegalArgumentException.class)
     public void cleanup_can_only_be_executed_in_a_single_segment() {
 
-        var source = new InMemorySegment();
-        var output = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
+        var output = new InMemorySegment<EventRecord>();
 
         cleanup.merge(List.of(source, source), output);
     }
@@ -66,12 +68,12 @@ public class RecordCleanupTest {
 
         streams.create(stream, 1, 1);
 
-        var source = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
         appendTo(source, systemRecord());
         appendTo(source, systemRecord());
         appendTo(source, systemRecord());
 
-        var output = new InMemorySegment();
+        var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
 
         assertEquals(3, output.records.size());
@@ -86,13 +88,13 @@ public class RecordCleanupTest {
 
         streams.create(stream, NO_MAX_AGE, maxCount);
 
-        var source = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
         appendTo(source, recordOf(stream, 0, 0));
         appendTo(source, recordOf(stream, 1, 0));
         appendTo(source, recordOf(stream, 2, 0));
 
 
-        var output = new InMemorySegment();
+        var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
 
         assertEquals(2, output.records.size());
@@ -109,12 +111,12 @@ public class RecordCleanupTest {
         var now = System.currentTimeMillis();
         streams.create(stream, maxAge, NO_MAX_COUNT);
 
-        var source = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
         appendTo(source, recordOf(stream, 0, now - maxAge - 1));
         appendTo(source, recordOf(stream, 1, now + TimeUnit.MINUTES.toMillis(1)));
         appendTo(source, recordOf(stream, 2, now + TimeUnit.MINUTES.toMillis(1)));
 
-        var output = new InMemorySegment();
+        var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
 
         assertEquals(2, output.records.size());
@@ -133,7 +135,7 @@ public class RecordCleanupTest {
         streams.create(originalStream);
         streams.create(derivedStream, NO_MAX_AGE, maxCount);
 
-        var source = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
 
         EventRecord ev1 = recordOf(originalStream, 0, 0);
         EventRecord ev2 = recordOf(originalStream, 1, 0);
@@ -144,7 +146,7 @@ public class RecordCleanupTest {
         appendTo(source, linkTo(derivedStream, ev1, 0, 0));
         appendTo(source, linkTo(derivedStream, ev2, 1, 0));
 
-        var output = new InMemorySegment();
+        var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
 
         assertEquals(3, output.records.size());
@@ -176,7 +178,7 @@ public class RecordCleanupTest {
         streams.create(originalStream);
         streams.create(derivedStream, maxAge, NO_MAX_COUNT);
 
-        var source = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
 
         long expiredTs = now - maxAge - 1;
         long validTs = now + TimeUnit.HOURS.toMillis(1);
@@ -190,7 +192,7 @@ public class RecordCleanupTest {
         appendTo(source, linkTo(derivedStream, ev1, 0, expiredTs));
         appendTo(source, linkTo(derivedStream, ev2, 1, validTs));
 
-        var output = new InMemorySegment();
+        var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
 
         assertEquals(3, output.records.size());
@@ -215,7 +217,7 @@ public class RecordCleanupTest {
         var stream = "source-stream";
         StreamMetadata srcMetadata = streams.create(stream);
 
-        var source = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
         EventRecord ev1 = recordOf(stream, 0, 0);
         EventRecord ev2 = recordOf(stream, 1, 0);
         EventRecord ev3 = recordOf(stream, 2, 0);
@@ -227,7 +229,7 @@ public class RecordCleanupTest {
 
         streams.truncate(srcMetadata, 1);
 
-        var output = new InMemorySegment();
+        var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
 
         assertEquals(1, output.records.size());
@@ -245,7 +247,7 @@ public class RecordCleanupTest {
         StreamMetadata srcMetadata = streams.create(src);
         streams.create(tgt);
 
-        var source = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
         EventRecord ev1 = recordOf(src, 0, 0);
         EventRecord ev2 = recordOf(src, 1, 0);
         EventRecord ev3 = recordOf(src, 2, 0);
@@ -263,7 +265,7 @@ public class RecordCleanupTest {
         streams.truncate(srcMetadata, 1);
 
 
-        var output = new InMemorySegment();
+        var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
 
         assertEquals(2, output.records.size());
@@ -293,7 +295,7 @@ public class RecordCleanupTest {
         EventRecord ev1 = recordOf(srcStream, 0, ts1);
         EventRecord ev2 = recordOf(srcStream, 1, ts2);
 
-        var source = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
         appendTo(source, ev1);
         appendTo(source, ev2);
 
@@ -301,7 +303,7 @@ public class RecordCleanupTest {
         appendTo(source, linkTo(derivedStream, ev1, 0, ts1));
         appendTo(source, linkTo(derivedStream, ev2, 1, ts2));
 
-        var output = new InMemorySegment();
+        var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
 
         assertEquals(2, output.records.size()); //2 main stream + 2 derived
@@ -322,14 +324,14 @@ public class RecordCleanupTest {
         EventRecord ev1 = recordOf(srcStream, 0, 0);
         EventRecord ev2 = recordOf(srcStream, 1, 0);
 
-        var source = new InMemorySegment();
+        var source = new InMemorySegment<EventRecord>();
         appendTo(source, ev1);
         appendTo(source, ev2);
 
         appendTo(source, linkTo(derivedStream, ev1, 0, 0));
         appendTo(source, linkTo(derivedStream, ev2, 1, 0));
 
-        var output = new InMemorySegment();
+        var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
 
         assertEquals(2, output.records.size());
@@ -359,143 +361,7 @@ public class RecordCleanupTest {
     }
 
 
-    private class InMemorySegment implements Log<EventRecord> {
 
-        public final List<EventRecord> records = new ArrayList<>();
-
-        @Override
-        public String name() {
-            return "mem-segment";
-        }
-
-        @Override
-        public SegmentIterator<EventRecord> iterator(long position, Direction direction) {
-            return null;
-        }
-
-        @Override
-        public SegmentIterator<EventRecord> iterator(Direction direction) {
-            final Queue<EventRecord> copy = new ArrayDeque<>(records);
-            return new SegmentIterator<>() {
-                @Override
-                public boolean endOfLog() {
-                    return copy.isEmpty();
-                }
-
-                @Override
-                public long position() {
-                    return 0;
-                }
-
-                @Override
-                public void close() {
-                    copy.clear();
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return !copy.isEmpty();
-                }
-
-                @Override
-                public EventRecord next() {
-                    return copy.poll();
-                }
-            };
-        }
-
-        @Override
-        public long position() {
-            return 0;
-        }
-
-        @Override
-        public EventRecord get(long position) {
-            return null;
-        }
-
-        @Override
-        public long fileSize() {
-            return 0;
-        }
-
-        @Override
-        public long logSize() {
-            return 0;
-        }
-
-        @Override
-        public long remaining() {
-            return 0;
-        }
-
-        @Override
-        public SegmentState rebuildState(long lastKnownPosition) {
-            return null;
-        }
-
-        @Override
-        public void delete() {
-
-        }
-
-        @Override
-        public void roll(int level) {
-
-        }
-
-        @Override
-        public boolean readOnly() {
-            return false;
-        }
-
-        @Override
-        public boolean closed() {
-            return false;
-        }
-
-        @Override
-        public long entries() {
-            return records.size();
-        }
-
-        @Override
-        public int level() {
-            return 0;
-        }
-
-        @Override
-        public long created() {
-            return 0;
-        }
-
-        @Override
-        public long uncompressedSize() {
-            return 0;
-        }
-
-        @Override
-        public Type type() {
-            return null;
-        }
-
-        @Override
-        public long append(EventRecord data) {
-            int size = records.size();
-            records.add(data);
-            return size;
-        }
-
-        @Override
-        public void close() {
-
-        }
-
-        @Override
-        public void flush() {
-
-        }
-    }
 
 }
 

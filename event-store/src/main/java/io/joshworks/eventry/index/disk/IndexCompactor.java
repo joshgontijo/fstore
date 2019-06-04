@@ -27,7 +27,11 @@ public class IndexCompactor extends UniqueMergeCombiner<IndexEntry> {
 
     @Override
     public boolean filter(IndexEntry entry) {
+        if (entry.position < 0) {
+            return false;
+        }
         StreamMetadata metadata = streamSupplier.apply(entry.stream);
         return !metadata.truncated() || metadata.truncated <= entry.version;
     }
+
 }
