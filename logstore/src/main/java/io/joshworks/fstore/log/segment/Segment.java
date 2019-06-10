@@ -57,14 +57,14 @@ public class Segment<T> implements Log<T> {
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
-    protected LogHeader header;
+    protected final LogHeader header;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
-    public Segment(Storage storage, Serializer<T> serializer, IDataStream dataStream, String magic, Type type) {
+    public Segment(Storage storage, Serializer<T> serializer, IDataStream dataStream, String magic, WriteMode writeMode) {
         try {
             this.serializer = requireNonNull(serializer, "Serializer must be provided");
             this.storage = requireNonNull(storage, "Storage must be provided");
@@ -72,27 +72,25 @@ public class Segment<T> implements Log<T> {
             this.magic = requireNonNull(magic, "Magic must be provided");
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
-            LogHeader foundHeader = LogHeader.read(storage);
-            if (foundHeader == null) { //new segment
-                if (type == null) {
+            this.header = LogHeader.read(storage, magic);
+            if (Type.NONE.equals(header.type())) { //new segment
+                if (writeMode == null) {
                     throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
                 }
-                this.header = LogHeader.writeNew(storage, magic, type, storage.length(), false); //TODO update for ENCRYPTION
+                this.header.writeNew(storage, magic, writeMode, storage.length(), false); //TODO update for ENCRYPTION
 
                 this.position(Log.START);
-                this.entries.set(this.header.entries);
+                this.entries.set(0);
 
             } else { //existing segment
-                this.header = foundHeader;
-                this.entries.set(foundHeader.entries);
-                this.position(foundHeader.writePosition);
-                if (Type.LOG_HEAD.equals(foundHeader.type)) {
+                this.entries.set(header.entries());
+                this.position(header.writePosition());
+                if (Type.LOG_HEAD.equals(header.type())) {
                     SegmentState result = rebuildState(Segment.START);
                     this.position(result.position);
                     this.entries.set(result.entries);
                 }
             }
-            LogHeader.validateMagic(this.header.magic, magic);
 
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
@@ -102,7 +100,7 @@ public class Segment<T> implements Log<T> {
 
     private void position(long position) {
         if (position < START || position >= fileSize()) {
-            throw new IllegalArgumentException("Position must be between " + LogHeader.BYTES + " and " + fileSize());
+            throw new IllegalArgumentException("Position must be between " + LogHeader.BYTES + " and " + fileSize() + ", got " + position);
         }
         this.storage.writePosition(position);
         this.writePosition.set(position);
@@ -270,7 +268,7 @@ public class Segment<T> implements Log<T> {
             if (!markedForDeletion.compareAndSet(false, true)) {
                 return;
             }
-            LogHeader.writeDeleted(storage, this.header);
+            this.header.writeDeleted(storage);
             if (readers.isEmpty()) {
                 deleteInternal();
             } else {
@@ -289,12 +287,12 @@ public class Segment<T> implements Log<T> {
 
         long currPos = storage.writePosition();
         long uncompressedSize = uncompressedSize();
-        this.header = LogHeader.writeCompleted(storage, this.header, entries.get(), level, currPos, uncompressedSize);
+        this.header.writeCompleted(storage, entries.get(), level, currPos, uncompressedSize);
     }
 
     @Override
     public boolean readOnly() {
-        return Type.READ_ONLY.equals(header.type);
+        return Type.READ_ONLY.equals(header.type());
     }
 
     @Override
@@ -309,12 +307,12 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public int level() {
-        return header.level;
+        return header.level();
     }
 
     @Override
     public long created() {
-        return header.created;
+        return header.created();
     }
 
     @Override
@@ -324,7 +322,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public Type type() {
-        return header.type;
+        return this.header.type();
     }
 
     //safely check if the given position is at the end of the log

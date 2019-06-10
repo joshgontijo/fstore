@@ -8,8 +8,8 @@ import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
+import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.header.LogHeader;
-import io.joshworks.fstore.log.segment.header.Type;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -66,7 +66,7 @@ public class CompactionTask<T> implements Runnable {
             long start = System.currentTimeMillis();
 
             Storage storage = storageProvider.create(segmentFile, logSize);
-            output = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, Type.MERGE_OUT);
+            output = segmentFactory.createOrOpen(storage, serializer, dataStream, magic, WriteMode.MERGE_OUT);
 
             combiner.merge(segments, output);
             output.flush();

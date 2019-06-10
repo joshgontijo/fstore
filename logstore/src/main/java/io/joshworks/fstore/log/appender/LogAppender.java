@@ -17,6 +17,7 @@ import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
+import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.log.utils.BitUtil;
@@ -169,7 +170,7 @@ public class LogAppender<T> implements Closeable {
         long alignedSize = align(LogHeader.BYTES + metadata.segmentSize); //log + header
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
         Storage storage = storageProvider.create(segmentFile, alignedSize);
-        return factory.createOrOpen(storage, serializer, dataStream, metadata.magic, Type.LOG_HEAD);
+        return factory.createOrOpen(storage, serializer, dataStream, metadata.magic, WriteMode.LOG_HEAD);
     }
 
     private static long align(long fileSize) {

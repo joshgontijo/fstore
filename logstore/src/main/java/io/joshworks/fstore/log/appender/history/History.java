@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.history.data.HistoryItem;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.segment.WriteMode;
 
 import java.io.File;
 
@@ -19,7 +19,7 @@ public class History {
     public History(File root, String magic, IDataStream dataStream) {
         File directory = new File(root, DIRECTORY_NAME);
         Storage storage = StorageProvider.of(StorageMode.RAF).create(directory, Size.MB.of(25));
-        this.segment = new Segment<>(storage, new HistorySerializer(), dataStream, magic, Type.LOG_HEAD);
+        this.segment = new Segment<>(storage, new HistorySerializer(), dataStream, magic, WriteMode.LOG_HEAD);
     }
 
     public void append(HistoryItem item) {

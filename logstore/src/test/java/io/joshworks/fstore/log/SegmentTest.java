@@ -12,6 +12,7 @@ import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
+import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
@@ -181,7 +182,7 @@ public abstract class SegmentTest {
             testSegment = open(file);
             assertTrue(testSegment.created() > 0);
             assertEquals(0, testSegment.entries());
-            assertEquals(0, testSegment.level());
+            assertEquals(-1, testSegment.level());
             assertFalse(testSegment.readOnly());
 
             testSegment.close();
@@ -189,7 +190,7 @@ public abstract class SegmentTest {
             testSegment = open(file);
             assertTrue(testSegment.created() > 0);
             assertEquals(0, testSegment.entries());
-            assertEquals(0, testSegment.level());
+            assertEquals(-1, testSegment.level());
             assertFalse(testSegment.readOnly());
 
             testSegment.append("a");
@@ -349,7 +350,7 @@ public abstract class SegmentTest {
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                     "magic",
-                    Type.LOG_HEAD);
+                    WriteMode.LOG_HEAD);
         }
     }
 
@@ -360,7 +361,7 @@ public abstract class SegmentTest {
             return new Segment<>(
                     StorageProvider.of(StorageMode.MMAP).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", Type.LOG_HEAD);
+                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", WriteMode.LOG_HEAD);
         }
     }
 
@@ -373,7 +374,7 @@ public abstract class SegmentTest {
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                     "magic",
-                    Type.LOG_HEAD);
+                    WriteMode.LOG_HEAD);
         }
 
         @Test(expected = IllegalArgumentException.class)
