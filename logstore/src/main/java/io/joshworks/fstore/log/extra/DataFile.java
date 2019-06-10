@@ -13,7 +13,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.segment.WriteMode;
 
 import java.io.Closeable;
 import java.io.File;
@@ -32,7 +32,7 @@ public class DataFile<T> implements Flushable, Closeable {
         try {
             storage = createStorage(handler, mmap);
             DataStream dataStream = new DataStream(new LocalGrowingBufferPool(), 1.0, maxEntrySize, Memory.PAGE_SIZE);
-            this.segment = new Segment<>(storage, serializer, dataStream, magic, Type.LOG_HEAD);
+            this.segment = new Segment<>(storage, serializer, dataStream, magic, WriteMode.LOG_HEAD);
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
             throw new RuntimeException(e);

@@ -3,7 +3,6 @@ package io.joshworks.fstore.log.segment.block;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -11,7 +10,7 @@ import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.segment.WriteMode;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -30,25 +29,25 @@ public class BlockSegment<T> extends Segment<Block> {
     public BlockSegment(Storage storage,
                         IDataStream dataStream,
                         String magic,
-                        Type type,
+                        WriteMode writeMode,
                         Serializer<T> serializer,
                         BlockFactory blockFactory,
                         Codec codec,
                         int blockSize) {
-        this(storage, dataStream, magic, type, serializer, blockFactory, codec, blockSize, (p, b) -> {
+        this(storage, dataStream, magic, writeMode, serializer, blockFactory, codec, blockSize, (p, b) -> {
         });
     }
 
     public BlockSegment(Storage storage,
                         IDataStream dataStream,
                         String magic,
-                        Type type,
+                        WriteMode writeMode,
                         Serializer<T> serializer,
                         BlockFactory blockFactory,
                         Codec codec,
                         int blockSize,
                         BiConsumer<Long, Block> blockWriteListener) {
-        super(storage, new BlockSerializer(codec, blockFactory), dataStream, magic, type);
+        super(storage, new BlockSerializer(codec, blockFactory), dataStream, magic, writeMode);
         this.serializer = serializer;
         this.blockFactory = blockFactory;
         this.blockSize = blockSize;
@@ -163,10 +162,6 @@ public class BlockSegment<T> extends Segment<Block> {
 
     public int blockSize() {
         return blockSize;
-    }
-
-    public static <T> SegmentFactory<T> factory(Codec codec) {
-        return factory(codec, Memory.PAGE_SIZE * 2);
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize) {
