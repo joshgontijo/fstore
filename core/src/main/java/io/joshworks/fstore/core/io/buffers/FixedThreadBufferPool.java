@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
  * If the buffer is not big enough, a new allocated buffer is used
  * Throws IllegalState exception if the buffer is tried to be allocated without releasing it first
  */
-public class FixedThreadBufferPool extends GrowingThreadBufferPool {
+public class FixedThreadBufferPool extends LocalGrowingBufferPool {
 
     private final int maxBufferSize;
 

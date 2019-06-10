@@ -6,7 +6,7 @@ import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
+import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -59,7 +59,7 @@ public class IndexSegmentTest {
     private IndexSegment create(File location) {
         return new IndexSegment(
                 StorageProvider.of(StorageMode.RAF).create(location, Size.MB.of(100)),
-                new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
+                new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,
@@ -70,7 +70,7 @@ public class IndexSegmentTest {
     private IndexSegment open(File location) {
         return new IndexSegment(
                 StorageProvider.of(StorageMode.RAF).open(location),
-                new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
+                new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,

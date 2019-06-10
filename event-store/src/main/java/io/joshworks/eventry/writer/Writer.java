@@ -24,7 +24,7 @@ public class Writer {
     }
 
     public EventRecord append(EventRecord event, int expectedVersion, StreamMetadata metadata) {
-        long streamHash = event.streamName().hash();
+        long streamHash = event.hash();
 
         if (metadata.name.equals(event.stream) && metadata.hash != streamHash) {
             throw new StreamException("Hash collision of stream: " + event.stream + " with existing name: " + metadata.name);

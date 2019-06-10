@@ -1,7 +1,6 @@
 package io.joshworks.eventry.log;
 
 import io.joshworks.eventry.data.LinkTo;
-import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;

@@ -60,6 +60,10 @@ public class EventRecord {
         return LinkTo.TYPE.equals(type);
     }
 
+    public long hash() {
+        return StreamName.hash(stream);
+    }
+
     public StreamName streamName() {
         return StreamName.of(stream, version);
     }

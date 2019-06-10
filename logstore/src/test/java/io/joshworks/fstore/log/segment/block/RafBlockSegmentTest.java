@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.segment.block;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
+import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.record.DataStream;
@@ -22,7 +22,7 @@ public class RafBlockSegmentTest extends BlockSegmentTest {
     BlockSegment<String> open(File file) {
         return new BlockSegment<>(
                 StorageProvider.of(StorageMode.RAF).create(file, Size.MB.of(10)),
-                new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
+                new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                 "magic",
                 Type.LOG_HEAD,
                 Serializers.STRING,
