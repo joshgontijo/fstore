@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
+import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -347,7 +347,7 @@ public abstract class SegmentTest {
             return new Segment<>(
                     StorageProvider.of(StorageMode.RAF_CACHED).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
+                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                     "magic",
                     Type.LOG_HEAD);
         }
@@ -360,7 +360,7 @@ public abstract class SegmentTest {
             return new Segment<>(
                     StorageProvider.of(StorageMode.MMAP).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", Type.LOG_HEAD);
+                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", Type.LOG_HEAD);
         }
     }
 
@@ -371,7 +371,7 @@ public abstract class SegmentTest {
             return new Segment<>(
                     StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE),
                     Serializers.STRING,
-                    new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
+                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                     "magic",
                     Type.LOG_HEAD);
         }

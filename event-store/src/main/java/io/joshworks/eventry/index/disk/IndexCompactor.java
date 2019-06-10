@@ -18,7 +18,6 @@ public class IndexCompactor extends UniqueMergeCombiner<IndexEntry> {
 
     @Override
     public void merge(List<? extends Log<IndexEntry>> segments, Log<IndexEntry> output) {
-//        BloomFilter
         IndexSegment indexSegment = (IndexSegment) output;
         long totalEntries = segments.stream().mapToLong(Log::entries).sum();
         indexSegment.newBloomFilter(totalEntries);

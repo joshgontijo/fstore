@@ -52,6 +52,13 @@ public class IndexEntry implements Comparable<IndexEntry> {
         return this.compareTo(other) >= 0;
     }
 
+    public boolean isDeletion() {
+        return position < 0;
+    }
+
+    public boolean isTruncation() {
+        return version < 0;
+    }
 
     @Override
     public String toString() {

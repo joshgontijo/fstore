@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
+import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -30,7 +30,7 @@ public class Config<T> {
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
     SegmentFactory<T> segmentFactory;
-    BufferPool bufferPool = new GrowingThreadBufferPool(false);
+    BufferPool bufferPool = new LocalGrowingBufferPool(false);
 
     String name = DEFAULT_APPENDER_NAME;
     long segmentSize = DEFAULT_SEGMENT_SIZE;

@@ -79,10 +79,17 @@ class SingleIndexIterator implements IndexIterator {
 
     private void addToBuffer(LogIterator<IndexEntry> entries) {
         while (entries.hasNext()) {
-            if (!buffer.offer(entries.next())) {
-                return;
+            IndexEntry entry = entries.next();
+            if (isReadable(entry)) {
+                if (!buffer.offer(entry)) {
+                    return;
+                }
             }
         }
+    }
+
+    private boolean isReadable(IndexEntry ie) {
+        return !ie.isDeletion() && !ie.isTruncation();
     }
 
     private LogIterator<IndexEntry> fromMem(MemIndex index, long stream, int nextVersion) {

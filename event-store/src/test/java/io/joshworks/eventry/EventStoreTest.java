@@ -171,7 +171,7 @@ public class EventStoreTest {
     }
 
     @Test
-    public void fromStream_returns_data_within_maxAge() throws InterruptedException {
+    public void fromStream_returns_data_only_when_within_maxAge() throws InterruptedException {
         String stream = "test-stream";
         int maxAgeSeconds = 5;
         int numVersions = 50;
@@ -187,6 +187,29 @@ public class EventStoreTest {
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
 
         count = store.fromStream(StreamName.parse(stream)).stream().count();
+        assertEquals(0, count);
+    }
+
+    @Test
+    public void fromStream_returns_linkTo_data_only_when_within_maxAge() throws InterruptedException {
+        String stream = "test-stream";
+        String linkToStream = "linkTo-stream";
+        int maxAgeSeconds = 5;
+        int numVersions = 50;
+        store.createStream(stream);
+        store.createStream(linkToStream, NO_MAX_COUNT, maxAgeSeconds);
+
+        for (int version = 0; version < numVersions; version++) {
+            EventRecord event = store.append(EventRecord.create(stream, "type", Map.of()));
+            store.linkTo(linkToStream, event);
+        }
+
+        long count = store.fromStream(StreamName.parse(linkToStream)).stream().count();
+        assertEquals("MAY FAIL DUE TO TIMING", numVersions, count);
+
+        Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
+
+        count = store.fromStream(StreamName.parse(linkToStream)).stream().count();
         assertEquals(0, count);
     }
 
@@ -209,7 +232,7 @@ public class EventStoreTest {
     }
 
     @Test
-    public void fromStream_acquire_before_truncation_does_not_return_data_after_truncating() throws InterruptedException {
+    public void fromStream_acquire_before_truncation_does_not_return_data_after_truncating() {
         String stream = "test-stream";
         int numVersions = 50;
         int truncatedBefore = 30;

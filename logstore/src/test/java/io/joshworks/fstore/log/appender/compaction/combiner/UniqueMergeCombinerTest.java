@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.io.buffers.GrowingThreadBufferPool;
+import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -34,7 +34,7 @@ public class UniqueMergeCombinerTest {
     private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
 
     private final List<Segment> segments = new ArrayList<>();
-    private DataStream dataStream = new DataStream(new GrowingThreadBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE);
+    private DataStream dataStream = new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE);
 
     @After
     public void tearDown() {
