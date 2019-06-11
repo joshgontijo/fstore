@@ -103,7 +103,7 @@ public class Segment<T> implements Log<T> {
     }
 
     private void position(long position) {
-        if (position < START || position >= fileSize()) {
+        if (position < START || position > fileSize()) {
             throw new IllegalArgumentException("Position must be between " + LogHeader.BYTES + " and " + fileSize() + ", got " + position);
         }
         this.storage.writePosition(position);

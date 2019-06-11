@@ -11,6 +11,7 @@ import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
@@ -44,7 +45,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                    Serializer<V> valueSerializer,
                    IDataStream dataStream,
                    String magic,
-                   Type type,
+                   WriteMode writeMode,
                    File directory,
                    int numElements) {
 
@@ -53,7 +54,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                 storage,
                 dataStream,
                 magic,
-                type,
+                writeMode,
                 kvSerializer,
                 VLenBlock.factory(),
                 new SnappyCodec(),

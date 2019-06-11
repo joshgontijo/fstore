@@ -3,7 +3,6 @@ package io.joshworks.fstore.lsmtree.sstable;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -11,7 +10,7 @@ import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.segment.WriteMode;
 
 import java.io.File;
 import java.util.List;
@@ -80,8 +79,8 @@ public class SSTables<K extends Comparable<K>, V> {
         }
 
         @Override
-        public Log<Entry<K, V>> createOrOpen(Storage storage, Serializer<Entry<K, V>> serializer, IDataStream reader, String magic, Type type) {
-            return new SSTable<>(storage, keySerializer, valueSerializer, reader, magic, type, directory, flushThreshold);
+        public Log<Entry<K, V>> createOrOpen(Storage storage, Serializer<Entry<K, V>> serializer, IDataStream reader, String magic, WriteMode mode) {
+            return new SSTable<>(storage, keySerializer, valueSerializer, reader, magic, mode, directory, flushThreshold);
         }
     }
 }
