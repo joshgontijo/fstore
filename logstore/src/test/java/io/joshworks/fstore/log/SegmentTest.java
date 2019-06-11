@@ -330,6 +330,21 @@ public abstract class SegmentTest {
         }
     }
 
+    @Test
+    public void position_is_fileLength_after_rolling_segment() throws IOException {
+        segment.append("a");
+        segment.append("b");
+        segment.roll(1);
+        long position = segment.position();
+
+        segment.close();
+        segment = open(testFile);
+
+        long foundPos = segment.position();
+
+        assertEquals(position, foundPos);
+    }
+
     private List<Long> writeFully(Log<String> segment) {
         List<Long> positions = new ArrayList<>();
         long pos;
