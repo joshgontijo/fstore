@@ -32,6 +32,7 @@ public class UniqueMergeCombinerTest {
     private static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
     private static final double CHECKSUM_PROB = 1;
     private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
+    private static final int SEGMENT_SIZE = Memory.PAGE_SIZE * 2;
 
     private final List<Segment> segments = new ArrayList<>();
     private DataStream dataStream = new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE);
@@ -243,7 +244,7 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> segmentWith(String... values) {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, Memory.PAGE_SIZE);
+        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE);
 
         Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", WriteMode.LOG_HEAD);
         segments.add(segment);
@@ -257,7 +258,7 @@ public class UniqueMergeCombinerTest {
 
     private Segment<TestEntry> segmentWith(TestEntry... values) {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, Memory.PAGE_SIZE);
+        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE);
 
         Segment<TestEntry> segment = new Segment<>(storage, new TestEntrySerializer(), dataStream, "magic", WriteMode.LOG_HEAD);
         segments.add(segment);
@@ -271,7 +272,7 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> outputSegment() {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, Memory.PAGE_SIZE);
+        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE);
         Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", WriteMode.LOG_HEAD);
         segments.add(segment);
         return segment;
@@ -279,7 +280,7 @@ public class UniqueMergeCombinerTest {
 
     private Segment<TestEntry> testEntryOutputSegment() {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, Memory.PAGE_SIZE);
+        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE);
         Segment<TestEntry> segment = new Segment<>(storage, new TestEntrySerializer(), dataStream, "magic", WriteMode.LOG_HEAD);
         segments.add(segment);
         return segment;
