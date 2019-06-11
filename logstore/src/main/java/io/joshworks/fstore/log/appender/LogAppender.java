@@ -205,13 +205,12 @@ public class LogAppender<T> implements Closeable {
                 throw new IllegalStateException("Multiple level zero segments");
             }
 
+            return Levels.create(segments);
+
         } catch (Exception e) {
             segments.forEach(IOUtils::closeQuietly);
             throw e;
         }
-
-
-        return Levels.create(segments);
     }
 
     private Log<T> loadSegment(String segmentName) {

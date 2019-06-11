@@ -72,10 +72,14 @@ public class Segment<T> implements Log<T> {
             this.magic = requireNonNull(magic, "Magic must be provided");
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
+            if (storage.length() <= LogHeader.BYTES) {
+                throw new IllegalArgumentException("Segment size must greater than " + LogHeader.BYTES);
+            }
+
             this.header = LogHeader.read(storage, magic);
             if (Type.NONE.equals(header.type())) { //new segment
                 if (writeMode == null) {
-                    throw new SegmentException("Segment doesn't exist, " + Type.LOG_HEAD + " or " + Type.MERGE_OUT + " must be specified");
+                    throw new SegmentException("Segment doesn't exist, WriteMode must be specified");
                 }
                 this.header.writeNew(storage, magic, writeMode, storage.length(), false); //TODO update for ENCRYPTION
 

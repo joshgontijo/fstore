@@ -64,13 +64,15 @@ public class LogHeader {
         return open == null ? null : open.magic;
     }
 
-
     public long entries() {
         return completed == null ? 0 : completed.entries;
     }
 
     public int level() {
-        return completed == null ? UNKNOWN : completed.level;
+        if(open == null) {
+            return UNKNOWN;
+        }
+        return completed == null ? 0 : completed.level;
     }
 
     public long rolled() {
@@ -82,7 +84,10 @@ public class LogHeader {
     }
 
     public long writePosition() {
-        return completed == null ? UNKNOWN : completed.writePosition;
+        if (completed == null) {
+            return open == null ? 0 : BYTES;
+        }
+        return completed.writePosition;
     }
 
     public static LogHeader read(Storage storage, String magic) {

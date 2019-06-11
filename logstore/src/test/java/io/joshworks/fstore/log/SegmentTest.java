@@ -14,7 +14,6 @@ import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.header.LogHeader;
-import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -182,7 +181,7 @@ public abstract class SegmentTest {
             testSegment = open(file);
             assertTrue(testSegment.created() > 0);
             assertEquals(0, testSegment.entries());
-            assertEquals(-1, testSegment.level());
+            assertEquals(0, testSegment.level());
             assertFalse(testSegment.readOnly());
 
             testSegment.close();
@@ -190,7 +189,7 @@ public abstract class SegmentTest {
             testSegment = open(file);
             assertTrue(testSegment.created() > 0);
             assertEquals(0, testSegment.entries());
-            assertEquals(-1, testSegment.level());
+            assertEquals(0, testSegment.level());
             assertFalse(testSegment.readOnly());
 
             testSegment.append("a");
