@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -60,7 +61,8 @@ public class Segment<T> implements Log<T> {
     protected final LogHeader header;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
-    private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
+    private final Set<SegmentIterator> readers = ConcurrentHashMap.newKeySet();
+
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
@@ -140,16 +142,10 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public T get(long position) {
-        Lock lock = rwLock.readLock();
-        lock.lock();
-        try {
-            checkNotClosed();
-            checkBounds(position);
-            RecordEntry<T> entry = dataStream.read(storage, Direction.FORWARD, position, serializer);
-            return entry == null ? null : entry.entry();
-        } finally {
-            lock.unlock();
-        }
+        checkNotClosed();
+        checkBounds(position);
+        RecordEntry<T> entry = dataStream.read(storage, Direction.FORWARD, position, serializer);
+        return entry == null ? null : entry.entry();
     }
 
     @Override
@@ -330,17 +326,6 @@ public class Segment<T> implements Log<T> {
         return this.header.type();
     }
 
-    //safely check if the given position is at the end of the log
-    boolean endOfLog(long position) {
-        Lock lock = rwLock.writeLock();
-        lock.lock();
-        try {
-            return readOnly() && position >= position();
-        } finally {
-            lock.unlock();
-        }
-    }
-
     private void checkNotClosed() {
         if (closed.get()) {
             throw new SegmentException("Segment " + name() + "is closed");
@@ -357,7 +342,7 @@ public class Segment<T> implements Log<T> {
         }
     }
 
-    private <R extends TimeoutReader> R acquireReader(R reader) {
+    private <R extends SegmentIterator> R acquireReader(R reader) {
         Lock lock = rwLock.readLock();
         lock.lock();
         try {
@@ -374,7 +359,7 @@ public class Segment<T> implements Log<T> {
         }
     }
 
-    <R extends TimeoutReader> void releaseReader(R reader) {
+    <R extends SegmentIterator> void releaseReader(R reader) {
         Lock lock = rwLock.writeLock();
         lock.lock();
         try {

@@ -76,12 +76,13 @@ public abstract class ConcurrencyIT {
         writeThread.start();
 
         Thread thread = new Thread(() -> {
-            while (writeThread.isAlive() || !executor.isShutdown()) {
+            while (!executor.isTerminated()) {
                 System.out.println("READ TASKS COMPLETED: " + completedTasks.get() + " | WRITES: " + writes.get() + " | READS: " + reads.get() + " | FAILED: " + failed.get());
+                Threads.sleep(2000);
             }
-
         });
 
+        thread.start();
 
         for (int i = 0; i < parallelReads; i++) {
             executor.execute(() -> {
@@ -189,10 +190,9 @@ public abstract class ConcurrencyIT {
                         assertEquals(expected, next);
                     }
                 }
-                int expectedTotal = val - 1;
-                if (items != expectedTotal) {
+                if (items != val) {
                     failed.set(true);
-                    assertEquals(items, expectedTotal);
+                    assertEquals(items, val);
                 }
             }
         });
