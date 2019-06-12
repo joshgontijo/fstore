@@ -145,7 +145,6 @@ public class LogAppender<T> implements Closeable {
     private void logConfig(Config<T> config) {
         logger.info("STORAGE LOCATION: {}", config.directory.toPath());
         logger.info("COMPACTION ENABLED: {}", !config.compactionDisabled);
-        logger.info("SEGMENT BITS : {}", SEGMENT_BITS);
         logger.info("MAX SEGMENTS: {} ({} bits)", MAX_SEGMENTS, SEGMENT_BITS);
         logger.info("MAX SEGMENT ADDRESS: {} ({} bits)", MAX_SEGMENT_ADDRESS, SEGMENT_ADDRESS_BITS);
 
