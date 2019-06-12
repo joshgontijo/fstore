@@ -48,6 +48,7 @@ public abstract class ConcurrencyIT {
         FileUtils.tryDelete(testDirectory);
     }
 
+    //TODO this might hang since hasNext will return null when not all entries are present in the logs
     @Test
     public void full_scan() throws InterruptedException {
 
@@ -163,6 +164,47 @@ public abstract class ConcurrencyIT {
         System.out.println("TASKS COMPLETED: " + completedTasks.get() + " | FAILED: " + failed.get());
 
         assertEquals(0, failed.get());
+    }
+
+    @Test
+    public void compaction_can_run_in_parallel_with_reads_and_writes() throws InterruptedException {
+
+        int scans = 10;
+        int items = 20000000;
+        for (int i = 0; i < items; i++) {
+            appender.append(String.valueOf(i));
+        }
+
+        AtomicBoolean failed = new AtomicBoolean();
+        Thread read = new Thread(() -> {
+            for (int i = 0; i < scans; i++) {
+                System.out.println("Scanning " + i + "/" + scans);
+                LogIterator<String> iterator = appender.iterator(Direction.FORWARD);
+                int val = 0;
+                while (iterator.hasNext()) {
+                    String next = iterator.next();
+                    String expected = String.valueOf(val++);
+                    if (!expected.equals(next)) {
+                        failed.set(true);
+                        assertEquals(expected, next);
+                    }
+                }
+                int expectedTotal = val - 1;
+                if (items != expectedTotal) {
+                    failed.set(true);
+                    assertEquals(items, expectedTotal);
+                }
+            }
+        });
+
+        appender.compact();
+        read.start();
+        read.join();
+
+        assertFalse("Read failed, check logs", failed.get());
+
+        appender.close(); //close will wait for compaction
+        appender = appender(testDirectory);
     }
 
 

@@ -186,6 +186,7 @@ public class LogAppender<T> implements Closeable {
         try {
             for (String segmentName : LogFileUtils.findSegments(directory)) {
                 Log<T> segment = loadSegment(segmentName);
+                logger.info("Loaded segment: {}", segment);
                 if (Type.MERGE_OUT.equals(segment.type()) || Type.DELETED.equals(segment.type())) {
                     logger.info("Deleting dangling segment: {}", segment);
                     segment.delete();
