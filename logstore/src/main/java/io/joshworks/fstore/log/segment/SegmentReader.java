@@ -7,13 +7,14 @@ import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
+import io.joshworks.fstore.log.segment.header.Type;
 
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 
-class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
+class SegmentReader<T> implements SegmentIterator<T> {
 
     private final Segment segment;
     private final Storage storage;
@@ -34,7 +35,6 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
         this.direction = direction;
         this.serializer = serializer;
         this.readPosition.set(initialPosition);
-        this.lastReadTs = System.currentTimeMillis();
     }
 
     @Override
@@ -62,7 +62,6 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
 
     private T getNext() {
         RecordEntry<T> entry = pageQueue.poll();
-        lastReadTs = System.currentTimeMillis();
         if (entry == null) {
             return null;
         }
@@ -93,7 +92,7 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
 
     @Override
     public boolean endOfLog() {
-        return segment.endOfLog(readPosition.get());
+        return this.position() >= segment.position() && !Type.LOG_HEAD.equals(segment.header.type());
     }
 
     @Override
@@ -110,7 +109,6 @@ class SegmentReader<T> extends TimeoutReader implements SegmentIterator<T> {
                 ", emptyReads=" + emptyReads +
                 ", bytesRead=" + bytesRead +
                 ", entriesRead=" + entriesRead +
-                ", lastReadTs=" + lastReadTs +
                 '}';
     }
 }
