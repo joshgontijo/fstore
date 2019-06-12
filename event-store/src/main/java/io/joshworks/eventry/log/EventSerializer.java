@@ -36,7 +36,6 @@ public class EventSerializer implements Serializer<EventRecord> {
         strSerializer.writeTo(data.type, dest);
         strSerializer.writeTo(data.stream, dest);
         dest.putInt(data.version);
-        dest.putLong(data.sequence);
         dest.putLong(data.timestamp);
 
         dest.putInt(data.body.length);
@@ -55,7 +54,6 @@ public class EventSerializer implements Serializer<EventRecord> {
         String type = strSerializer.fromBytes(buffer);
         String stream = strSerializer.fromBytes(buffer);
         int version = buffer.getInt();
-        long sequence = buffer.getLong();
         long timestamp = buffer.getLong();
 
         int dataLength = buffer.getInt();
@@ -69,7 +67,7 @@ public class EventSerializer implements Serializer<EventRecord> {
             buffer.get(metadata);
         }
 
-        return new EventRecord(stream, type, version, timestamp, sequence, data, metadata);
+        return new EventRecord(stream, type, version, timestamp, data, metadata);
     }
 
 }

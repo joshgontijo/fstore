@@ -12,7 +12,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.DataStream;
-import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -61,7 +61,7 @@ public class IndexSegmentTest {
                 StorageProvider.of(StorageMode.RAF).create(location, Size.MB.of(100)),
                 new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                 "magic",
-                Type.LOG_HEAD,
+                WriteMode.LOG_HEAD,
                 indexDir,
                 new SnappyCodec(),
                 NUMBER_OF_ELEMENTS);
@@ -72,7 +72,7 @@ public class IndexSegmentTest {
                 StorageProvider.of(StorageMode.RAF).open(location),
                 new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                 "magic",
-                Type.LOG_HEAD,
+                WriteMode.LOG_HEAD,
                 indexDir,
                 new SnappyCodec(),
                 NUMBER_OF_ELEMENTS);

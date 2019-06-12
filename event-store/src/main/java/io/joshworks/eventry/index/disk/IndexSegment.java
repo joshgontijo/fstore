@@ -17,6 +17,7 @@ import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
@@ -45,11 +46,11 @@ public class IndexSegment implements Log<IndexEntry> {
     IndexSegment(Storage storage,
                  IDataStream reader,
                  String magic,
-                 Type type,
+                 WriteMode mode,
                  File directory,
                  Codec codec,
                  int numElements) {
-        this.delegate = new BlockSegment<>(storage, reader, magic, type, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
+        this.delegate = new BlockSegment<>(storage, reader, magic, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));

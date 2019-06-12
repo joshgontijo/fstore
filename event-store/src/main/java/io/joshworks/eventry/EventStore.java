@@ -85,9 +85,7 @@ public class EventStore implements IEventStore {
                 .namingStrategy(new SequentialNaming(rootDir))
                 .compactionStrategy(new RecordCleanup(streams)));
 
-        long sequence = initialSequence();
-        logger.info("Initial sequence: {}", sequence);
-        this.eventWriter = new EventWriter(streams, eventLog, index, WRITE_QUEUE_SIZE, sequence);
+        this.eventWriter = new EventWriter(streams, eventLog, index, WRITE_QUEUE_SIZE);
         try {
             if (!this.initializeSystemStreams()) {
                 this.loadIndex();
@@ -98,17 +96,6 @@ public class EventStore implements IEventStore {
             IOUtils.closeQuietly(streams);
             IOUtils.closeQuietly(eventLog);
             IOUtils.closeQuietly(eventWriter);
-            throw new RuntimeException(e);
-        }
-    }
-
-    private long initialSequence() {
-        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
-            if (iterator.hasNext()) {
-                return iterator.next().sequence + 1;
-            }
-            return 0;
-        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

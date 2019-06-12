@@ -108,7 +108,7 @@ public abstract class StorageTest {
         int read = storage.read(0, found);
 
         assertEquals(dataLength, read);
-        assertTrue(Arrays.equals(data, found.array()));
+        assertArrayEquals(data, found.array());
     }
 
     @Test
