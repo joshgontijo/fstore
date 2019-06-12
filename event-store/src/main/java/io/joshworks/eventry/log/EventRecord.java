@@ -21,17 +21,15 @@ public class EventRecord {
     public final String stream;
     public final String type;
     public final int version;
-    public final long sequence;
     public final long timestamp;
     public final byte[] body;
     public final byte[] metadata;
 
-    public EventRecord(String stream, String type, int version, long timestamp, long sequence, byte[] body, byte[] metadata) {
+    public EventRecord(String stream, String type, int version, long timestamp, byte[] body, byte[] metadata) {
         this.stream = requireNonBlank(stream, "Stream must be provided");
         this.type = requireNonBlank(type, "Type must be provided");
         this.version = version;
         this.timestamp = timestamp;
-        this.sequence = sequence;
         this.body = body;
         this.metadata = metadata;
     }
@@ -45,7 +43,7 @@ public class EventRecord {
     }
 
     public static EventRecord create(String stream, String type, byte[] data, byte[] metadata) {
-        return new EventRecord(stream, type, NO_VERSION, -1, -1, data, metadata);
+        return new EventRecord(stream, type, NO_VERSION, -1, data, metadata);
     }
 
     public String eventId() {
@@ -94,7 +92,6 @@ public class EventRecord {
         return "EventRecord{" + "stream='" + stream + '\'' +
                 ", type='" + type + '\'' +
                 ", version=" + version +
-                ", sequence=" + sequence +
                 ", timestamp=" + timestamp +
                 '}';
     }

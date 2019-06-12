@@ -9,16 +9,16 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.appender.naming.SequentialNaming;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.naming.SequentialNaming;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
-import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.segment.WriteMode;
 
 import java.io.Closeable;
 import java.io.File;
@@ -161,8 +161,8 @@ public class IndexAppender implements Closeable {
         }
 
         @Override
-        public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, IDataStream reader, String magic, Type type) {
-            return new IndexSegment(storage, reader, magic, type, directory, codec, numElements);
+        public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, IDataStream reader, String magic, WriteMode mode) {
+            return new IndexSegment(storage, reader, magic, mode, directory, codec, numElements);
         }
     }
 

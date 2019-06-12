@@ -7,20 +7,16 @@ import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 public class Writer {
 
     private final Streams streams;
     private final IEventLog eventLog;
     private final TableIndex index;
-    private final AtomicLong sequence = new AtomicLong();
 
-    Writer(Streams streams, IEventLog eventLog, TableIndex index, long initialSequence) {
+    Writer(Streams streams, IEventLog eventLog, TableIndex index) {
         this.streams = streams;
         this.eventLog = eventLog;
         this.index = index;
-        this.sequence.set(initialSequence);
     }
 
     public EventRecord append(EventRecord event, int expectedVersion, StreamMetadata metadata) {
@@ -31,10 +27,9 @@ public class Writer {
         }
 
         int version = streams.tryIncrementVersion(metadata, expectedVersion);
-        long sequenceNum = sequence.getAndIncrement();
         long timestamp = System.currentTimeMillis();
 
-        var record = new EventRecord(event.stream, event.type, version, timestamp, sequenceNum, event.body, event.metadata);
+        var record = new EventRecord(event.stream, event.type, version, timestamp, event.body, event.metadata);
 
         long position = eventLog.append(record);
 

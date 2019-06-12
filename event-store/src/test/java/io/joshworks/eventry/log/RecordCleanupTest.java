@@ -5,26 +5,18 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
-import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
-import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
@@ -342,16 +334,16 @@ public class RecordCleanupTest {
     }
 
     private EventRecord recordOf(String stream, int version, long timestamp) {
-        return new EventRecord(stream, "type", version, timestamp, 0 , new byte[0], new byte[0]);
+        return new EventRecord(stream, "type", version, timestamp, new byte[0], new byte[0]);
     }
 
     private EventRecord linkTo(String stream, EventRecord record, int version, long timestamp) {
         StreamName streamName = StreamName.from(record);
-        return new EventRecord(stream, LinkTo.TYPE, version, timestamp, 0, StringUtils.toUtf8Bytes(streamName.toString()), new byte[0]);
+        return new EventRecord(stream, LinkTo.TYPE, version, timestamp, StringUtils.toUtf8Bytes(streamName.toString()), new byte[0]);
     }
 
     private EventRecord systemRecord() {
-        return new EventRecord(SystemStreams.STREAMS, StreamCreated.TYPE, 0, 0,0, new byte[0], new byte[0]);
+        return new EventRecord(SystemStreams.STREAMS, StreamCreated.TYPE, 0, 0, new byte[0], new byte[0]);
     }
 
     private void appendTo(Log<EventRecord> segment, EventRecord record) {
@@ -359,8 +351,6 @@ public class RecordCleanupTest {
         StreamMetadata metadata = new StreamMetadata(record.stream, streams.hashOf(record.stream), 0, -1, -1, -1, Map.of(), Map.of(), StreamMetadata.STREAM_ACTIVE);
         streams.tryIncrementVersion(metadata, EventRecord.NO_EXPECTED_VERSION);
     }
-
-
 
 
 }

@@ -11,7 +11,7 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.record.DataStream;
-import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -65,7 +65,7 @@ public class IndexCompactorTest {
                 StorageProvider.of(StorageMode.RAF).create(location, Size.MB.of(100)),
                 new DataStream(new LocalGrowingBufferPool(false), 1, 1024 * 1024 * 5, Memory.PAGE_SIZE),
                 "magic",
-                Type.LOG_HEAD,
+                WriteMode.LOG_HEAD,
                 indexDir,
                 new SnappyCodec(),
                 100000);

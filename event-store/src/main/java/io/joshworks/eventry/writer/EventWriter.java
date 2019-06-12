@@ -24,10 +24,10 @@ public class EventWriter implements Closeable {
     private final ThreadPoolExecutor executor;
     private final BlockingQueue<Runnable> queue;
 
-    public EventWriter(Streams streams, IEventLog eventLog, TableIndex index, int maxQueueSize, long initialSequence) {
+    public EventWriter(Streams streams, IEventLog eventLog, TableIndex index, int maxQueueSize) {
         this.queue = maxQueueSize < 0 ? new LinkedBlockingDeque<>() : new ArrayBlockingQueue<>(maxQueueSize);
         this.executor = new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, queue, Threads.namedThreadFactory("event-writer"));
-        this.writer = new Writer(streams, eventLog, index, initialSequence);
+        this.writer = new Writer(streams, eventLog, index);
     }
 
     public <R> Future<R> queue(Function<Writer, R> func) {
