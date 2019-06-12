@@ -106,8 +106,8 @@ public class Segment<T> implements Log<T> {
         if (position < START || position > fileSize()) {
             throw new IllegalArgumentException("Position must be between " + LogHeader.BYTES + " and " + fileSize() + ", got " + position);
         }
-        this.storage.writePosition(position);
         this.writePosition.set(position);
+        this.storage.writePosition(position);
     }
 
     //logical truncation
@@ -143,6 +143,7 @@ public class Segment<T> implements Log<T> {
         Lock lock = rwLock.readLock();
         lock.lock();
         try {
+            checkNotClosed();
             checkBounds(position);
             RecordEntry<T> entry = dataStream.read(storage, Direction.FORWARD, position, serializer);
             return entry == null ? null : entry.entry();
@@ -342,7 +343,7 @@ public class Segment<T> implements Log<T> {
 
     private void checkNotClosed() {
         if (closed.get()) {
-            throw new SegmentClosedException("Segment " + name() + "is closed");
+            throw new SegmentException("Segment " + name() + "is closed");
         }
     }
 
@@ -361,10 +362,10 @@ public class Segment<T> implements Log<T> {
         lock.lock();
         try {
             if (closed.get()) {
-                throw new RuntimeException("Could not acquire segment reader: Closed");
+                throw new SegmentException("Segment '" + name() + "' is closed");
             }
             if (markedForDeletion.get()) {
-                throw new RuntimeException("Could not acquire segment reader: Marked for deletion");
+                throw new SegmentException("Segment '" + name() + "' is marked for deletion");
             }
             readers.add(reader);
             return reader;

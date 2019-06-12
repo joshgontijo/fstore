@@ -12,8 +12,10 @@ import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
+import io.joshworks.fstore.log.segment.SegmentException;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.header.LogHeader;
+import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -30,6 +32,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public abstract class SegmentTest {
 
@@ -343,6 +346,46 @@ public abstract class SegmentTest {
         long foundPos = segment.position();
 
         assertEquals(position, foundPos);
+    }
+
+    @Test
+    public void segment_is_not_deleted_until_all_readers_are_released_but_is_marked_to_delete() throws IOException {
+        SegmentIterator<String> iterator = segment.iterator(Direction.FORWARD);
+        segment.delete();
+
+        Type type = segment.type();
+        assertEquals(Type.DELETED, type);
+
+        iterator.close();
+    }
+
+    @Test
+    public void closing_iterator_releases_the_segment_resource() throws IOException {
+        try (SegmentIterator<String> iterator = segment.iterator(Direction.FORWARD)) {
+            assertFalse(iterator.hasNext()); //not really useful
+        }
+
+        segment.close();
+        try {
+            segment.append("a");
+        } catch (SegmentException e) {
+            return;
+        }
+        fail("Expected segment to be closed");
+    }
+
+    @Test(expected = SegmentException.class)
+    public void cannot_acquire_iterator_of_a_deleted_segment() throws IOException {
+        try (SegmentIterator<String> iterator = segment.iterator(Direction.FORWARD)) {
+            segment.delete();
+            segment.iterator(Direction.FORWARD);
+        }
+    }
+
+    @Test(expected = SegmentException.class)
+    public void cannot_acquire_iterator_of_a_closed_segment() throws IOException {
+        segment.close();
+        segment.iterator(Direction.FORWARD);
     }
 
     private List<Long> writeFully(Log<String> segment) {

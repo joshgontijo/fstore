@@ -52,7 +52,6 @@ public abstract class CompactionIT {
 
         long found = appender.stream(Direction.FORWARD).count();
         assertEquals(items, found);
-
     }
 
     @Test
@@ -94,6 +93,7 @@ public abstract class CompactionIT {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.MMAP)
+                    .compactionStorageMode(StorageMode.MMAP)
                     .compactionThreshold(COMPACTION_THRESHOLD)
                     .open();
         }
@@ -107,7 +107,6 @@ public abstract class CompactionIT {
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF)
                     .compactionThreshold(COMPACTION_THRESHOLD)
-                    .compactionStorageMode(StorageMode.MMAP)
                     .open();
         }
     }

@@ -69,7 +69,7 @@ public class LogHeader {
     }
 
     public int level() {
-        if(open == null) {
+        if (open == null) {
             return UNKNOWN;
         }
         return completed == null ? 0 : completed.level;
@@ -244,7 +244,8 @@ public class LogHeader {
     @Override
     public String toString() {
         return "LogHeader{" +
-                "open=" + open +
+                "type=" + type() +
+                ", open=" + open +
                 ", completed=" + completed +
                 ", deleted=" + deleted +
                 '}';
