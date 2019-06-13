@@ -27,17 +27,17 @@ public class DataStream implements IDataStream {
     private final Reader backwardReader;
     private final BufferPool bufferPool;
 
-    public DataStream(BufferPool bufferPool, double checksumProb, int maxEntrySize, int bufferSize) {
+    public DataStream(BufferPool bufferPool, double checksumProb, int maxEntrySize, int readPageSize) {
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0.0 and 1.0");
         }
         checksumProb = (int) (checksumProb * 100);
         this.maxEntrySize = maxEntrySize;
         this.bufferPool = Objects.requireNonNull(bufferPool, "BufferPool must be provided");
-        this.forwardReader = new ForwardRecordReader(checksumProb, maxEntrySize, bufferSize);
-        this.backwardReader = new BackwardRecordReader(checksumProb, maxEntrySize, bufferSize);
-        this.bulkForwardReader = new BulkForwardRecordReader(checksumProb, maxEntrySize, bufferSize);
-        this.bulkBackwardReader = new BulkBackwardRecordReader(checksumProb, maxEntrySize, bufferSize);
+        this.forwardReader = new ForwardRecordReader(checksumProb, maxEntrySize, readPageSize);
+        this.backwardReader = new BackwardRecordReader(checksumProb, maxEntrySize, readPageSize);
+        this.bulkForwardReader = new BulkForwardRecordReader(checksumProb, maxEntrySize, readPageSize);
+        this.bulkBackwardReader = new BulkBackwardRecordReader(checksumProb, maxEntrySize, readPageSize);
     }
 
     @Override
