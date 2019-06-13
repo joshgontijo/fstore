@@ -11,7 +11,6 @@ import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 class SingleIndexIterator implements IndexIterator {
 
@@ -60,7 +59,7 @@ class SingleIndexIterator implements IndexIterator {
         }
         int nextVersion = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
         LogIterator<IndexEntry> fromDisk = Iterators.of(diskIndex.getBlockEntries(stream, nextVersion));
-        LogIterator<IndexEntry> filtered = Iterators.filtering(fromDisk, filter());
+        LogIterator<IndexEntry> filtered = Iterators.filtering(fromDisk, this::filter);
         if (filtered.hasNext()) {
             addToBuffer(filtered);
             return true;
@@ -68,7 +67,7 @@ class SingleIndexIterator implements IndexIterator {
         Iterator<MemIndex> writeQueueIt = memIndex.apply(direction);
         while (writeQueueIt.hasNext()) {
             MemIndex index = writeQueueIt.next();
-            LogIterator<IndexEntry> memFiltered = Iterators.filtering(fromMem(index, stream, nextVersion), filter());
+            LogIterator<IndexEntry> memFiltered = Iterators.filtering(fromMem(index, stream, nextVersion), this::filter);
             if (memFiltered.hasNext()) {
                 addToBuffer(memFiltered);
                 return true;
@@ -96,16 +95,14 @@ class SingleIndexIterator implements IndexIterator {
         return index.indexedIterator(Direction.FORWARD, Range.of(stream, nextVersion));
     }
 
-    private Predicate<IndexEntry> filter() {
-        return ie -> {
-            if (ie.stream != stream) {
-                return false;
-            }
-            if (Direction.FORWARD.equals(direction)) {
-                return ie.version > lastReadVersion;
-            }
-            return ie.version < lastReadVersion;
-        };
+    private boolean filter(IndexEntry ie) {
+        if (ie.stream != stream) {
+            return false;
+        }
+        if (Direction.FORWARD.equals(direction)) {
+            return ie.version > lastReadVersion;
+        }
+        return ie.version < lastReadVersion;
     }
 
     @Override
