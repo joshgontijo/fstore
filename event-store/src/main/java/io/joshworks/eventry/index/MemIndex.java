@@ -75,7 +75,7 @@ public class MemIndex {
         }
         int lastIdx = idx + (range.end().version - start.version);
         int endIdx = Math.min(entries.size(), lastIdx);
-        List<IndexEntry> subList = entries.subList(idx, endIdx);
+        List<IndexEntry> subList = List.copyOf(entries.subList(idx, endIdx));
         return Collections.unmodifiableList(subList);
     }
 

@@ -25,11 +25,6 @@ class ListLogIterator<T> implements LogIterator<T> {
     }
 
     @Override
-    public void remove() {
-        source.remove();
-    }
-
-    @Override
     public boolean hasNext() {
         return source.hasNext();
     }
