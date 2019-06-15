@@ -14,6 +14,9 @@ public class MMapCache extends MMapStorage {
 
     @Override
     public int write(ByteBuffer src) {
+        if (!hasEnoughSpace(src.remaining())) {
+            expand(src.remaining());
+        }
         return diskStorage.write(src);
     }
 
@@ -45,6 +48,11 @@ public class MMapCache extends MMapStorage {
     public void writePosition(long position) {
         diskStorage.writePosition(position);
         super.writePosition(position);
+    }
+
+    @Override
+    protected void expand(int entrySize) {
+        super.expand(entrySize);
     }
 
     @Override

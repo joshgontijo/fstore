@@ -22,18 +22,16 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class StorageTest {
 
-    private static final int STORAGE_SIZE = 5242880; //must not be greater than Integer.MAX_VALUE
-    private static final int BUFFER_SIZE = STORAGE_SIZE;
-    private static final String TEST_DATA = "TEST-DATA";
+    private static final int STORAGE_SIZE = Size.MB.intOf(100);
     private Storage storage;
     private File testFile;
 
-    protected abstract Storage store(File file, long size, int bufferSize);
+    protected abstract Storage store(File file, long size);
 
     @Before
     public void setUp() {
         testFile = Utils.testFile();
-        storage = store(testFile, STORAGE_SIZE, BUFFER_SIZE);
+        storage = store(testFile, STORAGE_SIZE);
     }
 
     @After
@@ -49,9 +47,10 @@ public abstract class StorageTest {
 
     @Test
     public void when_data_is_written_return_the_written_length() {
-        ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
+        String testData = "TEST-DATA";
+        ByteBuffer bb = ByteBuffer.wrap(testData.getBytes(StandardCharsets.UTF_8));
         int written = storage.write(bb);
-        assertEquals(TEST_DATA.length(), written);
+        assertEquals(testData.length(), written);
     }
 
     @Test
@@ -68,7 +67,7 @@ public abstract class StorageTest {
 
     @Test
     public void when_data_is_read_it_must_be_the_same_that_was_written() {
-        ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
+        ByteBuffer bb = ByteBuffer.wrap("TEST-DATA".getBytes(StandardCharsets.UTF_8));
         int write = storage.write(bb);
 
         ByteBuffer result = ByteBuffer.allocate(bb.capacity());
@@ -82,7 +81,7 @@ public abstract class StorageTest {
     public void delete() throws Exception {
 
         File temp = Utils.testFile();
-        try (Storage store = store(temp, STORAGE_SIZE, STORAGE_SIZE)) {
+        try (Storage store = store(temp, STORAGE_SIZE)) {
             store.delete();
             assertFalse(Files.exists(temp.toPath()));
         } finally {
@@ -111,8 +110,13 @@ public abstract class StorageTest {
         assertArrayEquals(data, found.array());
     }
 
+    @Test(expected = StorageException.class)
+    public void setting_position_greater_than_write_position_throws_exception() {
+        storage.writePosition(storage.length() + 1);
+    }
+
     @Test
-    public void position_bigger_than_write_position_returns_EOF() {
+    public void read_position_ahead_write_position_returns_EOF() {
         long writePosition = 4;
         storage.writePosition(writePosition);
         ByteBuffer read = ByteBuffer.allocate(1024);
@@ -121,6 +125,37 @@ public abstract class StorageTest {
         read.flip();
 
         assertEquals(0, read.remaining());
+    }
+
+    @Test
+    public void when_writePosition_reaches_the_end_of_the_file_it_expands_the_file() {
+        long initialLength = storage.length();
+        long writePos = initialLength - 1;
+        byte[] data = fillWithUniqueBytes();
+
+        storage.writePosition(writePos);
+        storage.write(ByteBuffer.wrap(data));
+
+        ByteBuffer readBuffer = ByteBuffer.allocate(data.length);
+        storage.read(writePos, readBuffer);
+
+        assertTrue(storage.length() > initialLength);
+    }
+
+    @Test
+    public void data_is_stored_write_causes_store_to_be_expanded() {
+        long initialLength = storage.length();
+        long writePos = initialLength - 1;
+        byte[] data = fillWithUniqueBytes();
+
+        storage.writePosition(writePos);
+        storage.write(ByteBuffer.wrap(data));
+
+        ByteBuffer readBuffer = ByteBuffer.allocate(data.length);
+        int read = storage.read(writePos, readBuffer);
+
+        assertEquals(data.length, read);
+        assertArrayEquals(data, readBuffer.array());
     }
 
     @Test
@@ -158,16 +193,6 @@ public abstract class StorageTest {
     }
 
     @Test
-    public void EOF_is_returned_when_write_doesnt_fit_in_file() {
-        int size = (int) storage.length();
-        int written = storage.write(ByteBuffer.wrap(new byte[size]));
-        assertEquals(size, written);
-
-        written = storage.write(ByteBuffer.wrap(new byte[]{1}));
-        assertEquals(EOF, written);
-    }
-
-    @Test
     public void writing_returns_correct_written_bytes() {
         byte[] bytes = fillWithUniqueBytes();
         int written = storage.write(ByteBuffer.wrap(bytes));
@@ -177,15 +202,15 @@ public abstract class StorageTest {
     @Test
     public void position_is_updated_same_as_written_bytes() {
         byte[] data = fillWithUniqueBytes();
+        int items = (int) (storage.length() / data.length);
+
         int written;
         long total = 0;
-        do {
+        for (int i = 0; i < items; i++) {
             written = storage.write(ByteBuffer.wrap(data));
             total += written;
-            if (written != EOF) {
-                assertEquals(total, storage.writePosition());
-            }
-        } while (written > 0);
+            assertEquals(total, storage.writePosition());
+        }
     }
 
     @Test
@@ -222,17 +247,6 @@ public abstract class StorageTest {
         storage.writePosition(storeLen + 1);
     }
 
-    @Test
-    public void when_position_is_equals_fileLength_then_trying_to_write_should_return_EOF() {
-        int storeLen = (int) storage.length();
-        byte[] data = new byte[storeLen];
-        for (int i = 0; i < storeLen; i++) {
-            data[i] = 0x1;
-        }
-        storage.write(ByteBuffer.wrap(data));
-        int written = storage.write(ByteBuffer.wrap(new byte[]{1}));
-        assertEquals(EOF, written);
-    }
 
     @Test
     public void when_position_is_equals_fileLength_then_trying_to_read_should_return_EOF() {
@@ -266,17 +280,16 @@ public abstract class StorageTest {
         byte[] data = fillWithUniqueBytes();
 
         fillWith(storage, data);
-
         int read;
         long readPos = 0;
         do {
             var readBuffer = ByteBuffer.allocate(data.length);
             read = storage.read(readPos, readBuffer);
-            readPos += read;
-            if (read != EOF) {
+            if (read > 0) {
                 readBuffer.flip();
                 assertArrayEquals("Failed on pos " + readPos, data, readBuffer.array());
             }
+            readPos += read;
         } while (read != EOF);
     }
 
@@ -293,7 +306,7 @@ public abstract class StorageTest {
 
         IOUtils.closeQuietly(storage);
 
-        final var bigStorage = store(Utils.testFile(), Size.GB.of(1), Integer.MAX_VALUE - 8);
+        final var bigStorage = store(Utils.testFile(), Size.GB.of(1));
         try {
             Thread writer = new Thread(() -> {
                 for (int i = 0; i < items; i++) {
@@ -312,7 +325,7 @@ public abstract class StorageTest {
             });
 
             Thread reader = new Thread(() -> {
-                int readPos = 0;
+                long readPos = 0;
                 int read;
                 do {
                     try {
@@ -383,10 +396,10 @@ public abstract class StorageTest {
     }
 
     private void fillWith(Storage storage, byte[] data) {
-        int written;
-        do {
-            written = storage.write(ByteBuffer.wrap(data));
-        } while (written > 0);
+        int items = (int) (storage.length() / data.length);
+        for (int i = 0; i < items; i++) {
+            storage.write(ByteBuffer.wrap(data));
+        }
     }
 
     public void data_is_present_after_reopened_test() throws IOException {
@@ -395,7 +408,7 @@ public abstract class StorageTest {
         storage.write(ByteBuffer.wrap(data));
 
         storage.close();
-        storage = store(testFile, STORAGE_SIZE, BUFFER_SIZE);
+        storage = store(testFile, STORAGE_SIZE);
         storage.writePosition(data.length * 2);
 
         var bb = ByteBuffer.allocate(data.length);
@@ -410,7 +423,7 @@ public abstract class StorageTest {
     public static class RafStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long length, int bufferSize) {
+        protected Storage store(File file, long length) {
             return new RafStorage(file, length, IOUtils.randomAccessFile(file, length));
         }
 
@@ -420,11 +433,11 @@ public abstract class StorageTest {
         }
     }
 
-    public static class RafCachedStorageTest extends StorageTest {
+    public static class MMapCacheTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long length, int bufferSize) {
-            return new MMapCache(new RafStorage(file, length,IOUtils.randomAccessFile(file, length)), bufferSize);
+        protected Storage store(File file, long length) {
+            return new MMapCache(new RafStorage(file, length, IOUtils.randomAccessFile(file, length)));
         }
 
         @Test
@@ -436,8 +449,8 @@ public abstract class StorageTest {
     public static class MMapStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long length, int bufferSize) {
-            return new MMapStorage(new RafStorage(file, length, IOUtils.randomAccessFile(file, length)), bufferSize);
+        protected Storage store(File file, long length) {
+            return new MMapStorage(new RafStorage(file, length, IOUtils.randomAccessFile(file, length)));
         }
 
         @Test
@@ -449,16 +462,16 @@ public abstract class StorageTest {
     public static class OffHeapStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long size, int bufferSize) {
-            return new OffHeapStorage(file.getName(), size, bufferSize);
+        protected Storage store(File file, long size) {
+            return new OffHeapStorage(file.getName(), size);
         }
     }
 
     public static class HeapStorageTest extends StorageTest {
 
         @Override
-        protected Storage store(File file, long size, int bufferSize) {
-            return new HeapStorage(file.getName(), size, bufferSize);
+        protected Storage store(File file, long size) {
+            return new HeapStorage(file.getName(), size);
         }
     }
 

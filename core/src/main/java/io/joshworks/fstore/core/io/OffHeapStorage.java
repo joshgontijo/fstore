@@ -8,10 +8,6 @@ public class OffHeapStorage extends MemStorage {
         super(name, size, OffHeapStorage::create);
     }
 
-    OffHeapStorage(String name, long size, int bufferSize) {
-        super(name, size, bufferSize, OffHeapStorage::create);
-    }
-
     private static ByteBuffer create(long from, int bufferSize) {
         return ByteBuffer.allocateDirect(bufferSize);
     }

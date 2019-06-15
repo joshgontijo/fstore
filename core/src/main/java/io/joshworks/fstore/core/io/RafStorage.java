@@ -20,15 +20,15 @@ public class RafStorage extends DiskStorage {
     @Override
     public int write(ByteBuffer data) {
         Storage.ensureNonEmpty(data);
-        if (!hasEnoughSpace(data.remaining())) {
-            return EOF;
-        }
         try {
             int written = 0;
             while (data.hasRemaining()) {
                 written += channel.write(data);
             }
-            position.addAndGet(written);
+            long updatedPos = position.addAndGet(written);
+            if (updatedPos > length()) {
+                length.set(updatedPos);
+            }
             return written;
         } catch (IOException e) {
             throw RuntimeIOException.of(e);

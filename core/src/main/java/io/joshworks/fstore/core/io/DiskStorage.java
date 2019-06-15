@@ -15,7 +15,7 @@ public abstract class DiskStorage implements Storage {
     protected final File file;
     protected final FileLock lock;
     protected final AtomicLong position = new AtomicLong();
-    private final AtomicLong length = new AtomicLong();
+    protected final AtomicLong length = new AtomicLong();
 
     DiskStorage(File target, long length, RandomAccessFile raf) {
         Objects.requireNonNull(target, "File must specified");

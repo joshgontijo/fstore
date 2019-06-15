@@ -8,10 +8,6 @@ public class HeapStorage extends MemStorage {
         super(name, size, HeapStorage::create);
     }
 
-    HeapStorage(String name, long size, int bufferSize) {
-        super(name, size, bufferSize, HeapStorage::create);
-    }
-
     private static ByteBuffer create(long from, int bufferSize) {
         return ByteBuffer.allocate(bufferSize);
     }

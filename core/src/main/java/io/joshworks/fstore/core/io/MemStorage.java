@@ -1,5 +1,7 @@
 package io.joshworks.fstore.core.io;
 
+import io.joshworks.fstore.core.util.BufferUtil;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,8 +15,9 @@ import java.util.function.BiFunction;
 public abstract class MemStorage implements Storage {
 
     private static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
+    private static final double GROWTH_RATE = 0.5; //50%
 
-    protected final int bufferSize;
+    //    protected final int bufferSize;
     private final BiFunction<Long, Integer, ByteBuffer> bufferSupplier;
     protected final AtomicLong writePosition = new AtomicLong();
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
@@ -24,81 +27,43 @@ public abstract class MemStorage implements Storage {
 
     protected final List<ByteBuffer> buffers = new ArrayList<>();
 
-    MemStorage(String name, long size, BiFunction<Long, Integer, ByteBuffer> supplier) {
-        this(name, size, MAX_BUFFER_SIZE, supplier);
-    }
-
-    MemStorage(String name, long size, int bufferSize, BiFunction<Long, Integer, ByteBuffer> bufferSupplier) {
+    MemStorage(String name, long size, BiFunction<Long, Integer, ByteBuffer> bufferSupplier) {
         this.name = name;
-        this.bufferSize = bufferSize;
         this.bufferSupplier = bufferSupplier;
-        int numBuffers = calculateNumBuffers(size, bufferSize);
-        this.buffers.addAll(initBuffers(numBuffers, size, bufferSize, bufferSupplier));
+        this.buffers.addAll(initBuffers(size, bufferSupplier));
         computeLength();
     }
 
     protected abstract void destroy(ByteBuffer buffer);
 
-    protected List<ByteBuffer> initBuffers(int numBuffers, long fileLength, int bufferSize, BiFunction<Long, Integer, ByteBuffer> supplier) {
+    protected List<ByteBuffer> initBuffers(long fileLength, BiFunction<Long, Integer, ByteBuffer> supplier) {
         List<ByteBuffer> buffers = new ArrayList<>();
         long total = 0;
-        int size = bufferSize;
-        for (int i = 0; i < numBuffers; i++) {
-            if (i + 1 == numBuffers) {
-                size = (int) (fileLength - total);
-            }
-            ByteBuffer bb = supplier.apply(i * (long) size, size);
-            buffers.add(bb);
-            total += size;
+        while (total < fileLength) {
+            int bufferSize = (int) Math.min(fileLength - total, MAX_BUFFER_SIZE);
+            ByteBuffer buffer = supplier.apply(total, bufferSize);
+            buffers.add(buffer);
+            total += bufferSize;
         }
         return buffers;
-    }
-
-    protected int calculateNumBuffers(long fileLength, int bufferSize) {
-        int numFullBuffers = (int) (fileLength / bufferSize);
-        long diff = fileLength % bufferSize;
-        return diff == 0 ? numFullBuffers : numFullBuffers + 1;
-    }
-
-    ByteBuffer getBuffer(long pos) {
-        int idx = bufferIdx(pos);
-        return buffers.get(idx);
-    }
-
-    protected int posOnBuffer(long pos) {
-        return (int) (pos % Integer.MAX_VALUE);
-    }
-
-    int bufferIdx(long pos) {
-        return (int) (pos / bufferSize);
-    }
-
-    int numBuffers() {
-        return buffers.size();
-    }
-
-    private void checkClosed() {
-        if (closed.get()) {
-            throw new IllegalStateException("Closed storage");
-        }
     }
 
     @Override
     public int write(ByteBuffer src) {
         Storage.ensureNonEmpty(src);
 
-        Lock lock = rwLock.readLock();
-        lock.lock();
+        if (!hasEnoughSpace(src.remaining())) {
+            expand(src.remaining());
+        }
+
+        Lock lock = readLock();
         try {
             checkClosed();
-            if (!hasEnoughSpace(src.remaining())) {
-                return EOF;
-            }
             int dataSize = src.remaining();
             int written = 0;
             long currentPosition = writePosition();
             while (src.hasRemaining()) {
-                ByteBuffer dst = getBuffer(currentPosition);
+                ByteBuffer dst = BufferUtil.getBuffer(buffers, currentPosition);
 
                 int dstRemaining = dst.remaining();
                 if (dstRemaining < dataSize) { //partial put
@@ -106,7 +71,7 @@ public abstract class MemStorage implements Storage {
                     int available = Math.min(dstRemaining, src.remaining());
                     src.limit(src.position() + available);
                     dst.put(src);
-                    dst.flip();
+                    dst.flip(); //this is important since there's no calls to clear when reading
                     src.limit(srcLimit);
                     written += dstRemaining;
                     currentPosition += dstRemaining;
@@ -129,45 +94,32 @@ public abstract class MemStorage implements Storage {
         if (!dst.hasRemaining()) {
             return 0;
         }
-        Lock lock = rwLock.readLock();
-        lock.lock();
+        Lock lock = readLock();
         try {
             checkClosed();
-            if (!hasAvailableData(readPos)) {
-                return EOF;
-            }
             long writePosition = writePosition(); //use method instead direct position.get(): MMapCache delegates to disk
 
-            int idx = bufferIdx(readPos);
-            int bufferAddress = posOnBuffer(readPos);
-            ByteBuffer buffer = getBuffer(idx);
+            int idx = BufferUtil.bufferIdx(buffers, readPos);
+            int bufferAddress = BufferUtil.posOnBuffer(buffers, readPos);
 
-            int srcCapacity = buffer.capacity();
-            if (bufferAddress > srcCapacity) {
-                throw new IllegalArgumentException("Invalid position " + readPos + ", buffer idx " + idx + ", buffer capacity " + srcCapacity);
-            }
+            int dstPos = dst.position();
+            while (dst.hasRemaining() && idx < buffers.size() && readPos < writePosition) {
+                ByteBuffer src = buffers.get(idx).asReadOnlyBuffer();
+                long maxPosition = Math.min(readPos + dst.remaining(), writePosition);
+                src.clear();
+                src.position(bufferAddress);
 
-            ByteBuffer src = buffer.asReadOnlyBuffer();
-            src.clear();
-            src.position(bufferAddress);
+                int toBeCopied = (int) Math.min(maxPosition - readPos, src.remaining());
 
-            int dstRemaining = dst.remaining();
-            int srcRemaining = src.remaining();
-            if (dstRemaining > srcRemaining) {
+                src.limit(bufferAddress + toBeCopied);
                 dst.put(src);
-                if (idx + 1 >= buffers.size()) { //no more buffers
-                    return srcRemaining;
-                }
-                int read = read(readPos + srcRemaining, dst);
-                return srcRemaining + (read >= 0 ? read : 0);
+
+                bufferAddress = 0; //reset buffer address, so the next start from pos zero
+                readPos += toBeCopied;
+                idx++;
             }
-
-            int available = (int) Math.min(readPos + dstRemaining, writePosition - readPos);
-            int toBeCopied = Math.min(available, dstRemaining);
-            src.limit(bufferAddress + toBeCopied);
-
-            dst.put(src);
-            return dstRemaining;
+            int read = dst.position() - dstPos;
+            return read == 0 && readPos >= writePosition ? EOF : read;
         } finally {
             lock.unlock();
         }
@@ -184,10 +136,10 @@ public abstract class MemStorage implements Storage {
         Lock lock = writeLockInterruptibly();
         try {
             checkClosed();
-            int idx = bufferIdx(position);
+            int idx = BufferUtil.bufferIdx(buffers, position);
             if (idx < buffers.size()) {
                 ByteBuffer buffer = buffers.get(idx);
-                int bufferAddress = posOnBuffer(position);
+                int bufferAddress = BufferUtil.posOnBuffer(buffers, position);
                 buffer.position(bufferAddress);
             }
             this.writePosition.set(position);
@@ -213,7 +165,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public void close() {
-        if(closed.compareAndSet(false, true)) {
+        if (closed.compareAndSet(false, true)) {
             Lock lock = writeLockInterruptibly();
             try {
                 for (ByteBuffer buffer : buffers) {
@@ -235,9 +187,9 @@ public abstract class MemStorage implements Storage {
         Lock lock = writeLockInterruptibly();
         try {
             long pos = writePosition.get();
-            int idx = bufferIdx(pos);
-            int bPos = posOnBuffer(pos);
-            ByteBuffer bb = getBuffer(pos);
+            int idx = BufferUtil.bufferIdx(buffers, pos);
+            int bPos = BufferUtil.posOnBuffer(buffers, pos);
+            ByteBuffer bb = BufferUtil.getBuffer(buffers, pos);
             bb.limit(bPos);
             bb.position(0);
 
@@ -259,18 +211,48 @@ public abstract class MemStorage implements Storage {
         }
     }
 
+
+    protected void expand(int entrySize) {
+        Lock lock = writeLockInterruptibly();
+        try {
+            checkClosed();
+            long additionalSpace = (long) (length() * GROWTH_RATE);
+            int normalized = (int) Math.min(MAX_BUFFER_SIZE, additionalSpace);
+            int bufferSize = Math.max(entrySize, normalized);
+            long startPos = size.get();
+            ByteBuffer newBuffer = bufferSupplier.apply(startPos, bufferSize);
+            buffers.add(newBuffer);
+            computeLength();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    //TODO not thread safe
     protected void computeLength() {
         this.size.set(buffers.stream().mapToLong(ByteBuffer::capacity).sum());
     }
 
-    private Lock writeLockInterruptibly() {
+    private void checkClosed() {
+        if (closed.get()) {
+            throw new StorageException("Closed storage");
+        }
+    }
+
+    protected Lock readLock() {
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        return lock;
+    }
+
+    protected Lock writeLockInterruptibly() {
         try {
             Lock writeLock = rwLock.writeLock();
             writeLock.lockInterruptibly();
             return writeLock;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            throw new StorageException(e);
         }
     }
 
