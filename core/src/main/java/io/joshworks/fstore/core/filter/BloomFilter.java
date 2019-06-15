@@ -3,7 +3,6 @@ package io.joshworks.fstore.core.filter;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
 
 import java.io.File;
 import java.io.IOException;
@@ -160,7 +159,7 @@ public class BloomFilter<T> {
         long[] items = hashes.toLongArray();
         int dataLength = items.length * Long.BYTES;
         int totalSize = dataLength + HEADER_SIZE;
-        try (Storage storage = StorageProvider.of(StorageMode.RAF).create(handler, totalSize)) {
+        try (Storage storage = Storage.create(handler, StorageMode.RAF, totalSize)) {
 
             //Format
             //Length -> 4bytes
@@ -185,7 +184,7 @@ public class BloomFilter<T> {
     }
 
     private static <T> BloomFilter<T> load(File file, BloomFilterHasher<T> hash) {
-        try (Storage storage = StorageProvider.of(StorageMode.RAF).open(file)) {
+        try (Storage storage = Storage.open(file, StorageMode.RAF)) {
             ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
             storage.read(0, header);
             header.flip();

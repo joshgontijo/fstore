@@ -7,6 +7,7 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.locks.Lock;
 import java.util.function.BiFunction;
 
 //Not thread safe
@@ -25,7 +26,7 @@ public class MMapStorage extends MemStorage {
     }
 
     MMapStorage(DiskStorage diskStorage, int bufferSize) {
-        super(diskStorage.name(), diskStorage.length(), bufferSize, mmap(diskStorage));
+        super(diskStorage.name(), diskStorage.length(), mmap(diskStorage));
         this.diskStorage = diskStorage;
     }
 
@@ -44,15 +45,17 @@ public class MMapStorage extends MemStorage {
 
     @Override
     public void flush() {
-        long pos = this.writePosition.get();
-        int idx = bufferIdx(pos);
-        if (idx >= numBuffers()) {
+        if (isWindows) {
+            //caused by https://bugs.openjdk.java.net/browse/JDK-6539707
             return;
         }
-        MappedByteBuffer buffer = (MappedByteBuffer) getBuffer(pos);
-        if (buffer != null && !isWindows) {
-            //caused by https://bugs.openjdk.java.net/browse/JDK-6539707
-            buffer.force();
+        Lock lock = readLock();
+        try {
+            for (ByteBuffer buffer : buffers) {
+                ((MappedByteBuffer) buffer).force();
+            }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -76,19 +79,23 @@ public class MMapStorage extends MemStorage {
 
     @Override
     public void truncate() {
-        Iterator<ByteBuffer> iterator = buffers.iterator();
-        while (iterator.hasNext()) {
-            MappedByteBuffer buffer = (MappedByteBuffer) iterator.next();
-            MappedByteBuffers.unmap(buffer);
-            iterator.remove();
+        Lock lock = writeLockInterruptibly();
+        try {
+            Iterator<ByteBuffer> iterator = buffers.iterator();
+            while (iterator.hasNext()) {
+                MappedByteBuffer buffer = (MappedByteBuffer) iterator.next();
+                MappedByteBuffers.unmap(buffer);
+                iterator.remove();
+            }
+            long pos = writePosition();
+            diskStorage.writePosition(pos);
+            diskStorage.truncate();
+            long newLength = diskStorage.length();
+            List<ByteBuffer> newBuffers = initBuffers(newLength, mmap(diskStorage));
+            this.buffers.addAll(newBuffers);
+            computeLength();
+        } finally {
+            lock.unlock();
         }
-        long pos = writePosition();
-        diskStorage.writePosition(pos);
-        diskStorage.truncate();
-        long newLength = diskStorage.length();
-        int numBuffers = calculateNumBuffers(newLength, bufferSize);
-        List<ByteBuffer> newBuffers = initBuffers(numBuffers, newLength, bufferSize, mmap(diskStorage));
-        this.buffers.addAll(newBuffers);
-        computeLength();
     }
 }
