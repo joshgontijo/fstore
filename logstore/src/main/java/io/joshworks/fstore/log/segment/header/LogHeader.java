@@ -12,7 +12,6 @@ import java.util.Arrays;
 
 public class LogHeader {
 
-
     public static final int BYTES = 4096;
     public static final int SECTION_SIZE = 512; //data + checksum (effective available space SECTION_SIZE - 4bytes (checksum)
 
@@ -56,6 +55,17 @@ public class LogHeader {
         return open == null ? UNKNOWN : open.fileSize;
     }
 
+    public long dataSize() {
+        if (completed != null) {
+            return completed.actualDataSize;
+        }
+        if (open != null) {
+            return open.dataSize;
+        }
+        return UNKNOWN;
+
+    }
+
     public boolean encrypted() {
         return open != null && open.encrypted;
     }
@@ -87,7 +97,14 @@ public class LogHeader {
         if (completed == null) {
             return open == null ? 0 : BYTES;
         }
-        return completed.writePosition;
+        return LogHeader.BYTES + completed.actualDataSize;
+    }
+
+    public long footerLength() {
+        if (completed == null) {
+            throw new IllegalStateException("No footer length available, segment is not readonly");
+        }
+        return completed.footerLength;
     }
 
     public static LogHeader read(Storage storage, String magic) {
@@ -107,7 +124,7 @@ public class LogHeader {
         return header;
     }
 
-    public void writeNew(Storage storage, String magic, WriteMode mode, long fileSize, boolean encrypted) {
+    public void writeNew(Storage storage, String magic, WriteMode mode, long fileSize, long dataSize, boolean encrypted) {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.SECTION_SIZE);
         long created = System.currentTimeMillis();
 
@@ -115,24 +132,26 @@ public class LogHeader {
         bb.putLong(created);
         bb.putInt(mode.val);
         bb.putLong(fileSize);
+        bb.putLong(dataSize);
         bb.putInt(encrypted ? 1 : 0);
         bb.flip();
         write(storage, OPEN_SECTION_START, bb);
-        this.open = new OpenSection(magic, created, mode, fileSize, encrypted);
+        this.open = new OpenSection(magic, created, mode, fileSize, dataSize, encrypted);
     }
 
-    public void writeCompleted(Storage storage, long entries, int level, long writePosition, long uncompressedSize) {
+    public void writeCompleted(Storage storage, long entries, int level, long actualDataSize, long footerLength, long uncompressedSize) {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.SECTION_SIZE);
         long rolledTS = System.currentTimeMillis();
 
         bb.putInt(level);
         bb.putLong(entries);
-        bb.putLong(writePosition);
+        bb.putLong(actualDataSize);
+        bb.putLong(footerLength);
         bb.putLong(rolledTS);
         bb.putLong(uncompressedSize);
         bb.flip();
         write(storage, COMPLETED_SECTION_START, bb);
-        this.completed = new CompletedSection(level, entries, writePosition, rolledTS, uncompressedSize);
+        this.completed = new CompletedSection(level, entries, actualDataSize, footerLength, rolledTS, uncompressedSize);
     }
 
     public void writeDeleted(Storage storage) {
@@ -154,11 +173,12 @@ public class LogHeader {
         long created = data.getLong();
         WriteMode writeMode = WriteMode.of(data.getInt());
         long fileSize = data.getLong();
+        long dataSize = data.getLong();
         boolean encrypted = data.getInt() == 1;
 
         validateMagic(magic, expectedMagic);
 
-        return new OpenSection(magic, created, writeMode, fileSize, encrypted);
+        return new OpenSection(magic, created, writeMode, fileSize, dataSize, encrypted);
     }
 
     private static CompletedSection readCompleteSection(ByteBuffer bb) {
@@ -168,12 +188,13 @@ public class LogHeader {
         }
         int level = data.getInt();
         long entries = data.getLong();
-        long writePosition = data.getLong();
+        long actualDataSize = data.getLong();
+        long footerLength = data.getLong();
         long rolled = data.getLong();
         long uncompressedSize = data.getLong();
 
 
-        return new CompletedSection(level, entries, writePosition, rolled, uncompressedSize);
+        return new CompletedSection(level, entries, actualDataSize, footerLength, rolled, uncompressedSize);
     }
 
     private static DeletedSection readDeletedSection(ByteBuffer bb) {

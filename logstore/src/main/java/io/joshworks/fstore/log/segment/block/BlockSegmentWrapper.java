@@ -4,6 +4,8 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.Type;
 
 class BlockSegmentWrapper<T> implements Log<T> {
@@ -100,8 +102,23 @@ class BlockSegmentWrapper<T> implements Log<T> {
     }
 
     @Override
+    public void truncate() {
+        delegate.truncate();
+    }
+
+    @Override
     public long uncompressedSize() {
         return delegate.uncompressedSize();
+    }
+
+    @Override
+    public void writeFooter(FooterWriter footer) {
+        delegate.writeFooter(footer);
+    }
+
+    @Override
+    public FooterReader readFooter() {
+        return delegate.readFooter();
     }
 
     @Override

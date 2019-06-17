@@ -3,7 +3,6 @@ package io.joshworks.fstore.log.record;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
@@ -37,7 +36,7 @@ public class DataStreamTest {
     @Before
     public void setUp() {
         file = FileUtils.testFile();
-        storage = StorageProvider.of(StorageMode.RAF).create(file, FILE_SIZE);
+        storage = Storage.create(file, StorageMode.RAF, FILE_SIZE);
         storage.writePosition(Log.START);
     }
 

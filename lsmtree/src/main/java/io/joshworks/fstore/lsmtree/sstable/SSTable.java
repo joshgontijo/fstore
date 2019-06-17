@@ -31,7 +31,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
     private static final double FALSE_POSITIVE_PROB = 0.01;
 
+    //TODO make final
+    //TODO create on roll
+    //TODO remove numElements from constructor and keep in mem until the segment is flushed
     private BloomFilter<K> filter;
+    //TODO should everything be in memory ?
     private final Index<K> index;
     private final Serializer<K> keySerializer;
     private final File directory;

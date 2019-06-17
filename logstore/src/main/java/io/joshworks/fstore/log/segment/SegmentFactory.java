@@ -1,13 +1,14 @@
 package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.record.IDataStream;
-import io.joshworks.fstore.log.segment.header.Type;
+
+import java.io.File;
 
 public interface SegmentFactory<T> {
 
-    Log<T> createOrOpen(Storage storage, Serializer<T> serializer, IDataStream reader, String magic, WriteMode mode);
+    Log<T> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<T> serializer, IDataStream reader, String magic, WriteMode mode);
 
 
 }

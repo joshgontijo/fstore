@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.utils.LogFileUtils;
 
@@ -68,7 +67,7 @@ public class State implements Closeable {
         File file = new File(directory, LogFileUtils.STATE_FILE);
         Storage storage = null;
         try {
-            storage = StorageProvider.of(StorageMode.RAF).open(file);
+            storage = Storage.open(file, StorageMode.RAF);
             ByteBuffer data = ByteBuffer.allocate(BYTES);
             int read = storage.read(0, data);
             if (read != BYTES) {
@@ -91,7 +90,7 @@ public class State implements Closeable {
 
     public static State empty(File directory) {
         File file = new File(directory, LogFileUtils.STATE_FILE);
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, BYTES);
+        Storage storage = Storage.create(file, StorageMode.RAF, BYTES);
         return new State(storage, Log.START, 0L, System.currentTimeMillis());
     }
 

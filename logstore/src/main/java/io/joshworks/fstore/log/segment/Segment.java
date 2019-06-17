@@ -4,18 +4,22 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Logging;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import org.slf4j.Logger;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -27,6 +31,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static io.joshworks.fstore.core.io.Storage.EOF;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -53,7 +58,8 @@ public class Segment<T> implements Log<T> {
     private final String magic;
 
     protected final AtomicLong entries = new AtomicLong();
-    protected final AtomicLong writePosition = new AtomicLong();
+    //writePosition must be kept separate from store, so it allows reads happening when rolling segment
+    protected final AtomicLong dataWritePosition = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
@@ -65,24 +71,30 @@ public class Segment<T> implements Log<T> {
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
-    public Segment(Storage storage, Serializer<T> serializer, IDataStream dataStream, String magic, WriteMode writeMode) {
+    public Segment(File file, StorageMode storageMode, long segmentDataSize, Serializer<T> serializer, IDataStream dataStream, String magic, WriteMode writeMode) {
+
+        this.serializer = requireNonNull(serializer, "Serializer must be provided");
+        this.dataStream = requireNonNull(dataStream, "Reader must be provided");
+        this.magic = requireNonNull(magic, "Magic must be provided");
+        if (!Files.exists(file.toPath()) && (segmentDataSize <= 0 || writeMode == null)) {
+            throw new IllegalStateException("segmentDataSize and writeMode must be provided when creating segment");
+        }
+
+        Storage storage = null;
         try {
-            this.serializer = requireNonNull(serializer, "Serializer must be provided");
-            this.storage = requireNonNull(storage, "Storage must be provided");
-            this.dataStream = requireNonNull(dataStream, "Reader must be provided");
-            this.magic = requireNonNull(magic, "Magic must be provided");
+            long fileLength = segmentDataSize + LogHeader.BYTES;
+            this.storage = storage = Storage.createOrOpen(file, storageMode, fileLength);
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
             if (storage.length() <= LogHeader.BYTES) {
                 throw new IllegalArgumentException("Segment size must greater than " + LogHeader.BYTES);
             }
-
             this.header = LogHeader.read(storage, magic);
             if (Type.NONE.equals(header.type())) { //new segment
                 if (writeMode == null) {
                     throw new SegmentException("Segment doesn't exist, WriteMode must be specified");
                 }
-                this.header.writeNew(storage, magic, writeMode, storage.length(), false); //TODO update for ENCRYPTION
+                this.header.writeNew(storage, magic, writeMode, fileLength, segmentDataSize, false); //TODO update for ENCRYPTION
 
                 this.position(Log.START);
                 this.entries.set(0);
@@ -103,20 +115,29 @@ public class Segment<T> implements Log<T> {
         }
     }
 
+    //can only be used for data
     private void position(long position) {
-        if (position < START || position > fileSize()) {
-            throw new IllegalArgumentException("Position must be between " + LogHeader.BYTES + " and " + fileSize() + ", got " + position);
+        long maxDataPos = maxDataPosition();
+        if (position < START || position > maxDataPos) {
+            throw new IllegalArgumentException("Position must be between " + LogHeader.BYTES + " and " + maxDataPos + ", got " + position);
         }
-        this.writePosition.set(position);
+        this.dataWritePosition.set(position);
         this.storage.writePosition(position);
     }
 
-    //logical truncation
-    public void truncate(long position) {
-        position(position);
-        int blankSize = (int) Math.min(Memory.PAGE_SIZE, logSize() - position);
-        this.storage.write(ByteBuffer.wrap(new byte[blankSize]));
-        position(position);
+    private long maxDataPosition() {
+        return START + header.dataSize();
+    }
+
+    //truncate unused physical file space, useful only when compacting, since it has performance impact
+    @Override
+    public void truncate() {
+        if (!readOnly()) {
+            throw new SegmentException("Segment is not read only");
+        }
+        long segmentEnd = START + logSize() + header.footerLength();
+        storage.writePosition(segmentEnd);
+        storage.truncate();
     }
 
     @Override
@@ -126,14 +147,35 @@ public class Segment<T> implements Log<T> {
             throw new IllegalStateException("Segment is read only");
         }
         ByteBuffer bytes = serializer.toBytes(data);
-        long recordPosition = dataStream.write(storage, bytes);
-        if (recordPosition == Storage.EOF) {
-            return recordPosition;
+
+        if (bytes.remaining() > logSize()) {
+            throw new IllegalArgumentException("Record of size " + bytes.remaining() + " cannot exceed log size of " + logSize() + "");
         }
-        writePosition.set(storage.writePosition());
+
+        if (remaining() < bytes.remaining()) {
+            return EOF;
+        }
+
+        long recordPosition = dataStream.write(storage, bytes);
         incrementEntry();
+        dataWritePosition.set(storage.writePosition());
         return recordPosition;
     }
+
+    @Override
+    public void writeFooter(FooterWriter footer) {
+        //do nothing
+    }
+
+    @Override
+    public FooterReader readFooter() {
+        if (!readOnly()) {
+            throw new SegmentException("No footer data available");
+        }
+        long footerStart = LogHeader.BYTES + logSize();
+        return new FooterReader(storage, footerStart, header.footerLength());
+    }
+
 
     protected void incrementEntry() {
         entries.incrementAndGet();
@@ -154,12 +196,16 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public long logSize() {
-        return fileSize() - LogHeader.BYTES;
+        return header.dataSize();
     }
 
     @Override
     public long remaining() {
-        return logSize() - position();
+        return logSize() - dataWritten();
+    }
+
+    public long dataWritten() {
+        return position() - START;
     }
 
     @Override
@@ -196,7 +242,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public long position() {
-        return writePosition.get();
+        return dataWritePosition.get();
     }
 
     @Override
@@ -228,7 +274,7 @@ public class Segment<T> implements Log<T> {
         if (lastKnownPosition < START) {
             throw new IllegalStateException("Invalid lastKnownPosition: " + lastKnownPosition + ",value must be at least " + START);
         }
-        this.position(storage.length() - 1);
+        this.position(maxDataPosition() - 1);
         long position = lastKnownPosition;
         int foundEntries = 0;
         long start = System.currentTimeMillis();
@@ -285,14 +331,20 @@ public class Segment<T> implements Log<T> {
             throw new IllegalStateException("Cannot roll read only segment: " + this.toString());
         }
 
-        long currPos = storage.writePosition();
+        long maxDataPosition = storage.writePosition();
+        long actualDataSize = maxDataPosition - START;
         long uncompressedSize = uncompressedSize();
-        this.header.writeCompleted(storage, entries.get(), level, currPos, uncompressedSize);
+
+        FooterWriter footer = new FooterWriter(storage);
+        writeFooter(footer);
+        long footerLength = storage.writePosition() - maxDataPosition;
+
+        this.header.writeCompleted(storage, entries.get(), level, actualDataSize, footerLength, uncompressedSize);
     }
 
     @Override
     public boolean readOnly() {
-        return Type.READ_ONLY.equals(header.type());
+        return !Type.LOG_HEAD.equals(header.type()) && !Type.MERGE_OUT.equals(header.type());
     }
 
     @Override

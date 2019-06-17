@@ -9,11 +9,12 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.fstore.core.filter.BloomFilterHasher;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.SegmentIterator;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
@@ -43,14 +44,16 @@ public class IndexSegment implements Log<IndexEntry> {
 
     private final BlockSegment<IndexEntry> delegate;
 
-    IndexSegment(Storage storage,
+    IndexSegment(File file,
+                 StorageMode storageMode,
+                 long dataLength,
                  IDataStream reader,
                  String magic,
                  WriteMode mode,
                  File directory,
                  Codec codec,
                  int numElements) {
-        this.delegate = new BlockSegment<>(storage, reader, magic, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
+        this.delegate = new BlockSegment<>(file, storageMode, dataLength, reader, magic, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
