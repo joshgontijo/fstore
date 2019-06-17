@@ -35,7 +35,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     //TODO create on roll
     //TODO remove numElements from constructor and keep in mem until the segment is flushed
     private BloomFilter<K> filter;
-    //TODO should everything be in memory ?
+    //TODO should everything be in memory ? Midpoints should be a better alternative
     private final Index<K> index;
     private final Serializer<K> keySerializer;
     private final File directory;
