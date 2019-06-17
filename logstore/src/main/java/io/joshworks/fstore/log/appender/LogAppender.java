@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.StorageProvider;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
@@ -64,7 +64,7 @@ public class LogAppender<T> implements Closeable {
     private final IDataStream dataStream;
     private final NamingStrategy namingStrategy;
     private final SegmentFactory<T> factory;
-    private final StorageProvider storageProvider;
+    private final StorageMode storageMode;
 
     final Levels<T> levels;
 
@@ -86,7 +86,7 @@ public class LogAppender<T> implements Closeable {
         this.directory = config.directory;
         this.serializer = config.serializer;
         this.factory = config.segmentFactory;
-        this.storageProvider = StorageProvider.of(config.storageMode);
+        this.storageMode = config.storageMode;
         this.namingStrategy = config.namingStrategy;
         this.dataStream = new DataStream(config.bufferPool, config.checksumProbability, config.maxEntrySize, config.bufferSize);
         this.compactionDisabled = config.compactionDisabled;
@@ -126,7 +126,7 @@ public class LogAppender<T> implements Closeable {
                 directory,
                 config.combiner,
                 factory,
-                StorageProvider.of(config.compactionStorage),
+                config.compactionStorage,
                 serializer,
                 dataStream,
                 namingStrategy,
@@ -168,8 +168,7 @@ public class LogAppender<T> implements Closeable {
     private Log<T> createCurrentSegment() {
         long alignedSize = align(LogHeader.BYTES + metadata.segmentSize); //log + header
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
-        Storage storage = storageProvider.create(segmentFile, alignedSize);
-        return factory.createOrOpen(storage, serializer, dataStream, metadata.magic, WriteMode.LOG_HEAD);
+        return factory.createOrOpen(segmentFile, storageMode, alignedSize, serializer, dataStream, metadata.magic, WriteMode.LOG_HEAD);
     }
 
     private static long align(long fileSize) {
@@ -214,17 +213,10 @@ public class LogAppender<T> implements Closeable {
     }
 
     private Log<T> loadSegment(String segmentName) {
-        Storage storage = null;
-        try {
-            File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
-            storage = storageProvider.open(segmentFile);
-            Log<T> segment = factory.createOrOpen(storage, serializer, dataStream, metadata.magic, null);
-            logger.info("Loaded segment {}", segment);
-            return segment;
-        } catch (Exception e) {
-            IOUtils.closeQuietly(storage);
-            throw e;
-        }
+        File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
+        Log<T> segment = factory.createOrOpen(segmentFile, storageMode, -1, serializer, dataStream, metadata.magic, null);
+        logger.info("Loaded segment {}", segment);
+        return segment;
     }
 
     public void roll() {

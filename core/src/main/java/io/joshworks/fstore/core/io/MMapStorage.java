@@ -72,6 +72,11 @@ public class MMapStorage extends MemStorage {
     }
 
     @Override
+    protected void computeLength() {
+        super.computeLength();
+    }
+
+    @Override
     public void delete() {
         super.delete();
         diskStorage.delete();

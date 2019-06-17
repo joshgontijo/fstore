@@ -38,7 +38,6 @@ public abstract class DiskStorage implements Storage {
     }
 
     public void writePosition(long position) {
-        validateWriteAddress(position);
         try {
             this.channel.position(position);
             this.position.set(position);

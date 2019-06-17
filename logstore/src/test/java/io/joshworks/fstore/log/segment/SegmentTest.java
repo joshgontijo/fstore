@@ -1,20 +1,17 @@
-package io.joshworks.fstore.log;
+package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
-import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.SegmentException;
-import io.joshworks.fstore.log.segment.WriteMode;
-import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -145,7 +142,7 @@ public abstract class SegmentTest {
     @Test
     public void big_entry() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < segment.fileSize() - RecordHeader.HEADER_OVERHEAD - LogHeader.BYTES - 1; i++) {
+        for (int i = 0; i < segment.logSize() - RecordHeader.HEADER_OVERHEAD; i++) {
             sb.append("a");
         }
         String data = sb.toString();
@@ -334,18 +331,137 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void position_is_fileLength_after_rolling_segment() throws IOException {
+    public void logSize_is_updated_to_writePosition_when_segment_is_rolled() {
+        var data = "AAAAA";
+        segment.append(data);
+        segment.roll(1);
+
+        long logSize = segment.logSize();
+
+        assertEquals(data.length() + RecordHeader.HEADER_OVERHEAD, logSize);
+    }
+
+    @Test
+    public void logSize_is_kept_after_rolled_and_reopened() throws IOException {
+        var data = "AAAAA";
+        segment.append(data);
+        segment.roll(1);
+
+        segment.close();
+        segment = open(testFile);
+
+        long logSize = segment.logSize();
+
+        assertEquals(data.length() + RecordHeader.HEADER_OVERHEAD, logSize);
+    }
+
+    @Test
+    public void remaining_returns_logSize_when_no_data_has_been_written() {
+        long logSize = segment.logSize();
+        long remaining = segment.remaining();
+        assertEquals(logSize, remaining);
+    }
+
+    @Test
+    public void remaining_returns_correct_data_after_writing_to_log() {
+        var data = "AAAAA";
+        segment.append(data);
+        long remaining = segment.remaining();
+        assertEquals(segment.logSize() - data.length() - RecordHeader.HEADER_OVERHEAD, remaining);
+    }
+
+    @Test
+    public void logSize_is_kept_original_when_reopening_empty_segment() throws IOException {
+
+        long logSize = segment.logSize();
+        segment.close();
+        segment = open(testFile);
+        long logSizeAfterReopening = segment.logSize();
+
+        assertEquals(logSize, logSizeAfterReopening);
+    }
+
+    @Test
+    public void fileSize_returns_the_physical_file_size() {
+        long logSize = segment.fileSize();
+        long physicalSize = testFile.length();
+        assertEquals(logSize, physicalSize);
+    }
+
+    @Test
+    public void truncating_a_segment_shrinks_the_physical_file() {
+        long logSize = segment.fileSize();
+        segment.append("a");
+        segment.roll(1);
+        segment.truncate();
+
+        long afterTruncating = segment.fileSize();
+        assertTrue(afterTruncating < logSize);
+    }
+
+    @Test
+    public void readOnly_returns_true_when_segment_is_rolled() {
+        var data = "AAAAA";
+        segment.append(data);
+        segment.roll(1);
+
+        assertTrue(segment.readOnly());
+    }
+
+    @Test
+    public void readOnly_returns_true_when_segment_is_marked_for_deleted() {
+        var data = "AAAAA";
+        segment.append(data);
+        segment.roll(1);
+        segment.delete();
+
+        assertTrue(segment.readOnly());
+    }
+
+    @Test
+    public void readOnly_returns_true_when_MERGE_OUT_segment_is_rolled() throws IOException {
+        segment.close();
+        segment = mergeOutSegment();
+
+        segment.roll(1);
+        assertTrue(segment.readOnly());
+    }
+
+    @Test
+    public void readOnly_returns_false_when_MERGE_OUT_segment_is_reopened() throws IOException {
+        segment.close();
+        segment = mergeOutSegment();
+
+        segment.close();
+        segment = mergeOutSegment();
+        assertFalse(segment.readOnly());
+    }
+
+    @Test
+    public void position_is_max_writePosition_after_rolling_segment() {
         segment.append("a");
         segment.append("b");
+        long lastPos = segment.position();
         segment.roll(1);
-        long position = segment.position();
+
+        long foundPos = segment.position();
+
+        assertEquals(lastPos, foundPos);
+    }
+
+    @Test
+    public void position_of_rolled_segment_is_kept_after_reopening() throws IOException {
+        segment.append("a");
+        segment.append("b");
+        long lastPos = segment.position();
+        segment.roll(1);
 
         segment.close();
         segment = open(testFile);
 
         long foundPos = segment.position();
 
-        assertEquals(position, foundPos);
+        assertEquals(lastPos, foundPos);
     }
 
     @Test
@@ -398,12 +514,23 @@ public abstract class SegmentTest {
         return positions;
     }
 
+    private Segment<String> mergeOutSegment() {
+        return new Segment<>(
+                testFile,
+                StorageMode.MMAP,
+                SEGMENT_SIZE,
+                Serializers.STRING,
+                new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", WriteMode.MERGE_OUT);
+    }
+
     public static class CachedSegmentTest extends SegmentTest {
 
         @Override
         Log<String> open(File file) {
             return new Segment<>(
-                    StorageProvider.of(StorageMode.RAF_CACHED).create(file, SEGMENT_SIZE),
+                    file,
+                    StorageMode.RAF_CACHED,
+                    SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                     "magic",
@@ -416,7 +543,9 @@ public abstract class SegmentTest {
         @Override
         Log<String> open(File file) {
             return new Segment<>(
-                    StorageProvider.of(StorageMode.MMAP).create(file, SEGMENT_SIZE),
+                    file,
+                    StorageMode.MMAP,
+                    SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", WriteMode.LOG_HEAD);
         }
@@ -427,7 +556,9 @@ public abstract class SegmentTest {
         @Override
         Log<String> open(File file) {
             return new Segment<>(
-                    StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE),
+                    file,
+                    StorageMode.RAF,
+                    SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                     "magic",

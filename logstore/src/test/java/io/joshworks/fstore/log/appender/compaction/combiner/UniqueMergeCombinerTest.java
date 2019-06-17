@@ -1,9 +1,7 @@
 package io.joshworks.fstore.log.appender.compaction.combiner;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
@@ -244,9 +242,8 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> segmentWith(String... values) {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE);
 
-        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", WriteMode.LOG_HEAD);
+        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, dataStream, "magic", WriteMode.LOG_HEAD);
         segments.add(segment);
 
         for (String value : values) {
@@ -258,9 +255,8 @@ public class UniqueMergeCombinerTest {
 
     private Segment<TestEntry> segmentWith(TestEntry... values) {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE);
 
-        Segment<TestEntry> segment = new Segment<>(storage, new TestEntrySerializer(), dataStream, "magic", WriteMode.LOG_HEAD);
+        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), dataStream, "magic", WriteMode.LOG_HEAD);
         segments.add(segment);
 
         for (TestEntry value : values) {
@@ -272,16 +268,14 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> outputSegment() {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE);
-        Segment<String> segment = new Segment<>(storage, Serializers.VSTRING, dataStream, "magic", WriteMode.LOG_HEAD);
+        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, dataStream, "magic", WriteMode.LOG_HEAD);
         segments.add(segment);
         return segment;
     }
 
     private Segment<TestEntry> testEntryOutputSegment() {
         File file = FileUtils.testFile();
-        Storage storage = StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE);
-        Segment<TestEntry> segment = new Segment<>(storage, new TestEntrySerializer(), dataStream, "magic", WriteMode.LOG_HEAD);
+        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), dataStream, "magic", WriteMode.LOG_HEAD);
         segments.add(segment);
         return segment;
     }

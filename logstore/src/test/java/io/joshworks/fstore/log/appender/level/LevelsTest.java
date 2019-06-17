@@ -4,6 +4,8 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Test;
 
@@ -382,8 +384,23 @@ public class LevelsTest {
         }
 
         @Override
+        public void truncate() {
+
+        }
+
+        @Override
         public long uncompressedSize() {
             return 0;
+        }
+
+        @Override
+        public void writeFooter(FooterWriter footer) {
+
+        }
+
+        @Override
+        public FooterReader readFooter() {
+            return null;
         }
 
         @Override

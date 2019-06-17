@@ -23,14 +23,14 @@ public abstract class MemStorage implements Storage {
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final String name;
-    private final AtomicLong size = new AtomicLong();
+    private final AtomicLong length = new AtomicLong();
 
     protected final List<ByteBuffer> buffers = new ArrayList<>();
 
-    MemStorage(String name, long size, BiFunction<Long, Integer, ByteBuffer> bufferSupplier) {
+    MemStorage(String name, long length, BiFunction<Long, Integer, ByteBuffer> bufferSupplier) {
         this.name = name;
         this.bufferSupplier = bufferSupplier;
-        this.buffers.addAll(initBuffers(size, bufferSupplier));
+        this.buffers.addAll(initBuffers(length, bufferSupplier));
         computeLength();
     }
 
@@ -127,7 +127,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public long length() {
-        return size.get();
+        return length.get();
     }
 
     @Override
@@ -219,7 +219,7 @@ public abstract class MemStorage implements Storage {
             long additionalSpace = (long) (length() * GROWTH_RATE);
             int normalized = (int) Math.min(MAX_BUFFER_SIZE, additionalSpace);
             int bufferSize = Math.max(entrySize, normalized);
-            long startPos = size.get();
+            long startPos = length.get();
             ByteBuffer newBuffer = bufferSupplier.apply(startPos, bufferSize);
             buffers.add(newBuffer);
             computeLength();
@@ -230,7 +230,7 @@ public abstract class MemStorage implements Storage {
 
     //TODO not thread safe
     protected void computeLength() {
-        this.size.set(buffers.stream().mapToLong(ByteBuffer::capacity).sum());
+        this.length.set(buffers.stream().mapToLong(ByteBuffer::capacity).sum());
     }
 
     private void checkClosed() {

@@ -6,7 +6,6 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -161,8 +160,8 @@ public class IndexAppender implements Closeable {
         }
 
         @Override
-        public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, IDataStream reader, String magic, WriteMode mode) {
-            return new IndexSegment(storage, reader, magic, mode, directory, codec, numElements);
+        public IndexSegment createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<IndexEntry> serializer, IDataStream reader, String magic, WriteMode writeMode) {
+            return new IndexSegment(file, storageMode, dataLength, reader, magic, writeMode, directory, codec, numElements);
         }
     }
 

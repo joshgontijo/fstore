@@ -2,7 +2,6 @@ package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
@@ -99,7 +98,9 @@ public abstract class SegmentReaderTest {
         @Override
         Log<String> open(File file) {
             return new Segment<>(
-                    StorageProvider.of(StorageMode.RAF_CACHED).create(file, SEGMENT_SIZE),
+                    file,
+                    StorageMode.RAF_CACHED,
+                    SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                     "magic",
@@ -112,7 +113,9 @@ public abstract class SegmentReaderTest {
         @Override
         Log<String> open(File file) {
             return new Segment<>(
-                    StorageProvider.of(StorageMode.MMAP).create(file, SEGMENT_SIZE),
+                    file,
+                    StorageMode.MMAP,
+                    SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", WriteMode.LOG_HEAD);
         }
@@ -123,7 +126,9 @@ public abstract class SegmentReaderTest {
         @Override
         Log<String> open(File file) {
             return new Segment<>(
-                    StorageProvider.of(StorageMode.RAF).create(file, SEGMENT_SIZE),
+                    file,
+                    StorageMode.RAF,
+                    SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
                     "magic",

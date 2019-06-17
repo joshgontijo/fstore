@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.StorageProvider;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -34,7 +34,7 @@ public class Compactor<T> implements Closeable {
     private final File directory;
     private final SegmentCombiner<T> segmentCombiner;
     private final SegmentFactory<T> segmentFactory;
-    private final StorageProvider storageProvider;
+    private final StorageMode storageMode;
     private final Serializer<T> serializer;
     private final IDataStream dataStream;
     private final NamingStrategy namingStrategy;
@@ -52,7 +52,7 @@ public class Compactor<T> implements Closeable {
     public Compactor(File directory,
                      SegmentCombiner<T> segmentCombiner,
                      SegmentFactory<T> segmentFactory,
-                     StorageProvider storageProvider,
+                     StorageMode storageMode,
                      Serializer<T> serializer,
                      IDataStream dataStream,
                      NamingStrategy namingStrategy,
@@ -64,7 +64,7 @@ public class Compactor<T> implements Closeable {
         this.directory = directory;
         this.segmentCombiner = segmentCombiner;
         this.segmentFactory = segmentFactory;
-        this.storageProvider = storageProvider;
+        this.storageMode = storageMode;
         this.serializer = serializer;
         this.dataStream = dataStream;
         this.namingStrategy = namingStrategy;
@@ -107,7 +107,7 @@ public class Compactor<T> implements Closeable {
                 segmentCombiner,
                 targetFile,
                 segmentFactory,
-                storageProvider,
+                storageMode,
                 serializer,
                 dataStream,
                 name,

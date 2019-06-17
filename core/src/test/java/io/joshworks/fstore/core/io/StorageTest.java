@@ -110,11 +110,6 @@ public abstract class StorageTest {
         assertArrayEquals(data, found.array());
     }
 
-    @Test(expected = StorageException.class)
-    public void setting_position_greater_than_write_position_throws_exception() {
-        storage.writePosition(storage.length() + 1);
-    }
-
     @Test
     public void read_position_ahead_write_position_returns_EOF() {
         long writePosition = 4;
@@ -240,13 +235,6 @@ public abstract class StorageTest {
 
         assertEquals(storeLen, storage.writePosition());
     }
-
-    @Test(expected = StorageException.class)
-    public void position_cannot_be_set_to_more_than_fileLength() {
-        long storeLen = storage.length();
-        storage.writePosition(storeLen + 1);
-    }
-
 
     @Test
     public void when_position_is_equals_fileLength_then_trying_to_read_should_return_EOF() {
@@ -384,6 +372,23 @@ public abstract class StorageTest {
         storage.read(data.length, bb);
         assertArrayEquals(data, bb.array());
 
+    }
+
+    @Test
+    public void writePosition_can_set_to_higher_writePosition_after_expanding() {
+        byte[] data = fillWithUniqueBytes();
+
+        fillWith(storage, data);
+        long writePos = storage.writePosition();
+        long length = storage.length();
+
+        int additionalSize = (int) (length - writePos + 1);
+        storage.write(ByteBuffer.allocate(additionalSize));
+
+        storage.writePosition(0);
+        storage.writePosition(storage.length());
+
+        assertEquals(storage.length(), storage.writePosition());
     }
 
     private byte[] fillWithUniqueBytes() {

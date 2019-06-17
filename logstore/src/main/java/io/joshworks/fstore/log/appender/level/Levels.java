@@ -188,6 +188,7 @@ public class Levels<T> {
             //on startup read all the source sources from the header and if there's an existing segment, then delete, either the sources
             //or the target segment
             merged.roll(nextLevel);
+            merged.truncate();
             this.segments = copy;
         } finally {
             lock.unlock();

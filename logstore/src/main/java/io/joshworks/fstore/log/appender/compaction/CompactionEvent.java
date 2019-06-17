@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.StorageProvider;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
@@ -16,7 +16,7 @@ class CompactionEvent<T> {
     final SegmentCombiner<T> combiner;
     final File segmentFile;
     final SegmentFactory<T> segmentFactory;
-    final StorageProvider storageProvider;
+    final StorageMode storageMode;
     final Serializer<T> serializer;
     final IDataStream dataStream;
     final String name;
@@ -25,12 +25,12 @@ class CompactionEvent<T> {
     final Consumer<CompactionResult<T>> onComplete;
 
 
-    CompactionEvent(List<Log<T>> segments, SegmentCombiner<T> combiner, File segmentFile, SegmentFactory<T> segmentFactory, StorageProvider storageProvider, Serializer<T> serializer, IDataStream dataStream, String name, int level, String magic, Consumer<CompactionResult<T>> onComplete) {
+    CompactionEvent(List<Log<T>> segments, SegmentCombiner<T> combiner, File segmentFile, SegmentFactory<T> segmentFactory, StorageMode storageMode, Serializer<T> serializer, IDataStream dataStream, String name, int level, String magic, Consumer<CompactionResult<T>> onComplete) {
         this.segments = segments;
         this.combiner = combiner;
         this.segmentFile = segmentFile;
         this.segmentFactory = segmentFactory;
-        this.storageProvider = storageProvider;
+        this.storageMode = storageMode;
         this.serializer = serializer;
         this.dataStream = dataStream;
         this.name = name;

@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.MMapCache;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
@@ -32,7 +33,9 @@ public class DataFile<T> implements Flushable, Closeable {
         try {
             storage = createStorage(handler, mmap);
             DataStream dataStream = new DataStream(new LocalGrowingBufferPool(), 1.0, maxEntrySize, Memory.PAGE_SIZE);
-            this.segment = new Segment<>(storage, serializer, dataStream, magic, WriteMode.LOG_HEAD);
+            StorageMode storageMode = mmap ? StorageMode.MMAP : StorageMode.RAF;
+            //TODO fixme (length)
+            this.segment = new Segment<>(handler, storageMode, 1024, serializer, dataStream, magic, WriteMode.LOG_HEAD);
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
             throw new RuntimeException(e);
@@ -98,14 +101,13 @@ public class DataFile<T> implements Flushable, Closeable {
         segment.delete();
     }
 
-
-
     public static final class Builder<T> {
 
         private final Serializer<T> serializer;
         private boolean mmap;
         private int maxSize = Size.MB.intOf(5);
-        private String magic = "data-file-default-magic";
+        private String magic = "DATA_FIE_DEFAULT_MAGIC";
+        private long size;
 
         public Builder(Serializer<T> serializer) {
             this.serializer = serializer;
@@ -118,6 +120,11 @@ public class DataFile<T> implements Flushable, Closeable {
 
         public Builder<T> maxEntrySize(int maxSize) {
             this.maxSize = maxSize;
+            return this;
+        }
+
+        public Builder<T> withInitialSize(long size) {
+            this.size = size;
             return this;
         }
 
