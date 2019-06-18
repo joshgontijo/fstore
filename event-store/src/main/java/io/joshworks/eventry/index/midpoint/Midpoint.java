@@ -34,7 +34,6 @@ public class Midpoint implements Comparable<IndexEntry> {
 
     @Override
     public int hashCode() {
-
         return Objects.hash(key, position);
     }
 }

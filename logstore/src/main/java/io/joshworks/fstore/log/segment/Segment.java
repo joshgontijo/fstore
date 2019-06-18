@@ -14,11 +14,13 @@ import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.serializer.DirectSerializer;
 import org.slf4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
@@ -138,6 +140,18 @@ public class Segment<T> implements Log<T> {
         long segmentEnd = START + logSize() + header.footerLength();
         storage.writePosition(segmentEnd);
         storage.truncate();
+    }
+
+    public void transferTo(long position, long length, WritableByteChannel channel) {
+        try {
+            List<RecordEntry<ByteBuffer>> entries = dataStream.bulkRead(storage, Direction.FORWARD, position, new DirectSerializer());
+            for (RecordEntry<ByteBuffer> entry : entries) {
+                channel.write(entry.entry());
+            }
+        } catch (Exception e) {
+            throw new SegmentException("Failed to transfer data", e);
+        }
+
     }
 
     @Override

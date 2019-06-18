@@ -2,20 +2,16 @@ package io.joshworks.fstore.lsmtree.sstable.index;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.extra.DataFile;
-import io.joshworks.fstore.log.record.IDataStream;
-import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
+import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,34 +20,44 @@ import java.util.Objects;
 public class Index<K extends Comparable<K>> implements Closeable {
 
     private final List<IndexEntry<K>> entries;
-    private final DataFile<IndexEntry<K>> dataFile;
 
-    private boolean dirty;
+    private final IndexEntrySerializer<K> serializer;
 
     public Index(File indexDir, String segmentFileName, Serializer<K> keySerializer, String magic) {
         File file = getFile(indexDir, segmentFileName);
-        this.dataFile = DataFile.of(new IndexEntrySerializer<>(keySerializer)).withMagic(magic).open(file);
+        serializer = new IndexEntrySerializer<>(keySerializer);
         this.entries = load(file);
     }
 
     public void add(K key, long pos) {
         Objects.requireNonNull(key, "Index key cannot be null");
         this.entries.add(new IndexEntry<>(key, pos));
-        dirty = true;
     }
 
-    public void write() {
-        if (!dirty) {
-            return;
-        }
+    public void write(FooterWriter writer) {
+        long start = writer.position();
+        writer.position(start + Long.BYTES);
         for (IndexEntry<K> indexEntry : entries) {
-            dataFile.add(indexEntry);
+            writer.write(indexEntry, serializer);
         }
-        dirty = false;
+        writer.position(start);
+        long length = writer.position() - start;
+        writer.position(start);
+        writer.write(length, Serializers.LONG);
     }
 
-    private List<IndexEntry<K>> load(File handler) {
-        if (!handler.exists()) {
+    private List<IndexEntry<K>> load(FooterReader reader) {
+        if (reader.length() == 0) {
+            return new ArrayList<>();
+        }
+
+        var len = ByteBuffer.allocate(Long.BYTES);
+        int read = reader.read(reader.position(), len);
+        if (read <= 0) {
+            return new ArrayList<>();
+        }
+        long length = len.flip().getLong();
+        if (length <= 0) {
             return new ArrayList<>();
         }
 
