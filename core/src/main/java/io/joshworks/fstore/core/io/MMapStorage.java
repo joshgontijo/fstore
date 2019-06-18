@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.util.MappedByteBuffers;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
@@ -57,6 +58,20 @@ public class MMapStorage extends MemStorage {
         } finally {
             lock.unlock();
         }
+    }
+
+    public void transferTo(WritableByteChannel channel) {
+        for (int i = 0; i < buffers.size() - 1; i++) {
+            ByteBuffer buffer = buffers.get(i);
+            buffer.clear();
+            channel.write(buffer);
+        }
+        for (ByteBuffer buffer : buffers) {
+            ByteBuffer byteBuffer = buffer.asReadOnlyBuffer();
+            byteBuffer.clear();
+
+        }
+
     }
 
     @Override
