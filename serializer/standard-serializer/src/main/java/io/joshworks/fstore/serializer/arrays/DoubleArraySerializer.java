@@ -2,7 +2,7 @@ package io.joshworks.fstore.serializer.arrays;
 
 import java.nio.ByteBuffer;
 
-public class DoubleArraySerializer extends FixedObjectSizeArraySerializer<double[]> {
+public class DoubleArraySerializer extends SizePrefixedArraySerializer<double[]> {
 
     @Override
     public ByteBuffer toBytes(double[] data) {

@@ -14,10 +14,24 @@ public class MMapCache extends MMapStorage {
 
     @Override
     public int write(ByteBuffer src) {
-        if (!hasEnoughSpace(src.remaining())) {
-            expand(src.remaining());
-        }
+        ensureCapacity(position(), src.remaining());
         return diskStorage.write(src);
+    }
+
+    @Override
+    public int write(long position, ByteBuffer src) {
+        ensureCapacity(position, src.remaining());
+        return diskStorage.write(position, src);
+    }
+
+    @Override
+    public long write(ByteBuffer[] srcs) {
+        long srcTotal = 0;
+        for (ByteBuffer src : srcs) {
+            srcTotal += src.remaining();
+        }
+        ensureCapacity(position(), srcTotal);
+        return diskStorage.write(srcs);
     }
 
     @Override
@@ -26,7 +40,7 @@ public class MMapCache extends MMapStorage {
         if (dstRemaining == 0) {
             return 0;
         }
-        long srcAvailable = diskStorage.writePosition() - readPos;
+        long srcAvailable = diskStorage.position() - readPos;
         if (srcAvailable <= 0) {
             return EOF;
         }
@@ -45,18 +59,19 @@ public class MMapCache extends MMapStorage {
     }
 
     @Override
-    public void writePosition(long position) {
-        diskStorage.writePosition(position);
-        super.writePosition(position);
+    public void position(long position) {
+        diskStorage.position(position);
+        super.position(position);
     }
 
     @Override
-    protected void expand(int entrySize) {
-        super.expand(entrySize);
+    public long position() {
+        return diskStorage.position();
     }
 
     @Override
-    public long writePosition() {
-        return diskStorage.writePosition();
+    public void truncate(long newSize) {
+        super.truncate(newSize);
+        diskStorage.truncate(newSize);
     }
 }

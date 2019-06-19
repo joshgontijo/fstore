@@ -5,7 +5,6 @@ import io.joshworks.fstore.core.util.MappedByteBuffers;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
@@ -18,7 +17,7 @@ public class MMapStorage extends MemStorage {
     protected final DiskStorage diskStorage;
 
     public MMapStorage(DiskStorage diskStorage) {
-        super(diskStorage.name(), diskStorage.length(), mmap(diskStorage));
+        super(diskStorage.name(), diskStorage.size(), mmap(diskStorage));
         this.diskStorage = diskStorage;
     }
 
@@ -27,7 +26,7 @@ public class MMapStorage extends MemStorage {
     }
 
     MMapStorage(DiskStorage diskStorage, int bufferSize) {
-        super(diskStorage.name(), diskStorage.length(), mmap(diskStorage));
+        super(diskStorage.name(), diskStorage.size(), mmap(diskStorage));
         this.diskStorage = diskStorage;
     }
 
@@ -60,19 +59,19 @@ public class MMapStorage extends MemStorage {
         }
     }
 
-    public void transferTo(WritableByteChannel channel) {
-        for (int i = 0; i < buffers.size() - 1; i++) {
-            ByteBuffer buffer = buffers.get(i);
-            buffer.clear();
-            channel.write(buffer);
-        }
-        for (ByteBuffer buffer : buffers) {
-            ByteBuffer byteBuffer = buffer.asReadOnlyBuffer();
-            byteBuffer.clear();
-
-        }
-
-    }
+//    public void transferTo(WritableByteChannel channel) {
+//        for (int i = 0; i < buffers.size() - 1; i++) {
+//            ByteBuffer buffer = buffers.get(i);
+//            buffer.clear();
+//            channel.write(buffer);
+//        }
+//        for (ByteBuffer buffer : buffers) {
+//            ByteBuffer byteBuffer = buffer.asReadOnlyBuffer();
+//            byteBuffer.clear();
+//
+//        }
+//
+//    }
 
     @Override
     public void close() {
@@ -81,9 +80,9 @@ public class MMapStorage extends MemStorage {
     }
 
     @Override
-    public void writePosition(long position) {
-        super.writePosition(position);
-        diskStorage.writePosition(position);
+    public void position(long position) {
+        super.position(position);
+        diskStorage.position(position);
     }
 
     @Override
@@ -98,7 +97,10 @@ public class MMapStorage extends MemStorage {
     }
 
     @Override
-    public void truncate() {
+    public void truncate(long newSize) {
+        if (newSize >= size()) {
+            return;
+        }
         Lock lock = writeLockInterruptibly();
         try {
             Iterator<ByteBuffer> iterator = buffers.iterator();
@@ -107,13 +109,12 @@ public class MMapStorage extends MemStorage {
                 MappedByteBuffers.unmap(buffer);
                 iterator.remove();
             }
-            long pos = writePosition();
-            diskStorage.writePosition(pos);
-            diskStorage.truncate();
-            long newLength = diskStorage.length();
+            diskStorage.truncate(newSize);
+            long newLength = diskStorage.size();
             List<ByteBuffer> newBuffers = initBuffers(newLength, mmap(diskStorage));
             this.buffers.addAll(newBuffers);
             computeLength();
+            position.accumulateAndGet(newSize, (curr, newPos) -> curr > newPos ? newPos : curr);
         } finally {
             lock.unlock();
         }

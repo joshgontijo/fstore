@@ -4,7 +4,7 @@ import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.fstore.core.filter.BloomFilterHasher;
-import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -15,6 +15,8 @@ import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.lsmtree.sstable.index.Index;
 import io.joshworks.fstore.lsmtree.sstable.index.IndexEntry;
@@ -40,11 +42,12 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     private final Serializer<K> keySerializer;
     private final File directory;
     private final BlockSegment<Entry<K, V>> delegate;
-    private final Map<K, Long> cache = new HashMap<>();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final EntrySerializer<K, V> kvSerializer;
 
-    public SSTable(Storage storage,
+    public SSTable(File file,
+                   StorageMode mode,
+                   long size,
                    Serializer<K> keySerializer,
                    Serializer<V> valueSerializer,
                    IDataStream dataStream,
@@ -55,7 +58,9 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
         this.kvSerializer = new EntrySerializer<>(keySerializer, valueSerializer);
         this.delegate = new BlockSegment<>(
-                storage,
+                file,
+                mode,
+                size,
                 dataStream,
                 magic,
                 writeMode,
@@ -65,7 +70,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                 MAX_BLOCK_SIZE);
 
         this.keySerializer = keySerializer;
-        this.index = new Index<>(directory, storage.name(), keySerializer, magic);
+        this.index = new Index<>(keySerializer, delegate.readFooter());
         this.directory = directory;
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(keySerializer));
     }
@@ -79,7 +84,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     V get(K key) {
-        if (!mightHaveEntry(key)) {
+        if (definitelyNotPresent(key)) {
             return null;
         }
 
@@ -102,14 +107,13 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         return entries.get(idx).value;
     }
 
-    public void writeBlock() {
-        delegate.writeBlock();
-    }
-
     public synchronized void flush() {
         delegate.flush();
-        index.write();
         filter.write();
+    }
+
+    private boolean definitelyNotPresent(K key) {
+        return !filter.contains(key);
     }
 
     @Override
@@ -121,15 +125,12 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     public void delete() {
         delegate.delete();
         filter.delete();
-        index.delete();
     }
 
     @Override
     public void roll(int level) {
         delegate.roll(level);
-        index.roll();
     }
-
 
     @Override
     public boolean readOnly() {
@@ -157,8 +158,25 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
+    public void truncate() {
+        delegate.truncate();
+    }
+
+    @Override
     public long uncompressedSize() {
         return delegate.uncompressedSize();
+    }
+
+    @Override
+    public void writeFooter(FooterWriter footer) {
+        index.write(footer);
+        delegate.writeFooter(footer);
+    }
+
+    @Override
+    public FooterReader readFooter() {
+        //CLASS EXTENDING THIS HAS TO BE AWARE THAT THIS CLASS ALREADY HAS FOOTER ITEMS
+        return delegate.readFooter();
     }
 
     @Override
@@ -168,10 +186,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
     public void newBloomFilter(long numElements) {
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(keySerializer));
-    }
-
-    private boolean mightHaveEntry(K key) {
-        return filter.contains(key);
     }
 
     @Override
@@ -219,7 +233,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     public void close() {
         if (closed.compareAndSet(false, true)) {
             delegate.close();
-            index.close();
         }
     }
 

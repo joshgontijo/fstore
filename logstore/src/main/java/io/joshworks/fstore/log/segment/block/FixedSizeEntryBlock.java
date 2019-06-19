@@ -8,8 +8,8 @@ public class FixedSizeEntryBlock extends BaseBlock {
 
     private final int entrySize;
 
-    public FixedSizeEntryBlock(int maxSize, int entrySize) {
-        super(maxSize);
+    public FixedSizeEntryBlock(int entrySize, int maxEntries) {
+        super(entrySize * maxEntries);
         if (entrySize <= 0) {
             throw new IllegalArgumentException("maxSize must be greater than zero");
         }
