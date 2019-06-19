@@ -37,7 +37,7 @@ public class DataStreamTest {
     public void setUp() {
         file = FileUtils.testFile();
         storage = Storage.create(file, StorageMode.RAF, FILE_SIZE);
-        storage.writePosition(Log.START);
+        storage.position(Log.START);
     }
 
     @After
@@ -71,7 +71,7 @@ public class DataStreamTest {
         ByteBuffer data1 = Serializers.STRING.toBytes("1");
         stream.write(storage, data1);
 
-        long pos = storage.writePosition();
+        long pos = storage.position();
         RecordEntry<String> read = stream.read(storage, Direction.BACKWARD, pos, Serializers.STRING);
         assertNotNull(read);
         assertEquals("1", read.entry().intern());
@@ -102,7 +102,7 @@ public class DataStreamTest {
             stream.write(storage, Serializers.LONG.toBytes(i));
         }
 
-        List<RecordEntry<Long>> found = stream.bulkRead(storage, Direction.BACKWARD, storage.writePosition(), Serializers.LONG);
+        List<RecordEntry<Long>> found = stream.bulkRead(storage, Direction.BACKWARD, storage.position(), Serializers.LONG);
         assertEquals(numItems, found.size());
         Collections.reverse(found);
         for (int i = 0; i < numItems; i++) {
@@ -146,7 +146,7 @@ public class DataStreamTest {
         String second = ofSize(Memory.PAGE_SIZE / 2);
         stream.write(storage, Serializers.STRING.toBytes(second));
 
-        RecordEntry<String> read = stream.read(storage, Direction.BACKWARD, storage.writePosition(), Serializers.STRING);
+        RecordEntry<String> read = stream.read(storage, Direction.BACKWARD, storage.position(), Serializers.STRING);
         assertNotNull(read);
         assertEquals(second, read.entry());
     }
@@ -170,7 +170,7 @@ public class DataStreamTest {
         ByteBuffer data = Serializers.STRING.toBytes(content);
         stream.write(storage, data);
 
-        long pos = storage.writePosition();
+        long pos = storage.position();
         RecordEntry<String> found = stream.read(storage, Direction.BACKWARD, pos, Serializers.STRING);
         assertNotNull(found);
         assertEquals(content, found.entry().intern());
@@ -205,7 +205,7 @@ public class DataStreamTest {
         String secondEntry = ofSize(secondEntryLength);
         stream.write(storage, Serializers.STRING.toBytes(secondEntry));
 
-        List<RecordEntry<String>> read = stream.bulkRead(storage, Direction.BACKWARD, storage.writePosition(), Serializers.STRING);
+        List<RecordEntry<String>> read = stream.bulkRead(storage, Direction.BACKWARD, storage.position(), Serializers.STRING);
         assertEquals(1, read.size());
         assertEquals(secondEntry, read.get(0).entry().intern());
     }

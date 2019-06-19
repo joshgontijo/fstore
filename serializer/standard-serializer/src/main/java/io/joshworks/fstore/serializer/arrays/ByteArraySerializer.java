@@ -2,13 +2,13 @@ package io.joshworks.fstore.serializer.arrays;
 
 import java.nio.ByteBuffer;
 
-public class ByteArraySerializer extends FixedObjectSizeArraySerializer<byte[]> {
+public class ByteArraySerializer extends SizePrefixedArraySerializer<byte[]> {
 
     @Override
     public ByteBuffer toBytes(byte[] data) {
         ByteBuffer bb = allocate(data.length);
         bb.put(data);
-        return (ByteBuffer) bb.flip();
+        return bb.flip();
     }
 
     @Override

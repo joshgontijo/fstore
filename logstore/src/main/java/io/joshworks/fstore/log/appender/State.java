@@ -110,7 +110,7 @@ public class State implements Closeable {
 
     private void write(ByteBuffer data) {
         try {
-            storage.writePosition(0);
+            storage.position(0);
             int written = storage.write(data);
             if (written == Storage.EOF) {
                 throw new IllegalStateException("Failed to write state got EOF from storage");

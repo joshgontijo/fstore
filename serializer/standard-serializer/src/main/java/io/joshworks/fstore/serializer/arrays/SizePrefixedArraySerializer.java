@@ -4,7 +4,10 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 
-public abstract class FixedObjectSizeArraySerializer<T> implements Serializer<T> {
+/**
+ * Size prefix array
+ */
+public abstract class SizePrefixedArraySerializer<T> implements Serializer<T> {
 
     abstract int byteSize();
 

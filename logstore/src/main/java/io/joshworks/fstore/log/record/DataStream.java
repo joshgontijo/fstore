@@ -12,7 +12,9 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Objects;
 
-//THREAD SAFE
+/**
+ * Class responsible for handling record headers
+ */
 public class DataStream implements IDataStream {
 
     public static final int MAX_BULK_READ_RESULT = 100;
@@ -26,6 +28,8 @@ public class DataStream implements IDataStream {
     private final BulkReader bulkBackwardReader;
     private final Reader backwardReader;
     private final BufferPool bufferPool;
+
+    private final ThreadLocal<ByteBuffer[]> record = ThreadLocal.withInitial(() -> new ByteBuffer[]{ByteBuffer.allocate(RecordHeader.MAIN_HEADER), null, ByteBuffer.allocate(RecordHeader.SECONDARY_HEADER)});
 
     public DataStream(BufferPool bufferPool, double checksumProb, int maxEntrySize, int readPageSize) {
         if (checksumProb < 0 || checksumProb > 1) {
@@ -41,31 +45,30 @@ public class DataStream implements IDataStream {
     }
 
     @Override
-    public long write(Storage storage, ByteBuffer bytes) {
-        long storagePos = storage.writePosition();
+    public long write(Storage storage, ByteBuffer entryData) {
+        long storagePos = storage.position();
         validateStoragePosition(storagePos);
 
-        int recordSize = RecordHeader.HEADER_OVERHEAD + bytes.remaining();
+        int entrySize = entryData.remaining();
+        int recordSize = RecordHeader.HEADER_OVERHEAD + entrySize;
 
         checkRecordSize(recordSize);
 
-        ByteBuffer bb = bufferPool.allocate(recordSize);
-        try {
-            int entrySize = bytes.remaining();
-            bb.putInt(entrySize);
-            bb.putInt(ByteBufferChecksum.crc32(bytes));
-            bb.put(bytes);
-            bb.putInt(entrySize);
 
-            bb.flip();
-            int written = storage.write(bb);
-            if (written == Storage.EOF) {
-                return Storage.EOF;
-            }
+        ByteBuffer[] buffers = record.get();
+        try {
+            buffers[0].putInt(entrySize);
+            buffers[0].putInt(ByteBufferChecksum.crc32(entryData));
+            buffers[1] = entryData;
+            buffers[2].putInt(entrySize);
+
+            storage.write(buffers);
             return storagePos;
 
         } finally {
-            bufferPool.free(bb);
+            buffers[0].clear();
+            buffers[1] = null;
+            buffers[2].clear();
         }
     }
 
@@ -77,7 +80,7 @@ public class DataStream implements IDataStream {
 
     @Override
     public <T> long write(Storage storage, T data, Serializer<T> serializer) {
-        long storagePos = storage.writePosition();
+        long storagePos = storage.position();
         validateStoragePosition(storagePos);
 
         ByteBuffer writeBuffer = bufferPool.allocate(Memory.PAGE_SIZE);

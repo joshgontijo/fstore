@@ -1,7 +1,5 @@
 package io.joshworks.fstore.core.io;
 
-import io.joshworks.fstore.core.util.StatsStorage;
-
 import java.io.Closeable;
 import java.io.File;
 import java.io.Flushable;
@@ -16,37 +14,35 @@ public interface Storage extends Flushable, Closeable {
 
     int write(ByteBuffer data);
 
+    int write(long position, ByteBuffer data);
+
+    long write(ByteBuffer[] src);
+
     int read(long position, ByteBuffer data);
 
-    long length();
+    long size();
 
-    void writePosition(long position);
+    void position(long position);
 
-    long writePosition();
+    long position();
 
     void delete();
 
     String name();
 
-    void truncate();
+    void truncate(long newSize);
 
-    default boolean hasEnoughSpace(int dataSize) {
-        long position = writePosition();
-        long size = length();
-        return position + dataSize <= size;
-    }
-
-    //position can be set to fileLength
-    //but if a write is performed, then it should return EOF
-    default void validateWriteAddress(long position) {
-        if (position < 0 || position > length()) {
-            long size = length();
-            throw new StorageException("Invalid position: " + position + ", valid range: 0 to " + size);
-        }
-    }
+//    //position can be set to fileLength
+//    //but if a write is performed, then it should return EOF
+//    default void validateWriteAddress(long position) {
+//        if (position < 0 || position > length()) {
+//            long size = length();
+//            throw new StorageException("Invalid position: " + position + ", valid range: 0 to " + size);
+//        }
+//    }
 
     default boolean hasAvailableData(long readPos) {
-        long writePos = writePosition();
+        long writePos = position();
         return readPos < writePos;
     }
 
@@ -67,7 +63,7 @@ public interface Storage extends Flushable, Closeable {
             throw new IllegalArgumentException("Storage size must be greater than zero");
         }
         Storage storage = getStorage(file, mode, size);
-        return new StatsStorage(storage);
+        return storage;
     }
 
     static Storage open(File file, StorageMode mode) {
@@ -79,19 +75,19 @@ public interface Storage extends Flushable, Closeable {
             throw new IllegalStateException("File " + file.getName() + " has length equals to zero");
         }
         Storage storage = getStorage(file, mode, file.length());
-        storage.writePosition(file.length());
-        return new StatsStorage(storage);
+        storage.position(file.length());
+        return storage;
     }
 
     private static Storage getStorage(File file, StorageMode mode, long alignedSize) {
         switch (mode) {
             case MMAP:
-                RafStorage diskStorage1 = new RafStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
+                DiskStorage diskStorage1 = new DiskStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
                 return new MMapStorage(diskStorage1);
             case RAF:
-                return new RafStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
+                return new DiskStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
             case RAF_CACHED:
-                RafStorage diskStorage2 = new RafStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
+                DiskStorage diskStorage2 = new DiskStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
                 return new MMapCache(diskStorage2);
             case OFF_HEAP:
                 return new OffHeapStorage(file.getAbsolutePath(), alignedSize);

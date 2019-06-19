@@ -27,7 +27,8 @@ public class Serializers {
 
     }
     //No serializer
-    public static final Serializer<ByteBuffer> BYTE_BUFFER = new DirectSerializer();
+    public static final Serializer<ByteBuffer> NONE = new DirectSerializer();
+    public static final Serializer<byte[]> FROM_BYTE_ARRAY = new FromByteArraySerializer();
 
     public static final Serializer<String> VSTRING = new VStringSerializer();
 

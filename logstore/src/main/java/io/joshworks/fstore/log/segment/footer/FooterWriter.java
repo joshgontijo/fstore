@@ -10,8 +10,10 @@ public class FooterWriter {
     private final IDataStream stream;
     private final long start;
 
-    public FooterWriter(Storage storage) {
+    public FooterWriter(Storage storage, IDataStream stream) {
         this.storage = storage;
+        this.start = storage.position();
+        this.stream = stream;
     }
 
     public <T> long write(T data, Serializer<T> serializer) {
@@ -19,19 +21,14 @@ public class FooterWriter {
     }
 
     public long position() {
-        return storage.writePosition();
+        return storage.position();
     }
 
-    //TODO test mem storage for the following scenario:
-    //Set writePosition greater than store size
-    //write data
-    //buffer should expand to the position when a write is performed
-    //reads without writes should return EOF
     public void position(long position) {
         if (position < start) {
             throw new IllegalArgumentException("Position cannot be less than " + start);
         }
-        storage.writePosition(position);
+        storage.position(position);
     }
 
     public long start() {

@@ -13,32 +13,43 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-public class Index<K extends Comparable<K>> {
+/**
+ * Red black tree based index, all entries are kept in memory.
+ * Data is written to file on segment roll
+ */
+public class MapIndex<K extends Comparable<K>> {
 
-    private final List<IndexEntry<K>> entries;
+    private final Map<K, Long> map = new TreeMap<>();
 
     private final IndexEntrySerializer<K> serializer;
+    private final Serializer<K> keySerializer;
 
-    public Index(Serializer<K> keySerializer, FooterReader reader) {
+    public MapIndex(Serializer<K> keySerializer, FooterReader reader) {
         serializer = new IndexEntrySerializer<>(keySerializer);
-        this.entries = load(reader);
+        this.map = load(reader);
     }
 
     public void add(K key, long pos) {
         Objects.requireNonNull(key, "Index key cannot be null");
-        this.entries.add(new IndexEntry<>(key, pos));
+        map.put(key, pos);
     }
 
     public void write(FooterWriter writer) {
         Block block = new VLenBlock(Integer.MAX_VALUE);
 
-        Iterator<IndexEntry<K>> iterator = entries.iterator();
+        Iterator<Map.Entry<K, Long>> iterator = map.entrySet().iterator();
         while (iterator.hasNext()) {
-            IndexEntry<K> indexEntry = iterator.next();
-            if (!block.add(serializer.toBytes(indexEntry))) {
+            Map.Entry<K, Long> entry = iterator.next();
+
+            ByteBuffer keyData = keySerializer.toBytes(entry.getKey());
+            Serializers.LONG.toBytes(keySerializer);
+
+            if (!block.add(serializer.toBytes(entry))) {
                 throw new IllegalStateException("No block space available");
             }
             iterator.remove();
