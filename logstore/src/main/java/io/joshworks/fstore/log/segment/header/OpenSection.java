@@ -3,15 +3,13 @@ package io.joshworks.fstore.log.segment.header;
 import io.joshworks.fstore.log.segment.WriteMode;
 
 public final class OpenSection {
-    public final String magic;
     public final long created;
     public final WriteMode mode;
     public final long fileSize;
     public final long dataSize;
     public final boolean encrypted;
 
-    public OpenSection(String magic, long created, WriteMode mode, long fileSize, long dataSize, boolean encrypted) {
-        this.magic = magic;
+    public OpenSection(long created, WriteMode mode, long fileSize, long dataSize, boolean encrypted) {
         this.created = created;
         this.mode = mode;
         this.fileSize = fileSize;
@@ -22,7 +20,6 @@ public final class OpenSection {
     @Override
     public String toString() {
         return "{" +
-                "magic='" + magic + '\'' +
                 ", created=" + created +
                 ", mode=" + mode +
                 ", fileSize=" + fileSize +

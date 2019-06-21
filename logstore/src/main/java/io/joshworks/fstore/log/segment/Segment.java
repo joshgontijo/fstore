@@ -57,7 +57,6 @@ public class Segment<T> implements Log<T> {
     private final Serializer<T> serializer;
     private final Storage storage;
     private final IDataStream dataStream;
-    private final String magic;
 
     protected final AtomicLong entries = new AtomicLong();
     //writePosition must be kept separate from store, so it allows reads happening when rolling segment
@@ -72,11 +71,10 @@ public class Segment<T> implements Log<T> {
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
-    public Segment(File file, StorageMode storageMode, long segmentDataSize, Serializer<T> serializer, IDataStream dataStream, String magic, WriteMode writeMode) {
+    public Segment(File file, StorageMode storageMode, long segmentDataSize, Serializer<T> serializer, IDataStream dataStream,WriteMode writeMode) {
 
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
         this.dataStream = requireNonNull(dataStream, "Reader must be provided");
-        this.magic = requireNonNull(magic, "Magic must be provided");
         if (!Files.exists(file.toPath()) && (segmentDataSize <= 0 || writeMode == null)) {
             throw new IllegalStateException("segmentDataSize and writeMode must be provided when creating segment");
         }
@@ -90,12 +88,12 @@ public class Segment<T> implements Log<T> {
             if (storage.size() <= LogHeader.BYTES) {
                 throw new IllegalArgumentException("Segment size must greater than " + LogHeader.BYTES);
             }
-            this.header = LogHeader.read(storage, magic);
+            this.header = LogHeader.read(storage);
             if (Type.NONE.equals(header.type())) { //new segment
                 if (writeMode == null) {
                     throw new SegmentException("Segment doesn't exist, WriteMode must be specified");
                 }
-                this.header.writeNew(storage, magic, writeMode, fileLength, segmentDataSize, false); //TODO update for ENCRYPTION
+                this.header.writeNew(storage, writeMode, fileLength, segmentDataSize, false); //TODO update for ENCRYPTION
 
                 this.position(Log.START);
                 this.entries.set(0);

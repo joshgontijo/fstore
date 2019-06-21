@@ -19,8 +19,12 @@ public class LocalGrowingBufferPool implements BufferPool {
     }
 
     public LocalGrowingBufferPool(boolean direct) {
+        this(direct, Memory.PAGE_SIZE);
+    }
+
+    public LocalGrowingBufferPool(boolean direct, int initialSize) {
         this.direct = direct;
-        this.cache = ThreadLocal.withInitial(() -> new BufferHolder(create(Memory.PAGE_SIZE)));
+        this.cache = ThreadLocal.withInitial(() -> new BufferHolder(create(initialSize)));
     }
 
     protected ByteBuffer create(int size) {

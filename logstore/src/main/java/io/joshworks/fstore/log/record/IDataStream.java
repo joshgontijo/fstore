@@ -11,8 +11,6 @@ public interface IDataStream {
 
     long write(Storage storage, ByteBuffer data);
 
-    <T> long write(Storage storage, T data, Serializer<T> serializer);
-
     <T> RecordEntry<T> read(Storage storage, Direction direction, long position, Serializer<T> serializer);
 
     <T> List<RecordEntry<T>> bulkRead(Storage storage, Direction direction, long position, Serializer<T> serializer);

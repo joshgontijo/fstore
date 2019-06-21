@@ -1,16 +1,20 @@
 package io.joshworks.fstore.log.record;
 
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class BaseReader {
 
     private final ThreadLocalRandom rand = ThreadLocalRandom.current();
+    protected final BufferPool bufferPool;
     private final double checksumProb;
     private final int maxEntrySize;
     protected final int bufferSize;
 
-    public BaseReader(double checksumProb, int maxEntrySize, int bufferSize) {
+    public BaseReader(BufferPool bufferPool, double checksumProb, int maxEntrySize, int bufferSize) {
+        this.bufferPool = bufferPool;
         this.checksumProb = checksumProb;
         this.maxEntrySize = maxEntrySize;
         this.bufferSize = bufferSize;

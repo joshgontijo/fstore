@@ -10,12 +10,12 @@ import java.nio.ByteBuffer;
 final class BackwardRecordReader extends BaseReader implements Reader {
 
 
-    public BackwardRecordReader(double checksumProb, int maxEntrySize, int bufferSize) {
-        super(checksumProb, maxEntrySize, bufferSize);
+    public BackwardRecordReader(BufferPool bufferPool, double checksumProb, int maxEntrySize, int bufferSize) {
+        super(bufferPool, checksumProb, maxEntrySize, bufferSize);
     }
 
     @Override
-    public <T> RecordEntry<T> read(Storage storage, BufferPool bufferPool, long position, Serializer<T> serializer) {
+    public <T> RecordEntry<T> read(Storage storage, long position, Serializer<T> serializer) {
         ByteBuffer buffer = bufferPool.allocate(bufferSize);
         try {
             int limit = buffer.limit();

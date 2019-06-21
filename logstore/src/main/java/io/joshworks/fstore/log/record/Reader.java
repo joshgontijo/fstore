@@ -6,6 +6,6 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 
 public interface Reader {
 
-    <T> RecordEntry<T> read(Storage storage, BufferPool bufferPool, long position, Serializer<T> serializer);
+    <T> RecordEntry<T> read(Storage storage, long position, Serializer<T> serializer);
 
 }

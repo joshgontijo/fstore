@@ -8,6 +8,6 @@ import java.util.List;
 
 public interface BulkReader {
 
-    <T> List<RecordEntry<T>> read(Storage storage, BufferPool bufferPool, long position, Serializer<T> serializer);
+    <T> List<RecordEntry<T>> read(Storage storage, long position, Serializer<T> serializer);
 
 }
