@@ -12,12 +12,12 @@ import java.util.List;
 final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
 
 
-    public BulkBackwardRecordReader(double checksumProb, int maxEntrySize, int bufferSize) {
-        super(checksumProb, maxEntrySize, bufferSize);
+    public BulkBackwardRecordReader(BufferPool bufferPool, double checksumProb, int maxEntrySize, int bufferSize) {
+        super(bufferPool, checksumProb, maxEntrySize, bufferSize);
     }
 
     @Override
-    public <T> List<RecordEntry<T>> read(Storage storage, BufferPool bufferPool, long position, Serializer<T> serializer) {
+    public <T> List<RecordEntry<T>> read(Storage storage, long position, Serializer<T> serializer) {
         ByteBuffer buffer = bufferPool.allocate(bufferSize);
 
         List<RecordEntry<T>> entries = new ArrayList<>();

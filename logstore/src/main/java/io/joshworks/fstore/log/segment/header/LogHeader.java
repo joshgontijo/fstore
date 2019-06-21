@@ -70,10 +70,6 @@ public class LogHeader {
         return open != null && open.encrypted;
     }
 
-    public String magic() {
-        return open == null ? null : open.magic;
-    }
-
     public long entries() {
         return completed == null ? 0 : completed.entries;
     }
@@ -124,11 +120,10 @@ public class LogHeader {
         return header;
     }
 
-    public void writeNew(Storage storage, String magic, WriteMode mode, long fileSize, long dataSize, boolean encrypted) {
+    public void writeNew(Storage storage, WriteMode mode, long fileSize, long dataSize, boolean encrypted) {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.SECTION_SIZE);
         long created = System.currentTimeMillis();
 
-        Serializers.VSTRING.writeTo(magic, bb);
         bb.putLong(created);
         bb.putInt(mode.val);
         bb.putLong(fileSize);
@@ -136,7 +131,7 @@ public class LogHeader {
         bb.putInt(encrypted ? 1 : 0);
         bb.flip();
         write(storage, OPEN_SECTION_START, bb);
-        this.open = new OpenSection(magic, created, mode, fileSize, dataSize, encrypted);
+        this.open = new OpenSection(created, mode, fileSize, dataSize, encrypted);
     }
 
     public void writeCompleted(Storage storage, long entries, int level, long actualDataSize, long footerLength, long uncompressedSize) {
