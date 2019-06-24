@@ -103,7 +103,7 @@ public class LogHeader {
         return completed.footerLength;
     }
 
-    public static LogHeader read(Storage storage, String magic) {
+    public static LogHeader read(Storage storage) {
         LogHeader header = new LogHeader();
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
 
@@ -113,7 +113,7 @@ public class LogHeader {
         if (bb.remaining() == 0) {
             return header;
         }
-        header.open = readOpenSection(bb, magic);
+        header.open = readOpenSection(bb);
         header.completed = readCompleteSection(bb);
         header.deleted = readDeletedSection(bb);
 
@@ -159,21 +159,18 @@ public class LogHeader {
         this.deleted = new DeletedSection(deletedTS);
     }
 
-    private static OpenSection readOpenSection(ByteBuffer bb, String expectedMagic) {
+    private static OpenSection readOpenSection(ByteBuffer bb) {
         ByteBuffer data = validateSection(bb, OPEN_SECTION_START);
         if (!data.hasRemaining()) {
             return null;
         }
-        String magic = Serializers.VSTRING.fromBytes(data);
         long created = data.getLong();
         WriteMode writeMode = WriteMode.of(data.getInt());
         long fileSize = data.getLong();
         long dataSize = data.getLong();
         boolean encrypted = data.getInt() == 1;
 
-        validateMagic(magic, expectedMagic);
-
-        return new OpenSection(magic, created, writeMode, fileSize, dataSize, encrypted);
+        return new OpenSection(created, writeMode, fileSize, dataSize, encrypted);
     }
 
     private static CompletedSection readCompleteSection(ByteBuffer bb) {
@@ -246,14 +243,6 @@ public class LogHeader {
             storage.position(prevPos);
         } catch (Exception e) {
             throw new RuntimeException("Failed to write header", e);
-        }
-    }
-
-    private static void validateMagic(String actualMagic, String expectedMagic) {
-        byte[] actual = actualMagic.getBytes(StandardCharsets.UTF_8);
-        byte[] expected = expectedMagic.getBytes(StandardCharsets.UTF_8);
-        if (!Arrays.equals(expected, actual)) {
-            throw new InvalidMagic(expectedMagic, actualMagic);
         }
     }
 
