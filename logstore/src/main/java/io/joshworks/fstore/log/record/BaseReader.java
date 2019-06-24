@@ -32,7 +32,7 @@ public class BaseReader {
         }
     }
 
-    protected void checkRecordLength(int length, long position) {
+    void checkRecordLength(int length, long position) {
         if (length < 0 || length > maxEntrySize) {
             throw new IllegalStateException("Invalid record length " + length + " at position " + position);
         }

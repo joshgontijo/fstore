@@ -8,10 +8,8 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.record.ByteBufferChecksum;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
-import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.LogHeader;
@@ -60,7 +58,7 @@ public class Segment<T> implements Log<T> {
 
     protected final AtomicLong entries = new AtomicLong();
     //writePosition must be kept separate from store, so it allows reads happening when rolling segment
-    protected final AtomicLong dataWritePosition = new AtomicLong();
+    private final AtomicLong dataWritePosition = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
@@ -71,7 +69,7 @@ public class Segment<T> implements Log<T> {
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
-    public Segment(File file, StorageMode storageMode, long segmentDataSize, Serializer<T> serializer, IDataStream dataStream,WriteMode writeMode) {
+    public Segment(File file, StorageMode storageMode, long segmentDataSize, Serializer<T> serializer, IDataStream dataStream, WriteMode writeMode) {
 
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
         this.dataStream = requireNonNull(dataStream, "Reader must be provided");
@@ -183,7 +181,7 @@ public class Segment<T> implements Log<T> {
             throw new SegmentException("No footer data available");
         }
         long footerStart = LogHeader.BYTES + logSize();
-        return new FooterReader(storage, footerStart, header.footerLength());
+        return new FooterReader(storage, dataStream, footerStart, header.footerLength());
     }
 
 
@@ -345,7 +343,7 @@ public class Segment<T> implements Log<T> {
         long actualDataSize = maxDataPosition - START;
         long uncompressedSize = uncompressedSize();
 
-        FooterWriter footer = new FooterWriter(storage);
+        FooterWriter footer = new FooterWriter(storage, dataStream);
         writeFooter(footer);
         long footerLength = storage.position() - maxDataPosition;
 
@@ -447,13 +445,12 @@ public class Segment<T> implements Log<T> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Segment<?> segment = (Segment<?>) o;
-        return Objects.equals(storage, segment.storage) &&
-                Objects.equals(magic, segment.magic);
+        return Objects.equals(storage, segment.storage);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(storage, magic);
+        return Objects.hash(storage);
     }
 
     @Override
