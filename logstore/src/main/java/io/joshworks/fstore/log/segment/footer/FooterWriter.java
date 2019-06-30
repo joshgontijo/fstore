@@ -4,6 +4,8 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.record.IDataStream;
 
+import java.nio.ByteBuffer;
+
 public class FooterWriter {
 
     private final Storage storage;
@@ -16,8 +18,8 @@ public class FooterWriter {
         this.stream = stream;
     }
 
-    public <T> long write(T data, Serializer<T> serializer) {
-        return stream.write(storage, data, serializer);
+    public long write(ByteBuffer data) {
+        return stream.write(storage, data);
     }
 
     public long position() {

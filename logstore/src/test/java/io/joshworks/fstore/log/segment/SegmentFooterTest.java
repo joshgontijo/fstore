@@ -269,7 +269,6 @@ public abstract class SegmentFooterTest {
                     SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    "magic",
                     WriteMode.LOG_HEAD);
         }
     }
@@ -278,8 +277,8 @@ public abstract class SegmentFooterTest {
 
         public List<Long> footerItems = new ArrayList<>();
 
-        public FooterSegment(File file, StorageMode storageMode, long segmentDataSize, Serializer<String> serializer, IDataStream dataStream, String magic, WriteMode writeMode) {
-            super(file, storageMode, segmentDataSize, serializer, dataStream, magic, writeMode);
+        public FooterSegment(File file, StorageMode storageMode, long segmentDataSize, Serializer<String> serializer, IDataStream dataStream, WriteMode writeMode) {
+            super(file, storageMode, segmentDataSize, serializer, dataStream, writeMode);
         }
 
         @Override

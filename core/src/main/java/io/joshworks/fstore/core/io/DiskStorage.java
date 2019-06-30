@@ -21,7 +21,7 @@ public class DiskStorage implements Storage {
     protected final AtomicLong position = new AtomicLong();
     protected final AtomicLong size = new AtomicLong();
 
-    DiskStorage(File target, long size, RandomAccessFile raf) {
+    public DiskStorage(File target, long size, RandomAccessFile raf) {
         Objects.requireNonNull(target, "File must specified");
         this.raf = raf;
         this.file = target;

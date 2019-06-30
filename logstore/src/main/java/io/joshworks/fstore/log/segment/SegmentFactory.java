@@ -8,7 +8,7 @@ import java.io.File;
 
 public interface SegmentFactory<T> {
 
-    Log<T> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<T> serializer, IDataStream reader, String magic, WriteMode mode);
+    Log<T> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<T> serializer, IDataStream reader, WriteMode mode);
 
 
 }

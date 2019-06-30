@@ -1,9 +1,9 @@
 package io.joshworks.fstore.log.extra;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.DiskStorage;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.MMapCache;
-import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
@@ -28,14 +28,14 @@ public class DataFile<T> implements Flushable, Closeable {
     private final Log<T> segment;
 
 
-    private DataFile(File handler, Serializer<T> serializer, boolean mmap, int maxEntrySize, String magic) {
+    private DataFile(File handler, Serializer<T> serializer, boolean mmap, int maxEntrySize) {
         Storage storage = null;
         try {
             storage = createStorage(handler, mmap);
             DataStream dataStream = new DataStream(new LocalGrowingBufferPool(), 1.0, maxEntrySize, Memory.PAGE_SIZE);
             StorageMode storageMode = mmap ? StorageMode.MMAP : StorageMode.RAF;
             //TODO fixme (length)
-            this.segment = new Segment<>(handler, storageMode, 1024, serializer, dataStream, magic, WriteMode.LOG_HEAD);
+            this.segment = new Segment<>(handler, storageMode, 1024, serializer, dataStream, WriteMode.LOG_HEAD);
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
             throw new RuntimeException(e);
@@ -43,12 +43,12 @@ public class DataFile<T> implements Flushable, Closeable {
     }
 
     private static Storage createStorage(File handler, boolean mmap) {
-        RafStorage rafStorage = null;
+        DiskStorage diskStorage = null;
         try {
-            rafStorage = new RafStorage(handler, MAX_FILE_SIZE, IOUtils.randomAccessFile(handler));
-            return mmap ? new MMapCache(rafStorage) : rafStorage;
+            diskStorage = new DiskStorage(handler, MAX_FILE_SIZE, IOUtils.randomAccessFile(handler));
+            return mmap ? new MMapCache(diskStorage) : diskStorage;
         } catch (Exception e) {
-            IOUtils.closeQuietly(rafStorage);
+            IOUtils.closeQuietly(diskStorage);
             throw new RuntimeException(e);
         }
     }
@@ -134,7 +134,7 @@ public class DataFile<T> implements Flushable, Closeable {
         }
 
         public DataFile<T> open(File file) {
-            return new DataFile<>(file, serializer, mmap, maxSize, magic);
+            return new DataFile<>(file, serializer, mmap, maxSize);
         }
     }
 }
