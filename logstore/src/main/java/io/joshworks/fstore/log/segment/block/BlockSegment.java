@@ -32,13 +32,12 @@ public class BlockSegment<T> extends Segment<Block> {
                         StorageMode storageMode,
                         long dataLength,
                         IDataStream dataStream,
-                        String magic,
                         WriteMode writeMode,
                         Serializer<T> serializer,
                         BlockFactory blockFactory,
                         Codec codec,
                         int blockSize) {
-        this(file, storageMode, dataLength, dataStream, magic, writeMode, serializer, blockFactory, codec, blockSize, (p, b) -> {
+        this(file, storageMode, dataLength, dataStream, writeMode, serializer, blockFactory, codec, blockSize, (p, b) -> {
         });
     }
 
@@ -46,14 +45,13 @@ public class BlockSegment<T> extends Segment<Block> {
                         StorageMode storageMode,
                         long dataLength,
                         IDataStream dataStream,
-                        String magic,
                         WriteMode writeMode,
                         Serializer<T> serializer,
                         BlockFactory blockFactory,
                         Codec codec,
                         int blockSize,
                         BiConsumer<Long, Block> blockWriteListener) {
-        super(file, storageMode, dataLength, new BlockSerializer(codec, blockFactory), dataStream, magic, writeMode);
+        super(file, storageMode, dataLength, new BlockSerializer(codec, blockFactory), dataStream, writeMode);
         this.serializer = serializer;
         this.blockFactory = blockFactory;
         this.blockSize = blockSize;
@@ -175,8 +173,8 @@ public class BlockSegment<T> extends Segment<Block> {
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize, BlockFactory blockFactory) {
-        return (file, storageMode, dataLength, serializer, reader, magic, type) -> {
-            BlockSegment<T> delegate = new BlockSegment<>(file, storageMode, dataLength, reader, magic, type, serializer, blockFactory, codec, blockSize);
+        return (file, storageMode, dataLength, serializer, dataStream, type) -> {
+            BlockSegment<T> delegate = new BlockSegment<>(file, storageMode, dataLength, dataStream, type, serializer, blockFactory, codec, blockSize);
             return new BlockSegmentWrapper<>(delegate);
         };
     }

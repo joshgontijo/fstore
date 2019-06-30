@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 public class Index<K extends Comparable<K>> {
 
     private final List<IndexEntry<K>> entries;
-
     private final IndexEntrySerializer<K> serializer;
 
     public Index(Serializer<K> keySerializer, FooterReader reader) {
@@ -45,7 +44,7 @@ public class Index<K extends Comparable<K>> {
         }
 
         ByteBuffer blockData = block.pack(Codec.noCompression());
-        writer.write(blockData, Serializers.NONE);
+        writer.write(blockData);
     }
 
     private List<IndexEntry<K>> load(FooterReader reader) {

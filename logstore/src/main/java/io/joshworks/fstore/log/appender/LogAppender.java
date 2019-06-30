@@ -168,7 +168,7 @@ public class LogAppender<T> implements Closeable {
     private Log<T> createCurrentSegment() {
         long alignedSize = align(LogHeader.BYTES + metadata.segmentSize); //log + header
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
-        return factory.createOrOpen(segmentFile, storageMode, alignedSize, serializer, dataStream, metadata.magic, WriteMode.LOG_HEAD);
+        return factory.createOrOpen(segmentFile, storageMode, alignedSize, serializer, dataStream, WriteMode.LOG_HEAD);
     }
 
     private static long align(long fileSize) {
@@ -214,7 +214,7 @@ public class LogAppender<T> implements Closeable {
 
     private Log<T> loadSegment(String segmentName) {
         File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
-        Log<T> segment = factory.createOrOpen(segmentFile, storageMode, -1, serializer, dataStream, metadata.magic, null);
+        Log<T> segment = factory.createOrOpen(segmentFile, storageMode, -1, serializer, dataStream, null);
         logger.info("Loaded segment {}", segment);
         return segment;
     }

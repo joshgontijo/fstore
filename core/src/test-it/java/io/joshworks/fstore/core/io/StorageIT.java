@@ -174,7 +174,7 @@ public abstract class StorageIT {
 
         @Override
         protected Storage store(File file, long length) {
-            return new RafStorage(file, length, IOUtils.randomAccessFile(file, length));
+            return new DiskStorage(file, length, IOUtils.randomAccessFile(file, length));
         }
     }
 
@@ -182,7 +182,7 @@ public abstract class StorageIT {
 
         @Override
         protected Storage store(File file, long length) {
-            return new MMapCache(new RafStorage(file, length, IOUtils.randomAccessFile(file, length)));
+            return new MMapCache(new DiskStorage(file, length, IOUtils.randomAccessFile(file, length)));
         }
     }
 
@@ -190,7 +190,7 @@ public abstract class StorageIT {
 
         @Override
         protected Storage store(File file, long length) {
-            return new MMapStorage(new RafStorage(file, length, IOUtils.randomAccessFile(file, length)));
+            return new MMapStorage(new DiskStorage(file, length, IOUtils.randomAccessFile(file, length)));
         }
     }
 

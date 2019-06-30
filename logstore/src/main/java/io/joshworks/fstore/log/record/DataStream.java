@@ -52,6 +52,17 @@ public class DataStream implements IDataStream {
         }
     }
 
+    //useful for batch inserting
+    public long write(Storage storage, ByteBuffer[] entries) {
+        long storagePos = storage.position();
+        try (Record record = localRecord.get()) {
+            checkRecordSize(record.size());
+            ByteBuffer[] records = Record.create(entries);
+            storage.write(records);
+            return storagePos;
+        }
+    }
+
     private void checkRecordSize(long recordSize) {
         if (recordSize > maxEntrySize) {
             throw new IllegalArgumentException("Record cannot exceed " + maxEntrySize + " bytes");

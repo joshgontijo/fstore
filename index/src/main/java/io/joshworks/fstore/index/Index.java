@@ -1,14 +1,16 @@
 package io.joshworks.fstore.index;
 
-public interface Index<K extends Comparable<K>, V> extends Iterable<Entry<K, V>> {
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
 
-    V get(K key);
+import java.nio.ByteBuffer;
+import java.util.function.Consumer;
 
-    V put(K key, V value);
+public interface Index<K extends Comparable<K>> extends Iterable<IndexEntry<K>> {
 
-    V delete(K key);
+    long get(K key);
 
-    void clear();
+    void add(K key, long position);
 
+    void writeTo(Consumer<ByteBuffer> writer);
 
 }

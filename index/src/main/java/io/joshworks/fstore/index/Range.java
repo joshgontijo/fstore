@@ -10,10 +10,10 @@ public class Range<K extends Comparable<K>> {
     long skip = SKIP_NONE;
     long limit = NO_LIMIT;
 
-    public Range() {
+    private Range() {
     }
 
-    public static <K extends Comparable<K>> Range<K> of(Class<K> type) {
+    public static <K extends Comparable<K>> Range<K> of() {
         return new Range<>();
     }
 
