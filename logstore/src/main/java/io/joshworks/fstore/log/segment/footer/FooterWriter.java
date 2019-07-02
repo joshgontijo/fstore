@@ -1,6 +1,5 @@
 package io.joshworks.fstore.log.segment.footer;
 
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.record.IDataStream;
 
@@ -22,8 +21,18 @@ public class FooterWriter {
         return stream.write(storage, data);
     }
 
+    public long write(ByteBuffer[] data) {
+        return stream.write(storage, data);
+    }
+
     public long position() {
         return storage.position();
+    }
+
+    public long skip(long bytes) {
+        long newPos = position() + bytes;
+        position(newPos);
+        return newPos;
     }
 
     public void position(long position) {

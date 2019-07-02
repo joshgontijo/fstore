@@ -241,7 +241,6 @@ public abstract class SegmentFooterTest {
                     SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    "magic",
                     WriteMode.LOG_HEAD);
         }
     }
@@ -255,7 +254,8 @@ public abstract class SegmentFooterTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", WriteMode.LOG_HEAD);
+                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
+                    WriteMode.LOG_HEAD);
         }
     }
 

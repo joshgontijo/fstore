@@ -13,16 +13,16 @@ public class Range<K extends Comparable<K>> {
     private Range() {
     }
 
-    public static <K extends Comparable<K>> Range<K> of() {
+    public static <K extends Comparable<K>> Range<K> create() {
         return new Range<>();
     }
 
-    public Range<K> startInclusive(final K startInclusive) {
+    public Range<K> start(final K startInclusive) {
         this.startInclusive = startInclusive;
         return this;
     }
 
-    public Range<K> endExclusive(final K endExclusive) {
+    public Range<K> end(final K endExclusive) {
         this.endExclusive = endExclusive;
         return this;
     }
@@ -37,11 +37,11 @@ public class Range<K extends Comparable<K>> {
         return this;
     }
 
-    public K startInclusive() {
+    public K start() {
         return startInclusive;
     }
 
-    public K endExclusive() {
+    public K end() {
         return endExclusive;
     }
 
