@@ -23,9 +23,7 @@ import io.joshworks.fstore.lsmtree.sstable.index.IndexEntry;
 
 import java.io.File;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {

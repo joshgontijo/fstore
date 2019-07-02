@@ -35,19 +35,24 @@ public abstract class BaseBlock implements Block {
         if (readOnly) {
             throw new IllegalStateException("Block is read only");
         }
-        int entrySize = data.limit();
-        if (entrySize > maxSize) {
-            throw new IllegalArgumentException("Record size (" + entrySize + ") cannot be greater than blockSize (" + maxSize + ")");
-        }
+        validateEntry(data);
         if (totalSize + data.limit() > maxSize) {
             return false;
         }
-        if (!data.hasRemaining()) {
-            throw new IllegalArgumentException("Empty buffer is not allowed");
-        }
+
         totalSize += data.limit();
         buffers.add(data.asReadOnlyBuffer());
         return true;
+    }
+
+    private void validateEntry(ByteBuffer data) {
+        int entrySize = data.remaining();
+        if (entrySize > maxSize) {
+            throw new IllegalArgumentException("Record size (" + entrySize + ") cannot be greater than blockSize (" + maxSize + ")");
+        }
+        if (entrySize == 0) {
+            throw new IllegalArgumentException("Empty buffer is not allowed");
+        }
     }
 
     @Override

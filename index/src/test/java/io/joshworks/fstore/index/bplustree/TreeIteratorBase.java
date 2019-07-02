@@ -44,7 +44,7 @@ public abstract class TreeIteratorBase {
         int expectedSize = endKey - startKey;
         int expectedLastKey = endKey - 1;
 
-        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.of(Integer.class).startInclusive(100).endExclusive(400));
+        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.create(Integer.class).start(100).end(400));
         assertIterator(iterator, expectedSize, startKey, expectedLastKey);
     }
 
@@ -61,7 +61,7 @@ public abstract class TreeIteratorBase {
         int expectedSize = 2;
         int expectedLastKey = 101;
 
-        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.of(Integer.class).startInclusive(100).endExclusive(400));
+        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.create(Integer.class).start(100).end(400));
         assertIterator(iterator, expectedSize, startKey, expectedLastKey);
     }
 
@@ -78,7 +78,7 @@ public abstract class TreeIteratorBase {
         int expectedSize = 400;
         int expectedLastKey = 499;
 
-        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.of(Integer.class).skip(100).limit(999));
+        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.create(Integer.class).skip(100).limit(999));
         assertIterator(iterator, expectedSize, startKey, expectedLastKey);
 
     }
@@ -95,7 +95,7 @@ public abstract class TreeIteratorBase {
         int startKey = 0;
         int expectedSize = 10;
         int expectedLastKey = 9;
-        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.of(Integer.class).skip(0).limit(10));
+        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.create(Integer.class).skip(0).limit(10));
         assertIterator(iterator, expectedSize, startKey, expectedLastKey);
     }
 
@@ -112,7 +112,7 @@ public abstract class TreeIteratorBase {
         int expectedSize = 10;
         int expectedLastKey = 459;
 
-        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.of(Integer.class).startInclusive(450).skip(0).limit(10));
+        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.create(Integer.class).start(450).skip(0).limit(10));
         assertIterator(iterator, expectedSize, startKey, expectedLastKey);
 
     }
@@ -130,7 +130,7 @@ public abstract class TreeIteratorBase {
         int expectedSize = 10;
         int expectedLastKey = 464;
 
-        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.of(Integer.class).startInclusive(450).skip(5).limit(10));
+        Iterator<Entry<Integer, String>> iterator = tree.iterator(Range.create(Integer.class).start(450).skip(5).limit(10));
         assertIterator(iterator, expectedSize, startKey, expectedLastKey);
 
     }

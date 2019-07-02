@@ -1,14 +1,13 @@
-package io.joshworks.fstore.index;
-
+package io.joshworks.fstore.index.midpoints;
 
 import java.util.Objects;
 
-public class IndexEntry<K extends Comparable<K>> implements Comparable<K> {
+public class Midpoint<K extends Comparable<K>> implements Comparable<K> {
 
     public final K key;
     public final long position;
 
-    IndexEntry(K key, long position) {
+    public Midpoint(K key, long position) {
         this.key = key;
         this.position = position;
     }
@@ -23,9 +22,9 @@ public class IndexEntry<K extends Comparable<K>> implements Comparable<K> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        IndexEntry indexEntry = (IndexEntry) o;
-        return position == indexEntry.position &&
-                Objects.equals(key, indexEntry.key);
+        Midpoint midpoint = (Midpoint) o;
+        return position == midpoint.position &&
+                Objects.equals(key, midpoint.key);
     }
 
     @Override

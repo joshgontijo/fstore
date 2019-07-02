@@ -53,6 +53,7 @@ public class DataStream implements IDataStream {
     }
 
     //useful for batch inserting
+    @Override
     public long write(Storage storage, ByteBuffer[] entries) {
         long storagePos = storage.position();
         try (Record record = localRecord.get()) {

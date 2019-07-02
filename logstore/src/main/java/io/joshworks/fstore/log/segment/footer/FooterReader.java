@@ -23,17 +23,29 @@ public class FooterReader {
     }
 
     public <T> T read(Serializer<T> serializer) {
-        long maxPos = startPos + len;
-        if (currPos < startPos || currPos >= maxPos) {
-            return null;
-        }
-        RecordEntry<T> entry = stream.read(storage, Direction.FORWARD, currPos, serializer);
+        RecordEntry<T> entry = readInternal(currPos, serializer);
         if (entry == null) {
             return null;
         }
         currPos += currPos + entry.recordSize();
         return entry.entry();
     }
+
+    public <T> T read(long pos, Serializer<T> serializer) {
+        RecordEntry<T> entry = readInternal(pos, serializer);
+        if (entry == null) {
+            return null;
+        }
+        return entry.entry();
+    }
+
+    private <T> RecordEntry<T> readInternal(long pos, Serializer<T> serializer) {
+        if (pos < startPos || pos >= startPos + len) {
+            return null;
+        }
+        return stream.read(storage, Direction.FORWARD, pos, serializer);
+    }
+
 
     public long start() {
         return startPos;

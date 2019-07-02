@@ -37,7 +37,7 @@ import static java.util.Objects.requireNonNull;
 /**
  * File format:
  * <p>
- * |---- HEADER ----|----- LOG -----|--- END OF LOG (8bytes) ---|
+ * |---- HEADER ----|----- LOG -----|
  * </p>
  * <p>
  * HEADER: 0 -> 1023

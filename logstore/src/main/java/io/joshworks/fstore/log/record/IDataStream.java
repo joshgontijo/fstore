@@ -9,7 +9,9 @@ import java.util.List;
 
 public interface IDataStream {
 
-    long write(Storage storage, ByteBuffer data);
+    long write(Storage storage, ByteBuffer entry);
+
+    long write(Storage storage, ByteBuffer[] entries);
 
     <T> RecordEntry<T> read(Storage storage, Direction direction, long position, Serializer<T> serializer);
 
