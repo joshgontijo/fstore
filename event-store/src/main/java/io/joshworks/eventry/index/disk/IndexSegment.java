@@ -48,12 +48,11 @@ public class IndexSegment implements Log<IndexEntry> {
                  StorageMode storageMode,
                  long dataLength,
                  IDataStream reader,
-                 String magic,
                  WriteMode mode,
                  File directory,
                  Codec codec,
                  int numElements) {
-        this.delegate = new BlockSegment<>(file, storageMode, dataLength, reader, magic, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
+        this.delegate = new BlockSegment<>(file, storageMode, dataLength, reader, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
