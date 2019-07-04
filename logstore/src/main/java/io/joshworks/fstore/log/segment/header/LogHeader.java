@@ -4,11 +4,8 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.record.ByteBufferChecksum;
 import io.joshworks.fstore.log.segment.CorruptedSegmentException;
 import io.joshworks.fstore.log.segment.WriteMode;
-import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 public class LogHeader {
 
@@ -62,7 +59,7 @@ public class LogHeader {
         if (open != null) {
             return open.dataSize;
         }
-        return UNKNOWN;
+        throw new IllegalStateException("Unknown segment state");
 
     }
 
@@ -76,7 +73,7 @@ public class LogHeader {
 
     public int level() {
         if (open == null) {
-            return UNKNOWN;
+            throw new IllegalStateException("Unknown segment state");
         }
         return completed == null ? 0 : completed.level;
     }
@@ -97,9 +94,6 @@ public class LogHeader {
     }
 
     public long footerLength() {
-        if (completed == null) {
-            throw new IllegalStateException("No footer length available, segment is not readonly");
-        }
         return completed.footerLength;
     }
 

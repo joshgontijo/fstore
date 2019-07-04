@@ -66,18 +66,6 @@ public abstract class SegmentTest {
         }
     }
 
-//    @Test
-//    public void segment_expands_larger_than_original_size() {
-//        long originalSize = segment.fileSize();
-//        while (segment.logicalSize() <= originalSize) {
-//            segment.append("a");
-//        }
-//
-//        segment.append("a");
-//
-//        assertTrue(segment.fileSize() > originalSize);
-//    }
-
     @Test
     public void writePosition_reopen() throws IOException {
         String data = "hello";
@@ -520,7 +508,7 @@ public abstract class SegmentTest {
                 StorageMode.MMAP,
                 SEGMENT_SIZE,
                 Serializers.STRING,
-                new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", WriteMode.MERGE_OUT);
+                new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), WriteMode.MERGE_OUT);
     }
 
     public static class CachedSegmentTest extends SegmentTest {
@@ -533,7 +521,6 @@ public abstract class SegmentTest {
                     SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    "magic",
                     WriteMode.LOG_HEAD);
         }
     }
@@ -547,7 +534,7 @@ public abstract class SegmentTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), "magic", WriteMode.LOG_HEAD);
+                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), WriteMode.LOG_HEAD);
         }
     }
 
@@ -561,7 +548,6 @@ public abstract class SegmentTest {
                     SEGMENT_SIZE,
                     Serializers.STRING,
                     new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    "magic",
                     WriteMode.LOG_HEAD);
         }
 
