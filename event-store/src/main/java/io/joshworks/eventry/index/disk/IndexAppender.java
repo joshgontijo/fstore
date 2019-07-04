@@ -160,8 +160,8 @@ public class IndexAppender implements Closeable {
         }
 
         @Override
-        public IndexSegment createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<IndexEntry> serializer, IDataStream reader, String magic, WriteMode writeMode) {
-            return new IndexSegment(file, storageMode, dataLength, reader, magic, writeMode, directory, codec, numElements);
+        public IndexSegment createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<IndexEntry> serializer, IDataStream reader, WriteMode writeMode) {
+            return new IndexSegment(file, storageMode, dataLength, reader, writeMode, directory, codec, numElements);
         }
     }
 

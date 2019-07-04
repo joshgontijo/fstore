@@ -7,6 +7,7 @@ import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
+import io.joshworks.fstore.log.segment.footer.FooterPosition;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
@@ -37,7 +38,9 @@ public class SparseMapIndexTest {
     @Test
     public void name() {
 
-        FooterReader reader = new FooterReader(storage, stream, 0, Integer.MAX_VALUE);
+        FooterPosition footerPos = new FooterPosition();
+
+
         SparseMapIndex<String> index = new SparseMapIndex<>(Serializers.VSTRING, 1024, reader, blockFactory);
 
         for (int i = 0; i < 10000; i++) {
@@ -46,6 +49,9 @@ public class SparseMapIndexTest {
 
         FooterWriter writer = new FooterWriter(storage, stream);
         index.writeTo(writer);
+
+        footerPos.length = writer.length();
+        footerPos.start = writer.start();
 
         long pos = index.get("0");
         assertEquals(0, pos);

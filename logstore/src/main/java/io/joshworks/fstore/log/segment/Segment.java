@@ -10,6 +10,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
+import io.joshworks.fstore.log.segment.footer.FooterPosition;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.LogHeader;
@@ -178,7 +179,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public FooterReader readFooter() {
         long footerStart = LogHeader.BYTES + logSize();
-        return new FooterReader(storage, dataStream, footerStart, header.footerLength());
+        return new FooterReader(storage, dataStream, new FooterPosition(footerStart, header.footerLength()));
     }
 
 

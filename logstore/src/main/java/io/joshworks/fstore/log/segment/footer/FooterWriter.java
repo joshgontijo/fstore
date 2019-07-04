@@ -42,6 +42,10 @@ public class FooterWriter {
         storage.position(position);
     }
 
+    public long length() {
+        return position() - start;
+    }
+
     public long start() {
         return start;
     }

@@ -10,16 +10,17 @@ public class FooterReader {
 
     private final Storage storage;
     private final IDataStream stream;
-    private final long startPos;
-    private final long len;
+    private final long start;
+    private final long length;
+
     private long currPos;
 
-    public FooterReader(Storage storage, IDataStream stream, long startPos, long len) {
+    public FooterReader(Storage storage, IDataStream stream, long start, long len) {
         this.storage = storage;
         this.stream = stream;
-        this.startPos = startPos;
-        this.len = len;
-        this.currPos = startPos;
+        this.start = start;
+        this.length = len;
+        this.currPos = start;
     }
 
     public <T> T read(Serializer<T> serializer) {
@@ -40,7 +41,7 @@ public class FooterReader {
     }
 
     private <T> RecordEntry<T> readInternal(long pos, Serializer<T> serializer) {
-        if (pos < startPos || pos >= startPos + len) {
+        if (!withinBounds(pos)) {
             return null;
         }
         return stream.read(storage, Direction.FORWARD, pos, serializer);
@@ -48,11 +49,11 @@ public class FooterReader {
 
 
     public long start() {
-        return startPos;
+        return start;
     }
 
     public long length() {
-        return len;
+        return length;
     }
 
     public long position() {
@@ -60,11 +61,18 @@ public class FooterReader {
     }
 
     public void position(long position) {
-        long maxPos = startPos + len;
-        if (position < startPos || position > maxPos) {
-            throw new IllegalStateException("Invalid footer position: " + position + ", allowed range is: " + startPos + " - " + maxPos);
+        if (!withinBounds(position)) {
+            throw new IllegalStateException("Invalid footer position: " + position + ", allowed range is: " + start + " - " + maxPos());
         }
         this.currPos = position;
+    }
+
+    private boolean withinBounds(long position) {
+        return position >= start && position <= maxPos();
+    }
+
+    private long maxPos() {
+        return start + length - 1;
     }
 
 }

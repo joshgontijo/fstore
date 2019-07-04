@@ -17,18 +17,19 @@ class Record implements Closeable {
     }
 
 
-    public static ByteBuffer[] create(ByteBuffer[] items) {
+    public static Records create(ByteBuffer[] items) {
         ByteBuffer[] records = new ByteBuffer[items.length];
+        int totalLength = 0;
         for (int i = 0; i < items.length; i++) {
             var buffers = allocateBuffers();
             var data = items[i];
-            fillBuffers(buffers, data);
+            totalLength += fillBuffers(buffers, data);
             System.arraycopy(buffers, 0, records, i * buffers.length, buffers.length);
         }
-        return records;
+        return new Records(records, totalLength);
     }
 
-    private static void fillBuffers(ByteBuffer[] buffers, ByteBuffer data) {
+    private static int fillBuffers(ByteBuffer[] buffers, ByteBuffer data) {
         int entrySize = data.remaining();
 
         buffers[0].putInt(entrySize);
@@ -39,9 +40,11 @@ class Record implements Closeable {
 
         buffers[2].putInt(entrySize);
         buffers[2].flip();
+
+        return buffers[0].remaining() + buffers[1].remaining() + buffers[2].remaining();
     }
 
-    long size() {
+    long length() {
         return buffers[0].remaining() + buffers[1].remaining() + buffers[2].remaining();
     }
 
@@ -50,5 +53,15 @@ class Record implements Closeable {
         buffers[0].clear();
         buffers[1] = null;
         buffers[2].clear();
+    }
+
+    public static class Records {
+        public final ByteBuffer[] buffers;
+        public final long totalLength;
+
+        Records(ByteBuffer[] buffers, long totalLength) {
+            this.buffers = buffers;
+            this.totalLength = totalLength;
+        }
     }
 }

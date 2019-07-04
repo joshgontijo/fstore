@@ -4,6 +4,8 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.index.midpoints.Midpoint;
 import io.joshworks.fstore.index.midpoints.Midpoints;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
@@ -37,10 +39,10 @@ public class SparseMapIndex<K extends Comparable<K>> implements Index<K> {
     private static final Codec CODEC = Codec.noCompression();
 
     private final int blockSize;
+    private IDataStream dataStream;
 
     private final List<Block> blocks = new ArrayList<>();
     private final BlockFactory blockFactory;
-    private final FooterReader reader;
 
     private final IndexEntrySerializer<K> serializer;
     private final Midpoints<K> midpoints = new Midpoints<>();
@@ -49,12 +51,16 @@ public class SparseMapIndex<K extends Comparable<K>> implements Index<K> {
 
     //TODO add bock cache
 
-    public SparseMapIndex(Serializer<K> keySerializer, int blockSize, FooterReader reader, BlockFactory blockFactory) {
+    public SparseMapIndex(Serializer<K> keySerializer, int blockSize, IDataStream dataStream, BlockFactory blockFactory) {
         this.serializer = new IndexEntrySerializer<>(keySerializer);
         this.blockSize = blockSize;
-        this.reader = reader;
+        this.dataStream = dataStream;
         this.blockFactory = blockFactory;
         this.block = blockFactory.create(blockSize);
+    }
+
+    public void load(FooterReader reader) {
+
     }
 
     @Override
@@ -114,7 +120,7 @@ public class SparseMapIndex<K extends Comparable<K>> implements Index<K> {
 
 
     private Block loadBlock(long pos) {
-        ByteBuffer data = reader.read(pos, Serializers.NONE);
+        ByteBuffer data = dataStream.read(pos, Direction.FORWARD, Serializers.NONE);
         return blockFactory.load(CODEC, data);
     }
 

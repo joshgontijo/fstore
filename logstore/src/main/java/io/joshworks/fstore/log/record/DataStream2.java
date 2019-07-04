@@ -3,6 +3,7 @@ package io.joshworks.fstore.log.record;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 
 import java.nio.ByteBuffer;
@@ -10,15 +11,9 @@ import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
-/**
- * Class responsible for handling record headers
- */
-public class DataStream implements IDataStream {
+public class DataStream2 {
 
-    public static final int MAX_BULK_READ_RESULT = 100;
-
-    //hard limit is required to avoid memory issues in case of broken record
-
+    private final Storage storage;
     private final int maxEntrySize;
 
     private final Reader forwardReader;
@@ -28,39 +23,62 @@ public class DataStream implements IDataStream {
 
     private final ThreadLocal<Record> localRecord = ThreadLocal.withInitial(Record::new);
 
-    public DataStream(BufferPool bufferPool, double checksumProb, int maxEntrySize, int readPageSize) {
+    public DataStream2(BufferPool bufferPool, Storage storage) {
+        this(bufferPool, storage, Size.MB.intOf(5), 0.1, Size.KB.intOf(16));
+    }
+
+    public DataStream2(BufferPool bufferPool, Storage storage, int maxEntrySize, double checksumProb, int readPageSize) {
+        requireNonNull(bufferPool, "BufferPool must be provided");
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0 and 1");
         }
+        this.storage = storage;
         checksumProb = (int) (checksumProb * 100);
         this.maxEntrySize = maxEntrySize;
-        requireNonNull(bufferPool, "BufferPool must be provided");
         this.forwardReader = new ForwardRecordReader(bufferPool, checksumProb, maxEntrySize, readPageSize);
         this.backwardReader = new BackwardRecordReader(bufferPool, checksumProb, maxEntrySize, readPageSize);
         this.bulkForwardReader = new BulkForwardRecordReader(bufferPool, checksumProb, maxEntrySize, readPageSize);
         this.bulkBackwardReader = new BulkBackwardRecordReader(bufferPool, checksumProb, maxEntrySize, readPageSize);
     }
 
-    @Override
-    public long write(Storage storage, ByteBuffer entryData) {
+    public long write(ByteBuffer entry) {
         long storagePos = storage.position();
         try (Record record = localRecord.get()) {
+            ByteBuffer[] buffers = record.create(entry);
+            long length = record.length();
             checkRecordSize(record.length());
-            ByteBuffer[] buffers = record.create(entryData);
-            storage.write(buffers);
+            long written = storage.write(buffers);
+            checkWrittenBytes(length, written);
             return storagePos;
         }
     }
 
-    //useful for batch inserting
-    @Override
-    public long write(Storage storage, ByteBuffer[] entries) {
+    public long write(ByteBuffer[] entries) {
         long storagePos = storage.position();
         try (Record record = localRecord.get()) {
+            Record.Records records = Record.create(entries);
             checkRecordSize(record.length());
-            ByteBuffer[] records = Record.create(entries);
-            storage.write(records);
+            long written = storage.write(records.buffers);
+            checkWrittenBytes(records.totalLength, written);
             return storagePos;
+        }
+    }
+
+    public <T> RecordEntry<T> read(Direction direction, long position, Serializer<T> serializer) {
+        try {
+            Reader reader = Direction.FORWARD.equals(direction) ? forwardReader : backwardReader;
+            return reader.read(storage, position, serializer);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to read at position " + position, e);
+        }
+    }
+
+    public <T> List<RecordEntry<T>> bulkRead(Direction direction, long position, Serializer<T> serializer) {
+        try {
+            BulkReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : bulkBackwardReader;
+            return reader.read(storage, position, serializer);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to read at position " + position, e);
         }
     }
 
@@ -70,24 +88,9 @@ public class DataStream implements IDataStream {
         }
     }
 
-    @Override
-    public <T> RecordEntry<T> read(Storage storage, Direction direction, long position, Serializer<T> serializer) {
-        try {
-            Reader reader = Direction.FORWARD.equals(direction) ? forwardReader : backwardReader;
-            return reader.read(storage, position, serializer);
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to read at position " + position, e);
+    private void checkWrittenBytes(long expected, long written) {
+        if (written != expected) {
+            throw new IllegalStateException("Expected write of size: " + expected + " actual bytes written: " + written);
         }
     }
-
-    @Override
-    public <T> List<RecordEntry<T>> bulkRead(Storage storage, Direction direction, long position, Serializer<T> serializer) {
-        try {
-            BulkReader reader = Direction.FORWARD.equals(direction) ? bulkForwardReader : bulkBackwardReader;
-            return reader.read(storage, position, serializer);
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to read at position " + position, e);
-        }
-    }
-
 }
