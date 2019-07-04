@@ -2,43 +2,12 @@ package io.joshworks.fstore.codec.snappy;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.util.Threads;
 import org.xerial.snappy.Snappy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import static io.joshworks.snappy.SnappyServer.cors;
-import static io.joshworks.snappy.SnappyServer.get;
-import static io.joshworks.snappy.SnappyServer.start;
 
 public class SnappyCodec implements Codec {
-
-    public static void main(String[] args) {
-
-        get("/ok", exchange -> {
-            exchange.send("OK");
-        });
-
-        get("/noop", exchange -> {
-
-        });
-
-        ExecutorService service = Executors.newSingleThreadExecutor();
-        get("/async", exchange -> {
-            exchange.
-            service.submit(() ->{
-                Threads.sleep(5000);
-                exchange.send("COMPLETED");
-            });
-        });
-
-        cors();
-        start();
-
-    }
 
 
     @Override

@@ -23,7 +23,6 @@ public class RafBlockSegmentTest extends BlockSegmentTest {
                 file, StorageMode.RAF,
                 Size.MB.of(10),
                 new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                "magic",
                 WriteMode.LOG_HEAD,
                 Serializers.STRING,
                 VLenBlock.factory(),

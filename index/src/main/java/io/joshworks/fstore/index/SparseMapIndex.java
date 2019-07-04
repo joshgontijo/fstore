@@ -12,12 +12,13 @@ import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -35,7 +36,6 @@ public class SparseMapIndex<K extends Comparable<K>> implements Index<K> {
 
     private static final Codec CODEC = Codec.noCompression();
 
-    private static final Long NONE = -1L;
     private final int blockSize;
 
     private final List<Block> blocks = new ArrayList<>();
@@ -156,20 +156,64 @@ public class SparseMapIndex<K extends Comparable<K>> implements Index<K> {
         return midpoints.inRange(entry);
     }
 
-    public Iterator<IndexEntry<K>> range(K startInclusive, K endExclusive) {
-        Midpoint<K> low = midpoints.getMidpointFor(startInclusive);
-        Midpoint<K> high = midpoints.getMidpointFor(endExclusive);
-
-        if(low != null) {
-            List<IndexEntry<K>> indexEntries = loadEntries(low);
-        }
-
-
-        return map.subMap(startInclusive, endExclusive).entrySet().stream().map(kv -> new IndexEntry<>(kv.getKey(), kv.getValue())).collect(Collectors.toList());
-    }
+//    public Iterator<IndexEntry<K>> range(K startInclusive, K endExclusive) {
+//        Midpoint<K> low = midpoints.getMidpointFor(startInclusive);
+//        Midpoint<K> high = midpoints.getMidpointFor(endExclusive);
+//
+//        if (low != null) {
+//            List<IndexEntry<K>> indexEntries = loadEntries(low);
+//        }
+//
+//
+//        return map.subMap(startInclusive, endExclusive).entrySet().stream().map(kv -> new IndexEntry<>(kv.getKey(), kv.getValue())).collect(Collectors.toList());
+//    }
 
     @Override
     public Iterator<IndexEntry<K>> iterator() {
         return null;
     }
+
+    private class SparseIndexIterator implements Iterator<IndexEntry<K>> {
+
+        private final Queue<IndexEntry<K>> entries = new ArrayDeque<>();
+        private boolean empty;
+        private final Midpoint<K> start;
+        private final Midpoint<K> end;
+
+        private SparseIndexIterator(Midpoint<K> start, Midpoint<K> end) {
+            this.start = start;
+            this.end = end;
+        }
+
+
+        private void fetchEntries() {
+            if (empty) {
+                return;
+            }
+            ByteBuffer blockData = reader.read(Serializers.NONE);
+            if (!blockData.hasRemaining() && !empty) {
+                empty = true;
+                return;
+            }
+            Block block = blockFactory.load(CODEC, blockData);
+            entries.addAll(block.deserialize(serializer));
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (entries.isEmpty()) {
+                fetchEntries();
+            }
+            return entries.isEmpty();
+        }
+
+        @Override
+        public IndexEntry<K> next() {
+            if (!hasNext()) {
+                return null;
+            }
+            return entries.poll();
+        }
+    }
+
 }

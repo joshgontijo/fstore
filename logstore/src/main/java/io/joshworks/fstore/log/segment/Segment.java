@@ -177,9 +177,6 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public FooterReader readFooter() {
-        if (!readOnly()) {
-            throw new SegmentException("No footer data available");
-        }
         long footerStart = LogHeader.BYTES + logSize();
         return new FooterReader(storage, dataStream, footerStart, header.footerLength());
     }

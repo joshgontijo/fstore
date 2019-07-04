@@ -4,6 +4,9 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
+import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -11,14 +14,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
  * Red black tree based index, all entries are kept in memory.
  * Data is written to file on segment roll
  */
-public class MapIndex<K extends Comparable<K>> {
+public class MapIndex<K extends Comparable<K>> implements Index<K> {
 
     private static final Long NONE = -1L;
     private final TreeMap<K, Long> map;
@@ -26,12 +28,13 @@ public class MapIndex<K extends Comparable<K>> {
 
     private final IndexEntrySerializer<K> serializer;
 
-    public MapIndex(Serializer<K> keySerializer, ByteBuffer data) {
+    public MapIndex(Serializer<K> keySerializer, FooterReader reader) {
         serializer = new IndexEntrySerializer<>(keySerializer);
-        this.map = load(data);
+        this.map = load(reader);
         this.readonly = !map.isEmpty();
     }
 
+    @Override
     public void add(K key, long pos) {
         if (readonly) {
             throw new IllegalStateException("Index is read only");
@@ -40,7 +43,13 @@ public class MapIndex<K extends Comparable<K>> {
         map.put(key, pos);
     }
 
-    public void write(Consumer<ByteBuffer> writer) {
+    @Override
+    public long get(K entry) {
+        return map.getOrDefault(entry, NONE);
+    }
+
+    @Override
+    public void writeTo(FooterWriter writer) {
         Block block = new VLenBlock(Integer.MAX_VALUE);
 
         Iterator<Map.Entry<K, Long>> iterator = map.entrySet().iterator();
@@ -54,14 +63,12 @@ public class MapIndex<K extends Comparable<K>> {
         }
 
         ByteBuffer blockData = block.pack(Codec.noCompression());
-        writer.accept(blockData);
+        writer.write(blockData);
     }
 
-    private TreeMap<K, Long> load(ByteBuffer blockData) {
-        if (blockData == null) {
-            return new TreeMap<>();
-        }
 
+    private TreeMap<K, Long> load(FooterReader reader) {
+        ByteBuffer blockData = reader.read(Serializers.NONE);
         Block block = VLenBlock.factory().load(Codec.noCompression(), blockData);
         List<IndexEntry<K>> entries = block.entries().stream().map(serializer::fromBytes).collect(Collectors.toList());
         TreeMap<K, Long> map = new TreeMap<>();
@@ -70,10 +77,6 @@ public class MapIndex<K extends Comparable<K>> {
         }
         return map;
 
-    }
-
-    public long get(K entry) {
-        return map.getOrDefault(entry, NONE);
     }
 
     public int size() {
@@ -107,4 +110,8 @@ public class MapIndex<K extends Comparable<K>> {
     }
 
 
+    @Override
+    public Iterator<IndexEntry<K>> iterator() {
+        return null;
+    }
 }

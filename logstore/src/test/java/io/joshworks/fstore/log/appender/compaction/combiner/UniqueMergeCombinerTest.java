@@ -243,7 +243,7 @@ public class UniqueMergeCombinerTest {
     private Segment<String> segmentWith(String... values) {
         File file = FileUtils.testFile();
 
-        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, dataStream, "magic", WriteMode.LOG_HEAD);
+        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, dataStream, WriteMode.LOG_HEAD);
         segments.add(segment);
 
         for (String value : values) {
@@ -256,7 +256,7 @@ public class UniqueMergeCombinerTest {
     private Segment<TestEntry> segmentWith(TestEntry... values) {
         File file = FileUtils.testFile();
 
-        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), dataStream, "magic", WriteMode.LOG_HEAD);
+        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), dataStream, WriteMode.LOG_HEAD);
         segments.add(segment);
 
         for (TestEntry value : values) {
@@ -268,14 +268,14 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> outputSegment() {
         File file = FileUtils.testFile();
-        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, dataStream, "magic", WriteMode.LOG_HEAD);
+        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, dataStream, WriteMode.LOG_HEAD);
         segments.add(segment);
         return segment;
     }
 
     private Segment<TestEntry> testEntryOutputSegment() {
         File file = FileUtils.testFile();
-        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), dataStream, "magic", WriteMode.LOG_HEAD);
+        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), dataStream, WriteMode.LOG_HEAD);
         segments.add(segment);
         return segment;
     }
