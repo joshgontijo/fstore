@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -66,8 +67,8 @@ public abstract class BaseBlock implements Block {
         ByteBuffer withHeader = ByteBuffer.allocate(Integer.BYTES + (Integer.BYTES * entryCount) + totalSize);
         withHeader.putInt(entryCount);
 
-        for (int i = 0; i < entryCount; i++) {
-            withHeader.putInt(buffers.get(i).remaining());
+        for (ByteBuffer buffer : buffers) {
+            withHeader.putInt(buffer.remaining());
         }
         for (ByteBuffer buffer : buffers) {
             if (buffer.remaining() == 0) {

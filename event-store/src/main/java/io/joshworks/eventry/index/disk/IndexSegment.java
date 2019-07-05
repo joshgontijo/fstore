@@ -10,12 +10,12 @@ import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.fstore.core.filter.BloomFilterHasher;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -47,12 +47,14 @@ public class IndexSegment implements Log<IndexEntry> {
     IndexSegment(File file,
                  StorageMode storageMode,
                  long dataLength,
-                 IDataStream reader,
+                 BufferPool bufferPool,
                  WriteMode mode,
                  File directory,
                  Codec codec,
+                 double checksumProb,
+                 int readPageSize,
                  int numElements) {
-        this.delegate = new BlockSegment<>(file, storageMode, dataLength, reader, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, this::onBlockWrite);
+        this.delegate = new BlockSegment<>(file, storageMode, dataLength, bufferPool, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, checksumProb, readPageSize, this::onBlockWrite);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
@@ -169,6 +171,11 @@ public class IndexSegment implements Log<IndexEntry> {
     @Override
     public long created() {
         return delegate.created();
+    }
+
+    @Override
+    public void truncate() {
+        delegate.truncate();
     }
 
     @Override

@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 public class LongSerializer implements Serializer<Long> {
     @Override
     public ByteBuffer toBytes(Long data) {
-        return (ByteBuffer) ByteBuffer.allocate(Long.BYTES).putLong(data).flip();
+        return ByteBuffer.allocate(Long.BYTES).putLong(data).flip();
     }
 
     @Override

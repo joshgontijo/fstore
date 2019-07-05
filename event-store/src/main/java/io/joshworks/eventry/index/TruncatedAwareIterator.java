@@ -5,7 +5,9 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import java.io.IOException;
 import java.util.function.Function;
 
-//filter out entries if stream was truncated after acquiring the iterator
+/**
+ * filters out entries if stream was truncated after acquiring the iterator
+ */
 class TruncatedAwareIterator implements IndexIterator {
 
     private final IndexIterator delegate;

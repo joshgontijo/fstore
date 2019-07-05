@@ -50,7 +50,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                    Serializer<K> keySerializer,
                    Serializer<V> valueSerializer,
                    BufferPool bufferPool,
-                   String magic,
                    WriteMode writeMode,
                    File directory,
                    int numElements) {
@@ -61,7 +60,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                 mode,
                 size,
                 bufferPool,
-                magic,
                 writeMode,
                 kvSerializer,
                 VLenBlock.factory(),

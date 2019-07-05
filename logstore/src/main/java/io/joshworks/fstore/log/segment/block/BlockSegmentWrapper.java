@@ -112,16 +112,6 @@ class BlockSegmentWrapper<T> implements Log<T> {
     }
 
     @Override
-    public void writeFooter(FooterWriter footer) {
-        delegate.writeFooter(footer);
-    }
-
-    @Override
-    public FooterReader readFooter() {
-        return delegate.readFooter();
-    }
-
-    @Override
     public Type type() {
         return delegate.type();
     }

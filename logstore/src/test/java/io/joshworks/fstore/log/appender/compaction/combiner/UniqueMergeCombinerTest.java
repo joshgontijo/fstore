@@ -3,7 +3,6 @@ package io.joshworks.fstore.log.appender.compaction.combiner;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -27,11 +26,10 @@ import static org.junit.Assert.assertEquals;
 
 public class UniqueMergeCombinerTest {
 
-    private static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
     private static final double CHECKSUM_PROB = 1;
     private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
     private static final int SEGMENT_SIZE = Memory.PAGE_SIZE * 2;
-    private final BufferPool bufferPool = new LocalGrowingBufferPool();
+    private final BufferPool bufferPool = new BufferPool();
 
     private final List<Segment> segments = new ArrayList<>();
 
@@ -243,7 +241,7 @@ public class UniqueMergeCombinerTest {
     private Segment<String> segmentWith(String... values) {
         File file = FileUtils.testFile();
 
-        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, MAX_ENTRY_SIZE, CHECKSUM_PROB, READ_PAGE_SIZE);
+        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB, READ_PAGE_SIZE);
         segments.add(segment);
 
         for (String value : values) {
@@ -256,7 +254,7 @@ public class UniqueMergeCombinerTest {
     private Segment<TestEntry> segmentWith(TestEntry... values) {
         File file = FileUtils.testFile();
 
-        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, MAX_ENTRY_SIZE, CHECKSUM_PROB, READ_PAGE_SIZE);
+        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB, READ_PAGE_SIZE);
         segments.add(segment);
 
         for (TestEntry value : values) {
@@ -268,14 +266,14 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> outputSegment() {
         File file = FileUtils.testFile();
-        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, MAX_ENTRY_SIZE, CHECKSUM_PROB, READ_PAGE_SIZE);
+        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB, READ_PAGE_SIZE);
         segments.add(segment);
         return segment;
     }
 
     private Segment<TestEntry> testEntryOutputSegment() {
         File file = FileUtils.testFile();
-        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, MAX_ENTRY_SIZE, CHECKSUM_PROB, READ_PAGE_SIZE);
+        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB, READ_PAGE_SIZE);
         segments.add(segment);
         return segment;
     }

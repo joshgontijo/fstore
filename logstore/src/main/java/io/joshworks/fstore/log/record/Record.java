@@ -11,12 +11,6 @@ class Record implements Closeable {
         return new ByteBuffer[]{ByteBuffer.allocate(RecordHeader.MAIN_HEADER), null, ByteBuffer.allocate(RecordHeader.SECONDARY_HEADER)};
     }
 
-    ByteBuffer[] create(ByteBuffer data) {
-        fillBuffers(buffers, data);
-        return buffers;
-    }
-
-
     public static Records create(ByteBuffer[] items) {
         ByteBuffer[] records = new ByteBuffer[items.length];
         int totalLength = 0;
@@ -44,12 +38,17 @@ class Record implements Closeable {
         return buffers[0].remaining() + buffers[1].remaining() + buffers[2].remaining();
     }
 
+    ByteBuffer[] create(ByteBuffer data) {
+        fillBuffers(buffers, data);
+        return buffers;
+    }
+
     long length() {
         return buffers[0].remaining() + buffers[1].remaining() + buffers[2].remaining();
     }
 
     @Override
-    public void close()  {
+    public void close() {
         buffers[0].clear();
         buffers[1] = null;
         buffers[2].clear();

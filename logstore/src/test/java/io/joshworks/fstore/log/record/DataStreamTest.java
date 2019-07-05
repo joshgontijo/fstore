@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -25,12 +24,11 @@ import static org.junit.Assert.assertNotNull;
 
 public class DataStreamTest {
 
-    private static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
     private static final double CHCKSUM_PROB = 1;
 
     private File file;
     private Storage storage;
-    private BufferPool bufferPool = new LocalGrowingBufferPool();
+    private BufferPool bufferPool = new BufferPool();
     private static final long FILE_SIZE = Size.MB.of(10);
 
     private DataStream stream;
@@ -40,7 +38,7 @@ public class DataStreamTest {
         file = FileUtils.testFile();
         storage = Storage.create(file, StorageMode.RAF, FILE_SIZE);
         storage.position(Log.START);
-        stream = new DataStream(bufferPool, storage, MAX_ENTRY_SIZE, CHCKSUM_PROB, Memory.PAGE_SIZE);
+        stream = new DataStream(bufferPool, storage, CHCKSUM_PROB, Memory.PAGE_SIZE);
     }
 
     @After

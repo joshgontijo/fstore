@@ -44,8 +44,9 @@ public class MapIndex<K extends Comparable<K>> implements Index<K> {
     }
 
     @Override
-    public long get(K entry) {
-        return map.getOrDefault(entry, NONE);
+    public IndexEntry<K> get(K entry) {
+        Long pos = map.getOrDefault(entry, NONE);
+        return pos >= 0 ? new IndexEntry<>(entry, pos) : null;
     }
 
     @Override
@@ -68,7 +69,7 @@ public class MapIndex<K extends Comparable<K>> implements Index<K> {
 
 
     private TreeMap<K, Long> load(FooterReader reader) {
-        ByteBuffer blockData = reader.read(Serializers.NONE);
+        ByteBuffer blockData = reader.read(Serializers.COPY);
         Block block = VLenBlock.factory().load(Codec.noCompression(), blockData);
         List<IndexEntry<K>> entries = block.entries().stream().map(serializer::fromBytes).collect(Collectors.toList());
         TreeMap<K, Long> map = new TreeMap<>();

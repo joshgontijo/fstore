@@ -12,7 +12,7 @@ public class IndexCompactor extends UniqueMergeCombiner<IndexEntry> {
 
     private final Function<Long, StreamMetadata> streamSupplier;
 
-    public IndexCompactor(Function<Long, StreamMetadata> streamSupplier) {
+    IndexCompactor(Function<Long, StreamMetadata> streamSupplier) {
         this.streamSupplier = streamSupplier;
     }
 

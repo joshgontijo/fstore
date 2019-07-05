@@ -37,7 +37,6 @@ public interface Block {
 
     List<Integer> entriesLength();
 
-
     static int uncompressedSize(ByteBuffer compressed) {
         return compressed.getInt(compressed.position());
     }

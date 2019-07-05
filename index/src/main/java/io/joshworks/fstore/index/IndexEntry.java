@@ -18,6 +18,9 @@ public class IndexEntry<K extends Comparable<K>> implements Comparable<K> {
         return key.compareTo(o);
     }
 
+    static <K extends Comparable<K>> IndexEntry<K> identity(K key) {
+        return new IndexEntry<>(key, -1);
+    }
 
     @Override
     public boolean equals(Object o) {

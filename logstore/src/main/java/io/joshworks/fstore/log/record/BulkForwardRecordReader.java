@@ -10,13 +10,13 @@ import java.util.List;
 
 final class BulkForwardRecordReader extends BaseReader implements BulkReader {
 
-    public BulkForwardRecordReader(BufferPool bufferPool,double checksumProb, int maxEntrySize, int bufferSize) {
-        super(bufferPool, checksumProb, maxEntrySize, bufferSize);
+    BulkForwardRecordReader(BufferPool bufferPool, double checksumProb, int bufferSize) {
+        super(bufferPool, checksumProb, bufferSize);
     }
 
     @Override
     public <T> List<RecordEntry<T>> read(Storage storage, long position, Serializer<T> serializer) {
-        ByteBuffer buffer = bufferPool.allocate(bufferSize);
+        ByteBuffer buffer = bufferPool.allocate(pageReadSize);
 
         final List<RecordEntry<T>> entries = new ArrayList<>();
 
@@ -29,7 +29,6 @@ final class BulkForwardRecordReader extends BaseReader implements BulkReader {
             }
 
             int length = buffer.getInt();
-            checkRecordLength(length, position);
             if (length == 0) {
                 return entries;
             }
@@ -48,7 +47,6 @@ final class BulkForwardRecordReader extends BaseReader implements BulkReader {
             while (buffer.hasRemaining() && buffer.remaining() > RecordHeader.MAIN_HEADER) {
                 int pos = buffer.position();
                 int len = buffer.getInt();
-                checkRecordLength(len, position);
                 if (len == 0 || buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
                     return entries;
                 }

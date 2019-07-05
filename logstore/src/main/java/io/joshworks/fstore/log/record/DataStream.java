@@ -14,7 +14,6 @@ import static java.util.Objects.requireNonNull;
 public class DataStream {
 
     private final Storage storage;
-    private final int maxEntrySize;
 
     private final Reader forwardReader;
     private final BulkReader bulkForwardReader;
@@ -23,24 +22,21 @@ public class DataStream {
 
     private final ThreadLocal<Record> localRecord = ThreadLocal.withInitial(Record::new);
 
-    private long position;
-
     public DataStream(BufferPool bufferPool, Storage storage) {
-        this(bufferPool, storage, Size.MB.intOf(5), 0.1, Size.KB.intOf(16));
+        this(bufferPool, storage, 0.1, Size.KB.intOf(16));
     }
 
-    public DataStream(BufferPool bufferPool, Storage storage, int maxEntrySize, double checksumProb, int readPageSize) {
+    public DataStream(BufferPool bufferPool, Storage storage, double checksumProb, int readPageSize) {
         requireNonNull(bufferPool, "BufferPool must be provided");
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0 and 1");
         }
         this.storage = storage;
         checksumProb = (int) (checksumProb * 100);
-        this.maxEntrySize = maxEntrySize;
-        this.forwardReader = new ForwardRecordReader(bufferPool, checksumProb, maxEntrySize, readPageSize);
-        this.backwardReader = new BackwardRecordReader(bufferPool, checksumProb, maxEntrySize, readPageSize);
-        this.bulkForwardReader = new BulkForwardRecordReader(bufferPool, checksumProb, maxEntrySize, readPageSize);
-        this.bulkBackwardReader = new BulkBackwardRecordReader(bufferPool, checksumProb, maxEntrySize, readPageSize);
+        this.forwardReader = new ForwardRecordReader(bufferPool, checksumProb, readPageSize);
+        this.backwardReader = new BackwardRecordReader(bufferPool, checksumProb, readPageSize);
+        this.bulkForwardReader = new BulkForwardRecordReader(bufferPool, checksumProb, readPageSize);
+        this.bulkBackwardReader = new BulkBackwardRecordReader(bufferPool, checksumProb, readPageSize);
     }
 
     public long write(ByteBuffer entry) {
@@ -48,7 +44,6 @@ public class DataStream {
         try (Record record = localRecord.get()) {
             ByteBuffer[] buffers = record.create(entry);
             long length = record.length();
-            checkRecordSize(record.length());
             long written = storage.write(buffers);
             checkWrittenBytes(length, written);
             return storagePos;
@@ -57,13 +52,10 @@ public class DataStream {
 
     public long write(ByteBuffer[] entries) {
         long storagePos = storage.position();
-        try (Record record = localRecord.get()) {
-            Record.Records records = Record.create(entries);
-            checkRecordSize(record.length());
-            long written = storage.write(records.buffers);
-            checkWrittenBytes(records.totalLength, written);
-            return storagePos;
-        }
+        Record.Records records = Record.create(entries);
+        long written = storage.write(records.buffers);
+        checkWrittenBytes(records.totalLength, written);
+        return storagePos;
     }
 
     public <T> RecordEntry<T> read(Direction direction, long position, Serializer<T> serializer) {
@@ -94,12 +86,6 @@ public class DataStream {
 
     public long length() {
         return storage.length();
-    }
-
-    private void checkRecordSize(long recordSize) {
-        if (recordSize > maxEntrySize) {
-            throw new IllegalArgumentException("Record cannot exceed " + maxEntrySize + " bytes");
-        }
     }
 
     private void checkWrittenBytes(long expected, long written) {

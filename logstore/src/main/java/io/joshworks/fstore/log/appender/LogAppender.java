@@ -63,7 +63,6 @@ public class LogAppender<T> implements Closeable {
     private final SegmentFactory<T> factory;
     private final StorageMode storageMode;
     private final BufferPool bufferPool;
-    private final int maxEntrySize;
     private final double checksumProbability;
     private final int readPageSize;
 
@@ -88,7 +87,6 @@ public class LogAppender<T> implements Closeable {
         this.factory = config.segmentFactory;
         this.storageMode = config.storageMode;
         this.namingStrategy = config.namingStrategy;
-        this.maxEntrySize = config.maxEntrySize;
         this.checksumProbability = config.checksumProbability;
         this.readPageSize = config.bufferSize;
         this.compactionDisabled = config.compactionDisabled;
@@ -102,9 +100,6 @@ public class LogAppender<T> implements Closeable {
 
             if (config.segmentSize > MAX_SEGMENT_ADDRESS) {
                 throw new IllegalArgumentException("Maximum segment size allowed is " + MAX_SEGMENT_ADDRESS);
-            }
-            if (config.maxEntrySize > config.segmentSize) {
-                throw new IllegalArgumentException("Max entry size (" + config.maxEntrySize + ") must be less or equals than segment size (" + config.segmentSize + ")");
             }
 
             LogFileUtils.createRoot(directory);
@@ -135,7 +130,6 @@ public class LogAppender<T> implements Closeable {
                 config.name,
                 levels,
                 config.parallelCompaction,
-                maxEntrySize,
                 readPageSize,
                 checksumProbability);
 
@@ -163,7 +157,7 @@ public class LogAppender<T> implements Closeable {
     private Log<T> createCurrentSegment() {
         long alignedSize = align(LogHeader.BYTES + metadata.segmentSize); //log + header
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
-        return factory.createOrOpen(segmentFile, storageMode, alignedSize, serializer, bufferPool, WriteMode.LOG_HEAD, maxEntrySize, checksumProbability, readPageSize);
+        return factory.createOrOpen(segmentFile, storageMode, alignedSize, serializer, bufferPool, WriteMode.LOG_HEAD, checksumProbability, readPageSize);
     }
 
     private static long align(long fileSize) {
@@ -209,7 +203,7 @@ public class LogAppender<T> implements Closeable {
 
     private Log<T> loadSegment(String segmentName) {
         File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
-        Log<T> segment = factory.createOrOpen(segmentFile, storageMode, -1, serializer, bufferPool, null, maxEntrySize, checksumProbability, readPageSize);
+        Log<T> segment = factory.createOrOpen(segmentFile, storageMode, -1, serializer, bufferPool, null, checksumProbability, readPageSize);
         logger.info("Loaded segment {}", segment);
         return segment;
     }

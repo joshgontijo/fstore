@@ -8,16 +8,16 @@ import java.nio.ByteBuffer;
 
 final class ForwardRecordReader extends BaseReader implements Reader {
 
-    public ForwardRecordReader(BufferPool bufferPool, double checksumProb, int maxEntrySize, int bufferSize) {
-        super(bufferPool, checksumProb, maxEntrySize, bufferSize);
+    ForwardRecordReader(BufferPool bufferPool, double checksumProb, int bufferSize) {
+        super(bufferPool, checksumProb, bufferSize);
     }
 
     @Override
     public <T> RecordEntry<T> read(Storage storage, long position, Serializer<T> serializer) {
-        ByteBuffer buffer = bufferPool.allocate(bufferSize);
+        ByteBuffer buffer = bufferPool.allocate(pageReadSize);
         try {
             int read = storage.read(position, buffer);
-            if(read == Storage.EOF) {
+            if (read == Storage.EOF) {
                 return null;
             }
             buffer.flip();
@@ -27,7 +27,6 @@ final class ForwardRecordReader extends BaseReader implements Reader {
             }
 
             int length = buffer.getInt();
-            checkRecordLength(length, position);
             if (length == 0) {
                 return null;
             }
@@ -37,7 +36,7 @@ final class ForwardRecordReader extends BaseReader implements Reader {
                 bufferPool.free(buffer);
                 buffer = bufferPool.allocate(recordSize);
                 buffer.flip();
-                if(buffer.remaining() < recordSize) {
+                if (buffer.remaining() < recordSize) {
                     //tried to read again, but no data is available
                     return null;
                 }

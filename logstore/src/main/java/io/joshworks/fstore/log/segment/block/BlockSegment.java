@@ -37,10 +37,9 @@ public class BlockSegment<T> extends Segment<Block> {
                         BlockFactory blockFactory,
                         Codec codec,
                         int blockSize,
-                        int maxEntrySize,
                         double checksumProb,
                         int readPageSize) {
-        this(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, maxEntrySize, checksumProb, readPageSize, (p, b) -> {
+        this(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, checksumProb, readPageSize, (p, b) -> {
         });
     }
 
@@ -53,11 +52,10 @@ public class BlockSegment<T> extends Segment<Block> {
                         BlockFactory blockFactory,
                         Codec codec,
                         int blockSize,
-                        int maxEntrySize,
                         double checksumProb,
                         int readPageSize,
                         BiConsumer<Long, Block> blockWriteListener) {
-        super(file, storageMode, dataLength, new BlockSerializer(codec, blockFactory), bufferPool, writeMode, maxEntrySize, checksumProb, readPageSize);
+        super(file, storageMode, dataLength, new BlockSerializer(codec, blockFactory), bufferPool, writeMode, checksumProb, readPageSize);
         this.serializer = serializer;
         this.blockFactory = blockFactory;
         this.blockSize = blockSize;
@@ -179,8 +177,8 @@ public class BlockSegment<T> extends Segment<Block> {
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize, BlockFactory blockFactory) {
-        return (file, storageMode, dataLength, serializer, bufferPool, writeMode, maxEntrySize, checksumProb, readPageSize) -> {
-            BlockSegment<T> delegate = new BlockSegment<>(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, maxEntrySize, checksumProb, readPageSize);
+        return (file, storageMode, dataLength, serializer, bufferPool, writeMode, checksumProb, readPageSize) -> {
+            BlockSegment<T> delegate = new BlockSegment<>(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, checksumProb, readPageSize);
             return new BlockSegmentWrapper<>(delegate);
         };
     }

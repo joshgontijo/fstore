@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.index.midpoints.Midpoint;
 import io.joshworks.fstore.index.midpoints.Midpoints;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
@@ -12,15 +13,16 @@ import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
- * In memory IMMUTABLE, OFFLINE (cannot be queried until written to disk) ORDERED sparse index.
+ * In memory IMMUTABLE, ORDERED sparse index.
  * All entries are kept in disk, FIRST and LAST entry of each block is kept in memory.
  * <p>
  * Format:
@@ -34,71 +36,102 @@ public class SparseIndex<K extends Comparable<K>> implements Index<K> {
 
     private static final Codec CODEC = Codec.noCompression();
 
-    private final int blockSize;
     private final FooterReader reader;
-
-    private final List<Block> blocks = new ArrayList<>();
     private final BlockFactory blockFactory;
 
     private final Serializer<K> keySerializer;
+    private final int sparseness;
     private final IndexEntrySerializer<K> serializer;
 
     private final Midpoints<K> midpoints = new Midpoints<>();
-
-    private Block block;
+    private final ConcurrentSkipListSet<IndexEntry<K>> memItems = new ConcurrentSkipListSet<>(Comparator.comparing(ie -> ie.key));
 
     //TODO add block cache
 
-    public SparseIndex(Serializer<K> keySerializer, int blockSize, FooterReader reader, BlockFactory blockFactory) {
+    public SparseIndex(Serializer<K> keySerializer, int sparseness, FooterReader reader, BlockFactory blockFactory) {
         this.serializer = new IndexEntrySerializer<>(keySerializer);
         this.keySerializer = keySerializer;
-        this.blockSize = blockSize;
+        this.sparseness = sparseness;
         this.reader = reader;
         this.blockFactory = blockFactory;
-        this.block = blockFactory.create(blockSize);
     }
 
     public void load() {
         Long midpointBlockPos = reader.read(Serializers.LONG);
-        ByteBuffer blockData = reader.read(midpointBlockPos, Serializers.NONE);
+        ByteBuffer blockData = reader.read(midpointBlockPos, Serializers.COPY);
         midpoints.deserialize(blockData, keySerializer);
+    }
+
+    @Override
+    public IndexEntry<K> get(K entry) {
+        new IndexEntry<>(entry, -1);
+        if (!memItems.isEmpty()) {
+            IndexEntry<K> identity = IndexEntry.identity(entry);
+            IndexEntry<K> found = memItems.floor(IndexEntry.identity(entry));
+            if (found == null) {
+                return null;
+            }
+            return identity.compareTo(entry) == 0 ? found : null;
+        }
+        Midpoint<K> midpoint = midpoints.getMidpointFor(entry);
+        List<IndexEntry<K>> entries = loadEntries(midpoint);
+        int idx = Collections.binarySearch(entries, entry);
+        if (idx < 0) {
+            return null;
+        }
+        return entries.get(idx);
     }
 
     @Override
     public void add(K key, long pos) {
         Objects.requireNonNull(key, "Index key cannot be null");
-        ByteBuffer data = serializer.toBytes(new IndexEntry<>(key, pos));
-        while (!block.add(data)) {
-            blocks.add(block);
-            block = blockFactory.create(blockSize);
-        }
+        memItems.add(new IndexEntry<>(key, pos));
     }
 
     @Override
     public void writeTo(FooterWriter writer) {
         long startPos = writer.position();
-        writer.skip(Long.BYTES);
+        writer.position(writer.position() + Long.BYTES + RecordHeader.HEADER_OVERHEAD);
 
-        for (Block block : blocks) {
-            ByteBuffer firstData = block.first();
-            ByteBuffer lastData = block.last();
+        Iterator<IndexEntry<K>> iterator = memItems.iterator();
+        Block block = blockFactory.create(Integer.MAX_VALUE);
 
-            IndexEntry<K> first = serializer.fromBytes(firstData);
-            IndexEntry<K> last = serializer.fromBytes(lastData);
+        long i = 0;
+        IndexEntry<K> firstEntry = null;
+        IndexEntry<K> lastEntry = null;
+        while (iterator.hasNext()) {
+            IndexEntry<K> entry = iterator.next();
+            firstEntry = firstEntry == null ? entry : firstEntry;
+            lastEntry = entry;
+            if (!block.add(serializer.toBytes(entry))) {
+                throw new IllegalStateException("No block space");
+            }
 
+            if (++i % sparseness == 0) {
+                ByteBuffer packed = block.pack(CODEC);
+                long blockPos = writer.write(packed);
+                block = blockFactory.create(Integer.MAX_VALUE);
+                addToMidpoint(firstEntry, lastEntry, blockPos);
+                firstEntry = null;
+                lastEntry = null;
+            }
+        }
+
+        if (!block.isEmpty()) {
             ByteBuffer packed = block.pack(CODEC);
             long blockPos = writer.write(packed);
-            addToMidpoint(first, last, blockPos);
+            if (firstEntry == null) {
+                throw new IllegalStateException("Midpoints must not be null");
+            }
+            addToMidpoint(firstEntry, lastEntry, blockPos);
         }
 
         ByteBuffer midpointData = midpoints.serialize(keySerializer);
-        long endPos = writer.position();
         long pos = writer.write(midpointData);
+        long endPos = writer.position();
         writer.position(startPos);
         writer.write(Serializers.LONG.toBytes(pos));
         writer.position(endPos);
-
-        blocks.clear();
     }
 
     private void addToMidpoint(IndexEntry<K> first, IndexEntry<K> last, long blockPos) {
@@ -108,7 +141,7 @@ public class SparseIndex<K extends Comparable<K>> implements Index<K> {
     }
 
     private Block loadBlock(long pos) {
-        ByteBuffer data = reader.read(pos, Serializers.NONE);
+        ByteBuffer data = reader.read(pos, Serializers.COPY);
         return blockFactory.load(CODEC, data);
     }
 
@@ -118,21 +151,6 @@ public class SparseIndex<K extends Comparable<K>> implements Index<K> {
         }
         Block block = loadBlock(midpoint.position);
         return block.deserialize(serializer);
-    }
-
-    @Override
-    public long get(K entry) {
-        Midpoint<K> midpoint = midpoints.getMidpointFor(entry);
-        List<IndexEntry<K>> entries = loadEntries(midpoint);
-        int idx = Collections.binarySearch(entries, entry);
-        if (idx < 0) {
-            return -1;
-        }
-        return entries.get(idx).position;
-    }
-
-    public boolean inRange(K entry) {
-        return midpoints.inRange(entry);
     }
 
 //    public Iterator<IndexEntry<K>> range(K startInclusive, K endExclusive) {
@@ -169,7 +187,7 @@ public class SparseIndex<K extends Comparable<K>> implements Index<K> {
             if (empty) {
                 return;
             }
-            ByteBuffer blockData = reader.read(Serializers.NONE);
+            ByteBuffer blockData = reader.read(Serializers.COPY);
             if (!blockData.hasRemaining() && !empty) {
                 empty = true;
                 return;

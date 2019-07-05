@@ -34,15 +34,14 @@ import static org.junit.Assert.assertTrue;
 public abstract class LogAppenderTest {
 
     private static final int SEGMENT_SIZE = (int) Size.KB.of(128);//128kb
-    private static final int MAX_ENTRY_SIZE = SEGMENT_SIZE;//64kb
 
     private LogAppender<String> appender;
     private File testDirectory;
 
-    protected abstract LogAppender<String> appender(File testDirectory, int segmentSize);
+    protected abstract LogAppender<String> appender(File testDirectory);
 
     public LogAppender<String> appender() {
-        return appender(testDirectory, SEGMENT_SIZE);
+        return appender(testDirectory);
     }
 
     @Before
@@ -694,11 +693,10 @@ public abstract class LogAppenderTest {
     public static class MMapLogAppenderTest extends LogAppenderTest {
 
         @Override
-        protected LogAppender<String> appender(File testDirectory, int segmentSize) {
+        protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, new StringSerializer())
-                    .segmentSize(segmentSize)
+                    .segmentSize(LogAppenderTest.SEGMENT_SIZE)
                     .storageMode(StorageMode.MMAP)
-                    .maxEntrySize(MAX_ENTRY_SIZE)
                     .disableCompaction()
                     .open();
         }
@@ -707,11 +705,10 @@ public abstract class LogAppenderTest {
     public static class CachedRafLogAppenderTest extends LogAppenderTest {
 
         @Override
-        protected LogAppender<String> appender(File testDirectory, int segmentSize) {
+        protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, new StringSerializer())
-                    .segmentSize(segmentSize)
+                    .segmentSize(LogAppenderTest.SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF_CACHED)
-                    .maxEntrySize(MAX_ENTRY_SIZE)
                     .disableCompaction()
                     .open();
         }
@@ -721,10 +718,9 @@ public abstract class LogAppenderTest {
 
 
         @Override
-        protected LogAppender<String> appender(File testDirectory, int segmentSize) {
+        protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, new StringSerializer())
-                    .segmentSize(segmentSize)
-                    .maxEntrySize(MAX_ENTRY_SIZE)
+                    .segmentSize(LogAppenderTest.SEGMENT_SIZE)
                     .disableCompaction()
                     .open();
         }

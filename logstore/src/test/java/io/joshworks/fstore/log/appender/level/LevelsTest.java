@@ -394,16 +394,6 @@ public class LevelsTest {
         }
 
         @Override
-        public void writeFooter(FooterWriter footer) {
-
-        }
-
-        @Override
-        public FooterReader readFooter() {
-            return null;
-        }
-
-        @Override
         public Type type() {
             return type;
         }
