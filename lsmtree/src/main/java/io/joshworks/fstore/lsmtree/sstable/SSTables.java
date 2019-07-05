@@ -3,6 +3,7 @@ package io.joshworks.fstore.lsmtree.sstable;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -79,7 +80,12 @@ public class SSTables<K extends Comparable<K>, V> {
 
         @Override
         public Log<Entry<K, V>> createOrOpen(Storage storage, Serializer<Entry<K, V>> serializer, IDataStream reader, String magic, WriteMode mode) {
-            return new SSTable<>(storage, keySerializer, valueSerializer, reader, magic, mode, directory, flushThreshold);
+
+        }
+
+        @Override
+        public Log<Entry<K, V>> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<Entry<K, V>> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
+            return new SSTable<>(file, storageMode, dataLength, keySerializer, valueSerializer, bufferPool, magic, mode, directory, flushThreshold);
         }
     }
 }

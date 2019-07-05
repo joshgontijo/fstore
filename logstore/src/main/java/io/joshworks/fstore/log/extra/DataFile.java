@@ -4,9 +4,8 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
@@ -28,11 +27,11 @@ public class DataFile<T> implements Flushable, Closeable {
     private final Storage storage;
     private final Serializer<T> serializer;
 
-    private DataFile(File handler, Serializer<T> serializer, boolean mmap, long initialSize, double checksumProb, int maxEntrySize) {
+    private DataFile(File handler, Serializer<T> serializer, boolean mmap, long initialSize, double checksumProb) {
         Storage storage = null;
         try {
             this.storage = storage = Storage.createOrOpen(handler, mmap ? StorageMode.MMAP : StorageMode.RAF, initialSize);
-            this.stream = new DataStream(new LocalGrowingBufferPool(), storage, maxEntrySize, checksumProb, Memory.PAGE_SIZE * 4);
+            this.stream = new DataStream(new BufferPool(), storage, checksumProb, Memory.PAGE_SIZE * 4);
             this.serializer = serializer;
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
@@ -136,7 +135,6 @@ public class DataFile<T> implements Flushable, Closeable {
 
         private final Serializer<T> serializer;
         private boolean mmap;
-        private int maxEntrySize = Size.MB.intOf(5);
         private long size;
         private double checksumProb = 0.1;
 
@@ -146,11 +144,6 @@ public class DataFile<T> implements Flushable, Closeable {
 
         public Builder<T> mmap() {
             this.mmap = true;
-            return this;
-        }
-
-        public Builder<T> maxEntrySize(int maxSize) {
-            this.maxEntrySize = maxSize;
             return this;
         }
 
@@ -165,7 +158,7 @@ public class DataFile<T> implements Flushable, Closeable {
         }
 
         public DataFile<T> open(File file) {
-            return new DataFile<>(file, serializer, mmap, size, checksumProb, maxEntrySize);
+            return new DataFile<>(file, serializer, mmap, size, checksumProb);
         }
     }
 }

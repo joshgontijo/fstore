@@ -30,7 +30,6 @@ public class CompactionTask<T> implements Runnable {
     private final SegmentFactory<T> segmentFactory;
     private final BufferPool bufferPool;
     private final Consumer<CompactionResult<T>> onComplete;
-    private final int maxEntrySize;
     private final double checksumProbability;
     private final int readPageSize;
 
@@ -45,7 +44,6 @@ public class CompactionTask<T> implements Runnable {
         this.segmentFactory = event.segmentFactory;
         this.bufferPool = event.bufferPool;
         this.onComplete = event.onComplete;
-        this.maxEntrySize = event.maxEntrySize;
         this.checksumProbability = event.checksumProbability;
         this.readPageSize = event.readPageSize;
 
@@ -69,7 +67,7 @@ public class CompactionTask<T> implements Runnable {
 
             long start = System.currentTimeMillis();
 
-            output = segmentFactory.createOrOpen(segmentFile, storageMode, logSize, serializer, bufferPool, WriteMode.MERGE_OUT, maxEntrySize, checksumProbability, readPageSize);
+            output = segmentFactory.createOrOpen(segmentFile, storageMode, logSize, serializer, bufferPool, WriteMode.MERGE_OUT, checksumProbability, readPageSize);
 
             combiner.merge(segments, output);
             output.flush();

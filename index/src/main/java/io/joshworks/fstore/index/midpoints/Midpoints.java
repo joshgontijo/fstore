@@ -8,6 +8,7 @@ import io.joshworks.fstore.log.segment.block.VLenBlock;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class Midpoints<K extends Comparable<K>> {
@@ -29,14 +30,7 @@ public class Midpoints<K extends Comparable<K>> {
             return -1;
         }
         int idx = Collections.binarySearch(midpoints, entry);
-        if (idx < 0) {
-            idx = Math.abs(idx) - 2; // -1 for the actual position, -1 for the offset where to start scanning
-            idx = idx < 0 ? 0 : idx;
-        }
-        if (idx >= midpoints.size()) {
-            throw new IllegalStateException("Got index " + idx + " midpoints position: " + midpoints.size());
-        }
-        return idx;
+        return idx < 0 ? Math.abs(idx) - 2 : idx;
     }
 
     public Midpoint<K> getMidpointFor(K entry) {
@@ -86,6 +80,7 @@ public class Midpoints<K extends Comparable<K>> {
                 throw new IllegalStateException("No block space");
             }
         }
+        midpoints.sort(Comparator.comparing(o -> o.key));
         return midpointsBlock.pack(Codec.noCompression());
     }
 
@@ -98,6 +93,7 @@ public class Midpoints<K extends Comparable<K>> {
         Block block = VLenBlock.factory().load(Codec.noCompression(), blockData);
         List<Midpoint<K>> entries = block.deserialize(serializer);
         midpoints.addAll(entries);
+        midpoints.sort(Comparator.comparing(o -> o.key));
     }
 
 

@@ -22,7 +22,6 @@ class CompactionEvent<T> {
     final String name;
     final int level;
     final Consumer<CompactionResult<T>> onComplete;
-    final int maxEntrySize;
     final int readPageSize;
     final double checksumProbability;
 
@@ -37,7 +36,6 @@ class CompactionEvent<T> {
             BufferPool bufferPool,
             String name,
             int level,
-            int maxEntrySize,
             int readPageSize,
             double checksumProbability,
             Consumer<CompactionResult<T>> onComplete) {
@@ -51,7 +49,6 @@ class CompactionEvent<T> {
         this.bufferPool = bufferPool;
         this.name = name;
         this.level = level;
-        this.maxEntrySize = maxEntrySize;
         this.readPageSize = readPageSize;
         this.checksumProbability = checksumProbability;
         this.onComplete = onComplete;

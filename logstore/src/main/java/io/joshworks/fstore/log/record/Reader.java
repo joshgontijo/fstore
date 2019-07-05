@@ -2,7 +2,6 @@ package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 
 public interface Reader {
 

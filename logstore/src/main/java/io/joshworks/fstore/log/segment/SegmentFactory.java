@@ -15,7 +15,6 @@ public interface SegmentFactory<T> {
             Serializer<T> serializer,
             BufferPool bufferPool,
             WriteMode writeMode,
-            int maxEntrySize,
             double checksumProb,
             int readPageSize);
 

@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -26,7 +26,6 @@ public abstract class SegmentReaderTest {
 
     protected static final double CHECKSUM_PROB = 1;
     protected static final int SEGMENT_SIZE = Size.KB.intOf(128);
-    protected static final int MAX_ENTRY_SIZE = SEGMENT_SIZE;
     private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
 
     protected Log<String> segment;
@@ -101,9 +100,8 @@ public abstract class SegmentReaderTest {
                     StorageMode.RAF_CACHED,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new LocalGrowingBufferPool(false),
+                    new BufferPool(false),
                     WriteMode.LOG_HEAD,
-                    MAX_ENTRY_SIZE,
                     CHECKSUM_PROB,
                     BUFFER_SIZE);
         }
@@ -118,9 +116,8 @@ public abstract class SegmentReaderTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new LocalGrowingBufferPool(false),
+                    new BufferPool(false),
                     WriteMode.LOG_HEAD,
-                    MAX_ENTRY_SIZE,
                     CHECKSUM_PROB,
                     BUFFER_SIZE);
         }
@@ -135,22 +132,10 @@ public abstract class SegmentReaderTest {
                     StorageMode.RAF,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new LocalGrowingBufferPool(false),
+                    new BufferPool(false),
                     WriteMode.LOG_HEAD,
-                    MAX_ENTRY_SIZE,
                     CHECKSUM_PROB,
                     BUFFER_SIZE);
-        }
-
-        @Test(expected = IllegalArgumentException.class)
-        public void inserting_record_bigger_than_MAX_RECORD_SIZE_throws_exception() {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < MAX_ENTRY_SIZE + 1; i++) {
-                sb.append("a");
-            }
-            String data = sb.toString();
-            segment.append(data);
-            segment.flush();
         }
     }
 }

@@ -7,6 +7,7 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -14,7 +15,6 @@ import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.SequentialNaming;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -160,8 +160,8 @@ public class IndexAppender implements Closeable {
         }
 
         @Override
-        public IndexSegment createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<IndexEntry> serializer, IDataStream reader, WriteMode writeMode) {
-            return new IndexSegment(file, storageMode, dataLength, reader, writeMode, directory, codec, numElements);
+        public Log<IndexEntry> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<IndexEntry> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
+            return new IndexSegment(file, storageMode, dataLength, bufferPool, writeMode, directory, codec, checksumProb, readPageSize, numElements);
         }
     }
 

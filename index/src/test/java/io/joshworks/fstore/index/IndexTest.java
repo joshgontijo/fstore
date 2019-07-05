@@ -2,7 +2,7 @@ package io.joshworks.fstore.index;
 
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
@@ -17,8 +17,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
-public class SparseIndexTest {
+public class IndexTest {
 
     private Storage storage;
     private DataStream stream;
@@ -27,7 +28,7 @@ public class SparseIndexTest {
     @Before
     public void setUp() {
         storage = Storage.create(FileUtils.testFile(), StorageMode.RAF, 4096);
-        stream = new DataStream(new LocalGrowingBufferPool(false), storage, 4096, 1, 4096);
+        stream = new DataStream(new BufferPool(false), storage, 4096, 1, 4096);
     }
 
     @After
@@ -36,15 +37,37 @@ public class SparseIndexTest {
     }
 
     @Test
-    public void name() {
+    public void can_query_in_memory_items_without_flushing_to_disk() {
+        int items = 1000000;
 
         LogHeader header = LogHeader.read(storage);
         header.writeNew(storage, WriteMode.LOG_HEAD, 4096, 4096, false);
 
         FooterReader reader = new FooterReader(stream, header);
-        SparseIndex<String> index = new SparseIndex<>(Serializers.VSTRING, 1024, reader, blockFactory);
+        SparseIndex<String> index = new SparseIndex<>(Serializers.VSTRING, 128, reader, blockFactory);
 
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < items; i++) {
+            index.add(String.valueOf(i), i);
+        }
+
+        for (int i = 0; i < items; i++) {
+            IndexEntry<String> found = index.get(String.valueOf(i));
+            assertNotNull(found);
+            assertEquals(i, found.position);
+        }
+    }
+
+    @Test
+    public void can_query_in_memory_items_after_flushing_to_disk() {
+        int items = 1000000;
+
+        LogHeader header = LogHeader.read(storage);
+        header.writeNew(storage, WriteMode.LOG_HEAD, 4096, 4096, false);
+
+        FooterReader reader = new FooterReader(stream, header);
+        SparseIndex<String> index = new SparseIndex<>(Serializers.VSTRING, 128, reader, blockFactory);
+
+        for (int i = 0; i < items; i++) {
             index.add(String.valueOf(i), i);
         }
 
@@ -52,10 +75,16 @@ public class SparseIndexTest {
         index.writeTo(writer);
         header.writeCompleted(storage, 0, 0, 0, writer.length(), 0);
 
-        index = new SparseIndex<>(Serializers.VSTRING, 1024, reader, blockFactory);
+        reader.position(writer.start());
+
+        index = new SparseIndex<>(Serializers.VSTRING, 128, reader, blockFactory);
         index.load();
 
-        long pos = index.get("0");
-        assertEquals(0, pos);
+
+        for (int i = 0; i < items; i++) {
+            IndexEntry<String> found = index.get(String.valueOf(i));
+            assertNotNull(found);
+            assertEquals(i, found.position);
+        }
     }
 }

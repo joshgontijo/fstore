@@ -7,17 +7,15 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class BaseReader {
 
-    private final ThreadLocalRandom rand = ThreadLocalRandom.current();
     protected final BufferPool bufferPool;
+    final int pageReadSize;
+    private final ThreadLocalRandom rand = ThreadLocalRandom.current();
     private final double checksumProb;
-    private final int maxEntrySize;
-    protected final int bufferSize;
 
-    public BaseReader(BufferPool bufferPool, double checksumProb, int maxEntrySize, int bufferSize) {
+    public BaseReader(BufferPool bufferPool, double checksumProb, int pageReadSize) {
         this.bufferPool = bufferPool;
         this.checksumProb = checksumProb;
-        this.maxEntrySize = maxEntrySize;
-        this.bufferSize = bufferSize;
+        this.pageReadSize = pageReadSize;
     }
 
     protected void checksum(int expected, ByteBuffer data, long position) {
@@ -31,11 +29,4 @@ public class BaseReader {
             throw new ChecksumException(position);
         }
     }
-
-    void checkRecordLength(int length, long position) {
-        if (length < 0 || length > maxEntrySize) {
-            throw new IllegalStateException("Invalid record length " + length + " at position " + position);
-        }
-    }
-
 }

@@ -12,13 +12,13 @@ import java.util.List;
 final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
 
 
-    public BulkBackwardRecordReader(BufferPool bufferPool, double checksumProb, int maxEntrySize, int bufferSize) {
-        super(bufferPool, checksumProb, maxEntrySize, bufferSize);
+    BulkBackwardRecordReader(BufferPool bufferPool, double checksumProb, int bufferSize) {
+        super(bufferPool, checksumProb, bufferSize);
     }
 
     @Override
     public <T> List<RecordEntry<T>> read(Storage storage, long position, Serializer<T> serializer) {
-        ByteBuffer buffer = bufferPool.allocate(bufferSize);
+        ByteBuffer buffer = bufferPool.allocate(pageReadSize);
 
         List<RecordEntry<T>> entries = new ArrayList<>();
 
@@ -41,7 +41,6 @@ final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
 
             int recordDataEnd = buffer.limit() - RecordHeader.SECONDARY_HEADER;
             int length = buffer.getInt(recordDataEnd);
-            checkRecordLength(length, position);
             if (length == 0) {
                 return entries;
             }
@@ -69,18 +68,9 @@ final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
                     return entries;
                 }
                 buffer.position(originalLimit - len - RecordHeader.HEADER_OVERHEAD);
-                checkRecordLength(length, position);
 
                 int pos = buffer.position();
-                if (len == 0) {
-                    return entries;
-                }
-                if (buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
-                    return entries;
-                }
-                checkRecordLength(len, pos);
-
-                if (buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
+                if (len == 0 || buffer.remaining() < len + RecordHeader.CHECKSUM_SIZE) {
                     return entries;
                 }
 

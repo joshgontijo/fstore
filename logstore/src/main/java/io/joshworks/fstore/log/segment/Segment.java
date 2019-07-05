@@ -77,7 +77,6 @@ public class Segment<T> implements Log<T> {
             Serializer<T> serializer,
             BufferPool bufferPool,
             WriteMode writeMode,
-            int maxEntrySize,
             double checksumProb,
             int readPageSize) {
 
@@ -90,7 +89,7 @@ public class Segment<T> implements Log<T> {
         try {
             long fileLength = segmentDataSize + LogHeader.BYTES;
             this.storage = storage = Storage.createOrOpen(file, storageMode, fileLength);
-            this.stream = new DataStream(bufferPool, storage, maxEntrySize, checksumProb, readPageSize);
+            this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize);
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
             if (storage.length() <= LogHeader.BYTES) {
@@ -180,11 +179,11 @@ public class Segment<T> implements Log<T> {
         return recordPosition;
     }
 
-    protected void writeFooter(FooterWriter footer) {
+    public void writeFooter(FooterWriter footer) {
         //do nothing
     }
 
-    protected FooterReader readFooter() {
+    public FooterReader readFooter() {
         return new FooterReader(stream, header);
     }
 

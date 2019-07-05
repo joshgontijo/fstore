@@ -26,12 +26,6 @@ public class FooterWriter {
         return stream.position();
     }
 
-    public long skip(long bytes) {
-        long newPos = position() + bytes;
-        position(newPos);
-        return newPos;
-    }
-
     public void position(long position) {
         if (position < start) {
             throw new IllegalArgumentException("Position cannot be less than " + start);

@@ -23,7 +23,7 @@ import io.joshworks.eventry.writer.Writer;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.Direction;
@@ -36,7 +36,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -79,7 +78,7 @@ public class EventStore implements IEventStore {
                 .name("event-log")
                 .flushMode(FlushMode.MANUAL)
                 .storageMode(StorageMode.MMAP)
-                .bufferPool(new LocalGrowingBufferPool(false))
+                .bufferPool(new BufferPool(false))
                 .checksumProbability(1)
                 .disableCompaction()
                 .namingStrategy(new SequentialNaming(rootDir))

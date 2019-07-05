@@ -3,7 +3,6 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -22,7 +21,6 @@ public class Config<T> {
     private static final int COMPACTION_THRESHOLD = 3;
     private static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(256);
     private static final double DEFAULT_CHECKSUM_PROB = 1.0;
-    private static final int DEFAULT_MAX_ENTRY_SIZE = Size.MB.intOf(5);
     private static final int DEFAULT_BUFFER_SIZE = Size.KB.intOf(4);
 
     final File directory;
@@ -30,7 +28,7 @@ public class Config<T> {
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
     SegmentFactory<T> segmentFactory;
-    BufferPool bufferPool = new LocalGrowingBufferPool(false);
+    BufferPool bufferPool = new BufferPool(false);
 
     String name = DEFAULT_APPENDER_NAME;
     long segmentSize = DEFAULT_SEGMENT_SIZE;
@@ -40,7 +38,6 @@ public class Config<T> {
     int compactionThreshold = COMPACTION_THRESHOLD;
     boolean parallelCompaction;
     boolean compactionDisabled;
-    int maxEntrySize = DEFAULT_MAX_ENTRY_SIZE;
     int bufferSize = DEFAULT_BUFFER_SIZE;
     StorageMode compactionStorage;
 
@@ -51,16 +48,6 @@ public class Config<T> {
 
     public Config<T> segmentSize(long segmentSize) {
         this.segmentSize = segmentSize;
-        this.maxEntrySize = maxEntrySize > segmentSize ? (int) segmentSize : maxEntrySize;
-        return this;
-    }
-
-    public Config<T> maxEntrySize(int maxEntrySize) {
-        if (maxEntrySize == 0) {
-            throw new IllegalArgumentException("maxEntrySize must not be zero");
-        }
-        int segSize = segmentSize > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) segmentSize;
-        this.maxEntrySize = maxEntrySize > segSize ? maxEntrySize : segSize;
         return this;
     }
 

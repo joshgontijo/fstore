@@ -37,9 +37,7 @@ public class FooterReader {
 
     private <T> RecordEntry<T> readInternal(long pos, Serializer<T> serializer) {
         checkReadOnly();
-        if (!withinBounds(pos)) {
-            return null;
-        }
+        checkBounds(pos);
         return stream.read(Direction.FORWARD, pos, serializer);
     }
 
@@ -60,10 +58,7 @@ public class FooterReader {
 
     public void position(long position) {
         checkReadOnly();
-        if (!withinBounds(position)) {
-            long start = header.footerStart();
-            throw new IllegalStateException("Invalid footer position: " + position + ", allowed range is: " + start + " - " + maxPos());
-        }
+        checkBounds(position);
         this.currPos = position;
     }
 
@@ -73,8 +68,11 @@ public class FooterReader {
         }
     }
 
-    private boolean withinBounds(long position) {
-        return position >= header.footerStart() && position <= maxPos();
+    private void checkBounds(long position) {
+        if (position < header.footerStart() || position > maxPos()) {
+            long start = header.footerStart();
+            throw new IllegalStateException("Invalid footer position: " + position + ", allowed range is: " + start + " - " + maxPos());
+        }
     }
 
     private long maxPos() {

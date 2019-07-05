@@ -42,7 +42,6 @@ public class Compactor<T> implements Closeable {
     private final String name;
     private final Levels<T> levels;
     private final boolean threadPerLevel;
-    private final int maxEntrySize;
     private final int readPageSize;
     private final double checksumProbability;
     private final Set<Log<T>> compacting = new CopyOnWriteArraySet<>();
@@ -62,7 +61,6 @@ public class Compactor<T> implements Closeable {
                      String name,
                      Levels<T> levels,
                      boolean threadPerLevel,
-                     int maxEntrySize,
                      int readPageSize,
                      double checksumProbability) {
         this.directory = directory;
@@ -77,7 +75,6 @@ public class Compactor<T> implements Closeable {
         this.levels = levels;
         this.threadPerLevel = threadPerLevel;
         this.logger = Logging.namedLogger(name, "compactor");
-        this.maxEntrySize = maxEntrySize;
         this.readPageSize = readPageSize;
         this.checksumProbability = checksumProbability;
     }
@@ -118,7 +115,6 @@ public class Compactor<T> implements Closeable {
                 bufferPool,
                 name,
                 level,
-                maxEntrySize,
                 readPageSize,
                 checksumProbability,
                 this::cleanup);

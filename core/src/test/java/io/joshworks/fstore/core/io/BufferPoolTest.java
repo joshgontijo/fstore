@@ -1,7 +1,6 @@
 package io.joshworks.fstore.core.io;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -15,7 +14,7 @@ public class BufferPoolTest {
 
     @Before
     public void setUp() {
-        bufferPool = new LocalGrowingBufferPool(false);
+        bufferPool = new BufferPool(false);
     }
 
     @Test

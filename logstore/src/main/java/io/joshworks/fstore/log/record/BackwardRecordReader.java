@@ -9,14 +9,13 @@ import java.nio.ByteBuffer;
 
 final class BackwardRecordReader extends BaseReader implements Reader {
 
-
-    public BackwardRecordReader(BufferPool bufferPool, double checksumProb, int maxEntrySize, int bufferSize) {
-        super(bufferPool, checksumProb, maxEntrySize, bufferSize);
+    BackwardRecordReader(BufferPool bufferPool, double checksumProb, int bufferSize) {
+        super(bufferPool, checksumProb, bufferSize);
     }
 
     @Override
     public <T> RecordEntry<T> read(Storage storage, long position, Serializer<T> serializer) {
-        ByteBuffer buffer = bufferPool.allocate(bufferSize);
+        ByteBuffer buffer = bufferPool.allocate(pageReadSize);
         try {
             int limit = buffer.limit();
             if (position - limit < Log.START) {
@@ -36,7 +35,6 @@ final class BackwardRecordReader extends BaseReader implements Reader {
 
             int recordDataEnd = buffer.limit() - RecordHeader.SECONDARY_HEADER;
             int length = buffer.getInt(recordDataEnd);
-            checkRecordLength(length, position);
             if (length == 0) {
                 return null;
             }
@@ -53,7 +51,6 @@ final class BackwardRecordReader extends BaseReader implements Reader {
                 buffer.flip();
 
                 int foundLength = buffer.getInt();
-                checkRecordLength(foundLength, position);
                 return readRecord(position, serializer, buffer, foundLength);
             }
 
