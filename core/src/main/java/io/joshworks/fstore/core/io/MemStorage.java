@@ -70,7 +70,7 @@ public abstract class MemStorage implements Storage {
     }
 
     protected void ensureCapacity(long position, long entrySize) {
-        if (!hasEnoughSpace(entrySize, position) || position >= size()) {
+        if (!hasEnoughSpace(entrySize, position) || position >= length()) {
             expand(entrySize, position);
         }
     }
@@ -150,7 +150,7 @@ public abstract class MemStorage implements Storage {
     }
 
     @Override
-    public long size() {
+    public long length() {
         return size.get();
     }
 
@@ -207,7 +207,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public void truncate(long newSize) {
-        if (newSize >= size()) {
+        if (newSize >= length()) {
             return;
         }
         Lock lock = writeLockInterruptibly();
@@ -241,7 +241,7 @@ public abstract class MemStorage implements Storage {
     protected void expand(long entrySize, long position) {
         Lock lock = writeLockInterruptibly();
         try {
-            long length = size();
+            long length = length();
             if (hasEnoughSpace(entrySize, position) && position < length) {
                 return;
             }
@@ -284,7 +284,7 @@ public abstract class MemStorage implements Storage {
     }
 
     protected boolean hasEnoughSpace(long dataSize, long position) {
-        long size = size();
+        long size = length();
         return position + dataSize <= size;
     }
 

@@ -1,5 +1,11 @@
 package io.joshworks.fstore.index.midpoints;
 
+import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.segment.block.Block;
+import io.joshworks.fstore.log.segment.block.VLenBlock;
+
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -68,6 +74,30 @@ public class Midpoints<K extends Comparable<K>> {
             return null;
         }
         return midpoints.get(midpoints.size() - 1);
+    }
+
+    public ByteBuffer serialize(Serializer<K> keySerializer) {
+        Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
+
+        Block midpointsBlock = VLenBlock.factory().create(Integer.MAX_VALUE);
+        for (Midpoint<K> midpoint : midpoints) {
+            ByteBuffer data = serializer.toBytes(midpoint);
+            if (!midpointsBlock.add(data)) {
+                throw new IllegalStateException("No block space");
+            }
+        }
+        return midpointsBlock.pack(Codec.noCompression());
+    }
+
+    public void deserialize(ByteBuffer blockData, Serializer<K> keySerializer) {
+        if (!midpoints.isEmpty()) {
+            throw new IllegalStateException("Midpoints is not empty");
+        }
+
+        Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
+        Block block = VLenBlock.factory().load(Codec.noCompression(), blockData);
+        List<Midpoint<K>> entries = block.deserialize(serializer);
+        midpoints.addAll(entries);
     }
 
 

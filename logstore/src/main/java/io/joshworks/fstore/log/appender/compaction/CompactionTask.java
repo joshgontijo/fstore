@@ -2,9 +2,9 @@ package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -21,29 +21,34 @@ public class CompactionTask<T> implements Runnable {
 
     private final Logger logger;
 
-    private final String magic;
     private final int level;
     private final File segmentFile;
     private final SegmentCombiner<T> combiner;
     private final List<Log<T>> segments;
-    private final IDataStream dataStream;
     private final Serializer<T> serializer;
     private final StorageMode storageMode;
     private final SegmentFactory<T> segmentFactory;
+    private final BufferPool bufferPool;
     private final Consumer<CompactionResult<T>> onComplete;
+    private final int maxEntrySize;
+    private final double checksumProbability;
+    private final int readPageSize;
 
     public CompactionTask(CompactionEvent<T> event) {
         this.logger = Logging.namedLogger(event.name, "compaction-task-" + event.level);
-        this.magic = event.magic;
         this.level = event.level;
         this.segmentFile = event.segmentFile;
         this.combiner = event.combiner;
         this.segments = new ArrayList<>(event.segments);
-        this.dataStream = event.dataStream;
         this.serializer = event.serializer;
         this.storageMode = event.storageMode;
         this.segmentFactory = event.segmentFactory;
+        this.bufferPool = event.bufferPool;
         this.onComplete = event.onComplete;
+        this.maxEntrySize = event.maxEntrySize;
+        this.checksumProbability = event.checksumProbability;
+        this.readPageSize = event.readPageSize;
+
     }
 
     @Override
@@ -64,7 +69,7 @@ public class CompactionTask<T> implements Runnable {
 
             long start = System.currentTimeMillis();
 
-            output = segmentFactory.createOrOpen(segmentFile, storageMode, logSize, serializer, dataStream, WriteMode.MERGE_OUT);
+            output = segmentFactory.createOrOpen(segmentFile, storageMode, logSize, serializer, bufferPool, WriteMode.MERGE_OUT, maxEntrySize, checksumProbability, readPageSize);
 
             combiner.merge(segments, output);
             output.flush();

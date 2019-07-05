@@ -1,8 +1,8 @@
 package io.joshworks.fstore.log.extra;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -76,7 +76,7 @@ public class DataFileTest {
         dataFile.add("a");
         dataFile.add("b");
 
-        List<String> found = dataFile.iterator(Direction.FORWARD).stream().collect(Collectors.toList());
+        List<String> found = Iterators.stream(dataFile.iterator(Direction.FORWARD)).collect(Collectors.toList());
         assertEquals(2, found.size());
         assertEquals("a", found.get(0));
         assertEquals("b", found.get(1));

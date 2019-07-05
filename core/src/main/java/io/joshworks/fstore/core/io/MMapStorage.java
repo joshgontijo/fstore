@@ -17,7 +17,7 @@ public class MMapStorage extends MemStorage {
     protected final DiskStorage diskStorage;
 
     public MMapStorage(DiskStorage diskStorage) {
-        super(diskStorage.name(), diskStorage.size(), mmap(diskStorage));
+        super(diskStorage.name(), diskStorage.length(), mmap(diskStorage));
         this.diskStorage = diskStorage;
     }
 
@@ -26,7 +26,7 @@ public class MMapStorage extends MemStorage {
     }
 
     MMapStorage(DiskStorage diskStorage, int bufferSize) {
-        super(diskStorage.name(), diskStorage.size(), mmap(diskStorage));
+        super(diskStorage.name(), diskStorage.length(), mmap(diskStorage));
         this.diskStorage = diskStorage;
     }
 
@@ -98,7 +98,7 @@ public class MMapStorage extends MemStorage {
 
     @Override
     public void truncate(long newSize) {
-        if (newSize >= size()) {
+        if (newSize >= length()) {
             return;
         }
         Lock lock = writeLockInterruptibly();
@@ -110,7 +110,7 @@ public class MMapStorage extends MemStorage {
                 iterator.remove();
             }
             diskStorage.truncate(newSize);
-            long newLength = diskStorage.size();
+            long newLength = diskStorage.length();
             List<ByteBuffer> newBuffers = initBuffers(newLength, mmap(diskStorage));
             this.buffers.addAll(newBuffers);
             computeLength();

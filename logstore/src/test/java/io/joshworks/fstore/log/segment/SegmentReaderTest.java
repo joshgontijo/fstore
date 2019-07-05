@@ -7,7 +7,6 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -102,8 +101,11 @@ public abstract class SegmentReaderTest {
                     StorageMode.RAF_CACHED,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    WriteMode.LOG_HEAD);
+                    new LocalGrowingBufferPool(false),
+                    WriteMode.LOG_HEAD,
+                    MAX_ENTRY_SIZE,
+                    CHECKSUM_PROB,
+                    BUFFER_SIZE);
         }
     }
 
@@ -116,7 +118,11 @@ public abstract class SegmentReaderTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), WriteMode.LOG_HEAD);
+                    new LocalGrowingBufferPool(false),
+                    WriteMode.LOG_HEAD,
+                    MAX_ENTRY_SIZE,
+                    CHECKSUM_PROB,
+                    BUFFER_SIZE);
         }
     }
 
@@ -129,8 +135,11 @@ public abstract class SegmentReaderTest {
                     StorageMode.RAF,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    WriteMode.LOG_HEAD);
+                    new LocalGrowingBufferPool(false),
+                    WriteMode.LOG_HEAD,
+                    MAX_ENTRY_SIZE,
+                    CHECKSUM_PROB,
+                    BUFFER_SIZE);
         }
 
         @Test(expected = IllegalArgumentException.class)

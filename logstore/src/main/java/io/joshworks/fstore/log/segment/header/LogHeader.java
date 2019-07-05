@@ -43,6 +43,14 @@ public class LogHeader {
         return Type.NONE;
     }
 
+    public boolean readOnly() {
+        Type type = type();
+        return !Type.LOG_HEAD.equals(type) && !Type.MERGE_OUT.equals(type);
+    }
+
+    public long footerStart() {
+        return BYTES + this.dataSize();
+    }
 
     public long created() {
         return open == null ? UNKNOWN : open.created;
@@ -60,7 +68,6 @@ public class LogHeader {
             return open.dataSize;
         }
         throw new IllegalStateException("Unknown segment state");
-
     }
 
     public boolean encrypted() {

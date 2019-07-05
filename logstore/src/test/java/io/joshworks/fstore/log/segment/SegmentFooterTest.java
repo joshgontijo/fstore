@@ -3,13 +3,12 @@ package io.joshworks.fstore.log.segment;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.LocalGrowingBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.record.DataStream;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
@@ -240,8 +239,11 @@ public abstract class SegmentFooterTest {
                     StorageMode.RAF_CACHED,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    WriteMode.LOG_HEAD);
+                    new LocalGrowingBufferPool(false),
+                    WriteMode.LOG_HEAD,
+                    MAX_ENTRY_SIZE,
+                    CHECKSUM_PROB,
+                    BUFFER_SIZE);
         }
     }
 
@@ -254,8 +256,11 @@ public abstract class SegmentFooterTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    WriteMode.LOG_HEAD);
+                    new LocalGrowingBufferPool(false),
+                    WriteMode.LOG_HEAD,
+                    MAX_ENTRY_SIZE,
+                    CHECKSUM_PROB,
+                    BUFFER_SIZE);
         }
     }
 
@@ -268,8 +273,11 @@ public abstract class SegmentFooterTest {
                     StorageMode.RAF,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    WriteMode.LOG_HEAD);
+                    new LocalGrowingBufferPool(false),
+                    WriteMode.LOG_HEAD,
+                    MAX_ENTRY_SIZE,
+                    CHECKSUM_PROB,
+                    BUFFER_SIZE);
         }
     }
 
@@ -277,8 +285,8 @@ public abstract class SegmentFooterTest {
 
         public List<Long> footerItems = new ArrayList<>();
 
-        public FooterSegment(File file, StorageMode storageMode, long segmentDataSize, Serializer<String> serializer, IDataStream dataStream, WriteMode writeMode) {
-            super(file, storageMode, segmentDataSize, serializer, dataStream, writeMode);
+        public FooterSegment(File file, StorageMode storageMode, long segmentDataSize, Serializer<String> serializer, BufferPool bufferPool, WriteMode writeMode, int maxEntrySize, double checksumProb, int readPageSize) {
+            super(file, storageMode, segmentDataSize, serializer, bufferPool, writeMode, maxEntrySize, checksumProb, readPageSize);
         }
 
         @Override
@@ -291,7 +299,7 @@ public abstract class SegmentFooterTest {
         private List<Long> readAllFooterItems() {
             FooterReader footerReader = readFooter();
             ByteBuffer footerData = ByteBuffer.allocate((int) footerReader.length());
-            footerReader.read(footerReader.start(), footerData);
+            footerReader.read(footerReader.start(), Serializers.LONG);
             footerData.flip();
 
             List<Long> items = new ArrayList<>();

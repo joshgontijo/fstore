@@ -5,12 +5,12 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.record.IDataStream;
+import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
-import io.joshworks.fstore.log.segment.footer.FooterPosition;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.LogHeader;
@@ -55,7 +55,7 @@ public class Segment<T> implements Log<T> {
 
     private final Serializer<T> serializer;
     private final Storage storage;
-    private final IDataStream dataStream;
+    private final DataStream stream;
 
     protected final AtomicLong entries = new AtomicLong();
     //writePosition must be kept separate from store, so it allows reads happening when rolling segment
@@ -70,10 +70,18 @@ public class Segment<T> implements Log<T> {
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     //Magic is used to create new segment or verify existing
-    public Segment(File file, StorageMode storageMode, long segmentDataSize, Serializer<T> serializer, IDataStream dataStream, WriteMode writeMode) {
+    public Segment(
+            File file,
+            StorageMode storageMode,
+            long segmentDataSize,
+            Serializer<T> serializer,
+            BufferPool bufferPool,
+            WriteMode writeMode,
+            int maxEntrySize,
+            double checksumProb,
+            int readPageSize) {
 
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
-        this.dataStream = requireNonNull(dataStream, "Reader must be provided");
         if (!Files.exists(file.toPath()) && (segmentDataSize <= 0 || writeMode == null)) {
             throw new IllegalStateException("segmentDataSize and writeMode must be provided when creating segment");
         }
@@ -82,9 +90,10 @@ public class Segment<T> implements Log<T> {
         try {
             long fileLength = segmentDataSize + LogHeader.BYTES;
             this.storage = storage = Storage.createOrOpen(file, storageMode, fileLength);
+            this.stream = new DataStream(bufferPool, storage, maxEntrySize, checksumProb, readPageSize);
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
-            if (storage.size() <= LogHeader.BYTES) {
+            if (storage.length() <= LogHeader.BYTES) {
                 throw new IllegalArgumentException("Segment size must greater than " + LogHeader.BYTES);
             }
             this.header = LogHeader.read(storage);
@@ -150,38 +159,34 @@ public class Segment<T> implements Log<T> {
 //    }
 
     @Override
-    public long append(T data) {
+    public long append(T record) {
         checkNotClosed();
         if (readOnly()) {
             throw new IllegalStateException("Segment is read only");
         }
-        ByteBuffer bytes = serializer.toBytes(data);
+        ByteBuffer data = serializer.toBytes(record);
 
-        if (bytes.remaining() > logSize()) {
-            throw new IllegalArgumentException("Record of size " + bytes.remaining() + " cannot exceed log size of " + logSize() + "");
+        if (data.remaining() > logSize()) {
+            throw new IllegalArgumentException("Record of size " + data.remaining() + " cannot exceed log size of " + logSize() + "");
         }
 
-        if (remaining() < bytes.remaining()) {
+        if (remaining() < data.remaining()) {
             return EOF;
         }
 
-        long recordPosition = dataStream.write(storage, bytes);
+        long recordPosition = stream.write(data);
         incrementEntry();
         dataWritePosition.set(storage.position());
         return recordPosition;
     }
 
-    @Override
-    public void writeFooter(FooterWriter footer) {
+    protected void writeFooter(FooterWriter footer) {
         //do nothing
     }
 
-    @Override
-    public FooterReader readFooter() {
-        long footerStart = LogHeader.BYTES + logSize();
-        return new FooterReader(storage, dataStream, new FooterPosition(footerStart, header.footerLength()));
+    protected FooterReader readFooter() {
+        return new FooterReader(stream, header);
     }
-
 
     protected void incrementEntry() {
         entries.incrementAndGet();
@@ -191,13 +196,13 @@ public class Segment<T> implements Log<T> {
     public T get(long position) {
         checkNotClosed();
         checkBounds(position);
-        RecordEntry<T> entry = dataStream.read(storage, Direction.FORWARD, position, serializer);
+        RecordEntry<T> entry = stream.read(Direction.FORWARD, position, serializer);
         return entry == null ? null : entry.entry();
     }
 
     @Override
     public long fileSize() {
-        return storage.size();
+        return storage.length();
     }
 
     @Override
@@ -238,7 +243,7 @@ public class Segment<T> implements Log<T> {
         try {
             checkNotClosed();
             checkBounds(position);
-            SegmentReader<T> segmentReader = new SegmentReader<>(this, storage, dataStream, serializer, position, direction);
+            SegmentReader<T> segmentReader = new SegmentReader<>(this, stream, serializer, position, direction);
             return acquireReader(segmentReader);
         } finally {
             lock.unlock();
@@ -288,7 +293,7 @@ public class Segment<T> implements Log<T> {
             logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
             int lastRead;
             do {
-                List<RecordEntry<T>> entries = dataStream.bulkRead(storage, Direction.FORWARD, position, serializer);
+                List<RecordEntry<T>> entries = stream.bulkRead(Direction.FORWARD, position, serializer);
                 foundEntries += processEntries(entries);
                 lastRead = entries.stream().mapToInt(RecordEntry::recordSize).sum();
                 position += lastRead;
@@ -298,7 +303,7 @@ public class Segment<T> implements Log<T> {
         } catch (Exception e) {
             logger.warn("Found inconsistent entry on position " + position + ", segment '" + name() + "': " + e.getMessage());
             storage.position(position);
-            dataStream.write(storage, ByteBuffer.wrap(EOL));
+            stream.write(ByteBuffer.wrap(EOL));
             storage.position(position);
         }
         logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
@@ -341,7 +346,7 @@ public class Segment<T> implements Log<T> {
         long actualDataSize = maxDataPosition - START;
         long uncompressedSize = uncompressedSize();
 
-        FooterWriter footer = new FooterWriter(storage, dataStream);
+        FooterWriter footer = new FooterWriter(stream);
         writeFooter(footer);
         long footerLength = storage.position() - maxDataPosition;
 
@@ -350,7 +355,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public boolean readOnly() {
-        return !Type.LOG_HEAD.equals(header.type()) && !Type.MERGE_OUT.equals(header.type());
+        return header.readOnly();
     }
 
     @Override
