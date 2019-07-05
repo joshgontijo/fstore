@@ -1,11 +1,9 @@
 package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.DataStream;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
 import io.joshworks.fstore.log.segment.header.Type;
 
@@ -17,21 +15,19 @@ import java.util.concurrent.atomic.AtomicLong;
 class SegmentReader<T> implements SegmentIterator<T> {
 
     private final Segment segment;
-    private final Storage storage;
-    private final IDataStream dataStream;
+    private final DataStream stream;
     private final Serializer<T> serializer;
     private final Direction direction;
-    private final Queue<RecordEntry<T>> pageQueue = new ArrayDeque<>(DataStream.MAX_BULK_READ_RESULT);
+    private final Queue<RecordEntry<T>> pageQueue = new ArrayDeque<>();
 
     private final AtomicLong readPosition = new AtomicLong();
     private final AtomicLong emptyReads = new AtomicLong();
     private final AtomicLong bytesRead = new AtomicLong();
     private final AtomicLong entriesRead = new AtomicLong();
 
-    SegmentReader(Segment segment, Storage storage, IDataStream dataStream, Serializer<T> serializer, long initialPosition, Direction direction) {
+    SegmentReader(Segment segment, DataStream stream, Serializer<T> serializer, long initialPosition, Direction direction) {
         this.segment = segment;
-        this.storage = storage;
-        this.dataStream = dataStream;
+        this.stream = stream;
         this.direction = direction;
         this.serializer = serializer;
         this.readPosition.set(initialPosition);
@@ -83,7 +79,7 @@ class SegmentReader<T> implements SegmentIterator<T> {
         if (Direction.BACKWARD.equals(direction) && pos <= Log.START) {
             return;
         }
-        List<RecordEntry<T>> entries = dataStream.bulkRead(storage, direction, pos, serializer);
+        List<RecordEntry<T>> entries = stream.bulkRead(direction, pos, serializer);
         pageQueue.addAll(entries);
         if (entries.isEmpty()) {
             emptyReads.incrementAndGet();

@@ -10,7 +10,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
@@ -508,7 +507,11 @@ public abstract class SegmentTest {
                 StorageMode.MMAP,
                 SEGMENT_SIZE,
                 Serializers.STRING,
-                new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), WriteMode.MERGE_OUT);
+                new LocalGrowingBufferPool(false),
+                WriteMode.MERGE_OUT,
+                MAX_ENTRY_SIZE,
+                CHECKSUM_PROB,
+                BUFFER_SIZE);
     }
 
     public static class CachedSegmentTest extends SegmentTest {
@@ -520,8 +523,11 @@ public abstract class SegmentTest {
                     StorageMode.RAF_CACHED,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    WriteMode.LOG_HEAD);
+                    new LocalGrowingBufferPool(false),
+                    WriteMode.LOG_HEAD,
+                    MAX_ENTRY_SIZE,
+                    CHECKSUM_PROB,
+                    BUFFER_SIZE);
         }
     }
 
@@ -534,7 +540,11 @@ public abstract class SegmentTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE), WriteMode.LOG_HEAD);
+                    new LocalGrowingBufferPool(false),
+                    WriteMode.LOG_HEAD,
+                    MAX_ENTRY_SIZE,
+                    CHECKSUM_PROB,
+                    BUFFER_SIZE);
         }
     }
 
@@ -547,8 +557,11 @@ public abstract class SegmentTest {
                     StorageMode.RAF,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new DataStream(new LocalGrowingBufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                    WriteMode.LOG_HEAD);
+                    new LocalGrowingBufferPool(false),
+                    WriteMode.LOG_HEAD,
+                    MAX_ENTRY_SIZE,
+                    CHECKSUM_PROB,
+                    BUFFER_SIZE);
         }
 
         @Test(expected = IllegalArgumentException.class)

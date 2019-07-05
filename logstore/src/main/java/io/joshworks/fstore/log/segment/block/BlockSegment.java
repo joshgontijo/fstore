@@ -4,10 +4,10 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentFactory;
@@ -31,27 +31,33 @@ public class BlockSegment<T> extends Segment<Block> {
     public BlockSegment(File file,
                         StorageMode storageMode,
                         long dataLength,
-                        IDataStream dataStream,
+                        BufferPool bufferPool,
                         WriteMode writeMode,
                         Serializer<T> serializer,
                         BlockFactory blockFactory,
                         Codec codec,
-                        int blockSize) {
-        this(file, storageMode, dataLength, dataStream, writeMode, serializer, blockFactory, codec, blockSize, (p, b) -> {
+                        int blockSize,
+                        int maxEntrySize,
+                        double checksumProb,
+                        int readPageSize) {
+        this(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, maxEntrySize, checksumProb, readPageSize, (p, b) -> {
         });
     }
 
     public BlockSegment(File file,
                         StorageMode storageMode,
                         long dataLength,
-                        IDataStream dataStream,
+                        BufferPool bufferPool,
                         WriteMode writeMode,
                         Serializer<T> serializer,
                         BlockFactory blockFactory,
                         Codec codec,
                         int blockSize,
+                        int maxEntrySize,
+                        double checksumProb,
+                        int readPageSize,
                         BiConsumer<Long, Block> blockWriteListener) {
-        super(file, storageMode, dataLength, new BlockSerializer(codec, blockFactory), dataStream, writeMode);
+        super(file, storageMode, dataLength, new BlockSerializer(codec, blockFactory), bufferPool, writeMode, maxEntrySize, checksumProb, readPageSize);
         this.serializer = serializer;
         this.blockFactory = blockFactory;
         this.blockSize = blockSize;
@@ -173,8 +179,8 @@ public class BlockSegment<T> extends Segment<Block> {
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize, BlockFactory blockFactory) {
-        return (file, storageMode, dataLength, serializer, dataStream, type) -> {
-            BlockSegment<T> delegate = new BlockSegment<>(file, storageMode, dataLength, dataStream, type, serializer, blockFactory, codec, blockSize);
+        return (file, storageMode, dataLength, serializer, bufferPool, writeMode, maxEntrySize, checksumProb, readPageSize) -> {
+            BlockSegment<T> delegate = new BlockSegment<>(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, maxEntrySize, checksumProb, readPageSize);
             return new BlockSegmentWrapper<>(delegate);
         };
     }

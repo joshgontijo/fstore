@@ -7,7 +7,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.WriteMode;

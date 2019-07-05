@@ -1,26 +1,21 @@
 package io.joshworks.fstore.log.segment.footer;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.record.IDataStream;
+import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
+import io.joshworks.fstore.log.segment.header.LogHeader;
 
 public class FooterReader {
 
-    private final Storage storage;
-    private final IDataStream stream;
-    private final long start;
-    private final long length;
+    private final DataStream stream;
+    private final LogHeader header;
 
     private long currPos;
 
-    public FooterReader(Storage storage, IDataStream stream, long start, long len) {
-        this.storage = storage;
+    public FooterReader(DataStream stream, LogHeader header) {
         this.stream = stream;
-        this.start = start;
-        this.length = len;
-        this.currPos = start;
+        this.header = header;
     }
 
     public <T> T read(Serializer<T> serializer) {
@@ -41,38 +36,49 @@ public class FooterReader {
     }
 
     private <T> RecordEntry<T> readInternal(long pos, Serializer<T> serializer) {
+        checkReadOnly();
         if (!withinBounds(pos)) {
             return null;
         }
-        return stream.read(storage, Direction.FORWARD, pos, serializer);
+        return stream.read(Direction.FORWARD, pos, serializer);
     }
 
-
     public long start() {
-        return start;
+        checkReadOnly();
+        return header.footerLength();
     }
 
     public long length() {
-        return length;
+        checkReadOnly();
+        return stream.length();
     }
 
     public long position() {
-        return storage.position();
+        checkReadOnly();
+        return stream.position();
     }
 
     public void position(long position) {
+        checkReadOnly();
         if (!withinBounds(position)) {
+            long start = header.footerStart();
             throw new IllegalStateException("Invalid footer position: " + position + ", allowed range is: " + start + " - " + maxPos());
         }
         this.currPos = position;
     }
 
+    private void checkReadOnly() {
+        if (!header.readOnly()) {
+            throw new IllegalStateException("Segment is not readonly");
+        }
+    }
+
     private boolean withinBounds(long position) {
-        return position >= start && position <= maxPos();
+        return position >= header.footerStart() && position <= maxPos();
     }
 
     private long maxPos() {
-        return start + length - 1;
+        return header.footerStart() + header.footerLength() - 1;
     }
 
 }

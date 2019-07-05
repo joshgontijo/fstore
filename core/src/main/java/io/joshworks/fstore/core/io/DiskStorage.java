@@ -118,7 +118,7 @@ public class DiskStorage implements Storage {
     }
 
     @Override
-    public long size() {
+    public long length() {
         return size.get();
     }
 
@@ -174,7 +174,7 @@ public class DiskStorage implements Storage {
 
     @Override
     public void truncate(long newSize) {
-        if (newSize >= size()) {
+        if (newSize >= length()) {
             return;
         }
         try {

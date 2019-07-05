@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.filter.BloomFilter;
 import io.joshworks.fstore.core.filter.BloomFilterHasher;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -48,7 +49,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                    long size,
                    Serializer<K> keySerializer,
                    Serializer<V> valueSerializer,
-                   IDataStream dataStream,
+                   BufferPool bufferPool,
                    String magic,
                    WriteMode writeMode,
                    File directory,
@@ -59,7 +60,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                 file,
                 mode,
                 size,
-                dataStream,
+                bufferPool,
                 magic,
                 writeMode,
                 kvSerializer,

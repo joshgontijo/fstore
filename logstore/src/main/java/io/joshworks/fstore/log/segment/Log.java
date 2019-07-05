@@ -4,8 +4,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.Writer;
 import io.joshworks.fstore.log.record.RecordHeader;
-import io.joshworks.fstore.log.segment.footer.FooterReader;
-import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 
@@ -51,10 +49,6 @@ public interface Log<T> extends Writer<T>, Closeable {
     void truncate();
 
     long uncompressedSize();
-
-    void writeFooter(FooterWriter footer);
-
-    FooterReader readFooter();
 
     Type type();
 

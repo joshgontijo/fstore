@@ -2,12 +2,12 @@ package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.utils.LogFileUtils;
@@ -36,13 +36,15 @@ public class Compactor<T> implements Closeable {
     private final SegmentFactory<T> segmentFactory;
     private final StorageMode storageMode;
     private final Serializer<T> serializer;
-    private final IDataStream dataStream;
+    private final BufferPool bufferPool;
     private final NamingStrategy namingStrategy;
     private final int compactionThreshold;
-    private final String magic;
     private final String name;
     private final Levels<T> levels;
     private final boolean threadPerLevel;
+    private final int maxEntrySize;
+    private final int readPageSize;
+    private final double checksumProbability;
     private final Set<Log<T>> compacting = new CopyOnWriteArraySet<>();
 
     private final Map<String, ExecutorService> levelCompaction = new ConcurrentHashMap<>();
@@ -54,26 +56,30 @@ public class Compactor<T> implements Closeable {
                      SegmentFactory<T> segmentFactory,
                      StorageMode storageMode,
                      Serializer<T> serializer,
-                     IDataStream dataStream,
+                     BufferPool bufferPool,
                      NamingStrategy namingStrategy,
                      int compactionThreshold,
-                     String magic,
                      String name,
                      Levels<T> levels,
-                     boolean threadPerLevel) {
+                     boolean threadPerLevel,
+                     int maxEntrySize,
+                     int readPageSize,
+                     double checksumProbability) {
         this.directory = directory;
         this.segmentCombiner = segmentCombiner;
         this.segmentFactory = segmentFactory;
         this.storageMode = storageMode;
         this.serializer = serializer;
-        this.dataStream = dataStream;
+        this.bufferPool = bufferPool;
         this.namingStrategy = namingStrategy;
         this.compactionThreshold = compactionThreshold;
-        this.magic = magic;
         this.name = name;
         this.levels = levels;
         this.threadPerLevel = threadPerLevel;
         this.logger = Logging.namedLogger(name, "compactor");
+        this.maxEntrySize = maxEntrySize;
+        this.readPageSize = readPageSize;
+        this.checksumProbability = checksumProbability;
     }
 
     public void compact() {
@@ -109,10 +115,12 @@ public class Compactor<T> implements Closeable {
                 segmentFactory,
                 storageMode,
                 serializer,
-                dataStream,
+                bufferPool,
                 name,
                 level,
-                magic,
+                maxEntrySize,
+                readPageSize,
+                checksumProbability,
                 this::cleanup);
 
         submitCompaction(event);

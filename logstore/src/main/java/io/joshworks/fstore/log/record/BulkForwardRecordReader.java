@@ -10,7 +10,6 @@ import java.util.List;
 
 final class BulkForwardRecordReader extends BaseReader implements BulkReader {
 
-
     public BulkForwardRecordReader(BufferPool bufferPool,double checksumProb, int maxEntrySize, int bufferSize) {
         super(bufferPool, checksumProb, maxEntrySize, bufferSize);
     }

@@ -92,7 +92,7 @@ public abstract class StorageTest {
 
     @Test
     public void when_data_is_written_the_size_must_increase() {
-        int dataLength = (int) storage.size();
+        int dataLength = (int) storage.length();
 
         byte[] data = new byte[dataLength];
         Arrays.fill(data, (byte) 1);
@@ -102,7 +102,7 @@ public abstract class StorageTest {
         bb.clear();
         storage.write(bb);
 
-        assertTrue(storage.size() >= dataLength);
+        assertTrue(storage.length() >= dataLength);
 
         ByteBuffer found = ByteBuffer.allocate(dataLength);
         int read = storage.read(0, found);
@@ -125,7 +125,7 @@ public abstract class StorageTest {
 
     @Test
     public void when_position_reaches_the_end_of_the_file_it_expands_the_file() {
-        long initialLength = storage.size();
+        long initialLength = storage.length();
         long writePos = initialLength - 1;
         byte[] data = fillWithUniqueBytes();
 
@@ -135,12 +135,12 @@ public abstract class StorageTest {
         ByteBuffer readBuffer = ByteBuffer.allocate(data.length);
         storage.read(writePos, readBuffer);
 
-        assertTrue(storage.size() > initialLength);
+        assertTrue(storage.length() > initialLength);
     }
 
     @Test
     public void data_is_stored_write_causes_store_to_be_expanded() {
-        long initialLength = storage.size();
+        long initialLength = storage.length();
         long writePos = initialLength - 1;
         byte[] data = fillWithUniqueBytes();
 
@@ -198,7 +198,7 @@ public abstract class StorageTest {
     @Test
     public void position_is_updated_same_as_written_bytes() {
         byte[] data = fillWithUniqueBytes();
-        int items = (int) (storage.size() / data.length);
+        int items = (int) (storage.length() / data.length);
 
         int written;
         long total = 0;
@@ -211,7 +211,7 @@ public abstract class StorageTest {
 
     @Test
     public void data_can_be_written_up_to_storage_length() {
-        int storeLen = (int) storage.size();
+        int storeLen = (int) storage.length();
         byte[] data = new byte[storeLen];
         for (int i = 0; i < storeLen; i++) {
             data[i] = 0x1;
@@ -231,7 +231,7 @@ public abstract class StorageTest {
 
     @Test
     public void position_can_be_set_up_to_more_than_fileLength() {
-        long storeLen = storage.size();
+        long storeLen = storage.length();
         storage.position(storeLen);
 
         assertEquals(storeLen, storage.position());
@@ -239,7 +239,7 @@ public abstract class StorageTest {
 
     @Test
     public void when_position_is_equal_or_great_than_fileLength_then_trying_to_read_should_return_EOF() {
-        int storeLen = (int) storage.size();
+        int storeLen = (int) storage.length();
         byte[] data = new byte[storeLen];
         for (int i = 0; i < storeLen; i++) {
             data[i] = 0x1;
@@ -252,7 +252,7 @@ public abstract class StorageTest {
 
     @Test
     public void EOF_is_returned_when_position_is_set_to_equals_or_greater_than_fileLength() {
-        long pos = storage.size() + 1;
+        long pos = storage.length() + 1;
 
         storage.position(pos);
         assertEquals(EOF, storage.read(pos, ByteBuffer.allocate(1)));
@@ -261,31 +261,31 @@ public abstract class StorageTest {
     @Test
     public void file_expands_to_position_after_setting_position_greater_than_file_length_and_writing_data_afterwards() {
         byte[] data = new byte[]{65};
-        long pos = storage.size() + 1;
+        long pos = storage.length() + 1;
         storage.position(pos);
         int written = storage.write(ByteBuffer.wrap(data));
         assertEquals(data.length, written);
 
         //entry length must also be taken into account
-        assertEquals(pos + data.length, storage.size());
+        assertEquals(pos + data.length, storage.length());
     }
 
     //this mainly affects MemStorage
     @Test
     public void MEM_SPECIFIC___buffer_expands_as_many_buffers_is_required() {
         byte[] data = new byte[]{65};
-        long pos = storage.size() + Integer.MAX_VALUE + 1;
+        long pos = storage.length() + Integer.MAX_VALUE + 1;
         storage.position(pos);
         int written = storage.write(ByteBuffer.wrap(data));
         assertEquals(data.length, written);
 
         //entry length must also be taken into account
-        assertEquals(pos + data.length, storage.size());
+        assertEquals(pos + data.length, storage.length());
     }
 
     @Test
     public void when_position_is_equals_fileLength_then_trying_to_read_should_return_no_data() {
-        int storeLen = (int) storage.size();
+        int storeLen = (int) storage.length();
         byte[] data = new byte[storeLen];
         for (int i = 0; i < storeLen; i++) {
             data[i] = 0x1;
@@ -385,25 +385,25 @@ public abstract class StorageTest {
 
     @Test
     public void truncate_does_not_change_file_when_provided_size_is_greater_than_current() {
-        long size = storage.size();
+        long size = storage.length();
         storage.truncate(size + 1);
-        assertEquals(size, storage.size());
+        assertEquals(size, storage.length());
     }
 
     @Test
     public void truncate_reduces_file_size_to_specified_size() {
-        long size = storage.size();
+        long size = storage.length();
         long newSize = size - 1;
         storage.truncate(newSize);
 
-        long found = storage.size();
+        long found = storage.length();
         assertEquals(newSize, found);
     }
 
 
     @Test
     public void truncate_reduces_sets_position_to_the_end_of_file_if_position_is_greater_than_provided_new_length() {
-        long size = storage.size();
+        long size = storage.length();
         storage.position(size);
         long newSize = size - 1;
         storage.truncate(newSize);
@@ -414,7 +414,7 @@ public abstract class StorageTest {
 
     @Test
     public void truncate_does_not_change_position_if_position_is_less_than_than_provided_new_length() {
-        long size = storage.size();
+        long size = storage.length();
         long newSize = size - 1;
         long position = 1;
         storage.position(position);
@@ -430,15 +430,15 @@ public abstract class StorageTest {
 
         fillWith(storage, data);
         long writePos = storage.position();
-        long length = storage.size();
+        long length = storage.length();
 
         int additionalSize = (int) (length - writePos + 1);
         storage.write(ByteBuffer.allocate(additionalSize));
 
         storage.position(0);
-        storage.position(storage.size());
+        storage.position(storage.length());
 
-        assertEquals(storage.size(), storage.position());
+        assertEquals(storage.length(), storage.position());
     }
 
     @Test
@@ -518,7 +518,7 @@ public abstract class StorageTest {
     }
 
     private void fillWith(Storage storage, byte[] data) {
-        int items = (int) (storage.size() / data.length);
+        int items = (int) (storage.length() / data.length);
         for (int i = 0; i < items; i++) {
             storage.write(ByteBuffer.wrap(data));
         }

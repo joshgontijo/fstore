@@ -4,11 +4,8 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.index.midpoints.Midpoint;
 import io.joshworks.fstore.index.midpoints.Midpoints;
-import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
-import io.joshworks.fstore.log.segment.block.VLenBlock;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
@@ -21,46 +18,50 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 /**
- * In memory ORDERED sparse index. All entries are kept in disk, FIRST and LAST entry of each block is kept in memory.
+ * In memory IMMUTABLE, OFFLINE (cannot be queried until written to disk) ORDERED sparse index.
+ * All entries are kept in disk, FIRST and LAST entry of each block is kept in memory.
  * <p>
  * Format:
- * MIDPOINTS BLOCK POS (8bytes)
+ * MIDPOINT BLOCK POS (8 bytes)
  * INDEX_ENTRY BLOCK 1 (n bytes)
  * INDEX_ENTRY BLOCK 2 (n bytes)
  * INDEX_ENTRY BLOCK N (n bytes)
  * MIDPOINTS BLOCK (n bytes)
  */
-public class SparseMapIndex<K extends Comparable<K>> implements Index<K> {
+public class SparseIndex<K extends Comparable<K>> implements Index<K> {
 
     private static final Codec CODEC = Codec.noCompression();
 
     private final int blockSize;
-    private IDataStream dataStream;
+    private final FooterReader reader;
 
     private final List<Block> blocks = new ArrayList<>();
     private final BlockFactory blockFactory;
 
+    private final Serializer<K> keySerializer;
     private final IndexEntrySerializer<K> serializer;
+
     private final Midpoints<K> midpoints = new Midpoints<>();
 
     private Block block;
 
-    //TODO add bock cache
+    //TODO add block cache
 
-    public SparseMapIndex(Serializer<K> keySerializer, int blockSize, IDataStream dataStream, BlockFactory blockFactory) {
+    public SparseIndex(Serializer<K> keySerializer, int blockSize, FooterReader reader, BlockFactory blockFactory) {
         this.serializer = new IndexEntrySerializer<>(keySerializer);
+        this.keySerializer = keySerializer;
         this.blockSize = blockSize;
-        this.dataStream = dataStream;
+        this.reader = reader;
         this.blockFactory = blockFactory;
         this.block = blockFactory.create(blockSize);
     }
 
-    public void load(FooterReader reader) {
-
+    public void load() {
+        Long midpointBlockPos = reader.read(Serializers.LONG);
+        ByteBuffer blockData = reader.read(midpointBlockPos, Serializers.NONE);
+        midpoints.deserialize(blockData, keySerializer);
     }
 
     @Override
@@ -78,49 +79,36 @@ public class SparseMapIndex<K extends Comparable<K>> implements Index<K> {
         long startPos = writer.position();
         writer.skip(Long.BYTES);
 
-        Block midpointsBlock = VLenBlock.factory().create(Integer.MAX_VALUE);
-
         for (Block block : blocks) {
+            ByteBuffer firstData = block.first();
+            ByteBuffer lastData = block.last();
+
+            IndexEntry<K> first = serializer.fromBytes(firstData);
+            IndexEntry<K> last = serializer.fromBytes(lastData);
+
             ByteBuffer packed = block.pack(CODEC);
             long blockPos = writer.write(packed);
-            ByteBuffer[] entries = addToMidpoint(block, blockPos);
-            for (ByteBuffer midpointEntry : entries) {
-                if (!midpointsBlock.add(midpointEntry)) {
-                    throw new IllegalStateException("No block space");
-                }
-            }
+            addToMidpoint(first, last, blockPos);
         }
 
-        long pos = writer.write(midpointsBlock.pack(Codec.noCompression()));
+        ByteBuffer midpointData = midpoints.serialize(keySerializer);
+        long endPos = writer.position();
+        long pos = writer.write(midpointData);
         writer.position(startPos);
         writer.write(Serializers.LONG.toBytes(pos));
+        writer.position(endPos);
+
         blocks.clear();
     }
 
-    private ByteBuffer[] addToMidpoint(Block block, long blockPos) {
-        ByteBuffer firstData = block.first();
-        ByteBuffer lastData = block.last();
-
-        IndexEntry<K> first = serializer.fromBytes(firstData);
-        IndexEntry<K> last = serializer.fromBytes(lastData);
-
+    private void addToMidpoint(IndexEntry<K> first, IndexEntry<K> last, long blockPos) {
         Midpoint<K> start = new Midpoint<>(first.key, blockPos);
         Midpoint<K> end = new Midpoint<>(last.key, blockPos);
         midpoints.add(start, end);
-
-        return new ByteBuffer[]{serializeMidpoint(firstData, blockPos), serializeMidpoint(lastData, blockPos)};
     }
-
-    private ByteBuffer serializeMidpoint(ByteBuffer key, long blockPos) {
-        return ByteBuffer.allocate(key.remaining() + Long.BYTES)
-                .put(key)
-                .putLong(blockPos)
-                .flip();
-    }
-
 
     private Block loadBlock(long pos) {
-        ByteBuffer data = dataStream.read(pos, Direction.FORWARD, Serializers.NONE);
+        ByteBuffer data = reader.read(pos, Serializers.NONE);
         return blockFactory.load(CODEC, data);
     }
 
@@ -130,21 +118,6 @@ public class SparseMapIndex<K extends Comparable<K>> implements Index<K> {
         }
         Block block = loadBlock(midpoint.position);
         return block.deserialize(serializer);
-    }
-
-    private TreeMap<K, Long> load(ByteBuffer blockData) {
-        if (blockData == null) {
-            return new TreeMap<>();
-        }
-
-        Block block = VLenBlock.factory().load(Codec.noCompression(), blockData);
-        List<IndexEntry<K>> entries = block.entries().stream().map(serializer::fromBytes).collect(Collectors.toList());
-        TreeMap<K, Long> map = new TreeMap<>();
-        for (IndexEntry<K> entry : entries) {
-            map.put(entry.key, entry.position);
-        }
-        return map;
-
     }
 
     @Override

@@ -20,7 +20,7 @@ public interface Storage extends Flushable, Closeable {
 
     int read(long position, ByteBuffer data);
 
-    long size();
+    long length();
 
     void position(long position);
 
