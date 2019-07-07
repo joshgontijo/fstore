@@ -31,7 +31,7 @@ public abstract class MemStorage implements Storage {
         this.name = name;
         this.bufferSupplier = bufferSupplier;
         this.buffers.addAll(initBuffers(size, bufferSupplier));
-        computeLength();
+        computeSize();
     }
 
     protected abstract void destroy(ByteBuffer buffer);
@@ -230,7 +230,7 @@ public abstract class MemStorage implements Storage {
                 ByteBuffer removed = buffers.remove(idx);
                 destroy(removed);
             }
-            computeLength();
+            computeSize();
             position.accumulateAndGet(newSize, (curr, newPos) -> curr > newPos ? newPos : curr);
         } finally {
             lock.unlock();
@@ -255,17 +255,13 @@ public abstract class MemStorage implements Storage {
             long requiredAdditionalLength = position > length ? posLengthDiff : minRequired;
             long expanded = 0;
             do {
+                long startPos = length();
                 int normalized = (int) Math.min(MAX_BUFFER_SIZE, requiredAdditionalLength - expanded);
                 expanded += normalized;
-                long startPos = this.size.get();
                 ByteBuffer newBuffer = bufferSupplier.apply(startPos, normalized);
                 buffers.add(newBuffer);
+                computeSize();
             } while (expanded < requiredAdditionalLength);
-            computeLength();
-
-            int idx = BufferUtil.bufferIdx(buffers, position);
-            int posOnBuffer = BufferUtil.posOnBuffer(buffers, position);
-            buffers.get(idx).position(posOnBuffer);
 
         } finally {
             lock.unlock();
@@ -273,7 +269,7 @@ public abstract class MemStorage implements Storage {
     }
 
     //TODO not thread safe
-    protected void computeLength() {
+    protected void computeSize() {
         this.size.set(buffers.stream().mapToLong(ByteBuffer::capacity).sum());
     }
 

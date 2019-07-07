@@ -8,10 +8,6 @@ public class MMapCache extends MMapStorage {
         super(diskStorage);
     }
 
-    MMapCache(DiskStorage diskStorage, int bufferSize) {
-        super(diskStorage, bufferSize);
-    }
-
     @Override
     public int write(ByteBuffer src) {
         ensureCapacity(position(), src.remaining());

@@ -25,13 +25,9 @@ public class MMapStorage extends MemStorage {
         return (from, size) -> map(diskStorage, from, size);
     }
 
-    MMapStorage(DiskStorage diskStorage, int bufferSize) {
-        super(diskStorage.name(), diskStorage.length(), mmap(diskStorage));
-        this.diskStorage = diskStorage;
-    }
-
     protected static ByteBuffer map(DiskStorage diskStorage, long from, int size) {
         try {
+            System.err.println("Mapping: " + from + " size: " + size + " -> " + (from + size));
             return diskStorage.channel.map(FileChannel.MapMode.READ_WRITE, from, size);
         } catch (Exception e) {
             throw new StorageException("Failed to map buffer from: " + from + ", size: " + size, e);
@@ -59,20 +55,6 @@ public class MMapStorage extends MemStorage {
         }
     }
 
-//    public void transferTo(WritableByteChannel channel) {
-//        for (int i = 0; i < buffers.size() - 1; i++) {
-//            ByteBuffer buffer = buffers.get(i);
-//            buffer.clear();
-//            channel.write(buffer);
-//        }
-//        for (ByteBuffer buffer : buffers) {
-//            ByteBuffer byteBuffer = buffer.asReadOnlyBuffer();
-//            byteBuffer.clear();
-//
-//        }
-//
-//    }
-
     @Override
     public void close() {
         super.close();
@@ -83,11 +65,6 @@ public class MMapStorage extends MemStorage {
     public void position(long position) {
         super.position(position);
         diskStorage.position(position);
-    }
-
-    @Override
-    protected void computeLength() {
-        super.computeLength();
     }
 
     @Override
@@ -113,7 +90,7 @@ public class MMapStorage extends MemStorage {
             long newLength = diskStorage.length();
             List<ByteBuffer> newBuffers = initBuffers(newLength, mmap(diskStorage));
             this.buffers.addAll(newBuffers);
-            computeLength();
+            computeSize();
             position.accumulateAndGet(newSize, (curr, newPos) -> curr > newPos ? newPos : curr);
         } finally {
             lock.unlock();

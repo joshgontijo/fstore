@@ -8,8 +8,8 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -56,7 +56,7 @@ public class BloomFilterTest {
         assertEquals(filter.hashes.size(), loaded.hashes.size());
         assertEquals(filter.hashes.length(), loaded.hashes.length());
         assertEquals(filter.hashes.hashCode(), loaded.hashes.hashCode());
-        assertTrue(Arrays.equals(filter.hashes.toByteArray(), loaded.hashes.toByteArray()));
+        assertArrayEquals(filter.hashes.toByteArray(), loaded.hashes.toByteArray());
 
         assertTrue(loaded.contains(1L));
         assertFalse(loaded.contains(2L));

@@ -56,10 +56,11 @@ public abstract class StorageIT {
 
         ByteBuffer readBuffer = ByteBuffer.allocate(data.length);
         long totalRead = 0;
+        entries = 0;
         do {
             int read = storage.read(totalRead, readBuffer);
             readBuffer.flip();
-            assertArrayEquals(data, readBuffer.array());
+            assertArrayEquals("Failed response assertion on position " + totalRead, data, readBuffer.array());
             readBuffer.clear();
             totalRead += read;
             if (entries++ % 1000000 == 0) {
@@ -73,14 +74,13 @@ public abstract class StorageIT {
     @Test
     public void must_support_concurrent_reads_and_writes() throws InterruptedException {
 
-        int items = 50000000;
+        int items = 5000000;
 
         byte[] data = fillWithUniqueBytes();
 
         final AtomicBoolean done = new AtomicBoolean();
         final AtomicBoolean writeFailed = new AtomicBoolean();
         final AtomicBoolean readFailed = new AtomicBoolean();
-
         try {
             Thread writer = new Thread(() -> {
                 long entries = 0;
@@ -109,9 +109,6 @@ public abstract class StorageIT {
                 do {
                     try {
                         var readBuffer = ByteBuffer.allocate(data.length);
-                        if (readPos == 254) {
-                            System.out.println("");
-                        }
                         read = storage.read(readPos, readBuffer);
                         readBuffer.flip();
                         if (read != EOF && !Arrays.equals(data, readBuffer.array())) {
