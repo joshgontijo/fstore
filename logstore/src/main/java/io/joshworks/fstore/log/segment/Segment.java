@@ -11,6 +11,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
+import io.joshworks.fstore.log.segment.footer.FooterMap;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.LogHeader;
@@ -31,27 +32,24 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static io.joshworks.fstore.core.io.Storage.EOF;
 import static java.util.Objects.requireNonNull;
 
 /**
  * File format:
- * <p>
- * |---- HEADER ----|----- LOG -----|
- * </p>
- * <p>
- * HEADER: 0 -> 1023
- * LOG: 1024 -> fileSize - 8
- * EOL: fileSize - 8 -> fileSize
- * </p>
- * <p>
+ * |---- HEADER ----|----- LOG -----|--- EOL ---| --- FOOTER ---|
  * Segment is not thread safe for append method. But it does guarantee concurrent access of multiple readers at same time.
  * Multiple readers can also read (iterator and get) while a record is being appended
  */
-public class Segment<T> implements Log<T> {
+public final class Segment<T> implements Log<T> {
 
     private final Logger logger;
+
+    private static final Consumer<FooterWriter> NO_FOOTER_WRITER = f -> {
+    };
 
     private final Serializer<T> serializer;
     private final Storage storage;
@@ -63,13 +61,14 @@ public class Segment<T> implements Log<T> {
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
+    private final Consumer<FooterWriter> footerWriter;
+    private final FooterMap footerMap = new FooterMap();
+
     protected final LogHeader header;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<SegmentIterator> readers = ConcurrentHashMap.newKeySet();
 
-    //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
-    //Magic is used to create new segment or verify existing
     public Segment(
             File file,
             StorageMode storageMode,
@@ -79,7 +78,23 @@ public class Segment<T> implements Log<T> {
             WriteMode writeMode,
             double checksumProb,
             int readPageSize) {
+        this(file, storageMode, segmentDataSize, serializer, bufferPool, writeMode, checksumProb, readPageSize, Segment::processEntries, NO_FOOTER_WRITER);
+    }
 
+    //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
+    public Segment(
+            File file,
+            StorageMode storageMode,
+            long segmentDataSize,
+            Serializer<T> serializer,
+            BufferPool bufferPool,
+            WriteMode writeMode,
+            double checksumProb,
+            int readPageSize,
+            Function<List<RecordEntry<T>>, Integer> onLoad,
+            Consumer<FooterWriter> footerWriter) {
+
+        this.footerWriter = footerWriter;
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
         if (!Files.exists(file.toPath()) && (segmentDataSize <= 0 || writeMode == null)) {
             throw new IllegalStateException("segmentDataSize and writeMode must be provided when creating segment");
@@ -87,7 +102,7 @@ public class Segment<T> implements Log<T> {
 
         Storage storage = null;
         try {
-            long fileLength = segmentDataSize + LogHeader.BYTES;
+            long fileLength = LogHeader.BYTES + segmentDataSize + EOL.length;
             this.storage = storage = Storage.createOrOpen(file, storageMode, fileLength);
             this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize);
             this.logger = Logging.namedLogger(storage.name(), "segment");
@@ -102,18 +117,19 @@ public class Segment<T> implements Log<T> {
                 }
                 this.header.writeNew(storage, writeMode, fileLength, segmentDataSize, false); //TODO update for ENCRYPTION
 
-                this.position(Log.START);
+                this.setPosition(Log.START);
                 this.entries.set(0);
 
             } else { //existing segment
                 this.entries.set(header.entries());
-                this.position(header.writePosition());
+                this.setPosition(header.logicalSize());
                 if (Type.LOG_HEAD.equals(header.type())) {
-                    SegmentState result = rebuildState(Segment.START);
-                    this.position(result.position);
+                    SegmentState result = rebuildState(onLoad);
+                    this.setPosition(result.position);
                     this.entries.set(result.entries);
                 }
             }
+            footerMap.load(header, stream);
 
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
@@ -122,44 +138,20 @@ public class Segment<T> implements Log<T> {
     }
 
     //can only be used for data
-    private void position(long position) {
-        long maxDataPos = maxDataPosition();
-        if (position < START || position > maxDataPos) {
-            throw new IllegalArgumentException("Position must be between " + LogHeader.BYTES + " and " + maxDataPos + ", got " + position);
+    private void setPosition(long position) {
+        if (position < START) {
+            throw new IllegalArgumentException("Position must greater or equals than " + LogHeader.BYTES + ", got " + position);
         }
-        this.dataWritePosition.set(position);
+        long maxDataPos = header.maxDataPosition();
+
+        long dataPos = Math.min(position,maxDataPos);
+        this.dataWritePosition.set(dataPos);
         this.storage.position(position);
     }
 
-    private long maxDataPosition() {
-        return START + header.dataSize();
-    }
-
-    //truncate unused physical file space, useful only when compacting, since it has performance impact
-    @Override
-    public void truncate() {
-        if (!readOnly()) {
-            throw new SegmentException("Segment is not read only");
-        }
-        long segmentEnd = START + logSize() + header.footerLength();
-        storage.truncate(segmentEnd);
-    }
-
-//    public void transferTo(long position, long length, WritableByteChannel channel) {
-//        try {
-//            List<RecordEntry<ByteBuffer>> entries = dataStream.bulkRead(storage, Direction.FORWARD, position, new DirectSerializer());
-//            for (RecordEntry<ByteBuffer> entry : entries) {
-//                channel.write(entry.entry());
-//            }
-//        } catch (Exception e) {
-//            throw new SegmentException("Failed to transfer data", e);
-//        }
-//
-//    }
-
     @Override
     public long append(T record) {
-        checkNotClosed();
+        checkClosed();
         if (readOnly()) {
             throw new IllegalStateException("Segment is read only");
         }
@@ -179,24 +171,30 @@ public class Segment<T> implements Log<T> {
         return recordPosition;
     }
 
-    public void writeFooter(FooterWriter footer) {
-        //do nothing
+    public FooterReader footerReader() {
+        return new FooterReader(stream, footerMap);
     }
 
-    public FooterReader readFooter() {
-        return new FooterReader(stream, header);
-    }
-
-    protected void incrementEntry() {
+    private void incrementEntry() {
         entries.incrementAndGet();
     }
 
     @Override
     public T get(long position) {
-        checkNotClosed();
+        checkClosed();
         checkBounds(position);
         RecordEntry<T> entry = stream.read(Direction.FORWARD, position, serializer);
         return entry == null ? null : entry.entry();
+    }
+
+    //truncate unused physical file space, useful only when compacting, since it has performance impact
+    @Override
+    public void trim() {
+        if (!readOnly()) {
+            throw new SegmentException("Segment is not read only");
+        }
+        long segmentEnd = header.logEnd();
+        storage.truncate(segmentEnd);
     }
 
     @Override
@@ -240,7 +238,7 @@ public class Segment<T> implements Log<T> {
         Lock lock = rwLock.readLock();
         lock.lock();
         try {
-            checkNotClosed();
+            checkClosed();
             checkBounds(position);
             SegmentReader<T> segmentReader = new SegmentReader<>(this, stream, serializer, position, direction);
             return acquireReader(segmentReader);
@@ -279,27 +277,24 @@ public class Segment<T> implements Log<T> {
         }
     }
 
-    @Override
-    public SegmentState rebuildState(long lastKnownPosition) {
-        if (lastKnownPosition < START) {
-            throw new IllegalStateException("Invalid lastKnownPosition: " + lastKnownPosition + ",value must be at least " + START);
-        }
-        this.position(maxDataPosition() - 1);
-        long position = lastKnownPosition;
+    private SegmentState rebuildState(Function<List<RecordEntry<T>>, Integer> processEntries) {
+        this.setPosition(header.maxDataPosition());
+        long position = START;
         int foundEntries = 0;
         long start = System.currentTimeMillis();
         try {
-            logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
+            logger.info("Restoring log state and checking consistency");
             int lastRead;
             do {
                 List<RecordEntry<T>> entries = stream.bulkRead(Direction.FORWARD, position, serializer);
-                foundEntries += processEntries(entries);
+                foundEntries += processEntries.apply(entries);
                 lastRead = entries.stream().mapToInt(RecordEntry::recordSize).sum();
                 position += lastRead;
 
             } while (lastRead > 0);
 
         } catch (Exception e) {
+            e.printStackTrace();
             logger.warn("Found inconsistent entry on position " + position + ", segment '" + name() + "': " + e.getMessage());
             storage.position(position);
             stream.write(ByteBuffer.wrap(EOL));
@@ -312,7 +307,7 @@ public class Segment<T> implements Log<T> {
         return new SegmentState(foundEntries, position);
     }
 
-    protected long processEntries(List<RecordEntry<T>> items) {
+    public static <T> int processEntries(List<RecordEntry<T>> items) {
         return items.size();
     }
 
@@ -345,11 +340,20 @@ public class Segment<T> implements Log<T> {
         long actualDataSize = maxDataPosition - START;
         long uncompressedSize = uncompressedSize();
 
-        FooterWriter footer = new FooterWriter(stream);
-        writeFooter(footer);
-        long footerLength = storage.position() - maxDataPosition;
+        storage.write(ByteBuffer.wrap(EOL)); //do not use stream
 
-        this.header.writeCompleted(storage, entries.get(), level, actualDataSize, footerLength, uncompressedSize);
+        FooterWriter footer = new FooterWriter(stream, footerMap);
+        long footerStart = stream.position();
+        if (footerWriter != null) {
+            footerWriter.accept(footer);
+        }
+
+        ByteBuffer mapData = footerMap.serialize();
+        long mapPosition = stream.write(mapData);
+        long footerEnd = stream.position();
+
+        long footerLength = footerEnd - footerStart;
+        this.header.writeCompleted(storage, entries.get(), level, actualDataSize, mapPosition, footerLength, uncompressedSize);
     }
 
     @Override
@@ -387,7 +391,7 @@ public class Segment<T> implements Log<T> {
         return this.header.type();
     }
 
-    private void checkNotClosed() {
+    private void checkClosed() {
         if (closed.get()) {
             throw new SegmentException("Segment " + name() + "is closed");
         }

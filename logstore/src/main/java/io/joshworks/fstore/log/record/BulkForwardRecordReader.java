@@ -15,7 +15,7 @@ final class BulkForwardRecordReader extends BaseReader implements BulkReader {
     }
 
     @Override
-    public <T> List<RecordEntry<T>> read(Storage storage, long position, Serializer<T> serializer) {
+    public <T> List<RecordEntry<T>> read(Storage storage, final long position, Serializer<T> serializer) {
         ByteBuffer buffer = bufferPool.allocate(pageReadSize);
 
         final List<RecordEntry<T>> entries = new ArrayList<>();
@@ -56,7 +56,7 @@ final class BulkForwardRecordReader extends BaseReader implements BulkReader {
                 checksum(checksum, buffer, position + pos);
 
                 T entry = serializer.fromBytes(buffer);
-                entries.add(new RecordEntry<>(len, entry));
+                entries.add(new RecordEntry<>(len, entry, position + pos));
 
                 int newPos = pos + len + RecordHeader.HEADER_OVERHEAD;
                 newPos = Math.min(originalLimit, newPos);

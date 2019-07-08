@@ -54,7 +54,7 @@ public class IndexSegment implements Log<IndexEntry> {
                  double checksumProb,
                  int readPageSize,
                  int numElements) {
-        this.delegate = new BlockSegment<>(file, storageMode, dataLength, bufferPool, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, checksumProb, readPageSize, this::onBlockWrite);
+        this.delegate = new BlockSegment<>(file, storageMode, dataLength, bufferPool, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, checksumProb, readPageSize, this::onBlockWrite, (p,b) -> {});
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));
@@ -130,7 +130,7 @@ public class IndexSegment implements Log<IndexEntry> {
 
     @Override
     public SegmentState rebuildState(long lastKnownPosition) {
-        return delegate.rebuildState(lastKnownPosition);
+        return delegate.rebuildState(lastKnownPosition, onLoad);
     }
 
     @Override
@@ -174,8 +174,8 @@ public class IndexSegment implements Log<IndexEntry> {
     }
 
     @Override
-    public void truncate() {
-        delegate.truncate();
+    public void trim() {
+        delegate.trim();
     }
 
     @Override

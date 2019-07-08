@@ -3,6 +3,7 @@ package io.joshworks.fstore.log.segment.header;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.record.ByteBufferChecksum;
 import io.joshworks.fstore.log.segment.CorruptedSegmentException;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.WriteMode;
 
 import java.nio.ByteBuffer;
@@ -49,7 +50,7 @@ public class LogHeader {
     }
 
     public long footerStart() {
-        return BYTES + this.dataSize();
+        return BYTES + this.dataSize() + Log.EOL.length;
     }
 
     public long created() {
@@ -62,7 +63,18 @@ public class LogHeader {
 
     public long dataSize() {
         if (completed != null) {
-            return completed.actualDataSize;
+            return completed.actualDataLength;
+        }
+        if (open != null) {
+            return open.dataSize;
+        }
+        throw new IllegalStateException("Unknown segment state");
+    }
+
+    //Header + data + footer
+    public long logicalSize() {
+        if (completed != null) {
+            return footerStart() + completed.footerLength;
         }
         if (open != null) {
             return open.dataSize;
@@ -93,15 +105,31 @@ public class LogHeader {
         return completed == null ? UNKNOWN : completed.uncompressedSize;
     }
 
-    public long writePosition() {
-        if (completed == null) {
-            return open == null ? 0 : BYTES;
-        }
-        return LogHeader.BYTES + completed.actualDataSize;
+    public long maxDataPosition() {
+        return Log.START + dataSize();
     }
+
+//    public long writePosition() {
+//        if (completed == null) {
+//            return open == null ? 0 : BYTES;
+//        }
+//        return LogHeader.BYTES + completed.actualDataLength;
+//    }
 
     public long footerLength() {
         return completed.footerLength;
+    }
+
+    public long logEnd() {
+        return footerStart() + footerLength();
+    }
+
+
+    public long footerMapPosition() {
+        if (completed == null) {
+            throw new IllegalStateException("Can only read footer map of read only segment");
+        }
+        return completed.footerMapPosition;
     }
 
     public static LogHeader read(Storage storage) {
@@ -135,19 +163,20 @@ public class LogHeader {
         this.open = new OpenSection(created, mode, fileSize, dataSize, encrypted);
     }
 
-    public void writeCompleted(Storage storage, long entries, int level, long actualDataSize, long footerLength, long uncompressedSize) {
+    public void writeCompleted(Storage storage, long entries, int level, long actualDataSize, long footerMapPosition, long footerLength, long uncompressedSize) {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.SECTION_SIZE);
         long rolledTS = System.currentTimeMillis();
 
         bb.putInt(level);
         bb.putLong(entries);
         bb.putLong(actualDataSize);
+        bb.putLong(footerMapPosition);
         bb.putLong(footerLength);
         bb.putLong(rolledTS);
         bb.putLong(uncompressedSize);
         bb.flip();
         write(storage, COMPLETED_SECTION_START, bb);
-        this.completed = new CompletedSection(level, entries, actualDataSize, footerLength, rolledTS, uncompressedSize);
+        this.completed = new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerLength, rolledTS, uncompressedSize);
     }
 
     public void writeDeleted(Storage storage) {
@@ -182,12 +211,13 @@ public class LogHeader {
         int level = data.getInt();
         long entries = data.getLong();
         long actualDataSize = data.getLong();
+        long footerMapPosition = data.getLong();
         long footerLength = data.getLong();
         long rolled = data.getLong();
         long uncompressedSize = data.getLong();
 
 
-        return new CompletedSection(level, entries, actualDataSize, footerLength, rolled, uncompressedSize);
+        return new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerLength, rolled, uncompressedSize);
     }
 
     private static DeletedSection readDeletedSection(ByteBuffer bb) {

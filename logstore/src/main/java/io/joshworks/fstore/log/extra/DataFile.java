@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
@@ -117,7 +118,7 @@ public class DataFile<T> implements Flushable, Closeable {
             if (entries.isEmpty()) {
                 fetchEntries();
             }
-            return entries.isEmpty();
+            return !entries.isEmpty();
         }
 
         @Override
@@ -135,7 +136,7 @@ public class DataFile<T> implements Flushable, Closeable {
 
         private final Serializer<T> serializer;
         private boolean mmap;
-        private long size;
+        private long size = Size.MB.of(50);
         private double checksumProb = 0.1;
 
         private Builder(Serializer<T> serializer) {

@@ -1,7 +1,6 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.log.Direction;
@@ -20,13 +19,13 @@ public class SSTables<K extends Comparable<K>, V> {
 
     private final LogAppender<Entry<K, V>> appender;
 
-    public SSTables(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold, String name) {
+    public SSTables(File dir, Serializer<K> keySerializer, Serializer<V> valueSerializer, String name) {
         this.appender = LogAppender.builder(dir, new EntrySerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new SSTableCompactor<>())
                 .name(name + "-sstable")
                 .storageMode(StorageMode.MMAP)
                 .flushMode(FlushMode.ON_ROLL)
-                .open(new SSTableFactory<>(dir, keySerializer, valueSerializer, flushThreshold));
+                .open(new SSTableFactory<>(keySerializer, valueSerializer));
     }
 
     //TODO SSTABLE must guarantee that all data from memtable is stored in a single segment
@@ -66,26 +65,17 @@ public class SSTables<K extends Comparable<K>, V> {
     }
 
     private static class SSTableFactory<K extends Comparable<K>, V> implements SegmentFactory<Entry<K, V>> {
-        private final File directory;
         private final Serializer<K> keySerializer;
         private final Serializer<V> valueSerializer;
-        private final int flushThreshold;
 
-        public SSTableFactory(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer, int flushThreshold) {
-            this.directory = directory;
+        public SSTableFactory(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
             this.keySerializer = keySerializer;
             this.valueSerializer = valueSerializer;
-            this.flushThreshold = flushThreshold;
-        }
-
-        @Override
-        public Log<Entry<K, V>> createOrOpen(Storage storage, Serializer<Entry<K, V>> serializer, IDataStream reader, String magic, WriteMode mode) {
-
         }
 
         @Override
         public Log<Entry<K, V>> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<Entry<K, V>> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
-            return new SSTable<>(file, storageMode, dataLength, keySerializer, valueSerializer, bufferPool, magic, mode, directory, flushThreshold);
+            return new SSTable<>(file, storageMode, dataLength, keySerializer, valueSerializer, bufferPool, writeMode, checksumProb, readPageSize);
         }
     }
 }

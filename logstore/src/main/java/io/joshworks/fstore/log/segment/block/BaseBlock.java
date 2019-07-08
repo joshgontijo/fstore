@@ -5,7 +5,6 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -14,7 +13,7 @@ public abstract class BaseBlock implements Block {
     private final int maxSize;
     protected boolean readOnly;
 
-    private int totalSize;
+    private int decompressedLength;
     protected final List<ByteBuffer> buffers = new ArrayList<>();
 
     //returns the uncompressed size
@@ -27,7 +26,8 @@ public abstract class BaseBlock implements Block {
 
     protected BaseBlock(Codec codec, ByteBuffer data) {
         this.readOnly = true;
-        this.maxSize = this.unpack(codec, data);
+        this.maxSize = -1;
+        this.decompressedLength = this.unpack(codec, data);
     }
 
     //returns true if added, false otherwise
@@ -37,11 +37,11 @@ public abstract class BaseBlock implements Block {
             throw new IllegalStateException("Block is read only");
         }
         validateEntry(data);
-        if (totalSize + data.limit() > maxSize) {
+        if (decompressedLength + data.limit() > maxSize) {
             return false;
         }
 
-        totalSize += data.limit();
+        decompressedLength += data.limit();
         buffers.add(data.asReadOnlyBuffer());
         return true;
     }
@@ -64,7 +64,7 @@ public abstract class BaseBlock implements Block {
         readOnly = true;
         int entryCount = entryCount();
 
-        ByteBuffer withHeader = ByteBuffer.allocate(Integer.BYTES + (Integer.BYTES * entryCount) + totalSize);
+        ByteBuffer withHeader = ByteBuffer.allocate(Integer.BYTES + (Integer.BYTES * entryCount) + decompressedLength);
         withHeader.putInt(entryCount);
 
         for (ByteBuffer buffer : buffers) {
@@ -90,17 +90,17 @@ public abstract class BaseBlock implements Block {
             lengths[i] = decompressed.getInt();
         }
 
-        int decompressedLength = 0;
+        int decompressedLen = 0;
         for (int length : lengths) {
             //safe to reuse ByteBuffer, since the DirectBuffer is not allowed when using BlockSegment
             int dataEnd = decompressed.position() + length;
             decompressed.limit(dataEnd);
             ByteBuffer bb = decompressed.slice().asReadOnlyBuffer();
-            decompressedLength += bb.limit();
+            decompressedLen += bb.limit();
             buffers.add(bb);
             decompressed.position(dataEnd);
         }
-        return decompressedLength;
+        return decompressedLen;
     }
 
 
@@ -155,7 +155,7 @@ public abstract class BaseBlock implements Block {
 
     @Override
     public int uncompressedSize() {
-        return totalSize;
+        return decompressedLength;
     }
 
     @Override

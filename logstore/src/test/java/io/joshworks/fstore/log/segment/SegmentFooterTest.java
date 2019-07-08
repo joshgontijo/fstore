@@ -11,14 +11,17 @@ import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
+import io.joshworks.fstore.serializer.collection.CollectionSerializer;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.Closeable;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -27,10 +30,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public abstract class SegmentFooterTest {
-
-    protected static final double CHECKSUM_PROB = 1;
-    protected static final int SEGMENT_SIZE = Size.KB.intOf(128);
-    private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
 
     protected FooterSegment segment;
     private File testFile;
@@ -52,43 +51,37 @@ public abstract class SegmentFooterTest {
     @Test
     public void footer_returns_all_items() {
 
+        List<Long> footerData = footerData();
         segment.append("a");
-        segment.footerItems.add(0L);
-        segment.footerItems.add(1L);
-        segment.footerItems.add(2L);
-        segment.footerItems.add(3L);
+        segment.footerItems.addAll(footerData);
 
         segment.roll(1);
 
         List<Long> read = segment.readAllFooterItems();
-        assertArrayEquals(segment.footerItems.toArray(), read.toArray());
+        assertArrayEquals(footerData.toArray(), read.toArray());
     }
 
     @Test
     public void can_read_footer_after_reopening() {
 
+        List<Long> footerData = footerData();
         segment.append("a");
-        segment.footerItems.add(0L);
-        segment.footerItems.add(1L);
-        segment.footerItems.add(2L);
-        segment.footerItems.add(3L);
+        segment.footerItems.addAll(footerData);
 
         segment.roll(1);
         segment.close();
         segment = open(testFile);
 
         List<Long> read = segment.readAllFooterItems();
-        assertArrayEquals(segment.footerItems.toArray(), read.toArray());
+        assertArrayEquals(footerData.toArray(), read.toArray());
     }
 
     @Test
     public void can_read_data_with_footer() {
 
+        List<Long> footerData = footerData();
         long itemPos = segment.append("a");
-        segment.footerItems.add(0L);
-        segment.footerItems.add(1L);
-        segment.footerItems.add(2L);
-        segment.footerItems.add(3L);
+        segment.footerItems.addAll(footerData);
 
         segment.roll(1);
 
@@ -98,11 +91,9 @@ public abstract class SegmentFooterTest {
     @Test
     public void can_read_data_with_footer_after_reopening() {
 
+        List<Long> footerData = footerData();
         long itemPos = segment.append("a");
-        segment.footerItems.add(0L);
-        segment.footerItems.add(1L);
-        segment.footerItems.add(2L);
-        segment.footerItems.add(3L);
+        segment.footerItems.addAll(footerData);
 
         segment.roll(1);
         segment.close();
@@ -114,11 +105,9 @@ public abstract class SegmentFooterTest {
     @Test
     public void can_iterate_data_with_footer() {
 
+        List<Long> footerData = footerData();
         segment.append("a");
-        segment.footerItems.add(0L);
-        segment.footerItems.add(1L);
-        segment.footerItems.add(2L);
-        segment.footerItems.add(3L);
+        segment.footerItems.addAll(footerData);
 
         segment.roll(1);
 
@@ -128,11 +117,9 @@ public abstract class SegmentFooterTest {
     @Test
     public void can_iterate_data_with_footer_after_reopening() {
 
+        List<Long> footerData = footerData();
         segment.append("a");
-        segment.footerItems.add(0L);
-        segment.footerItems.add(1L);
-        segment.footerItems.add(2L);
-        segment.footerItems.add(3L);
+        segment.footerItems.addAll(footerData);
 
         segment.roll(1);
         segment.close();
@@ -161,11 +148,9 @@ public abstract class SegmentFooterTest {
     @Test
     public void iterator_does_not_advance_to_footer_section_after_reopening() {
 
+        List<Long> footerData = footerData();
         segment.append("a");
-        segment.footerItems.add(0L);
-        segment.footerItems.add(1L);
-        segment.footerItems.add(2L);
-        segment.footerItems.add(3L);
+        segment.footerItems.addAll(footerData);
 
         segment.roll(1);
         segment.close();
@@ -195,52 +180,44 @@ public abstract class SegmentFooterTest {
     }
 
     @Test
-    public void footer_is_not_deleted_when_segment_is_truncated() {
+    public void footer_is_not_deleted_when_segment_is_trimmed() {
 
+        List<Long> footerData = footerData();
         segment.append("a");
-        segment.footerItems.add(0L);
-        segment.footerItems.add(1L);
-        segment.footerItems.add(2L);
-        segment.footerItems.add(3L);
+        segment.footerItems.addAll(footerData);
 
         segment.roll(1);
-        segment.truncate();
+        segment.trim();
 
         List<Long> read = segment.readAllFooterItems();
-        assertArrayEquals(segment.footerItems.toArray(), read.toArray());
+        assertArrayEquals(footerData.toArray(), read.toArray());
     }
 
     @Test
-    public void footer_is_not_deleted_when_segment_is_truncated_after_reopened() {
+    public void footer_is_not_deleted_when_segment_is_trimmed_after_reopened() {
 
+        List<Long> footerData = footerData();
         segment.append("a");
-        segment.footerItems.add(0L);
-        segment.footerItems.add(1L);
-        segment.footerItems.add(2L);
-        segment.footerItems.add(3L);
+        segment.footerItems.addAll(footerData);
 
         segment.roll(1);
-        segment.truncate();
+        segment.trim();
         segment.close();
         segment = open(testFile);
 
         List<Long> read = segment.readAllFooterItems();
-        assertArrayEquals(segment.footerItems.toArray(), read.toArray());
+        assertArrayEquals(footerData.toArray(), read.toArray());
+    }
+
+    private List<Long> footerData() {
+        return Arrays.asList(1L, 2L, 3L, 4L);
     }
 
     public static class CachedSegmentTest extends SegmentFooterTest {
 
         @Override
         FooterSegment open(File file) {
-            return new FooterSegment(
-                    file,
-                    StorageMode.RAF_CACHED,
-                    SEGMENT_SIZE,
-                    Serializers.STRING,
-                    new BufferPool(false),
-                    WriteMode.LOG_HEAD,
-                    CHECKSUM_PROB,
-                    BUFFER_SIZE);
+            return new FooterSegment(file, StorageMode.RAF_CACHED);
         }
     }
 
@@ -248,15 +225,7 @@ public abstract class SegmentFooterTest {
 
         @Override
         FooterSegment open(File file) {
-            return new FooterSegment(
-                    file,
-                    StorageMode.MMAP,
-                    SEGMENT_SIZE,
-                    Serializers.STRING,
-                    new BufferPool(false),
-                    WriteMode.LOG_HEAD,
-                    CHECKSUM_PROB,
-                    BUFFER_SIZE);
+            return new FooterSegment(file, StorageMode.MMAP);
         }
     }
 
@@ -264,44 +233,55 @@ public abstract class SegmentFooterTest {
 
         @Override
         FooterSegment open(File file) {
-            return new FooterSegment(
-                    file,
-                    StorageMode.RAF,
-                    SEGMENT_SIZE,
-                    Serializers.STRING,
-                    new BufferPool(false),
-                    WriteMode.LOG_HEAD,
-                    CHECKSUM_PROB,
-                    BUFFER_SIZE);
+            return new FooterSegment(file, StorageMode.RAF);
         }
     }
 
-    private static class FooterSegment extends Segment<String> {
+    private static class FooterSegment implements Closeable {
 
-        public List<Long> footerItems = new ArrayList<>();
+        private static final String FOOTER_ITEM_NAME = "ITEMS";
+        private static Serializer<List<Long>> listSerializer = new CollectionSerializer<>(Serializers.LONG, a -> Long.BYTES, ArrayList::new);
+        private List<Long> footerItems = new ArrayList<>();
 
-        public FooterSegment(File file, StorageMode storageMode, long segmentDataSize, Serializer<String> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
-            super(file, storageMode, segmentDataSize, serializer, bufferPool, writeMode, checksumProb, readPageSize);
+        private final Segment<String> delegate;
+
+        public FooterSegment(File file, StorageMode storageMode) {
+            this.delegate = new Segment<>(file, storageMode, Size.KB.intOf(128), Serializers.VSTRING, new BufferPool(), WriteMode.LOG_HEAD, 1, Memory.PAGE_SIZE, List::size, this::writeFooter);
         }
 
-        @Override
         public void writeFooter(FooterWriter footer) {
-            for (Long footerItem : footerItems) {
-                footer.write(ByteBuffer.allocate(Long.BYTES).putLong(footerItem).flip());
-            }
+            ByteBuffer data = listSerializer.toBytes(footerItems);
+            footer.write(FOOTER_ITEM_NAME, data);
         }
 
         private List<Long> readAllFooterItems() {
-            FooterReader footerReader = readFooter();
-            ByteBuffer footerData = ByteBuffer.allocate((int) footerReader.length());
-            footerReader.read(footerReader.start(), Serializers.LONG);
-            footerData.flip();
+            FooterReader reader = delegate.footerReader();
+            return reader.read(FOOTER_ITEM_NAME, listSerializer);
+        }
 
-            List<Long> items = new ArrayList<>();
-            while (footerData.hasRemaining()) {
-                items.add(footerData.getLong());
-            }
-            return items;
+        public long append(String data) {
+            return delegate.append(data);
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        public void roll(int level) {
+            delegate.roll(level);
+        }
+
+        public void trim() {
+            delegate.trim();
+        }
+
+        public SegmentIterator<String> iterator(Direction direction) {
+            return delegate.iterator(direction);
+        }
+
+        public String get(long pos) {
+            return delegate.get(pos);
         }
     }
 

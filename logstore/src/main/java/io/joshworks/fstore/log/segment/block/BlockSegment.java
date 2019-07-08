@@ -7,26 +7,40 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.record.RecordEntry;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.WriteMode;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
+import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.stream.Stream;
 
-public class BlockSegment<T> extends Segment<Block> {
+public class BlockSegment<T> implements Log<T> {
+
+    private static final String BLOCK_INFO_FOOTER_ITEM = "BLOCK_INFO";
 
     private final Serializer<T> serializer;
     private final BlockFactory blockFactory;
-    private final int blockSize;
     private final BiConsumer<Long, Block> blockWriteListener;
+    private final BiConsumer<Long, Block> onBlockLoaded;
     protected Block block;
-    private int blocks;
+
+    private final int blockSize;
+    private final AtomicLong entries = new AtomicLong();
+    private final AtomicLong uncompressedSize = new AtomicLong();
+    private final AtomicLong compressedSize = new AtomicLong();
+
+    private final Segment<Block> delegate;
+    private FooterReader footerReader;
 
     public BlockSegment(File file,
                         StorageMode storageMode,
@@ -39,8 +53,22 @@ public class BlockSegment<T> extends Segment<Block> {
                         int blockSize,
                         double checksumProb,
                         int readPageSize) {
-        this(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, checksumProb, readPageSize, (p, b) -> {
-        });
+        this(
+                file,
+                storageMode,
+                dataLength,
+                bufferPool,
+                writeMode,
+                serializer,
+                blockFactory,
+                codec,
+                blockSize,
+                checksumProb,
+                readPageSize,
+                (p, b) -> {
+                },
+                (p, b) -> {
+                });
     }
 
     public BlockSegment(File file,
@@ -54,16 +82,53 @@ public class BlockSegment<T> extends Segment<Block> {
                         int blockSize,
                         double checksumProb,
                         int readPageSize,
-                        BiConsumer<Long, Block> blockWriteListener) {
-        super(file, storageMode, dataLength, new BlockSerializer(codec, blockFactory), bufferPool, writeMode, checksumProb, readPageSize);
+                        BiConsumer<Long, Block> blockWriteListener,
+                        BiConsumer<Long, Block> onBlockLoaded) {
+
         this.serializer = serializer;
         this.blockFactory = blockFactory;
         this.blockSize = blockSize;
         this.blockWriteListener = blockWriteListener;
+        this.onBlockLoaded = onBlockLoaded;
         this.block = blockFactory.create(blockSize);
+        this.delegate = new Segment<>(
+                file,
+                storageMode,
+                dataLength,
+                new BlockSerializer(codec, blockFactory),
+                bufferPool,
+                writeMode,
+                checksumProb,
+                readPageSize,
+                this::processEntries,
+                this::writeFooter);
+
+        this.footerReader = delegate.footerReader();
+        if (delegate.readOnly()) {
+            ByteBuffer blockSegmentInfo = footerReader.read(BLOCK_INFO_FOOTER_ITEM, Serializers.COPY);
+            if(blockSegmentInfo != null) {
+                long bSize = blockSegmentInfo.getLong();
+                uncompressedSize.set(blockSegmentInfo.getLong());
+                compressedSize.set(blockSegmentInfo.getLong());
+                entries.set(blockSegmentInfo.getLong());
+            }
+        }
+
     }
 
-    public synchronized long add(T entry) {
+    private void writeFooter(FooterWriter writer) {
+        ByteBuffer blockSegmentInfo = ByteBuffer.allocate(Long.BYTES * 4);
+        blockSegmentInfo.putLong(blockSize);
+        blockSegmentInfo.putLong(uncompressedSize.get());
+        blockSegmentInfo.putLong(compressedSize.get());
+        blockSegmentInfo.putLong(entries.get());
+        blockSegmentInfo.flip();
+
+        writer.write(BLOCK_INFO_FOOTER_ITEM, blockSegmentInfo);
+    }
+
+    @Override
+    public long append(T entry) {
         if (!hasSpaceAvailableForBlock()) {
             if (!block.isEmpty()) {
                 throw new IllegalStateException("Block was not empty");
@@ -81,7 +146,7 @@ public class BlockSegment<T> extends Segment<Block> {
             }
         }
         entries.incrementAndGet();
-        return super.position();
+        return delegate.position();
     }
 
     private boolean hasSpaceAvailableForBlock() {
@@ -90,52 +155,93 @@ public class BlockSegment<T> extends Segment<Block> {
         return writePos + blockSize < logSize;
     }
 
-    @Override
-    protected void incrementEntry() {
-        //do nothing
-    }
-
     public synchronized void writeBlock() {
         if (block.isEmpty()) {
             return;
         }
 
-        long blockPos = super.append(block);
+        uncompressedSize.addAndGet(block.uncompressedSize());
+        long blockPos = delegate.append(block);
         if (blockPos == Storage.EOF) {
             throw new IllegalStateException("Got EOF when writing non empty block");
         }
 
         this.blockWriteListener.accept(blockPos, block);
         this.block = blockFactory.create(blockSize);
-        this.blocks++;
     }
 
-    public SegmentIterator<T> entryIterator(Direction direction) {
-        return new BlockIterator<>(serializer, super.iterator(direction), direction);
+    public SegmentIterator<Block> blockIterator(Direction direction) {
+        return delegate.iterator(direction);
     }
 
-    public SegmentIterator<T> entryIterator(long position, Direction direction) {
-        return new BlockIterator<>(serializer, super.iterator(position, direction), direction);
+    public SegmentIterator<Block> blockIterator(long position, Direction direction) {
+        return delegate.iterator(position, direction);
     }
 
-    public Stream<T> streamEntries(Direction direction) {
-        return Iterators.closeableStream(entryIterator(direction));
+    //actual entries present in all blovks
+    public long totalEntries() {
+        return entries.get();
     }
 
-    public Stream<T> streamEntries(long position, Direction direction) {
-        return Iterators.closeableStream(entryIterator(position, direction));
+    public FooterReader footerReader() {
+        return footerReader;
     }
 
-    public int blocks() {
-        return blocks;
+    public long blocks() {
+        return delegate.entries();
+    }
+
+    public List<T> readBlockEntries(long blockPos) {
+        Block block = delegate.get(blockPos);
+        if (block == null) {
+            return Collections.emptyList();
+        }
+        return block.deserialize(serializer);
     }
 
     @Override
-    public Block get(long position) {
-        if (position == this.position()) {
-            return block;
-        }
-        return super.get(position);
+    public String name() {
+        return delegate.name();
+    }
+
+    @Override
+    public SegmentIterator<T> iterator(long position, Direction direction) {
+        return new BlockIterator<>(serializer, delegate.iterator(direction), direction);
+    }
+
+    @Override
+    public SegmentIterator<T> iterator(Direction direction) {
+        return new BlockIterator<>(serializer, delegate.iterator(direction), direction);
+    }
+
+    @Override
+    public long position() {
+        return delegate.position();
+    }
+
+    @Override
+    public T get(long position) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long fileSize() {
+        return delegate.fileSize();
+    }
+
+    @Override
+    public long logSize() {
+        return delegate.logSize();
+    }
+
+    @Override
+    public long remaining() {
+        return delegate.remaining();
+    }
+
+    @Override
+    public void delete() {
+        delegate.delete();
     }
 
     @Override
@@ -144,28 +250,67 @@ public class BlockSegment<T> extends Segment<Block> {
             return;
         }
         writeBlock();
-        super.flush();
+        delegate.flush();
     }
 
     @Override
     public synchronized void roll(int level) {
         writeBlock();
-        super.roll(level);
+        delegate.roll(level);
     }
 
     @Override
-    protected long processEntries(List<RecordEntry<Block>> items) {
-        long entryCount = 0;
-        for (RecordEntry<Block> item : items) {
-            entryCount += item.entry().entryCount();
+    public boolean readOnly() {
+        return delegate.readOnly();
+    }
+
+    @Override
+    public boolean closed() {
+        return delegate.closed();
+    }
+
+    @Override
+    public long entries() {
+        return entries.get();
+    }
+
+    @Override
+    public int level() {
+        return delegate.level();
+    }
+
+    @Override
+    public long created() {
+        return delegate.created();
+    }
+
+    @Override
+    public void trim() {
+        this.block = blockFactory.create(blockSize);
+        delegate.trim();
+    }
+
+    public int processEntries(List<RecordEntry<Block>> items) {
+        int entryCount = 0;
+        for (RecordEntry<Block> recordEntry : items) {
+            Block block = recordEntry.entry();
+            uncompressedSize.addAndGet(block.uncompressedSize());
+            compressedSize.addAndGet(recordEntry.dataSize());
+            entryCount += block.entryCount();
+            onBlockLoaded.accept(recordEntry.position(), block);
         }
-        blocks += items.size();
+        entries.addAndGet(entryCount);
         return entryCount;
     }
 
     @Override
     public long uncompressedSize() {
-        return blocks * blockSize; //approximation based on block size
+        return uncompressedSize.get();
+    }
+
+    @Override
+    public Type type() {
+        return delegate.type();
     }
 
     public int blockSize() {
@@ -177,10 +322,12 @@ public class BlockSegment<T> extends Segment<Block> {
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize, BlockFactory blockFactory) {
-        return (file, storageMode, dataLength, serializer, bufferPool, writeMode, checksumProb, readPageSize) -> {
-            BlockSegment<T> delegate = new BlockSegment<>(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, checksumProb, readPageSize);
-            return new BlockSegmentWrapper<>(delegate);
-        };
+        return (file, storageMode, dataLength, serializer, bufferPool, writeMode, checksumProb, readPageSize) -> new BlockSegment<>(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, checksumProb, readPageSize);
     }
 
+    @Override
+    public void close() {
+        flush();
+        delegate.close();
+    }
 }

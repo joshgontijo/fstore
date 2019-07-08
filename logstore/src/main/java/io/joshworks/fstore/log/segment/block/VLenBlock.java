@@ -11,9 +11,7 @@ public class VLenBlock extends BaseBlock {
     }
 
     protected VLenBlock(Codec codec, ByteBuffer data) {
-        super(data.limit());
-        this.readOnly = true;
-        this.unpack(codec, data);
+        super(codec, data);
     }
 
     public static BlockFactory factory() {

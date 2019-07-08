@@ -3,9 +3,6 @@ package io.joshworks.fstore.log.appender.level;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.footer.FooterReader;
-import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.Type;
 import org.junit.Test;
 
@@ -343,11 +340,6 @@ public class LevelsTest {
         }
 
         @Override
-        public SegmentState rebuildState(long lastKnownPosition) {
-            return null;
-        }
-
-        @Override
         public void delete() {
 
         }
@@ -384,7 +376,7 @@ public class LevelsTest {
         }
 
         @Override
-        public void truncate() {
+        public void trim() {
 
         }
 

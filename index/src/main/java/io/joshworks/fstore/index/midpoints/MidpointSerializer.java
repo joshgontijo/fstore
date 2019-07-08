@@ -15,9 +15,9 @@ public class MidpointSerializer<K extends Comparable<K>> implements Serializer<M
     @Override
     public ByteBuffer toBytes(Midpoint<K> data) {
         ByteBuffer keyData = keySerializer.toBytes(data.key);
-        ByteBuffer bb = ByteBuffer.allocate(keyData.limit() + Long.BYTES);
+        ByteBuffer bb = ByteBuffer.allocate(keyData.limit() + Integer.BYTES);
         bb.put(keyData);
-        bb.putLong(data.position);
+        bb.putInt(data.blockHash);
         return bb.flip();
     }
 
@@ -29,7 +29,7 @@ public class MidpointSerializer<K extends Comparable<K>> implements Serializer<M
     @Override
     public Midpoint<K> fromBytes(ByteBuffer buffer) {
         K key = keySerializer.fromBytes(buffer);
-        long position = buffer.getLong();
-        return new Midpoint<>(key, position);
+        int blockHash = buffer.getInt();
+        return new Midpoint<>(key, blockHash);
     }
 }

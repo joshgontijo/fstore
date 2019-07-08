@@ -5,12 +5,10 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -45,9 +43,9 @@ public class IndexCompactorTest {
         segmentFile1 = new File(indexDir, "segment1");
         segmentFile2 = new File(indexDir, "segment2");
         outputFile = new File(indexDir, "output");
-        segment1 = create(segmentFile1);
-        segment2 = create(segmentFile2);
-        output = create(outputFile);
+        segment1 = open(segmentFile1);
+        segment2 = open(segmentFile2);
+        output = open(outputFile);
     }
 
     @After
@@ -60,14 +58,17 @@ public class IndexCompactorTest {
         Files.delete(outputFile.toPath());
     }
 
-    private IndexSegment create(File location) {
+    private IndexSegment open(File location) {
         return new IndexSegment(
-                StorageProvider.of(StorageMode.RAF).create(location, Size.MB.of(100)),
-                new DataStream(new BufferPool(false), 1, 1024 * 1024 * 5, Memory.PAGE_SIZE),
-                "magic",
+                location,
+                StorageMode.RAF,
+                Size.MB.of(100),
+                new BufferPool(),
                 WriteMode.LOG_HEAD,
                 indexDir,
                 new SnappyCodec(),
+                0.01,
+                Memory.PAGE_SIZE,
                 100000);
     }
 
