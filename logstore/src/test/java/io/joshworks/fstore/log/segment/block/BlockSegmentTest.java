@@ -1,7 +1,14 @@
 package io.joshworks.fstore.log.segment.block;
 
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.segment.WriteMode;
+import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -11,12 +18,27 @@ import java.io.File;
 
 import static org.junit.Assert.assertEquals;
 
-public abstract class BlockSegmentTest {
+public class BlockSegmentTest {
 
     protected BlockSegment<String> segment;
     private File testFile;
 
-    abstract BlockSegment<String> open(File file);
+    private static final double CHECKSUM_PROB = 1;
+    private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
+
+    BlockSegment<String> open(File file) {
+        return new BlockSegment<>(
+                file, StorageMode.RAF,
+                Size.MB.of(10),
+                new BufferPool(false),
+                WriteMode.LOG_HEAD,
+                Serializers.STRING,
+                VLenBlock.factory(),
+                new SnappyCodec(),
+                Memory.PAGE_SIZE,
+                CHECKSUM_PROB,
+                READ_PAGE_SIZE);
+    }
 
     @Before
     public void setUp() {
@@ -32,16 +54,16 @@ public abstract class BlockSegmentTest {
 
     @Test
     public void entries_returns_total_entries_of_all_blocks() {
-        segment.add("a");
-        segment.add("b");
+        segment.append("a");
+        segment.append("b");
 
         assertEquals(2, segment.entries());
     }
 
     @Test
     public void entries_is_correct_after_reopening_segment() {
-        segment.add("a");
-        segment.add("b");
+        segment.append("a");
+        segment.append("b");
 
         segment.writeBlock();
         segment.close();
@@ -50,8 +72,19 @@ public abstract class BlockSegmentTest {
     }
 
     @Test
+    public void entries_is_correct_after_rolling_segment() {
+        segment.append("a");
+        segment.append("b");
+
+        segment.roll(1);
+        segment.close();
+        segment = open(testFile);
+        assertEquals(2, segment.entries());
+    }
+
+    @Test
     public void flush_writes_block() {
-        segment.add("a");
+        segment.append("a");
         segment.flush();
 
         segment.close();
@@ -61,7 +94,7 @@ public abstract class BlockSegmentTest {
 
     @Test
     public void roll_writes_block() {
-        segment.add("a");
+        segment.append("a");
         segment.roll(1);
 
         segment.close();
@@ -73,17 +106,17 @@ public abstract class BlockSegmentTest {
     public void when_new_block_doesnt_fit_in_the_segment_append_returns_EOF() {
         long bPos;
         do {
-            bPos = segment.add("a");
+            bPos = segment.append("a");
         } while (bPos != Storage.EOF);
 
-        assertEquals(Storage.EOF, segment.add("a"));
+        assertEquals(Storage.EOF, segment.append("a"));
     }
 
     @Test
     public void uncompressed_size_is_the_approximation_of_block_size() {
         long bPos;
         do {
-            bPos = segment.add("a");
+            bPos = segment.append("a");
         } while (bPos != Storage.EOF);
 
         assertEquals(segment.blocks() * segment.blockSize(), segment.uncompressedSize());
@@ -93,11 +126,26 @@ public abstract class BlockSegmentTest {
     public void uncompressed_is_restored_when_segment_is_reopened() {
         long bPos;
         do {
-            bPos = segment.add("a");
+            bPos = segment.append("a");
         } while (bPos != Storage.EOF);
 
         long uncompressedSize = segment.uncompressedSize();
 
+        segment.close();
+        segment = open(testFile);
+        assertEquals(uncompressedSize, segment.uncompressedSize());
+    }
+
+    @Test
+    public void uncompressed_is_restored_when_segment_is_rolled() {
+        long bPos;
+        do {
+            bPos = segment.append("a");
+        } while (bPos != Storage.EOF);
+
+        long uncompressedSize = segment.uncompressedSize();
+
+        segment.roll(1);
         segment.close();
         segment = open(testFile);
         assertEquals(uncompressedSize, segment.uncompressedSize());

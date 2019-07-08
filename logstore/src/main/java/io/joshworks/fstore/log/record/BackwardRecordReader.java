@@ -14,7 +14,7 @@ final class BackwardRecordReader extends BaseReader implements Reader {
     }
 
     @Override
-    public <T> RecordEntry<T> read(Storage storage, long position, Serializer<T> serializer) {
+    public <T> RecordEntry<T> read(Storage storage, final long position, Serializer<T> serializer) {
         ByteBuffer buffer = bufferPool.allocate(pageReadSize);
         try {
             int limit = buffer.limit();
@@ -68,6 +68,6 @@ final class BackwardRecordReader extends BaseReader implements Reader {
         int checksum = buffer.getInt();
         checksum(checksum, buffer, position);
         T entry = serializer.fromBytes(buffer);
-        return new RecordEntry<>(foundLength, entry);
+        return new RecordEntry<>(foundLength, entry, position);
     }
 }

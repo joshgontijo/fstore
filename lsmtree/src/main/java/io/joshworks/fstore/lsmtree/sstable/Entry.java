@@ -14,7 +14,7 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
         this.value = value;
     }
 
-    public static <K extends Comparable<K>, V> Entry<K, V> keyOf(K key) {
+    public static <K extends Comparable<K>, V> Entry<K, V> key(K key) {
         return of(null, key, null);
     }
 

@@ -5,13 +5,11 @@ import io.joshworks.eventry.index.Range;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.StorageProvider;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -38,7 +36,7 @@ public class IndexSegmentTest {
 
     private static final int MAX_ENTRY_SIZE = 1024 * 1024 * 5;
     private static final double CHECKSUM_PROB = 1;
-    private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
+    private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
 
     private IndexSegment segment;
     private static final int NUMBER_OF_ELEMENTS = 1000000; //bloom filter
@@ -47,7 +45,7 @@ public class IndexSegmentTest {
     public void setUp() {
         indexDir = FileUtils.testFolder();
         segmentFile = new File(indexDir, "test-index");
-        segment = create(segmentFile);
+        segment = open(segmentFile);
     }
 
     @After
@@ -56,25 +54,17 @@ public class IndexSegmentTest {
         Files.delete(segmentFile.toPath());
     }
 
-    private IndexSegment create(File location) {
-        return new IndexSegment(
-                StorageProvider.of(StorageMode.RAF).create(location, Size.MB.of(100)),
-                new DataStream(new BufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                "magic",
-                WriteMode.LOG_HEAD,
-                indexDir,
-                new SnappyCodec(),
-                NUMBER_OF_ELEMENTS);
-    }
-
     private IndexSegment open(File location) {
         return new IndexSegment(
-                StorageProvider.of(StorageMode.RAF).open(location),
-                new DataStream(new BufferPool(false), CHECKSUM_PROB, MAX_ENTRY_SIZE, BUFFER_SIZE),
-                "magic",
+                location,
+                StorageMode.RAF,
+                Size.MB.of(100),
+                new BufferPool(),
                 WriteMode.LOG_HEAD,
                 indexDir,
                 new SnappyCodec(),
+                CHECKSUM_PROB,
+                READ_PAGE_SIZE,
                 NUMBER_OF_ELEMENTS);
     }
 

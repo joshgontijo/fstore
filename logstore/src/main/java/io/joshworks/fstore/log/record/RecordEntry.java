@@ -3,11 +3,13 @@ package io.joshworks.fstore.log.record;
 public class RecordEntry<T> {
 
     private final int size;
+    private final long position;
     private final T entry;
 
-    public RecordEntry(int size, T entry) {
+    public RecordEntry(int size, T entry, long position) {
         this.size = size;
         this.entry = entry;
+        this.position = position;
     }
 
     public T entry() {
@@ -20,5 +22,9 @@ public class RecordEntry<T> {
 
     public int dataSize() {
         return size;
+    }
+
+    public long position() {
+        return position;
     }
 }

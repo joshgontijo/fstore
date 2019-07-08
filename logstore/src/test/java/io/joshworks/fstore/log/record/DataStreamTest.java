@@ -16,11 +16,15 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class DataStreamTest {
 
@@ -209,6 +213,69 @@ public class DataStreamTest {
         List<RecordEntry<String>> read = stream.bulkRead(Direction.BACKWARD, storage.position(), Serializers.STRING);
         assertEquals(1, read.size());
         assertEquals(secondEntry, read.get(0).entry().intern());
+    }
+
+    @Test
+    public void readForward_returns_RecordEntry_with_correct_position() {
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < 10000; i++) {
+            long pos = stream.write(Serializers.STRING.toBytes(String.valueOf(i)));
+            positions.add(pos);
+        }
+
+        for (Long position : positions) {
+            RecordEntry<String> record = stream.read(Direction.FORWARD, position, Serializers.STRING);
+            assertEquals((long) position, record.position());
+        }
+    }
+
+    @Test
+    public void readBackward_returns_RecordEntry_with_correct_position() {
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < 10000; i++) {
+            stream.write(Serializers.STRING.toBytes(String.valueOf(i)));
+            positions.add(stream.position());
+        }
+
+        Collections.reverse(positions);
+        for (Long position : positions) {
+            RecordEntry<String> record = stream.read(Direction.BACKWARD, position, Serializers.STRING);
+            assertEquals((long) position, record.position());
+        }
+    }
+
+    @Test
+    public void readBulkForward_returns_RecordEntry_with_correct_position() {
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < 10000; i++) {
+            long pos = stream.write(Serializers.STRING.toBytes(String.valueOf(i)));
+            positions.add(pos);
+        }
+
+        Set<Long> positionSet = new HashSet<>(positions);
+        for (Long position : positions) {
+            List<RecordEntry<String>> entries = stream.bulkRead(Direction.FORWARD, position, Serializers.STRING);
+            for (RecordEntry<String> entry : entries) {
+                assertTrue(positionSet.contains(entry.position()));
+            }
+        }
+    }
+
+    @Test
+    public void readBulkBackward_returns_RecordEntry_with_correct_position() {
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < 10000; i++) {
+            long pos = stream.write(Serializers.STRING.toBytes(String.valueOf(i)));
+            positions.add(pos);
+        }
+
+        Set<Long> positionSet = new HashSet<>(positions);
+        for (Long position : positions) {
+            List<RecordEntry<String>> entries = stream.bulkRead(Direction.BACKWARD, position, Serializers.STRING);
+            for (RecordEntry<String> entry : entries) {
+                assertTrue(positionSet.contains(entry.position()));
+            }
+        }
     }
 
     private static String ofSize(int size) {

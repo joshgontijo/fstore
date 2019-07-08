@@ -4,79 +4,43 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
-import io.joshworks.fstore.log.segment.header.LogHeader;
 
 public class FooterReader {
 
     private final DataStream stream;
-    private final LogHeader header;
+    private final FooterMap map;
 
-    private long currPos;
-
-    public FooterReader(DataStream stream, LogHeader header) {
+    public FooterReader(DataStream stream, FooterMap map) {
         this.stream = stream;
-        this.header = header;
+        this.map = map;
     }
 
-    public <T> T read(Serializer<T> serializer) {
-        RecordEntry<T> entry = readInternal(currPos, serializer);
-        if (entry == null) {
+    public <T> T read(String name, Serializer<T> serializer) {
+        long position = map.get(name);
+        if (FooterMap.NONE == position) {
             return null;
         }
-        currPos += currPos + entry.recordSize();
-        return entry.entry();
+        return readInternal(position, serializer);
     }
 
-    public <T> T read(long pos, Serializer<T> serializer) {
-        RecordEntry<T> entry = readInternal(pos, serializer);
-        if (entry == null) {
+    public <T> T read(int hash, Serializer<T> serializer) {
+        long position = map.get(hash);
+        if (FooterMap.NONE == position) {
             return null;
         }
-        return entry.entry();
-    }
-
-    private <T> RecordEntry<T> readInternal(long pos, Serializer<T> serializer) {
-        checkReadOnly();
-        checkBounds(pos);
-        return stream.read(Direction.FORWARD, pos, serializer);
-    }
-
-    public long start() {
-        checkReadOnly();
-        return header.footerLength();
+        return readInternal(position, serializer);
     }
 
     public long length() {
-        checkReadOnly();
         return stream.length();
     }
 
-    public long position() {
-        checkReadOnly();
-        return stream.position();
-    }
-
-    public void position(long position) {
-        checkReadOnly();
-        checkBounds(position);
-        this.currPos = position;
-    }
-
-    private void checkReadOnly() {
-        if (!header.readOnly()) {
-            throw new IllegalStateException("Segment is not readonly");
+    private <T> T readInternal(long position, Serializer<T> serializer) {
+        RecordEntry<T> recordEntry = stream.read(Direction.FORWARD, position, serializer);
+        if (recordEntry == null) {
+            throw new IllegalStateException("Could not read mapped footer item at position: " + position);
         }
-    }
-
-    private void checkBounds(long position) {
-        if (position < header.footerStart() || position > maxPos()) {
-            long start = header.footerStart();
-            throw new IllegalStateException("Invalid footer position: " + position + ", allowed range is: " + start + " - " + maxPos());
-        }
-    }
-
-    private long maxPos() {
-        return header.footerStart() + header.footerLength() - 1;
+        return recordEntry.entry();
     }
 
 }

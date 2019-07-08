@@ -379,7 +379,7 @@ public abstract class SegmentTest {
         long logSize = segment.fileSize();
         segment.append("a");
         segment.roll(1);
-        segment.truncate();
+        segment.trim();
 
         long afterTruncating = segment.fileSize();
         assertTrue(afterTruncating < logSize);

@@ -3,7 +3,6 @@ package io.joshworks.fstore.log.extra;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -15,7 +14,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class DataFileTest {
 
@@ -50,13 +48,6 @@ public class DataFileTest {
 
         String val = dataFile.get(pos);
         assertEquals("a", val);
-    }
-
-    @Test
-    public void size_returns_segment_write_position_instead_file_length() {
-        assertEquals(LogHeader.BYTES, dataFile.length());
-        dataFile.add("a");
-        assertTrue(dataFile.length() > LogHeader.BYTES);
     }
 
     @Test

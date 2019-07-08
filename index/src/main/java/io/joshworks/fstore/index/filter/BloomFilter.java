@@ -1,13 +1,20 @@
 package io.joshworks.fstore.index.filter;
 
-import io.joshworks.fstore.log.segment.footer.FooterReader;
-import io.joshworks.fstore.log.segment.footer.FooterWriter;
-import io.joshworks.fstore.serializer.Serializers;
+import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 import java.util.BitSet;
 import java.util.Objects;
 
+/**
+ * Format
+ * Length -> 4bytes
+ * Number of bits (m) -> 4bytes
+ * Number of hash (k) -> 4bytes
+ * Data -> long[]
+ *
+ * @param <T>
+ */
 public class BloomFilter<T> {
 
     private static final int HEADER_SIZE = Integer.BYTES * 3;
@@ -18,31 +25,30 @@ public class BloomFilter<T> {
     private int k; // Number of hash functions
 
     /**
-     * @param n    The expected number of elements in the filter
-     * @param p    The acceptable false positive rate
-     * @param hash The hash implementation
+     * @param n          The expected number of elements in the filter
+     * @param p          The acceptable false positive rate
+     * @param serializer The serializer
      */
-    private BloomFilter(long n, double p, BloomFilterHasher<T> hash) {
-        Objects.requireNonNull(hash, "Hash");
+    private BloomFilter(long n, double p, Serializer<T> serializer) {
+        Objects.requireNonNull(serializer, "Serializer must be provided");
 
         this.m = getNumberOfBits(p, n);
         this.k = getOptimalNumberOfHashesByBits(n, this.m);
-        this.hash = hash;
+        this.hash = BloomFilterHasher.murmur64(serializer);
         this.hashes = new BitSet(this.m);
     }
 
     /**
      * Used to load from file only
      *
-     * @param handler The file handler of this filter
-     * @param hashes  The table containing the data
-     * @param hash    The hash implementation (must remain the same)
-     * @param m       The number of bits in the 'hashes'
-     * @param k       The number of hash functions
+     * @param hashes The table containing the data
+     * @param serializer   The data serializer
+     * @param m      The number of bits in the 'hashes'
+     * @param k      The number of hash functions
      */
-    private BloomFilter(BitSet hashes, BloomFilterHasher<T> hash, int m, int k) {
+    private BloomFilter(BitSet hashes, Serializer<T> serializer, int m, int k) {
         this.hashes = hashes;
-        this.hash = hash;
+        this.hash =  BloomFilterHasher.murmur64(serializer);
         this.m = m;
         this.k = k;
     }
@@ -120,7 +126,7 @@ public class BloomFilter<T> {
     }
 
 
-    public void writeTo(FooterWriter writer) {
+    public ByteBuffer serialize() {
         long[] items = hashes.toLongArray();
         int dataLength = items.length * Long.BYTES;
         int totalSize = dataLength + HEADER_SIZE;
@@ -139,18 +145,14 @@ public class BloomFilter<T> {
             bb.putLong(item);
         }
 
-        bb.flip();
-        writer.write(bb);
-
+        return bb.flip();
     }
 
-    private static <T> BloomFilter<T> load(FooterReader reader, BloomFilterHasher<T> hash) {
-        //Format
-        //Length -> 4bytes
-        //Number of bits (m) -> 4bytes
-        //Number of hash (k) -> 4bytes
-        //Data -> long[]
-        ByteBuffer data = reader.read(Serializers.COPY);
+    public static <T> BloomFilter<T> create(int n, double p, Serializer<T> serializer) {
+        return new BloomFilter<>(n, p, serializer);
+    }
+
+    public static <T> BloomFilter<T> load(ByteBuffer data, Serializer<T> serializer) {
 
         int length = data.getInt(); //unused
         int m = data.getInt();
@@ -165,7 +167,7 @@ public class BloomFilter<T> {
         BitSet bitSet = new BitSet(m);
         bitSet.or(BitSet.valueOf(longs));
 
-        return new BloomFilter<>(bitSet, hash, m, k);
+        return new BloomFilter<>(bitSet, serializer, m, k);
     }
 
     @Override

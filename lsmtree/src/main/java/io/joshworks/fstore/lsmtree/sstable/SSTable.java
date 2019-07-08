@@ -2,47 +2,34 @@ package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.filter.BloomFilter;
-import io.joshworks.fstore.core.filter.BloomFilterHasher;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.index.Index;
+import io.joshworks.fstore.index.IndexEntry;
+import io.joshworks.fstore.index.SparseIndex;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.record.IDataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
-import io.joshworks.fstore.log.segment.footer.FooterReader;
-import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.Type;
-import io.joshworks.fstore.lsmtree.sstable.index.Index;
-import io.joshworks.fstore.lsmtree.sstable.index.IndexEntry;
 
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
-    private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
-    private static final double FALSE_POSITIVE_PROB = 0.01;
 
-    //TODO make final
-    //TODO create on roll
-    //TODO remove numElements from constructor and keep in mem until the segment is flushed
-    private BloomFilter<K> filter;
-    //TODO should everything be in memory ? Midpoints should be a better alternative
-    private final Index<K> index;
-    private final Serializer<K> keySerializer;
-    private final File directory;
+    private static final int MAX_BLOCK_SIZE = Memory.PAGE_SIZE;
     private final BlockSegment<Entry<K, V>> delegate;
-    private final AtomicBoolean closed = new AtomicBoolean();
     private final EntrySerializer<K, V> kvSerializer;
+    private final Serializer<K> keySerializer;
+    private Index<K> index;
 
     public SSTable(File file,
                    StorageMode mode,
@@ -51,10 +38,12 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                    Serializer<V> valueSerializer,
                    BufferPool bufferPool,
                    WriteMode writeMode,
-                   File directory,
-                   int numElements) {
+                   double checksumProb,
+                   int readPageSize) {
 
+        this.keySerializer = keySerializer;
         this.kvSerializer = new EntrySerializer<>(keySerializer, valueSerializer);
+
         this.delegate = new BlockSegment<>(
                 file,
                 mode,
@@ -64,64 +53,62 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                 kvSerializer,
                 VLenBlock.factory(),
                 new SnappyCodec(),
-                MAX_BLOCK_SIZE);
+                MAX_BLOCK_SIZE,
+                checksumProb,
+                readPageSize,
+                (a, b) -> {
+                },
+                this::processBlockEntries);
 
-        this.keySerializer = keySerializer;
-        this.index = new Index<>(keySerializer, delegate.readFooter());
-        this.directory = directory;
-        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(keySerializer));
+        if (index == null) {
+            index = SparseIndex.builder(keySerializer, delegate.footerReader()).build();
+        }
     }
 
     @Override
     public long append(Entry<K, V> data) {
         long pos = delegate.add(data);
-        filter.add(data.key);
         index.add(data.key, pos);
         return pos;
     }
 
     V get(K key) {
-        if (definitelyNotPresent(key)) {
+        IndexEntry<K> indexEntry = index.get(key);
+        if (indexEntry == null) {
             return null;
         }
 
-        Long pos = cache.get(key);
-        if (pos == null) {
-            IndexEntry indexEntry = index.get(key);
-            if (indexEntry == null) {
-                return null;
-            }
-            pos = indexEntry.position;
-            cache.put(key, pos);
-        }
-
-        Block foundBlock = delegate.get(pos);
-        List<Entry<K, V>> entries = foundBlock.deserialize(kvSerializer);
-        int idx = Collections.binarySearch(entries, Entry.keyOf(key));
+        List<Entry<K, V>> entries = delegate.readBlockEntries(indexEntry.position);
+        int idx = Collections.binarySearch(entries, Entry.key(key));
         if (idx < 0) {
             return null;
         }
         return entries.get(idx).value;
     }
 
-    public synchronized void flush() {
-        delegate.flush();
-        filter.write();
+    private void processBlockEntries(long blockPos, Block block) {
+        if (index == null) {
+            index = SparseIndex.builder(keySerializer, delegate.footerReader()).build();
+        }
+
+        List<Entry<K, V>> entries = block.deserialize(kvSerializer);
+        for (Entry<K, V> entry : entries) {
+            index.add(entry.key, blockPos);
+        }
     }
 
-    private boolean definitelyNotPresent(K key) {
-        return !filter.contains(key);
+    public synchronized void flush() {
+        delegate.flush();
     }
 
     @Override
     public SegmentState rebuildState(long lastKnownPosition) {
-        return delegate.rebuildState(lastKnownPosition);
+        return delegate.rebuildState(lastKnownPosition, onLoad);
     }
 
     @Override
     public void delete() {
         delegate.delete();
-        filter.delete();
     }
 
     @Override
@@ -136,7 +123,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
     @Override
     public boolean closed() {
-        return closed.get();
+        return delegate.closed();
     }
 
     @Override
@@ -155,8 +142,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
-    public void truncate() {
-        delegate.truncate();
+    public void trim() {
+        delegate.trim();
     }
 
     @Override
@@ -165,24 +152,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     @Override
-    public void writeFooter(FooterWriter footer) {
-        index.write(footer);
-        delegate.writeFooter(footer);
-    }
-
-    @Override
-    public FooterReader readFooter() {
-        //CLASS EXTENDING THIS HAS TO BE AWARE THAT THIS CLASS ALREADY HAS FOOTER ITEMS
-        return delegate.readFooter();
-    }
-
-    @Override
     public Type type() {
         return delegate.type();
-    }
-
-    public void newBloomFilter(long numElements) {
-        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(keySerializer));
     }
 
     @Override
@@ -228,9 +199,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true)) {
-            delegate.close();
-        }
+        delegate.close();
     }
 
     @Override

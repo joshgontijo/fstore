@@ -7,37 +7,22 @@ import java.nio.ByteBuffer;
 public class FooterWriter {
 
     private final DataStream stream;
-    private final long start;
+    private final FooterMap map;
 
-    public FooterWriter(DataStream stream) {
-        this.start = stream.position();
+    public FooterWriter(DataStream stream, FooterMap map) {
         this.stream = stream;
+        this.map = map;
     }
 
-    public long write(ByteBuffer data) {
-        return stream.write(data);
+    public int write(String name, ByteBuffer data) {
+        return map.write(name, stream, data);
     }
 
-    public long write(ByteBuffer[] data) {
-        return stream.write(data);
+    public int write(String name, ByteBuffer[] data) {
+        return map.write(name, stream, data);
     }
 
     public long position() {
         return stream.position();
-    }
-
-    public void position(long position) {
-        if (position < start) {
-            throw new IllegalArgumentException("Position cannot be less than " + start);
-        }
-        stream.position(position);
-    }
-
-    public long length() {
-        return position() - start;
-    }
-
-    public long start() {
-        return start;
     }
 }

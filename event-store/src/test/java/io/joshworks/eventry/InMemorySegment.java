@@ -122,6 +122,11 @@ public class InMemorySegment<T> implements Log<T> {
     }
 
     @Override
+    public void trim() {
+
+    }
+
+    @Override
     public long uncompressedSize() {
         return 0;
     }
