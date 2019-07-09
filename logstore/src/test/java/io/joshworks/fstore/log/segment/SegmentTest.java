@@ -458,6 +458,7 @@ public abstract class SegmentTest {
         Type type = segment.type();
         assertEquals(Type.DELETED, type);
 
+
         iterator.close();
     }
 
@@ -488,6 +489,14 @@ public abstract class SegmentTest {
     public void cannot_acquire_iterator_of_a_closed_segment() throws IOException {
         segment.close();
         segment.iterator(Direction.FORWARD);
+    }
+
+    @Test(expected = SegmentException.class)
+    public void cannot_acquire_iterator_of_a_segment_marked_for_deletion() throws IOException {
+        SegmentIterator<String> iterator = segment.iterator(Direction.FORWARD);
+        segment.delete();
+
+        SegmentIterator<String> anotherIterator = segment.iterator(Direction.FORWARD);
     }
 
     private List<Long> writeFully(Log<String> segment) {

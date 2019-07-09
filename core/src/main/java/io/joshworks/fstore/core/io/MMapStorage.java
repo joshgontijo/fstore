@@ -27,7 +27,6 @@ public class MMapStorage extends MemStorage {
 
     protected static ByteBuffer map(DiskStorage diskStorage, long from, int size) {
         try {
-            System.err.println("Mapping: " + from + " size: " + size + " -> " + (from + size));
             return diskStorage.channel.map(FileChannel.MapMode.READ_WRITE, from, size);
         } catch (Exception e) {
             throw new StorageException("Failed to map buffer from: " + from + ", size: " + size, e);
