@@ -9,6 +9,10 @@ import java.util.UUID;
 
 public class FileUtils {
 
+    public static final String TEST_DIR = "test.dir";
+    public static final String FSTORE_TEST = "fstore-test";
+    public static final String TEST_FILES = "test-files";
+
     //terrible work around for waiting the mapped data to release file lock
     public static void tryDelete(File file) {
         int maxTries = 2;
@@ -50,7 +54,7 @@ public class FileUtils {
 
     private static File tempFolder() {
         try {
-            return Files.createTempDirectory("fstore-test").toFile();
+            return Files.createTempDirectory(FSTORE_TEST).toFile();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -61,7 +65,7 @@ public class FileUtils {
     }
 
     public static File testFile(String name) {
-        return new File(testFolder(), name);
+        return new File(testFolder(TEST_FILES), name);
     }
 
     public static File testFolder() {
@@ -70,7 +74,7 @@ public class FileUtils {
 
     private static File testFolder(String name) {
         try {
-            File testDir = AppProperties.create().get("test.dir").map(File::new).orElse(tempFolder());
+            File testDir = AppProperties.create().get(TEST_DIR).map(File::new).orElse(tempFolder());
             File file = new File(testDir, name);
             Files.createDirectories(file.toPath());
             return file;

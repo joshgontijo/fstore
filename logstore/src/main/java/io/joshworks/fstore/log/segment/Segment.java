@@ -144,7 +144,7 @@ public final class Segment<T> implements Log<T> {
         }
         long maxDataPos = header.maxDataPosition();
 
-        long dataPos = Math.min(position,maxDataPos);
+        long dataPos = Math.min(position, maxDataPos);
         this.dataWritePosition.set(dataPos);
         this.storage.position(position);
     }
@@ -261,6 +261,10 @@ public final class Segment<T> implements Log<T> {
             if (!closed.compareAndSet(false, true)) {
                 return;
             }
+            for (SegmentIterator reader : readers) {
+                releaseReader(reader);
+            }
+
             readers.clear(); //evict readers
             IOUtils.closeQuietly(storage);
         } finally {
@@ -440,8 +444,7 @@ public final class Segment<T> implements Log<T> {
     }
 
     private void deleteInternal() {
-        String name = name();
-        logger.info("Deleting {}", name);
+        logger.info("Deleting {}", name());
         storage.delete();
         close();
     }

@@ -15,8 +15,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -167,22 +169,27 @@ public abstract class ConcurrencyIT {
         assertEquals(0, failed.get());
     }
 
+    //FIXME
     @Test
     public void compaction_can_run_in_parallel_with_reads_and_writes() throws InterruptedException {
 
         int scans = 10;
-        int items = 20000000;
+        int items = 40000000;
         for (int i = 0; i < items; i++) {
             appender.append(String.valueOf(i));
         }
 
         AtomicBoolean failed = new AtomicBoolean();
-        Thread read = new Thread(() -> {
+        Runnable readTask = () -> {
+            String name = UUID.randomUUID().toString().substring(0,4);
             for (int i = 0; i < scans; i++) {
-                System.out.println("Scanning " + i + "/" + scans);
+                if(failed.get()) {
+                    break;
+                }
+                System.out.println(name + " -> Scanning " + i + "/" + scans);
                 LogIterator<String> iterator = appender.iterator(Direction.FORWARD);
                 int val = 0;
-                while (iterator.hasNext()) {
+                while (iterator.hasNext() && !failed.get()) {
                     String next = iterator.next();
                     String expected = String.valueOf(val++);
                     if (!expected.equals(next)) {
@@ -192,14 +199,23 @@ public abstract class ConcurrencyIT {
                 }
                 if (items != val) {
                     failed.set(true);
-                    assertEquals(items, val);
                 }
+                assertEquals(items, val);
             }
-        });
+        };
+
+
+        int readers = 5;
+        ScheduledExecutorService executor = Executors.newScheduledThreadPool(readers, Threads.namedThreadFactory("reader"));
+        for (int i = 0; i < readers; i++) {
+            executor.schedule(readTask, i, TimeUnit.SECONDS);
+        }
 
         appender.compact();
-        read.start();
-        read.join();
+        executor.shutdown();
+        if(!executor.awaitTermination(3, TimeUnit.HOURS)) {
+            throw new IllegalStateException("Timeout while waiting for read threads");
+        }
 
         assertFalse("Read failed, check logs", failed.get());
 
@@ -234,6 +250,7 @@ public abstract class ConcurrencyIT {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
+                    .disableCompaction()
                     .storageMode(StorageMode.MMAP)
                     .open();
         }
@@ -245,6 +262,7 @@ public abstract class ConcurrencyIT {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
+                    .disableCompaction()
                     .storageMode(StorageMode.RAF_CACHED)
                     .open();
         }
@@ -256,6 +274,7 @@ public abstract class ConcurrencyIT {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
+                    .disableCompaction()
                     .storageMode(StorageMode.OFF_HEAP)
                     .open();
         }

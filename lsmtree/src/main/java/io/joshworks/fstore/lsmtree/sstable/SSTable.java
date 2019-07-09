@@ -11,7 +11,6 @@ import io.joshworks.fstore.index.SparseIndex;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
@@ -67,7 +66,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
     @Override
     public long append(Entry<K, V> data) {
-        long pos = delegate.add(data);
+        long pos = delegate.append(data);
         index.add(data.key, pos);
         return pos;
     }
@@ -101,10 +100,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         delegate.flush();
     }
 
-    @Override
-    public SegmentState rebuildState(long lastKnownPosition) {
-        return delegate.rebuildState(lastKnownPosition, onLoad);
-    }
 
     @Override
     public void delete() {
@@ -189,12 +184,12 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
     @Override
     public SegmentIterator<Entry<K, V>> iterator(long position, Direction direction) {
-        return delegate.entryIterator(position, direction);
+        return delegate.iterator(position, direction);
     }
 
     @Override
     public SegmentIterator<Entry<K, V>> iterator(Direction direction) {
-        return delegate.entryIterator(direction);
+        return delegate.iterator(direction);
     }
 
     @Override

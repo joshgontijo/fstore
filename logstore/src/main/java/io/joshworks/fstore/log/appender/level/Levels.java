@@ -184,8 +184,8 @@ public class Levels<T> {
                 copy.remove(firstIdx + 1);
             }
             //TODO if the program crash after here, then there could be multiple READ_ONLY sources with same data
-            //ideally sources would have the source sources in their header to flag where they're were created from.
-            //on startup read all the source sources from the header and if there's an existing segment, then delete, either the sources
+            //ideally target would have the sources in their header to flag where they're were created from.
+            //on startup read all the source from the header and if there's an existing segment, then delete, either the sources
             //or the target segment
             merged.roll(nextLevel);
             merged.trim();
