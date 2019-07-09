@@ -100,7 +100,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         delegate.flush();
     }
 
-
     @Override
     public void delete() {
         delegate.delete();

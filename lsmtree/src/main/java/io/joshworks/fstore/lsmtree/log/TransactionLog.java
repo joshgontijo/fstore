@@ -5,7 +5,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.compaction.combiner.NoOpCombiner;
-import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.lsmtree.EntryType;
 
 import java.io.File;
@@ -16,14 +15,12 @@ import java.util.function.Consumer;
 public class TransactionLog<K extends Comparable<K>, V> {
 
     private final LogAppender<Record<K, V>> appender;
-    private long lastFlush;
 
     public TransactionLog(File root, Serializer<K> keySerializer, Serializer<V> valueSerializer, String name) {
         this.appender = LogAppender.builder(new File(root, "log"), new RecordSerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new NoOpCombiner<>())
                 .name(name + "-log")
                 .open();
-        this.lastFlush = Log.START;
     }
 
     public long append(Record<K, V> record) {

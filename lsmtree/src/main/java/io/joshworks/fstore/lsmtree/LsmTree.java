@@ -140,19 +140,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             removeSegmentIfCompleted();
         }
 
-        @Override
-        public Entry<K, V> next() {
-            Entry<K, V> entry;
-            do {
-                entry = getNextEntry(segments);
-            } while (entry != null && hasNext() && !EntryType.ADD.equals(entry.type));
-            removeSegmentIfCompleted();
-            if (entry == null) {
-                throw new NoSuchElementException();
-            }
-            return entry;
-        }
-
         private void removeSegmentIfCompleted() {
             Iterator<PeekingIterator<Entry<K, V>>> itit = segments.iterator();
             while (itit.hasNext()) {
@@ -162,6 +149,18 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                     itit.remove();
                 }
             }
+        }
+
+        @Override
+        public Entry<K, V> next() {
+            Entry<K, V> entry;
+            do {
+                entry = getNextEntry(segments);
+            } while (entry != null && hasNext() && !EntryType.ADD.equals(entry.type));
+            if (entry == null) {
+                throw new NoSuchElementException();
+            }
+            return entry;
         }
 
         @Override
@@ -184,9 +183,13 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private Entry<K, V> getNextEntry(List<PeekingIterator<Entry<K, V>>> segmentIterators) {
             if (!segmentIterators.isEmpty()) {
                 PeekingIterator<Entry<K, V>> prev = null;
-                for (PeekingIterator<Entry<K, V>> curr : segmentIterators) {
+                Iterator<PeekingIterator<Entry<K, V>>> itit = segmentIterators.iterator();
+                while (itit.hasNext()) {
+                    PeekingIterator<Entry<K, V>> curr = itit.next();
                     if (!curr.hasNext()) {
-                        continue; //will be removed afterwards
+                        itit.remove();
+                        IOUtils.closeQuietly(curr);
+                        continue;
                     }
                     if (prev == null) {
                         prev = curr;

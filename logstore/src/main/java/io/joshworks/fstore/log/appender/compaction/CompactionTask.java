@@ -54,7 +54,7 @@ public class CompactionTask<T> implements Runnable {
         Log<T> output = null;
         try {
 
-            long newSegmentLogSize = segments.stream().mapToLong(Log::uncompressedSize).sum();
+            long newSegmentLogSize = segments.stream().mapToLong(Log::fileSize).sum();
             long logSize = newSegmentLogSize + LogHeader.BYTES;
 
             String names = Arrays.toString(segments.stream().map(Log::name).toArray());

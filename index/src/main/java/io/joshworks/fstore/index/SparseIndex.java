@@ -104,7 +104,7 @@ public class SparseIndex<K extends Comparable<K>> implements Index<K> {
     }
 
     private IndexEntry<K> fromDisk(K entry) {
-        if (!filter.contains(entry)) {
+        if (filter != null && !filter.contains(entry)) {
             return null;
         }
         Midpoint<K> midpoint = midpoints.getMidpointFor(entry);
