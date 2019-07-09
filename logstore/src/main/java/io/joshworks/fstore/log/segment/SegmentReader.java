@@ -70,7 +70,7 @@ class SegmentReader<T> implements SegmentIterator<T> {
 
     private void fetchEntries() {
         if (segment.closed()) {
-            throw new RuntimeException("Closed segment");
+            throw new RuntimeException("Closed segment: " + segment);
         }
         long pos = readPosition.get();
         if (Direction.FORWARD.equals(direction) && pos >= segment.position()) {

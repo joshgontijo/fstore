@@ -19,8 +19,7 @@ public final class OpenSection {
 
     @Override
     public String toString() {
-        return "{" +
-                ", created=" + created +
+        return "{" + "created=" + created +
                 ", mode=" + mode +
                 ", fileSize=" + fileSize +
                 ", dataSize=" + dataSize +
