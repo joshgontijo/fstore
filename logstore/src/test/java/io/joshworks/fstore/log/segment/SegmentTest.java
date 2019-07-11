@@ -11,6 +11,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.record.RecordHeader;
+import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -36,10 +37,10 @@ public abstract class SegmentTest {
     protected static final int SEGMENT_SIZE = Size.KB.intOf(128);
     private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
 
-    protected Log<String> segment;
+    protected Segment<String> segment;
     private File testFile;
 
-    abstract Log<String> open(File file);
+    abstract Segment<String> open(File file);
 
     @Before
     public void setUp() {
@@ -65,7 +66,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void writePosition_reopen() throws IOException {
+    public void writePosition_reopen() {
         String data = "hello";
         segment.append(data);
         segment.flush();
@@ -436,7 +437,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void position_of_rolled_segment_is_kept_after_reopening() throws IOException {
+    public void position_of_rolled_segment_is_kept_after_reopening() {
         segment.append("a");
         segment.append("b");
         long lastPos = segment.position();
@@ -492,11 +493,30 @@ public abstract class SegmentTest {
     }
 
     @Test(expected = SegmentException.class)
-    public void cannot_acquire_iterator_of_a_segment_marked_for_deletion() throws IOException {
+    public void cannot_acquire_iterator_of_a_segment_marked_for_deletion() {
         SegmentIterator<String> iterator = segment.iterator(Direction.FORWARD);
         segment.delete();
 
         SegmentIterator<String> anotherIterator = segment.iterator(Direction.FORWARD);
+    }
+
+    @Test
+    public void header_is_the_same_after_reopening() {
+        LogHeader original = segment.header;
+        segment.close();
+        segment = open(testFile);
+        LogHeader found = segment.header;
+        assertEquals(original, found);
+    }
+
+    @Test
+    public void header_is_the_same_after_rolling_and_reopening() {
+        segment.roll(1);
+        LogHeader original = segment.header;
+        segment.close();
+        segment = open(testFile);
+        LogHeader found = segment.header;
+        assertEquals(original, found);
     }
 
     private List<Long> writeFully(Log<String> segment) {
@@ -524,7 +544,7 @@ public abstract class SegmentTest {
     public static class CachedSegmentTest extends SegmentTest {
 
         @Override
-        Log<String> open(File file) {
+        Segment<String> open(File file) {
             return new Segment<>(
                     file,
                     StorageMode.RAF_CACHED,
@@ -540,7 +560,7 @@ public abstract class SegmentTest {
     public static class MMapSegmentTest extends RafSegmentTest {
 
         @Override
-        Log<String> open(File file) {
+        Segment<String> open(File file) {
             return new Segment<>(
                     file,
                     StorageMode.MMAP,
@@ -556,7 +576,7 @@ public abstract class SegmentTest {
     public static class RafSegmentTest extends SegmentTest {
 
         @Override
-        Log<String> open(File file) {
+        Segment<String> open(File file) {
             return new Segment<>(
                     file,
                     StorageMode.RAF,

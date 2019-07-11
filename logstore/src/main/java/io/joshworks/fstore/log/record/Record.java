@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.record;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 
-class Record implements Closeable {
+public class Record implements Closeable {
 
     private final ByteBuffer[] buffers = allocateBuffers();
 

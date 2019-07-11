@@ -78,7 +78,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
     }
 
     private boolean skipEntry(StreamMetadata metadata, int version, long timestamp) {
-        return isExpired(timestamp, metadata) || isObsolete(version, metadata) || isTruncatedEntry(version, metadata) || isStreamDeleted(metadata);
+        return isExpired(timestamp, metadata) || isObsolete(version, metadata) || isTruncated(version, metadata) || isStreamDeleted(metadata);
     }
 
     private StreamMetadata getMetadata(String stream) {
@@ -90,7 +90,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
         return metadataOpt.get();
     }
 
-    private boolean isTruncatedEntry(int recordVersion, StreamMetadata metadata) {
+    private boolean isTruncated(int recordVersion, StreamMetadata metadata) {
         return metadata.truncated() && recordVersion <= metadata.truncated;
     }
 

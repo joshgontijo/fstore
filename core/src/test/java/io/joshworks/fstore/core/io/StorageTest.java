@@ -508,6 +508,90 @@ public abstract class StorageTest {
         assertEquals(first.clear(), readBuffer.slice());
     }
 
+    @Test
+    public void can_random_read_position_less_than_current() {
+        byte[] data = {1, 1};
+
+        int written = storage.write(ByteBuffer.wrap(data));
+        assertEquals(data.length, written);
+
+        storage.position(10);
+
+        ByteBuffer readBuffer = ByteBuffer.allocate(data.length);
+        int read = storage.read(0, readBuffer);
+        assertEquals(data.length, read);
+        assertArrayEquals(data, readBuffer.array());
+    }
+
+    @Test
+    public void random_read_of_position_greater_than_current_position_returns_EOF() {
+        byte[] data = {1, 1};
+
+        storage.position(10);
+        int written = storage.write(ByteBuffer.wrap(data));
+        assertEquals(data.length, written);
+
+        storage.position(0);
+
+        ByteBuffer readBuffer = ByteBuffer.allocate(data.length);
+        int read = storage.read(10, readBuffer);
+        assertEquals(EOF, read);
+    }
+
+    @Test
+    public void can_random_write_to_position_greater_than_current() {
+        byte[] data = {1, 1};
+
+        long randWritePos = 200;
+
+        int written = storage.write(randWritePos, ByteBuffer.wrap(data));
+        assertEquals(data.length, written);
+
+        storage.position(randWritePos + written);
+
+        ByteBuffer readBuffer = ByteBuffer.allocate(data.length);
+        int read = storage.read(randWritePos, readBuffer);
+        assertEquals(data.length, read);
+        assertArrayEquals(data, readBuffer.array());
+    }
+
+    @Test
+    public void file_length_is_increased_when_random_write_to_position_greater_than_file_length() {
+        byte[] data = {1, 1};
+        long originalLen = storage.length();
+
+        int written = storage.write(originalLen + 10, ByteBuffer.wrap(data));
+        assertEquals(data.length, written);
+
+        assertTrue(storage.length() > originalLen);
+    }
+
+    @Test
+    public void random_write_does_not_update_internal_position() {
+        storage.write(0, ByteBuffer.wrap(fillWithUniqueBytes()));
+        assertEquals(0, storage.position());
+    }
+
+    @Test
+    public void absolute_write_does_not_advance_storage_position() {
+        byte[] data = fillWithUniqueBytes();
+
+        long pos = storage.position();
+        int written = storage.write(0, ByteBuffer.wrap(data));
+        assertEquals(data.length, written);
+        assertEquals(pos, storage.position());
+    }
+
+    @Test
+    public void gather_write_advances_storage_position() {
+        ByteBuffer data1 = ByteBuffer.wrap(fillWithUniqueBytes());
+        ByteBuffer data2 = ByteBuffer.wrap(fillWithUniqueBytes());
+
+        long pos = storage.position();
+        long written = storage.write(new ByteBuffer[]{data1, data2});
+        assertEquals(pos + written, storage.position());
+    }
+
     private byte[] fillWithUniqueBytes() {
         int entrySize = 255;
         byte[] data = new byte[entrySize];
@@ -524,7 +608,7 @@ public abstract class StorageTest {
         }
     }
 
-    public void data_is_present_after_reopened_test() throws IOException {
+    void data_is_present_after_reopened_test() throws IOException {
         byte[] data = fillWithUniqueBytes();
         storage.write(ByteBuffer.wrap(data));
         storage.write(ByteBuffer.wrap(data));
@@ -541,6 +625,21 @@ public abstract class StorageTest {
         storage.read(data.length, bb);
         assertArrayEquals(data, bb.array());
     }
+
+    @Test
+    public void MEM_SPECIFIC_relative_write_updates_internal_buffer_position() {
+        byte[] data = fillWithUniqueBytes();
+        byte[] garbage = new byte[]{111, 111};
+
+        storage.write(ByteBuffer.wrap(data));
+        storage.write(new ByteBuffer[]{ByteBuffer.wrap(garbage), ByteBuffer.wrap(garbage)});
+
+        ByteBuffer readData = ByteBuffer.allocate(data.length);
+        int read = storage.read(0, readData);
+        assertEquals(data.length, read);
+        assertArrayEquals(data, readData.array());
+    }
+
 
     public static class DiskStorageTest extends StorageTest {
 

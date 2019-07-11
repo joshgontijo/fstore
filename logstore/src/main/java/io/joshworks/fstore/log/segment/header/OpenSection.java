@@ -2,6 +2,8 @@ package io.joshworks.fstore.log.segment.header;
 
 import io.joshworks.fstore.log.segment.WriteMode;
 
+import java.util.Objects;
+
 public final class OpenSection {
     public final long created;
     public final WriteMode mode;
@@ -15,6 +17,23 @@ public final class OpenSection {
         this.fileSize = fileSize;
         this.dataSize = dataSize;
         this.encrypted = encrypted;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        OpenSection that = (OpenSection) o;
+        return created == that.created &&
+                fileSize == that.fileSize &&
+                dataSize == that.dataSize &&
+                encrypted == that.encrypted &&
+                mode == that.mode;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(created, mode, fileSize, dataSize, encrypted);
     }
 
     @Override

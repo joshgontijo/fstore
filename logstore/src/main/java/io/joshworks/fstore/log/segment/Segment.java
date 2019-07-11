@@ -64,7 +64,7 @@ public final class Segment<T> implements Log<T> {
     private final Consumer<FooterWriter> footerWriter;
     private final FooterMap footerMap = new FooterMap();
 
-    protected final LogHeader header;
+    final LogHeader header;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<SegmentIterator> readers = ConcurrentHashMap.newKeySet();
@@ -115,7 +115,7 @@ public final class Segment<T> implements Log<T> {
                 if (writeMode == null) {
                     throw new SegmentException("Segment doesn't exist, WriteMode must be specified");
                 }
-                this.header.writeNew(storage, writeMode, fileLength, segmentDataSize, false); //TODO update for ENCRYPTION
+                this.header.writeNew(writeMode, fileLength, segmentDataSize, false); //TODO update for ENCRYPTION
 
                 this.setPosition(Log.START);
                 this.entries.set(0);
@@ -323,7 +323,7 @@ public final class Segment<T> implements Log<T> {
             if (!markedForDeletion.compareAndSet(false, true)) {
                 return;
             }
-            this.header.writeDeleted(storage);
+            this.header.writeDeleted();
             if (readers.isEmpty()) {
                 deleteInternal();
             } else {
@@ -357,7 +357,7 @@ public final class Segment<T> implements Log<T> {
         long footerEnd = stream.position();
 
         long footerLength = footerEnd - footerStart;
-        this.header.writeCompleted(storage, entries.get(), level, actualDataSize, mapPosition, footerLength, uncompressedSize);
+        this.header.writeCompleted(entries.get(), level, actualDataSize, mapPosition, footerLength, uncompressedSize);
     }
 
     @Override

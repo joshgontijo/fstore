@@ -1,5 +1,7 @@
 package io.joshworks.fstore.log.segment.header;
 
+import java.util.Objects;
+
 public final class CompletedSection {
     public final int level; //segments created are implicit level zero
     public final long entries;
@@ -17,6 +19,25 @@ public final class CompletedSection {
         this.actualDataLength = actualDataLength;
         this.footerMapPosition = footerMapPosition;
         this.footerLength = footerLength;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CompletedSection that = (CompletedSection) o;
+        return level == that.level &&
+                entries == that.entries &&
+                rolled == that.rolled &&
+                uncompressedSize == that.uncompressedSize &&
+                actualDataLength == that.actualDataLength &&
+                footerMapPosition == that.footerMapPosition &&
+                footerLength == that.footerLength;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(level, entries, rolled, uncompressedSize, actualDataLength, footerMapPosition, footerLength);
     }
 
     @Override

@@ -52,7 +52,6 @@ public class EventLog implements IEventLog {
         return appender.iterator(direction, position);
     }
 
-
     @Override
     public void compact() {
         appender.compact();

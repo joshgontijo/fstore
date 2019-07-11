@@ -78,14 +78,7 @@ public class MemIndex {
     }
 
     public LogIterator<IndexEntry> iterator() {
-        var copy = new HashSet<>(index.entrySet()); //iterator is a stateful operation here
-        List<IndexEntry> ordered = copy.stream()
-                .map(Map.Entry::getValue)
-                .flatMap(Collection::stream)
-                .sorted()
-                .collect(Collectors.toList());
-
-        return Iterators.of(ordered);
+        return Iterators.of(index);
     }
 
 

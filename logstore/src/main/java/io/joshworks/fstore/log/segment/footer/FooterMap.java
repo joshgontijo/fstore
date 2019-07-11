@@ -42,7 +42,7 @@ public class FooterMap {
     }
 
     public void load(LogHeader header, DataStream stream) {
-        if (!header.readOnly()) {
+        if (!header.readOnly() || header.footerLength() == 0) {
             return;
         }
 
