@@ -12,34 +12,87 @@ public interface Storage extends Flushable, Closeable {
 
     int EOF = -1;
 
-    int write(ByteBuffer data);
+    /**
+     * RELATIVE WRITE
+     * Writes to current position and increment the written bytes to its internal position.
+     * File will expand to accommodate the new data
+     *
+     * @param src The data to be written
+     * @return The written bytes
+     */
+    int write(ByteBuffer src);
 
-    int write(long position, ByteBuffer data);
+    /**
+     * ABSOLUTE WRITE
+     * Writes to the absolute provide position and does not update the internal position.
+     * File will expand to accommodate the new data.
+     * Writes with position greater than current internal position will expand file to accommodate new data
+     *
+     * @param position The position the should be written
+     * @param src      The data to be written
+     * @return The written bytes
+     */
+    int write(long position, ByteBuffer src);
 
+    /**
+     * ABSOLUTE GATHERING WRITE
+     * Writes to current position and increment the written bytes to its internal position.
+     * File will expand to accommodate the new data
+     *
+     * @param src The data to be written
+     * @return The written bytes
+     */
     long write(ByteBuffer[] src);
 
-    int read(long position, ByteBuffer data);
 
+    /**
+     * ABSOLUTE READ
+     * Reads from a given position, if position is greater than the current internal position, then {@link Storage#EOF} is returned.
+     * Position must be greater or equals zero.
+     * Bytes read will be equals the minimum of data available between source and destination.
+     *
+     * @param position The position the should be written
+     * @param dst      The data destination {@link ByteBuffer} to write the data into
+     * @return The read bytes
+     */
+    int read(long position, ByteBuffer dst);
+
+    /**
+     * The current underlying store length
+     */
     long length();
 
+    /**
+     * Sets the current position for the store
+     * File length will remain unchanged until a write is performed.
+     *
+     * @param position A position equals or greater than zero.
+     */
     void position(long position);
 
+    /**
+     * The current position of write pointer
+     */
     long position();
 
+    /**
+     * Delete and release any locks associated with this store
+     */
     void delete();
 
+    /**
+     * The store name
+     */
     String name();
 
+    /**
+     * Truncates this channel's file to the given size.
+     * If the given size is less than the file's current size then the file is truncated,
+     * discarding any bytes beyond the new end of the file.
+     * If the given size is greater than or equal to the file's current size then the file is not modified.
+     * In either case, if this channel's file position is greater than the given size then it is set to that size.
+     */
     void truncate(long newSize);
-
-//    //position can be set to fileLength
-//    //but if a write is performed, then it should return EOF
-//    default void validateWriteAddress(long position) {
-//        if (position < 0 || position > length()) {
-//            long size = length();
-//            throw new StorageException("Invalid position: " + position + ", valid range: 0 to " + size);
-//        }
-//    }
 
     default boolean hasAvailableData(long readPos) {
         long writePos = position();
@@ -47,8 +100,8 @@ public interface Storage extends Flushable, Closeable {
     }
 
 
-    static void ensureNonEmpty(ByteBuffer data) {
-        if (data.remaining() == 0) {
+    static void ensureNonEmpty(ByteBuffer src) {
+        if (src.remaining() == 0) {
             throw new StorageException("Cannot store empty record");
         }
     }
@@ -62,8 +115,7 @@ public interface Storage extends Flushable, Closeable {
         if (size <= 0) {
             throw new IllegalArgumentException("Storage size must be greater than zero");
         }
-        Storage storage = getStorage(file, mode, size);
-        return storage;
+        return getStorage(file, mode, size);
     }
 
     static Storage open(File file, StorageMode mode) {

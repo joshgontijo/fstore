@@ -57,13 +57,12 @@ public class DiskStorage implements Storage {
     @Override
     public int write(long position, ByteBuffer data) {
         Storage.ensureNonEmpty(data);
-        long pos = position();
         try {
             int written = 0;
             while (data.hasRemaining()) {
                 written += channel.write(data, position);
             }
-            addToSize(pos + written);
+            addToSize(position + written);
             return written;
         } catch (IOException e) {
             throw RuntimeIOException.of(e);

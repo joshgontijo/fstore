@@ -58,11 +58,11 @@ public class TableIndexTest {
         long stream = 1;
 
         tableIndex.add(stream, 0, 0);
-        tableIndex.flush();
+        tableIndex.flush(0);
         tableIndex.add(stream, 1, 0);
-        tableIndex.flush();
+        tableIndex.flush(0);
         tableIndex.add(stream, 2, 0);
-        tableIndex.flush();
+        tableIndex.flush(0);
         tableIndex.add(stream, 3, 0); //memory
 
         LogIterator<IndexEntry> it = tableIndex.indexedIterator(Checkpoint.of(stream));
@@ -93,7 +93,7 @@ public class TableIndexTest {
         int version = 0;
         tableIndex.add(stream, version, 0);
 
-        tableIndex.flush();
+        tableIndex.flush(0);
 
         Optional<IndexEntry> indexEntry = tableIndex.get(stream, version);
 
@@ -119,7 +119,7 @@ public class TableIndexTest {
         int version = 0;
         tableIndex.add(stream, version, 0);
 
-        tableIndex.flush();
+        tableIndex.flush(0);
 
         int foundVersion = tableIndex.version(stream);
 
@@ -131,7 +131,7 @@ public class TableIndexTest {
         long stream = 1;
 
         tableIndex.add(stream, 0, 0);
-        tableIndex.flush();
+        tableIndex.flush(0);
         tableIndex.add(stream, 1, 0);
 
         Stream<IndexEntry> dataStream = tableIndex.indexedIterator(Checkpoint.of(stream)).stream();
@@ -293,7 +293,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        tableIndex.flush();
+        tableIndex.flush(0);
 
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
 
@@ -316,7 +316,7 @@ public class TableIndexTest {
         for (int i = 0; i < entries; i++) {
             tableIndex.add(stream, i, 0);
         }
-        tableIndex.flush();
+        tableIndex.flush(0);
 
         for (int i = entries; i < entries * 2; i++) {
             tableIndex.add(stream, i, 0);
@@ -360,7 +360,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        tableIndex.flush();
+        tableIndex.flush(0);
 
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(someOtherStream))) {
             for (int i = 0; i < entries; i++) {
@@ -438,10 +438,12 @@ public class TableIndexTest {
         long stream2 = 456L;
 
         tableIndex.add(stream2, 0, 0);
-        tableIndex.flush();
+        tableIndex.flush(0);
         tableIndex.add(stream2, 1, 0);
 
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(Set.of(stream1, stream2)))) {
+            assertTrue(iterator.hasNext());
+
             IndexEntry polled = iterator.next();
             assertEquals(stream2, polled.stream);
             assertEquals(0, polled.version);
@@ -466,7 +468,7 @@ public class TableIndexTest {
         assertEquals(stream, polled.stream);
         assertEquals(0, polled.version);
 
-        tableIndex.flush();
+        tableIndex.flush(0);
 
         polled = iterator.next();
         assertEquals(stream, polled.stream);
@@ -486,7 +488,7 @@ public class TableIndexTest {
             assertEquals(0, polled.version);
 
             tableIndex.add(stream, 1, 0);
-            tableIndex.flush();
+            tableIndex.flush(0);
 
             polled = iterator.next();
             assertEquals(stream, polled.stream);

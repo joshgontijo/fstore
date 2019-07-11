@@ -120,7 +120,6 @@ public class TableIndex implements Closeable {
     private IndexIterator applyIteratorFilters(IndexIterator singleIndexIterator) {
 
 
-
         IndexIterator truncatedAware = new TruncatedAwareIterator(metadataSupplier, singleIndexIterator);
         return withMaxCountFilter(truncatedAware);
     }
@@ -149,7 +148,12 @@ public class TableIndex implements Closeable {
                     Threads.sleep(200);
                     continue;
                 }
-                flush();
+                while (!writeQueue.isEmpty()) {
+                    FlushTask task = writeQueue.peek();
+                    flushInternal(task.logPosition, task.memIndex);
+                    writeQueue.poll();
+                }
+
             }
 
         } catch (Exception e) {
@@ -157,24 +161,21 @@ public class TableIndex implements Closeable {
         }
     }
 
-    public synchronized void flush() {
+    private void flushInternal(long logPosition, MemIndex memIndex) {
         if (closed.get()) {
             logger.warn("Index closed, not flushing");
             return;
         }
-        do {
-            logger.info("Writing memindex to disk");
-            long start = System.currentTimeMillis();
-            FlushTask task = writeQueue.peek();
-            if (task == null) {
-                return;
-            }
-            diskIndex.writeToDisk(task.memIndex);
-            writeQueue.poll();
-            long timeTaken = System.currentTimeMillis() - start;
-            logger.info("Index write took {}ms", timeTaken);
-            indexFlushListener.accept(new FlushInfo(task.logPosition, task.memIndex.size(), timeTaken));
-        } while (!writeQueue.isEmpty());
+        long start = System.currentTimeMillis();
+        diskIndex.writeToDisk(memIndex);
+        long timeTaken = System.currentTimeMillis() - start;
+        logger.info("Index write took {}ms", timeTaken);
+        indexFlushListener.accept(new FlushInfo(logPosition, memIndex.size(), timeTaken));
+    }
+
+    public synchronized void flush(long logPosition) {
+        flushInternal(logPosition, memIndex);
+        memIndex = new MemIndex();
     }
 
     //Adds a job to the queue

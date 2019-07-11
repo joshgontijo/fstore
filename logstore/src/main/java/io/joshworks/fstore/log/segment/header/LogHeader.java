@@ -2,11 +2,13 @@ package io.joshworks.fstore.log.segment.header;
 
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.record.ByteBufferChecksum;
+import io.joshworks.fstore.log.record.Record;
 import io.joshworks.fstore.log.segment.CorruptedSegmentException;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.WriteMode;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
 public class LogHeader {
 
@@ -26,9 +28,10 @@ public class LogHeader {
     private OpenSection open;
     private CompletedSection completed;
     private DeletedSection deleted;
+    private final Storage storage;
 
-    private LogHeader() {
-
+    private LogHeader(Storage storage) {
+        this.storage = storage;
     }
 
     public Type type() {
@@ -109,13 +112,6 @@ public class LogHeader {
         return Log.START + dataSize();
     }
 
-//    public long writePosition() {
-//        if (completed == null) {
-//            return open == null ? 0 : BYTES;
-//        }
-//        return LogHeader.BYTES + completed.actualDataLength;
-//    }
-
     public long footerLength() {
         return completed.footerLength;
     }
@@ -133,7 +129,10 @@ public class LogHeader {
     }
 
     public static LogHeader read(Storage storage) {
-        LogHeader header = new LogHeader();
+        if(storage.position() < BYTES) {
+            storage.position(BYTES);
+        }
+        LogHeader header = new LogHeader(storage);
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
 
         storage.read(HEADER_START, bb);
@@ -148,7 +147,7 @@ public class LogHeader {
         return header;
     }
 
-    public void writeNew(Storage storage, WriteMode mode, long fileSize, long dataSize, boolean encrypted) {
+    public void writeNew(WriteMode mode, long fileSize, long dataSize, boolean encrypted) {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.SECTION_SIZE);
         long created = System.currentTimeMillis();
 
@@ -158,11 +157,11 @@ public class LogHeader {
         bb.putLong(dataSize);
         bb.putInt(encrypted ? 1 : 0);
         bb.flip();
-        write(storage, OPEN_SECTION_START, bb);
+        write(OPEN_SECTION_START, bb);
         this.open = new OpenSection(created, mode, fileSize, dataSize, encrypted);
     }
 
-    public void writeCompleted(Storage storage, long entries, int level, long actualDataSize, long footerMapPosition, long footerLength, long uncompressedSize) {
+    public void writeCompleted(long entries, int level, long actualDataSize, long footerMapPosition, long footerLength, long uncompressedSize) {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.SECTION_SIZE);
         long rolledTS = System.currentTimeMillis();
 
@@ -174,17 +173,17 @@ public class LogHeader {
         bb.putLong(rolledTS);
         bb.putLong(uncompressedSize);
         bb.flip();
-        write(storage, COMPLETED_SECTION_START, bb);
+        write(COMPLETED_SECTION_START, bb);
         this.completed = new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerLength, rolledTS, uncompressedSize);
     }
 
-    public void writeDeleted(Storage storage) {
+    public void writeDeleted() {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.SECTION_SIZE);
         long deletedTS = System.currentTimeMillis();
 
         bb.putLong(deletedTS);
         bb.flip();
-        write(storage, DELETED_SECTION_START, bb);
+        write(DELETED_SECTION_START, bb);
         this.deleted = new DeletedSection(deletedTS);
     }
 
@@ -246,7 +245,7 @@ public class LogHeader {
         return bb;
     }
 
-    private static void write(Storage storage, long position, ByteBuffer headerData) {
+    private void write(long position, ByteBuffer headerData) {
         try {
             int dataSize = headerData.remaining();
 
@@ -271,6 +270,21 @@ public class LogHeader {
         } catch (Exception e) {
             throw new RuntimeException("Failed to write header", e);
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LogHeader logHeader = (LogHeader) o;
+        return Objects.equals(open, logHeader.open) &&
+                Objects.equals(completed, logHeader.completed) &&
+                Objects.equals(deleted, logHeader.deleted);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(open, completed, deleted);
     }
 
     @Override

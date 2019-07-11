@@ -54,7 +54,7 @@ class SingleIndexIterator implements IndexIterator {
     }
 
     private boolean fetchEntries() {
-        if (!buffer.isEmpty()) {
+        if (!buffer.isEmpty() || checkpoint.size() == 0) {
             return true;
         }
 
@@ -62,13 +62,15 @@ class SingleIndexIterator implements IndexIterator {
         long startStream = currentStream;
         do {
             int lastReadVersion = checkpoint.get(currentStream);
-            fetchStream(currentStream, lastReadVersion);
+            if (!fetchStream(currentStream, lastReadVersion)) {
+                currentStream = nextStream();
+            }
         } while (startStream != currentStream && buffer.isEmpty());
 
         return !buffer.isEmpty();
     }
 
-    private void fetchStream(long stream, int lastReadVersion) {
+    private boolean fetchStream(long stream, int lastReadVersion) {
         int nextVersion = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
 
         Predicate<IndexEntry> filter = ie -> this.filter(ie, lastReadVersion);
@@ -77,7 +79,7 @@ class SingleIndexIterator implements IndexIterator {
         LogIterator<IndexEntry> filtered = Iterators.filtering(fromDisk, filter);
         if (filtered.hasNext()) {
             addToBuffer(filtered);
-            return;
+            return true;
         }
         Iterator<MemIndex> writeQueueIt = memIndex.apply(direction);
         while (writeQueueIt.hasNext()) {
@@ -85,11 +87,16 @@ class SingleIndexIterator implements IndexIterator {
             LogIterator<IndexEntry> memFiltered = Iterators.filtering(fromMem(index, stream, nextVersion), filter);
             if (memFiltered.hasNext()) {
                 addToBuffer(memFiltered);
+                return true;
             }
         }
+        return false;
     }
 
     protected long nextStream() {
+        if (checkpoint.size() == 0) {
+            return 0;
+        }
         if (!streamIt.hasNext()) {
             streamIt = checkpoint.iterator();
         }
@@ -127,7 +134,11 @@ class SingleIndexIterator implements IndexIterator {
 
     @Override
     public boolean hasNext() {
-        return !buffer.isEmpty() || fetchEntries();
+        boolean b = !buffer.isEmpty() || fetchEntries();
+        if (!b) {
+            System.out.println("");
+        }
+        return b;
     }
 
     @Override
