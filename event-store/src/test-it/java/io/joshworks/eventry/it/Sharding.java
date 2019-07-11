@@ -92,7 +92,7 @@ public class Sharding {
     }
 
     private static LogIterator<EventRecord> fromStreams(String prefix, EventStore... stores) {
-        List<EventLogIterator> its = Arrays.stream(stores).map(s -> s.fromStreams(prefix, true)).collect(Collectors.toList());
+        List<EventLogIterator> its = Arrays.stream(stores).map(s -> s.fromStreams(prefix)).collect(Collectors.toList());
         return Iterators.ordered(its, er -> er.timestamp);
     }
 

@@ -289,20 +289,20 @@ public class EventStore implements IEventStore {
 
     //TODO this requires another method that accepts checkpoint
     @Override
-    public EventLogIterator fromStreams(String streamPrefix, boolean ordered) {
+    public EventLogIterator fromStreams(String streamPrefix) {
         if (StringUtils.isBlank(streamPrefix)) {
             throw new IllegalArgumentException("stream prefix must not be empty");
         }
 
         Set<Long> longs = streams.matchStreamHash(streamPrefix);
-        IndexIterator indexIterator = index.indexedIterator(streamPrefix, streams::matchStreamHash, Checkpoint.of(longs), ordered);
+        IndexIterator indexIterator = index.indexedIterator(streamPrefix, Checkpoint.of(longs), streams::matchStreamHash);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
         return createEventLogIterator(this::tryGetMetadata, indexedLogIterator);
     }
 
     @Override
-    public EventLogIterator fromStreams(Set<StreamName> streamNames, boolean ordered) {
+    public EventLogIterator fromStreams(Set<StreamName> streamNames) {
         if (streamNames.size() == 1) {
             return fromStream(streamNames.iterator().next());
         }
@@ -315,7 +315,7 @@ public class EventStore implements IEventStore {
         Set<Long> hashes = streamNames.stream().map(StreamName::hash).collect(Collectors.toSet());
 
 
-        IndexIterator indexIterator = index.indexedIterator(Checkpoint.of(hashes), ordered);
+        IndexIterator indexIterator = index.indexedIterator(Checkpoint.of(hashes));
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
         return createEventLogIterator(this::tryGetMetadata, indexedLogIterator);
     }

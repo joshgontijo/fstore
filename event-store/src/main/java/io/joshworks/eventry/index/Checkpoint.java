@@ -2,7 +2,8 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.StreamName;
 
-import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -10,7 +11,7 @@ import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
 public class Checkpoint {
 
-    private final Map<Long, Integer> map = new HashMap<>();
+    private final LinkedHashMap<Long, Integer> map = new LinkedHashMap<>();
 
     public void put(long stream, int version) {
         map.put(stream, version);
@@ -81,5 +82,17 @@ public class Checkpoint {
 
     public Set<Long> keySet() {
         return map.keySet();
+    }
+
+    public int get(long stream) {
+        return map.getOrDefault(stream, NO_VERSION);
+    }
+
+    public void update(long stream, int version) {
+        map.put(stream, version);
+    }
+
+    public Iterator<Map.Entry<Long, Integer>> iterator() {
+        return map.entrySet().iterator();
     }
 }

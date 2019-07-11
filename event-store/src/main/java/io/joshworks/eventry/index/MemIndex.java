@@ -5,6 +5,7 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
+import io.vavr.collection.Iterator;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -12,42 +13,32 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class MemIndex {
 
-    private AtomicInteger size = new AtomicInteger();
-    private final SortedMap<Long, List<IndexEntry>> index = new TreeMap<>();
+//    private final SortedMap<Long, List<IndexEntry>> index = new TreeMap<>();
+    private final ConcurrentSkipListSet<IndexEntry> index = new ConcurrentSkipListSet<>();
 
     public synchronized void add(IndexEntry entry) {
-        index.compute(entry.stream, (k, v) -> {
-            if (v == null)
-                v = new ArrayList<>();
-            synchronized (v) {
-                v.add(entry);
-            }
-            return v;
-        });
-        size.incrementAndGet();
+        index.add(entry);
     }
 
     public int version(long stream) {
-        List<IndexEntry> entries = index.get(stream);
-        if (entries == null) {
-            return EventRecord.NO_VERSION;
-        }
-        synchronized (entries) {
-            return entries.get(entries.size() - 1).version;
-        }
+        IndexEntry found = index.floor(IndexEntry.of(stream, Integer.MAX_VALUE, -1));
+        return found == null ? EventRecord.NO_VERSION : found.version;
     }
 
     public int size() {
-        return size.get();
+        return index.size();
     }
 
     public boolean isEmpty() {
@@ -55,15 +46,9 @@ public class MemIndex {
     }
 
     public synchronized LogIterator<IndexEntry> indexedIterator(Direction direction, Range range) {
-        List<IndexEntry> entries = index.get(range.stream);
-        if (entries == null || entries.isEmpty()) {
-            return Iterators.empty();
-        }
-        synchronized (entries) {
-            List<IndexEntry> sliced = slice(entries, range);
-            LogIterator<IndexEntry> entriesIt = Direction.BACKWARD.equals(direction) ? Iterators.reversed(sliced) : Iterators.of(sliced);
-            return Iterators.filtering(entriesIt, inRange(range));
-        }
+        NavigableSet<IndexEntry> sliced = index.subSet(range.start(), range.end());
+        LogIterator<IndexEntry> entriesIt = Direction.BACKWARD.equals(direction) ? Iterators.wrap(sliced.descendingIterator()) : Iterators.of(sliced);
+        return Iterators.filtering(entriesIt, inRange(range));
     }
 
     //optimized to avoid reiterating over all entries in the mem list
@@ -75,8 +60,8 @@ public class MemIndex {
         }
         int lastIdx = idx + (range.end().version - start.version);
         int endIdx = Math.min(entries.size(), lastIdx);
-        List<IndexEntry> subList = List.copyOf(entries.subList(idx, endIdx));
-        return Collections.unmodifiableList(subList);
+        return entries.subList(idx, endIdx);
+//        return List.copyOf(sublist);
     }
 
     private Predicate<IndexEntry> inRange(Range range) { //safe guard
@@ -84,19 +69,12 @@ public class MemIndex {
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
-        List<IndexEntry> entries = index.get(stream);
-        if (entries == null || entries.isEmpty()) {
+        IndexEntry expected = IndexEntry.of(stream, version, -1);
+        IndexEntry found = index.floor(expected);
+        if (!expected.equals(found)) {
             return Optional.empty();
         }
-
-        synchronized (entries) {
-            int firstVersion = entries.get(0).version;
-            int lastVersion = firstVersion + entries.size() - 1;
-            if (version > lastVersion || version < firstVersion) {
-                return Optional.empty();
-            }
-            return Optional.of(entries.get(version - firstVersion));
-        }
+        return Optional.of(found);
     }
 
     public LogIterator<IndexEntry> iterator() {

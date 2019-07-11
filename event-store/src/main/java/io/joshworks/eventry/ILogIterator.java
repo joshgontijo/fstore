@@ -6,9 +6,9 @@ public interface ILogIterator {
 
     EventLogIterator fromStream(StreamName stream);
 
-    EventLogIterator fromStreams(String streamPattern, boolean ordered);
+    EventLogIterator fromStreams(String streamPattern);
 
-    EventLogIterator fromStreams(Set<StreamName> streams, boolean ordered);
+    EventLogIterator fromStreams(Set<StreamName> streams);
 
     EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy);
 

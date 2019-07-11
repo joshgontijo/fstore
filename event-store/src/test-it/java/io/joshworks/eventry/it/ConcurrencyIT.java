@@ -203,7 +203,7 @@ public class ConcurrencyIT {
 
         Map<String, AtomicInteger> counter = new HashMap<>();
         Set<StreamName> streamHashes = streamNames.stream().map(StreamName::parse).collect(Collectors.toSet());
-        try (EventLogIterator events = store.fromStreams(streamHashes, true)) {
+        try (EventLogIterator events = store.fromStreams(streamHashes)) {
             for (int i = 0; i < itemPerThread * threads; i++) {
                 assertTrue("Failed on " + i, events.hasNext());
                 EventRecord event = events.next();
