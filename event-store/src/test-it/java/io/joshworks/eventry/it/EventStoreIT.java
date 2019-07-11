@@ -278,7 +278,7 @@ public class EventStoreIT {
         store.append(EventRecord.create(stream1, "test", Map.of()));
         store.append(EventRecord.create(stream2, "test", Map.of()));
 
-        try (var it = store.fromStreams(Set.of(StreamName.parse(stream1), StreamName.parse(stream2)), true)) {
+        try (var it = store.fromStreams(Set.of(StreamName.parse(stream1), StreamName.parse(stream2)))) {
             assertTrue(it.hasNext());
             assertEquals(0, it.next().version);
 
@@ -319,7 +319,7 @@ public class EventStoreIT {
         }
 
         StreamName eventToQuery = StreamName.parse("test-1");
-        Iterator<EventRecord> eventStream = store.fromStreams(Set.of(eventToQuery), true);
+        Iterator<EventRecord> eventStream = store.fromStreams(Set.of(eventToQuery));
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -444,7 +444,7 @@ public class EventStoreIT {
             store.append(EventRecord.create("someOtherStream", "type", Map.of()));
         }
 
-        Iterator<EventRecord> eventStream = store.fromStreams(streamPrefix, true);
+        Iterator<EventRecord> eventStream = store.fromStreams(streamPrefix);
 
         assertTrue(eventStream.hasNext());
 

@@ -46,6 +46,10 @@ public class Iterators {
         return new ListLogIterator<>(original);
     }
 
+    public static <T> LogIterator<T> wrap(Iterator<T> original) {
+        return new WrappedIterator<>(original);
+    }
+
     public static <T> LogIterator<T> reversed(List<T> original) {
         return new ReversedIterator<>(original);
     }

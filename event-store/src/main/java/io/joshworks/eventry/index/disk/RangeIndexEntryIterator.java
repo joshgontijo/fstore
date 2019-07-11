@@ -53,7 +53,7 @@ final class RangeIndexEntryIterator implements SegmentIterator<IndexEntry> {
         if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
             return;
         }
-        IndexBlock foundBlock = (IndexBlock) blockSegment.get(lowBound.position);
+        IndexBlock foundBlock = (IndexBlock) blockSegment.getBlock(lowBound.position);
         this.lastBlockPos = lowBound.position;
         List<IndexEntry> blockEntries = foundBlock.deserialize(indexEntrySerializer);
         if (Direction.BACKWARD.equals(direction)) {

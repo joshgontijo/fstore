@@ -106,7 +106,7 @@ public class BlockSegment<T> implements Log<T> {
         this.footerReader = delegate.footerReader();
         if (delegate.readOnly()) {
             ByteBuffer blockSegmentInfo = footerReader.read(BLOCK_INFO_FOOTER_ITEM, Serializers.COPY);
-            if(blockSegmentInfo != null) {
+            if (blockSegmentInfo != null) {
                 long bSize = blockSegmentInfo.getLong();
                 uncompressedSize.set(blockSegmentInfo.getLong());
                 compressedSize.set(blockSegmentInfo.getLong());
@@ -189,6 +189,10 @@ public class BlockSegment<T> implements Log<T> {
 
     public long blocks() {
         return delegate.entries();
+    }
+
+    public Block getBlock(long blockPos) {
+        return delegate.get(blockPos);
     }
 
     public List<T> readBlockEntries(long blockPos) {

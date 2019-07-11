@@ -13,12 +13,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -44,9 +41,6 @@ public class TableIndex implements Closeable {
 
     private final Set<SingleIndexIterator> pollers = new HashSet<>();
     private final Consumer<FlushInfo> indexFlushListener;
-
-    //TODO expose ?
-    private static final int MAX_ITEMS_PER_STREAM = 10000;
 
     private MemIndex memIndex = new MemIndex();
 
@@ -94,52 +88,41 @@ public class TableIndex implements Closeable {
         return memIndex.size();
     }
 
-    public IndexIterator indexedIterator(Checkpoint checkpoint) {
-        if (checkpoint.size() > 1) {
-            return indexedIterator(checkpoint, false);
-        }
-        long stream = checkpoint.keySet().iterator().next();
-        return createIterators(checkpoint).get(stream);
-    }
-
     //TODO: IMPLEMENT BACKWARD SCANNING: Backwards scan requires fetching the latest version and adding to the map
     //backward here means that the version will be fetched from higher to lower
     //no guarantees of the order of the streams
-    public IndexIterator indexedIterator(Checkpoint checkpoint, boolean ordered) {
-        if (checkpoint.size() <= 1) {
-            return indexedIterator(checkpoint);
-        }
-
-        Collection<IndexIterator> iterators = createIterators(checkpoint).values();
-
-        return new MultiStreamIndexIterator(iterators, ordered);
+    public IndexIterator indexedIterator(Checkpoint checkpoint) {
+        validateCheckpoint(checkpoint);
+        IndexIterator singleIndexIterator = new SingleIndexIterator(diskIndex, this::memIndices, Direction.FORWARD, checkpoint);
+        return applyIteratorFilters(singleIndexIterator);
     }
 
-    public IndexIterator indexedIterator(String prefix, Function<String, Set<Long>> streamFetcher, Checkpoint checkpoint, boolean ordered) {
+    public IndexIterator indexedIterator(String prefix, Checkpoint checkpoint, Function<String, Set<Long>> streamFetcher) {
+        validateCheckpoint(checkpoint);
 
         //contains all iterators that applies the checkpoints
-        Map<Long, IndexIterator> initialIterators = createIterators(checkpoint);
-
-        Function<String, Map<Long, IndexIterator>> iteratorFactory = (streamPrefix) -> createIteratorsForPrefix(streamPrefix, streamFetcher);
-
-        return new StreamPrefixIndexIterator(prefix, initialIterators, iteratorFactory, ordered);
+        Function<String, Checkpoint> streamMatcher = (streamPrefix) -> createIteratorsForPrefix(streamPrefix, streamFetcher);
+        IndexIterator singleIndexIterator = new StreamPrefixIndexIterator2(diskIndex, this::memIndices, Direction.FORWARD, checkpoint, prefix, streamMatcher);
+        return applyIteratorFilters(singleIndexIterator);
     }
 
-    private Map<Long, IndexIterator> createIteratorsForPrefix(String prefix, Function<String, Set<Long>> streamMatcher) {
+    private Checkpoint createIteratorsForPrefix(String prefix, Function<String, Set<Long>> streamMatcher) {
         Set<Long> found = streamMatcher.apply(prefix);
-        Checkpoint justAWrapper = Checkpoint.of(found);
-        return createIterators(justAWrapper);
+        return Checkpoint.of(found);
     }
 
-    private Map<Long, IndexIterator> createIterators(Checkpoint checkpoint) {
-        Map<Long, IndexIterator> iterators = new HashMap<>();
-        for (Map.Entry<Long, Integer> kv : checkpoint.entrySet()) {
-            IndexIterator singleIndexIterator = new SingleIndexIterator(diskIndex, this::memIndices, Direction.FORWARD, kv.getKey(), kv.getValue(), MAX_ITEMS_PER_STREAM);
-            IndexIterator truncatedAware = new TruncatedAwareIterator(metadataSupplier, singleIndexIterator);
-            IndexIterator withMaxCountFilter = withMaxCountFilter(truncatedAware);
-            iterators.put(kv.getKey(), withMaxCountFilter);
+    private void validateCheckpoint(Checkpoint checkpoint) {
+        if (checkpoint == null || checkpoint.size() == 0) {
+            throw new IllegalArgumentException("Checkpoint must be provided");
         }
-        return iterators;
+    }
+
+    private IndexIterator applyIteratorFilters(IndexIterator singleIndexIterator) {
+
+
+
+        IndexIterator truncatedAware = new TruncatedAwareIterator(metadataSupplier, singleIndexIterator);
+        return withMaxCountFilter(truncatedAware);
     }
 
     private IndexIterator withMaxCountFilter(IndexIterator iterator) {

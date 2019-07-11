@@ -17,7 +17,6 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
@@ -70,7 +69,7 @@ public class IndexSegment implements Log<IndexEntry> {
 
     @Override
     public long append(IndexEntry data) {
-        long pos = delegate.add(data);
+        long pos = delegate.append(data);
         if (pos != Storage.EOF) {
             filter.add(data.stream);
         }
@@ -95,12 +94,12 @@ public class IndexSegment implements Log<IndexEntry> {
 
     @Override
     public SegmentIterator<IndexEntry> iterator(long position, Direction direction) {
-        return new BlockIterator<>(indexEntrySerializer, delegate.iterator(position, direction), direction);
+        return new BlockIterator<>(indexEntrySerializer, delegate.blockIterator(position, direction), direction);
     }
 
     @Override
     public SegmentIterator<IndexEntry> iterator(Direction direction) {
-        return new BlockIterator<>(indexEntrySerializer, delegate.iterator(direction), direction);
+        return new BlockIterator<>(indexEntrySerializer, delegate.blockIterator(direction), direction);
     }
 
     @Override
@@ -126,11 +125,6 @@ public class IndexSegment implements Log<IndexEntry> {
     @Override
     public long remaining() {
         return delegate.remaining();
-    }
-
-    @Override
-    public SegmentState rebuildState(long lastKnownPosition) {
-        return delegate.rebuildState(lastKnownPosition, onLoad);
     }
 
     @Override
@@ -218,7 +212,7 @@ public class IndexSegment implements Log<IndexEntry> {
         int start = Math.max(range.start().version, firstVersion);
         int end = Math.min(range.end().version, lastVersion);
 
-        SegmentIterator<Block> lock = delegate.iterator(Direction.FORWARD);
+        SegmentIterator<Block> lock = delegate.blockIterator(Direction.FORWARD);
         return new RangeIndexEntryIterator(this, direction, range, start, end, lock, delegate, indexEntrySerializer);
     }
 
@@ -232,7 +226,7 @@ public class IndexSegment implements Log<IndexEntry> {
         if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
             return Collections.emptyList();
         }
-        IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
+        IndexBlock foundBlock = (IndexBlock) delegate.getBlock(lowBound.position);
         List<IndexEntry> entries = foundBlock.deserialize(indexEntrySerializer);
         int idx = Collections.binarySearch(entries, start);
         if (idx < 0) { //if not exact match, wasn't found
@@ -252,7 +246,7 @@ public class IndexSegment implements Log<IndexEntry> {
             return Optional.empty();
         }
 
-        IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
+        IndexBlock foundBlock = (IndexBlock) delegate.getBlock(lowBound.position);
         List<IndexEntry> entries = foundBlock.deserialize(indexEntrySerializer);
         int idx = Collections.binarySearch(entries, start);
         if (idx < 0) { //if not exact match, wasn't found
@@ -277,7 +271,7 @@ public class IndexSegment implements Log<IndexEntry> {
             return EventRecord.NO_VERSION;
         }
 
-        IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
+        IndexBlock foundBlock = (IndexBlock) delegate.getBlock(lowBound.position);
         List<IndexEntry> entries = foundBlock.deserialize(indexEntrySerializer);
         int idx = Collections.binarySearch(entries, end);
         idx = idx >= 0 ? idx : Math.abs(idx) - 2;
@@ -303,7 +297,7 @@ public class IndexSegment implements Log<IndexEntry> {
             return EventRecord.NO_VERSION;
         }
 
-        IndexBlock foundBlock = (IndexBlock) delegate.get(lowBound.position);
+        IndexBlock foundBlock = (IndexBlock) delegate.getBlock(lowBound.position);
         List<IndexEntry> entries = foundBlock.deserialize(indexEntrySerializer);
         int idx = Collections.binarySearch(entries, start);
         idx = idx >= 0 ? idx : Math.abs(idx) - 1;

@@ -5,51 +5,51 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 
-import java.util.ArrayDeque;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 class SingleIndexIterator implements IndexIterator {
 
     private final IndexAppender diskIndex;
     private final Function<Direction, Iterator<MemIndex>> memIndex;
+    protected final Checkpoint checkpoint;
     private final Direction direction;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final Queue<IndexEntry> buffer;
-    private final long stream;
-    private int lastReadVersion;
+    private final Queue<IndexEntry> buffer = new ArrayBlockingQueue<>(100);
+    protected long currentStream;
+    protected Iterator<Map.Entry<Long, Integer>> streamIt;
 
-    SingleIndexIterator(IndexAppender diskIndex, Function<Direction, Iterator<MemIndex>> memIndex, Direction direction, long stream, int lastReadVersion) {
-        this(diskIndex, memIndex, direction, stream, lastReadVersion, -1);
-    }
 
-    SingleIndexIterator(IndexAppender diskIndex, Function<Direction, Iterator<MemIndex>> memIndex, Direction direction, long stream, int lastReadVersion, int bufferSize) {
+    SingleIndexIterator(IndexAppender diskIndex, Function<Direction, Iterator<MemIndex>> memIndex, Direction direction, Checkpoint checkpoint) {
         this.diskIndex = diskIndex;
         this.memIndex = memIndex;
-        this.stream = stream;
-        this.lastReadVersion = lastReadVersion;
+        this.checkpoint = checkpoint;
         this.direction = direction;
-        this.buffer = bufferSize <= 0 ? new ArrayDeque<>() : new ArrayBlockingQueue<>(bufferSize);
+        this.streamIt = checkpoint.iterator();
+        this.currentStream = nextStream();
     }
 
     private IndexEntry checkConsistency(IndexEntry ie) {
         if (ie == null) {
             return null;
         }
+        int lastReadVersion = checkpoint.get(currentStream);
         if (Direction.FORWARD.equals(direction) && lastReadVersion >= ie.version) {
             throw new IllegalStateException("Reading already processed version, last processed version: " + lastReadVersion + " read version: " + ie.version);
         }
         if (Direction.BACKWARD.equals(direction) && lastReadVersion <= ie.version) {
             throw new IllegalStateException("Reading already processed version, last processed version: " + lastReadVersion + " read version: " + ie.version);
         }
-        int expected = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
-        if (expected != ie.version) {
-            throw new IllegalStateException("Next expected version: " + expected + " got: " + ie.version + ", stream " + ie.stream);
+        int nextVersion = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
+        if (ie.version != nextVersion) {
+            throw new IllegalStateException("Next expected version: " + nextVersion + " got: " + ie.version + ", stream " + ie.stream);
         }
-        lastReadVersion = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
+        checkpoint.update(currentStream, nextVersion);
         return ie;
     }
 
@@ -57,23 +57,43 @@ class SingleIndexIterator implements IndexIterator {
         if (!buffer.isEmpty()) {
             return true;
         }
+
+        currentStream = nextStream();
+        long startStream = currentStream;
+        do {
+            int lastReadVersion = checkpoint.get(currentStream);
+            fetchStream(currentStream, lastReadVersion);
+        } while (startStream != currentStream && buffer.isEmpty());
+
+        return !buffer.isEmpty();
+    }
+
+    private void fetchStream(long stream, int lastReadVersion) {
         int nextVersion = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
+
+        Predicate<IndexEntry> filter = ie -> this.filter(ie, lastReadVersion);
+
         LogIterator<IndexEntry> fromDisk = Iterators.of(diskIndex.getBlockEntries(stream, nextVersion));
-        LogIterator<IndexEntry> filtered = Iterators.filtering(fromDisk, this::filter);
+        LogIterator<IndexEntry> filtered = Iterators.filtering(fromDisk, filter);
         if (filtered.hasNext()) {
             addToBuffer(filtered);
-            return true;
+            return;
         }
         Iterator<MemIndex> writeQueueIt = memIndex.apply(direction);
         while (writeQueueIt.hasNext()) {
             MemIndex index = writeQueueIt.next();
-            LogIterator<IndexEntry> memFiltered = Iterators.filtering(fromMem(index, stream, nextVersion), this::filter);
+            LogIterator<IndexEntry> memFiltered = Iterators.filtering(fromMem(index, stream, nextVersion), filter);
             if (memFiltered.hasNext()) {
                 addToBuffer(memFiltered);
-                return true;
             }
         }
-        return false;
+    }
+
+    protected long nextStream() {
+        if (!streamIt.hasNext()) {
+            streamIt = checkpoint.iterator();
+        }
+        return streamIt.next().getKey();
     }
 
     private void addToBuffer(LogIterator<IndexEntry> entries) {
@@ -95,8 +115,8 @@ class SingleIndexIterator implements IndexIterator {
         return index.indexedIterator(Direction.FORWARD, Range.of(stream, nextVersion));
     }
 
-    private boolean filter(IndexEntry ie) {
-        if (ie.stream != stream) {
+    private boolean filter(IndexEntry ie, int lastReadVersion) {
+        if (ie.stream != currentStream) {
             return false;
         }
         if (Direction.FORWARD.equals(direction)) {
@@ -128,12 +148,4 @@ class SingleIndexIterator implements IndexIterator {
         closed.set(true);
     }
 
-    @Override
-    public String toString() {
-        return "IndexIterator{" + "direction=" + direction +
-                ", bufferSize=" + buffer.size() +
-                ", stream=" + stream +
-                ", lastReadVersion=" + lastReadVersion +
-                '}';
-    }
 }

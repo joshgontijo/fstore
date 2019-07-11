@@ -3,7 +3,6 @@ package io.joshworks.eventry;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.util.ArrayDeque;
@@ -79,11 +78,6 @@ public class InMemorySegment<T> implements Log<T> {
     @Override
     public long remaining() {
         return 0;
-    }
-
-    @Override
-    public SegmentState rebuildState(long lastKnownPosition) {
-        return null;
     }
 
     @Override

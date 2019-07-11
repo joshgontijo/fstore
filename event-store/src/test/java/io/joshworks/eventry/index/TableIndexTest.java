@@ -4,6 +4,7 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -237,7 +238,7 @@ public class TableIndexTest {
 
     @Test
     public void next_returns_data_from_multiple_streams() throws IOException {
-        int entries = 1500000;
+        int entries = 50000;
         Set<Long> streams = new HashSet<>();
         for (long i = 0; i < entries; i++) {
             streams.add(i);
@@ -246,6 +247,7 @@ public class TableIndexTest {
 
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(streams))) {
 
+            Threads.sleep(100000);
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = iterator.next();
                 assertNotNull(poll);
@@ -416,7 +418,9 @@ public class TableIndexTest {
         Set<Long> streams = LongStream.range(0, numStreams).boxed().collect(Collectors.toSet());
         try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(streams))) {
             for (int i = 0; i < numVersion * numStreams; i++) {
-                Iterators.await(iterator, 500, 10000);
+                if (!Iterators.await(iterator, 500, 10000)) {
+                    throw new IllegalStateException("Read timeout");
+                }
                 IndexEntry entry = iterator.next();
                 if (i % 100000 == 0) {
                     System.out.println("Polled " + i);
@@ -510,27 +514,27 @@ public class TableIndexTest {
         }
     }
 
-    @Test
-    public void multiple_streams_return_ordered_when_parameter_is_true() throws IOException {
-        int versions = 100;
-        long streams = 1000;
-
-        long pos = 0;
-        for (long stream = 0; stream < streams; stream++) {
-            for (int version = 0; version < versions; version++) {
-                tableIndex.add(stream, version, pos++);
-            }
-        }
-
-        long lastPos = -1;
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(Set.of(200L, 1L, 500L)), true)) {
-            while (iterator.hasNext()) {
-                IndexEntry ie = iterator.next();
-                assertTrue(ie.position > lastPos);
-                lastPos = ie.position;
-            }
-        }
-    }
+//    @Test
+//    public void multiple_streams_return_ordered_when_parameter_is_true() throws IOException {
+//        int versions = 100;
+//        long streams = 1000;
+//
+//        long pos = 0;
+//        for (long stream = 0; stream < streams; stream++) {
+//            for (int version = 0; version < versions; version++) {
+//                tableIndex.add(stream, version, pos++);
+//            }
+//        }
+//
+//        long lastPos = -1;
+//        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(Set.of(200L, 1L, 500L)))) {
+//            while (iterator.hasNext()) {
+//                IndexEntry ie = iterator.next();
+//                assertTrue(ie.position > lastPos);
+//                lastPos = ie.position;
+//            }
+//        }
+//    }
 
     @Test
     public void indexedIterator_finds_all_entries() throws IOException {
@@ -561,10 +565,10 @@ public class TableIndexTest {
     public void indexedIterator_finds_all_entries_with_multiple_streams() throws IOException {
 
         Set<Long> streams = Set.of(12L, -3L, 10L, 3000L, -100L, -300L, 0L, -20L, 60L);
-        int versions = 499999;
+        int maxVersion = 499999;
 
         for (long stream : streams) {
-            for (int version = 0; version < versions; version++) {
+            for (int version = 0; version < maxVersion; version++) {
                 tableIndex.add(stream, version, 0);
             }
         }
@@ -585,7 +589,7 @@ public class TableIndexTest {
             Long stream = kv.getKey();
             Integer lastVersion = kv.getValue();
 
-            assertEquals("Failed total read stream items of stream " + stream, Integer.valueOf(versions - 1), lastVersion);
+            assertEquals("Failed total read stream items of stream " + stream, Integer.valueOf(maxVersion - 1), lastVersion);
         }
     }
 
