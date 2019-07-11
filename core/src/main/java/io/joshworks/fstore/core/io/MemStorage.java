@@ -50,9 +50,16 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public int write(ByteBuffer src) {
-        int written = append(src);
-        position.addAndGet(written);
-        return written;
+        Storage.ensureNonEmpty(src);
+        ensureCapacity(position(), src.remaining());
+        Lock lock = readLock();
+        try {
+            int written = append(src);
+            position.addAndGet(written);
+            return written;
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Override
@@ -108,11 +115,7 @@ public abstract class MemStorage implements Storage {
     }
 
     private int append(ByteBuffer src) {
-        Storage.ensureNonEmpty(src);
-
         long position = position();
-        ensureCapacity(position, src.remaining());
-
         int len = src.remaining();
         while (src.hasRemaining()) {
             ByteBuffer dst = BufferUtil.getBuffer(buffers, position);
@@ -123,13 +126,21 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public long write(ByteBuffer[] srcs) {
+
+        long currPos = position();
+        long totalLen = 0;
+        for (ByteBuffer src : srcs) {
+            totalLen += src.remaining();
+        }
+        ensureCapacity(currPos, totalLen);
+
         Lock lock = readLock();
         try {
             long written = 0;
             for (ByteBuffer src : srcs) {
                 written += append(src);
             }
-            position.addAndGet(written);
+            this.position.addAndGet(written);
             return written;
         } finally {
             lock.unlock();

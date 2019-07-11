@@ -592,6 +592,40 @@ public abstract class StorageTest {
         assertEquals(pos + written, storage.position());
     }
 
+    @Test
+    public void gather_write_expand_file_when_no_total_of_remaining_items_is_greater_than_store_space() {
+        long originalLen = storage.length();
+
+        byte[] data = fillWithUniqueBytes();
+        fillWith(storage, data);
+
+        storage.write(new ByteBuffer[]{ByteBuffer.allocate(data.length * 5), ByteBuffer.allocate(data.length * 5)});
+        assertTrue(originalLen < storage.length());
+    }
+
+    @Test
+    public void absolute_write_expand_file_when_no_total_of_remaining_items_is_greater_than_store_space() {
+
+        long originalLen = storage.length();
+
+        byte[] data = fillWithUniqueBytes();
+        fillWith(storage, data);
+
+        storage.write(storage.position(), ByteBuffer.allocate(data.length * 5));
+        assertTrue(originalLen < storage.length());
+    }
+
+    @Test
+    public void relative_write_expand_file_when_no_total_of_remaining_items_is_greater_than_store_space() {
+        long originalLen = storage.length();
+
+        byte[] data = fillWithUniqueBytes();
+        fillWith(storage, data);
+
+        storage.write(ByteBuffer.allocate(data.length * 5));
+        assertTrue(originalLen < storage.length());
+    }
+
     private byte[] fillWithUniqueBytes() {
         int entrySize = 255;
         byte[] data = new byte[entrySize];
