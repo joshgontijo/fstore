@@ -123,17 +123,8 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public long write(ByteBuffer[] srcs) {
-
-        long totalLen = 0;
-        for (ByteBuffer src : srcs) {
-            totalLen += src.remaining();
-        }
-
         Lock lock = readLock();
         try {
-            long initialPosition = position();
-            ensureCapacity(initialPosition, totalLen);
-
             long written = 0;
             for (ByteBuffer src : srcs) {
                 written += append(src);
