@@ -108,7 +108,10 @@ public abstract class MemStorage implements Storage {
     }
 
     private int append(ByteBuffer src) {
+        Storage.ensureNonEmpty(src);
+
         long position = position();
+        ensureCapacity(position, src.remaining());
 
         int len = src.remaining();
         while (src.hasRemaining()) {
