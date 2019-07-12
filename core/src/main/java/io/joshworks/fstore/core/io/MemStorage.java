@@ -54,7 +54,8 @@ public abstract class MemStorage implements Storage {
         ensureCapacity(position(), src.remaining());
         Lock lock = readLock();
         try {
-            int written = append(src);
+            long currPos = position();
+            int written = append(src, currPos);
             position.addAndGet(written);
             return written;
         } finally {
@@ -114,12 +115,11 @@ public abstract class MemStorage implements Storage {
         }
     }
 
-    private int append(ByteBuffer src) {
-        long position = position();
+    private int append(ByteBuffer src, long pos) {
         int len = src.remaining();
         while (src.hasRemaining()) {
-            ByteBuffer dst = BufferUtil.getBuffer(buffers, position);
-            position += addToBuffer(src, dst);
+            ByteBuffer dst = BufferUtil.getBuffer(buffers, pos);
+            pos += addToBuffer(src, dst);
         }
         return len;
     }
@@ -138,7 +138,7 @@ public abstract class MemStorage implements Storage {
         try {
             long written = 0;
             for (ByteBuffer src : srcs) {
-                written += append(src);
+                written += append(src, currPos + written);
             }
             this.position.addAndGet(written);
             return written;
@@ -212,6 +212,7 @@ public abstract class MemStorage implements Storage {
 
     @Override
     public void delete() {
+
         close();
     }
 
