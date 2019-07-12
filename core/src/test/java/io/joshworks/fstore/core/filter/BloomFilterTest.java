@@ -1,7 +1,7 @@
 package io.joshworks.fstore.core.filter;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.utils.Utils;
+import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,14 +22,13 @@ public class BloomFilterTest {
 
     @Before
     public void setUp() {
-        testFolder = Utils.testFolder();
+        testFolder = FileUtils.testFolder();
         filter = openFilter();
-
     }
 
     @After
     public void tearDown() {
-        Utils.tryDelete(testFolder);
+        FileUtils.tryDelete(testFolder);
     }
 
     private BloomFilter<Long> openFilter() {

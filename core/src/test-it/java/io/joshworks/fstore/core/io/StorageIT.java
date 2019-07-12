@@ -2,7 +2,7 @@ package io.joshworks.fstore.core.io;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.core.utils.Utils;
+import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -14,14 +14,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 
 import static io.joshworks.fstore.core.io.Storage.EOF;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public abstract class StorageIT {
 
     private static final long STORAGE_SIZE = Size.GB.of(2);
+    private static final long MAX_DISK_USAGE = Size.GB.of(15);
     private Storage storage;
     private File testFile;
 
@@ -29,46 +32,87 @@ public abstract class StorageIT {
 
     @Before
     public void setUp() {
-        testFile = Utils.testFile();
+        testFile = FileUtils.testFile();
         storage = store(testFile, STORAGE_SIZE);
     }
 
     @After
     public void cleanup() {
         IOUtils.closeQuietly(storage);
-        Utils.tryDelete(testFile);
+        FileUtils.tryDelete(testFile);
     }
 
     @Test
-    public void write_read_8GB() {
+    public void write_read_8GB_relative() {
         byte[] data = fillWithUniqueBytes();
 
-        long written = 0;
-        long entries = 0;
-        long total = Size.GB.of(8);
-        while (written < total) {
-            written += storage.write(ByteBuffer.wrap(data));
-            if (entries++ % 1000000 == 0) {
-                System.out.println("Written: " + written + "/" + total);
+        BiFunction<Long, ByteBuffer, Long> writeFnc = (pos, bb) -> (long) storage.write(bb);
+
+        long totalEntries = writeFully(writeFnc);
+        readAll(data, totalEntries);
+    }
+
+    @Test
+    public void write_read_8GB_absolute() {
+        byte[] data = fillWithUniqueBytes();
+
+        BiFunction<Long, ByteBuffer, Long> writeFnc = (pos, bb) -> (long) storage.write(pos, bb);
+
+        long totalEntries = writeFully(writeFnc);
+        storage.position(storage.length());
+
+        readAll(data, totalEntries);
+    }
+
+    @Test
+    public void write_read_8GB_gather() {
+        byte[] data = fillWithUniqueBytes();
+
+        BiFunction<Long, ByteBuffer, Long> writeFnc = (pos, bb) -> storage.write(new ByteBuffer[]{bb});
+
+        long totalEntries = writeFully(writeFnc);
+        readAll(data, totalEntries);
+    }
+
+    private long writeFully(BiFunction<Long, ByteBuffer, Long> writeFnc) {
+        byte[] data = fillWithUniqueBytes();
+
+        long totalEntries = Size.GB.of(8) / data.length;
+        long pos = 0;
+        for (int i = 0; i < totalEntries; i++) {
+            long written = writeFnc.apply(pos, ByteBuffer.wrap(data));
+            assertEquals(data.length, written);
+            pos += written;
+            diskUsageCheck();
+            if (i % 1000000 == 0) {
+                System.out.println("Written: " + i + "/" + totalEntries);
             }
         }
-        System.out.println("Written: " + written + "/" + total);
+        System.out.println("Written: " + totalEntries + "/" + totalEntries);
+        return totalEntries;
+    }
 
-        ByteBuffer readBuffer = ByteBuffer.allocate(data.length);
-        long totalRead = 0;
-        entries = 0;
-        do {
-            int read = storage.read(totalRead, readBuffer);
+    private void diskUsageCheck() {
+        if (storage.length() >= MAX_DISK_USAGE) {
+            throw new IllegalStateException("MAX DISK USAGE REACHED: " + storage.name());
+        }
+    }
+
+    private void readAll(byte[] dataChunk, long numEntries) {
+        ByteBuffer readBuffer = ByteBuffer.allocate(dataChunk.length);
+        long pos = 0;
+        for (int i = 0; i < numEntries; i++) {
+            int read = storage.read(pos, readBuffer);
+            assertEquals(dataChunk.length, read);
             readBuffer.flip();
-            assertArrayEquals("Failed response assertion on position " + totalRead, data, readBuffer.array());
+            pos += read;
+            assertArrayEquals("Failed response assertion on entry: " + i + "position " + pos, dataChunk, readBuffer.array());
             readBuffer.clear();
-            totalRead += read;
-            if (entries++ % 1000000 == 0) {
-                System.out.println("Read: " + totalRead + "/" + written);
+            if (i % 1000000 == 0) {
+                System.out.println("Read: " + i + "/" + numEntries);
             }
-
-        } while (totalRead < written);
-        System.out.println("Read: " + totalRead + "/" + written);
+        }
+        System.out.println("Read: " + numEntries + "/" + numEntries);
     }
 
     @Test
