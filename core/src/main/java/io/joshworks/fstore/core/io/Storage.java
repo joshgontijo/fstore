@@ -112,6 +112,7 @@ public interface Storage extends Flushable, Closeable {
 
     static Storage create(File file, StorageMode mode, long size) {
         requireNonNull(file, "File must be provided");
+        requireNonNull(mode, "StorageMode must be provided");
         if (size <= 0) {
             throw new IllegalArgumentException("Storage size must be greater than zero");
         }

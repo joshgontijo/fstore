@@ -96,9 +96,6 @@ public final class Segment<T> implements Log<T> {
 
         this.footerWriter = footerWriter;
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
-        if (!Files.exists(file.toPath()) && (segmentDataSize <= 0 || writeMode == null)) {
-            throw new IllegalStateException("segmentDataSize and writeMode must be provided when creating segment");
-        }
 
         Storage storage = null;
         try {

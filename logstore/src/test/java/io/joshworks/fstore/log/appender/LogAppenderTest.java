@@ -231,7 +231,7 @@ public abstract class LogAppenderTest {
     @Test
     public void when_reopened_the_index_returns_all_items() {
 
-        int entries = 100000;
+        int entries = 110000;
         for (int i = 0; i < entries; i++) {
             appender.append(String.valueOf(i));
         }

@@ -2,6 +2,9 @@ package io.joshworks.fstore.core.io;
 
 import java.nio.ByteBuffer;
 
+/**
+ * Heap storage, closing have no effect on the data, it will remain available until {@link Storage#delete()} is called
+ */
 public class HeapStorage extends MemStorage {
 
     HeapStorage(String name, long size) {
@@ -14,6 +17,12 @@ public class HeapStorage extends MemStorage {
 
     @Override
     protected void destroy(ByteBuffer buffer) {
-        buffer.clear(); //just reset the buffer, no data will be deleted
+       //do nothing
+    }
+
+    @Override
+    public void delete() {
+        buffers.clear();
+        super.delete();
     }
 }
