@@ -72,7 +72,6 @@ public class IndexTest {
         index.writeTo(writer);
 
         index = SparseIndex.builder(Serializers.VSTRING, reader).build();
-        index.load();
 
 
         long start = System.currentTimeMillis();

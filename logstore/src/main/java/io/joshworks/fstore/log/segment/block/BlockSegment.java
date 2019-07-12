@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class BlockSegment<T> implements Log<T> {
 
@@ -32,6 +33,7 @@ public class BlockSegment<T> implements Log<T> {
     private final BlockFactory blockFactory;
     private final BiConsumer<Long, Block> blockWriteListener;
     private final BiConsumer<Long, Block> onBlockLoaded;
+    private Consumer<FooterWriter> footerWriter;
     protected Block block;
 
     private final int blockSize;
@@ -67,8 +69,8 @@ public class BlockSegment<T> implements Log<T> {
                 readPageSize,
                 (p, b) -> {
                 },
-                (p, b) -> {
-                });
+                (p, b) -> {},
+                fWriter -> {});
     }
 
     public BlockSegment(File file,
@@ -83,13 +85,15 @@ public class BlockSegment<T> implements Log<T> {
                         double checksumProb,
                         int readPageSize,
                         BiConsumer<Long, Block> blockWriteListener,
-                        BiConsumer<Long, Block> onBlockLoaded) {
+                        BiConsumer<Long, Block> onBlockLoaded,
+                        Consumer<FooterWriter> footerWriter) {
 
         this.serializer = serializer;
         this.blockFactory = blockFactory;
         this.blockSize = blockSize;
         this.blockWriteListener = blockWriteListener;
         this.onBlockLoaded = onBlockLoaded;
+        this.footerWriter = footerWriter;
         this.block = blockFactory.create(blockSize);
         this.delegate = new Segment<>(
                 file,
@@ -113,7 +117,6 @@ public class BlockSegment<T> implements Log<T> {
                 entries.set(blockSegmentInfo.getLong());
             }
         }
-
     }
 
     private void writeFooter(FooterWriter writer) {
@@ -125,6 +128,8 @@ public class BlockSegment<T> implements Log<T> {
         blockSegmentInfo.flip();
 
         writer.write(BLOCK_INFO_FOOTER_ITEM, blockSegmentInfo);
+
+        footerWriter.accept(writer);
     }
 
     @Override
@@ -294,7 +299,7 @@ public class BlockSegment<T> implements Log<T> {
         delegate.trim();
     }
 
-    public int processEntries(List<RecordEntry<Block>> items) {
+    private int processEntries(List<RecordEntry<Block>> items) {
         int entryCount = 0;
         for (RecordEntry<Block> recordEntry : items) {
             Block block = recordEntry.entry();
@@ -322,11 +327,24 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize) {
-        return factory(codec, blockSize, VLenBlock.factory());
+        return factory(codec, blockSize, VLenBlock.factory(), (a, b) -> {}, (l, block) -> {}, fWriter -> {});
     }
 
-    public static <T> SegmentFactory<T> factory(Codec codec, int blockSize, BlockFactory blockFactory) {
-        return (file, storageMode, dataLength, serializer, bufferPool, writeMode, checksumProb, readPageSize) -> new BlockSegment<>(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, checksumProb, readPageSize);
+    public static <T> SegmentFactory<T> factory(Codec codec,
+                                                int blockSize,
+                                                BiConsumer<Long, Block> blockWriteListener,
+                                                BiConsumer<Long, Block> onBlockLoaded,
+                                                Consumer<FooterWriter> footerWriter) {
+        return factory(codec, blockSize, VLenBlock.factory(), blockWriteListener, onBlockLoaded, footerWriter);
+    }
+
+    public static <T> SegmentFactory<T> factory(Codec codec,
+                                                int blockSize,
+                                                BlockFactory blockFactory,
+                                                BiConsumer<Long, Block> blockWriteListener,
+                                                BiConsumer<Long, Block> onBlockLoaded,
+                                                Consumer<FooterWriter> footerWriter) {
+        return (file, storageMode, dataLength, serializer, bufferPool, writeMode, checksumProb, readPageSize) -> new BlockSegment<>(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, checksumProb, readPageSize, blockWriteListener, onBlockLoaded, footerWriter);
     }
 
     @Override
