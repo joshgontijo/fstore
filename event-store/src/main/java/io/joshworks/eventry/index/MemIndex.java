@@ -5,27 +5,18 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.vavr.collection.Iterator;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Optional;
-import java.util.SortedMap;
-import java.util.SortedSet;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 public class MemIndex {
 
-//    private final SortedMap<Long, List<IndexEntry>> index = new TreeMap<>();
+    //    private final SortedMap<Long, List<IndexEntry>> index = new TreeMap<>();
     private final ConcurrentSkipListSet<IndexEntry> index = new ConcurrentSkipListSet<>();
 
     public synchronized void add(IndexEntry entry) {
@@ -34,7 +25,10 @@ public class MemIndex {
 
     public int version(long stream) {
         IndexEntry found = index.floor(IndexEntry.of(stream, Integer.MAX_VALUE, -1));
-        return found == null ? EventRecord.NO_VERSION : found.version;
+        if (found == null || found.stream != stream) {
+            return EventRecord.NO_VERSION;
+        }
+        return found.version;
     }
 
     public int size() {

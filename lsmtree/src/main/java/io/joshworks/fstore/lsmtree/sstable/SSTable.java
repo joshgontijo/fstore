@@ -15,11 +15,13 @@ import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
@@ -30,15 +32,17 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     private final Serializer<K> keySerializer;
     private Index<K> index;
 
-    public SSTable(File file,
-                   StorageMode mode,
-                   long size,
-                   Serializer<K> keySerializer,
-                   Serializer<V> valueSerializer,
-                   BufferPool bufferPool,
-                   WriteMode writeMode,
-                   double checksumProb,
-                   int readPageSize) {
+    private static BiConsumer<Long, Block> BLOCK_WRITE_LISTENER = (a, b) -> {};
+
+    SSTable(File file,
+            StorageMode mode,
+            long size,
+            Serializer<K> keySerializer,
+            Serializer<V> valueSerializer,
+            BufferPool bufferPool,
+            WriteMode writeMode,
+            double checksumProb,
+            int readPageSize) {
 
         this.keySerializer = keySerializer;
         this.kvSerializer = new EntrySerializer<>(keySerializer, valueSerializer);
@@ -55,13 +59,17 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                 MAX_BLOCK_SIZE,
                 checksumProb,
                 readPageSize,
-                (a, b) -> {
-                },
-                this::processBlockEntries);
+                BLOCK_WRITE_LISTENER,
+                this::processBlockEntries,
+                this::footerWriter);
 
-        if (index == null) {
+        if (index == null) { //processBlockEntries might create before
             index = SparseIndex.builder(keySerializer, delegate.footerReader()).build();
         }
+    }
+
+    private void footerWriter(FooterWriter writer) {
+        index.writeTo(writer);
     }
 
     @Override
@@ -86,9 +94,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     private void processBlockEntries(long blockPos, Block block) {
-        if (index == null) {
-            index = SparseIndex.builder(keySerializer, delegate.footerReader()).build();
-        }
+        index = SparseIndex.builder(keySerializer, delegate.footerReader()).build();
 
         List<Entry<K, V>> entries = block.deserialize(kvSerializer);
         for (Entry<K, V> entry : entries) {

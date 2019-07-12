@@ -91,7 +91,7 @@ public final class Segment<T> implements Log<T> {
             WriteMode writeMode,
             double checksumProb,
             int readPageSize,
-            Function<List<RecordEntry<T>>, Integer> onLoad,
+            Function<List<RecordEntry<T>>, Integer> onEntryLoaded,
             Consumer<FooterWriter> footerWriter) {
 
         this.footerWriter = footerWriter;
@@ -121,7 +121,7 @@ public final class Segment<T> implements Log<T> {
                 this.entries.set(header.entries());
                 this.setPosition(header.logicalSize());
                 if (Type.LOG_HEAD.equals(header.type())) {
-                    SegmentState result = rebuildState(onLoad);
+                    SegmentState result = rebuildState(onEntryLoaded);
                     this.setPosition(result.position);
                     this.entries.set(result.entries);
                 }

@@ -80,18 +80,23 @@ public class SparseIndex<K extends Comparable<K>> implements Index<K> {
         this.bfFalseNegativeProb = bfFalseNegativeProb;
         this.reader = reader;
         this.blockFactory = blockFactory;
+        this.load();
     }
 
     public static <K extends Comparable<K>> Builder<K> builder(Serializer<K> serializer, FooterReader reader) {
         return new Builder<>(serializer, reader);
     }
 
-    public void load() {
+    private void load() {
         ByteBuffer blockData = reader.read(MIDPOINT_BLOCK, Serializers.COPY);
-        this.midpoints.deserialize(blockData, keySerializer);
+        if (blockData != null) {
+            this.midpoints.deserialize(blockData, keySerializer);
+        }
 
         ByteBuffer bfData = reader.read(BLOOM_FILTER_BLOCK, Serializers.COPY);
-        this.filter = BloomFilter.load(bfData, keySerializer);
+        if (blockData != null) {
+            this.filter = BloomFilter.load(bfData, keySerializer);
+        }
     }
 
     @Override

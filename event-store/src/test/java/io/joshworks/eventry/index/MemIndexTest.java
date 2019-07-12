@@ -449,7 +449,16 @@ public class MemIndexTest {
     }
 
     @Test
-    public void version_is_minus_one_for_non_existing_stream() {
+    public void version_of_non_existing_stream_is_NO_VERSION() {
+        int version = index.version(1234);
+        assertEquals(EventRecord.NO_VERSION, version);
+    }
+
+    @Test
+    public void version_of_non_existing_stream_is_NO_VERSION_when_index_is_not_empty() {
+        index.add(IndexEntry.of(1, 0, 0));
+        index.add(IndexEntry.of(1, 1, 0));
+        index.add(IndexEntry.of(1, 2, 0));
         int version = index.version(1234);
         assertEquals(EventRecord.NO_VERSION, version);
     }

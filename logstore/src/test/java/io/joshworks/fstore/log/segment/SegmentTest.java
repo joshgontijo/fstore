@@ -50,7 +50,8 @@ public abstract class SegmentTest {
 
     @After
     public void cleanup() {
-        segment.delete();
+        IOUtils.closeQuietly(segment);
+        FileUtils.tryDelete(testFile);
     }
 
     @Test

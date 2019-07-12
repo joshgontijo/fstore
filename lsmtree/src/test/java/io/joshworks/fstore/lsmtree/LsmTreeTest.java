@@ -9,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -101,4 +102,21 @@ public class LsmTreeTest {
         }
     }
 
+    @Test
+    public void can_iterator_over_entries_after_reopening() throws IOException {
+        int items = 10000;
+        for (int i = 0; i < items; i++) {
+            lsmtree.put(i, String.valueOf(i));
+        }
+
+        lsmtree.close();
+
+        lsmtree = LsmTree.open(file, Serializers.INTEGER, Serializers.VSTRING, 100);
+
+        for (int i = 0; i < items; i++) {
+            String val = lsmtree.get(i);
+            assertEquals(String.valueOf(i), val);
+        }
+
+    }
 }
