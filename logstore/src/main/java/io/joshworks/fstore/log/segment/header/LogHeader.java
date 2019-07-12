@@ -2,7 +2,6 @@ package io.joshworks.fstore.log.segment.header;
 
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.record.ByteBufferChecksum;
-import io.joshworks.fstore.log.record.Record;
 import io.joshworks.fstore.log.segment.CorruptedSegmentException;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -129,14 +128,11 @@ public class LogHeader {
     }
 
     public static LogHeader read(Storage storage) {
-        if(storage.position() < BYTES) {
+        if (storage.position() < BYTES) {
             storage.position(BYTES);
         }
         LogHeader header = new LogHeader(storage);
-        ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
-
-        storage.read(HEADER_START, bb);
-        bb.flip();
+        ByteBuffer bb = readHeader(storage);
         if (bb.remaining() == 0) {
             return header;
         }
@@ -145,6 +141,12 @@ public class LogHeader {
         header.deleted = readDeletedSection(bb);
 
         return header;
+    }
+
+    private static ByteBuffer readHeader(Storage storage) {
+        ByteBuffer bb = ByteBuffer.allocate(LogHeader.BYTES);
+        storage.read(HEADER_START, bb);
+        return bb.flip();
     }
 
     public void writeNew(WriteMode mode, long fileSize, long dataSize, boolean encrypted) {
@@ -159,6 +161,7 @@ public class LogHeader {
         bb.flip();
         write(OPEN_SECTION_START, bb);
         this.open = new OpenSection(created, mode, fileSize, dataSize, encrypted);
+        verifyWrite();
     }
 
     public void writeCompleted(long entries, int level, long actualDataSize, long footerMapPosition, long footerLength, long uncompressedSize) {
@@ -175,6 +178,14 @@ public class LogHeader {
         bb.flip();
         write(COMPLETED_SECTION_START, bb);
         this.completed = new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerLength, rolledTS, uncompressedSize);
+        verifyWrite();
+    }
+
+    private void verifyWrite() {
+        LogHeader readHeader = read(storage);
+        if (!this.equals(readHeader)) {
+            throw new IllegalStateException("Failed to write header, expected: " + this + " got: " + readHeader);
+        }
     }
 
     public void writeDeleted() {
@@ -185,6 +196,7 @@ public class LogHeader {
         bb.flip();
         write(DELETED_SECTION_START, bb);
         this.deleted = new DeletedSection(deletedTS);
+        verifyWrite();
     }
 
     private static OpenSection readOpenSection(ByteBuffer bb) {

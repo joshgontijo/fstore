@@ -50,8 +50,7 @@ public abstract class SegmentTest {
 
     @After
     public void cleanup() {
-        IOUtils.closeQuietly(segment);
-        FileUtils.tryDelete(testFile);
+        segment.delete();
     }
 
     @Test
@@ -517,6 +516,21 @@ public abstract class SegmentTest {
         segment = open(testFile);
         LogHeader found = segment.header;
         assertEquals(original, found);
+    }
+
+    @Test
+    public void fill_with() {
+        long pos = -1;
+        int i = 0;
+        do {
+            pos = segment.append(String.valueOf(i++));
+        } while(pos != -1);
+
+        segment.roll(1);
+        segment.close();
+
+        segment = open(testFile);
+
     }
 
     private List<Long> writeFully(Log<String> segment) {
