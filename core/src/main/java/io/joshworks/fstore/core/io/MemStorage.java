@@ -109,7 +109,7 @@ public abstract class MemStorage implements Storage {
     }
 
     protected void ensureCapacity(long position, long entrySize) {
-        if (!hasEnoughSpace(entrySize, position) || position >= length()) {
+        if (!hasEnoughSpace(entrySize, position)) {
             expand(entrySize, position);
         }
     }
