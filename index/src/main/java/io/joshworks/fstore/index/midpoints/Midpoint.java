@@ -5,11 +5,11 @@ import java.util.Objects;
 public class Midpoint<K extends Comparable<K>> implements Comparable<K> {
 
     public final K key;
-    public final int blockHash;
+    public final long position;
 
-    public Midpoint(K key, int blockHash) {
+    public Midpoint(K key, long position) {
         this.key = key;
-        this.blockHash = blockHash;
+        this.position = position;
     }
 
     @Override
@@ -23,12 +23,19 @@ public class Midpoint<K extends Comparable<K>> implements Comparable<K> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Midpoint midpoint = (Midpoint) o;
-        return blockHash == midpoint.blockHash &&
+        return position == midpoint.position &&
                 Objects.equals(key, midpoint.key);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, blockHash);
+        return Objects.hash(key, position);
+    }
+
+    @Override
+    public String toString() {
+        return "{" + "key=" + key +
+                ", position=" + position +
+                '}';
     }
 }

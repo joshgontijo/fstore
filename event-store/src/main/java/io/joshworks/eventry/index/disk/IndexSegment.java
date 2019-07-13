@@ -53,7 +53,7 @@ public class IndexSegment implements Log<IndexEntry> {
                  double checksumProb,
                  int readPageSize,
                  int numElements) {
-        this.delegate = new BlockSegment<>(file, storageMode, dataLength, bufferPool, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, checksumProb, readPageSize, this::onBlockWrite, (p,b) -> {});
+        this.delegate = new BlockSegment<>(file, storageMode, dataLength, bufferPool, mode, indexEntrySerializer, new IndexBlockFactory(), codec, MAX_BLOCK_SIZE, checksumProb, readPageSize, this::onBlockWrite, (p,b) -> {}, null);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.murmur64(Serializers.LONG));

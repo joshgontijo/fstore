@@ -6,9 +6,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -43,19 +40,6 @@ public class MemIndex {
         NavigableSet<IndexEntry> sliced = index.subSet(range.start(), range.end());
         LogIterator<IndexEntry> entriesIt = Direction.BACKWARD.equals(direction) ? Iterators.wrap(sliced.descendingIterator()) : Iterators.of(sliced);
         return Iterators.filtering(entriesIt, inRange(range));
-    }
-
-    //optimized to avoid reiterating over all entries in the mem list
-    private List<IndexEntry> slice(List<IndexEntry> entries, Range range) {
-        IndexEntry start = range.start();
-        int idx = Collections.binarySearch(entries, start);
-        if (idx < 0) { //not found in mem
-            return new ArrayList<>();
-        }
-        int lastIdx = idx + (range.end().version - start.version);
-        int endIdx = Math.min(entries.size(), lastIdx);
-        return entries.subList(idx, endIdx);
-//        return List.copyOf(sublist);
     }
 
     private Predicate<IndexEntry> inRange(Range range) { //safe guard

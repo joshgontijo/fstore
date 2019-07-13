@@ -69,8 +69,10 @@ public class BlockSegment<T> implements Log<T> {
                 readPageSize,
                 (p, b) -> {
                 },
-                (p, b) -> {},
-                fWriter -> {});
+                (p, b) -> {
+                },
+                fWriter -> {
+                });
     }
 
     public BlockSegment(File file,
@@ -160,7 +162,7 @@ public class BlockSegment<T> implements Log<T> {
         return writePos + blockSize < logSize;
     }
 
-    public synchronized void writeBlock() {
+    private synchronized void writeBlock() {
         if (block.isEmpty()) {
             return;
         }
@@ -327,7 +329,10 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize) {
-        return factory(codec, blockSize, VLenBlock.factory(), (a, b) -> {}, (l, block) -> {}, fWriter -> {});
+        return factory(codec, blockSize, VLenBlock.factory(), (a, b) -> {
+        }, (l, block) -> {
+        }, fWriter -> {
+        });
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec,

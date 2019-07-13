@@ -96,7 +96,7 @@ public class Streams implements Closeable {
         return streamMeta;
     }
 
-    public StreamMetadata remove(long streamHash) {
+    public boolean remove(long streamHash) {
         return streamStore.remove(streamHash);
     }
 

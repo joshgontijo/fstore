@@ -148,7 +148,7 @@ public class BloomFilter<T> {
         return bb.flip();
     }
 
-    public static <T> BloomFilter<T> create(int n, double p, Serializer<T> serializer) {
+    public static <T> BloomFilter<T> create(long n, double p, Serializer<T> serializer) {
         return new BloomFilter<>(n, p, serializer);
     }
 

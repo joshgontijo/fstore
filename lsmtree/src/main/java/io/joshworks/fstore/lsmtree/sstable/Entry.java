@@ -1,33 +1,33 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
-import io.joshworks.fstore.lsmtree.EntryType;
+import java.util.Objects;
 
 public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>> {
 
-    public final EntryType type;
+    public final boolean deletion;
     public final K key;
     public final V value;
 
-    private Entry(EntryType type, K key, V value) {
-        this.type = type;
+    private Entry(boolean deletion, K key, V value) {
+        this.deletion = deletion;
         this.key = key;
         this.value = value;
     }
 
     public static <K extends Comparable<K>, V> Entry<K, V> key(K key) {
-        return of(null, key, null);
+        return of(false, key, null);
     }
 
-    public static <K extends Comparable<K>, V> Entry<K, V> of(EntryType type, K key, V value) {
-        return new Entry<>(type, key, value);
+    public static <K extends Comparable<K>, V> Entry<K, V> of(boolean deletion, K key, V value) {
+        return new Entry<>(deletion, key, value);
     }
 
     public static <K extends Comparable<K>, V> Entry<K, V> add(K key, V value) {
-        return of(EntryType.ADD, key, value);
+        return of(false, key, value);
     }
 
     public static <K extends Comparable<K>, V> Entry<K, V> delete(K key) {
-        return of(EntryType.DELETE, key, null);
+        return of(true, key, null);
     }
 
     @Override
@@ -36,7 +36,20 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Entry<?, ?> entry = (Entry<?, ?>) o;
+        return key.equals(entry.key);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(key);
+    }
+
+    @Override
     public String toString() {
-        return type + ":" + key + "=" + value;
+        return deletion ? "DELETE" : "ADD" + ":" + key + "=" + value;
     }
 }

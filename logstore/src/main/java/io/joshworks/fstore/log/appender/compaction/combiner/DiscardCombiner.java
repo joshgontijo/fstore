@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * Does not merge items from any source segment, leading to the removal of the data and exclusion of segments
  */
-public class NoOpCombiner<T> extends MergeCombiner<T> {
+public class DiscardCombiner<T> extends MergeCombiner<T> {
 
     @Override
     public void mergeItems(List<PeekingIterator<T>> items, Log<T> output) {

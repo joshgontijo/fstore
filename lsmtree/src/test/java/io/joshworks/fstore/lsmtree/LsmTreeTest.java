@@ -1,6 +1,8 @@
 package io.joshworks.fstore.lsmtree;
 
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.CloseableIterator;
+import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
@@ -9,7 +11,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -18,19 +19,28 @@ import static org.junit.Assert.assertNull;
 public class LsmTreeTest {
 
     private LsmTree<Integer, String> lsmtree;
-    private File file;
+    private File testDirectory;
 
 
     @Before
     public void setUp() {
-        file = FileUtils.testFolder();
-        lsmtree = LsmTree.open(file, Serializers.INTEGER, Serializers.VSTRING, 100);
+        testDirectory = FileUtils.testFolder();
+        lsmtree = open(testDirectory);
+    }
+
+    private LsmTree<Integer, String> open(File dir) {
+        return LsmTree.builder(dir, Serializers.INTEGER, Serializers.STRING)
+                .flushThreshold(100)
+                .disableTransactionLog()
+                .sstableStorageMode(StorageMode.MMAP)
+                .ssTableFlushMode(FlushMode.MANUAL)
+                .open();
     }
 
     @After
     public void tearDown() {
         lsmtree.close();
-        FileUtils.tryDelete(file);
+        FileUtils.tryDelete(testDirectory);
     }
 
     @Test
@@ -52,7 +62,7 @@ public class LsmTreeTest {
 
         lsmtree.close();
 
-        lsmtree = LsmTree.open(file, Serializers.INTEGER, Serializers.VSTRING, 100);
+        lsmtree = open(testDirectory);
 
         assertNotNull(lsmtree.get(1));
         assertNotNull(lsmtree.get(2));
@@ -103,7 +113,20 @@ public class LsmTreeTest {
     }
 
     @Test
-    public void can_iterator_over_entries_after_reopening() throws IOException {
+    public void can_iterator_over_entries_without_reopening() {
+        int items = 10000;
+        for (int i = 0; i < items; i++) {
+            lsmtree.put(i, String.valueOf(i));
+        }
+
+        for (int i = 0; i < items; i++) {
+            String val = lsmtree.get(i);
+            assertEquals("Failed on " + i, String.valueOf(i), val);
+        }
+    }
+
+    @Test
+    public void can_iterator_over_entries_after_reopening() {
         int items = 10000;
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
@@ -111,12 +134,11 @@ public class LsmTreeTest {
 
         lsmtree.close();
 
-        lsmtree = LsmTree.open(file, Serializers.INTEGER, Serializers.VSTRING, 100);
+        lsmtree = open(testDirectory);
 
         for (int i = 0; i < items; i++) {
             String val = lsmtree.get(i);
-            assertEquals(String.valueOf(i), val);
+            assertEquals("Failed on " + i, String.valueOf(i), val);
         }
-
     }
 }
