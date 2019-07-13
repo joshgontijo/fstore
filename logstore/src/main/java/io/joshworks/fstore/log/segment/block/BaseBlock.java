@@ -42,7 +42,7 @@ public abstract class BaseBlock implements Block {
         }
 
         decompressedLength += data.limit();
-        buffers.add(data.asReadOnlyBuffer());
+        buffers.add(data);
         return true;
     }
 
@@ -95,9 +95,9 @@ public abstract class BaseBlock implements Block {
             //safe to reuse ByteBuffer, since the DirectBuffer is not allowed when using BlockSegment
             int dataEnd = decompressed.position() + length;
             decompressed.limit(dataEnd);
-            ByteBuffer bb = decompressed.slice().asReadOnlyBuffer();
-            decompressedLen += bb.limit();
-            buffers.add(bb);
+            ByteBuffer slice = decompressed.slice();
+            decompressedLen += slice.limit();
+            buffers.add(slice);
             decompressed.position(dataEnd);
         }
         return decompressedLen;
@@ -111,7 +111,11 @@ public abstract class BaseBlock implements Block {
 
     @Override
     public List<ByteBuffer> entries() {
-        return buffers.stream().map(ByteBuffer::asReadOnlyBuffer).collect(Collectors.toList());
+        List<ByteBuffer> copies = new ArrayList<>(buffers.size());
+        for (ByteBuffer buffer : buffers) {
+            copies.add(asReadOnly(buffer));
+        }
+        return copies;
     }
 
     @Override
@@ -135,7 +139,7 @@ public abstract class BaseBlock implements Block {
         if (buffers.isEmpty() || idx >= buffers.size() || idx < 0) {
             return null;
         }
-        return buffers.get(idx).asReadOnlyBuffer();
+        return asReadOnly(buffers.get(idx));
     }
 
     @Override
@@ -162,10 +166,14 @@ public abstract class BaseBlock implements Block {
     public <T> List<T> deserialize(Serializer<T> serializer) {
         List<T> items = new ArrayList<>();
         for (ByteBuffer buffer : buffers) {
-            T item = serializer.fromBytes(buffer.asReadOnlyBuffer());
+            T item = serializer.fromBytes(asReadOnly(buffer));
             items.add(item);
         }
         return items;
+    }
+
+    private ByteBuffer asReadOnly(ByteBuffer bb) {
+        return bb.asReadOnlyBuffer().clear();
     }
 
 }

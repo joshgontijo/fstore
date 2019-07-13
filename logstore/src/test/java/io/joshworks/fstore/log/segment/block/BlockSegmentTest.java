@@ -65,7 +65,6 @@ public class BlockSegmentTest {
         segment.append("a");
         segment.append("b");
 
-        segment.writeBlock();
         segment.close();
         segment = open(testFile);
         assertEquals(2, segment.entries());

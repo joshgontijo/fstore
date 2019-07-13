@@ -13,15 +13,15 @@ import java.util.List;
 
 public class Midpoints<K extends Comparable<K>> {
 
-    private final List<Midpoint<K>> midpoints = new ArrayList<>();
+    private final List<Midpoint<K>> entries = new ArrayList<>();
 
     public void add(Midpoint<K> start, Midpoint<K> end) {
-        if (midpoints.isEmpty()) {
-            midpoints.add(start);
-            midpoints.add(end);
+        if (entries.isEmpty()) {
+            entries.add(start);
+            entries.add(end);
         } else {
-            midpoints.set(midpoints.size() - 1, start);
-            midpoints.add(end);
+            entries.set(entries.size() - 1, start);
+            entries.add(end);
         }
     }
 
@@ -29,62 +29,63 @@ public class Midpoints<K extends Comparable<K>> {
         if (!inRange(entry)) {
             return -1;
         }
-        int idx = Collections.binarySearch(midpoints, entry);
+        int idx = Collections.binarySearch(entries, entry);
         return idx < 0 ? Math.abs(idx) - 2 : idx;
     }
 
     public Midpoint<K> getMidpointFor(K entry) {
         int midpointIdx = getMidpointIdx(entry);
-        if (midpointIdx >= midpoints.size() || midpointIdx < 0) {
+        if (midpointIdx >= entries.size() || midpointIdx < 0) {
             return null;
         }
-        return midpoints.get(midpointIdx);
+        return entries.get(midpointIdx);
     }
 
     public boolean inRange(K entry) {
-        if (midpoints.isEmpty()) {
+        if (entries.isEmpty()) {
             return false;
         }
         return entry.compareTo(first().key) >= 0 && entry.compareTo(last().key) <= 0;
     }
 
     public int size() {
-        return midpoints.size();
+        return entries.size();
     }
 
     public boolean isEmpty() {
-        return midpoints.isEmpty();
+        return entries.isEmpty();
     }
 
     public Midpoint<K> first() {
-        if (midpoints.isEmpty()) {
+        if (entries.isEmpty()) {
             return null;
         }
-        return midpoints.get(0);
+        return entries.get(0);
     }
 
     public Midpoint<K> last() {
-        if (midpoints.isEmpty()) {
+        if (entries.isEmpty()) {
             return null;
         }
-        return midpoints.get(midpoints.size() - 1);
+        return entries.get(entries.size() - 1);
     }
 
     public ByteBuffer serialize(Serializer<K> keySerializer) {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
         Block midpointsBlock = VLenBlock.factory().create(Integer.MAX_VALUE);
-        for (Midpoint<K> midpoint : midpoints) {
+        for (Midpoint<K> midpoint : entries) {
             ByteBuffer data = serializer.toBytes(midpoint);
             if (!midpointsBlock.add(data)) {
                 throw new IllegalStateException("No block space");
             }
         }
-        midpoints.sort(Comparator.comparing(o -> o.key));
+        entries.sort(Comparator.comparing(o -> o.key));
         return midpointsBlock.pack(Codec.noCompression());
     }
 
-    public void deserialize(ByteBuffer blockData, Serializer<K> keySerializer) {
+    public static <K extends Comparable<K>> Midpoints<K> load(ByteBuffer blockData, Serializer<K> keySerializer) {
+        Midpoints<K> midpoints = new Midpoints<>();
         if (!midpoints.isEmpty()) {
             throw new IllegalStateException("Midpoints is not empty");
         }
@@ -92,8 +93,10 @@ public class Midpoints<K extends Comparable<K>> {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
         Block block = VLenBlock.factory().load(Codec.noCompression(), blockData);
         List<Midpoint<K>> entries = block.deserialize(serializer);
-        midpoints.addAll(entries);
-        midpoints.sort(Comparator.comparing(o -> o.key));
+        midpoints.entries.addAll(entries);
+        midpoints.entries.sort(Comparator.comparing(o -> o.key));
+
+        return midpoints;
     }
 
 

@@ -19,6 +19,10 @@
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>index</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>kryo-serializer</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>junit</groupId>

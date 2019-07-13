@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
  * @author Jason T. Greene
  * @author Stuart Douglas
  */
-public class LRUCache<K, V> {
+public class LRUCache<K, V> implements Cache<K, V> {
     private static final int SAMPLE_INTERVAL = 5;
 
     /**
@@ -67,6 +67,7 @@ public class LRUCache<K, V> {
         this.fifo = fifo;
     }
 
+    @Override
     public void add(K key, V newValue) {
         CacheEntry<K, V> value = cache.get(key);
         if (value == null) {
@@ -77,7 +78,7 @@ public class LRUCache<K, V> {
                 expires = System.currentTimeMillis() + maxAge;
             }
             value = new CacheEntry<>(key, newValue, expires);
-            CacheEntry result = cache.putIfAbsent(key, value);
+            CacheEntry<K, V> result = cache.putIfAbsent(key, value);
             if (result != null) {
                 value = result;
                 value.setValue(newValue);
@@ -86,13 +87,14 @@ public class LRUCache<K, V> {
             if (cache.size() > maxEntries) {
                 //remove the oldest
                 CacheEntry<K, V> oldest = accessQueue.poll();
-                if (oldest != value) {
+                if (oldest != null && oldest != value) {
                     this.remove(oldest.key());
                 }
             }
         }
     }
 
+    @Override
     public V get(K key) {
         CacheEntry<K, V> cacheEntry = cache.get(key);
         if (cacheEntry == null) {
@@ -126,7 +128,7 @@ public class LRUCache<K, V> {
             try {
                 token = accessQueue.offerLastAndReturnToken(cacheEntry);
             } catch (Throwable t) {
-                // In case of disaster (OOME), we need to release the claim, so leave it aas null
+                // In case of disaster (OOME), we need to release the claim, so leave it as null
             }
 
             if (!cacheEntry.setToken(token) && token != null) { // Always set if null
@@ -135,6 +137,7 @@ public class LRUCache<K, V> {
         }
     }
 
+    @Override
     public V remove(K key) {
         CacheEntry<K, V> remove = cache.remove(key);
         if (remove != null) {
@@ -148,6 +151,7 @@ public class LRUCache<K, V> {
         }
     }
 
+    @Override
     public void clear() {
         cache.clear();
         accessQueue.clear();
