@@ -2,7 +2,7 @@ package io.joshworks.eventry.stream;
 
 import io.joshworks.eventry.LRUCache;
 import io.joshworks.fstore.lsmtree.LsmTree;
-import io.joshworks.fstore.lsmtree.log.LogEntry;
+import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.Closeable;
@@ -68,7 +68,7 @@ public class StreamStore implements Closeable {
         return store.remove(stream);
     }
 
-    public Stream<LogEntry<Long, StreamMetadata>> stream() {
+    public Stream<Entry<Long, StreamMetadata>> stream() {
         return store.stream();
     }
 

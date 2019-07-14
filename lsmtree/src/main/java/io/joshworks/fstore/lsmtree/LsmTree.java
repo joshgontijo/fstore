@@ -28,9 +28,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     private final SSTables<K, V> sstables;
     private final TransactionLog<K, V> log;
-    private final MemTable<K, V> memTable;
     private final int flushThreshold;
     private final boolean logDisabled;
+
+    private MemTable<K, V> memTable;
 
     private LsmTree(Builder<K, V> builder) {
         this.sstables = createSSTable(builder);
@@ -127,7 +128,9 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         if (!force && memTable.size() < flushThreshold) {
             return;
         }
-        memTable.writeTo(sstables);
+        MemTable<K, V> tmp = memTable;
+        tmp.writeTo(sstables);
+        memTable = new MemTable<>();
         log.markFlushed();
     }
 

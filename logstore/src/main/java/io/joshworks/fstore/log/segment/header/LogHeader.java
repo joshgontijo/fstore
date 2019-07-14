@@ -112,6 +112,9 @@ public class LogHeader {
     }
 
     public long footerLength() {
+        if(completed == null) {
+            return 0;
+        }
         return completed.footerLength;
     }
 

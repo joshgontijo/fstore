@@ -51,15 +51,10 @@ public class MemTable<K extends Comparable<K>, V> {
             return;
         }
 
-        Iterator<Entry<K, V>> iterator = table.iterator();
-        while (iterator.hasNext()) {
-            Entry<K, V> entry = iterator.next();
+        for (Entry<K, V> entry : table) {
             long entryPos = sstables.write(entry);
             if (entryPos == Storage.EOF) {
                 sstables.roll();
-            } else {
-                iterator.remove();
-                size.decrementAndGet();
             }
         }
         sstables.roll();
