@@ -18,13 +18,10 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.GregorianCalendar;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 
-public class KryoStoreSerializer implements Serializer<Object> {
+public class KryoStoreSerializer<T> implements Serializer<T> {
 
-    private static final Set<Class> registered = Collections.newSetFromMap(new ConcurrentHashMap<>());
     static private final ThreadLocal<Kryo> localKryo = ThreadLocal.withInitial(KryoStoreSerializer::newKryoInstance);
 
     private static Kryo newKryoInstance() {
@@ -42,37 +39,45 @@ public class KryoStoreSerializer implements Serializer<Object> {
         UnmodifiableCollectionsSerializer.registerSerializers(kryo);
         SynchronizedCollectionsSerializer.registerSerializers(kryo);
         Java9ImmutableMapSerializer.registerSerializers(kryo);
-        for (Class type : registered) {
-            kryo.register(type);
-        }
         return kryo;
     }
 
-    public static void register(Class type) {
-        registered.add(type);
-    }
-
-    @Override
-    public ByteBuffer toBytes(Object data) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try(Output output = new Output(baos)) {
-            localKryo.get().writeClassAndObject(output, data);
+    public static <T> KryoStoreSerializer<T> of(Class... types) {
+        if (types != null) {
+            Kryo kryo = localKryo.get();
+            for (Class type : types) {
+                kryo.register(type);
+            }
         }
-        return ByteBuffer.wrap(baos.toByteArray());
+        return new KryoStoreSerializer<>();
     }
 
     @Override
-    public void writeTo(Object data, ByteBuffer dest) {
+    public ByteBuffer toBytes(T data) {
+        byte[] bytes = write(data);
+        return ByteBuffer.wrap(bytes);
+    }
+
+    private byte[] write(T data) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try(Output output = new Output(baos)) {
-            localKryo.get().writeClassAndObject(output, data);
+        Kryo kryo = localKryo.get();
+        try (Output output = new Output(baos)) {
+            kryo.writeClassAndObject(output, data);
         }
-        dest.put(baos.toByteArray());
+        return baos.toByteArray();
     }
 
     @Override
-    public Object fromBytes(ByteBuffer data) {
-        return localKryo.get().readClassAndObject(new Input(data.array()));
+    public void writeTo(T data, ByteBuffer dest) {
+        byte[] bytes = write(data);
+        dest.put(bytes);
+    }
+
+    @Override
+    public T fromBytes(ByteBuffer data) {
+        Kryo kryo = localKryo.get();
+        Input input = new Input(data.array());
+        return (T) kryo.readClassAndObject(input);
     }
 
 

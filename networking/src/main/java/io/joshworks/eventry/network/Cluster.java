@@ -43,7 +43,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     private final String clusterName;
     private final String nodeUuid;
-    private final KryoStoreSerializer serializer = new KryoStoreSerializer();
+    private final KryoStoreSerializer serializer = new KryoStoreSerializer(type);
 
     private JChannel channel;
     private View state;
@@ -216,7 +216,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         consumerPool.execute(() -> {
             try {
                 //TODO improve the instantiation of the serializer
-                final KryoStoreSerializer serializer = new KryoStoreSerializer();
+                final KryoStoreSerializer serializer = new KryoStoreSerializer(type);
                 ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
                 if (!bb.hasRemaining()) {
                     logger.warn("Empty message received from {}", msg.getSrc());

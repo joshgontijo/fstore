@@ -1,7 +1,9 @@
 package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
@@ -11,6 +13,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -104,7 +107,7 @@ public class LsmTreeTest {
             lsmtree.remove(i);
         }
 
-        try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator()) {
+        try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.FORWARD)) {
             while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
                 System.out.println(entry);
@@ -139,6 +142,21 @@ public class LsmTreeTest {
         for (int i = 0; i < items; i++) {
             String val = lsmtree.get(i);
             assertEquals("Failed on " + i, String.valueOf(i), val);
+        }
+    }
+
+    @Test
+    public void range_iterator() throws IOException {
+        int items = 10000;
+        for (int i = 0; i < items; i++) {
+            lsmtree.put(i, String.valueOf(i));
+        }
+
+        try(CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.BACKWARD, Range.startingWith(9990))) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                System.out.println(entry);
+            }
         }
     }
 }

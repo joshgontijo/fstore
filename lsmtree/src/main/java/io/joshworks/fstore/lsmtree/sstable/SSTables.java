@@ -3,6 +3,7 @@ package io.joshworks.fstore.lsmtree.sstable;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -73,10 +74,20 @@ public class SSTables<K extends Comparable<K>, V> {
         return appender.iterator(direction);
     }
 
-    public List<LogIterator<Entry<K, V>>> segmentsIterator() {
+    public List<LogIterator<Entry<K, V>>> segmentsIterator(Direction direction) {
         return appender.applyToSegments(Direction.FORWARD, segments -> segments.stream()
                 .filter(Log::readOnly)
-                .map(seg -> seg.iterator(Direction.FORWARD))
+                .map(seg -> seg.iterator(direction))
+                .collect(Collectors.toList()));
+    }
+
+    public List<LogIterator<Entry<K, V>>> segmentsIterator(Direction direction, Range<K> range) {
+        return appender.applyToSegments(Direction.FORWARD, segments -> segments.stream()
+                .filter(Log::readOnly)
+                .map(seg -> {
+                    SSTable<K, V> sstable = (SSTable<K, V>) seg;
+                    return sstable.iterator(direction, range);
+                })
                 .collect(Collectors.toList()));
     }
 
