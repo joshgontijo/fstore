@@ -26,8 +26,8 @@ public abstract class BaseBlock implements Block {
 
     protected BaseBlock(Codec codec, ByteBuffer data) {
         this.readOnly = true;
-        this.maxSize = -1;
         this.decompressedLength = this.unpack(codec, data);
+        this.maxSize = decompressedLength;
     }
 
     //returns true if added, false otherwise
@@ -92,6 +92,9 @@ public abstract class BaseBlock implements Block {
 
         int decompressedLen = 0;
         for (int length : lengths) {
+            if (length > decompressed.capacity() || length < 0) {
+                throw new IllegalStateException("Bad block entry length");
+            }
             //safe to reuse ByteBuffer, since the DirectBuffer is not allowed when using BlockSegment
             int dataEnd = decompressed.position() + length;
             decompressed.limit(dataEnd);

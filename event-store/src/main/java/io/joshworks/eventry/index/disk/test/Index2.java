@@ -2,15 +2,16 @@ package io.joshworks.eventry.index.disk.test;
 
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.lsmtree.LsmTree;
-import io.joshworks.fstore.lsmtree.log.LogEntry;
+import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
+import java.util.UUID;
 
 public class Index2 {
 
     public static void main(String[] args) {
-        File directory = new File("S:\\event-store\\lsm-tree");
+        File directory = new File("S:\\event-store\\" + UUID.randomUUID().toString());
         LsmTree.Builder<IndexKey, Long> builder = LsmTree.builder(directory, new IndexKeySerializer(), Serializers.LONG)
                 .disableTransactionLog()
                 .sstableBlockFactory(IndexBlock2.factory());
@@ -29,12 +30,13 @@ public class Index2 {
 
         lsmTree = builder.open();
 
-
-        CloseableIterator<LogEntry<IndexKey, Long>> iterator = lsmTree.iterator();
+        CloseableIterator<Entry<IndexKey, Long>> iterator = lsmTree.iterator();
         while(iterator.hasNext()) {
-            LogEntry<IndexKey, Long> next = iterator.next();
+            Entry<IndexKey, Long> next = iterator.next();
             System.out.println(next);
         }
+
+        lsmTree.close();
 
 
     }

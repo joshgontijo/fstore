@@ -21,7 +21,7 @@ public class EntrySerializer<K extends Comparable<K>, V> implements Serializer<E
     public ByteBuffer toBytes(Entry<K, V> data) {
         ByteBuffer key = keySerializer.toBytes(data.key);
         ByteBuffer val = data.deletion ? EMPTY : valueSerializer.toBytes(data.value);
-        ByteBuffer bb = ByteBuffer.allocate(1 + key.limit() + val.limit());
+        ByteBuffer bb = ByteBuffer.allocate(1 + key.remaining() + val.remaining());
         return bb.put((byte) (data.deletion ? 1 : 0))
                 .put(key)
                 .put(val)

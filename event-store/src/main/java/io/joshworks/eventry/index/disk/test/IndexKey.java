@@ -22,4 +22,11 @@ public class IndexKey implements Comparable<IndexKey> {
         }
         return keyCmp;
     }
+
+    @Override
+    public String toString() {
+        return "IndexKey{" + "stream=" + stream +
+                ", version=" + version +
+                '}';
+    }
 }

@@ -5,6 +5,9 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.segment.block.BaseBlock;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
+import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.EntrySerializer;
+import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -32,10 +35,14 @@ import java.util.List;
  * So only version 11 onwards will be available.
  * <p>
  * Deleting a stream means the truncated version will be Integer.MIN_VALUE
+ * <p>
+ * Entry.deletion field is ignored
  */
 public class IndexBlock2 extends BaseBlock {
 
-    private static final Serializer<IndexKey> serializer = new IndexKeySerializer();
+    private static final Serializer<Entry<IndexKey, Long>> serializer = new EntrySerializer<>(new IndexKeySerializer(), Serializers.LONG);
+
+    private static final int ENTRY_SIZE = IndexKey.BYTES + Long.BYTES;
 
     public IndexBlock2(int maxSize) {
         super(maxSize);
@@ -52,28 +59,31 @@ public class IndexBlock2 extends BaseBlock {
         }
 
         int maxVersionSizeOverhead = entryCount() * Integer.BYTES;
-        int actualSize = IndexKey.BYTES * entryCount();
+        int actualSize = ENTRY_SIZE * entryCount();
         var packedBuffer = ByteBuffer.allocate(Integer.BYTES + actualSize + maxVersionSizeOverhead);
 
         packedBuffer.putInt(entryCount());
 
-        IndexKey last = null;
+        Entry<IndexKey, Long> last = null;
         List<Integer> versions = new ArrayList<>();
+        List<Long> positions = new ArrayList<>();
         for (ByteBuffer buffer : buffers) {
-            IndexKey indexEntry = serializer.fromBytes(buffer.asReadOnlyBuffer());
+            Entry<IndexKey, Long> indexEntry = serializer.fromBytes(buffer.asReadOnlyBuffer());
             if (last == null) {
                 last = indexEntry;
             }
-            if (last.stream != indexEntry.stream) {
-                writeToBuffer(packedBuffer, last.stream, versions);
+            if (last.key.stream != indexEntry.key.stream) {
+                writeToBuffer(packedBuffer, last.key.stream, versions, positions);
                 versions = new ArrayList<>();
+                positions = new ArrayList<>();
             }
 
-            versions.add(indexEntry.version);
+            versions.add(indexEntry.key.version);
+            positions.add(indexEntry.value);
             last = indexEntry;
         }
         if (last != null && !versions.isEmpty()) {
-            writeToBuffer(packedBuffer, last.stream, versions);
+            writeToBuffer(packedBuffer, last.key.stream, versions, positions);
         }
 
         packedBuffer.flip();
@@ -89,36 +99,41 @@ public class IndexBlock2 extends BaseBlock {
             int numVersions = decompressed.getInt();
             for (int i = 0; i < numVersions; i++) {
                 int version = decompressed.getInt();
-                IndexKey ie = new IndexKey(stream, version);
+                long position = decompressed.getLong();
+                Entry<IndexKey, Long> ie = Entry.of(false, new IndexKey(stream, version), position);
                 buffers.add(serializer.toBytes(ie));
             }
         }
         if (buffers.size() != entryCount) {
             throw new IllegalStateException("Expected " + entryCount + " got " + buffers.size());
         }
-        return buffers.size() * IndexKey.BYTES;
+        return buffers.size() * ENTRY_SIZE;
     }
 
-    private void writeToBuffer(ByteBuffer buffer, long stream, List<Integer> versions) {
+    private void writeToBuffer(ByteBuffer buffer, long stream, List<Integer> versions, List<Long> positions) {
         buffer.putLong(stream);
         buffer.putInt(versions.size());
-        for (Integer version : versions) {
-            buffer.putInt(version);
+        for (int i = 0; i < versions.size(); i++) {
+            buffer.putInt(versions.get(i));
+            buffer.putLong(positions.get(i));
         }
     }
 
     public static BlockFactory factory() {
-        return new BlockFactory() {
-            @Override
-            public Block create(int maxBlockSize) {
-                return new IndexBlock2(maxBlockSize);
-            }
-
-            @Override
-            public Block load(Codec codec, ByteBuffer data) {
-                return new IndexBlock2(codec, data);
-            }
-        };
+        return new Index2BlockFactory();
     }
+
+    private static class Index2BlockFactory implements BlockFactory {
+        @Override
+        public Block create(int maxBlockSize) {
+            return new IndexBlock2(maxBlockSize);
+        }
+
+        @Override
+        public Block load(Codec codec, ByteBuffer data) {
+            return new IndexBlock2(codec, data);
+        }
+    }
+
 
 }
