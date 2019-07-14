@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.index.cache.LRUCache;
 import io.joshworks.fstore.index.cache.NoCache;
@@ -189,10 +190,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
         ByteBuffer keyBytes = keySerializer.toBytes(key);
         for (ByteBuffer entryData : block.entries()) {
-            if(entryData.remaining() > keyBytes.remaining()) {
+            if (entryData.remaining() > keyBytes.remaining()) {
                 entryData.position(KEY_START_POS);
                 entryData.limit(KEY_START_POS + keyBytes.limit());
-                if(entryData.equals(keyBytes)) {
+                if (entryData.equals(keyBytes)) {
                     entryData.clear();
                     Entry<K, V> entry = entrySerializer.fromBytes(entryData);
                     if (entry.key.equals(key)) {
@@ -202,6 +203,30 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
             }
         }
         return null;
+    }
+
+    public SegmentIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
+        if (!readOnly()) {
+            throw new IllegalStateException("Cannot read from a open segment");
+        }
+        if ((range.start() != null && !midpoints.inRange(range.start())) && (range.end() != null && !midpoints.inRange(range.end()))) {
+            return SegmentIterator.empty();
+        }
+
+        long startPos = startPos(direction, range);
+        SegmentIterator<Entry<K, V>> iterator = iterator(startPos, direction);
+        return new RangeIterator<>(range, direction, iterator);
+
+    }
+
+    private long startPos(Direction direction, Range<K> range) {
+        if (Direction.FORWARD.equals(direction)) {
+            Midpoint<K> mStart = range.start() == null ? midpoints.first() : midpoints.getMidpointFor(range.start());
+            return mStart == null ? midpoints.first().position : mStart.position;
+        }
+        Midpoint<K> mEnd = range.end() == null ? midpoints.last() : midpoints.getMidpointFor(range.end());
+        return mEnd == null ? midpoints.last().position : mEnd.position;
+
     }
 
     @Override

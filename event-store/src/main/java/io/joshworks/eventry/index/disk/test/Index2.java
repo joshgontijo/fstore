@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index.disk.test;
 
 import io.joshworks.fstore.log.CloseableIterator;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
@@ -30,7 +31,7 @@ public class Index2 {
 
         lsmTree = builder.open();
 
-        CloseableIterator<Entry<IndexKey, Long>> iterator = lsmTree.iterator();
+        CloseableIterator<Entry<IndexKey, Long>> iterator = lsmTree.iterator(Direction.FORWARD);
         while(iterator.hasNext()) {
             Entry<IndexKey, Long> next = iterator.next();
             System.out.println(next);

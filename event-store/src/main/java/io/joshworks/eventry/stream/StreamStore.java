@@ -1,6 +1,8 @@
 package io.joshworks.eventry.stream;
 
 import io.joshworks.eventry.LRUCache;
+import io.joshworks.fstore.log.CloseableIterator;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
@@ -8,7 +10,6 @@ import io.joshworks.fstore.serializer.Serializers;
 import java.io.Closeable;
 import java.io.File;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 
@@ -68,8 +69,8 @@ public class StreamStore implements Closeable {
         return store.remove(stream);
     }
 
-    public Stream<Entry<Long, StreamMetadata>> stream() {
-        return store.stream();
+    public CloseableIterator<Entry<Long, StreamMetadata>> iterator(Direction direction) {
+        return store.iterator(direction);
     }
 
     @Override

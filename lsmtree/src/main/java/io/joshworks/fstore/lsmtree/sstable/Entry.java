@@ -30,6 +30,18 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
         return of(true, key, null);
     }
 
+    public boolean deletion() {
+        return deletion;
+    }
+
+    public K key() {
+        return key;
+    }
+
+    public V value() {
+        return value;
+    }
+
     @Override
     public int compareTo(Entry<K, V> o) {
         return key.compareTo(o.key);

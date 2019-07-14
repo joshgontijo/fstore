@@ -6,6 +6,8 @@ import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.io.Closeable;
 import java.io.File;
@@ -55,7 +57,7 @@ public class Streams implements Closeable {
     }
 
     public List<StreamMetadata> all() {
-        return streamStore.stream().map(e -> e.value).collect(Collectors.toList());
+        return Iterators.stream(streamStore.iterator(Direction.FORWARD)).map(e -> e.value).collect(Collectors.toList());
     }
 
     public long hashOf(String stream) {
@@ -119,7 +121,7 @@ public class Streams implements Closeable {
     }
 
     private Stream<StreamMetadata> match(String prefix) {
-        return streamStore.stream()
+        return Iterators.stream(streamStore.iterator(Direction.FORWARD))
                 .map(e -> e.value)
                 .filter(stream -> stream.name.startsWith(prefix));
     }

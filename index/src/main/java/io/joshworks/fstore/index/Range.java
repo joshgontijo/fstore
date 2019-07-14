@@ -2,39 +2,24 @@ package io.joshworks.fstore.index;
 
 public class Range<K extends Comparable<K>> {
 
-    static final int NO_LIMIT = -1;
-    static final int SKIP_NONE = 0;
+    private final K startInclusive;
+    private final K endExclusive;
 
-    K startInclusive;
-    K endExclusive;
-    long skip = SKIP_NONE;
-    long limit = NO_LIMIT;
-
-    private Range() {
-    }
-
-    public static <K extends Comparable<K>> Range<K> create() {
-        return new Range<>();
-    }
-
-    public Range<K> start(final K startInclusive) {
+    private Range(K startInclusive, K endExclusive) {
         this.startInclusive = startInclusive;
-        return this;
-    }
-
-    public Range<K> end(final K endExclusive) {
         this.endExclusive = endExclusive;
-        return this;
     }
 
-    public Range<K> skip(final long skip) {
-        this.skip = skip;
-        return this;
+    public static <K extends Comparable<K>> Range<K> of(K startInclusive, K endExclusive) {
+        return new Range<>(startInclusive, endExclusive);
     }
 
-    public Range<K> limit(final long limit) {
-        this.limit = limit;
-        return this;
+    public static <K extends Comparable<K>> Range<K> startingWith(K startInclusive) {
+        return new Range<>(startInclusive, null);
+    }
+
+    public static <K extends Comparable<K>> Range<K> endingWith(K endExclusive) {
+        return new Range<>(null, endExclusive);
     }
 
     public K start() {
@@ -45,11 +30,21 @@ public class Range<K extends Comparable<K>> {
         return endExclusive;
     }
 
-    public long skip() {
-        return skip;
-    }
-
-    public long limit() {
-        return limit;
+    /**
+     * Compare a given key with this range
+     *
+     * @return Negative number if this key is less than startInclusive, zero if the key greater or equals than
+     * start and less than end, or positive when the key is greater than end
+     */
+    public int compareTo(K value) {
+        boolean greatOrEqualsThan = startInclusive == null || value.compareTo(startInclusive) >= 0;
+        if (!greatOrEqualsThan) {
+            return -1;
+        }
+        boolean lessThan = endExclusive == null || value.compareTo(endExclusive) < 0;
+        if (!lessThan) {
+            return 1;
+        }
+        return 0;
     }
 }

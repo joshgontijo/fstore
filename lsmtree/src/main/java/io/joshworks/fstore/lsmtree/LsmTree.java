@@ -5,10 +5,11 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
 import io.joshworks.fstore.lsmtree.log.NoOpTransactionLog;
@@ -22,7 +23,6 @@ import io.joshworks.fstore.lsmtree.sstable.SSTables;
 import java.io.Closeable;
 import java.io.File;
 import java.util.List;
-import java.util.stream.Stream;
 
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
@@ -106,13 +106,14 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         return true;
     }
 
-    public CloseableIterator<Entry<K, V>> iterator() {
-        List<LogIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator();
+    public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
+        List<LogIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction);
         return new LsmTreeIterator<>(segmentsIterators, memTable.iterator());
     }
 
-    public Stream<Entry<K, V>> stream() {
-        return Iterators.closeableStream(iterator());
+    public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
+        List<LogIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction, range);
+        return new LsmTreeIterator<>(segmentsIterators, memTable.iterator());
     }
 
     @Override
@@ -163,6 +164,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private StorageMode tlogStorageMode = StorageMode.RAF;
         private int blockCacheSize = 100;
         private int blockCacheMaxAge = 120000;
+        private boolean useKryo;
 
         private Builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
             this.directory = directory;

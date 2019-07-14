@@ -3,7 +3,7 @@ package io.joshworks.eventry.log;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.serializer.kryo.KryoSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -13,7 +13,7 @@ import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class EventRecord {
 
-    private static final Serializer<Map<String, Object>> serializer = KryoSerializer.untyped();
+    private static final Serializer<Map<String, Object>> serializer = KryoStoreSerializer.of();
 
     public static final int NO_VERSION = -1;
     public static final int NO_EXPECTED_VERSION = -2;
