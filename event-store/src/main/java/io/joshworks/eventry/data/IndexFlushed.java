@@ -14,18 +14,16 @@ public class IndexFlushed {
 
     public final long logPosition;
     public final long timeTaken;
-    public final int entries;
 
     public static final String TYPE = SYSTEM_PREFIX + "INDEX_FLUSHED";
 
-    private IndexFlushed(long logPosition, long timeTaken, int entries) {
+    private IndexFlushed(long logPosition, long timeTaken) {
         this.logPosition = logPosition;
         this.timeTaken = timeTaken;
-        this.entries = entries;
     }
 
-    public static EventRecord create(long logPosition, long timeTaken, int entries) {
-        var indexFlushed = new IndexFlushed(logPosition, timeTaken, entries);
+    public static EventRecord create(long logPosition, long timeTaken) {
+        var indexFlushed = new IndexFlushed(logPosition, timeTaken);
         var data = serializer.toBytes(indexFlushed);
         return EventRecord.create(SystemStreams.INDEX, TYPE, data.array());
     }

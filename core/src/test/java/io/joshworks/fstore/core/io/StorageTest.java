@@ -22,7 +22,7 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class StorageTest {
 
-    private static final int STORAGE_SIZE = Size.MB.intOf(100);
+    private static final int STORAGE_SIZE = Size.MB.ofInt(100);
     private Storage storage;
     private File testFile;
 

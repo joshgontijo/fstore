@@ -16,7 +16,7 @@ import static org.junit.Assert.assertEquals;
 
 public abstract class LogHeaderTest {
 
-    private static final int STORAGE_SIZE = Size.MB.intOf(1);
+    private static final int STORAGE_SIZE = Size.MB.ofInt(1);
     private Storage storage;
     private File testFile;
 

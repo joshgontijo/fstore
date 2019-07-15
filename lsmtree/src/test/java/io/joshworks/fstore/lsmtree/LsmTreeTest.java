@@ -18,6 +18,7 @@ import java.io.IOException;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class LsmTreeTest {
 
@@ -159,4 +160,19 @@ public class LsmTreeTest {
             }
         }
     }
+
+    @Test
+    public void continuous_iterator() throws IOException {
+        lsmtree.put(1, "");
+
+        try(CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.FORWARD)) {
+            Entry<Integer, String> entry = iterator.next();
+            assertEquals(Integer.valueOf(1), entry.key);
+
+            lsmtree.put(2, "");
+            assertTrue(iterator.hasNext());
+            assertEquals(Integer.valueOf(2), iterator.next().key);
+        }
+    }
+
 }

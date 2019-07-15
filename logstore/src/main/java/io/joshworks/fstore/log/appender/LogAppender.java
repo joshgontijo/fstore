@@ -7,7 +7,6 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Logging;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
@@ -35,6 +34,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Stream;
+
+import static io.joshworks.fstore.core.io.Storage.align;
 
 /**
  * Position address schema
@@ -158,13 +159,6 @@ public class LogAppender<T> implements Closeable {
         long alignedSize = align(LogHeader.BYTES + metadata.segmentSize); //log + header
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
         return factory.createOrOpen(segmentFile, storageMode, alignedSize, serializer, bufferPool, WriteMode.LOG_HEAD, checksumProbability, readPageSize);
-    }
-
-    private static long align(long fileSize) {
-        if (fileSize % Memory.PAGE_SIZE == 0) {
-            return fileSize;
-        }
-        return Memory.PAGE_SIZE * ((fileSize / Memory.PAGE_SIZE) + 1);
     }
 
     private Levels<T> loadSegments() {

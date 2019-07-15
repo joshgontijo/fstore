@@ -34,7 +34,7 @@ import static org.junit.Assert.fail;
 public abstract class SegmentTest {
 
     protected static final double CHECKSUM_PROB = 1;
-    protected static final int SEGMENT_SIZE = Size.KB.intOf(128);
+    protected static final int SEGMENT_SIZE = Size.KB.ofInt(128);
     private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
 
     protected Segment<String> segment;

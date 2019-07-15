@@ -1,14 +1,14 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.log.CloseableIterator;
 
-import java.io.IOException;
 import java.util.function.Function;
 
 /**
  * filters out entries if stream was truncated after acquiring the iterator
  */
-class TruncatedAwareIterator implements IndexIterator {
+class TruncatedAwareIterator implements CloseableIterator<IndexEntry> {
 
     private final IndexIterator delegate;
     private final Function<Long, StreamMetadata> metadataSupplier;
@@ -45,7 +45,7 @@ class TruncatedAwareIterator implements IndexIterator {
 
     private boolean afterTruncation(IndexEntry event) {
         StreamMetadata metadata = metadataSupplier.apply(event.stream);
-        if(!metadata.truncated()) {
+        if (!metadata.truncated()) {
             return true;
         }
         return !metadata.truncated() || event.version > metadata.truncated;
@@ -56,12 +56,7 @@ class TruncatedAwareIterator implements IndexIterator {
     }
 
     @Override
-    public long position() {
-        return delegate.position();
-    }
-
-    @Override
-    public void close() throws IOException {
+    public void close() {
         delegate.close();
     }
 

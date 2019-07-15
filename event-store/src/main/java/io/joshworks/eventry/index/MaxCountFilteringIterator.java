@@ -1,13 +1,13 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.log.CloseableIterator;
 
-import java.io.IOException;
 import java.util.function.Function;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 
-class MaxCountFilteringIterator implements IndexIterator {
+class MaxCountFilteringIterator implements CloseableIterator<IndexEntry> {
 
     private final Function<Long, Integer> versionFetcher;
     private final IndexIterator delegate;
@@ -59,12 +59,7 @@ class MaxCountFilteringIterator implements IndexIterator {
     }
 
     @Override
-    public long position() {
-        return delegate.position();
-    }
-
-    @Override
-    public void close() throws IOException {
+    public void close() {
         delegate.close();
     }
 

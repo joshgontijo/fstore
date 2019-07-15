@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index.disk;
 
+import io.joshworks.eventry.index.IndexBlock;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.fstore.codec.snappy.Lz4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;

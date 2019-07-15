@@ -1,4 +1,4 @@
-package io.joshworks.eventry.index.disk.test;
+package io.joshworks.eventry.index;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
@@ -38,17 +38,17 @@ import java.util.List;
  * <p>
  * Entry.deletion field is ignored
  */
-public class IndexBlock2 extends BaseBlock {
+public class IndexBlock extends BaseBlock {
 
     private static final Serializer<Entry<IndexKey, Long>> serializer = new EntrySerializer<>(new IndexKeySerializer(), Serializers.LONG);
 
     private static final int ENTRY_SIZE = IndexKey.BYTES + Long.BYTES;
 
-    public IndexBlock2(int maxSize) {
+    public IndexBlock(int maxSize) {
         super(maxSize);
     }
 
-    protected IndexBlock2(Codec codec, ByteBuffer data) {
+    protected IndexBlock(Codec codec, ByteBuffer data) {
         super(codec, data);
     }
 
@@ -126,12 +126,12 @@ public class IndexBlock2 extends BaseBlock {
     private static class Index2BlockFactory implements BlockFactory {
         @Override
         public Block create(int maxBlockSize) {
-            return new IndexBlock2(maxBlockSize);
+            return new IndexBlock(maxBlockSize);
         }
 
         @Override
         public Block load(Codec codec, ByteBuffer data) {
-            return new IndexBlock2(codec, data);
+            return new IndexBlock(codec, data);
         }
     }
 

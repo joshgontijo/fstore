@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
@@ -23,6 +24,7 @@ import io.joshworks.fstore.lsmtree.sstable.SSTables;
 import java.io.Closeable;
 import java.io.File;
 import java.util.List;
+import java.util.Objects;
 
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
@@ -52,6 +54,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.keySerializer,
                 builder.valueSerializer,
                 builder.name,
+                builder.segmentSize,
                 builder.sstableStorageMode,
                 builder.ssTableFlushMode,
                 builder.sstableBlockFactory,
@@ -76,12 +79,15 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.tlogStorageMode);
     }
 
-    public void put(K key, V value) {
+    //returns true if the index was flushed
+    public boolean put(K key, V value) {
         log.append(Record.add(key, value));
         memTable.add(key, value);
         if (memTable.size() >= flushThreshold) {
             flushMemTable(false);
+            return true;
         }
+        return false;
     }
 
     public V get(K key) {
@@ -89,9 +95,25 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         if (found != null) {
             return found;
         }
-
-        return sstables.getByKey(key);
+        return sstables.get(key);
     }
+
+//    public Entry<K, V> floor(K key) {
+//        Entry<K, V> floor = memTable.floor(key);
+//        sstables.
+//    }
+//
+//    public Entry<K, V> ceiling(K key) {
+//        Entry<K, V> ceiling = memTable.ceiling(key);
+//    }
+//
+//    public Entry<K, V> higher(K key) {
+//        Entry<K, V> higher = memTable.higher(key);
+//    }
+//
+//    public Entry<K, V> lower(K key) {
+//        Entry<K, V> lower = memTable.lower(key);
+//    }
 
     public boolean remove(K key) {
         if (memTable.delete(key)) {
@@ -104,6 +126,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
         log.append(Record.delete(key));
         return true;
+    }
+
+    public long size() {
+        return sstables.size();
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
@@ -144,6 +170,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
     }
 
+    public void compact() {
+        sstables.compact();
+    }
+
     public static class Builder<K extends Comparable<K>, V> {
 
         private static final int DEFAULT_THRESHOLD = 1000000;
@@ -165,6 +195,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private int blockCacheSize = 100;
         private int blockCacheMaxAge = 120000;
         private boolean useKryo;
+        private int segmentSize = Size.MB.ofInt(32);
 
         private Builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
             this.directory = directory;
@@ -202,6 +233,11 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
+        public Builder<K, V> segmentSize(int size) {
+            this.segmentSize = size;
+            return this;
+        }
+
         public Builder<K, V> blockCacheMaxAge(int maxAgeSeconds) {
             this.blockCacheMaxAge = maxAgeSeconds * 1000;
             return this;
@@ -213,21 +249,25 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
 
         public Builder<K, V> sstableStorageMode(StorageMode mode) {
+            Objects.requireNonNull(mode);
             this.sstableStorageMode = mode;
             return this;
         }
 
         public Builder<K, V> sstableBlockFactory(BlockFactory blockFactory) {
+            Objects.requireNonNull(blockFactory);
             this.sstableBlockFactory = blockFactory;
             return this;
         }
 
         public Builder<K, V> ssTableFlushMode(FlushMode mode) {
+            Objects.requireNonNull(mode);
             this.ssTableFlushMode = mode;
             return this;
         }
 
         public Builder<K, V> transacationLogStorageMode(StorageMode mode) {
+            Objects.requireNonNull(mode);
             this.tlogStorageMode = mode;
             return this;
         }

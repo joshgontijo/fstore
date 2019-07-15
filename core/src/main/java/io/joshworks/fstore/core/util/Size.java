@@ -4,7 +4,7 @@ public abstract class Size {
 
     public abstract long of(int value);
 
-    public abstract int intOf(int value);
+    public abstract int ofInt(int value);
 
     public static final Size BYTE = new Size() {
         @Override
@@ -13,7 +13,7 @@ public abstract class Size {
         }
 
         @Override
-        public int intOf(int value) {
+        public int ofInt(int value) {
             return Size.toInt(of(value));
         }
     };
@@ -25,7 +25,7 @@ public abstract class Size {
         }
 
         @Override
-        public int intOf(int value) {
+        public int ofInt(int value) {
             return Size.toInt(of(value));
         }
     };
@@ -37,7 +37,7 @@ public abstract class Size {
         }
 
         @Override
-        public int intOf(int value) {
+        public int ofInt(int value) {
             return Size.toInt(of(value));
         }
     };
@@ -49,7 +49,7 @@ public abstract class Size {
         }
 
         @Override
-        public int intOf(int value) {
+        public int ofInt(int value) {
             return Size.toInt(of(value));
         }
     };
@@ -61,7 +61,7 @@ public abstract class Size {
         }
 
         @Override
-        public int intOf(int value) {
+        public int ofInt(int value) {
             return Size.toInt(of(value));
         }
     };

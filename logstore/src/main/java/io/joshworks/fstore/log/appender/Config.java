@@ -21,7 +21,7 @@ public class Config<T> {
     private static final int COMPACTION_THRESHOLD = 3;
     private static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(256);
     private static final double DEFAULT_CHECKSUM_PROB = 1.0;
-    private static final int DEFAULT_BUFFER_SIZE = Size.KB.intOf(4);
+    private static final int DEFAULT_BUFFER_SIZE = Size.KB.ofInt(4);
 
     final File directory;
     final Serializer<T> serializer;
