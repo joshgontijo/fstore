@@ -33,7 +33,7 @@ public class SSTableTest {
     private SSTable<Integer, String> open(File file) {
         return new SSTable<>(file,
                 StorageMode.MMAP,
-                Size.MB.of(10),
+                Size.MB.of(20),
                 Serializers.INTEGER,
                 Serializers.VSTRING,
                 new BufferPool(),
@@ -56,18 +56,84 @@ public class SSTableTest {
     }
 
     @Test
-    public void name() {
-        int items = 1000000;
-        for (int i = 0; i < items; i+=2) {
+    public void floor_step_1() {
+        floorWithStep(1000000, 1);
+    }
+
+    @Test
+    public void floor_step_2() {
+        floorWithStep(1000000, 2);
+    }
+
+    @Test
+    public void floor_step_5() {
+        floorWithStep(1000000, 5);
+    }
+
+    @Test
+    public void floor_step_7() {
+        floorWithStep(1000000, 7);
+    }
+
+
+    @Test
+    public void ceiling_step_1() {
+        ceilingWithStep(1000000, 1);
+    }
+
+    @Test
+    public void ceiling_step_2() {
+        ceilingWithStep(1000000, 2);
+    }
+
+    @Test
+    public void ceiling_step_5() {
+        ceilingWithStep(1000000, 5);
+    }
+
+    @Test
+    public void ceiling_step_7() {
+        ceilingWithStep(1000000, 7);
+    }
+
+    private void floorWithStep(int items, int steps) {
+        for (int i = 0; i < items; i += steps) {
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
         sstable.roll(1);
 
-        for (int i = 1; i < items; i+=2) {
+        for (int i = 0; i < items; i += 1) {
+            Integer expected = (i / steps) * steps;
             Entry<Integer, String> floor = sstable.floor(i);
-            assertNotNull(floor);
-            assertEquals(Integer.valueOf(i - 1), floor.key);
+            assertNotNull("Failed on " + i, floor);
+            assertEquals("Failed on " + i, expected, floor.key);
         }
 
+        Entry<Integer, String> floor = sstable.floor(items + 50);
+        Entry<Integer, String> last = sstable.last();
+        assertEquals(last, floor);
+    }
+
+    private void ceilingWithStep(int items, int steps) {
+        for (int i = 0; i < items; i += steps) {
+            sstable.append(Entry.add(i, String.valueOf(i)));
+        }
+        sstable.roll(1);
+
+
+        for (int i = 0; i < items - steps; i += 1) {
+            int expected = (int) (Math.ceil((double) i / steps) * steps);
+            Entry<Integer, String> ceiling = sstable.ceiling(i);
+            assertNotNull("Failed on " + i, ceiling);
+            assertEquals("Failed on " + i, Integer.valueOf(expected), ceiling.key);
+        }
+
+        Entry<Integer, String> ceiling = sstable.ceiling(0);
+        Entry<Integer, String> first = sstable.first();
+        assertEquals(first, ceiling);
+
+        ceiling = sstable.ceiling(-50);
+        first = sstable.first();
+        assertEquals(first, ceiling);
     }
 }
