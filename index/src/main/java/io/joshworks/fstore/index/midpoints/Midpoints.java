@@ -16,13 +16,70 @@ public class Midpoints<K extends Comparable<K>> {
     private final List<Midpoint<K>> entries = new ArrayList<>();
 
     public void add(Midpoint<K> start, Midpoint<K> end) {
-        if (entries.isEmpty()) {
-            entries.add(start);
-            entries.add(end);
-        } else {
-            entries.set(entries.size() - 1, start);
-            entries.add(end);
+        if (!entries.isEmpty()) {
+            entries.remove(entries.size() - 1);
         }
+        entries.add(start);
+        entries.add(end);
+    }
+
+    //returns -1 if no floor item or the floor index of this item
+    public int floorIdx(K key) {
+        if (entries.isEmpty()) {
+            return -1;
+        }
+        if (key.compareTo(first().key) < 0) {
+            return -1;
+        }
+        if (inRange(key)) {
+            return getMidpointIdx(key);
+        }
+        return entries.size() - 1;
+    }
+
+    public int ceilingIdx(K key) {
+        if (entries.isEmpty()) {
+            return -1;
+        }
+        if (key.compareTo(last().key) > 0) {
+            return -1;
+        }
+        if (inRange(key)) {
+            return getMidpointIdx(key);
+        }
+        return 0;
+    }
+
+    public Midpoint<K> floor(K key) {
+        if (entries.isEmpty()) {
+            return null;
+        }
+        if (key.compareTo(first().key) < 0) {
+            return null;
+        }
+        if (inRange(key)) {
+            return getMidpointFor(key);
+        }
+
+        //greater than last midpoint
+        return entries.get(entries.size() - 1);
+    }
+
+    public Midpoint<K> ceiling(K key) {
+        if (entries.isEmpty()) {
+            return null;
+        }
+        if (key.compareTo(last().key) > 0) {
+            return null;
+        }
+        if (inRange(key)) {
+            int idx = Collections.binarySearch(entries, key);
+            idx = idx < 0 ? Math.abs(idx) - 2 : idx + 1;
+            return getMidpoint(idx);
+        }
+
+        //less than first midpoint
+        return entries.get(0);
     }
 
     public int getMidpointIdx(K entry) {
@@ -32,12 +89,13 @@ public class Midpoints<K extends Comparable<K>> {
         int idx = Collections.binarySearch(entries, entry);
         return idx < 0 ? Math.abs(idx) - 2 : idx;
     }
-    public List<Midpoint<K>> get() {
-        return entries;
-    }
 
     public Midpoint<K> getMidpointFor(K entry) {
         int midpointIdx = getMidpointIdx(entry);
+        return getMidpoint(midpointIdx);
+    }
+
+    public Midpoint<K> getMidpoint(int midpointIdx) {
         if (midpointIdx >= entries.size() || midpointIdx < 0) {
             return null;
         }
@@ -101,6 +159,4 @@ public class Midpoints<K extends Comparable<K>> {
 
         return midpoints;
     }
-
-
 }
