@@ -42,6 +42,22 @@ public class MemTable<K extends Comparable<K>, V> {
         return found.key.equals(key) ? found.value : null;
     }
 
+    public Entry<K, V> floor(K key) {
+        return table.floor(Entry.key(key));
+    }
+
+    public Entry<K, V> ceiling(K key) {
+        return table.ceiling(Entry.key(key));
+    }
+
+    public Entry<K, V> higher(K key) {
+        return table.higher(Entry.key(key));
+    }
+
+    public Entry<K, V> lower(K key) {
+        return table.lower(Entry.key(key));
+    }
+
     public Iterator<Entry<K, V>> iterator() {
         return table.iterator();
     }

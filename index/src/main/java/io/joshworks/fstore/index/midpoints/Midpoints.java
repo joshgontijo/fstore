@@ -32,6 +32,9 @@ public class Midpoints<K extends Comparable<K>> {
         int idx = Collections.binarySearch(entries, entry);
         return idx < 0 ? Math.abs(idx) - 2 : idx;
     }
+    public List<Midpoint<K>> get() {
+        return entries;
+    }
 
     public Midpoint<K> getMidpointFor(K entry) {
         int midpointIdx = getMidpointIdx(entry);

@@ -26,6 +26,7 @@ import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 
 import static io.joshworks.fstore.lsmtree.sstable.EntrySerializer.KEY_START_POS;
@@ -164,7 +165,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         if (!bloomFilter.contains(key)) {
             return null;
         }
-
         Midpoint<K> midpoint = midpoints.getMidpointFor(key);
         if (midpoint == null) {
             return null;
@@ -172,6 +172,43 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
         return readFromBlock(key, midpoint);
     }
+
+    /**
+     * Returns the greatest element in this set less than or equal to
+     * the given element, or {@code null} if there is no such element.
+     *
+     * @param key the value to match
+     * @return the greatest element less than or equal to {@code e},
+     * or {@code null} if there is no such element
+     */
+    public Entry<K, V> floor(K key) {
+
+        int midx = Collections.binarySearch(midpoints.get(), key);
+        midx = midx < 0 ? Math.abs(midx) - 2 : midx;
+
+        Midpoint<K> midpoint = midpoints.get().get(midx);
+
+        Block foundBlock = delegate.getBlock(midpoint.position);
+        List<Entry<K, V>> entries = foundBlock.deserialize(entrySerializer);
+        int idx = Collections.binarySearch(entries, Entry.key(key));
+        idx = idx >= 0 ? idx : Math.abs(idx) - 2;
+        if (idx < 0) {
+            return null;
+        }
+        return entries.get(idx);
+    }
+
+//    public Entry<K, V> ceiling(K key) {
+//        return table.ceiling(Entry.key(key));
+//    }
+//
+//    public Entry<K, V> higher(K key) {
+//        return table.higher(Entry.key(key));
+//    }
+//
+//    public Entry<K, V> lower(K key) {
+//        return table.lower(Entry.key(key));
+//    }
 
     private V readFromBlock(K key, Midpoint<K> midpoint) {
         Block cached = blockCache.get(midpoint.position);

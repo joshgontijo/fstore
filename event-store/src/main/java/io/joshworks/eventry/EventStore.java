@@ -6,9 +6,9 @@ import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.Checkpoint;
+import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
-import io.joshworks.eventry.index.TableIndex;
 import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
@@ -20,7 +20,6 @@ import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.writer.EventWriter;
 import io.joshworks.eventry.writer.Writer;
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
@@ -64,14 +63,14 @@ public class EventStore implements IEventStore {
     private static final int INDEX_MAX_WRITE_QUEUE_SIZE = 5;
 
 
-    private final TableIndex index;
+    private final Index index;
     public final Streams streams; //TODO fix test to make this private
     private final IEventLog eventLog;
     private final EventWriter eventWriter;
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
-        this.index = new TableIndex(rootDir, this::fetchMetadata, this::onIndexFlushed, INDEX_FLUSH_THRESHOLD, INDEX_MAX_WRITE_QUEUE_SIZE, new SnappyCodec());
+        this.index = new Index(rootDir, this::fetchMetadata, INDEX_FLUSH_THRESHOLD, INDEX_MAX_WRITE_QUEUE_SIZE);
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, index::version);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
@@ -282,7 +281,7 @@ public class EventStore implements IEventStore {
         //TODO this must be applied to fromStreams and fromStreamsPATTERN
         int startVersion = streams.get(hash).map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version).orElse(version);
 
-        LogIterator<IndexEntry> indexIterator = index.indexedIterator(Checkpoint.of(hash, startVersion));
+        IndexIterator indexIterator = index.iterator(Checkpoint.of(hash, startVersion));
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
         return createEventLogIterator(this::tryGetMetadata, indexedLogIterator);
     }
@@ -295,7 +294,7 @@ public class EventStore implements IEventStore {
         }
 
         Set<Long> longs = streams.matchStreamHash(streamPrefix);
-        IndexIterator indexIterator = index.indexedIterator(streamPrefix, Checkpoint.of(longs), streams::matchStreamHash);
+        IndexIterator indexIterator = index.iterator(streamPrefix, Checkpoint.of(longs), streams::matchStreamHash);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
         return createEventLogIterator(this::tryGetMetadata, indexedLogIterator);
@@ -440,14 +439,6 @@ public class EventStore implements IEventStore {
         if (LinkTo.TYPE.equals(event.type)) {
             throw new IllegalArgumentException("Stream type cannot be " + LinkTo.TYPE);
         }
-    }
-
-    private void onIndexFlushed(TableIndex.FlushInfo flushInfo) {
-        eventWriter.queue(writer -> {
-            var indexFlushedEvent = IndexFlushed.create(flushInfo.logPosition, flushInfo.timeTaken, flushInfo.entries);
-            StreamMetadata metadata = getOrCreateStream(writer, indexFlushedEvent.stream);
-            writer.append(indexFlushedEvent, NO_EXPECTED_VERSION, metadata);
-        });
     }
 
     private EventLogIterator createEventLogIterator(Function<String, StreamMetadata> metadataSupplier, IndexedLogIterator indexedLogIterator) {

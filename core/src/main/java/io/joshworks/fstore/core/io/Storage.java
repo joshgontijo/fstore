@@ -1,5 +1,7 @@
 package io.joshworks.fstore.core.io;
 
+import io.joshworks.fstore.core.util.Memory;
+
 import java.io.Closeable;
 import java.io.File;
 import java.io.Flushable;
@@ -149,6 +151,13 @@ public interface Storage extends Flushable, Closeable {
             default:
                 throw new IllegalArgumentException("Invalid storage mode: " + mode);
         }
+    }
+
+    static long align(long length) {
+        if (length % Memory.PAGE_SIZE == 0) {
+            return length;
+        }
+        return Memory.PAGE_SIZE * ((length / Memory.PAGE_SIZE) + 1);
     }
 
 }

@@ -1,4 +1,4 @@
-package io.joshworks.eventry.index.disk.test;
+package io.joshworks.eventry.index;
 
 import io.joshworks.fstore.core.Serializer;
 

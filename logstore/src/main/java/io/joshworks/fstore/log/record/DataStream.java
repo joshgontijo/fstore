@@ -23,7 +23,7 @@ public class DataStream {
     private final ThreadLocal<Record> localRecord = ThreadLocal.withInitial(Record::new);
 
     public DataStream(BufferPool bufferPool, Storage storage) {
-        this(bufferPool, storage, 0.1, Size.KB.intOf(16));
+        this(bufferPool, storage, 0.1, Size.KB.ofInt(16));
     }
 
     public DataStream(BufferPool bufferPool, Storage storage, double checksumProb, int readPageSize) {

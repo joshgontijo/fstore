@@ -21,7 +21,6 @@ import org.slf4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -50,6 +49,8 @@ public final class Segment<T> implements Log<T> {
 
     private static final Consumer<FooterWriter> NO_FOOTER_WRITER = f -> {
     };
+
+    private static final double FOOTER_EXTRA_LENGTH_PERCENT = 0.1;
 
     private final Serializer<T> serializer;
     private final Storage storage;
@@ -99,7 +100,7 @@ public final class Segment<T> implements Log<T> {
 
         Storage storage = null;
         try {
-            long fileLength = LogHeader.BYTES + segmentDataSize + EOL.length;
+            long fileLength = getTotalFileLength(segmentDataSize);
             this.storage = storage = Storage.createOrOpen(file, storageMode, fileLength);
             this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize);
             this.logger = Logging.namedLogger(storage.name(), "segment");
@@ -134,18 +135,6 @@ public final class Segment<T> implements Log<T> {
         }
     }
 
-    //can only be used for data
-    private void setPosition(long position) {
-        if (position < START) {
-            throw new IllegalArgumentException("Position must greater or equals than " + LogHeader.BYTES + ", got " + position);
-        }
-        long maxDataPos = header.maxDataPosition();
-
-        long dataPos = Math.min(position, maxDataPos);
-        this.dataWritePosition.set(dataPos);
-        this.storage.position(position);
-    }
-
     @Override
     public long append(T record) {
         checkClosed();
@@ -170,10 +159,6 @@ public final class Segment<T> implements Log<T> {
 
     public FooterReader footerReader() {
         return new FooterReader(stream, footerMap);
-    }
-
-    private void incrementEntry() {
-        entries.incrementAndGet();
     }
 
     @Override
@@ -278,36 +263,6 @@ public final class Segment<T> implements Log<T> {
         }
     }
 
-    private SegmentState rebuildState(Function<List<RecordEntry<T>>, Integer> processEntries) {
-        this.setPosition(header.maxDataPosition());
-        long position = START;
-        int foundEntries = 0;
-        long start = System.currentTimeMillis();
-        try {
-            logger.info("Restoring log state and checking consistency");
-            int lastRead;
-            do {
-                List<RecordEntry<T>> entries = stream.bulkRead(Direction.FORWARD, position, serializer);
-                foundEntries += processEntries.apply(entries);
-                lastRead = entries.stream().mapToInt(RecordEntry::recordSize).sum();
-                position += lastRead;
-
-            } while (lastRead > 0);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            logger.warn("Found inconsistent entry on position " + position + ", segment '" + name() + "': " + e.getMessage());
-            storage.position(position);
-            stream.write(ByteBuffer.wrap(EOL));
-            storage.position(position);
-        }
-        logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
-        if (position < Log.START) {
-            throw new IllegalStateException("Initial log state position must be at least " + Log.START);
-        }
-        return new SegmentState(foundEntries, position);
-    }
-
     public static <T> int processEntries(List<RecordEntry<T>> items) {
         return items.size();
     }
@@ -392,6 +347,55 @@ public final class Segment<T> implements Log<T> {
         return this.header.type();
     }
 
+    <R extends SegmentIterator> void releaseReader(R reader) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            boolean removed = readers.remove(reader);
+            if (removed) { //may be called multiple times for the same reader
+                if (markedForDeletion.get() && readers.isEmpty()) {
+                    deleteInternal();
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private void incrementEntry() {
+        entries.incrementAndGet();
+    }
+
+    private SegmentState rebuildState(Function<List<RecordEntry<T>>, Integer> processEntries) {
+        this.setPosition(header.maxDataPosition());
+        long position = START;
+        int foundEntries = 0;
+        long start = System.currentTimeMillis();
+        try {
+            logger.info("Restoring log state and checking consistency");
+            int lastRead;
+            do {
+                List<RecordEntry<T>> entries = stream.bulkRead(Direction.FORWARD, position, serializer);
+                foundEntries += processEntries.apply(entries);
+                lastRead = entries.stream().mapToInt(RecordEntry::recordSize).sum();
+                position += lastRead;
+
+            } while (lastRead > 0);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            logger.warn("Found inconsistent entry on position " + position + ", segment '" + name() + "': " + e.getMessage());
+            storage.position(position);
+            stream.write(ByteBuffer.wrap(EOL));
+            storage.position(position);
+        }
+        logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
+        if (position < Log.START) {
+            throw new IllegalStateException("Initial log state position must be at least " + Log.START);
+        }
+        return new SegmentState(foundEntries, position);
+    }
+
     private void checkClosed() {
         if (closed.get()) {
             throw new SegmentException("Segment " + name() + "is closed");
@@ -425,19 +429,21 @@ public final class Segment<T> implements Log<T> {
         }
     }
 
-    <R extends SegmentIterator> void releaseReader(R reader) {
-        Lock lock = rwLock.writeLock();
-        lock.lock();
-        try {
-            boolean removed = readers.remove(reader);
-            if (removed) { //may be called multiple times for the same reader
-                if (markedForDeletion.get() && readers.isEmpty()) {
-                    deleteInternal();
-                }
-            }
-        } finally {
-            lock.unlock();
+    private long getTotalFileLength(long segmentDataSize) {
+        long footerExtra = Storage.align((long) (FOOTER_EXTRA_LENGTH_PERCENT * segmentDataSize));
+        return Storage.align(LogHeader.BYTES + segmentDataSize + EOL.length + footerExtra);
+    }
+
+    //can only be used for data
+    private void setPosition(long position) {
+        if (position < START) {
+            throw new IllegalArgumentException("Position must greater or equals than " + LogHeader.BYTES + ", got " + position);
         }
+        long maxDataPos = header.maxDataPosition();
+
+        long dataPos = Math.min(position, maxDataPos);
+        this.dataWritePosition.set(dataPos);
+        this.storage.position(position);
     }
 
     private void deleteInternal() {

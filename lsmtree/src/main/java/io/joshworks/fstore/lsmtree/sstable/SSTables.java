@@ -23,6 +23,7 @@ public class SSTables<K extends Comparable<K>, V> {
                     Serializer<K> keySerializer,
                     Serializer<V> valueSerializer,
                     String name,
+                    int segmentSize,
                     StorageMode storageMode,
                     FlushMode flushMode,
                     BlockFactory blockFactory,
@@ -37,6 +38,8 @@ public class SSTables<K extends Comparable<K>, V> {
                 .compactionStrategy(new SSTableCompactor<>())
                 .name(name + "-sstable")
                 .storageMode(storageMode)
+                .segmentSize(segmentSize)
+                .enableParallelCompaction()
                 .flushMode(flushMode)
                 .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, blockCacheSize, blockCacheMaxAge));
     }
@@ -45,7 +48,7 @@ public class SSTables<K extends Comparable<K>, V> {
         return appender.append(entry);
     }
 
-    public V getByKey(K key) {
+    public V get(K key) {
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<Entry<K, V>> segment : segments) {
                 if (!segment.readOnly()) {
@@ -61,6 +64,33 @@ public class SSTables<K extends Comparable<K>, V> {
         });
 
     }
+
+//    public Entry<K, V> floor(K key) {
+//        return appender.applyToSegments(Direction.BACKWARD, segments -> {
+//            for (Log<Entry<K, V>> segment : segments) {
+//                if (!segment.readOnly()) {
+//                    continue;
+//                }
+//                SSTable<K, V> sstable = (SSTable<K, V>) segment;
+//                sstable.
+//
+//            }
+//            return null;
+//        });
+//    }
+
+//    public Entry<K, V> ceiling(K key) {
+//        Entry<K, V> ceiling = memTable.ceiling(key);
+//    }
+//
+//    public Entry<K, V> higher(K key) {
+//        Entry<K, V> higher = memTable.higher(key);
+//    }
+//
+//    public Entry<K, V> lower(K key) {
+//        Entry<K, V> lower = memTable.lower(key);
+//    }
+
 
     public void roll() {
         appender.roll();
@@ -91,4 +121,11 @@ public class SSTables<K extends Comparable<K>, V> {
                 .collect(Collectors.toList()));
     }
 
+    public long size() {
+        return appender.applyToSegments(Direction.FORWARD, segs -> segs.stream().mapToLong(Log::entries).sum());
+    }
+
+    public void compact() {
+        appender.compact();
+    }
 }

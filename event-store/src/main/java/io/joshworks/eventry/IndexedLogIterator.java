@@ -1,9 +1,9 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.IEventLog;
-import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
 
@@ -12,10 +12,10 @@ import java.io.IOException;
  */
 public class IndexedLogIterator implements EventLogIterator {
 
-    private final LogIterator<IndexEntry> indexIterator;
+    private final IndexIterator indexIterator;
     private final IEventLog log;
 
-    IndexedLogIterator(LogIterator<IndexEntry> indexIterator, IEventLog log) {
+    IndexedLogIterator(IndexIterator indexIterator, IEventLog log) {
         this.indexIterator = indexIterator;
         this.log = log;
     }
@@ -33,7 +33,10 @@ public class IndexedLogIterator implements EventLogIterator {
 
     @Override
     public long position() {
-        return indexIterator.position();
+        //TODO should this be supported ?
+        //for streams it doesnt make sense, for _all it does
+        //split iterators in two ? stream iterator, log iterator ?
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override

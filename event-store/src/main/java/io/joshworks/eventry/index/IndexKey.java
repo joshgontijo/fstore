@@ -1,12 +1,14 @@
-package io.joshworks.eventry.index.disk.test;
+package io.joshworks.eventry.index;
 
 
 import io.joshworks.fstore.index.Range;
 
+import java.util.Objects;
+
 public class IndexKey implements Comparable<IndexKey> {
 
     public static final int BYTES = Long.BYTES + Integer.BYTES;
-
+    private static final int START_VERSION = 0;
     public final long stream;
     public final int version;
 
@@ -16,7 +18,7 @@ public class IndexKey implements Comparable<IndexKey> {
     }
 
     public static Range<IndexKey> allOf(long stream) {
-        return rangeOf(stream, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        return rangeOf(stream, START_VERSION, Integer.MAX_VALUE);
     }
 
     public static Range<IndexKey> rangeOf(long stream, int startInclusive, int endExclusive) {
@@ -32,6 +34,20 @@ public class IndexKey implements Comparable<IndexKey> {
                 return keyCmp;
         }
         return keyCmp;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IndexKey indexKey = (IndexKey) o;
+        return stream == indexKey.stream &&
+                version == indexKey.version;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(stream, version);
     }
 
     @Override
