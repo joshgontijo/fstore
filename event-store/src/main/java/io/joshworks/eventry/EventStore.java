@@ -68,6 +68,8 @@ public class EventStore implements IEventStore {
     private final IEventLog eventLog;
     private final EventWriter eventWriter;
 
+    public final List<>
+
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
         this.index = new Index(rootDir, this::fetchMetadata, INDEX_FLUSH_THRESHOLD, INDEX_MAX_WRITE_QUEUE_SIZE);
@@ -306,15 +308,9 @@ public class EventStore implements IEventStore {
             return fromStream(streamNames.iterator().next());
         }
 
-//        final Map<String, StreamMetadata> staticMetadata = streamNames.stream()
-//                .map(StreamName::hash)
-//                .map(this::fetchMetadata)
-//                .collect(Collectors.toMap(StreamMetadata::name, Function.identity()));
-
         Set<Long> hashes = streamNames.stream().map(StreamName::hash).collect(Collectors.toSet());
 
-
-        IndexIterator indexIterator = index.indexedIterator(Checkpoint.of(hashes));
+        IndexIterator indexIterator = index.iterator(Checkpoint.of(hashes));
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(indexIterator, eventLog);
         return createEventLogIterator(this::tryGetMetadata, indexedLogIterator);
     }
