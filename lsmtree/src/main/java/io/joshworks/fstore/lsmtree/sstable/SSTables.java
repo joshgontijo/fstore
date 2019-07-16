@@ -41,6 +41,7 @@ public class SSTables<K extends Comparable<K>, V> {
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)
                 .enableParallelCompaction()
+                .disableCompaction() //TODO for testing, remove-me
                 .flushMode(flushMode)
                 .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, blockCacheSize, blockCacheMaxAge));
     }
@@ -69,19 +70,39 @@ public class SSTables<K extends Comparable<K>, V> {
         return appender.applyToSegments(direction, func);
     }
 
-//    public Entry<K, V> floor(K key) {
-//        return appender.applyToSegments(Direction.BACKWARD, segments -> {
-//            for (Log<Entry<K, V>> segment : segments) {
-//                if (!segment.readOnly()) {
-//                    continue;
-//                }
-//                SSTable<K, V> sstable = (SSTable<K, V>) segment;
-//                sstable.
-//
-//            }
-//            return null;
-//        });
-//    }
+    public Entry<K, V> floor(K key) {
+        return appender.applyToSegments(Direction.BACKWARD, segments -> {
+
+            for (Log<Entry<K, V>> segment : segments) {
+                SSTable<K, V> sstable = (SSTable<K, V>) segment;
+                if (!sstable.readOnly()) {
+                    continue;
+                }
+                if (key.compareTo(sstable.firstKey()) >= 0 || key.compareTo(sstable.lastKey()) > 0) {
+                    return sstable.floor(key);
+                }
+            }
+            return null;
+        });
+    }
+
+    public Entry<K, V> ceiling(K key) {
+        return appender.applyToSegments(Direction.BACKWARD, segments -> {
+            TreeSet<K> entries = new TreeSet<>();
+            for (Log<Entry<K, V>> segment : segments) {
+                if (!segment.readOnly()) {
+                    continue;
+                }
+                SSTable<K, V> sstable = (SSTable<K, V>) segment;
+                entries.add(sstable.lastKey());
+                entries.add(sstable.firstKey());
+                if (key.compareTo(sstable.firstKey()) > 0 && key.compareTo(sstable.lastKey()) <= 0) {
+                    return sstable.ceiling(key);
+                }
+            }
+            return null;
+        });
+    }
 
 //    public Entry<K, V> ceiling(K key) {
 //        Entry<K, V> ceiling = memTable.ceiling(key);

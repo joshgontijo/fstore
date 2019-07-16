@@ -14,9 +14,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.TreeSet;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class SSTableTest {
 
@@ -53,6 +55,36 @@ public class SSTableTest {
     public void tearDown() {
         sstable.close();
         FileUtils.tryDelete(testFile);
+    }
+
+    @Test
+    public void lower_step_2() {
+        lowerWithStep(1000000, 2);
+    }
+
+    @Test
+    public void lower_step_5() {
+        lowerWithStep(1000000, 2);
+    }
+
+    @Test
+    public void lower_step_7() {
+        lowerWithStep(1000000, 2);
+    }
+
+    @Test
+    public void higher_step_2() {
+        higherWithStep(1000000, 2);
+    }
+
+    @Test
+    public void higher_step_5() {
+        higherWithStep(1000000, 2);
+    }
+
+    @Test
+    public void higher_step_7() {
+        higherWithStep(1000000, 2);
     }
 
     @Test
@@ -97,13 +129,15 @@ public class SSTableTest {
     }
 
     private void floorWithStep(int items, int steps) {
+        TreeSet<Integer> treeSet = new TreeSet<>();
         for (int i = 0; i < items; i += steps) {
+            treeSet.add(i);
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
         sstable.roll(1);
 
         for (int i = 0; i < items; i += 1) {
-            Integer expected = (i / steps) * steps;
+            Integer expected = treeSet.floor(i);
             Entry<Integer, String> floor = sstable.floor(i);
             assertNotNull("Failed on " + i, floor);
             assertEquals("Failed on " + i, expected, floor.key);
@@ -115,14 +149,16 @@ public class SSTableTest {
     }
 
     private void ceilingWithStep(int items, int steps) {
+        TreeSet<Integer> treeSet = new TreeSet<>();
         for (int i = 0; i < items; i += steps) {
+            treeSet.add(i);
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
         sstable.roll(1);
 
 
         for (int i = 0; i < items - steps; i += 1) {
-            int expected = (int) (Math.ceil((double) i / steps) * steps);
+            Integer expected = treeSet.ceiling(i);
             Entry<Integer, String> ceiling = sstable.ceiling(i);
             assertNotNull("Failed on " + i, ceiling);
             assertEquals("Failed on " + i, Integer.valueOf(expected), ceiling.key);
@@ -135,5 +171,48 @@ public class SSTableTest {
         ceiling = sstable.ceiling(-50);
         first = sstable.first();
         assertEquals(first, ceiling);
+    }
+
+    private void lowerWithStep(int items, int steps) {
+        TreeSet<Integer> treeSet = new TreeSet<>();
+        for (int i = 0; i < items; i += steps) {
+            treeSet.add(i);
+            sstable.append(Entry.add(i, String.valueOf(i)));
+        }
+        sstable.roll(1);
+
+        for (int i = 1; i < items; i += 1) {
+            Integer expected = treeSet.lower(i);
+            Entry<Integer, String> lower = sstable.lower(i);
+            assertNotNull("Failed on " + i, lower);
+            assertEquals("Failed on " + i, expected, lower.key);
+        }
+
+        Entry<Integer, String> zeroLower = sstable.lower(0);
+        assertNull(zeroLower);
+
+        Entry<Integer, String> floor = sstable.lower(items + 50);
+        Entry<Integer, String> last = sstable.last();
+        assertEquals(last, floor);
+    }
+
+    private void higherWithStep(int items, int steps) {
+        TreeSet<Integer> treeSet = new TreeSet<>();
+        for (int i = 0; i < items; i += steps) {
+            treeSet.add(i);
+            sstable.append(Entry.add(i, String.valueOf(i)));
+        }
+        sstable.roll(1);
+
+
+        for (int i = 0; i < items - steps; i += 1) {
+            Integer expected = treeSet.higher(i);
+            Entry<Integer, String> higher = sstable.higher(i);
+            assertNotNull("Failed on " + i, higher);
+            assertEquals("Failed on " + i, expected, higher.key);
+        }
+
+        Entry<Integer, String> higher = sstable.higher(sstable.lastKey());
+        assertNull(higher);
     }
 }
