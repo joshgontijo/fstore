@@ -13,6 +13,7 @@ import io.joshworks.fstore.log.segment.block.BlockFactory;
 
 import java.io.File;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class SSTables<K extends Comparable<K>, V> {
@@ -62,7 +63,10 @@ public class SSTables<K extends Comparable<K>, V> {
             }
             return null;
         });
+    }
 
+    public <T> T applyToSegments(Direction direction, Function<List<Log<Entry<K, V>>>, T> func) {
+        return appender.applyToSegments(direction, func);
     }
 
 //    public Entry<K, V> floor(K key) {

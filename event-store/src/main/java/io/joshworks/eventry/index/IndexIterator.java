@@ -89,6 +89,10 @@ public class IndexIterator implements CloseableIterator<IndexEntry> {
         return !ie.isDeletion() && !ie.isTruncation();
     }
 
+    public void onStreamChanged() {
+
+    }
+
     @Override
     public boolean hasNext() {
         if (next != null) {

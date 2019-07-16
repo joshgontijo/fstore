@@ -5,12 +5,12 @@ import io.joshworks.fstore.lsmtree.LsmTree;
 
 import java.util.function.Function;
 
-class StreamPrefixIndexIterator2 extends IndexIterator {
+class StreamPrefixIndexIterator extends IndexIterator {
 
     private final String prefix;
     private final Function<String, Checkpoint> streamMatcher;
 
-    public StreamPrefixIndexIterator2(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint, String prefix, Function<String, Checkpoint> streamMatcher) {
+    public StreamPrefixIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint, String prefix, Function<String, Checkpoint> streamMatcher) {
         super(delegate, direction, checkpoint);
         this.prefix = prefix;
         this.streamMatcher = streamMatcher;

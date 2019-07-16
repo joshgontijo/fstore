@@ -4,7 +4,6 @@ import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.core.util.Threads;
-import org.apache.groovy.internal.util.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,6 +15,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class EventWriter implements Closeable {
 

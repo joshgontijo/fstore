@@ -11,6 +11,7 @@ import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
 import io.joshworks.fstore.lsmtree.log.NoOpTransactionLog;
@@ -19,6 +20,7 @@ import io.joshworks.fstore.lsmtree.log.Record;
 import io.joshworks.fstore.lsmtree.log.TransactionLog;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.MemTable;
+import io.joshworks.fstore.lsmtree.sstable.SSTable;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
 
 import java.io.Closeable;
@@ -97,6 +99,47 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
         return sstables.get(key);
     }
+
+    public Entry<K, V> firstFloor(K key) {
+        Entry<K, V> memFloor = memTable.ceiling(key);
+        if (memFloor != null) {
+            return memFloor;
+        }
+        return sstables.applyToSegments(Direction.BACKWARD, segments -> {
+            for (Log<Entry<K, V>> segment : segments) {
+                if (segment.readOnly()) {
+                    continue;
+                }
+                SSTable<K, V> sstable = (SSTable<K, V>) segment;
+                Entry<K, V> floor = sstable.ceiling(key);
+                if (floor != null) {
+                    return floor;
+                }
+            }
+            return null;
+        });
+    }
+
+    public Entry<K, V> firstCeiling(K key) {
+        Entry<K, V> memFloor = memTable.floor(key);
+        if (memFloor != null) {
+            return memFloor;
+        }
+        return sstables.applyToSegments(Direction.BACKWARD, segments -> {
+            for (Log<Entry<K, V>> segment : segments) {
+                if (segment.readOnly()) {
+                    continue;
+                }
+                SSTable<K, V> sstable = (SSTable<K, V>) segment;
+                Entry<K, V> floor = sstable.floor(key);
+                if (floor != null) {
+                    return floor;
+                }
+            }
+            return null;
+        });
+    }
+
 
 //    public Entry<K, V> floor(K key) {
 //        Entry<K, V> floor = memTable.floor(key);
