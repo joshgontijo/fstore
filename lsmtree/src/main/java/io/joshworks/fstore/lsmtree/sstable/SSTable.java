@@ -172,6 +172,14 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         return readFromBlock(key, midpoint);
     }
 
+    public K firstKey() {
+        return midpoints.first().key;
+    }
+
+    public K lastKey() {
+        return midpoints.last().key;
+    }
+
     public Entry<K, V> first() {
         return getAt(midpoints.first(), true);
     }
@@ -198,18 +206,31 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
      * or {@code null} if there is no such element
      */
     public Entry<K, V> floor(K key) {
-        //less than start, definitely not here
-        if (key.compareTo(midpoints.first().key) < 0) {
-            return null;
-        }
-        //greater than last entry, definitely last entry
-        if (key.compareTo(midpoints.last().key) > 0) {
-            return last();
-        }
-        //in range
         Midpoint<K> midpoint = midpoints.floor(key);
         Block block = delegate.getBlock(midpoint.position);
-        return floorEntry(key, block);
+
+        List<ByteBuffer> entries = block.entries();
+        for (int i = 0; i < entries.size(); i++) {
+            ByteBuffer entryData = entries.get(i);
+            int compare = compareKey(entryData, key);
+            if (compare < 0) { //key is less than
+                if (i == 0) {//less than first entry, definitely not in this segment
+                    return null;
+                }
+                //key is less than current item, and there's previous one, return previous one
+                ByteBuffer floorEntry = entries.get(i - 1);
+                floorEntry.clear();
+                return entrySerializer.fromBytes(floorEntry);
+            }
+            if (compare == 0) { //key equals to current item, return it
+                ByteBuffer floorEntry = entries.get(i);
+                floorEntry.clear();
+                return entrySerializer.fromBytes(floorEntry);
+            }
+            //key greater, continue...
+        }
+        //greater than last block entry, definitely last block entry
+        return entrySerializer.fromBytes(block.last());
     }
 
     /**
@@ -221,12 +242,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
      * or {@code null} if there is no such element
      */
     public Entry<K, V> ceiling(K key) {
-        //greater than end, definitely not here
-        if (key.compareTo(midpoints.last().key) > 0) {
-            return null;
-        }
-        //less than last entry, definitely first entry
-        if (key.compareTo(midpoints.first().key) < 0) {
+        //less or equals first entry, definitely first entry
+        if (key.compareTo(midpoints.first().key) <= 0) {
             return first();
         }
         //in range
@@ -248,32 +265,12 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         return entrySerializer.fromBytes(nextBlock.first());
     }
 
-    private Entry<K, V> floorEntry(K key, Block block) {
-        List<ByteBuffer> entries = block.entries();
-        for (int i = 0; i < entries.size(); i++) {
-            ByteBuffer entryData = entries.get(i);
-            int compare = compareKey(entryData, key);
-            if (compare > 0) { //greater than
-                ByteBuffer floorEntry = entries.get(i - 1);
-                floorEntry.clear();
-                return entrySerializer.fromBytes(floorEntry);
-            }
-            if (compare == 0) {
-                ByteBuffer floorEntry = entries.get(i);
-                floorEntry.clear();
-                return entrySerializer.fromBytes(floorEntry);
-            }
-        }
-        //greater than last block entry, definitely last block entry
-        return entrySerializer.fromBytes(block.last());
-    }
-
     private Entry<K, V> ceilingEntry(K key, Block block) {
         List<ByteBuffer> entries = block.entries();
         for (int i = entries.size() - 1; i >= 0; i--) {
             ByteBuffer entryData = entries.get(i);
             int compare = compareKey(entryData, key);
-            if (compare < 0) {
+            if (compare > 0) { //key is greater tha current
                 //not in this block, is in the next get first entry of next one
                 //returning null will cause caller to get next block
                 if (i == entries.size() - 1) {
@@ -283,7 +280,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                 floorEntry.clear();
                 return entrySerializer.fromBytes(floorEntry);
             }
-            if (compare == 0) {
+            if (compare == 0) { //key equals to current item, return it
                 ByteBuffer floorEntry = entries.get(i);
                 floorEntry.clear();
                 return entrySerializer.fromBytes(floorEntry);
@@ -293,12 +290,96 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         return entrySerializer.fromBytes(block.first());
     }
 
-    public Entry<K, V> higher(K key) {
-        throw new UnsupportedOperationException("TODO");
+    private Entry<K, V> higherEntry(K key, Block block) {
+        List<ByteBuffer> entries = block.entries();
+        for (int i = entries.size() - 1; i >= 0; i--) {
+            ByteBuffer entryData = entries.get(i);
+            int compare = compareKey(entryData, key);
+            if (compare >= 0) { //key is greater tha current
+                //not in this block, is in the next get first entry of next one
+                //returning null will cause caller to get next block
+                if (i == entries.size() - 1) {
+                    return null;
+                }
+                ByteBuffer floorEntry = entries.get(i + 1);
+                floorEntry.clear();
+                return entrySerializer.fromBytes(floorEntry);
+            }
+        }
+        //less than first block entry, definitely first block entry
+        return entrySerializer.fromBytes(block.first());
     }
 
+    /**
+     * Returns the least element in this set strictly greater than the
+     * given element, or {@code null} if there is no such element.
+     *
+     * @param key the value to match
+     * @return the least element greater than {@code e},
+     * or {@code null} if there is no such element
+     */
+    public Entry<K, V> higher(K key) {
+        //less than first entry, definitely first entry
+        if (key.compareTo(midpoints.first().key) < 0) {
+            return first();
+        }
+        //in range
+        int midpointIdx = midpoints.getMidpointIdx(key);
+        Midpoint<K> midpoint = midpoints.getMidpoint(midpointIdx);
+        Block block = delegate.getBlock(midpoint.position);
+        Entry<K, V> ceiling = higherEntry(key, block);
+        if (ceiling != null) {
+            return ceiling;
+        }
+
+        //not in block get next one
+        if (midpointIdx == midpoints.size() - 1) { //last midpoint, nothing in this segment
+            return null;
+        }
+        //has next midpoint, fetch first entry of next block
+        Midpoint<K> next = midpoints.getMidpoint(midpointIdx + 1);
+        Block nextBlock = delegate.getBlock(next.position);
+        return entrySerializer.fromBytes(nextBlock.first());
+    }
+
+    /**
+     * Returns the greatest element in this set strictly less than the
+     * given element, or {@code null} if there is no such element.
+     *
+     * @param key the value to match
+     * @return the greatest element less than {@code e},
+     * or {@code null} if there is no such element
+     */
     public Entry<K, V> lower(K key) {
-        throw new UnsupportedOperationException("TODO");
+        int idx = midpoints.binarySearch(key);
+        //exact match with the first element of the block, get last element from the previous block
+        //only do this for block before the last one, as the last two midpoints are the same block
+        if (idx > 0 && idx < midpoints.size() - 1) {
+            Midpoint<K> midpoint = midpoints.getMidpoint(idx - 1);
+            Block block = delegate.getBlock(midpoint.position);
+            return entrySerializer.fromBytes(block.last());
+        }
+        idx = idx < 0 ? Math.abs(idx) - 2 : idx;
+        Midpoint<K> midpoint = midpoints.getMidpoint(idx);
+        Block block = delegate.getBlock(midpoint.position);
+
+        List<ByteBuffer> entries = block.entries();
+        for (int i = 0; i < entries.size(); i++) {
+            ByteBuffer entryData = entries.get(i);
+            int compare = compareKey(entryData, key);
+            if (compare <= 0) { //key is less than or equals
+                if (i == 0) {//less than first entry, definitely not in this segment
+                    return null;
+                }
+                //key is less than current item, and there's previous one, return previous one
+                ByteBuffer floorEntry = entries.get(i - 1);
+                floorEntry.clear();
+                return entrySerializer.fromBytes(floorEntry);
+            }
+            //key greater or equals, continue...
+        }
+        //greater than last block entry, definitely last block entry
+        return entrySerializer.fromBytes(block.last());
     }
 
     private V readFromBlock(K key, Midpoint<K> midpoint) {
@@ -330,7 +411,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         entry.position(KEY_START_POS);
         K entryKey = keySerializer.fromBytes(entry);
 
-        return entryKey.compareTo(key);
+        return key.compareTo(entryKey);
     }
 
     public SegmentIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {

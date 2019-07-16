@@ -23,31 +23,50 @@ public class Midpoints<K extends Comparable<K>> {
         entries.add(end);
     }
 
-    //returns -1 if no floor item or the floor index of this item
-    public int floorIdx(K key) {
+//    //returns -1 if no floor item or the floor index of this item
+//    public int floorIdx(K key) {
+//        if (entries.isEmpty()) {
+//            return -1;
+//        }
+//        if (key.compareTo(first().key) < 0) {
+//            return -1;
+//        }
+//        if (inRange(key)) {
+//            return getMidpointIdx(key);
+//        }
+//        return entries.size() - 1;
+//    }
+//
+//    public int ceilingIdx(K key) {
+//        if (entries.isEmpty()) {
+//            return -1;
+//        }
+//        if (key.compareTo(last().key) > 0) {
+//            return -1;
+//        }
+//        if (inRange(key)) {
+//            return getMidpointIdx(key);
+//        }
+//        return 0;
+//    }
+
+    public Midpoint<K> lower(K key) {
         if (entries.isEmpty()) {
-            return -1;
+            return null;
         }
-        if (key.compareTo(first().key) < 0) {
-            return -1;
+        if (key.compareTo(first().key) <= 0) {
+            return null;
         }
-        if (inRange(key)) {
-            return getMidpointIdx(key);
+        int idx = binarySearch(key);
+        idx = idx < 0 ? Math.abs(idx) - 2 : idx - 1;
+        if (idx < 0) {
+            return null;
         }
-        return entries.size() - 1;
+        return entries.get(idx);
     }
 
-    public int ceilingIdx(K key) {
-        if (entries.isEmpty()) {
-            return -1;
-        }
-        if (key.compareTo(last().key) > 0) {
-            return -1;
-        }
-        if (inRange(key)) {
-            return getMidpointIdx(key);
-        }
-        return 0;
+    public int binarySearch(K key) {
+        return Collections.binarySearch(entries, key);
     }
 
     public Midpoint<K> floor(K key) {
@@ -73,7 +92,7 @@ public class Midpoints<K extends Comparable<K>> {
             return null;
         }
         if (inRange(key)) {
-            int idx = Collections.binarySearch(entries, key);
+            int idx = binarySearch(key);
             idx = idx < 0 ? Math.abs(idx) - 2 : idx + 1;
             return getMidpoint(idx);
         }
@@ -86,7 +105,7 @@ public class Midpoints<K extends Comparable<K>> {
         if (!inRange(entry)) {
             return -1;
         }
-        int idx = Collections.binarySearch(entries, entry);
+        int idx = binarySearch(entry);
         return idx < 0 ? Math.abs(idx) - 2 : idx;
     }
 
