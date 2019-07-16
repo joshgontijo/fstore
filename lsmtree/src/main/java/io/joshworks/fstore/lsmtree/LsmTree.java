@@ -98,14 +98,13 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         return sstables.get(key);
     }
 
-//    public Entry<K, V> floor(K key) {
-//        Entry<K, V> floor = memTable.floor(key);
-//        sstables.
-//    }
-//
-//    public Entry<K, V> ceiling(K key) {
-//        Entry<K, V> ceiling = memTable.ceiling(key);
-//    }
+    public Entry<K, V> floor(K key) {
+        return sstables.floor(key);
+    }
+
+    public Entry<K, V> ceiling(K key) {
+        return sstables.ceiling(key);
+    }
 //
 //    public Entry<K, V> higher(K key) {
 //        Entry<K, V> higher = memTable.higher(key);
