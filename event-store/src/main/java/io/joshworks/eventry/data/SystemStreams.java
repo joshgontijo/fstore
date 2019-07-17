@@ -10,4 +10,9 @@ public class SystemStreams {
     public static final String PROJECTIONS = StreamName.SYSTEM_PREFIX + "projections";
     public static final String ALL = StreamName.SYSTEM_PREFIX + "all";
 
+    public static final long STREAMS_HASH = StreamName.hash(STREAMS);
+    public static final long INDEX_HASH = StreamName.hash(INDEX);
+    public static final long PROJECTIONS_HASH = StreamName.hash(PROJECTIONS);
+
+
 }

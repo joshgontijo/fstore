@@ -5,6 +5,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 public class Threads {
     private Threads() {
@@ -46,7 +47,24 @@ public class Threads {
             throw new RuntimeException(e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
-            if(cause instanceof RuntimeException) {
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static <T> T waitFor(Future<T> task, long timeout, TimeUnit unit) {
+        try {
+            return task.get(timeout, unit);
+        } catch (TimeoutException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
                 throw (RuntimeException) cause;
             }
             throw new RuntimeException(e);

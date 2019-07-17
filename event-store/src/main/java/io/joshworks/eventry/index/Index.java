@@ -1,8 +1,9 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.eventry.StreamName;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
@@ -12,6 +13,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
@@ -20,8 +22,10 @@ public class Index implements Closeable {
 
     public static final String DIR = "index";
     private final LsmTree<IndexKey, Long> lsmTree;
+    private final Cache<Long, AtomicInteger> versionCache;
 
-    public Index(File rootDir, int indexFlushThreshold, Codec codec) {
+    public Index(File rootDir, int indexFlushThreshold, Codec codec, int versionCacheSize, int versionCacheMaxAge) {
+        versionCache = Cache.create(versionCacheSize, versionCacheMaxAge);
         lsmTree = LsmTree.builder(new File(rootDir, DIR), new IndexKeySerializer(), Serializers.LONG)
                 .disableTransactionLog()
                 .flushThreshold(indexFlushThreshold)
@@ -37,6 +41,7 @@ public class Index implements Closeable {
     }
 
     public boolean add(long hash, int version, long position) {
+        updateVersionIfCached(hash, version);
         return lsmTree.put(new IndexKey(hash, version), position);
     }
 
@@ -53,17 +58,37 @@ public class Index implements Closeable {
         return Optional.ofNullable(entryPos).map(pos -> IndexEntry.of(stream, version, pos));
     }
 
+    public int version(String stream) {
+        return version(StreamName.hash(stream));
+    }
+
     public int version(long stream) {
+        AtomicInteger cached = versionCache.get(stream);
+        if (cached != null) {
+            return cached.get();
+        }
         IndexKey maxStreamVersion = IndexKey.allOf(stream).end();
         Entry<IndexKey, Long> found = lsmTree.firstFloor(maxStreamVersion);
-        return found == null ? NO_VERSION : found.key.version;
+        if (found != null) {
+            int fetched = found.key.version;
+            versionCache.add(stream, new AtomicInteger(fetched));
+            return fetched;
+        }
+        return NO_VERSION;
     }
 
-    public IndexIterator iterator(Checkpoint checkpoint) {
-        return new IndexIterator(lsmTree, Direction.FORWARD, checkpoint);
+    private void updateVersionIfCached(long hash, int version) {
+        AtomicInteger cached = versionCache.get(hash);
+        if (cached != null) {
+            cached.set(version);
+        }
     }
 
-    public IndexIterator iterator(String streamPrefix, Checkpoint checkpoint, Function<String, Set<Long>> streamMatcher) {
+    public StreamIterator iterator(Checkpoint checkpoint) {
+        return new FixedStreamIterator(lsmTree, Direction.FORWARD, checkpoint);
+    }
+
+    public StreamIterator iterator(String streamPrefix, Checkpoint checkpoint, Function<String, Set<Long>> streamMatcher) {
         Function<String, Checkpoint> checkpointMatcher = stream -> Checkpoint.of(streamMatcher.apply(stream));
         return new StreamPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPrefix, checkpointMatcher);
     }

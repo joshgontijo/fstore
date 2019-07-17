@@ -9,4 +9,9 @@ public interface Cache<K, V> {
     V remove(K key);
 
     void clear();
+
+    static <K, V> Cache<K, V> create(int size, int maxAge) {
+        return size > 0 ? new LRUCache<>(size, maxAge) : new NoCache<>();
+    }
+
 }

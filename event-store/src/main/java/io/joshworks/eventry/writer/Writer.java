@@ -1,59 +1,61 @@
 package io.joshworks.eventry.writer;
 
 import io.joshworks.eventry.data.IndexFlushed;
-import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.eventry.stream.Streams;
 
 import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
 
 public class Writer {
 
-    private final Streams streams;
     private final IEventLog eventLog;
     private final Index index;
 
-    Writer(Streams streams, IEventLog eventLog, Index index) {
-        this.streams = streams;
+    Writer(IEventLog eventLog, Index index) {
         this.eventLog = eventLog;
         this.index = index;
     }
 
     public EventRecord append(EventRecord event, int expectedVersion, StreamMetadata metadata) {
-        long streamHash = event.hash();
+        String streamName = metadata.name;
+        long streamHash = metadata.hash;
 
-        if (metadata.name.equals(event.stream) && metadata.hash != streamHash) {
-            throw new StreamException("Hash collision of stream: " + event.stream + " with existing name: " + metadata.name);
+        return appendInternal(event, expectedVersion, streamName, streamHash);
+    }
+
+    private EventRecord appendInternal(EventRecord event, int expectedVersion, String streamName, long streamHash) {
+        long eventStreamHash = event.hash();
+        if (streamName.equals(event.stream) && streamHash != eventStreamHash) {
+            throw new StreamException("Hash collision of stream: " + event.stream + " with existing name: " + streamName);
         }
 
-        int version = streams.tryIncrementVersion(metadata, expectedVersion);
-        long timestamp = System.currentTimeMillis();
+        int currentVersion = index.version(streamHash);
+        if (!matchVersion(expectedVersion, currentVersion)) {
+            throw new StreamException("Version mismatch for '" + streamName + "': expected: " + expectedVersion + " current :" + currentVersion);
+        }
+        int nextVersion = currentVersion + 1;
 
-        var record = new EventRecord(event.stream, event.type, version, timestamp, event.body, event.metadata);
+        long timestamp = System.currentTimeMillis();
+        var record = new EventRecord(event.stream, event.type, nextVersion, timestamp, event.body, event.metadata);
 
         long position = eventLog.append(record);
 
         long start = System.currentTimeMillis();
-        boolean memFlushed = index.add(streamHash, version, position);
+        boolean memFlushed = index.add(eventStreamHash, nextVersion, position);
         if (memFlushed) {
             long end = System.currentTimeMillis();
             var indexFlushedEvent = IndexFlushed.create(position, end - start);
-            StreamMetadata flushEventMetadata = getOrCreateStream(indexFlushedEvent.stream);
-            append(indexFlushedEvent, NO_EXPECTED_VERSION, flushEventMetadata);
+            appendInternal(indexFlushedEvent, NO_EXPECTED_VERSION, SystemStreams.STREAMS, SystemStreams.STREAMS_HASH);
         }
         return record;
     }
 
-    private StreamMetadata getOrCreateStream(String stream) {
-        return streams.createIfAbsent(stream, created -> {
-            EventRecord eventRecord = StreamCreated.create(created);
-            StreamMetadata metadata = streams.get(SystemStreams.STREAMS).get();
-            append(eventRecord, NO_EXPECTED_VERSION, metadata);
-        });
+
+    private boolean matchVersion(int expected, int currentVersion) {
+        return expected == NO_EXPECTED_VERSION || expected == currentVersion;
     }
 }

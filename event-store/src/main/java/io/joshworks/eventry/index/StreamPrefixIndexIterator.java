@@ -1,31 +1,25 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.LsmTree;
 
-import java.util.function.Function;
+import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
-class StreamPrefixIndexIterator extends IndexIterator {
+class StreamPrefixIndexIterator extends FixedStreamIterator {
 
     private final String prefix;
-    private final Function<String, Checkpoint> streamMatcher;
 
-    public StreamPrefixIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint, String prefix, Function<String, Checkpoint> streamMatcher) {
+    StreamPrefixIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint, String prefix) {
         super(delegate, direction, checkpoint);
         this.prefix = prefix;
-        this.streamMatcher = streamMatcher;
     }
 
     @Override
-    protected long nextStream() {
-        if (!streamIt.hasNext()) {
-            Checkpoint newItems = streamMatcher.apply(prefix);
-            super.checkpoint.merge(newItems);
-            streamIt = checkpoint.iterator();
+    public void onStreamCreated(StreamMetadata metadata) {
+        if (Streams.matches(metadata.name, prefix)) {
+            checkpoint.put(metadata.hash, NO_VERSION);
         }
-        if (streamIt.hasNext()) {
-            return streamIt.next().getKey();
-        }
-        return currentStream;
     }
 }

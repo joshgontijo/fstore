@@ -1,7 +1,7 @@
 package io.joshworks.eventry;
 
+import io.joshworks.eventry.index.StreamIterator;
 import io.joshworks.eventry.index.IndexEntry;
-import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.IEventLog;
 
@@ -12,22 +12,22 @@ import java.io.IOException;
  */
 public class IndexedLogIterator implements EventLogIterator {
 
-    private final IndexIterator indexIterator;
+    private final StreamIterator streamIterator;
     private final IEventLog log;
 
-    IndexedLogIterator(IndexIterator indexIterator, IEventLog log) {
-        this.indexIterator = indexIterator;
+    IndexedLogIterator(StreamIterator streamIterator, IEventLog log) {
+        this.streamIterator = streamIterator;
         this.log = log;
     }
 
     @Override
     public boolean hasNext() {
-        return indexIterator.hasNext();
+        return streamIterator.hasNext();
     }
 
     @Override
     public EventRecord next() {
-        IndexEntry indexEntry = indexIterator.next();
+        IndexEntry indexEntry = streamIterator.next();
         return log.get(indexEntry.position);
     }
 
@@ -41,6 +41,6 @@ public class IndexedLogIterator implements EventLogIterator {
 
     @Override
     public void close() throws IOException {
-        indexIterator.close();
+        streamIterator.close();
     }
 }

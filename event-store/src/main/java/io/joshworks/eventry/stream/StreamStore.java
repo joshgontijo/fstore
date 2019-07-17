@@ -1,6 +1,6 @@
 package io.joshworks.eventry.stream;
 
-import io.joshworks.eventry.LRUCache;
+import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.LsmTree;
@@ -9,28 +9,27 @@ import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
 public class StreamStore implements Closeable {
 
-    private static final String DIR = "streams";
     private static final String STORE_NAME = "streams";
     public final LsmTree<Long, StreamMetadata> store;
-    private final Map<Long, StreamMetadata> cache;
+    private final Cache<Long, StreamMetadata> cache;
 
-    StreamStore(File root, int cacheSize) {
-        this.store = LsmTree.builder(new File(root, DIR), Serializers.LONG, new StreamMetadataSerializer())
+    StreamStore(File root, int cacheSize, int cacheMaxAge) {
+        this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, new StreamMetadataSerializer())
                 .flushThreshold(cacheSize)
                 .name(STORE_NAME)
                 .open();
-        this.cache = new LRUCache<>(cacheSize);
+        this.cache = Cache.create(cacheSize, cacheMaxAge);
     }
 
     public void create(long stream, StreamMetadata metadata) {
         requireNonNull(metadata, "Metadata must be provided");
-        if (cache.containsKey(stream)) {
+        StreamMetadata cached = cache.get(stream);
+        if (cached != null) {
             throw new StreamException("Stream '" + metadata.name + "' already exist");
         }
         StreamMetadata fromDisk = store.get(stream);
@@ -38,7 +37,7 @@ public class StreamStore implements Closeable {
             throw new StreamException("Stream '" + metadata.name + "' already exist");
         }
 
-        cache.put(stream, metadata);
+        cache.add(stream, metadata);
         store.put(stream, metadata);
     }
 
@@ -49,7 +48,7 @@ public class StreamStore implements Closeable {
             throw new StreamException("Stream '" + metadata.name + "' doesn't exist");
         }
 
-        cache.put(metadata.hash, metadata);
+        cache.add(metadata.hash, metadata);
         store.put(metadata.hash, metadata);
     }
 
@@ -58,7 +57,7 @@ public class StreamStore implements Closeable {
         if (metadata == null) {
             metadata = store.get(stream);
             if (metadata != null) {
-                cache.put(stream, metadata);
+                cache.add(stream, metadata);
             }
         }
         return metadata;

@@ -3,15 +3,15 @@ package io.joshworks.eventry.index;
 import io.joshworks.eventry.StreamName;
 
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
 public class Checkpoint {
 
-    private final LinkedHashMap<Long, Integer> map = new LinkedHashMap<>();
+    private final Map<Long, Integer> map = new ConcurrentHashMap<>();
 
     public void put(long stream, int version) {
         map.put(stream, version);
