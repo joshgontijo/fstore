@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.index.cache.Cache;
@@ -12,7 +13,6 @@ import io.joshworks.fstore.serializer.Serializers;
 import java.io.Closeable;
 import java.io.File;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -84,12 +84,17 @@ public class Index implements Closeable {
         }
     }
 
-    public StreamIterator iterator(Checkpoint checkpoint) {
-        return new FixedStreamIterator(lsmTree, Direction.FORWARD, checkpoint);
+    public StreamIterator iterator(Checkpoint checkpoint, Function<Long, StreamMetadata> metadataSupplier) {
+        FixedStreamIterator iterator = new FixedStreamIterator(lsmTree, Direction.FORWARD, checkpoint);
+        return withMaxCount(iterator, metadataSupplier);
     }
 
-    public StreamIterator iterator(String streamPrefix, Checkpoint checkpoint, Function<String, Set<Long>> streamMatcher) {
-        Function<String, Checkpoint> checkpointMatcher = stream -> Checkpoint.of(streamMatcher.apply(stream));
-        return new StreamPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPrefix, checkpointMatcher);
+    public StreamIterator iterator(String streamPrefix, Checkpoint checkpoint, Function<Long, StreamMetadata> metadataSupplier) {
+        StreamPrefixIndexIterator iterator = new StreamPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPrefix);
+        return withMaxCount(iterator, metadataSupplier);
+    }
+
+    private StreamIterator withMaxCount(StreamIterator iterator, Function<Long, StreamMetadata> metadataSupplier) {
+        return new MaxCountFilteringIterator(metadataSupplier, this::version, iterator);
     }
 }

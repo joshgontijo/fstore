@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -31,12 +30,12 @@ public class Streams implements Closeable {
         this.streamStore = new StreamStore(root, cacheSize, cacheMaxAge);
     }
 
-    public Optional<StreamMetadata> get(String stream) {
+    public StreamMetadata get(String stream) {
         return get(StreamName.hash(stream));
     }
 
-    public Optional<StreamMetadata> get(long streamHash) {
-        return Optional.ofNullable(streamStore.get(streamHash));
+    public StreamMetadata get(long streamHash) {
+        return streamStore.get(streamHash);
     }
 
     public List<StreamMetadata> all() {

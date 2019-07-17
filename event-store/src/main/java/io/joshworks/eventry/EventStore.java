@@ -6,9 +6,9 @@ import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.Checkpoint;
-import io.joshworks.eventry.index.StreamIterator;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.eventry.index.StreamIterator;
 import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
@@ -107,8 +107,8 @@ public class EventStore implements IEventStore {
     }
 
     private boolean initializeSystemStreams() {
-        Optional<StreamMetadata> entry = streams.get(SystemStreams.STREAMS_HASH);
-        if (entry.isPresent()) {
+        StreamMetadata entry = streams.get(SystemStreams.STREAMS_HASH);
+        if (entry != null) {
             logger.info("System stream already initialized");
             return false;
         }
@@ -135,18 +135,6 @@ public class EventStore implements IEventStore {
 
     public static EventStore open(File rootDir) {
         return new EventStore(rootDir);
-    }
-
-    private StreamMetadata fetchMetadata(String stream) {
-        return fetchMetadata(StreamName.hash(stream));
-    }
-
-    private StreamMetadata fetchMetadata(long stream) {
-        Optional<StreamMetadata> streamMetadata = streams.get(stream);
-        if (!streamMetadata.isPresent()) {
-            throw new IllegalArgumentException("Could not find stream metadata for " + stream);
-        }
-        return streamMetadata.get();
     }
 
     private void loadIndex() {
@@ -244,7 +232,7 @@ public class EventStore implements IEventStore {
                 throw new IllegalStateException("Stream '" + stream + "' already exist");
             }
             EventRecord eventRecord = StreamCreated.create(created);
-            StreamMetadata streamsStreamMeta = streams.get(SystemStreams.STREAMS).get();
+            StreamMetadata streamsStreamMeta = streams.get(SystemStreams.STREAMS);
             writer.append(eventRecord, NO_EXPECTED_VERSION, streamsStreamMeta);
             return created;
         });
@@ -267,7 +255,7 @@ public class EventStore implements IEventStore {
     @Override
     public Optional<StreamInfo> streamMetadata(String stream) {
         long streamHash = StreamName.hash(stream);
-        return streams.get(streamHash).map(meta -> {
+        return Optional.ofNullable(streams.get(streamHash)).map(meta -> {
             int version = index.version(meta.hash);
             return StreamInfo.from(meta, version);
         });
@@ -276,12 +264,12 @@ public class EventStore implements IEventStore {
     @Override
     public void truncate(String stream, int fromVersionInclusive) {
         Future<StreamMetadata> op = eventWriter.queue(writer -> {
-            StreamMetadata metadata = streams.get(stream).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
+            StreamMetadata metadata = Optional.ofNullable(streams.get(stream)).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
             int currentVersion = index.version(metadata.hash);
             streams.truncate(metadata, fromVersionInclusive, currentVersion);
             EventRecord eventRecord = StreamTruncated.create(metadata.name, fromVersionInclusive);
 
-            StreamMetadata streamsMetadata = streams.get(SystemStreams.STREAMS).get();
+            StreamMetadata streamsMetadata = streams.get(SystemStreams.STREAMS);
             writer.append(eventRecord, NO_EXPECTED_VERSION, streamsMetadata);
             return streamsMetadata;
         });
@@ -300,13 +288,15 @@ public class EventStore implements IEventStore {
         long hash = streamName.hash();
 
         //TODO this must be applied to fromStreams and fromStreamsPATTERN
-        int startVersion = streams.get(hash).map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version).orElse(version);
+        int startVersion = Optional.of(streams.get(hash))
+                .map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version)
+                .orElse(version);
 
-        StreamIterator streamIterator = index.iterator(Checkpoint.of(hash, startVersion));
+        StreamIterator streamIterator = index.iterator(Checkpoint.of(hash, startVersion), streams::get);
         StreamListenerRemoval listenerRemoval = new StreamListenerRemoval(streamListeners, streamIterator);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
-        return createEventLogIterator(this::fetchMetadata, indexedLogIterator);
+        return createEventLogIterator(streams::get, indexedLogIterator);
     }
 
     //TODO this requires another method that accepts checkpoint
@@ -317,11 +307,11 @@ public class EventStore implements IEventStore {
         }
 
         Set<Long> longs = streams.matchStreamHash(streamPrefix);
-        StreamIterator streamIterator = index.iterator(streamPrefix, Checkpoint.of(longs), streams::matchStreamHash);
+        StreamIterator streamIterator = index.iterator(streamPrefix, Checkpoint.of(longs), streams::get);
         StreamListenerRemoval listenerRemoval = new StreamListenerRemoval(streamListeners, streamIterator);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
-        return createEventLogIterator(this::fetchMetadata, indexedLogIterator);
+        return createEventLogIterator(streams::get, indexedLogIterator);
     }
 
     @Override
@@ -332,11 +322,11 @@ public class EventStore implements IEventStore {
 
         Set<Long> hashes = streamNames.stream().map(StreamName::hash).collect(Collectors.toSet());
 
-        StreamIterator streamIterator = index.iterator(Checkpoint.of(hashes));
+        StreamIterator streamIterator = index.iterator(Checkpoint.of(hashes), streams::get);
         StreamListenerRemoval listenerRemoval = new StreamListenerRemoval(streamListeners, streamIterator);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
-        return createEventLogIterator(this::fetchMetadata, indexedLogIterator);
+        return createEventLogIterator(streams::get, indexedLogIterator);
     }
 
     @Override
@@ -346,7 +336,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public int count(String stream) {
-        return streams.get(stream).map(m -> {
+        return Optional.ofNullable(streams.get(stream)).map(m -> {
             int version = version(stream);
             return m.truncated > NO_TRUNCATE ? version - m.truncated : version + 1;
         }).orElse(0);
@@ -407,7 +397,7 @@ public class EventStore implements IEventStore {
     private StreamMetadata getOrCreateStream(Writer writer, String stream) {
         return streams.createIfAbsent(stream, created -> {
             EventRecord eventRecord = StreamCreated.create(created);
-            StreamMetadata metadata = streams.get(SystemStreams.STREAMS).get();
+            StreamMetadata metadata = streams.get(SystemStreams.STREAMS);
             writer.append(eventRecord, NO_EXPECTED_VERSION, metadata);
         });
     }

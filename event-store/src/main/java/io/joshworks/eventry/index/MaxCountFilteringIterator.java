@@ -7,15 +7,16 @@ import java.util.function.Function;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 
-//TODO check if is still needed
-class MaxCountFilteringIterator implements CloseableIterator<IndexEntry> {
+class MaxCountFilteringIterator implements StreamIterator {
 
     private final Function<Long, Integer> versionFetcher;
     private final StreamIterator delegate;
     private final Function<Long, StreamMetadata> metadataSupplier;
     private IndexEntry next;
 
-    MaxCountFilteringIterator(Function<Long, StreamMetadata> metadataSupplier, Function<Long, Integer> versionFetcher, StreamIterator delegate) {
+    MaxCountFilteringIterator(Function<Long, StreamMetadata> metadataSupplier,
+                              Function<Long, Integer> versionFetcher,
+                              StreamIterator delegate) {
         this.metadataSupplier = metadataSupplier;
         this.versionFetcher = versionFetcher;
         this.delegate = delegate;
@@ -64,4 +65,18 @@ class MaxCountFilteringIterator implements CloseableIterator<IndexEntry> {
         delegate.close();
     }
 
+    @Override
+    public void onStreamCreated(StreamMetadata metadata) {
+
+    }
+
+    @Override
+    public void onStreamTruncated(StreamMetadata metadata) {
+
+    }
+
+    @Override
+    public void onStreamDeleted(StreamMetadata metadata) {
+
+    }
 }
