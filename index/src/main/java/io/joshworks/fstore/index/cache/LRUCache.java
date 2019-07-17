@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
  * fashion (entry hits modulo N). Eviction follows an LRU approach (oldest sampled
  * entries are removed first) when the cache is out of capacity.</p>
  * <p>
- *
+ * <p>
  * This cache can also be configured to run in FIFO mode, rather than LRU.
  *
  * @author Jason T. Greene
@@ -59,6 +59,7 @@ public class LRUCache<K, V> implements Cache<K, V> {
         this.maxEntries = maxEntries;
         this.fifo = false;
     }
+
     public LRUCache(int maxEntries, final int maxAge, boolean fifo) {
         this.maxAge = maxAge;
         this.cache = new ConcurrentHashMap<>(16);
@@ -71,10 +72,8 @@ public class LRUCache<K, V> implements Cache<K, V> {
     public void add(K key, V newValue) {
         CacheEntry<K, V> value = cache.get(key);
         if (value == null) {
-            long expires;
-            if(maxAge == -1) {
-                expires = -1;
-            } else {
+            long expires = maxAge;
+            if (maxAge > 0) {
                 expires = System.currentTimeMillis() + maxAge;
             }
             value = new CacheEntry<>(key, newValue, expires);
@@ -101,14 +100,14 @@ public class LRUCache<K, V> implements Cache<K, V> {
             return null;
         }
         long expires = cacheEntry.getExpires();
-        if(expires != -1) {
-            if(System.currentTimeMillis() > expires) {
+        if (expires != -1) {
+            if (System.currentTimeMillis() > expires) {
                 remove(key);
                 return null;
             }
         }
 
-        if(!fifo) {
+        if (!fifo) {
             if (cacheEntry.hit() % SAMPLE_INTERVAL == 0) {
                 bumpAccess(cacheEntry);
             }
