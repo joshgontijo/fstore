@@ -6,8 +6,6 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.index.cache.Cache;
-import io.joshworks.fstore.index.cache.LRUCache;
-import io.joshworks.fstore.index.cache.NoCache;
 import io.joshworks.fstore.index.filter.BloomFilter;
 import io.joshworks.fstore.index.midpoints.Midpoint;
 import io.joshworks.fstore.index.midpoints.Midpoints;
@@ -66,11 +64,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                    WriteMode writeMode,
                    BlockFactory blockFactory,
                    Codec codec,
+                   Cache<Long, Block> blockCache,
                    long bloomNItems,
                    double bloomFPProb,
                    int blockSize,
-                   int blockCacheSize,
-                   int blockCacheMaxAge,
                    double checksumProb,
                    int readPageSize) {
 
@@ -79,7 +76,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
 
         this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb, keySerializer);
         this.midpoints = new Midpoints<>();
-        this.blockCache = blockCacheSize > 0 ? new LRUCache<>(blockCacheSize, blockCacheMaxAge) : new NoCache<>();
+        this.blockCache = blockCache;
 
         this.delegate = new BlockSegment<>(
                 file,
@@ -546,8 +543,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         private final long bloomNItems;
         private final double bloomFPProb;
         private final int blockSize;
-        private final int blockCacheSize;
-        private final int blockCacheMaxAge;
+        private Cache<Long, Block> blockCache;
 
         SSTableFactory(Serializer<K> keySerializer,
                        Serializer<V> valueSerializer,
@@ -556,8 +552,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                        long bloomNItems,
                        double bloomFPProb,
                        int blockSize,
-                       int blockCacheSize,
-                       int blockCacheMaxAge) {
+                       Cache<Long, Block> blockCache) {
 
             this.keySerializer = keySerializer;
             this.valueSerializer = valueSerializer;
@@ -566,8 +561,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
             this.bloomNItems = bloomNItems;
             this.bloomFPProb = bloomFPProb;
             this.blockSize = blockSize;
-            this.blockCacheSize = blockCacheSize;
-            this.blockCacheMaxAge = blockCacheMaxAge;
+            this.blockCache = blockCache;
         }
 
         @Override
@@ -582,11 +576,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                     writeMode,
                     blockFactory,
                     codec,
+                    blockCache,
                     bloomNItems,
                     bloomFPProb,
                     blockSize,
-                    blockCacheSize,
-                    blockCacheMaxAge,
                     checksumProb,
                     readPageSize);
         }

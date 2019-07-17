@@ -206,14 +206,14 @@ public class TableIndexTest {
 
     @Test
     public void hasNext_returns_false_when_no_data_is_avaialble() {
-        IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(1));
+        StreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(1));
         assertFalse(iterator.hasNext());
     }
 
     @Test
     public void hasNext_returns_true_when_data_is_available() {
         tableIndex.add(1, 0, 0);
-        IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(1));
+        StreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(1));
         assertTrue(iterator.hasNext());
     }
 
@@ -225,7 +225,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
 
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = iterator.next();
@@ -245,7 +245,7 @@ public class TableIndexTest {
             tableIndex.add(i, 0, 0);
         }
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(streams))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(streams))) {
 
             Threads.sleep(100000);
             for (int i = 0; i < entries; i++) {
@@ -270,7 +270,7 @@ public class TableIndexTest {
             }
         }
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(versionTracker.keySet()))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(versionTracker.keySet()))) {
 
             for (long stream = 0; stream < streams; stream++) {
                 for (int version = 0; version < versions; version++) {
@@ -295,7 +295,7 @@ public class TableIndexTest {
 
         tableIndex.flush(0);
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
 
             for (int i = 0; i < entries; i++) {
 
@@ -322,7 +322,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
 
             for (int i = 0; i < entries * 2; i++) {
                 IndexEntry poll = iterator.next();
@@ -342,7 +342,7 @@ public class TableIndexTest {
             tableIndex.add(stream, i, 0);
         }
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(someOtherStream))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(someOtherStream))) {
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = iterator.next();
                 assertNull(poll);
@@ -362,7 +362,7 @@ public class TableIndexTest {
 
         tableIndex.flush(0);
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(someOtherStream))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(someOtherStream))) {
             for (int i = 0; i < entries; i++) {
                 IndexEntry poll = iterator.next();
                 assertNull(poll);
@@ -383,7 +383,7 @@ public class TableIndexTest {
         });
         writeThread.start();
 
-        try (IndexIterator reader = tableIndex.indexedIterator(Checkpoint.of(stream))) {
+        try (FixedStreamIterator reader = tableIndex.indexedIterator(Checkpoint.of(stream))) {
             for (int i = 0; i < totalEntries; i++) {
                 while (!reader.hasNext()) {
                     Thread.sleep(200);
@@ -416,7 +416,7 @@ public class TableIndexTest {
         writeThread.start();
 
         Set<Long> streams = LongStream.range(0, numStreams).boxed().collect(Collectors.toSet());
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(streams))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(streams))) {
             for (int i = 0; i < numVersion * numStreams; i++) {
                 if (!Iterators.await(iterator, 500, 10000)) {
                     throw new IllegalStateException("Read timeout");
@@ -441,7 +441,7 @@ public class TableIndexTest {
         tableIndex.flush(0);
         tableIndex.add(stream2, 1, 0);
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(Set.of(stream1, stream2)))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(Set.of(stream1, stream2)))) {
             assertTrue(iterator.hasNext());
 
             IndexEntry polled = iterator.next();
@@ -462,7 +462,7 @@ public class TableIndexTest {
         tableIndex.add(stream, 0, 0);
         tableIndex.add(stream, 1, 0);
 
-        IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream));
+        StreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream));
 
         IndexEntry polled = iterator.next();
         assertEquals(stream, polled.stream);
@@ -482,7 +482,7 @@ public class TableIndexTest {
 
         tableIndex.add(stream, 0, 0);
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
             IndexEntry polled = iterator.next();
             assertEquals(stream, polled.stream);
             assertEquals(0, polled.version);
@@ -506,11 +506,11 @@ public class TableIndexTest {
         }
 
         int lastVersion;
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
             lastVersion = iterator.next().version;
         }
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream, lastVersion))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream, lastVersion))) {
             IndexEntry entry = iterator.next();
             assertEquals(lastVersion + 1, entry.version);
         }
@@ -551,7 +551,7 @@ public class TableIndexTest {
         }
 
         for (long stream : streams) {
-            try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
+            try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(stream))) {
                 for (int version = 0; version < versions; version++) {
                     assertTrue("Failed on stream " + stream + " version " + version, iterator.hasNext());
 
@@ -580,7 +580,7 @@ public class TableIndexTest {
             tracker.put(stream, EventRecord.NO_VERSION);
         }
 
-        try (IndexIterator iterator = tableIndex.indexedIterator(Checkpoint.of(streams))) {
+        try (FixedStreamIterator iterator = tableIndex.indexedIterator(Checkpoint.of(streams))) {
             while (iterator.hasNext()) {
                 IndexEntry next = iterator.next();
                 tracker.put(next.stream, next.version);

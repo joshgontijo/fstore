@@ -4,11 +4,13 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 
 import java.io.File;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 public class SSTables<K extends Comparable<K>, V> {
 
     private final LogAppender<Entry<K, V>> appender;
+    private final Cache<Long, Block> blockCache;
 
     public SSTables(File dir,
                     Serializer<K> keySerializer,
@@ -35,6 +38,7 @@ public class SSTables<K extends Comparable<K>, V> {
                     int blockCacheSize,
                     int blockCacheMaxAge) {
 
+        this.blockCache = Cache.create(blockCacheSize, blockCacheMaxAge);
         this.appender = LogAppender.builder(dir, new EntrySerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new SSTableCompactor<>())
                 .name(name + "-sstable")
@@ -43,7 +47,7 @@ public class SSTables<K extends Comparable<K>, V> {
                 .enableParallelCompaction()
                 .disableCompaction() //TODO for testing, remove-me
                 .flushMode(flushMode)
-                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, blockCacheSize, blockCacheMaxAge));
+                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, blockCache));
     }
 
     public long write(Entry<K, V> entry) {
@@ -70,9 +74,9 @@ public class SSTables<K extends Comparable<K>, V> {
         return appender.applyToSegments(direction, func);
     }
 
+    //returns the first floor occurrence of a given key
     public Entry<K, V> floor(K key) {
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
-
             for (Log<Entry<K, V>> segment : segments) {
                 SSTable<K, V> sstable = (SSTable<K, V>) segment;
                 if (!sstable.readOnly()) {
@@ -86,16 +90,14 @@ public class SSTables<K extends Comparable<K>, V> {
         });
     }
 
+    //returns the first ceiling occurrence of a given key
     public Entry<K, V> ceiling(K key) {
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
-            TreeSet<K> entries = new TreeSet<>();
             for (Log<Entry<K, V>> segment : segments) {
                 if (!segment.readOnly()) {
                     continue;
                 }
                 SSTable<K, V> sstable = (SSTable<K, V>) segment;
-                entries.add(sstable.lastKey());
-                entries.add(sstable.firstKey());
                 if (key.compareTo(sstable.firstKey()) > 0 && key.compareTo(sstable.lastKey()) <= 0) {
                     return sstable.ceiling(key);
                 }

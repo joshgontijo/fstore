@@ -1,6 +1,6 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.fstore.log.CloseableIterator;
+import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.LsmTree;
 
@@ -8,18 +8,17 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class IndexIterator implements CloseableIterator<IndexEntry> {
+public class FixedStreamIterator implements StreamIterator {
 
     private final LsmTree<IndexKey, Long> delegate;
     protected final Checkpoint checkpoint;
     private final Direction direction;
     private final AtomicBoolean closed = new AtomicBoolean();
-    protected long currentStream;
-    protected Iterator<Map.Entry<Long, Integer>> streamIt;
+    private long currentStream;
+    private Iterator<Map.Entry<Long, Integer>> streamIt;
     private IndexEntry next;
 
-
-    IndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint) {
+    FixedStreamIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint) {
         this.delegate = delegate;
         this.checkpoint = checkpoint;
         this.direction = direction;
@@ -75,7 +74,7 @@ public class IndexIterator implements CloseableIterator<IndexEntry> {
         return null;
     }
 
-    protected long nextStream() {
+    protected synchronized long nextStream() {
         if (checkpoint.size() == 0) {
             return 0;
         }
@@ -87,10 +86,6 @@ public class IndexIterator implements CloseableIterator<IndexEntry> {
 
     private boolean isReadable(IndexEntry ie) {
         return !ie.isDeletion() && !ie.isTruncation();
-    }
-
-    public void onStreamChanged() {
-
     }
 
     @Override
@@ -117,4 +112,19 @@ public class IndexIterator implements CloseableIterator<IndexEntry> {
         closed.set(true);
     }
 
+    //Stream listeners
+    @Override
+    public void onStreamCreated(StreamMetadata metadata) {
+
+    }
+
+    @Override
+    public void onStreamTruncated(StreamMetadata metadata) {
+        checkpoint.put(metadata.hash, metadata.truncated);
+    }
+
+    @Override
+    public void onStreamDeleted(StreamMetadata metadata) {
+
+    }
 }

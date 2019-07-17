@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -36,6 +37,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private final boolean logDisabled;
 
     private MemTable<K, V> memTable;
+    private final Cache<K, V> cache;
 
     private LsmTree(Builder<K, V> builder) {
         this.sstables = createSSTable(builder);
@@ -44,6 +46,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         this.flushThreshold = builder.flushThreshold;
         this.logDisabled = builder.logDisabled;
         this.log.restore(this::restore);
+        this.cache = Cache.create(builder.entryCacheSize, builder.blockCacheMaxAge);
     }
 
     public static <K extends Comparable<K>, V> Builder<K, V> builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -85,6 +88,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     public boolean put(K key, V value) {
         log.append(Record.add(key, value));
         memTable.add(key, value);
+        cache.remove(key); //evict
         if (memTable.size() >= flushThreshold) {
             flushMemTable(false);
             return true;
@@ -93,8 +97,13 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public V get(K key) {
+        V cached = cache.get(key);
+        if (cached != null) {
+            return cached;
+        }
         V found = memTable.get(key);
         if (found != null) {
+            cache.add(key, found);
             return found;
         }
         return sstables.get(key);
@@ -235,10 +244,14 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private FlushMode ssTableFlushMode = FlushMode.ON_ROLL;
         private BlockFactory sstableBlockFactory = VLenBlock.factory();
         private StorageMode tlogStorageMode = StorageMode.RAF;
-        private int blockCacheSize = 100;
-        private int blockCacheMaxAge = 120000;
-        private boolean useKryo;
         private int segmentSize = Size.MB.ofInt(32);
+
+        private int blockCacheSize = 500;
+        private int blockCacheMaxAge = 120000;
+
+        private int entryCacheSize = 10000;
+        private int entryCacheMaxAge = 120000;
+
 
         private Builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
             this.directory = directory;
@@ -266,23 +279,20 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
-        public Builder<K, V> blockSize(int blockSize) {
-            this.blockSize = blockSize;
-            return this;
-        }
-
-        public Builder<K, V> blockCacheSize(int blockCacheSize) {
-            this.blockCacheSize = blockCacheSize;
-            return this;
-        }
-
         public Builder<K, V> segmentSize(int size) {
             this.segmentSize = size;
             return this;
         }
 
-        public Builder<K, V> blockCacheMaxAge(int maxAgeSeconds) {
+        public Builder<K, V> blockCache(int cacheSize, int maxAgeSeconds) {
+            this.blockCacheSize = cacheSize;
             this.blockCacheMaxAge = maxAgeSeconds * 1000;
+            return this;
+        }
+
+        public Builder<K, V> entryCache(int cacheSize, int maxAgeSeconds) {
+            this.entryCacheSize = cacheSize;
+            this.entryCacheMaxAge = maxAgeSeconds * 1000;
             return this;
         }
 

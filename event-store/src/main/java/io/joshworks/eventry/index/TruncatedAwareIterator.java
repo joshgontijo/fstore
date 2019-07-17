@@ -8,13 +8,14 @@ import java.util.function.Function;
 /**
  * filters out entries if stream was truncated after acquiring the iterator
  */
+@Deprecated
 class TruncatedAwareIterator implements CloseableIterator<IndexEntry> {
 
-    private final IndexIterator delegate;
+    private final StreamIterator delegate;
     private final Function<Long, StreamMetadata> metadataSupplier;
     private IndexEntry next;
 
-    TruncatedAwareIterator(Function<Long, StreamMetadata> metadataSupplier, IndexIterator delegate) {
+    TruncatedAwareIterator(Function<Long, StreamMetadata> metadataSupplier, StreamIterator delegate) {
         this.metadataSupplier = metadataSupplier;
         this.delegate = delegate;
     }
