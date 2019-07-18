@@ -27,13 +27,15 @@ import static io.joshworks.eventry.stream.StreamMetadata.STREAM_ACTIVE;
 
 public class Streams implements Closeable {
 
+    private static final String WILDCARD = "*";
     private static final String STORE_NAME = "streams";
     public final LsmTree<Long, StreamMetadata> store;
 
-    public Streams(File root, int cacheSize, int cacheMaxAge) {
+    public Streams(File root, int flushThreshold, int cacheSize, int cacheMaxAge) {
         this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, new StreamMetadataSerializer())
                 .name(STORE_NAME)
-                .flushThreshold(20000)
+                .flushThreshold(flushThreshold)
+                .bloomFilter(0.01, flushThreshold)
                 .transacationLogStorageMode(StorageMode.MMAP)
                 .sstableStorageMode(StorageMode.MMAP)
                 .entryCache(cacheSize, cacheMaxAge)
@@ -93,32 +95,50 @@ public class Streams implements Closeable {
         return store.remove(streamHash);
     }
 
-    public Set<String> matchStreamName(String prefix) {
-        if (prefix == null) {
+    public Set<String> matchStreamName(String pattern) {
+        if (pattern == null) {
             return new HashSet<>();
         }
-        return match(prefix)
+        return match(pattern)
                 .map(stream -> stream.name)
                 .collect(Collectors.toSet());
     }
 
-    public Set<Long> matchStreamHash(String prefix) {
-        if (prefix == null) {
+    public Set<Long> matchStreamHash(String pattern) {
+        if (pattern == null) {
             return new HashSet<>();
         }
-        return match(prefix)
+        return match(pattern)
                 .map(stream -> stream.hash)
                 .collect(Collectors.toSet());
     }
 
-    private Stream<StreamMetadata> match(String prefix) {
+    private Stream<StreamMetadata> match(String pattern) {
         return Iterators.stream(store.iterator(Direction.FORWARD))
                 .map(e -> e.value)
-                .filter(stream -> matches(stream.name, prefix));
+                .filter(stream -> matches(stream.name, pattern));
     }
 
-    public static boolean matches(String streamName, String prefix) {
-        return streamName.startsWith(prefix);
+    public static boolean matches(String streamName, String pattern) {
+        if (StringUtils.isBlank(pattern) || StringUtils.isBlank(streamName)) {
+            return false;
+        }
+        pattern = pattern.trim();
+        boolean startWildcard = pattern.startsWith(WILDCARD);
+        boolean endWildcard = pattern.endsWith(WILDCARD);
+        if (startWildcard && endWildcard) {
+            String patternValue = pattern.substring(1, pattern.length() - 1);
+            return !patternValue.isEmpty() && streamName.contains(patternValue);
+        }
+        if (startWildcard) {
+            String patternValue = pattern.substring(1);
+            return !patternValue.isEmpty() && streamName.endsWith(patternValue);
+        }
+        if (endWildcard) {
+            String patternValue = pattern.substring(0, pattern.length() - 1);
+            return !patternValue.isEmpty() && streamName.startsWith(patternValue);
+        }
+        return streamName.equals(pattern);
     }
 
     @Override

@@ -20,17 +20,18 @@ import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
 public class Index implements Closeable {
 
-    private static final String DIR = "index";
+    private static final String NAME = "index";
     private final LsmTree<IndexKey, Long> lsmTree;
     private final Cache<Long, AtomicInteger> versionCache;
 
     public Index(File rootDir, int indexFlushThreshold, Codec codec, int versionCacheSize, int versionCacheMaxAge) {
         versionCache = Cache.create(versionCacheSize, versionCacheMaxAge);
-        lsmTree = LsmTree.builder(new File(rootDir, DIR), new IndexKeySerializer(), Serializers.LONG)
+        lsmTree = LsmTree.builder(new File(rootDir, NAME), new IndexKeySerializer(), Serializers.LONG)
                 .disableTransactionLog()
                 .flushThreshold(indexFlushThreshold)
                 .sstableStorageMode(StorageMode.MMAP)
                 .codec(codec)
+                .name(NAME)
                 .sstableBlockFactory(IndexBlock.factory())
                 .open();
     }

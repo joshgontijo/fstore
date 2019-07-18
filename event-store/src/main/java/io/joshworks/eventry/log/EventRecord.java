@@ -62,6 +62,10 @@ public class EventRecord {
         return StreamName.hash(stream);
     }
 
+    public boolean expired(long maxAge) {
+        return maxAge > 0 && System.currentTimeMillis() - timestamp > maxAge;
+    }
+
     public StreamName streamName() {
         return StreamName.of(stream, version);
     }

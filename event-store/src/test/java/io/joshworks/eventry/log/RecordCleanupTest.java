@@ -27,6 +27,7 @@ import static org.junit.Assert.assertTrue;
 
 public class RecordCleanupTest {
 
+    private static final int STREAMS_FLUSH_THRESHOLD = 1000;
     private RecordCleanup cleanup;
     private Streams streams;
 
@@ -36,7 +37,7 @@ public class RecordCleanupTest {
     @Before
     public void setUp() {
         dummyFolder = FileUtils.testFolder();
-        streams = new Streams(dummyFolder, -1, -1);
+        streams = new Streams(dummyFolder, STREAMS_FLUSH_THRESHOLD,-1, -1);
         index = new Index(dummyFolder, 10, Codec.noCompression(), -1, -1);
         cleanup = new RecordCleanup(streams, index);
     }
@@ -62,7 +63,7 @@ public class RecordCleanupTest {
 
         var stream = SystemStreams.STREAMS;
 
-        streams.create(stream, 1, 1);
+        streams.create(stream);
 
         var source = new InMemorySegment<EventRecord>();
         appendTo(source, systemRecord());

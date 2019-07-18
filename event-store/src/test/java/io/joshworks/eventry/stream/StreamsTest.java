@@ -14,6 +14,7 @@ import static org.junit.Assert.assertTrue;
 
 public class StreamsTest {
 
+    private static final int STREAMS_FLUSH_THRESHOLD = 1000000;
     private Streams streams;
 
     private File dummyFile;
@@ -21,11 +22,11 @@ public class StreamsTest {
     @Before
     public void setUp() {
         dummyFile = FileUtils.testFolder();
-        streams = createStreams();
+        streams = open();
     }
 
-    private Streams createStreams() {
-        return new Streams(dummyFile, 10, -1);
+    private Streams open() {
+        return new Streams(dummyFile, STREAMS_FLUSH_THRESHOLD, 10, -1);
     }
 
     @After
@@ -63,23 +64,64 @@ public class StreamsTest {
     }
 
     @Test
-    public void streams_are_loaded_after_restarting() {
+    public void streamsEndingWith() {
 
-        int numStreams = 1000001;
+        streams.create("44444aaa", 1, 0);
+        streams.create("123-aaa", 2, 0);
+        streams.create("another1", 3, 0);
+        streams.create("another2", 4, 0);
+
+        Set<String> names = streams.matchStreamName("*aaa");
+
+        assertEquals(2, names.size());
+        assertTrue(names.contains("44444aaa"));
+        assertTrue(names.contains("123-aaa"));
+    }
+
+    @Test
+    public void streamsContaining() {
+
+        streams.create("aaaayolobbb", 1, 0);
+        streams.create("123-yolo", 2, 0);
+        streams.create("another1", 3, 0);
+        streams.create("another2", 4, 0);
+
+        Set<String> names = streams.matchStreamName("*yolo*");
+
+        assertEquals(2, names.size());
+        assertTrue(names.contains("aaaayolobbb"));
+        assertTrue(names.contains("123-yolo"));
+    }
+
+    @Test
+    public void streams_are_loaded_after_restarting_WITH_DISK_ITEMS() {
+
+        int numStreams = (STREAMS_FLUSH_THRESHOLD * 2) + 10; //2 segments + 10 memItems
         for (int i = 0; i < numStreams; i++) {
-            if(20326 == i) {
-                System.out.println();
-            }
             streams.create(String.valueOf(i));
         }
 
         streams.close();
-        streams = createStreams();
+        streams = open();
 
         for (int i = 0; i < numStreams; i++) {
-            if(20326 == i) {
-                System.out.println();
-            }
+            StreamMetadata streamInfo = streams.get(String.valueOf(i));
+            assertNotNull("Failed on " + i, streamInfo);
+        }
+    }
+
+    @Test
+    public void streams_are_loaded_after_restarting_WITH_MEM_ONLY_ITEMS() {
+
+        int numStreams = STREAMS_FLUSH_THRESHOLD - 1;
+        for (int i = 0; i < numStreams; i++) {
+            streams.create(String.valueOf(i));
+        }
+
+        streams.close();
+        streams = open();
+
+        for (int i = 0; i < numStreams; i++) {
             StreamMetadata streamInfo = streams.get(String.valueOf(i));
             assertNotNull("Failed on " + i, streamInfo);
         }
