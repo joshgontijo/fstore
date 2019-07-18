@@ -252,8 +252,8 @@ public class EventStoreTest {
     @Test
     public void fromStreams_returns_data_within_maxAge() throws InterruptedException {
         String stream1 = "stream-1";
-        int maxAgeSeconds = 500;
-        int numVersions = 500000;
+        int maxAgeSeconds = 5;
+        int numVersions = 50;
         store.createStream(stream1, NO_MAX_COUNT, maxAgeSeconds);
 
         for (int version = 0; version < numVersions; version++) {
