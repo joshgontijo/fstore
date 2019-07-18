@@ -203,6 +203,9 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
      * or {@code null} if there is no such element
      */
     public Entry<K, V> floor(K key) {
+        if(midpoints.isEmpty()) {
+            return null;
+        }
         Midpoint<K> midpoint = midpoints.floor(key);
         Block block = delegate.getBlock(midpoint.position);
 
@@ -239,6 +242,9 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
      * or {@code null} if there is no such element
      */
     public Entry<K, V> ceiling(K key) {
+        if(midpoints.isEmpty()) {
+            return null;
+        }
         //less or equals first entry, definitely first entry
         if (key.compareTo(midpoints.first().key) <= 0) {
             return first();

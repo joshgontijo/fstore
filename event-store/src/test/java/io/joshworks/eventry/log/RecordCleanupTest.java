@@ -5,9 +5,11 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -16,7 +18,6 @@ import org.junit.Test;
 
 import java.io.File;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
@@ -29,19 +30,22 @@ public class RecordCleanupTest {
     private RecordCleanup cleanup;
     private Streams streams;
 
-    private File dummyFile;
+    private File dummyFolder;
+    private Index index;
 
     @Before
     public void setUp() {
-        dummyFile = FileUtils.testFolder();
-        streams = new Streams(dummyFile, 10, hash -> 0);
-        cleanup = new RecordCleanup(streams);
+        dummyFolder = FileUtils.testFolder();
+        streams = new Streams(dummyFolder, -1, -1);
+        index = new Index(dummyFolder, 10, Codec.noCompression(), -1, -1);
+        cleanup = new RecordCleanup(streams, index);
     }
 
     @After
     public void tearDown() {
         streams.close();
-        FileUtils.tryDelete(dummyFile);
+        index.close();
+        FileUtils.tryDelete(dummyFolder);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -219,7 +223,7 @@ public class RecordCleanupTest {
         appendTo(source, ev2);
         appendTo(source, ev3);
 
-        streams.truncate(srcMetadata, 1);
+        streams.truncate(srcMetadata, 2, 1);
 
         var output = new InMemorySegment<EventRecord>();
         cleanup.merge(List.of(source), output);
@@ -254,7 +258,7 @@ public class RecordCleanupTest {
         appendTo(source, linkTo(tgt, ev2, 1, 0));
         appendTo(source, linkTo(tgt, ev3, 2, 0));
 
-        streams.truncate(srcMetadata, 1);
+        streams.truncate(srcMetadata, 2, 1);
 
 
         var output = new InMemorySegment<EventRecord>();
@@ -347,9 +351,8 @@ public class RecordCleanupTest {
     }
 
     private void appendTo(Log<EventRecord> segment, EventRecord record) {
-        segment.append(record);
-        StreamMetadata metadata = new StreamMetadata(record.stream, streams.hashOf(record.stream), 0, -1, -1, -1, Map.of(), Map.of(), StreamMetadata.STREAM_ACTIVE);
-        streams.tryIncrementVersion(metadata, EventRecord.NO_EXPECTED_VERSION);
+        long pos = segment.append(record);
+        index.add(record.hash(), record.version, pos);
     }
 
 

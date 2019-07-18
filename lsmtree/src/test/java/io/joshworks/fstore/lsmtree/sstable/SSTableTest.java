@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.index.cache.NoCache;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
 import io.joshworks.fstore.serializer.Serializers;
@@ -42,11 +43,10 @@ public class SSTableTest {
                 WriteMode.LOG_HEAD,
                 VLenBlock.factory(),
                 Codec.noCompression(),
+                new NoCache<>(),
                 10000,
                 0.01,
                 Memory.PAGE_SIZE,
-                50,
-                120000,
                 1,
                 Memory.PAGE_SIZE);
     }

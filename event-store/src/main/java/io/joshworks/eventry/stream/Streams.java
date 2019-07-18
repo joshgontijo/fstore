@@ -2,8 +2,11 @@ package io.joshworks.eventry.stream;
 
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.utils.StringUtils;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
+import io.joshworks.fstore.lsmtree.LsmTree;
+import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.Closeable;
 import java.io.File;
@@ -24,10 +27,17 @@ import static io.joshworks.eventry.stream.StreamMetadata.STREAM_ACTIVE;
 
 public class Streams implements Closeable {
 
-    public final StreamStore streamStore;
+    private static final String STORE_NAME = "streams";
+    public final LsmTree<Long, StreamMetadata> store;
 
     public Streams(File root, int cacheSize, int cacheMaxAge) {
-        this.streamStore = new StreamStore(root, cacheSize, cacheMaxAge);
+        this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, new StreamMetadataSerializer())
+                .name(STORE_NAME)
+                .flushThreshold(20000)
+                .transacationLogStorageMode(StorageMode.MMAP)
+                .sstableStorageMode(StorageMode.MMAP)
+                .entryCache(cacheSize, cacheMaxAge)
+                .open();
     }
 
     public StreamMetadata get(String stream) {
@@ -35,11 +45,11 @@ public class Streams implements Closeable {
     }
 
     public StreamMetadata get(long streamHash) {
-        return streamStore.get(streamHash);
+        return store.get(streamHash);
     }
 
     public List<StreamMetadata> all() {
-        return Iterators.stream(streamStore.iterator(Direction.FORWARD)).map(e -> e.value).collect(Collectors.toList());
+        return Iterators.stream(store.iterator(Direction.FORWARD)).map(e -> e.value).collect(Collectors.toList());
     }
 
     public StreamMetadata create(String stream) {
@@ -54,7 +64,7 @@ public class Streams implements Closeable {
     public StreamMetadata createIfAbsent(String stream, Consumer<StreamMetadata> createdCallback) {
         validateName(stream);
         long streamHash = StreamName.hash(stream);
-        StreamMetadata metadata = streamStore.get(streamHash);
+        StreamMetadata metadata = store.get(streamHash);
         if (metadata == null) {
             metadata = this.createInternal(stream, NO_MAX_AGE, NO_MAX_COUNT, new HashMap<>(), new HashMap<>(), streamHash);
             createdCallback.accept(metadata);
@@ -71,12 +81,16 @@ public class Streams implements Closeable {
     //must not hold the lock, since
     private StreamMetadata createInternal(String stream, long maxAge, int maxCount, Map<String, Integer> acl, Map<String, String> metadata, long hash) {
         StreamMetadata streamMeta = new StreamMetadata(stream, hash, System.currentTimeMillis(), maxAge, maxCount, NO_TRUNCATE, acl, metadata, STREAM_ACTIVE);
-        streamStore.create(hash, streamMeta); //must be called before version
+        StreamMetadata fromDisk = store.get(hash);
+        if (fromDisk != null) {
+            throw new StreamException("Stream '" + stream + "' already exist");
+        }
+        store.put(hash, streamMeta); //must be called before version
         return streamMeta;
     }
 
     public boolean remove(long streamHash) {
-        return streamStore.remove(streamHash);
+        return store.remove(streamHash);
     }
 
     public Set<String> matchStreamName(String prefix) {
@@ -98,7 +112,7 @@ public class Streams implements Closeable {
     }
 
     private Stream<StreamMetadata> match(String prefix) {
-        return Iterators.stream(streamStore.iterator(Direction.FORWARD))
+        return Iterators.stream(store.iterator(Direction.FORWARD))
                 .map(e -> e.value)
                 .filter(stream -> matches(stream.name, prefix));
     }
@@ -109,7 +123,7 @@ public class Streams implements Closeable {
 
     @Override
     public void close() {
-        streamStore.close();
+        store.close();
     }
 
     private void validateName(String streamName) {
@@ -122,7 +136,7 @@ public class Streams implements Closeable {
         }
     }
 
-    public void truncate(StreamMetadata metadata, int currentVersion, int fromVersionInclusive) {
+    public StreamMetadata truncate(StreamMetadata metadata, int currentVersion, int fromVersionInclusive) {
         if (currentVersion <= NO_VERSION) {
             throw new StreamException("Version must be greater or equals zero");
         }
@@ -130,7 +144,8 @@ public class Streams implements Closeable {
             throw new StreamException("Truncate version: " + fromVersionInclusive + " must be less or equals stream version: " + currentVersion);
         }
 
-        StreamMetadata streamMeta = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, fromVersionInclusive, metadata.acl, metadata.metadata, metadata.state);
-        streamStore.update(streamMeta);
+        StreamMetadata truncated = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, fromVersionInclusive, metadata.acl, metadata.metadata, metadata.state);
+        store.put(truncated.hash, truncated);
+        return truncated;
     }
 }

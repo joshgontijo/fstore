@@ -6,15 +6,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
-import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
-import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class StreamsTest {
 
@@ -29,7 +25,7 @@ public class StreamsTest {
     }
 
     private Streams createStreams() {
-        return new Streams(dummyFile, 10, streamHash -> -1);
+        return new Streams(dummyFile, 10, -1);
     }
 
     @After
@@ -48,7 +44,7 @@ public class StreamsTest {
     @Test
     public void get_returns_correct_stream() {
         StreamMetadata created = streams.create("a", 1, 0);
-        assertTrue(streams.get(created.hash).isPresent());
+        assertNotNull(streams.get(created.hash));
     }
 
     @Test
@@ -67,33 +63,13 @@ public class StreamsTest {
     }
 
     @Test
-    public void version_of_nonExisting_stream_returns_zero() {
-        int version = streams.tryIncrementVersion(metadata(123), NO_VERSION);
-        assertEquals(0, version);
-    }
-
-    @Test(expected = StreamException.class)
-    public void unexpected_version_throws_exception() {
-        streams.tryIncrementVersion(metadata(123), 1);
-        fail("Expected version mismatch");
-    }
-
-    @Test
-    public void existing_stream_returns_correct_version() {
-        StreamMetadata metadata = streams.create("stream-123");
-        streams.tryIncrementVersion(metadata, NO_VERSION);
-        int version1 = streams.tryIncrementVersion(metadata, 0);
-        assertEquals(1, version1);
-
-        int version2 = streams.tryIncrementVersion(metadata, 1);
-        assertEquals(2, version2);
-    }
-
-    @Test
     public void streams_are_loaded_after_restarting() {
 
         int numStreams = 1000001;
         for (int i = 0; i < numStreams; i++) {
+            if(20326 == i) {
+                System.out.println();
+            }
             streams.create(String.valueOf(i));
         }
 
@@ -101,27 +77,11 @@ public class StreamsTest {
         streams = createStreams();
 
         for (int i = 0; i < numStreams; i++) {
-            Optional<StreamMetadata> streamInfo = streams.get(String.valueOf(i));
-            assertTrue("Failed on " + i, streamInfo.isPresent());
+            if(20326 == i) {
+                System.out.println();
+            }
+            StreamMetadata streamInfo = streams.get(String.valueOf(i));
+            assertNotNull("Failed on " + i, streamInfo);
         }
     }
-
-    @Test
-    public void truncate_sets_truncateBefore_field() {
-        String stream = "stream-123";
-        int tbVersion = 0;
-        StreamMetadata metadata = streams.create(stream);
-        streams.tryIncrementVersion(metadata, NO_EXPECTED_VERSION); //0
-        streams.tryIncrementVersion(metadata, NO_EXPECTED_VERSION); //1
-
-        streams.truncate(metadata, tbVersion);
-
-        StreamMetadata found = streams.get(stream).get();
-        assertEquals(found.truncated, tbVersion);
-    }
-
-    private static StreamMetadata metadata(long hash) {
-        return new StreamMetadata(String.valueOf(hash), hash, 0, StreamMetadata.NO_MAX_AGE, StreamMetadata.NO_MAX_COUNT, StreamMetadata.NO_TRUNCATE, Map.of(), Map.of(), StreamMetadata.STREAM_ACTIVE);
-    }
-
 }

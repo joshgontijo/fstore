@@ -1,12 +1,13 @@
-package io.joshworks.eventry.index.disk;
+package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.index.IndexBlock;
-import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.fstore.codec.snappy.Lz4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.segment.block.Block;
+import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.EntrySerializer;
+import io.joshworks.fstore.serializer.Serializers;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -23,7 +24,7 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public class IndexBlockTest {
 
-    private final Serializer<IndexEntry> serializer = new IndexEntrySerializer();
+    private static final Serializer<Entry<IndexKey, Long>> serializer = new EntrySerializer<>(new IndexKeySerializer(), Serializers.LONG);
 
     @Parameterized.Parameters(name = "{0}")
     public static Collection<Codec> data() {
@@ -46,7 +47,7 @@ public class IndexBlockTest {
     @Test
     public void packed_buffer_is_ready_to_read_from() {
         var block = new IndexBlock(4096);
-        addTo(block, IndexEntry.of(1, 1, 1));
+        addTo(block, Entry.add(new IndexKey(1, 1), 1L));
         var packed = block.pack(codec);
         assertTrue(packed.remaining() > 0);
     }
@@ -61,7 +62,7 @@ public class IndexBlockTest {
 
         boolean added;
         do {
-            added = addTo(block, IndexEntry.of(stream, version, position));
+            added = addTo(block, Entry.add(new IndexKey(stream, version), position));
         } while (added);
 
 
@@ -81,13 +82,13 @@ public class IndexBlockTest {
         long stream = 123;
         long position = 456;
         for (int i = 0; i < items; i++) {
-            addTo(block, IndexEntry.of(stream, i, position));
+            addTo(block, Entry.add(new IndexKey(stream, i), position));
         }
 
         assertEquals(items, block.entryCount());
     }
 
-    private boolean addTo(Block block, IndexEntry ie) {
+    private boolean addTo(Block block, Entry<IndexKey, Long> ie) {
         return block.add(serializer.toBytes(ie));
     }
 

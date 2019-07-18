@@ -48,7 +48,7 @@ public class IndexBlock extends BaseBlock {
         super(maxSize);
     }
 
-    protected IndexBlock(Codec codec, ByteBuffer data) {
+    IndexBlock(Codec codec, ByteBuffer data) {
         super(codec, data);
     }
 

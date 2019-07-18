@@ -6,8 +6,6 @@ import java.util.Objects;
 
 public class IndexEntry implements Comparable<IndexEntry> {
 
-    public static final int BYTES = Long.BYTES + Integer.BYTES + Long.BYTES;
-
     public final long stream;
     public final int version;
     public final long position;
