@@ -173,7 +173,7 @@ public class EventStoreTest {
     @Test
     public void fromStream_returns_data_only_when_within_maxAge() throws InterruptedException {
         String stream = "test-stream";
-        int maxAgeSeconds = 5;
+        int maxAgeSeconds = 2;
         int numVersions = 50;
         store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
 
@@ -181,20 +181,17 @@ public class EventStoreTest {
             store.append(EventRecord.create(stream, "type", Map.of()));
         }
 
-        long count = store.fromStream(StreamName.parse(stream)).stream().count();
-        assertEquals("MAY FAIL DUE TO TIMING", numVersions, count);
-
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
 
-        count = store.fromStream(StreamName.parse(stream)).stream().count();
+        long count = store.fromStream(StreamName.of(stream)).stream().count();
         assertEquals(0, count);
     }
 
     @Test
-    public void fromStream_returns_linkTo_data_only_when_within_maxAge() throws InterruptedException {
+    public void fromStream_does_not_return_expired_linkTo() throws InterruptedException {
         String stream = "test-stream";
         String linkToStream = "linkTo-stream";
-        int maxAgeSeconds = 5;
+        int maxAgeSeconds = 2;
         int numVersions = 50;
         store.createStream(stream);
         store.createStream(linkToStream, NO_MAX_COUNT, maxAgeSeconds);
@@ -204,19 +201,16 @@ public class EventStoreTest {
             store.linkTo(linkToStream, event);
         }
 
-        long count = store.fromStream(StreamName.parse(linkToStream)).stream().count();
-        assertEquals("MAY FAIL DUE TO TIMING", numVersions, count);
-
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
 
-        count = store.fromStream(StreamName.parse(linkToStream)).stream().count();
+        long count = store.fromStream(StreamName.of(linkToStream)).stream().count();
         assertEquals(0, count);
     }
 
     @Test
-    public void fromStream_returns_data_within_maxAge_with_iterator_created_before_the_expire_time() throws InterruptedException {
+    public void fromStream_does_not_return_expired_data_from_iterator_acquire_before_entry_insertion() throws InterruptedException {
         String stream = "test-stream";
-        int maxAgeSeconds = 5;
+        int maxAgeSeconds = 2;
         int numVersions = 50;
         store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
 
@@ -251,28 +245,8 @@ public class EventStoreTest {
 
     @Test
     public void fromStreams_returns_data_within_maxAge() throws InterruptedException {
-        String stream1 = "stream-1";
-        int maxAgeSeconds = 5;
-        int numVersions = 50;
-        store.createStream(stream1, NO_MAX_COUNT, maxAgeSeconds);
-
-        for (int version = 0; version < numVersions; version++) {
-            store.append(EventRecord.create(stream1, "type", Map.of()));
-        }
-
-        long count = store.fromStream(StreamName.of(stream1)).stream().count();
-        assertEquals("MAY FAIL DUE TO TIMING", numVersions, count);
-
-        Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
-
-        count = store.fromStreams("stream-").stream().count();
-        assertEquals(0, count);
-    }
-
-    @Test
-    public void fromStreams_returns_data_within_maxAge_with_iterator_created_before_the_expire_time() throws InterruptedException {
-        String stream = "test-stream";
-        int maxAgeSeconds = 5;
+        String stream = "stream-1";
+        int maxAgeSeconds = 2;
         int numVersions = 50;
         store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
 
@@ -280,7 +254,29 @@ public class EventStoreTest {
             store.append(EventRecord.create(stream, "type", Map.of()));
         }
 
-        EventLogIterator iterator = store.fromStreams(Set.of(StreamName.of(stream), StreamName.of("another-stream")));
+        Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
+        store.append(EventRecord.create(stream, "type", Map.of()));
+
+        EventLogIterator iterator = store.fromStreams("stream-1");
+        assertTrue(iterator.hasNext());
+
+        EventRecord next = iterator.next();
+        assertEquals(stream, next.stream);
+        assertEquals(numVersions + 1, next.version);
+    }
+
+    @Test
+    public void fromStreams_returns_data_within_maxAge_with_iterator_created_before_the_expire_time() throws InterruptedException {
+        String stream = "test-stream";
+        int maxAgeSeconds = 2;
+        int numVersions = 50;
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
+        EventLogIterator iterator = store.fromStream(StreamName.of(stream));
+
+        for (int version = 0; version < numVersions; version++) {
+            store.append(EventRecord.create(stream, "type", Map.of()));
+        }
+
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
 
         long count = iterator.stream().count();
@@ -288,10 +284,10 @@ public class EventStoreTest {
     }
 
     @Test
-    public void fromStreams_PATTERN_returns_data_within_maxAge() throws InterruptedException {
+    public void fromStreams_PATTERN_does_not_return_expired_data() throws InterruptedException {
         String stream1 = "stream-1";
         String stream2 = "stream-2";
-        int maxAgeSeconds = 5;
+        int maxAgeSeconds = 2;
         int numVersions = 50;
         store.createStream(stream1, NO_MAX_COUNT, maxAgeSeconds);
         store.createStream(stream2, NO_MAX_COUNT, maxAgeSeconds);
@@ -304,19 +300,16 @@ public class EventStoreTest {
             store.append(EventRecord.create(stream2, "type", Map.of()));
         }
 
-        long count = store.fromStreams("stream-*").stream().count();
-        assertEquals("MAY FAIL DUE TO TIMING", numVersions * 2, count);
-
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
 
-        count = store.fromStreams("stream-").stream().count();
+        long count = store.fromStreams("stream-").stream().count();
         assertEquals(0, count);
     }
 
     @Test
     public void fromStreamsPATTERN_returns_data_within_maxAge_with_iterator_created_before_the_expire_time() throws InterruptedException {
         String stream = "test-stream";
-        int maxAgeSeconds = 5;
+        int maxAgeSeconds = 2;
         int numVersions = 50;
         store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
 

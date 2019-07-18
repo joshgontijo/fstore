@@ -32,7 +32,7 @@ public class ScriptExecutionResult {
             } else if (LINK_TO.equals(type)) {
                 String dstStream = String.valueOf(item.get("dstStream"));
                 String srcStream = String.valueOf(item.get("srcStream"));
-                String srcType = String.valueOf(item.get("srcType"));
+                String srcType = String.valueOf(item.get("srcType")); //FIXME ? shouldn't be target type ?
                 int srcVersion = (int) item.get("srcVersion");
                 outputEvents.add(new LinkToEvent(dstStream, srcStream, srcVersion, srcType));
                 linked++;
