@@ -255,14 +255,9 @@ public class EventStoreTest {
         }
 
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
-        store.append(EventRecord.create(stream, "type", Map.of()));
 
-        EventLogIterator iterator = store.fromStreams("stream-1");
-        assertTrue(iterator.hasNext());
-
-        EventRecord next = iterator.next();
-        assertEquals(stream, next.stream);
-        assertEquals(numVersions + 1, next.version);
+        long count = store.fromStreams(Set.of(StreamName.of(stream))).stream().count();
+        assertEquals(0, count);
     }
 
     @Test
@@ -271,7 +266,7 @@ public class EventStoreTest {
         int maxAgeSeconds = 2;
         int numVersions = 50;
         store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
-        EventLogIterator iterator = store.fromStream(StreamName.of(stream));
+        EventLogIterator iterator = store.fromStreams(Set.of(StreamName.of(stream)));
 
         for (int version = 0; version < numVersions; version++) {
             store.append(EventRecord.create(stream, "type", Map.of()));
