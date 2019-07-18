@@ -372,8 +372,11 @@ public class EventStore implements IEventStore {
     public EventRecord linkTo(String stream, final EventRecord event) {
         Future<EventRecord> future = eventWriter.queue(writer -> {
             EventRecord resolved = resolve(event);
-
             StreamMetadata metadata = getOrCreateStream(writer, stream);
+            //expired
+            if (metadata.maxAge > 0 && System.currentTimeMillis() - resolved.timestamp > metadata.maxAge) {
+                return null;
+            }
             EventRecord linkTo = LinkTo.create(stream, StreamName.from(resolved));
             return writer.append(linkTo, NO_EXPECTED_VERSION, metadata); // TODO expected version for LinkTo
         });
@@ -381,15 +384,16 @@ public class EventStore implements IEventStore {
         return Threads.waitFor(future);
     }
 
+    //TODO if viable, add maxAge validation before appending, to save unnecessary disk space
     @Override
-    public EventRecord linkTo(String stream, StreamName tgtEvent, String sourceType) {
+    public EventRecord linkTo(String srcStream, StreamName tgtEvent, String sourceType) {
         Future<EventRecord> future = eventWriter.queue(writer -> {
-            EventRecord linkTo = LinkTo.create(stream, tgtEvent);
-            StreamMetadata metadata = getOrCreateStream(writer, stream);
+            EventRecord linkTo = LinkTo.create(srcStream, tgtEvent);
+            StreamMetadata metadata = getOrCreateStream(writer, srcStream);
             if (LinkTo.TYPE.equals(sourceType)) {
                 EventRecord resolvedEvent = get(tgtEvent);
                 StreamName resolvedStream = resolvedEvent.streamName();
-                linkTo = LinkTo.create(stream, resolvedStream);
+                linkTo = LinkTo.create(srcStream, resolvedStream);
             }
             return writer.append(linkTo, NO_EXPECTED_VERSION, metadata);
         });
