@@ -8,7 +8,7 @@ import java.util.Objects;
 public class IndexKey implements Comparable<IndexKey> {
 
     public static final int BYTES = Long.BYTES + Integer.BYTES;
-    private static final int START_VERSION = 0;
+    public static final int START_VERSION = 0;
     private static final int MAX_VERSION = Integer.MAX_VALUE;
     public final long stream;
     public final int version;

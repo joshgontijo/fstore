@@ -35,7 +35,7 @@ public class MemTable<K extends Comparable<K>, V> {
 
     public V get(K key) {
         nonNullKey(key);
-        Entry<K, V> found = table.ceiling(Entry.key(key));
+        Entry<K, V> found = floor(key);
         if (found == null) {
             return null;
         }

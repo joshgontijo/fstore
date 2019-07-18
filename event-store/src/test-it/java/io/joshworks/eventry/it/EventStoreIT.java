@@ -8,7 +8,7 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
-import io.joshworks.eventry.index.Range;
+import io.joshworks.eventry.index.IndexKey;
 import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
@@ -29,7 +29,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -201,9 +200,9 @@ public class EventStoreIT {
 
         try (IEventStore store = EventStore.open(directory)) {
             for (int i = 0; i < size; i++) {
-                EventRecord event = store.get(StreamName.of(streamPrefix + i, Range.START_VERSION));
+                EventRecord event = store.get(StreamName.of(streamPrefix + i, IndexKey.START_VERSION));
                 assertNotNull(event);
-                assertEquals(Range.START_VERSION, event.version);
+                assertEquals(IndexKey.START_VERSION, event.version);
                 assertEquals(streamPrefix + i, event.stream);
             }
         }
@@ -585,8 +584,6 @@ public class EventStoreIT {
             store.append(EventRecord.create(stream, "test", Map.of()));
         }
 
-        Optional<StreamMetadata> entry = store.streams.get(store.streams.hashOf(SystemStreams.STREAMS));
-
         Threads.sleep(20000);
         store.close();
         store = EventStore.open(directory);
@@ -652,7 +649,7 @@ public class EventStoreIT {
 
                 //FROM STREAM
                 try (Stream<EventRecord> events = store.fromStream(StreamName.parse(streamName)).stream()) {
-                    assertEquals(numVersionPerStream, events.collect(Collectors.toList()).size());
+                    assertEquals(numVersionPerStream, events.count());
 
                     for (int version = 0; version < numVersionPerStream; version++) {
                         //GET

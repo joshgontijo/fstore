@@ -27,7 +27,8 @@ import io.joshworks.fstore.lsmtree.sstable.SSTables;
 import java.io.Closeable;
 import java.io.File;
 import java.util.List;
-import java.util.Objects;
+
+import static java.util.Objects.requireNonNull;
 
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
@@ -109,14 +110,14 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         return sstables.get(key);
     }
 
-    public Entry<K, V> firstFloor(K key) {
+    public Entry<K, V> firstCeiling(K key) {
         Entry<K, V> memFloor = memTable.ceiling(key);
         if (memFloor != null) {
             return memFloor;
         }
         return sstables.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<Entry<K, V>> segment : segments) {
-                if (segment.readOnly()) {
+                if (!segment.readOnly()) {
                     continue;
                 }
                 SSTable<K, V> sstable = (SSTable<K, V>) segment;
@@ -129,7 +130,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         });
     }
 
-    public Entry<K, V> firstCeiling(K key) {
+    public Entry<K, V> firstFloor(K key) {
         Entry<K, V> memFloor = memTable.floor(key);
         if (memFloor != null) {
             return memFloor;
@@ -260,26 +261,39 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
 
         public Builder<K, V> flushThreshold(int flushThreshold) {
+            if (flushThreshold <= 0) {
+                throw new IllegalArgumentException("Flush threshold must greater than zero");
+            }
             this.flushThreshold = flushThreshold;
             return this;
         }
 
         public Builder<K, V> bloomFalsePositiveProbability(double bloomFPProb) {
+            if (bloomFPProb <= 0) {
+                throw new IllegalArgumentException("Bloom filter false positive probability must greater than zero");
+            }
             this.bloomFPProb = bloomFPProb;
             return this;
         }
 
         public Builder<K, V> bloomNumItems(long bloomNItems) {
+            if (bloomNItems <= 0) {
+                throw new IllegalArgumentException("Number of expected items in the bloom filter must be greater than zero");
+            }
             this.bloomNItems = bloomNItems;
             return this;
         }
 
         public Builder<K, V> codec(Codec codec) {
+            requireNonNull(codec, "Codec cannot be null");
             this.codec = codec;
             return this;
         }
 
         public Builder<K, V> segmentSize(int size) {
+            if (bloomNItems <= 0) {
+                throw new IllegalArgumentException("Segment size must be greater than zero");
+            }
             this.segmentSize = size;
             return this;
         }
@@ -302,25 +316,26 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
 
         public Builder<K, V> sstableStorageMode(StorageMode mode) {
-            Objects.requireNonNull(mode);
+            requireNonNull(mode, "StorageMode cannot be null");
+            requireNonNull(mode);
             this.sstableStorageMode = mode;
             return this;
         }
 
         public Builder<K, V> sstableBlockFactory(BlockFactory blockFactory) {
-            Objects.requireNonNull(blockFactory);
+            requireNonNull(blockFactory);
             this.sstableBlockFactory = blockFactory;
             return this;
         }
 
         public Builder<K, V> ssTableFlushMode(FlushMode mode) {
-            Objects.requireNonNull(mode);
+            requireNonNull(mode);
             this.ssTableFlushMode = mode;
             return this;
         }
 
         public Builder<K, V> transacationLogStorageMode(StorageMode mode) {
-            Objects.requireNonNull(mode);
+            requireNonNull(mode);
             this.tlogStorageMode = mode;
             return this;
         }

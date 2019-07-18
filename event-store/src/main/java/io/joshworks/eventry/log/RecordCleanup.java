@@ -1,6 +1,7 @@
 package io.joshworks.eventry.log;
 
 import io.joshworks.eventry.data.LinkTo;
+import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;
@@ -9,14 +10,15 @@ import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.segment.Log;
 
 import java.util.List;
-import java.util.Optional;
 
 public class RecordCleanup implements SegmentCombiner<EventRecord> {
 
     private final Streams streams;
+    private final Index index;
 
-    public RecordCleanup(Streams streams) {
+    public RecordCleanup(Streams streams, Index index) {
         this.streams = streams;
+        this.index = index;
     }
 
     @Override
@@ -82,12 +84,12 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
     }
 
     private StreamMetadata getMetadata(String stream) {
-        Optional<StreamMetadata> metadataOpt = streams.get(stream);
-        if (!metadataOpt.isPresent()) {
+        StreamMetadata metadataOpt = streams.get(stream);
+        if (metadataOpt == null) {
             //TODO replace with a log warn
             throw new RuntimeException("No metadata available for stream: " + stream);
         }
-        return metadataOpt.get();
+        return metadataOpt;
     }
 
     private boolean isTruncated(int recordVersion, StreamMetadata metadata) {
@@ -95,7 +97,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
     }
 
     private boolean isObsolete(int recordVersion, StreamMetadata metadata) {
-        int currentStreamVersion = streams.version(metadata.hash);
+        int currentStreamVersion = index.version(metadata.hash);
         return metadata.maxCount > 0 && currentStreamVersion - recordVersion >= metadata.maxCount;
     }
 

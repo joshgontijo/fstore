@@ -89,9 +89,9 @@ public class EventStore implements IEventStore {
                 .checksumProbability(1)
                 .disableCompaction()
                 .namingStrategy(new SequentialNaming(rootDir))
-                .compactionStrategy(new RecordCleanup(streams)));
+                .compactionStrategy(new RecordCleanup(streams, index)));
 
-        this.eventWriter = new EventWriter(streams, eventLog, index, WRITE_QUEUE_SIZE);
+        this.eventWriter = new EventWriter(eventLog, index, WRITE_QUEUE_SIZE);
         try {
             if (!this.initializeSystemStreams()) {
                 this.loadIndex();
@@ -266,12 +266,12 @@ public class EventStore implements IEventStore {
         Future<StreamMetadata> op = eventWriter.queue(writer -> {
             StreamMetadata metadata = Optional.ofNullable(streams.get(stream)).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
             int currentVersion = index.version(metadata.hash);
-            streams.truncate(metadata, fromVersionInclusive, currentVersion);
+            StreamMetadata truncatedMetadata = streams.truncate(metadata, currentVersion, fromVersionInclusive);
             EventRecord eventRecord = StreamTruncated.create(metadata.name, fromVersionInclusive);
 
             StreamMetadata streamsMetadata = streams.get(SystemStreams.STREAMS);
             writer.append(eventRecord, NO_EXPECTED_VERSION, streamsMetadata);
-            return streamsMetadata;
+            return truncatedMetadata;
         });
 
         StreamMetadata truncated = Threads.waitFor(op);
@@ -288,7 +288,7 @@ public class EventStore implements IEventStore {
         long hash = streamName.hash();
 
         //TODO this must be applied to fromStreams and fromStreamsPATTERN
-        int startVersion = Optional.of(streams.get(hash))
+        int startVersion = Optional.ofNullable(streams.get(hash))
                 .map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version)
                 .orElse(version);
 
@@ -399,6 +399,9 @@ public class EventStore implements IEventStore {
             EventRecord eventRecord = StreamCreated.create(created);
             StreamMetadata metadata = streams.get(SystemStreams.STREAMS);
             writer.append(eventRecord, NO_EXPECTED_VERSION, metadata);
+            for (StreamListener listener : streamListeners) {
+                listener.onStreamCreated(created);
+            }
         });
     }
 

@@ -20,7 +20,7 @@ import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
 public class Index implements Closeable {
 
-    public static final String DIR = "index";
+    private static final String DIR = "index";
     private final LsmTree<IndexKey, Long> lsmTree;
     private final Cache<Long, AtomicInteger> versionCache;
 
@@ -69,7 +69,7 @@ public class Index implements Closeable {
         }
         IndexKey maxStreamVersion = IndexKey.allOf(stream).end();
         Entry<IndexKey, Long> found = lsmTree.firstFloor(maxStreamVersion);
-        if (found != null) {
+        if (found != null && found.key.stream == stream) {
             int fetched = found.key.version;
             versionCache.add(stream, new AtomicInteger(fetched));
             return fetched;

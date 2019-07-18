@@ -2,7 +2,6 @@ package io.joshworks.eventry.writer;
 
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.log.IEventLog;
-import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.core.util.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,10 +23,10 @@ public class EventWriter implements Closeable {
     private final ThreadPoolExecutor executor;
     private final BlockingQueue<Runnable> queue;
 
-    public EventWriter(Streams streams, IEventLog eventLog, Index index, int maxQueueSize) {
+    public EventWriter(IEventLog eventLog, Index index, int maxQueueSize) {
         this.queue = maxQueueSize < 0 ? new LinkedBlockingDeque<>() : new ArrayBlockingQueue<>(maxQueueSize);
         this.executor = new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, queue, Threads.namedThreadFactory("event-writer"));
-        this.writer = new Writer(streams, eventLog, index);
+        this.writer = new Writer(eventLog, index);
     }
 
     public <R> Future<R> queue(Function<Writer, R> func) {

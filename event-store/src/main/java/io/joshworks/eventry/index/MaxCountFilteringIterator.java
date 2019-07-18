@@ -1,7 +1,6 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.log.CloseableIterator;
 
 import java.util.function.Function;
 
@@ -67,16 +66,16 @@ class MaxCountFilteringIterator implements StreamIterator {
 
     @Override
     public void onStreamCreated(StreamMetadata metadata) {
-
+        delegate.onStreamCreated(metadata);
     }
 
     @Override
     public void onStreamTruncated(StreamMetadata metadata) {
-
+        delegate.onStreamTruncated(metadata);
     }
 
     @Override
     public void onStreamDeleted(StreamMetadata metadata) {
-
+        delegate.onStreamDeleted(metadata);
     }
 }

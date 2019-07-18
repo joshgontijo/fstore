@@ -17,7 +17,6 @@ public class StreamListenerRemoval implements StreamIterator {
         this.listeners.add(delegate);
     }
 
-
     @Override
     public void close() {
         listeners.remove(delegate);
