@@ -53,7 +53,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     private BloomFilter<K> bloomFilter;
     private Midpoints<K> midpoints;
 
-    private final Cache<Long, Block> blockCache;
+    private final Cache<String, Block> blockCache;
 
     public SSTable(File file,
                    StorageMode storageMode,
@@ -64,7 +64,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                    WriteMode writeMode,
                    BlockFactory blockFactory,
                    Codec codec,
-                   Cache<Long, Block> blockCache,
+                   Cache<String, Block> blockCache,
                    long bloomNItems,
                    double bloomFPProb,
                    int blockSize,
@@ -203,7 +203,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
      * or {@code null} if there is no such element
      */
     public Entry<K, V> floor(K key) {
-        if(midpoints.isEmpty()) {
+        if (midpoints.isEmpty()) {
             return null;
         }
         Midpoint<K> midpoint = midpoints.floor(key);
@@ -242,7 +242,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
      * or {@code null} if there is no such element
      */
     public Entry<K, V> ceiling(K key) {
-        if(midpoints.isEmpty()) {
+        if (midpoints.isEmpty()) {
             return null;
         }
         //less or equals first entry, definitely first entry
@@ -386,13 +386,14 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     }
 
     private V readFromBlock(K key, Midpoint<K> midpoint) {
-        Block cached = blockCache.get(midpoint.position);
+        String cacheKey = cacheKey(midpoint.position);
+        Block cached = blockCache.get(cacheKey);
         if (cached == null) {
             Block block = delegate.getBlock(midpoint.position);
             if (block == null) {
                 return null;
             }
-            blockCache.add(midpoint.position, block);
+            blockCache.add(cacheKey, block);
             return findExact(key, block);
         }
         return findExact(key, cached);
@@ -401,10 +402,14 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
     private V findExact(K key, Block block) {
 //        ByteBuffer keyBytes = keySerializer.toBytes(key);
         for (ByteBuffer entryData : block.entries()) {
-            if (compareKey(entryData, key) == 0) {
+            int compare = compareKey(entryData, key);
+            if (compare == 0) {
                 entryData.clear();
                 Entry<K, V> entry = entrySerializer.fromBytes(entryData);
                 return entry.value;
+            }
+            if (compare < 0) { //not found, short circuit (block entries are ordered)
+                return null;
             }
         }
         return null;
@@ -439,6 +444,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         Midpoint<K> mEnd = range.end() == null ? midpoints.last() : midpoints.getMidpointFor(range.end());
         return mEnd == null ? midpoints.last().position : mEnd.position;
 
+    }
+
+    private String cacheKey(long position) {
+        return name() + position;
     }
 
     @Override
@@ -549,7 +558,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
         private final long bloomNItems;
         private final double bloomFPProb;
         private final int blockSize;
-        private Cache<Long, Block> blockCache;
+        private Cache<String, Block> blockCache;
 
         SSTableFactory(Serializer<K> keySerializer,
                        Serializer<V> valueSerializer,
@@ -558,7 +567,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>> {
                        long bloomNItems,
                        double bloomFPProb,
                        int blockSize,
-                       Cache<Long, Block> blockCache) {
+                       Cache<String, Block> blockCache) {
 
             this.keySerializer = keySerializer;
             this.valueSerializer = valueSerializer;

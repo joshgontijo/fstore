@@ -252,22 +252,16 @@ public class EventStoreTest {
     @Test
     public void fromStreams_returns_data_within_maxAge() throws InterruptedException {
         String stream1 = "stream-1";
-        String stream2 = "stream-2";
-        int maxAgeSeconds = 5;
-        int numVersions = 50;
+        int maxAgeSeconds = 500;
+        int numVersions = 500000;
         store.createStream(stream1, NO_MAX_COUNT, maxAgeSeconds);
-        store.createStream(stream2, NO_MAX_COUNT, maxAgeSeconds);
 
         for (int version = 0; version < numVersions; version++) {
             store.append(EventRecord.create(stream1, "type", Map.of()));
         }
 
-        for (int version = 0; version < numVersions; version++) {
-            store.append(EventRecord.create(stream2, "type", Map.of()));
-        }
-
-        long count = store.fromStreams(Set.of(StreamName.parse(stream1), StreamName.parse(stream2))).stream().count();
-        assertEquals("MAY FAIL DUE TO TIMING", numVersions * 2, count);
+        long count = store.fromStream(StreamName.of(stream1)).stream().count();
+        assertEquals("MAY FAIL DUE TO TIMING", numVersions, count);
 
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
 
@@ -310,7 +304,7 @@ public class EventStoreTest {
             store.append(EventRecord.create(stream2, "type", Map.of()));
         }
 
-        long count = store.fromStreams("stream-").stream().count();
+        long count = store.fromStreams("stream-*").stream().count();
         assertEquals("MAY FAIL DUE TO TIMING", numVersions * 2, count);
 
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
@@ -555,7 +549,7 @@ public class EventStoreTest {
     public void fromStreamsPATTERN_returns_data_when_instantiated_after_creating_stream_and_before_appending_event() {
         String stream1 = "stream-abc";
         String stream2 = "stream-def";
-        String pattern = "stream-";
+        String pattern = "stream-*";
 
         store.createStream(stream1);
         store.createStream(stream2);
@@ -573,7 +567,7 @@ public class EventStoreTest {
 
     @Test
     public void fromStreamsPATTERN_returns_data_when_instantiated_before_creating_stream_and_before_appending_event() {
-        String pattern = "stream-";
+        String pattern = "stream-*";
         String stream1 = "stream-1";
         String stream2 = "stream-2";
 

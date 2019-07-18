@@ -65,13 +65,11 @@ public class FixedStreamIterator implements StreamIterator {
     private IndexEntry fetchEntry(long stream, int lastReadVersion) {
         int version = lastReadVersion + 1;
         Long position = delegate.get(new IndexKey(stream, version));
-        if (position != null) {
-            IndexEntry indexEntry = IndexEntry.of(stream, version, position);
-            if (isReadable(indexEntry)) {
-                return indexEntry;
-            }
+        if (position == null) {
+            return null;
         }
-        return null;
+        IndexEntry indexEntry = IndexEntry.of(stream, version, position);
+        return isReadable(indexEntry) ? indexEntry : null;
     }
 
     protected synchronized long nextStream() {

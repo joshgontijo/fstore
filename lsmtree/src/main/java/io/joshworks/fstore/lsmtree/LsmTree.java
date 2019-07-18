@@ -47,7 +47,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         this.flushThreshold = builder.flushThreshold;
         this.logDisabled = builder.logDisabled;
         this.log.restore(this::restore);
-        this.cache = Cache.create(builder.entryCacheSize, builder.blockCacheMaxAge);
+        this.cache = Cache.create(builder.entryCacheSize, builder.entryCacheMaxAge);
     }
 
     public static <K extends Comparable<K>, V> Builder<K, V> builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -268,18 +268,14 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
-        public Builder<K, V> bloomFalsePositiveProbability(double bloomFPProb) {
+        public Builder<K, V> bloomFilter(double bloomFPProb, long bloomNItems) {
             if (bloomFPProb <= 0) {
                 throw new IllegalArgumentException("Bloom filter false positive probability must greater than zero");
             }
-            this.bloomFPProb = bloomFPProb;
-            return this;
-        }
-
-        public Builder<K, V> bloomNumItems(long bloomNItems) {
             if (bloomNItems <= 0) {
                 throw new IllegalArgumentException("Number of expected items in the bloom filter must be greater than zero");
             }
+            this.bloomFPProb = bloomFPProb;
             this.bloomNItems = bloomNItems;
             return this;
         }

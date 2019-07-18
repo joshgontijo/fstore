@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public class SSTables<K extends Comparable<K>, V> {
 
     private final LogAppender<Entry<K, V>> appender;
-    private final Cache<Long, Block> blockCache;
+    private final Cache<String, Block> blockCache;
 
     public SSTables(File dir,
                     Serializer<K> keySerializer,
@@ -45,7 +45,6 @@ public class SSTables<K extends Comparable<K>, V> {
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)
                 .enableParallelCompaction()
-                .disableCompaction() //TODO for testing, remove-me
                 .flushMode(flushMode)
                 .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, blockCache));
     }
@@ -104,6 +103,10 @@ public class SSTables<K extends Comparable<K>, V> {
             }
             return null;
         });
+    }
+
+    public void evictBlockCache() {
+        blockCache.clear();
     }
 
 //    public Entry<K, V> ceiling(K key) {

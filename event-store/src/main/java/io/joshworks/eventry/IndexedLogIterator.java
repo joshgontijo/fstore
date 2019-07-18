@@ -40,7 +40,7 @@ public class IndexedLogIterator implements EventLogIterator {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         streamIterator.close();
     }
 }

@@ -61,6 +61,7 @@ public class EventStore implements IEventStore {
 
     private static final int WRITE_QUEUE_SIZE = 1000000;
     private static final int INDEX_FLUSH_THRESHOLD = 50000;
+    private static final int STREAMS_FLUSH_THRESHOLD = 50000;
 
     private static final int STREAM_CACHE_SIZE = 50000;
     private static final int STREAM_CACHE_MAX_AGE = -1;
@@ -79,7 +80,7 @@ public class EventStore implements IEventStore {
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
         this.index = new Index(rootDir, INDEX_FLUSH_THRESHOLD, new SnappyCodec(), VERSION_CACHE_SIZE, VERSION_CACHE_MAX_AGE);
-        this.streams = new Streams(rootDir, STREAM_CACHE_SIZE, STREAM_CACHE_MAX_AGE);
+        this.streams = new Streams(rootDir, STREAMS_FLUSH_THRESHOLD, STREAM_CACHE_SIZE, STREAM_CACHE_MAX_AGE);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
                 .name("event-log")
@@ -371,6 +372,7 @@ public class EventStore implements IEventStore {
     public EventRecord linkTo(String stream, final EventRecord event) {
         Future<EventRecord> future = eventWriter.queue(writer -> {
             EventRecord resolved = resolve(event);
+
             StreamMetadata metadata = getOrCreateStream(writer, stream);
             EventRecord linkTo = LinkTo.create(stream, StreamName.from(resolved));
             return writer.append(linkTo, NO_EXPECTED_VERSION, metadata); // TODO expected version for LinkTo
