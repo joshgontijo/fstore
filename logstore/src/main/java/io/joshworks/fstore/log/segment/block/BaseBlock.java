@@ -5,7 +5,9 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 public abstract class BaseBlock implements Block {
@@ -115,15 +117,6 @@ public abstract class BaseBlock implements Block {
     }
 
     @Override
-    public List<ByteBuffer> entries() {
-        List<ByteBuffer> copies = new ArrayList<>(buffers.size());
-        for (ByteBuffer buffer : buffers) {
-            copies.add(asReadOnly(buffer));
-        }
-        return copies;
-    }
-
-    @Override
     public ByteBuffer first() {
         if (buffers.isEmpty()) {
             return null;
@@ -185,8 +178,38 @@ public abstract class BaseBlock implements Block {
         return items;
     }
 
+    @Override
+    public Iterator<ByteBuffer> iterator() {
+        return new BlockEntryIterator(this);
+    }
+
     private ByteBuffer asReadOnly(ByteBuffer bb) {
         return bb.asReadOnlyBuffer().clear();
+    }
+
+    private static final class BlockEntryIterator implements Iterator<ByteBuffer> {
+
+        private final Block block;
+        private int idx;
+
+        private BlockEntryIterator(Block block) {
+            this.block = block;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return idx < block.entryCount();
+        }
+
+        @Override
+        public ByteBuffer next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            ByteBuffer found = block.get(idx);
+            idx++;
+            return found;
+        }
     }
 
 }
