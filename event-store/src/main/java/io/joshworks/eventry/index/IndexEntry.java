@@ -35,18 +35,6 @@ public class IndexEntry implements Comparable<IndexEntry> {
         return keyCmp;
     }
 
-    public boolean greaterThan(IndexEntry other) {
-        return this.compareTo(other) > 0;
-    }
-
-    public boolean lessThan(IndexEntry other) {
-        return this.compareTo(other) < 0;
-    }
-
-    public boolean greatOrEqualsTo(IndexEntry other) {
-        return this.compareTo(other) >= 0;
-    }
-
     public boolean isDeletion() {
         return position < 0;
     }

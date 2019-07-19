@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.lsmtree.Expression;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
@@ -63,19 +64,26 @@ public class Index implements Closeable {
         return version(StreamName.hash(stream));
     }
 
+    /**
+     * Perform a backward scan on SSTables until the first key matching the stream
+     */
     public int version(long stream) {
         AtomicInteger cached = versionCache.get(stream);
         if (cached != null) {
             return cached.get();
         }
         IndexKey maxStreamVersion = IndexKey.allOf(stream).end();
-        Entry<IndexKey, Long> found = lsmTree.firstFloor(maxStreamVersion);
-        if (found != null && found.key.stream == stream) {
+        Entry<IndexKey, Long> found = lsmTree.find(maxStreamVersion, Expression.FLOOR, entry -> matchStream(stream, entry));
+        if (found != null) {
             int fetched = found.key.version;
             versionCache.add(stream, new AtomicInteger(fetched));
             return fetched;
         }
         return NO_VERSION;
+    }
+
+    private static boolean matchStream(long stream, Entry<IndexKey, Long> entry) {
+        return entry.key.stream == stream;
     }
 
     private void updateVersionIfCached(long hash, int version) {

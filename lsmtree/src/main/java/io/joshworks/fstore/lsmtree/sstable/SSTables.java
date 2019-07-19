@@ -81,8 +81,9 @@ public class SSTables<K extends Comparable<K>, V> {
                 if (!sstable.readOnly()) {
                     continue;
                 }
-                if (key.compareTo(sstable.firstKey()) >= 0 || key.compareTo(sstable.lastKey()) > 0) {
-                    return sstable.floor(key);
+                Entry<K, V> floorEntry = sstable.floor(key);
+                if (floorEntry != null) {
+                    return floorEntry;
                 }
             }
             return null;

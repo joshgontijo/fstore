@@ -5,13 +5,14 @@ import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
+import io.joshworks.fstore.lsmtree.TreeFunctions;
 
 import java.util.Iterator;
 import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class MemTable<K extends Comparable<K>, V> {
+public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V> {
 
     private final ConcurrentSkipListSet<Entry<K, V>> table = new ConcurrentSkipListSet<>();
     private final AtomicInteger size = new AtomicInteger();
@@ -42,18 +43,22 @@ public class MemTable<K extends Comparable<K>, V> {
         return found.key.equals(key) ? found.value : null;
     }
 
+    @Override
     public Entry<K, V> floor(K key) {
         return table.floor(Entry.key(key));
     }
 
+    @Override
     public Entry<K, V> ceiling(K key) {
         return table.ceiling(Entry.key(key));
     }
 
+    @Override
     public Entry<K, V> higher(K key) {
         return table.higher(Entry.key(key));
     }
 
+    @Override
     public Entry<K, V> lower(K key) {
         return table.lower(Entry.key(key));
     }

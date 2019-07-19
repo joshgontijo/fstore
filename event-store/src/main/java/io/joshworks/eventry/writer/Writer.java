@@ -49,7 +49,7 @@ public class Writer {
         if (memFlushed) {
             long end = System.currentTimeMillis();
             var indexFlushedEvent = IndexFlushed.create(position, end - start);
-            appendInternal(indexFlushedEvent, NO_EXPECTED_VERSION, SystemStreams.STREAMS, SystemStreams.STREAMS_HASH);
+            appendInternal(indexFlushedEvent, NO_EXPECTED_VERSION, SystemStreams.INDEX, SystemStreams.INDEX_HASH);
         }
         return record;
     }
