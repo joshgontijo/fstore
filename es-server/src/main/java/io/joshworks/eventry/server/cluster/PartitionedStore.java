@@ -72,17 +72,18 @@ public class PartitionedStore implements IEventStore {
         return select(stream.name()).fromStream(stream);
     }
 
+
     //TODO this also needs another methods that accepts a Checkpoint
     @Override
-    public EventLogIterator fromStreams(String streamPattern, boolean ordered) {
-        return applyToAll(store -> store.fromStreams(streamPattern, ordered));
+    public EventLogIterator fromStreams(String streamPattern) {
+        return applyToAll(store -> store.fromStreams(streamPattern));
     }
 
     //TODO this is not ideal, since it will return iterator of all partitions
     //the infinite iterators make more difficult to handle this this, since the stream can be created anywhere
     @Override
-    public EventLogIterator fromStreams(Set<StreamName> streams, boolean ordered) {
-        return applyToAll(store -> store.fromStreams(streams, ordered));
+    public EventLogIterator fromStreams(Set<StreamName> streams) {
+        return applyToAll(store -> store.fromStreams(streams));
     }
 
     @Override

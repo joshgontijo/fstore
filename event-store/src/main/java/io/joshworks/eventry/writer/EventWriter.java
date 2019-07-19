@@ -25,7 +25,7 @@ public class EventWriter implements Closeable {
 
     public EventWriter(IEventLog eventLog, Index index, int maxQueueSize) {
         this.queue = maxQueueSize < 0 ? new LinkedBlockingDeque<>() : new ArrayBlockingQueue<>(maxQueueSize);
-        this.executor = new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, queue, Threads.namedThreadFactory("event-writer"));
+        this.executor = new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, queue, Threads.namedThreadFactory("event-writer"), new ThreadPoolExecutor.AbortPolicy());
         this.writer = new Writer(eventLog, index);
     }
 

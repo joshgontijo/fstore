@@ -20,10 +20,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -123,7 +125,7 @@ public class Compactor<T> implements Closeable {
 
     }
 
-    private void submitCompaction(CompactionEvent<T> event) {
+    private synchronized void submitCompaction(CompactionEvent<T> event) {
         executorFor(event.level).submit(() -> {
             if (closed.get()) {
                 return;
@@ -200,7 +202,15 @@ public class Compactor<T> implements Closeable {
         String executorName = executorName(level);
         return levelCompaction.compute(executorName, (k, v) -> {
             if (v == null) {
-                return Executors.newSingleThreadExecutor(Threads.namedThreadFactory(executorName));
+                return new ThreadPoolExecutor(
+                        1,
+                        1,
+                        1,
+                        TimeUnit.MINUTES,
+                        new ArrayBlockingQueue<>(20),
+                        Threads.namedThreadFactory(executorName),
+                        new ThreadPoolExecutor.DiscardPolicy());
+
             }
             return v;
         });
@@ -208,7 +218,7 @@ public class Compactor<T> implements Closeable {
 
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (closed.compareAndSet(false, true)) {
             logger.info("Closing compactor");
             //Order matters here

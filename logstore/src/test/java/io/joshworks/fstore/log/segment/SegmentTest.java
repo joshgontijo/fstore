@@ -129,7 +129,7 @@ public abstract class SegmentTest {
     @Test
     public void big_entry() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < segment.logSize() - RecordHeader.HEADER_OVERHEAD; i++) {
+        for (int i = 0; i < segment.dataSize() - RecordHeader.HEADER_OVERHEAD; i++) {
             sb.append("a");
         }
         String data = sb.toString();
@@ -323,7 +323,7 @@ public abstract class SegmentTest {
         segment.append(data);
         segment.roll(1);
 
-        long logSize = segment.logSize();
+        long logSize = segment.dataSize();
 
         assertEquals(data.length() + RecordHeader.HEADER_OVERHEAD, logSize);
     }
@@ -337,14 +337,14 @@ public abstract class SegmentTest {
         segment.close();
         segment = open(testFile);
 
-        long logSize = segment.logSize();
+        long logSize = segment.dataSize();
 
         assertEquals(data.length() + RecordHeader.HEADER_OVERHEAD, logSize);
     }
 
     @Test
     public void remaining_returns_logSize_when_no_data_has_been_written() {
-        long logSize = segment.logSize();
+        long logSize = segment.dataSize();
         long remaining = segment.remaining();
         assertEquals(logSize, remaining);
     }
@@ -354,35 +354,35 @@ public abstract class SegmentTest {
         var data = "AAAAA";
         segment.append(data);
         long remaining = segment.remaining();
-        assertEquals(segment.logSize() - data.length() - RecordHeader.HEADER_OVERHEAD, remaining);
+        assertEquals(segment.dataSize() - data.length() - RecordHeader.HEADER_OVERHEAD, remaining);
     }
 
     @Test
-    public void logSize_is_kept_original_when_reopening_empty_segment() throws IOException {
+    public void logSize_is_kept_original_when_reopening_empty_segment() {
 
-        long logSize = segment.logSize();
+        long logSize = segment.dataSize();
         segment.close();
         segment = open(testFile);
-        long logSizeAfterReopening = segment.logSize();
+        long logSizeAfterReopening = segment.dataSize();
 
         assertEquals(logSize, logSizeAfterReopening);
     }
 
     @Test
     public void fileSize_returns_the_physical_file_size() {
-        long logSize = segment.fileSize();
+        long logSize = segment.physicalSize();
         long physicalSize = testFile.length();
         assertEquals(logSize, physicalSize);
     }
 
     @Test
     public void truncating_a_segment_shrinks_the_physical_file() {
-        long logSize = segment.fileSize();
+        long logSize = segment.physicalSize();
         segment.append("a");
         segment.roll(1);
         segment.trim();
 
-        long afterTruncating = segment.fileSize();
+        long afterTruncating = segment.physicalSize();
         assertTrue(afterTruncating < logSize);
     }
 

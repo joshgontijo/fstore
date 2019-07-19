@@ -158,7 +158,7 @@ public class BlockSegment<T> implements Log<T> {
 
     private boolean hasSpaceAvailableForBlock() {
         long writePos = position();
-        long logSize = logSize();
+        long logSize = dataSize();
         return writePos + blockSize < logSize;
     }
 
@@ -211,6 +211,41 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     @Override
+    public long physicalSize() {
+        return delegate.physicalSize();
+    }
+
+    @Override
+    public long logicalSize() {
+        return delegate.logicalSize();
+    }
+
+    @Override
+    public long dataSize() {
+        return delegate.dataSize();
+    }
+
+    @Override
+    public long actualDataSize() {
+        return delegate.actualDataSize();
+    }
+
+    @Override
+    public long uncompressedDataSize() {
+        return uncompressedSize.get();
+    }
+
+    @Override
+    public long headerSize() {
+        return delegate.headerSize();
+    }
+
+    @Override
+    public long footerSize() {
+        return delegate.footerSize();
+    }
+
+    @Override
     public String name() {
         return delegate.name();
     }
@@ -233,16 +268,6 @@ public class BlockSegment<T> implements Log<T> {
     @Override
     public T get(long position) {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public long fileSize() {
-        return delegate.fileSize();
-    }
-
-    @Override
-    public long logSize() {
-        return delegate.logSize();
     }
 
     @Override

@@ -59,21 +59,10 @@ public class LogHeader {
         return open == null ? UNKNOWN : open.created;
     }
 
-    public long fileSize() {
-        return open == null ? UNKNOWN : open.fileSize;
+    public long physicalSize() {
+        return completed == null ? open.physical : completed.physical;
     }
 
-    public long dataSize() {
-        if (completed != null) {
-            return completed.actualDataLength;
-        }
-        if (open != null) {
-            return open.dataSize;
-        }
-        throw new IllegalStateException("Unknown segment state");
-    }
-
-    //Header + data + footer
     public long logicalSize() {
         if (completed != null) {
             return footerStart() + completed.footerLength;
@@ -82,6 +71,29 @@ public class LogHeader {
             return open.dataSize;
         }
         throw new IllegalStateException("Unknown segment state");
+    }
+
+    public long dataSize() {
+        return open.dataSize;
+    }
+
+    public long actualDataSize() {
+        return completed == null ? 0 : completed.actualDataLength;
+    }
+
+    public long uncompressedDataSize() {
+        return completed == null ? 0 : completed.uncompressedSize;
+    }
+
+    public long headerSize() {
+        return LogHeader.BYTES;
+    }
+
+    public long footerSize() {
+        if (completed == null) {
+            return 0;
+        }
+        return completed.footerLength;
     }
 
     public boolean encrypted() {
@@ -99,6 +111,8 @@ public class LogHeader {
         return completed == null ? 0 : completed.level;
     }
 
+
+
     public long rolled() {
         return completed == null ? UNKNOWN : completed.rolled;
     }
@@ -111,17 +125,9 @@ public class LogHeader {
         return Log.START + dataSize();
     }
 
-    public long footerLength() {
-        if(completed == null) {
-            return 0;
-        }
-        return completed.footerLength;
-    }
-
     public long logEnd() {
-        return footerStart() + footerLength();
+        return footerStart() + footerSize();
     }
-
 
     public long footerMapPosition() {
         if (completed == null) {
@@ -167,7 +173,7 @@ public class LogHeader {
         verifyWrite();
     }
 
-    public void writeCompleted(long entries, int level, long actualDataSize, long footerMapPosition, long footerLength, long uncompressedSize) {
+    public void writeCompleted(long entries, int level, long actualDataSize, long footerMapPosition, long footerLength, long uncompressedSize, long physical) {
         ByteBuffer bb = ByteBuffer.allocate(LogHeader.SECTION_SIZE);
         long rolledTS = System.currentTimeMillis();
 
@@ -178,9 +184,10 @@ public class LogHeader {
         bb.putLong(footerLength);
         bb.putLong(rolledTS);
         bb.putLong(uncompressedSize);
+        bb.putLong(physical);
         bb.flip();
         write(COMPLETED_SECTION_START, bb);
-        this.completed = new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerLength, rolledTS, uncompressedSize);
+        this.completed = new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerLength, rolledTS, uncompressedSize, physical);
         verifyWrite();
     }
 
@@ -228,9 +235,10 @@ public class LogHeader {
         long footerLength = data.getLong();
         long rolled = data.getLong();
         long uncompressedSize = data.getLong();
+        long physical = data.getLong();
 
 
-        return new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerLength, rolled, uncompressedSize);
+        return new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerLength, rolled, uncompressedSize, physical);
     }
 
     private static DeletedSection readDeletedSection(ByteBuffer bb) {

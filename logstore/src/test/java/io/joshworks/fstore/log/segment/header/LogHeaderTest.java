@@ -56,7 +56,7 @@ public abstract class LogHeaderTest {
     @Test
     public void header_restores_rolled_state() {
         LogHeader created = LogHeader.read(storage);
-        created.writeCompleted(1, 2, 3, 4, 5, 6);
+        created.writeCompleted(1, 2, 3, 4, 5, 6, 7);
 
         LogHeader loaded = LogHeader.read(storage);
         assertEquals(created, loaded);
@@ -67,7 +67,7 @@ public abstract class LogHeaderTest {
         LogHeader created = LogHeader.read(storage);
         created.writeNew(WriteMode.LOG_HEAD, 123, 456, true);
         created.writeDeleted();
-        created.writeCompleted(1, 2, 3, 4, 5, 6);
+        created.writeCompleted(1, 2, 3, 4, 5, 6, 7);
 
         LogHeader loaded = LogHeader.read(storage);
         assertEquals(created, loaded);

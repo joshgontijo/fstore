@@ -89,12 +89,12 @@ public class RemotePartitionClient implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStreams(String streamPattern, boolean ordered) {
+    public EventLogIterator fromStreams(String streamPattern) {
         return null;
     }
 
     @Override
-    public EventLogIterator fromStreams(Set<StreamName> streams, boolean ordered) {
+    public EventLogIterator fromStreams(Set<StreamName> streams) {
         return null;
     }
 

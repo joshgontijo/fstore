@@ -143,8 +143,8 @@ public final class Segment<T> implements Log<T> {
         }
         ByteBuffer data = serializer.toBytes(record);
 
-        if (data.remaining() > logSize()) {
-            throw new IllegalArgumentException("Record of size " + data.remaining() + " cannot exceed log size of " + logSize() + "");
+        if (data.remaining() > dataSize()) {
+            throw new IllegalArgumentException("Record of size " + data.remaining() + " cannot exceed log size of " + dataSize() + "");
         }
 
         if (remaining() < data.remaining()) {
@@ -180,18 +180,43 @@ public final class Segment<T> implements Log<T> {
     }
 
     @Override
-    public long fileSize() {
-        return storage.length();
+    public long remaining() {
+        return header.dataSize() - dataWritten();
     }
 
     @Override
-    public long logSize() {
+    public long physicalSize() {
+        return header.physicalSize();
+    }
+
+    @Override
+    public long logicalSize() {
+        return header.logicalSize();
+    }
+
+    @Override
+    public long dataSize() {
         return header.dataSize();
     }
 
     @Override
-    public long remaining() {
-        return logSize() - dataWritten();
+    public long actualDataSize() {
+        return header.actualDataSize();
+    }
+
+    @Override
+    public long uncompressedDataSize() {
+        return header.uncompressedDataSize();
+    }
+
+    @Override
+    public long headerSize() {
+        return header.headerSize();
+    }
+
+    @Override
+    public long footerSize() {
+        return header.footerSize();
     }
 
     public long dataWritten() {
@@ -309,7 +334,7 @@ public final class Segment<T> implements Log<T> {
         long footerEnd = stream.position();
 
         long footerLength = footerEnd - footerStart;
-        this.header.writeCompleted(entries.get(), level, actualDataSize, mapPosition, footerLength, uncompressedSize);
+        this.header.writeCompleted(entries.get(), level, actualDataSize, mapPosition, footerLength, uncompressedSize, storage.length());
     }
 
     @Override
@@ -339,7 +364,7 @@ public final class Segment<T> implements Log<T> {
 
     @Override
     public long uncompressedSize() {
-        return logSize();
+        return dataSize();
     }
 
     @Override
