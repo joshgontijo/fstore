@@ -8,7 +8,6 @@ import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.WriteMode;
-import io.joshworks.fstore.log.segment.header.LogHeader;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -54,11 +53,10 @@ public class CompactionTask<T> implements Runnable {
         Log<T> output = null;
         try {
 
-            long newSegmentLogSize = segments.stream().mapToLong(Log::fileSize).sum();
-            long logSize = newSegmentLogSize + LogHeader.BYTES;
+            long newSegmentLogSize = segments.stream().mapToLong(this::totalUncompressedSize).sum();
 
             String names = Arrays.toString(segments.stream().map(Log::name).toArray());
-            logger.info("Compacting {} from level {} using {}, new segment logSize: {} fileSize: {}", names, level, combiner.getClass().getSimpleName(), newSegmentLogSize, logSize);
+            logger.info("Compacting {} from level {} using {}, new segment fileSize: {}", names, level, combiner.getClass().getSimpleName(), newSegmentLogSize);
 
             for (int i = 0; i < segments.size(); i++) {
                 Log<T> segment = segments.get(i);
@@ -67,12 +65,12 @@ public class CompactionTask<T> implements Runnable {
 
             long start = System.currentTimeMillis();
 
-            output = segmentFactory.createOrOpen(segmentFile, storageMode, logSize, serializer, bufferPool, WriteMode.MERGE_OUT, checksumProbability, readPageSize);
+            output = segmentFactory.createOrOpen(segmentFile, storageMode, newSegmentLogSize, serializer, bufferPool, WriteMode.MERGE_OUT, checksumProbability, readPageSize);
 
             combiner.merge(segments, output);
             output.flush();
 
-            logger.info("Result Segment {} - final size: {}, entries: {}", output.name(), output.fileSize(), output.entries());
+            logger.info("Result Segment {} - final size: {}, entries: {}", output.name(), output.physicalSize(), output.entries());
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
             onComplete.accept(CompactionResult.success(segments, output, level));
@@ -81,5 +79,9 @@ public class CompactionTask<T> implements Runnable {
             logger.error("Failed to compact", e);
             onComplete.accept(CompactionResult.failure(segments, output, level, e));
         }
+    }
+
+    private long totalUncompressedSize(Log<T> log) {
+        return log.headerSize() + log.uncompressedSize() + log.footerSize();
     }
 }

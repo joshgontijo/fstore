@@ -27,6 +27,7 @@ import io.joshworks.fstore.lsmtree.sstable.SSTables;
 import java.io.Closeable;
 import java.io.File;
 import java.util.List;
+import java.util.function.BiFunction;
 
 import static java.util.Objects.requireNonNull;
 
@@ -128,6 +129,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             }
             return null;
         });
+    }
+
+    public <T> T apply(BiFunction<MemTable<K, V>, List<Log<Entry<K, V>>>, T> func) {
+        return sstables.applyToSegments(Direction.BACKWARD, segments -> func.apply(memTable, segments));
     }
 
     public Entry<K, V> firstFloor(K key) {

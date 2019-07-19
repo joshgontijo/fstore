@@ -119,6 +119,11 @@ public class IndexBlock extends BaseBlock {
         }
     }
 
+    @Override
+    public int uncompressedSize() {
+        return super.uncompressedSize();
+    }
+
     public static BlockFactory factory() {
         return new Index2BlockFactory();
     }

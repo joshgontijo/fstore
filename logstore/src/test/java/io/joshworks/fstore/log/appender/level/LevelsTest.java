@@ -325,12 +325,37 @@ public class LevelsTest {
         }
 
         @Override
-        public long fileSize() {
+        public long physicalSize() {
             return 0;
         }
 
         @Override
-        public long logSize() {
+        public long logicalSize() {
+            return 0;
+        }
+
+        @Override
+        public long dataSize() {
+            return 0;
+        }
+
+        @Override
+        public long actualDataSize() {
+            return 0;
+        }
+
+        @Override
+        public long uncompressedDataSize() {
+            return 0;
+        }
+
+        @Override
+        public long headerSize() {
+            return 0;
+        }
+
+        @Override
+        public long footerSize() {
             return 0;
         }
 

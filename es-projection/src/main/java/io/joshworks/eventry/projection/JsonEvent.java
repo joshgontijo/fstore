@@ -3,7 +3,7 @@ package io.joshworks.eventry.projection;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
-import io.joshworks.fstore.serializer.kryo.KryoSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -13,7 +13,7 @@ import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
 public class JsonEvent {
 
-    private static final Serializer<Map<String, Object>> serializer = KryoSerializer.untyped();
+    private static final Serializer<Map<String, Object>> serializer = KryoStoreSerializer.of();
 
     public final String type;
     public final long timestamp;

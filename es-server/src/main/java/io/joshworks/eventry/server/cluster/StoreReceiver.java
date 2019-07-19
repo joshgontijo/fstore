@@ -56,7 +56,7 @@ public class StoreReceiver implements Closeable {
 
     ClusterMessage fromStreams(FromStreams fromStreams) {
         Set<StreamName> streams = fromStreams.streams.stream().map(StreamName::parse).collect(Collectors.toSet());
-        LogIterator<EventRecord> iterator = store.fromStreams(streams, fromStreams.ordered);
+        LogIterator<EventRecord> iterator = store.fromStreams(streams);
         String iteratorId = remoteIterators.add(fromStreams.timeout, fromStreams.batchSize, iterator);
         return new IteratorCreated(iteratorId);
     }

@@ -10,8 +10,9 @@ public final class CompletedSection {
     public final long actualDataLength;
     public final long footerMapPosition;
     public final long footerLength;
+    public final long physical;
 
-    public CompletedSection(int level, long entries, long actualDataLength, long footerMapPosition, long footerLength, long rolled, long uncompressedSize) {
+    public CompletedSection(int level, long entries, long actualDataLength, long footerMapPosition, long footerLength, long rolled, long uncompressedSize, long physical) {
         this.level = level;
         this.entries = entries;
         this.rolled = rolled;
@@ -19,6 +20,7 @@ public final class CompletedSection {
         this.actualDataLength = actualDataLength;
         this.footerMapPosition = footerMapPosition;
         this.footerLength = footerLength;
+        this.physical = physical;
     }
 
     @Override
@@ -32,12 +34,13 @@ public final class CompletedSection {
                 uncompressedSize == that.uncompressedSize &&
                 actualDataLength == that.actualDataLength &&
                 footerMapPosition == that.footerMapPosition &&
-                footerLength == that.footerLength;
+                footerLength == that.footerLength &&
+                physical == that.physical;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(level, entries, rolled, uncompressedSize, actualDataLength, footerMapPosition, footerLength);
+        return Objects.hash(level, entries, rolled, uncompressedSize, actualDataLength, footerMapPosition, footerLength, physical);
     }
 
     @Override
@@ -49,6 +52,7 @@ public final class CompletedSection {
                 ", actualDataLength=" + actualDataLength +
                 ", footerMapPosition=" + footerMapPosition +
                 ", footerLength=" + footerLength +
+                ", physical=" + physical +
                 '}';
     }
 }

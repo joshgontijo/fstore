@@ -430,7 +430,7 @@ public class EventStoreIT {
         //given
         int numStreams = 1000;
         int numVersions = 50;
-        String streamPrefix = "test-";
+        String streamPrefix = "test-*";
 
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 1; version <= numVersions; version++) {

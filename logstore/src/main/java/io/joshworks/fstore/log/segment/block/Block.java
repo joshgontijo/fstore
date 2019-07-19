@@ -35,6 +35,8 @@ public interface Block {
 
     int uncompressedSize();
 
+    int compressedSize();
+
     List<Integer> entriesLength();
 
     static int uncompressedSize(ByteBuffer compressed) {

@@ -14,6 +14,7 @@ public abstract class BaseBlock implements Block {
     protected boolean readOnly;
 
     private int decompressedLength;
+    private int compressedLength;
     protected final List<ByteBuffer> buffers = new ArrayList<>();
 
     //returns the uncompressed size
@@ -26,6 +27,7 @@ public abstract class BaseBlock implements Block {
 
     protected BaseBlock(Codec codec, ByteBuffer data) {
         this.readOnly = true;
+        this.compressedLength = data.remaining();
         this.decompressedLength = this.unpack(codec, data);
         this.maxSize = decompressedLength;
     }
@@ -163,6 +165,14 @@ public abstract class BaseBlock implements Block {
     @Override
     public int uncompressedSize() {
         return decompressedLength;
+    }
+
+    @Override
+    public int compressedSize() {
+        if (!readOnly) {
+            throw new IllegalStateException("Not read only");
+        }
+        return compressedLength;
     }
 
     @Override

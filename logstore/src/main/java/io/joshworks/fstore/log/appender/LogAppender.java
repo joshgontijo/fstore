@@ -361,7 +361,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     public long size() {
-        return levels.apply(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::fileSize).sum());
+        return levels.apply(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::physicalSize).sum());
     }
 
     public long size(int level) {
@@ -371,7 +371,7 @@ public class LogAppender<T> implements Closeable {
         if (level > levels.depth()) {
             throw new IllegalArgumentException("No such level " + level + ", current depth: " + levels.depth());
         }
-        return applyToSegments(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::fileSize).sum());
+        return applyToSegments(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::physicalSize).sum());
     }
 
     @Override
