@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.Serializer;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-public interface Block {
+public interface Block extends Iterable<ByteBuffer> {
 
     boolean add(ByteBuffer data);
 
@@ -18,8 +18,6 @@ public interface Block {
     ByteBuffer pack(Codec codec);
 
     int entryCount();
-
-    List<ByteBuffer> entries();
 
     <T> List<T> deserialize(Serializer<T> serializer);
 

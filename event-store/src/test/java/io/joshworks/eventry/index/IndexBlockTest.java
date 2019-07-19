@@ -16,9 +16,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
@@ -70,7 +68,9 @@ public class IndexBlockTest {
 
         var unpacked = new IndexBlock(codec, packed);
 
-        assertThat(block.entries(), is(unpacked.entries()));
+        for (int i = 0; i < block.entryCount(); i++) {
+            assertEquals(block.get(i), unpacked.get(i));
+        }
     }
 
     @Test
