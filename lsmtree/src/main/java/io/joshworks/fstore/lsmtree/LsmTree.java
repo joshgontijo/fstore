@@ -26,8 +26,9 @@ import io.joshworks.fstore.lsmtree.sstable.SSTables;
 
 import java.io.Closeable;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 import static java.util.Objects.requireNonNull;
 
@@ -111,10 +112,52 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         return sstables.get(key);
     }
 
-    public Entry<K, V> firstCeiling(K key) {
-        Entry<K, V> memFloor = memTable.ceiling(key);
-        if (memFloor != null) {
-            return memFloor;
+    /**
+     * Search for non deletion entries in all SSTables that matches the given {@link Predicate<Entry>}
+     * SSTables are scanned from newest to oldest, including MemTable
+     *
+     * @param key        The key to look for
+     * @param expression The expression function to apply
+     * @param matcher    The matcher, used to filter entries that matches the expression
+     * @return The list of found entries
+     */
+    public List<Entry<K, V>> findAll(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
+        List<Entry<K, V>> found = new ArrayList<>();
+        Entry<K, V> memEntry = expression.apply(key, memTable);
+        if (memEntry != null && matcher.test(memEntry)) {
+            found.add(memEntry);
+        }
+        List<Entry<K, V>> fromDisk = sstables.applyToSegments(Direction.BACKWARD, segments -> {
+            List<Entry<K, V>> diskEntries = new ArrayList<>();
+            for (Log<Entry<K, V>> segment : segments) {
+                if (!segment.readOnly()) {
+                    continue;
+                }
+                SSTable<K, V> sstable = (SSTable<K, V>) segment;
+                Entry<K, V> diskEntry = expression.apply(key, sstable);
+                if (diskEntry != null && matcher.test(diskEntry)) {
+                    diskEntries.add(diskEntry);
+                }
+            }
+            return diskEntries;
+        });
+        found.addAll(fromDisk);
+        return found;
+    }
+
+    /**
+     * Finds the newest, non deletion entry that matches the give {@link Predicate<Entry>}
+     * SSTables are scanned from newest to oldest, including MemTable
+     *
+     * @param key        The key to look for
+     * @param expression The expression function to apply
+     * @param matcher    The matcher, used to filter entries that matches the expression
+     * @return The first match, or null
+     */
+    public Entry<K, V> find(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
+        Entry<K, V> fromMem = expression.apply(key, memTable);
+        if (matchEntry(matcher, fromMem)) {
+            return fromMem;
         }
         return sstables.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<Entry<K, V>> segment : segments) {
@@ -122,56 +165,18 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                     continue;
                 }
                 SSTable<K, V> sstable = (SSTable<K, V>) segment;
-                Entry<K, V> floor = sstable.ceiling(key);
-                if (floor != null) {
-                    return floor;
+                Entry<K, V> fromDisk = expression.apply(key, sstable);
+                if (matchEntry(matcher, fromDisk)) {
+                    return fromDisk;
                 }
             }
             return null;
         });
     }
 
-    public <T> T apply(BiFunction<MemTable<K, V>, List<Log<Entry<K, V>>>, T> func) {
-        return sstables.applyToSegments(Direction.BACKWARD, segments -> func.apply(memTable, segments));
+    private boolean matchEntry(Predicate<Entry<K, V>> matcher, Entry<K, V> entry) {
+        return entry != null && !entry.deletion && matcher.test(entry);
     }
-
-    public Entry<K, V> firstFloor(K key) {
-        Entry<K, V> memFloor = memTable.floor(key);
-        if (memFloor != null) {
-            return memFloor;
-        }
-        return sstables.applyToSegments(Direction.BACKWARD, segments -> {
-            for (Log<Entry<K, V>> segment : segments) {
-                if (segment.readOnly()) {
-                    continue;
-                }
-                SSTable<K, V> sstable = (SSTable<K, V>) segment;
-                Entry<K, V> floor = sstable.floor(key);
-                if (floor != null) {
-                    return floor;
-                }
-            }
-            return null;
-        });
-    }
-
-
-//    public Entry<K, V> floor(K key) {
-//        Entry<K, V> floor = memTable.floor(key);
-//        sstables.
-//    }
-//
-//    public Entry<K, V> ceiling(K key) {
-//        Entry<K, V> ceiling = memTable.ceiling(key);
-//    }
-//
-//    public Entry<K, V> higher(K key) {
-//        Entry<K, V> higher = memTable.higher(key);
-//    }
-//
-//    public Entry<K, V> lower(K key) {
-//        Entry<K, V> lower = memTable.lower(key);
-//    }
 
     public boolean remove(K key) {
         if (memTable.delete(key)) {
