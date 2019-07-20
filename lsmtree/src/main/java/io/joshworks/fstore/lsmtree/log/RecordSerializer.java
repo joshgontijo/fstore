@@ -27,13 +27,19 @@ public class RecordSerializer<K, V> implements Serializer<Record<K, V>> {
     }
 
     @Override
-    public void writeTo(Record<K, V> data, ByteBuffer dest) {
-        throw new UnsupportedOperationException();
+    public void writeTo(Record<K, V> data, ByteBuffer dst) {
+        dst.putShort(data.type.code);
+        if (data.key != null) {
+            keySerializer.writeTo(data.key, dst);
+        }
+        if (data.value != null) {
+            valueSerializer.writeTo(data.value, dst);
+        }
     }
 
     @Override
     public Record<K, V> fromBytes(ByteBuffer buffer) {
-        int code = buffer.getInt();
+        short code = buffer.getShort();
         if (code == EntryType.ADD.code) {
             K k = keySerializer.fromBytes(buffer);
             V v = valueSerializer.fromBytes(buffer);

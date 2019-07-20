@@ -26,7 +26,7 @@ public class EntrySerializer<K extends Comparable<K>, V> implements Serializer<L
     }
 
     @Override
-    public void writeTo(LogEntry<K, V> data, ByteBuffer dest) {
+    public void writeTo(LogEntry<K, V> data, ByteBuffer dst) {
         throw new UnsupportedOperationException();
     }
 

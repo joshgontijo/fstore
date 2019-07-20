@@ -22,7 +22,7 @@ public class IndexEntrySerializer<K extends Comparable<K>> implements Serializer
     }
 
     @Override
-    public void writeTo(IndexEntry<K> data, ByteBuffer dest) {
+    public void writeTo(IndexEntry<K> data, ByteBuffer dst) {
         throw new UnsupportedOperationException();
     }
 

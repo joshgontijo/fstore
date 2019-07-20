@@ -12,8 +12,8 @@ public class FloatSerializer implements Serializer<Float> {
     }
 
     @Override
-    public void writeTo(Float data, ByteBuffer dest) {
-        dest.putFloat(data);
+    public void writeTo(Float data, ByteBuffer dst) {
+        dst.putFloat(data);
     }
 
     @Override

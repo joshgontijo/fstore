@@ -13,9 +13,9 @@ public class IntegerArraySerializer extends SizePrefixedArraySerializer<int[]> {
     }
 
     @Override
-    public void writeTo(int[] data, ByteBuffer dest) {
-        dest.putInt(data.length);
-        dest.asIntBuffer().put(data);
+    public void writeTo(int[] data, ByteBuffer dst) {
+        dst.putInt(data.length);
+        dst.asIntBuffer().put(data);
     }
 
     @Override

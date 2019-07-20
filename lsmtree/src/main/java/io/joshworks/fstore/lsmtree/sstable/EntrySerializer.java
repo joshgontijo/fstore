@@ -29,7 +29,7 @@ public class EntrySerializer<K extends Comparable<K>, V> implements Serializer<E
     }
 
     @Override
-    public void writeTo(Entry<K, V> data, ByteBuffer dest) {
+    public void writeTo(Entry<K, V> data, ByteBuffer dst) {
         throw new UnsupportedOperationException();
     }
 

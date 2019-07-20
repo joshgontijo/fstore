@@ -12,8 +12,8 @@ public class FromByteArraySerializer implements Serializer<byte[]> {
     }
 
     @Override
-    public void writeTo(byte[] data, ByteBuffer dest) {
-        dest.put(data);
+    public void writeTo(byte[] data, ByteBuffer dst) {
+        dst.put(data);
     }
 
     @Override

@@ -22,7 +22,7 @@ public class MidpointSerializer<K extends Comparable<K>> implements Serializer<M
     }
 
     @Override
-    public void writeTo(Midpoint<K> data, ByteBuffer dest) {
+    public void writeTo(Midpoint<K> data, ByteBuffer dst) {
         throw new UnsupportedOperationException();
     }
 

@@ -105,6 +105,9 @@ public class StreamsTest {
         streams = open();
 
         for (int i = 0; i < numStreams; i++) {
+            if(2000000 == i) {
+                System.out.println();
+            }
             StreamMetadata streamInfo = streams.get(String.valueOf(i));
             assertNotNull("Failed on " + i, streamInfo);
         }

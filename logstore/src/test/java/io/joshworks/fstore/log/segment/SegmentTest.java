@@ -91,7 +91,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void reader_reopen() throws IOException {
+    public void reader_reopen() {
         String data = "hello";
         segment.append(data);
         segment.flush();
@@ -180,7 +180,7 @@ public abstract class SegmentTest {
             assertFalse(testSegment.readOnly());
 
             testSegment.append("a");
-            testSegment.roll(1);
+            testSegment.roll(1, false);
 
             testSegment.close();
 
@@ -318,26 +318,26 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void logSize_is_updated_to_writePosition_when_segment_is_rolled() {
+    public void actualDataSize_returns_actual_writen_bytes_after_segment_is_reopened() {
         var data = "AAAAA";
         segment.append(data);
-        segment.roll(1);
+        segment.roll(1, false);
 
-        long logSize = segment.dataSize();
+        long logSize = segment.actualDataSize();
 
         assertEquals(data.length() + RecordHeader.HEADER_OVERHEAD, logSize);
     }
 
     @Test
-    public void logSize_is_kept_after_rolled_and_reopened() throws IOException {
+    public void actualDataSize_returns_actual_written_bytes_in_the_data_area() {
         var data = "AAAAA";
         segment.append(data);
-        segment.roll(1);
+        segment.roll(1, false);
 
         segment.close();
         segment = open(testFile);
 
-        long logSize = segment.dataSize();
+        long logSize = segment.actualDataSize();
 
         assertEquals(data.length() + RecordHeader.HEADER_OVERHEAD, logSize);
     }
@@ -376,11 +376,10 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void truncating_a_segment_shrinks_the_physical_file() {
+    public void trimming_a_segment_shrinks_the_physical_file() {
         long logSize = segment.physicalSize();
         segment.append("a");
-        segment.roll(1);
-        segment.trim();
+        segment.roll(1, true);
 
         long afterTruncating = segment.physicalSize();
         assertTrue(afterTruncating < logSize);
@@ -390,7 +389,7 @@ public abstract class SegmentTest {
     public void readOnly_returns_true_when_segment_is_rolled() {
         var data = "AAAAA";
         segment.append(data);
-        segment.roll(1);
+        segment.roll(1, false);
 
         assertTrue(segment.readOnly());
     }
@@ -399,7 +398,7 @@ public abstract class SegmentTest {
     public void readOnly_returns_true_when_segment_is_marked_for_deleted() {
         var data = "AAAAA";
         segment.append(data);
-        segment.roll(1);
+        segment.roll(1, false);
         segment.delete();
 
         assertTrue(segment.readOnly());
@@ -410,7 +409,7 @@ public abstract class SegmentTest {
         segment.close();
         segment = mergeOutSegment();
 
-        segment.roll(1);
+        segment.roll(1, false);
         assertTrue(segment.readOnly());
     }
 
@@ -429,7 +428,7 @@ public abstract class SegmentTest {
         segment.append("a");
         segment.append("b");
         long lastPos = segment.position();
-        segment.roll(1);
+        segment.roll(1, false);
 
         long foundPos = segment.position();
 
@@ -437,18 +436,18 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void position_of_rolled_segment_is_kept_after_reopening() {
+    public void position_of_rolled_segment_is_set_to_actualDataSize_when_reopened() {
         segment.append("a");
         segment.append("b");
-        long lastPos = segment.position();
-        segment.roll(1);
+        segment.position();
+        segment.roll(1, false);
 
         segment.close();
         segment = open(testFile);
 
         long foundPos = segment.position();
-
-        assertEquals(lastPos, foundPos);
+        long actualDataSize = segment.actualDataSize();
+        assertEquals(Log.START + actualDataSize, foundPos);
     }
 
     @Test
@@ -511,27 +510,12 @@ public abstract class SegmentTest {
 
     @Test
     public void header_is_the_same_after_rolling_and_reopening() {
-        segment.roll(1);
+        segment.roll(1, false);
         LogHeader original = segment.header;
         segment.close();
         segment = open(testFile);
         LogHeader found = segment.header;
         assertEquals(original, found);
-    }
-
-    @Test
-    public void fill_with() {
-        long pos = -1;
-        int i = 0;
-        do {
-            pos = segment.append(String.valueOf(i++));
-        } while(pos != -1);
-
-        segment.roll(1);
-        segment.close();
-
-        segment = open(testFile);
-
     }
 
     private List<Long> writeFully(Log<String> segment) {

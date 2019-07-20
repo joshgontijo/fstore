@@ -29,10 +29,10 @@ public class CollectionSerializer<V, T extends Collection<V>> implements Seriali
     }
 
     @Override
-    public void writeTo(T data, ByteBuffer dest) {
-        dest.putInt(data.size());
+    public void writeTo(T data, ByteBuffer dst) {
+        dst.putInt(data.size());
         for (V entry : data) {
-            dest.put(valueSerializer.toBytes(entry));
+            dst.put(valueSerializer.toBytes(entry));
         }
     }
 

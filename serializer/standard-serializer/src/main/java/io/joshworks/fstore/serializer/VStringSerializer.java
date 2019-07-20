@@ -17,9 +17,9 @@ public class VStringSerializer implements Serializer<String> {
     }
 
     @Override
-    public void writeTo(String data, ByteBuffer dest) {
+    public void writeTo(String data, ByteBuffer dst) {
         byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
-        dest.putInt(bytes.length).put(bytes);
+        dst.putInt(bytes.length).put(bytes);
     }
 
     @Override

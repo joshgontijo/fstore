@@ -134,7 +134,7 @@ public class SSTableTest {
             treeSet.add(i);
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
-        sstable.roll(1);
+        sstable.roll(1, false);
 
         for (int i = 0; i < items; i += 1) {
             Integer expected = treeSet.floor(i);
@@ -154,7 +154,7 @@ public class SSTableTest {
             treeSet.add(i);
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
-        sstable.roll(1);
+        sstable.roll(1, false);
 
 
         for (int i = 0; i < items - steps; i += 1) {
@@ -179,7 +179,7 @@ public class SSTableTest {
             treeSet.add(i);
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
-        sstable.roll(1);
+        sstable.roll(1, false);
 
         for (int i = 1; i < items; i += 1) {
             Integer expected = treeSet.lower(i);
@@ -202,7 +202,7 @@ public class SSTableTest {
             treeSet.add(i);
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
-        sstable.roll(1);
+        sstable.roll(1, false);
 
 
         for (int i = 0; i < items - steps; i += 1) {

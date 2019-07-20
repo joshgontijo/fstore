@@ -39,12 +39,12 @@ public class MapSerializer<K, V> implements Serializer<Map<K, V>> {
     }
 
     @Override
-    public void writeTo(Map<K, V> data, ByteBuffer dest) {
-        dest.putInt(data.size());
+    public void writeTo(Map<K, V> data, ByteBuffer dst) {
+        dst.putInt(data.size());
 
         for (Map.Entry<K, V> entry : data.entrySet()) {
-            dest.put(keySerializer.toBytes(entry.getKey()));
-            dest.put(valueSerializer.toBytes(entry.getValue()));
+            dst.put(keySerializer.toBytes(entry.getKey()));
+            dst.put(valueSerializer.toBytes(entry.getValue()));
         }
     }
 

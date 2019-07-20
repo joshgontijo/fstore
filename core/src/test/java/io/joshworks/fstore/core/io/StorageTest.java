@@ -12,7 +12,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.joshworks.fstore.core.io.DiskStorage.EOF;
 import static org.junit.Assert.assertArrayEquals;
@@ -313,74 +312,6 @@ public abstract class StorageTest {
             }
             readPos += read;
         } while (read != EOF);
-    }
-
-    @Test
-    public void must_support_concurrent_reads_and_writes() throws InterruptedException {
-
-        int items = 5000000;
-
-        byte[] data = fillWithUniqueBytes();
-
-        final AtomicBoolean done = new AtomicBoolean();
-        final AtomicBoolean writeFailed = new AtomicBoolean();
-        final AtomicBoolean readFailed = new AtomicBoolean();
-
-        IOUtils.closeQuietly(storage);
-
-        final var bigStorage = store(FileUtils.testFile(), Size.GB.of(1));
-        try {
-            Thread writer = new Thread(() -> {
-                for (int i = 0; i < items; i++) {
-                    try {
-                        fillWith(bigStorage, data);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        writeFailed.set(true);
-                        break;
-                    }
-                    if (!readFailed.get() && !writeFailed.get()) {
-                        break;
-                    }
-                }
-                done.set(true);
-            });
-
-            Thread reader = new Thread(() -> {
-                long readPos = 0;
-                int read;
-                do {
-                    try {
-                        var readBuffer = ByteBuffer.allocate(data.length);
-                        read = bigStorage.read(readPos, readBuffer);
-                        readPos += read;
-                        readBuffer.flip();
-                        if (read != EOF && !Arrays.equals(data, readBuffer.array())) {
-                            System.err.println("POSITION: " + readPos);
-                            System.err.println("EXPECTED: " + Arrays.toString(data));
-                            System.err.println("FOUND   : " + Arrays.toString(readBuffer.array()));
-                            readFailed.set(true);
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        readFailed.set(true);
-                        break;
-                    }
-                } while (read != EOF && !readFailed.get() && !writeFailed.get());
-            });
-
-            writer.start();
-            reader.start();
-
-            writer.join();
-            reader.join();
-
-            assertFalse(writeFailed.get());
-            assertFalse(readFailed.get());
-        } finally {
-            IOUtils.closeQuietly(bigStorage);
-        }
-
     }
 
     @Test

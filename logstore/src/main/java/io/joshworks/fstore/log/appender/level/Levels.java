@@ -187,8 +187,7 @@ public class Levels<T> {
             //ideally target would have the sources in their header to flag where they're were created from.
             //on startup read all the source from the header and if there's an existing segment, then delete, either the sources
             //or the target segment
-            merged.roll(nextLevel);
-            merged.trim();
+            merged.roll(nextLevel, true);
             this.segments = copy;
         } finally {
             lock.unlock();

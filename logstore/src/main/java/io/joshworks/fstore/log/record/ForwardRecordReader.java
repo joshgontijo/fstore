@@ -18,17 +18,17 @@ final class ForwardRecordReader extends BaseReader implements Reader {
         try {
             int read = storage.read(position, buffer);
             if (read == Storage.EOF) {
-                return null;
+                return RecordEntry.empty();
             }
             buffer.flip();
 
             if (buffer.remaining() < RecordHeader.MAIN_HEADER) {
-                return null;
+                return RecordEntry.empty();
             }
 
             int length = buffer.getInt();
             if (length == 0) {
-                return null;
+                return RecordEntry.empty();
             }
 
             int recordSize = length + RecordHeader.HEADER_OVERHEAD;

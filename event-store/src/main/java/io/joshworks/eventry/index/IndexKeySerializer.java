@@ -14,8 +14,8 @@ public class IndexKeySerializer implements Serializer<IndexKey> {
     }
 
     @Override
-    public void writeTo(IndexKey data, ByteBuffer dest) {
-        dest.putLong(data.stream).putInt(data.version);
+    public void writeTo(IndexKey data, ByteBuffer dst) {
+        dst.putLong(data.stream).putInt(data.version);
     }
 
     @Override

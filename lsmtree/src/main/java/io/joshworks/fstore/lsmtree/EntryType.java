@@ -1,13 +1,13 @@
 package io.joshworks.fstore.lsmtree;
 
 public enum EntryType {
-    MEM_FLUSHED(0),
-    DELETE(1),
-    ADD(2);
+    MEM_FLUSHED((short) 0),
+    DELETE((short) 1),
+    ADD((short) 2);
 
-    public final int code;
+    public final short code;
 
-    EntryType(int code) {
+    EntryType(short code) {
         this.code = code;
     }
 }

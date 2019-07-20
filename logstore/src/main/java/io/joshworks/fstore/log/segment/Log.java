@@ -42,7 +42,7 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     void delete();
 
-    void roll(int level);
+    void roll(int level, boolean trim);
 
     boolean readOnly();
 
@@ -53,8 +53,6 @@ public interface Log<T> extends Writer<T>, Closeable {
     int level();
 
     long created();
-
-    void trim();
 
     long uncompressedSize();
 

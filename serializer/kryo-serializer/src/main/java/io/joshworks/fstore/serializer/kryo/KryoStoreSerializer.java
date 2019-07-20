@@ -1,6 +1,8 @@
 package io.joshworks.fstore.serializer.kryo;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.ByteBufferInputStream;
+import com.esotericsoftware.kryo.io.ByteBufferOutputStream;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers;
@@ -13,16 +15,28 @@ import io.joshworks.fstore.core.Serializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.lang.reflect.InvocationHandler;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.GregorianCalendar;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static java.util.Objects.requireNonNull;
 
 
 public class KryoStoreSerializer<T> implements Serializer<T> {
 
-    static private final ThreadLocal<Kryo> localKryo = ThreadLocal.withInitial(KryoStoreSerializer::newKryoInstance);
+    private static final ThreadLocal<Kryo> localKryo = ThreadLocal.withInitial(KryoStoreSerializer::newKryoInstance);
+    private final Class<T> mainType;
+
+    private KryoStoreSerializer(Class<T> mainType) {
+        this.mainType = mainType;
+    }
 
     private static Kryo newKryoInstance() {
         Kryo kryo = new Kryo();
@@ -42,43 +56,81 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
         return kryo;
     }
 
-    public static <T> KryoStoreSerializer<T> of(Class... types) {
+    public static <K, V> KryoStoreSerializer<Map<K, V>> mapOf(Class<K> keytype, Class<V> valueType) {
+        return (KryoStoreSerializer<Map<K, V>>) untyped(keytype, valueType);
+    }
+
+    public static <T> KryoStoreSerializer<List<T>> listOf(Class<T> type) {
+        return (KryoStoreSerializer<List<T>>) untyped(type);
+    }
+
+    public static <T> KryoStoreSerializer<Set<T>> setOf(Class<T> type) {
+        return (KryoStoreSerializer<Set<T>>) untyped(type);
+    }
+
+    public static <T> KryoStoreSerializer<Collection<T>> collectionOf(Class<T> type) {
+        return (KryoStoreSerializer<Collection<T>>) untyped(type);
+    }
+
+    public static <T> KryoStoreSerializer<T> of(Class<T> mainType, Class... types) {
+        requireNonNull(mainType, "Class type must be provided");
+        Kryo kryo = localKryo.get();
+        if (types != null) {
+            for (Class type : types) {
+                kryo.register(type);
+            }
+        }
+        kryo.register(mainType);
+
+        return new KryoStoreSerializer<>(mainType);
+    }
+
+    public static KryoStoreSerializer<?> untyped(Class... types) {
         if (types != null) {
             Kryo kryo = localKryo.get();
             for (Class type : types) {
                 kryo.register(type);
             }
         }
-        return new KryoStoreSerializer<>();
+        return new KryoStoreSerializer<>(null);
     }
 
     @Override
     public ByteBuffer toBytes(T data) {
-        byte[] bytes = write(data);
-        return ByteBuffer.wrap(bytes);
-    }
-
-    private byte[] write(T data) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         Kryo kryo = localKryo.get();
         try (Output output = new Output(baos)) {
+            if (mainType != null) {
+                kryo.writeObject(output, data);
+                return ByteBuffer.wrap(baos.toByteArray());
+            }
             kryo.writeClassAndObject(output, data);
+            return ByteBuffer.wrap(baos.toByteArray());
         }
-        return baos.toByteArray();
     }
 
     @Override
-    public void writeTo(T data, ByteBuffer dest) {
-        byte[] bytes = write(data);
-        dest.put(bytes);
+    public void writeTo(T data, ByteBuffer dst) {
+        ByteBufferOutputStream baos = new ByteBufferOutputStream(dst);
+        Kryo kryo = localKryo.get();
+        try (Output output = new Output(baos)) {
+            if (mainType != null) {
+                kryo.writeObject(output, data);
+            }
+            kryo.writeClassAndObject(output, data);
+        }
     }
 
     @Override
     public T fromBytes(ByteBuffer data) {
         Kryo kryo = localKryo.get();
-        Input input = new Input(data.array());
-        return (T) kryo.readClassAndObject(input);
+        InputStream inputStream = new ByteBufferInputStream(data);
+        try (Input input = new Input(inputStream)) {
+            if (mainType != null) {
+                return kryo.readObject(input, mainType);
+            }
+            return (T) kryo.readClassAndObject(input);
+        }
     }
-
 
 }

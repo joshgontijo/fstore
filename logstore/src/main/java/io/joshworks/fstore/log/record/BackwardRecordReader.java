@@ -21,7 +21,7 @@ final class BackwardRecordReader extends BaseReader implements Reader {
             if (position - limit < Log.START) {
                 int available = (int) (position - Log.START);
                 if (available == 0) {
-                    return null;
+                    return RecordEntry.empty();
                 }
                 buffer.limit(available);
                 limit = available;
@@ -30,13 +30,13 @@ final class BackwardRecordReader extends BaseReader implements Reader {
             storage.read(position - limit, buffer);
             buffer.flip();
             if (buffer.remaining() == 0) {
-                return null;
+                return RecordEntry.empty();
             }
 
             int recordDataEnd = buffer.limit() - RecordHeader.SECONDARY_HEADER;
             int length = buffer.getInt(recordDataEnd);
             if (length == 0) {
-                return null;
+                return RecordEntry.empty();
             }
 
             int recordSize = length + RecordHeader.HEADER_OVERHEAD;

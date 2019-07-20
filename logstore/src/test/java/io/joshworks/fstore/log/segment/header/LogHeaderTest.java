@@ -3,7 +3,9 @@ package io.joshworks.fstore.log.segment.header;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -19,6 +21,7 @@ public abstract class LogHeaderTest {
     private static final int STORAGE_SIZE = Size.MB.ofInt(1);
     private Storage storage;
     private File testFile;
+    private DataStream stream;
 
     protected abstract StorageMode store();
 
@@ -27,6 +30,7 @@ public abstract class LogHeaderTest {
         testFile = FileUtils.testFile();
         testFile.deleteOnExit();
         storage = Storage.create(testFile, store(), STORAGE_SIZE);
+        stream = new DataStream(new BufferPool(), storage);
     }
 
     @After
@@ -37,39 +41,39 @@ public abstract class LogHeaderTest {
 
     @Test
     public void header_restores_open_state() {
-        LogHeader created = LogHeader.read(storage);
+        LogHeader created = LogHeader.read(stream);
         created.writeNew(WriteMode.LOG_HEAD, 123, 456, true);
 
-        LogHeader loaded = LogHeader.read(storage);
+        LogHeader loaded = LogHeader.read(stream);
         assertEquals(created, loaded);
     }
 
     @Test
     public void header_restores_deleted_state() {
-        LogHeader created = LogHeader.read(storage);
+        LogHeader created = LogHeader.read(stream);
         created.writeDeleted();
 
-        LogHeader loaded = LogHeader.read(storage);
+        LogHeader loaded = LogHeader.read(stream);
         assertEquals(created, loaded);
     }
 
     @Test
     public void header_restores_rolled_state() {
-        LogHeader created = LogHeader.read(storage);
+        LogHeader created = LogHeader.read(stream);
         created.writeCompleted(1, 2, 3, 4, 5, 6, 7);
 
-        LogHeader loaded = LogHeader.read(storage);
+        LogHeader loaded = LogHeader.read(stream);
         assertEquals(created, loaded);
     }
 
     @Test
     public void all_sections_are_restored_when_loaded() {
-        LogHeader created = LogHeader.read(storage);
+        LogHeader created = LogHeader.read(stream);
         created.writeNew(WriteMode.LOG_HEAD, 123, 456, true);
         created.writeDeleted();
         created.writeCompleted(1, 2, 3, 4, 5, 6, 7);
 
-        LogHeader loaded = LogHeader.read(storage);
+        LogHeader loaded = LogHeader.read(stream);
         assertEquals(created, loaded);
     }
 

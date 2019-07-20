@@ -12,8 +12,8 @@ public class IntegerSerializer implements Serializer<Integer> {
     }
 
     @Override
-    public void writeTo(Integer data, ByteBuffer dest) {
-        dest.putInt(data);
+    public void writeTo(Integer data, ByteBuffer dst) {
+        dst.putInt(data);
     }
 
     @Override

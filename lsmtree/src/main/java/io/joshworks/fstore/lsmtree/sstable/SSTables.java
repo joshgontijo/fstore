@@ -44,7 +44,7 @@ public class SSTables<K extends Comparable<K>, V> {
                 .name(name + "-sstable")
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)
-                .enableParallelCompaction()
+                .parallelCompaction()
                 .flushMode(flushMode)
                 .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, blockCache));
     }

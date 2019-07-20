@@ -163,7 +163,7 @@ public abstract class StorageIT {
                         }
                         readPos += read == EOF ? 0 : read;
                         if (read == EOF) {
-                            Threads.sleep(2000);
+                            Threads.sleep(100);
                         }
 
                         if (read != EOF && count++ % 1000000 == 0) {
@@ -235,6 +235,7 @@ public abstract class StorageIT {
         }
     }
 
+    //MEMORY CONSUMING TEST
     public static class OffHeapStorageTest extends StorageIT {
 
         @Override
@@ -243,6 +244,7 @@ public abstract class StorageIT {
         }
     }
 
+    //MEMORY CONSUMING TEST
     public static class HeapStorageTest extends StorageIT {
 
         @Override

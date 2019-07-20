@@ -488,8 +488,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     @Override
-    public void roll(int level) {
-        delegate.roll(level);
+    public void roll(int level, boolean trim) {
+        delegate.roll(level, trim);
     }
 
     @Override
@@ -515,11 +515,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     @Override
     public long created() {
         return delegate.created();
-    }
-
-    @Override
-    public void trim() {
-        delegate.trim();
     }
 
     @Override

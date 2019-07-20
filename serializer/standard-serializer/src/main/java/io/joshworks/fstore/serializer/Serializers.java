@@ -43,13 +43,13 @@ public class Serializers {
     public static final Serializer<Character> CHAR = new CharacterSerializer();
     public static final Serializer<Byte> BYTE = new ByteSerializer();
 
-    public static final Serializer<byte[]> BYTE_ARRAY = new ByteArraySerializer();
-    public static final Serializer<int[]> INTEGER_ARRAY = new IntegerArraySerializer();
-    public static final Serializer<long[]> LONG_ARRAY = new LongArraySerializer();
-    public static final Serializer<double[]> DOUBLE_ARRAY = new DoubleArraySerializer();
-    public static final Serializer<float[]> FLOAT_ARRAY = new FloatArraySerializer();
-    public static final Serializer<short[]> SHORT_ARRAY = new ShortArraySerializer();
-    public static final Serializer<boolean[]> BOOLEAN_ARRAY = new BooleanArraySerializer();
+    public static final Serializer<byte[]> VLEN_BYTE_ARRAY = new ByteArraySerializer();
+    public static final Serializer<int[]> VLEN_INTEGER_ARRAY = new IntegerArraySerializer();
+    public static final Serializer<long[]> VLEN_LONG_ARRAY = new LongArraySerializer();
+    public static final Serializer<double[]> VLEN_DOUBLE_ARRAY = new DoubleArraySerializer();
+    public static final Serializer<float[]> VLEN_FLOAT_ARRAY = new FloatArraySerializer();
+    public static final Serializer<short[]> VLEN_SHORT_ARRAY = new ShortArraySerializer();
+    public static final Serializer<boolean[]> VLEN_BOOLEAN_ARRAY = new BooleanArraySerializer();
 
 
     public static <K, V> Serializer<Map<K, V>> mapSerializer(Serializer<K> keySerializer, Serializer<V> valueSerializer, Function<K, Integer> sizeOfKey, Function<V, Integer> sizeOfValue) {

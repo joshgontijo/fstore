@@ -37,8 +37,8 @@ public class FooterMap {
         return hasher.hash32(name.getBytes(StandardCharsets.UTF_8));
     }
 
-    public ByteBuffer serialize() {
-        return mapSerializer.toBytes(items);
+    public long writeTo(DataStream stream) {
+        return stream.write(items, mapSerializer);
     }
 
     public void load(LogHeader header, DataStream stream) {
@@ -48,10 +48,17 @@ public class FooterMap {
 
         long mapPosition = header.footerMapPosition();
         RecordEntry<Map<Integer, Long>> record = stream.read(Direction.FORWARD, mapPosition, mapSerializer);
-        if (record == null) {
+        if (record.isEmpty()) {
             throw new IllegalStateException("Could not load footer map");
         }
         items.putAll(record.entry());
+    }
+
+    <T> int write(String name, DataStream stream, T entry, Serializer<T> serializer) {
+        int hash = validateName(name);
+        long position = stream.write(entry, serializer);
+        items.put(hash, position);
+        return hash;
     }
 
     int write(String name, DataStream stream, ByteBuffer data) {

@@ -32,19 +32,19 @@ public class EventSerializer implements Serializer<EventRecord> {
     }
 
     @Override
-    public void writeTo(EventRecord data, ByteBuffer dest) {
-        strSerializer.writeTo(data.type, dest);
-        strSerializer.writeTo(data.stream, dest);
-        dest.putInt(data.version);
-        dest.putLong(data.timestamp);
+    public void writeTo(EventRecord data, ByteBuffer dst) {
+        strSerializer.writeTo(data.type, dst);
+        strSerializer.writeTo(data.stream, dst);
+        dst.putInt(data.version);
+        dst.putLong(data.timestamp);
 
-        dest.putInt(data.body.length);
-        dest.put(data.body);
+        dst.putInt(data.body.length);
+        dst.put(data.body);
 
         int metadataLen = data.metadata == null ? 0 : data.metadata.length;
-        dest.putInt(metadataLen);
+        dst.putInt(metadataLen);
         if (metadataLen > 0) {
-            dest.put(data.metadata);
+            dst.put(data.metadata);
         }
     }
 

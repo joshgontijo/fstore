@@ -13,8 +13,8 @@ public class StringSerializer implements Serializer<String> {
     }
 
     @Override
-    public void writeTo(String data, ByteBuffer dest) {
-        dest.put(data.getBytes(StandardCharsets.UTF_8));
+    public void writeTo(String data, ByteBuffer dst) {
+        dst.put(data.getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

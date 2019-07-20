@@ -21,8 +21,9 @@ public class BlockSerializer implements Serializer<Block> {
     }
 
     @Override
-    public void writeTo(Block data, ByteBuffer dest) {
-        //do nothing
+    public void writeTo(Block data, ByteBuffer dst) {
+        ByteBuffer packed = data.pack(codec);
+        dst.put(packed);
     }
 
     @Override
