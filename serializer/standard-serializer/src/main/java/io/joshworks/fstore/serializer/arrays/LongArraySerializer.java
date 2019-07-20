@@ -13,9 +13,9 @@ public class LongArraySerializer extends SizePrefixedArraySerializer<long[]> {
     }
 
     @Override
-    public void writeTo(long[] data, ByteBuffer dest) {
-        dest.putInt(data.length);
-        dest.asLongBuffer().put(data);
+    public void writeTo(long[] data, ByteBuffer dst) {
+        dst.putInt(data.length);
+        dst.asLongBuffer().put(data);
     }
 
     @Override

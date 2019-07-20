@@ -12,8 +12,8 @@ public class ByteSerializer implements Serializer<Byte> {
     }
 
     @Override
-    public void writeTo(Byte data, ByteBuffer dest) {
-        dest.put(data);
+    public void writeTo(Byte data, ByteBuffer dst) {
+        dst.put(data);
     }
 
     @Override

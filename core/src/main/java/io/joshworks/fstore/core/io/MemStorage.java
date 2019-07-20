@@ -93,37 +93,6 @@ public abstract class MemStorage implements Storage {
         }
     }
 
-    private int addToBuffer(ByteBuffer src, ByteBuffer dst) {
-        int srcRemaining = src.remaining();
-        int dstRemaining = dst.remaining();
-        int available = Math.min(dstRemaining, src.remaining());
-        if (dstRemaining < srcRemaining) { //partial put
-            int srcLimit = src.limit();
-            src.limit(src.position() + available);
-            dst.put(src);
-            dst.flip(); //this is important since there's no calls to clear when reading
-            src.limit(srcLimit);
-        } else {
-            dst.put(src);
-        }
-        return available;
-    }
-
-    protected void ensureCapacity(long position, long entrySize) {
-        if (!hasEnoughSpace(entrySize, position)) {
-            expand(entrySize, position);
-        }
-    }
-
-    private int append(ByteBuffer src, long pos) {
-        int len = src.remaining();
-        while (src.hasRemaining()) {
-            ByteBuffer dst = BufferUtil.getBuffer(buffers, pos);
-            pos += addToBuffer(src, dst);
-        }
-        return len;
-    }
-
     @Override
     public long write(ByteBuffer[] srcs) {
 
@@ -272,6 +241,36 @@ public abstract class MemStorage implements Storage {
         }
     }
 
+    private int addToBuffer(ByteBuffer src, ByteBuffer dst) {
+        int srcRemaining = src.remaining();
+        int dstRemaining = dst.remaining();
+        int available = Math.min(dstRemaining, src.remaining());
+        if (dstRemaining < srcRemaining) { //partial put
+            int srcLimit = src.limit();
+            src.limit(src.position() + available);
+            dst.put(src);
+            dst.flip(); //this is important since there's no calls to clear when reading
+            src.limit(srcLimit);
+        } else {
+            dst.put(src);
+        }
+        return available;
+    }
+
+    protected void ensureCapacity(long position, long entrySize) {
+        if (!hasEnoughSpace(entrySize, position)) {
+            expand(entrySize, position);
+        }
+    }
+
+    private int append(ByteBuffer src, long pos) {
+        int len = src.remaining();
+        while (src.hasRemaining()) {
+            ByteBuffer dst = BufferUtil.getBuffer(buffers, pos);
+            pos += addToBuffer(src, dst);
+        }
+        return len;
+    }
 
     protected void expand(long entrySize, long position) {
         Lock lock = writeLockInterruptibly();
@@ -303,7 +302,6 @@ public abstract class MemStorage implements Storage {
         }
     }
 
-    //TODO not thread safe
     protected void computeSize() {
         this.size.set(buffers.stream().mapToLong(ByteBuffer::capacity).sum());
     }
@@ -335,5 +333,4 @@ public abstract class MemStorage implements Storage {
             throw new StorageException(e);
         }
     }
-
 }

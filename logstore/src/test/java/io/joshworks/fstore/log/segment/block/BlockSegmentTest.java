@@ -75,7 +75,7 @@ public class BlockSegmentTest {
         segment.append("a");
         segment.append("b");
 
-        segment.roll(1);
+        segment.roll(1, false);
         segment.close();
         segment = open(testFile);
         assertEquals(2, segment.entries());
@@ -94,7 +94,7 @@ public class BlockSegmentTest {
     @Test
     public void roll_writes_block() {
         segment.append("a");
-        segment.roll(1);
+        segment.roll(1, false);
 
         segment.close();
         segment = open(testFile);
@@ -113,21 +113,19 @@ public class BlockSegmentTest {
 
     @Test
     public void uncompressed_size_is_the_approximation_of_block_size() {
-        long bPos;
-        do {
-            bPos = segment.append("a");
-        } while (bPos != Storage.EOF);
-
+        for (int i = 0; i < 1000000; i++) {
+            segment.append("a");
+        }
         assertEquals(segment.blocks() * segment.blockSize(), segment.uncompressedSize());
     }
 
     @Test
     public void uncompressed_is_restored_when_segment_is_reopened() {
-        long bPos;
-        do {
-            bPos = segment.append("a");
-        } while (bPos != Storage.EOF);
+        for (int i = 0; i < 1000000; i++) {
+            segment.append("a");
+        }
 
+        segment.flush();
         long uncompressedSize = segment.uncompressedSize();
 
         segment.close();
@@ -144,7 +142,7 @@ public class BlockSegmentTest {
 
         long uncompressedSize = segment.uncompressedSize();
 
-        segment.roll(1);
+        segment.roll(1, false);
         segment.close();
         segment = open(testFile);
         assertEquals(uncompressedSize, segment.uncompressedSize());

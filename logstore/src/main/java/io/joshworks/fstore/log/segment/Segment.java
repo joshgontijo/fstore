@@ -16,6 +16,7 @@ import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
+import io.joshworks.fstore.serializer.Serializers;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -100,20 +101,21 @@ public final class Segment<T> implements Log<T> {
 
         Storage storage = null;
         try {
-            long fileLength = getTotalFileLength(segmentDataSize);
+            long alignedSegmentDataSize = Storage.align(segmentDataSize);
+            long fileLength = getTotalFileLength(alignedSegmentDataSize);
             this.storage = storage = Storage.createOrOpen(file, storageMode, fileLength);
-            this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize);
+            this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize, alignedSegmentDataSize);
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
             if (storage.length() <= LogHeader.BYTES) {
                 throw new IllegalArgumentException("Segment size must greater than " + LogHeader.BYTES);
             }
-            this.header = LogHeader.read(storage);
+            this.header = LogHeader.read(stream);
             if (Type.NONE.equals(header.type())) { //new segment
                 if (writeMode == null) {
                     throw new SegmentException("Segment doesn't exist, WriteMode must be specified");
                 }
-                this.header.writeNew(writeMode, fileLength, segmentDataSize, false); //TODO update for ENCRYPTION
+                this.header.writeNew(writeMode, fileLength, alignedSegmentDataSize, false); //TODO update for ENCRYPTION
 
                 this.setPosition(Log.START);
                 this.entries.set(0);
@@ -141,17 +143,10 @@ public final class Segment<T> implements Log<T> {
         if (readOnly()) {
             throw new IllegalStateException("Segment is read only");
         }
-        ByteBuffer data = serializer.toBytes(record);
-
-        if (data.remaining() > dataSize()) {
-            throw new IllegalArgumentException("Record of size " + data.remaining() + " cannot exceed log size of " + dataSize() + "");
-        }
-
-        if (remaining() < data.remaining()) {
+        long recordPosition = stream.write(record, serializer, remaining());
+        if (recordPosition == EOF) {
             return EOF;
         }
-
-        long recordPosition = stream.write(data);
         incrementEntry();
         dataWritePosition.set(storage.position());
         return recordPosition;
@@ -166,17 +161,7 @@ public final class Segment<T> implements Log<T> {
         checkClosed();
         checkBounds(position);
         RecordEntry<T> entry = stream.read(Direction.FORWARD, position, serializer);
-        return entry == null ? null : entry.entry();
-    }
-
-    //truncate unused physical file space, useful only when compacting, since it has performance impact
-    @Override
-    public void trim() {
-        if (!readOnly()) {
-            throw new SegmentException("Segment is not read only");
-        }
-        long segmentEnd = header.logEnd();
-        storage.truncate(segmentEnd);
+        return entry.entry();
     }
 
     @Override
@@ -312,7 +297,7 @@ public final class Segment<T> implements Log<T> {
     }
 
     @Override
-    public void roll(int level) {
+    public void roll(int level, boolean trim) {
         if (readOnly()) {
             throw new IllegalStateException("Cannot roll read only segment: " + this.toString());
         }
@@ -329,11 +314,12 @@ public final class Segment<T> implements Log<T> {
             footerWriter.accept(footer);
         }
 
-        ByteBuffer mapData = footerMap.serialize();
-        long mapPosition = stream.write(mapData);
+        long mapPosition = footerMap.writeTo(stream);
         long footerEnd = stream.position();
-
         long footerLength = footerEnd - footerStart;
+        if (trim) {
+            storage.truncate(footerEnd);
+        }
         this.header.writeCompleted(entries.get(), level, actualDataSize, mapPosition, footerLength, uncompressedSize, storage.length());
     }
 
@@ -411,7 +397,7 @@ public final class Segment<T> implements Log<T> {
             e.printStackTrace();
             logger.warn("Found inconsistent entry on position " + position + ", segment '" + name() + "': " + e.getMessage());
             storage.position(position);
-            stream.write(ByteBuffer.wrap(EOL));
+            stream.write(position, ByteBuffer.wrap(EOL), Serializers.COPY);
             storage.position(position);
         }
         logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
@@ -466,8 +452,8 @@ public final class Segment<T> implements Log<T> {
         }
         long maxDataPos = header.maxDataPosition();
 
-        long dataPos = Math.min(position, maxDataPos);
-        this.dataWritePosition.set(dataPos);
+        long maxWritePos = Math.min(position, maxDataPos);
+        this.dataWritePosition.set(maxWritePos);
         this.storage.position(position);
     }
 

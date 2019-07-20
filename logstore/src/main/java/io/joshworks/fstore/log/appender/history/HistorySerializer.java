@@ -12,7 +12,7 @@ public class HistorySerializer implements Serializer<HistoryItem> {
     }
 
     @Override
-    public void writeTo(HistoryItem data, ByteBuffer dest) {
+    public void writeTo(HistoryItem data, ByteBuffer dst) {
 
     }
 

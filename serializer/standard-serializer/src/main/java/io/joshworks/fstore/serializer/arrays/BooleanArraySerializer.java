@@ -14,10 +14,10 @@ public class BooleanArraySerializer extends SizePrefixedArraySerializer<boolean[
     }
 
     @Override
-    public void writeTo(boolean[] data, ByteBuffer dest) {
-        dest.putInt(data.length);
+    public void writeTo(boolean[] data, ByteBuffer dst) {
+        dst.putInt(data.length);
         for (boolean aData : data) {
-            dest.put((byte) (aData ? 1 : 0));
+            dst.put((byte) (aData ? 1 : 0));
         }
     }
 

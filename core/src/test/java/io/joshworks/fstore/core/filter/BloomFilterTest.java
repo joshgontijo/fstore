@@ -69,8 +69,8 @@ public class BloomFilterTest {
         }
 
         @Override
-        public void writeTo(Long data, ByteBuffer dest) {
-            dest.putLong(data);
+        public void writeTo(Long data, ByteBuffer dst) {
+            dst.putLong(data);
         }
 
         @Override

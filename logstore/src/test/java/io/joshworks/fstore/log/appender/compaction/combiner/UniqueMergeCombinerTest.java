@@ -247,7 +247,7 @@ public class UniqueMergeCombinerTest {
         for (String value : values) {
             segment.append(value);
         }
-        segment.roll(0);
+        segment.roll(0, false);
         return segment;
     }
 
@@ -260,7 +260,7 @@ public class UniqueMergeCombinerTest {
         for (TestEntry value : values) {
             segment.append(value);
         }
-        segment.roll(0);
+        segment.roll(0, false);
         return segment;
     }
 
@@ -318,9 +318,9 @@ public class UniqueMergeCombinerTest {
         }
 
         @Override
-        public void writeTo(TestEntry data, ByteBuffer dest) {
-            dest.putInt(data.id);
-            dest.put(stringSerializer.toBytes(data.label));
+        public void writeTo(TestEntry data, ByteBuffer dst) {
+            dst.putInt(data.id);
+            dst.put(stringSerializer.toBytes(data.label));
         }
 
         @Override

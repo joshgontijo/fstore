@@ -17,13 +17,13 @@ import io.joshworks.eventry.log.RecordCleanup;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
+import io.joshworks.eventry.utils.Memory;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.writer.EventWriter;
 import io.joshworks.eventry.writer.Writer;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.Direction;
@@ -86,7 +86,7 @@ public class EventStore implements IEventStore {
                 .name("event-log")
                 .flushMode(FlushMode.MANUAL)
                 .storageMode(StorageMode.MMAP)
-                .bufferPool(new BufferPool(false))
+                .bufferPool(Memory.PAGE_SIZE, true)
                 .checksumProbability(1)
                 .disableCompaction()
                 .namingStrategy(new SequentialNaming(rootDir))

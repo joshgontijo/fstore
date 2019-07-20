@@ -13,7 +13,7 @@ import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class EventRecord {
 
-    private static final Serializer<Map<String, Object>> serializer = KryoStoreSerializer.of();
+    private static final Serializer<Map<String, Object>> serializer = KryoStoreSerializer.mapOf(String.class, Object.class);
 
     public static final int NO_VERSION = -1;
     public static final int NO_EXPECTED_VERSION = -2;

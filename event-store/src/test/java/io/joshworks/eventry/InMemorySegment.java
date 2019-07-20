@@ -111,7 +111,7 @@ public class InMemorySegment<T> implements Log<T> {
     }
 
     @Override
-    public void roll(int level) {
+    public void roll(int level, boolean trim) {
 
     }
 
@@ -138,11 +138,6 @@ public class InMemorySegment<T> implements Log<T> {
     @Override
     public long created() {
         return 0;
-    }
-
-    @Override
-    public void trim() {
-
     }
 
     @Override

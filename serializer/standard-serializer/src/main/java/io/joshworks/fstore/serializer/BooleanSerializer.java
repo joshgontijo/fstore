@@ -14,8 +14,8 @@ public class BooleanSerializer implements Serializer<Boolean> {
     }
 
     @Override
-    public void writeTo(Boolean data, ByteBuffer dest) {
-        dest.put((byte) (data ? 1 : 0));
+    public void writeTo(Boolean data, ByteBuffer dst) {
+        dst.put((byte) (data ? 1 : 0));
     }
 
     @Override

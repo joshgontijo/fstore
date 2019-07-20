@@ -15,7 +15,6 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.Flushable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Iterator;
 import java.util.List;
@@ -45,8 +44,7 @@ public class DataFile<T> implements Flushable, Closeable {
     }
 
     public synchronized long add(T record) {
-        ByteBuffer data = serializer.toBytes(record);
-        long pos = stream.write(data);
+        long pos = stream.write(record, serializer);
         if (Storage.EOF == pos) {
             throw new RuntimeException("Not space left in the data file");
         }
@@ -58,8 +56,7 @@ public class DataFile<T> implements Flushable, Closeable {
     }
 
     public T get(long position) {
-        RecordEntry<T> record = stream.read(Direction.FORWARD, position, serializer);
-        return record == null ? null : record.entry();
+        return stream.read(Direction.FORWARD, position, serializer).entry();
     }
 
     public Iterator<T> iterator(Direction direction) {

@@ -44,7 +44,6 @@ import static io.joshworks.fstore.core.io.Storage.align;
  * |---- 16 -----|------- 48 --------|
  * [SEGMENT_IDX] [POSITION_ON_SEGMENT]
  */
-
 public class LogAppender<T> implements Closeable {
 
     private final Logger logger;
@@ -89,7 +88,7 @@ public class LogAppender<T> implements Closeable {
         this.storageMode = config.storageMode;
         this.namingStrategy = config.namingStrategy;
         this.checksumProbability = config.checksumProbability;
-        this.readPageSize = config.bufferSize;
+        this.readPageSize = config.readPageSize;
         this.compactionDisabled = config.compactionDisabled;
         this.bufferPool = config.bufferPool;
         this.logger = Logging.namedLogger(config.name, "appender");
@@ -215,7 +214,7 @@ public class LogAppender<T> implements Closeable {
                 }
                 logger.info("Rolling segment: {}", current);
 
-                current.roll(1);
+                current.roll(1, false);
 
                 Log<T> newSegment = createCurrentSegment();
                 levels.appendSegment(newSegment);

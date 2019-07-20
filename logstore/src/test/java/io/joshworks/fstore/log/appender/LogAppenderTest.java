@@ -348,7 +348,7 @@ public abstract class LogAppenderTest {
         try (LogAppender<String> testAppender = appender()) {
             Log<String> testSegment = testAppender.current();
             testSegment.append("a");
-            testSegment.roll(1);
+            testSegment.roll(1, false);
 
             assertEquals(1, testSegment.entries());
             assertEquals(1, testSegment.level());

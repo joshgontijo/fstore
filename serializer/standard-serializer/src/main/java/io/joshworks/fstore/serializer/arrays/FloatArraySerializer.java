@@ -13,9 +13,9 @@ public class FloatArraySerializer extends SizePrefixedArraySerializer<float[]> {
     }
 
     @Override
-    public void writeTo(float[] data, ByteBuffer dest) {
-        dest.putInt(data.length);
-        dest.asFloatBuffer().put(data);
+    public void writeTo(float[] data, ByteBuffer dst) {
+        dst.putInt(data.length);
+        dst.asFloatBuffer().put(data);
     }
 
     @Override

@@ -13,9 +13,9 @@ public class DoubleArraySerializer extends SizePrefixedArraySerializer<double[]>
     }
 
     @Override
-    public void writeTo(double[] data, ByteBuffer dest) {
-        dest.putInt(data.length);
-        dest.asDoubleBuffer().put(data);
+    public void writeTo(double[] data, ByteBuffer dst) {
+        dst.putInt(data.length);
+        dst.asDoubleBuffer().put(data);
     }
 
     @Override

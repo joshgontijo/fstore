@@ -36,17 +36,17 @@ public class StreamMetadataSerializer implements Serializer<StreamMetadata> {
     }
 
     @Override
-    public void writeTo(StreamMetadata data, ByteBuffer dest) {
-        dest.putLong(data.hash);
-        dest.putLong(data.created);
-        dest.putLong(data.maxAge);
-        dest.putInt(data.maxCount);
-        dest.putInt(data.state);
-        dest.putInt(data.truncated);
-        dest.put(Serializers.VSTRING.toBytes(data.name));
+    public void writeTo(StreamMetadata data, ByteBuffer dst) {
+        dst.putLong(data.hash);
+        dst.putLong(data.created);
+        dst.putLong(data.maxAge);
+        dst.putInt(data.maxCount);
+        dst.putInt(data.state);
+        dst.putInt(data.truncated);
+        dst.put(Serializers.VSTRING.toBytes(data.name));
 
-        permissionSerializer.writeTo(data.acl, dest);
-        metadataSerializer.writeTo(data.metadata, dest);
+        permissionSerializer.writeTo(data.acl, dst);
+        metadataSerializer.writeTo(data.metadata, dst);
     }
 
     @Override

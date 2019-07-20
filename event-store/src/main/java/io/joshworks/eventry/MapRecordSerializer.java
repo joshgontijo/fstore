@@ -50,9 +50,9 @@ public class MapRecordSerializer implements Serializer<Map<String, Object>> {
     }
 
     @Override
-    public void writeTo(Map<String, Object> data, ByteBuffer dest) {
+    public void writeTo(Map<String, Object> data, ByteBuffer dst) {
         ByteBuffer byteBuffer = toBytes(data);
-        dest.put(byteBuffer);
+        dst.put(byteBuffer);
     }
 
     @Override

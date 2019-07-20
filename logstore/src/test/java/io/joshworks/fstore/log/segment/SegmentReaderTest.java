@@ -60,7 +60,7 @@ public abstract class SegmentReaderTest {
     @Test
     public void endOfLog_is_true_only_when_segment_is_not_LOG_HEAD_and_iterator_has_read_all_entries() {
         writeFully(segment);
-        segment.roll(1);
+        segment.roll(1, false);
 
         SegmentIterator<String> iterator = segment.iterator(Direction.FORWARD);
         while (iterator.hasNext()) {

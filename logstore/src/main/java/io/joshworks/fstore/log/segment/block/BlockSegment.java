@@ -15,13 +15,12 @@ import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.Type;
-import io.joshworks.fstore.serializer.Serializers;
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -36,13 +35,11 @@ public class BlockSegment<T> implements Log<T> {
     private Consumer<FooterWriter> footerWriter;
     protected Block block;
 
-    private final int blockSize;
-    private final AtomicLong entries = new AtomicLong();
-    private final AtomicLong uncompressedSize = new AtomicLong();
-    private final AtomicLong compressedSize = new AtomicLong();
+    private BlockSegmentInfo info;
 
     private final Segment<Block> delegate;
     private FooterReader footerReader;
+    private final KryoStoreSerializer<BlockSegmentInfo> infoSerializer = KryoStoreSerializer.of(BlockSegmentInfo.class);
 
     public BlockSegment(File file,
                         StorageMode storageMode,
@@ -92,7 +89,7 @@ public class BlockSegment<T> implements Log<T> {
 
         this.serializer = serializer;
         this.blockFactory = blockFactory;
-        this.blockSize = blockSize;
+        this.info = new BlockSegmentInfo(blockSize);
         this.blockWriteListener = blockWriteListener;
         this.onBlockLoaded = onBlockLoaded;
         this.footerWriter = footerWriter;
@@ -111,26 +108,12 @@ public class BlockSegment<T> implements Log<T> {
 
         this.footerReader = delegate.footerReader();
         if (delegate.readOnly()) {
-            ByteBuffer blockSegmentInfo = footerReader.read(BLOCK_INFO_FOOTER_ITEM, Serializers.COPY);
-            if (blockSegmentInfo != null) {
-                long bSize = blockSegmentInfo.getLong();
-                uncompressedSize.set(blockSegmentInfo.getLong());
-                compressedSize.set(blockSegmentInfo.getLong());
-                entries.set(blockSegmentInfo.getLong());
-            }
+            this.info = footerReader.read(BLOCK_INFO_FOOTER_ITEM, infoSerializer);
         }
     }
 
     private void writeFooter(FooterWriter writer) {
-        ByteBuffer blockSegmentInfo = ByteBuffer.allocate(Long.BYTES * 4);
-        blockSegmentInfo.putLong(blockSize);
-        blockSegmentInfo.putLong(uncompressedSize.get());
-        blockSegmentInfo.putLong(compressedSize.get());
-        blockSegmentInfo.putLong(entries.get());
-        blockSegmentInfo.flip();
-
-        writer.write(BLOCK_INFO_FOOTER_ITEM, blockSegmentInfo);
-
+        writer.write(BLOCK_INFO_FOOTER_ITEM, info, infoSerializer);
         footerWriter.accept(writer);
     }
 
@@ -152,14 +135,14 @@ public class BlockSegment<T> implements Log<T> {
                 throw new IllegalStateException("Could not write to new block after flushing, block must ensure entry can be written or thrown an error");
             }
         }
-        entries.incrementAndGet();
+        info.addEntryCount(1);
         return delegate.position();
     }
 
     private boolean hasSpaceAvailableForBlock() {
         long writePos = position();
         long logSize = dataSize();
-        return writePos + blockSize < logSize;
+        return writePos + info.blockSize() < logSize;
     }
 
     private synchronized void writeBlock() {
@@ -167,14 +150,14 @@ public class BlockSegment<T> implements Log<T> {
             return;
         }
 
-        uncompressedSize.addAndGet(block.uncompressedSize());
+        info.addUncompressedSize(block.uncompressedSize());
         long blockPos = delegate.append(block);
         if (blockPos == Storage.EOF) {
             throw new IllegalStateException("Got EOF when writing non empty block");
         }
 
         this.blockWriteListener.accept(blockPos, block);
-        this.block = blockFactory.create(blockSize);
+        this.block = blockFactory.create(info.blockSize());
     }
 
     public SegmentIterator<Block> blockIterator(Direction direction) {
@@ -187,7 +170,7 @@ public class BlockSegment<T> implements Log<T> {
 
     //actual entries present in all blovks
     public long totalEntries() {
-        return entries.get();
+        return info.entries();
     }
 
     public FooterReader footerReader() {
@@ -232,7 +215,7 @@ public class BlockSegment<T> implements Log<T> {
 
     @Override
     public long uncompressedDataSize() {
-        return uncompressedSize.get();
+        return info.uncompressedSize();
     }
 
     @Override
@@ -290,9 +273,9 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     @Override
-    public synchronized void roll(int level) {
+    public synchronized void roll(int level, boolean trim) {
         writeBlock();
-        delegate.roll(level);
+        delegate.roll(level, trim);
     }
 
     @Override
@@ -307,7 +290,7 @@ public class BlockSegment<T> implements Log<T> {
 
     @Override
     public long entries() {
-        return entries.get();
+        return info.entries();
     }
 
     @Override
@@ -320,28 +303,22 @@ public class BlockSegment<T> implements Log<T> {
         return delegate.created();
     }
 
-    @Override
-    public void trim() {
-        this.block = blockFactory.create(blockSize);
-        delegate.trim();
-    }
-
     private int processEntries(List<RecordEntry<Block>> items) {
         int entryCount = 0;
         for (RecordEntry<Block> recordEntry : items) {
             Block block = recordEntry.entry();
-            uncompressedSize.addAndGet(block.uncompressedSize());
-            compressedSize.addAndGet(recordEntry.dataSize());
+            info.addUncompressedSize(block.uncompressedSize());
+            info.addCompressedSize(recordEntry.dataSize());
             entryCount += block.entryCount();
             onBlockLoaded.accept(recordEntry.position(), block);
         }
-        entries.addAndGet(entryCount);
+        info.addEntryCount(entryCount);
         return entryCount;
     }
 
     @Override
     public long uncompressedSize() {
-        return uncompressedSize.get();
+        return info.uncompressedSize();
     }
 
     @Override
@@ -350,7 +327,7 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     public int blockSize() {
-        return blockSize;
+        return info.blockSize();
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize) {

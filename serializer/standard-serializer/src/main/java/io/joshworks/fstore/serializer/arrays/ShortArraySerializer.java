@@ -13,9 +13,9 @@ public class ShortArraySerializer extends SizePrefixedArraySerializer<short[]> {
     }
 
     @Override
-    public void writeTo(short[] data, ByteBuffer dest) {
-        dest.putInt(data.length);
-        dest.asShortBuffer().put(data);
+    public void writeTo(short[] data, ByteBuffer dst) {
+        dst.putInt(data.length);
+        dst.asShortBuffer().put(data);
     }
 
     @Override

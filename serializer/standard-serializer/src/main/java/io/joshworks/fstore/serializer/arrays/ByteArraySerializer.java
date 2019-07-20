@@ -12,9 +12,9 @@ public class ByteArraySerializer extends SizePrefixedArraySerializer<byte[]> {
     }
 
     @Override
-    public void writeTo(byte[] data, ByteBuffer dest) {
-        dest.putInt(data.length);
-        dest.put(data);
+    public void writeTo(byte[] data, ByteBuffer dst) {
+        dst.putInt(data.length);
+        dst.put(data);
     }
 
     @Override

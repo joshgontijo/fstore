@@ -40,18 +40,7 @@ public class MMapCache extends MMapStorage {
         if (srcAvailable <= 0) {
             return EOF;
         }
-        long toBeRead = Math.min(dstRemaining, srcAvailable);
-        int read = 0;
-        int lastRead;
-        //READS ARE NOT GUARANTEED TO SEE CHANGES MADE TO THE UNDERLYING FILE, RE-READ IS NEEDED UNTIL ALL DATA IS AVAILABLE
-        do {
-            lastRead = super.read(readPos, dst);
-            if (lastRead != EOF) {
-                readPos += lastRead;
-                read += lastRead;
-            }
-        } while (read < toBeRead);
-        return read;
+        return super.read(readPos, dst);
     }
 
     @Override

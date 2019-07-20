@@ -17,6 +17,7 @@ import org.junit.Test;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -32,7 +33,7 @@ public class DataStreamTest {
 
     private File file;
     private Storage storage;
-    private BufferPool bufferPool = new BufferPool();
+    private BufferPool bufferPool;
     private static final long FILE_SIZE = Size.MB.of(10);
 
     private DataStream stream;
@@ -42,6 +43,7 @@ public class DataStreamTest {
         file = FileUtils.testFile();
         storage = Storage.create(file, StorageMode.RAF, FILE_SIZE);
         storage.position(Log.START);
+        bufferPool = new BufferPool();
         stream = new DataStream(bufferPool, storage, CHCKSUM_PROB, Memory.PAGE_SIZE);
     }
 
@@ -58,6 +60,75 @@ public class DataStreamTest {
 
         assertEquals(Log.START, write1);
     }
+
+    @Test
+    public void write_typed() {
+        String data = "abcdef";
+        long pos = stream.write(data, Serializers.VSTRING);
+        RecordEntry<String> record = stream.read(Direction.FORWARD, pos, Serializers.VSTRING);
+        assertEquals(data, record.entry());
+    }
+
+    @Test
+    public void write_typed_resize() {
+        int capacity = bufferPool.bufferCapacity();
+        byte[] data = new byte[capacity + 1];
+        Arrays.fill(data, (byte) 65);
+        String longString = new String(data);
+
+        long pos = stream.write(longString, Serializers.VSTRING);
+        RecordEntry<String> record = stream.read(Direction.FORWARD, pos, Serializers.VSTRING);
+        assertEquals(longString, record.entry());
+    }
+
+    @Test
+    public void writing_relative_position_less_than_store_position() {
+        Integer entry = 12345;
+        storage.position(10);
+        stream.write(0, entry, Serializers.INTEGER);
+        RecordEntry<Integer> record = stream.read(Direction.FORWARD, 0, Serializers.INTEGER);
+        assertEquals(entry, record.entry());
+    }
+
+    @Test
+    public void writing_relative_position_greater_than_store_position() {
+        Integer entry = 12345;
+        long writePos = 20;
+        storage.position(10);
+        stream.write(writePos, entry, Serializers.INTEGER);
+        storage.position(storage.length());
+        RecordEntry<Integer> record = stream.read(Direction.FORWARD, writePos, Serializers.INTEGER);
+        assertEquals(entry, record.entry());
+    }
+
+    @Test
+    public void writing_relative_position_greater_than_store_position_does_not_change_store_position() {
+        Integer entry = 12345;
+        storage.position(10);
+        stream.write(20, entry, Serializers.INTEGER);
+        assertEquals(10, storage.position());
+    }
+
+    @Test
+    public void writing_relative_position_less_than_store_position_does_not_change_store_position() {
+        Integer entry = 12345;
+        storage.position(10);
+        stream.write(5, entry, Serializers.INTEGER);
+        assertEquals(10, storage.position());
+    }
+
+    @Test
+    public void write_typed_resize_if_secondary_header_cannot_be_written() {
+        int capacity = bufferPool.bufferCapacity();
+        byte[] data = new byte[capacity - RecordHeader.HEADER_OVERHEAD + 1];
+        Arrays.fill(data, (byte) 65);
+        String longString = new String(data);
+
+        long pos = stream.write(longString, Serializers.STRING);
+        RecordEntry<String> record = stream.read(Direction.FORWARD, pos, Serializers.STRING);
+        assertEquals(longString, record.entry());
+    }
+
 
     @Test
     public void reading_forward_returns_all_data() {

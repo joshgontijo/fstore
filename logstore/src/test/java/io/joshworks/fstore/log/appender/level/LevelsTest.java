@@ -216,7 +216,7 @@ public class LevelsTest {
 
         Levels<String> levels = Levels.create(List.of(seg1));
 
-        seg1.roll(1);
+        seg1.roll(1, false);
         levels.appendSegment(seg2);
 
         assertEquals(seg1, levels.get(0));
@@ -227,7 +227,7 @@ public class LevelsTest {
         assertEquals(0, ((DummySegment) levels.get(1)).level);
 
 
-        levels.current().roll(1);
+        levels.current().roll(1, false);
         levels.appendSegment(seg3);
 
         assertEquals(seg1, levels.get(0));
@@ -253,13 +253,13 @@ public class LevelsTest {
 
         Levels<String> levels = Levels.create(List.of(seg1));
 
-        seg1.roll(1);
+        seg1.roll(1, false);
         levels.appendSegment(seg2);
 
-        seg2.roll(1);
+        seg2.roll(1, false);
         levels.appendSegment(seg3);
 
-        seg3.roll(1);
+        seg3.roll(1, false);
         levels.appendSegment(seg4);
 
         levels.merge(List.of(seg1, seg2, seg3), seg5);
@@ -370,7 +370,7 @@ public class LevelsTest {
         }
 
         @Override
-        public void roll(int level) {
+        public void roll(int level, boolean trim) {
             this.level = level;
             this.readOnly = true;
         }
@@ -398,11 +398,6 @@ public class LevelsTest {
         @Override
         public long created() {
             return createdDate;
-        }
-
-        @Override
-        public void trim() {
-
         }
 
         @Override

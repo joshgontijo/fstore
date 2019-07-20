@@ -38,7 +38,7 @@ public class Config<T> {
     int compactionThreshold = COMPACTION_THRESHOLD;
     boolean parallelCompaction;
     boolean compactionDisabled;
-    int bufferSize = DEFAULT_BUFFER_SIZE;
+    int readPageSize = DEFAULT_BUFFER_SIZE;
     StorageMode compactionStorage;
 
     Config(File directory, Serializer<T> serializer) {
@@ -56,11 +56,11 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> bufferSize(int bufferSize) {
-        if (bufferSize < 0) {
+    public Config<T> readPageSize(int readPageSize) {
+        if (this.readPageSize < 0) {
             throw new IllegalArgumentException("bufferSize must be greater than zero");
         }
-        this.bufferSize = bufferSize;
+        this.readPageSize = readPageSize;
         return this;
     }
 
@@ -77,8 +77,8 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> bufferPool(BufferPool bufferPool) {
-        this.bufferPool = requireNonNull(bufferPool, "BufferPool cannot be null");
+    public Config<T> bufferPool(int initialSize, boolean direct) {
+        this.bufferPool = new BufferPool(direct, initialSize);
         return this;
     }
 
@@ -100,7 +100,7 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> enableParallelCompaction() {
+    public Config<T> parallelCompaction() {
         this.parallelCompaction = true;
         return this;
     }

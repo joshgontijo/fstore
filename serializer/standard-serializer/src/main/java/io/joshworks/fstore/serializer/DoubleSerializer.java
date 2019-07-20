@@ -11,8 +11,8 @@ public class DoubleSerializer implements Serializer<Double> {
     }
 
     @Override
-    public void writeTo(Double data, ByteBuffer dest) {
-        dest.putDouble(data);
+    public void writeTo(Double data, ByteBuffer dst) {
+        dst.putDouble(data);
     }
 
     @Override

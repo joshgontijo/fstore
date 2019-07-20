@@ -55,7 +55,7 @@ public abstract class SegmentFooterTest {
         segment.append("a");
         segment.footerItems.addAll(footerData);
 
-        segment.roll(1);
+        segment.roll(1, false);
 
         List<Long> read = segment.readAllFooterItems();
         assertArrayEquals(footerData.toArray(), read.toArray());
@@ -68,7 +68,7 @@ public abstract class SegmentFooterTest {
         segment.append("a");
         segment.footerItems.addAll(footerData);
 
-        segment.roll(1);
+        segment.roll(1, false);
         segment.close();
         segment = open(testFile);
 
@@ -83,7 +83,7 @@ public abstract class SegmentFooterTest {
         long itemPos = segment.append("a");
         segment.footerItems.addAll(footerData);
 
-        segment.roll(1);
+        segment.roll(1, false);
 
         assertEquals("a", segment.get(itemPos));
     }
@@ -95,7 +95,7 @@ public abstract class SegmentFooterTest {
         long itemPos = segment.append("a");
         segment.footerItems.addAll(footerData);
 
-        segment.roll(1);
+        segment.roll(1, false);
         segment.close();
         segment = open(testFile);
 
@@ -109,7 +109,7 @@ public abstract class SegmentFooterTest {
         segment.append("a");
         segment.footerItems.addAll(footerData);
 
-        segment.roll(1);
+        segment.roll(1, false);
 
         assertEquals("a", segment.iterator(Direction.FORWARD).next());
     }
@@ -121,7 +121,7 @@ public abstract class SegmentFooterTest {
         segment.append("a");
         segment.footerItems.addAll(footerData);
 
-        segment.roll(1);
+        segment.roll(1, false);
         segment.close();
         segment = open(testFile);
 
@@ -137,7 +137,7 @@ public abstract class SegmentFooterTest {
         segment.footerItems.add(2L);
         segment.footerItems.add(3L);
 
-        segment.roll(1);
+        segment.roll(1, false);
 
         SegmentIterator<String> iterator = segment.iterator(Direction.FORWARD);
         assertTrue(iterator.hasNext());
@@ -152,7 +152,7 @@ public abstract class SegmentFooterTest {
         segment.append("a");
         segment.footerItems.addAll(footerData);
 
-        segment.roll(1);
+        segment.roll(1, false);
         segment.close();
         segment = open(testFile);
 
@@ -171,7 +171,7 @@ public abstract class SegmentFooterTest {
             segment.footerItems.add((long) i);
         }
 
-        segment.roll(1);
+        segment.roll(1, false);
 
         SegmentIterator<String> iterator = segment.iterator(Direction.FORWARD);
         assertTrue(iterator.hasNext());
@@ -186,8 +186,7 @@ public abstract class SegmentFooterTest {
         segment.append("a");
         segment.footerItems.addAll(footerData);
 
-        segment.roll(1);
-        segment.trim();
+        segment.roll(1, true);
 
         List<Long> read = segment.readAllFooterItems();
         assertArrayEquals(footerData.toArray(), read.toArray());
@@ -200,8 +199,7 @@ public abstract class SegmentFooterTest {
         segment.append("a");
         segment.footerItems.addAll(footerData);
 
-        segment.roll(1);
-        segment.trim();
+        segment.roll(1, true);
         segment.close();
         segment = open(testFile);
 
@@ -268,12 +266,8 @@ public abstract class SegmentFooterTest {
             delegate.close();
         }
 
-        public void roll(int level) {
-            delegate.roll(level);
-        }
-
-        public void trim() {
-            delegate.trim();
+        public void roll(int level, boolean trim) {
+            delegate.roll(level, trim);
         }
 
         public SegmentIterator<String> iterator(Direction direction) {

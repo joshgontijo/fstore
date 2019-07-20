@@ -34,15 +34,35 @@ public class BufferPool {
         return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
     }
 
+    //allocate current buffer with its total capacity
+    public ByteBuffer allocate() {
+        return allocate(-1);
+    }
+
+    public int bufferCapacity() {
+        return cache.get().buffer.capacity();
+    }
+
+    public void resize(int size) {
+        BufferHolder holder = cache.get();
+        if (!holder.available.compareAndSet(true, false)) {
+            throw new IllegalStateException("Buffer not released");
+        }
+        holder.buffer = create(size);
+        holder.available.set(true);
+    }
+
     public ByteBuffer allocate(int size) {
         BufferHolder holder = cache.get();
         if (!holder.available.compareAndSet(true, false)) {
             throw new IllegalStateException("Buffer not released");
         }
-        if (holder.buffer.limit() < size) {
+        if (size > 0 && holder.buffer.limit() < size) {
             holder.buffer = create(size);
         }
-        holder.buffer.limit(size);
+        if (size > 0) {
+            holder.buffer.limit(size);
+        }
         return holder.buffer;
     }
 
