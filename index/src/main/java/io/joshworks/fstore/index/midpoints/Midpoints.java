@@ -2,9 +2,13 @@ package io.joshworks.fstore.index.midpoints;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.segment.block.Block;
-import io.joshworks.fstore.log.segment.block.FixedSizeEntryBlock;
-import io.joshworks.fstore.log.segment.block.VLenBlock;
+import io.joshworks.fstore.log.segment.block.BlockFactory;
+import io.joshworks.fstore.log.segment.block.BlockSerializer;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -13,6 +17,9 @@ import java.util.Comparator;
 import java.util.List;
 
 public class Midpoints<K extends Comparable<K>> {
+
+    private static final String MIDPOINT_BLOCK_PREFIX = "MIDPOINT_";
+    public static final Codec CODEC = Codec.noCompression();
 
     private final List<Midpoint<K>> entries = new ArrayList<>();
 
@@ -23,33 +30,6 @@ public class Midpoints<K extends Comparable<K>> {
         entries.add(start);
         entries.add(end);
     }
-
-//    //returns -1 if no floor item or the floor index of this item
-//    public int floorIdx(K key) {
-//        if (entries.isEmpty()) {
-//            return -1;
-//        }
-//        if (key.compareTo(first().key) < 0) {
-//            return -1;
-//        }
-//        if (inRange(key)) {
-//            return getMidpointIdx(key);
-//        }
-//        return entries.size() - 1;
-//    }
-//
-//    public int ceilingIdx(K key) {
-//        if (entries.isEmpty()) {
-//            return -1;
-//        }
-//        if (key.compareTo(last().key) > 0) {
-//            return -1;
-//        }
-//        if (inRange(key)) {
-//            return getMidpointIdx(key);
-//        }
-//        return 0;
-//    }
 
     public Midpoint<K> lower(K key) {
         if (entries.isEmpty()) {
@@ -151,32 +131,47 @@ public class Midpoints<K extends Comparable<K>> {
         return entries.get(entries.size() - 1);
     }
 
-    public ByteBuffer serialize(Serializer<K> keySerializer) {
+    public void serialize(FooterWriter writer, BufferPool bufferPool, Serializer<K> keySerializer) {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
-        Block midpointsBlock = FixedSizeEntryBlock.vlenBlock().create(Integer.MAX_VALUE);
+        int blockSize = Math.min(bufferPool.capacity(), Size.MB.ofInt(1));
+        BlockFactory blockFactory = Block.vlenBlock(bufferPool.direct());
+        BlockSerializer blockSerializer = new BlockSerializer(CODEC, blockFactory);
+        Block block = blockFactory.create(blockSize);
+
+        int blockIdx = 0;
+        entries.sort(Comparator.comparing(o -> o.key));
         for (Midpoint<K> midpoint : entries) {
-            ByteBuffer data = serializer.toBytes(midpoint);
-            if (!midpointsBlock.add(data)) {
-                throw new IllegalStateException("No block space");
+            if (!block.add(midpoint, serializer, bufferPool)) {
+                writeBlock(writer, bufferPool, blockSize, blockSerializer, block, blockIdx);
+                block.clear();
             }
         }
-        entries.sort(Comparator.comparing(o -> o.key));
-        return midpointsBlock.pack(Codec.noCompression());
     }
 
-    public static <K extends Comparable<K>> Midpoints<K> load(ByteBuffer blockData, Serializer<K> keySerializer) {
+    private void writeBlock(FooterWriter writer, BufferPool bufferPool, int blockSize, BlockSerializer blockSerializer, Block midpointsBlock, int blockIdx) {
+        ByteBuffer dst = bufferPool.allocate(blockSize);
+        midpointsBlock.pack(Codec.noCompression(), dst);
+        dst.flip();
+        writer.write(MIDPOINT_BLOCK_PREFIX + blockIdx, midpointsBlock, blockSerializer);
+    }
+
+    public static <K extends Comparable<K>> Midpoints<K> load(FooterReader reader, BufferPool bufferPool, Serializer<K> keySerializer) {
         Midpoints<K> midpoints = new Midpoints<>();
         if (!midpoints.isEmpty()) {
             throw new IllegalStateException("Midpoints is not empty");
         }
 
-        Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
-        Block block = VLenBlock.factory().load(Codec.noCompression(), blockData, decompressedSize);
-        List<Midpoint<K>> entries = block.deserialize(serializer);
-        midpoints.entries.addAll(entries);
-        midpoints.entries.sort(Comparator.comparing(o -> o.key));
+        BlockFactory blockFactory = Block.vlenBlock(bufferPool.direct());
+        BlockSerializer blockSerializer = new BlockSerializer(CODEC, blockFactory);
+        Serializer<Midpoint<K>> midpointSerializer = new MidpointSerializer<>(keySerializer);
+        List<Block> blocks = reader.findAll(MIDPOINT_BLOCK_PREFIX, blockSerializer);
 
+        for (Block block : blocks) {
+            List<Midpoint<K>> entries = block.deserialize(midpointSerializer);
+            midpoints.entries.addAll(entries);
+        }
+        midpoints.entries.sort(Comparator.comparing(o -> o.key));
         return midpoints;
     }
 }

@@ -18,20 +18,22 @@ public class BufferPool implements Closeable {
     private final int maxSize;
     private final boolean direct;
 
+    private static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
+
     public BufferPool(int size) {
         this(size, false);
     }
 
     public BufferPool(int maxSize, boolean direct) {
-        if (maxSize >= MAX_BUFFER_SIZE) {
-            throw new IllegalArgumentException("Buffer too large: Max allowed size is: " + MAX_BUFFER_SIZE);
-        }
         this.maxSize = maxSize;
         this.direct = direct;
-        this.cache = ThreadLocal.withInitial(() -> new BufferHolder(create(maxSize)));
+        this.cache = ThreadLocal.withInitial(() -> new BufferHolder(createBuffer(maxSize, direct)));
     }
 
-    private ByteBuffer create(int size) {
+    public static ByteBuffer createBuffer(int size, boolean direct) {
+        if (size >= MAX_BUFFER_SIZE) {
+            throw new IllegalArgumentException("Buffer too large: Max allowed size is: " + MAX_BUFFER_SIZE);
+        }
         return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
     }
 
@@ -58,6 +60,9 @@ public class BufferPool implements Closeable {
 //    }
 
     public ByteBuffer allocate(int size) {
+        if (size == 0) {
+            return EMPTY;
+        }
         BufferHolder holder = cache.get();
         if (size > maxSize) {
             throw new IllegalArgumentException("Cannot allocate buffer bigger than " + holder.buffer.capacity());
@@ -65,12 +70,7 @@ public class BufferPool implements Closeable {
         if (!holder.available.compareAndSet(true, false)) {
             throw new IllegalStateException("Buffer not released");
         }
-        if (size > 0 && holder.buffer.limit() < size) {
-            holder.buffer = create(size);
-        }
-        if (size > 0) {
-            holder.buffer.limit(size);
-        }
+        holder.buffer.limit(size);
         return holder.buffer;
     }
 

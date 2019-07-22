@@ -8,6 +8,7 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
@@ -165,9 +166,9 @@ public abstract class SegmentFooterTest {
     public void large_footer_can_be_read() {
 
         segment.append("a");
-        int numFooterItems = MAX_ENTRY_SIZE / Long.BYTES;
-        for (int i = 0; i < numFooterItems; i++) {
-            segment.footerItems.add((long) i);
+        int numFooterItems = (MAX_ENTRY_SIZE - RecordHeader.HEADER_OVERHEAD) / Long.BYTES;
+        for (long i = 0; i < numFooterItems; i++) {
+            segment.footerItems.add(i);
         }
 
         segment.roll(1, false);
@@ -176,6 +177,17 @@ public abstract class SegmentFooterTest {
         assertTrue(iterator.hasNext());
         iterator.next();
         assertFalse(iterator.hasNext());
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void cannot_write_footer_entry_bigger_than_MAX_ENTRY_SIZE() {
+        segment.append("a");
+        int numFooterItems = (MAX_ENTRY_SIZE + 1) / Long.BYTES;
+        for (long i = 0; i < numFooterItems; i++) {
+            segment.footerItems.add(i);
+        }
+
+        segment.roll(1, false);
     }
 
     @Test

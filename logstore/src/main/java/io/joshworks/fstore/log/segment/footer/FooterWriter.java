@@ -13,8 +13,8 @@ public class FooterWriter {
         this.map = map;
     }
 
-    public <T> int write(String name, T entry, Serializer<T> serializer) {
-        return map.write(name, stream, entry, serializer);
+    public <T> void write(String name, T entry, Serializer<T> serializer) {
+        map.write(name, stream, entry, serializer);
     }
 
     public long position() {

@@ -7,16 +7,16 @@ import net.jpountz.lz4.LZ4FastDecompressor;
 
 import java.nio.ByteBuffer;
 
-public class Lz4Codec implements Codec {
+public class LZ4Codec implements Codec {
 
     private final LZ4Factory factory = LZ4Factory.fastestInstance();
     private final boolean highCompression;
 
-    public Lz4Codec() {
+    public LZ4Codec() {
         this(false);
     }
 
-    public Lz4Codec(boolean highCompression) {
+    public LZ4Codec(boolean highCompression) {
         this.highCompression = highCompression;
     }
 

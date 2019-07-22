@@ -1,6 +1,6 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.fstore.codec.snappy.Lz4Codec;
+import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
@@ -26,7 +26,7 @@ public class IndexBlockTest {
 
     @Parameterized.Parameters(name = "{0}")
     public static Collection<Codec> data() {
-        return Arrays.asList(Codec.noCompression(), new SnappyCodec(), new Lz4Codec(), new Lz4Codec(true));
+        return Arrays.asList(Codec.noCompression(), new SnappyCodec(), new LZ4Codec(), new LZ4Codec(true));
     }
 
     private Codec codec;

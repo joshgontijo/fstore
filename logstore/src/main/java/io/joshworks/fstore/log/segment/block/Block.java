@@ -2,6 +2,7 @@ package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -45,8 +46,17 @@ public class Block implements Iterable<ByteBuffer> {
         this.data = this.unpack(codec, data, direct);
     }
 
-    protected ByteBuffer createBuffer(int maxSize, boolean direct) {
-        return direct ? ByteBuffer.allocateDirect(maxSize) : ByteBuffer.allocate(maxSize);
+    protected ByteBuffer createBuffer(int size, boolean direct) {
+        return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+    }
+
+    public <T> boolean add(T entry, Serializer<T> serializer, BufferPool bufferPool) {
+        try(bufferPool) {
+            ByteBuffer data = bufferPool.allocate();
+            serializer.writeTo(entry, data);
+            data.flip();
+            return add(data);
+        }
     }
 
     //returns true if added, false otherwise
