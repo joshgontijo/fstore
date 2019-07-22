@@ -27,11 +27,11 @@ public class DataFile<T> implements Flushable, Closeable {
     private final Storage storage;
     private final Serializer<T> serializer;
 
-    private DataFile(File handler, Serializer<T> serializer, boolean mmap, long initialSize, double checksumProb) {
+    private DataFile(File handler, Serializer<T> serializer, boolean mmap, long initialSize, int maxEntrySize, double checksumProb) {
         Storage storage = null;
         try {
             this.storage = storage = Storage.createOrOpen(handler, mmap ? StorageMode.MMAP : StorageMode.RAF, initialSize);
-            this.stream = new DataStream(new BufferPool(), storage, checksumProb, Memory.PAGE_SIZE * 4);
+            this.stream = new DataStream(new BufferPool(maxEntrySize), storage, checksumProb, Memory.PAGE_SIZE * 4);
             this.serializer = serializer;
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
@@ -134,6 +134,7 @@ public class DataFile<T> implements Flushable, Closeable {
         private final Serializer<T> serializer;
         private boolean mmap;
         private long size = Size.MB.of(50);
+        private int maxEntrySize = Size.MB.ofInt(1);
         private double checksumProb = 0.1;
 
         private Builder(Serializer<T> serializer) {
@@ -150,13 +151,18 @@ public class DataFile<T> implements Flushable, Closeable {
             return this;
         }
 
-        public Builder<T> withInitialSize(long size) {
+        public Builder<T> initialSize(long size) {
             this.size = size;
             return this;
         }
 
+        public Builder<T> maxEntrySize(int maxEntrySize) {
+            this.maxEntrySize = maxEntrySize;
+            return this;
+        }
+
         public DataFile<T> open(File file) {
-            return new DataFile<>(file, serializer, mmap, size, checksumProb);
+            return new DataFile<>(file, serializer, mmap, size, maxEntrySize, checksumProb);
         }
     }
 }

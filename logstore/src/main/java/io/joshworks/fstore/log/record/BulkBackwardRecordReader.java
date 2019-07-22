@@ -18,11 +18,11 @@ final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
 
     @Override
     public <T> List<RecordEntry<T>> read(Storage storage, final long position, Serializer<T> serializer) {
-        ByteBuffer buffer = bufferPool.allocate(pageReadSize);
 
         List<RecordEntry<T>> entries = new ArrayList<>();
 
-        try {
+        try (bufferPool) {
+            ByteBuffer buffer = bufferPool.allocate(pageReadSize);
             int limit = buffer.limit();
             if (position - limit < Log.START) {
                 int available = (int) (position - Log.START);
@@ -48,7 +48,7 @@ final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
             int recordSize = length + RecordHeader.HEADER_OVERHEAD;
 
             if (recordSize > buffer.limit()) {
-                bufferPool.free(buffer);
+                bufferPool.free();
                 buffer = bufferPool.allocate(recordSize);
 
                 buffer.limit(recordSize); //limit to the entry size, excluding the secondary header
@@ -90,10 +90,6 @@ final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
                     return entries;
                 }
             }
-        } finally {
-            bufferPool.free(buffer);
         }
-
-
     }
 }

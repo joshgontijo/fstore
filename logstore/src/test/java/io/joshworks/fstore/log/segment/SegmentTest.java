@@ -35,7 +35,8 @@ public abstract class SegmentTest {
 
     protected static final double CHECKSUM_PROB = 1;
     protected static final int SEGMENT_SIZE = Size.KB.ofInt(128);
-    private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
+    private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
+    private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
 
     protected Segment<String> segment;
     private File testFile;
@@ -88,6 +89,29 @@ public abstract class SegmentTest {
         LogIterator<String> logIterator = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
+    }
+
+    @Test
+    public void EOF_is_returned_when_written_more_than_dataSize() {
+        String data = "a";
+        do {
+            long pos = segment.append(data);
+            assertTrue(pos > 0);
+        } while (segment.remaining() > 0);
+
+        long pos = segment.append(data);
+        assertEquals(Storage.EOF, pos);
+    }
+
+    @Test
+    public void logical_size_is_correct_after_rolling() {
+        segment.append("a");
+        segment.roll(1, false);
+        long logicalSize = segment.logicalSize();
+
+        segment.close();
+        segment = open(testFile);
+        assertEquals(logicalSize, segment.logicalSize());
     }
 
     @Test
@@ -534,10 +558,10 @@ public abstract class SegmentTest {
                 StorageMode.MMAP,
                 SEGMENT_SIZE,
                 Serializers.STRING,
-                new BufferPool(false),
+                new BufferPool(MAX_ENTRY_SIZE, false),
                 WriteMode.MERGE_OUT,
                 CHECKSUM_PROB,
-                BUFFER_SIZE);
+                READ_PAGE_SIZE);
     }
 
     public static class CachedSegmentTest extends SegmentTest {
@@ -549,10 +573,10 @@ public abstract class SegmentTest {
                     StorageMode.RAF_CACHED,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new BufferPool(false),
+                    new BufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
-                    BUFFER_SIZE);
+                    READ_PAGE_SIZE);
         }
     }
 
@@ -565,10 +589,10 @@ public abstract class SegmentTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new BufferPool(false),
+                    new BufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
-                    BUFFER_SIZE);
+                    READ_PAGE_SIZE);
         }
     }
 
@@ -581,10 +605,10 @@ public abstract class SegmentTest {
                     StorageMode.RAF,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new BufferPool(false),
+                    new BufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
-                    BUFFER_SIZE);
+                    READ_PAGE_SIZE);
         }
     }
 

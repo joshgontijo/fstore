@@ -7,13 +7,6 @@ import java.nio.ByteBuffer;
 public class BooleanSerializer implements Serializer<Boolean> {
 
     @Override
-    public ByteBuffer toBytes(Boolean data) {
-        ByteBuffer buffer = ByteBuffer.allocate(1);
-        writeTo(data, buffer);
-        return (ByteBuffer) buffer.flip();
-    }
-
-    @Override
     public void writeTo(Boolean data, ByteBuffer dst) {
         dst.put((byte) (data ? 1 : 0));
     }

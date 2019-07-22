@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.segment.Segment;
@@ -29,7 +30,8 @@ public class UniqueMergeCombinerTest {
     private static final double CHECKSUM_PROB = 1;
     private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
     private static final int SEGMENT_SIZE = Memory.PAGE_SIZE * 2;
-    private final BufferPool bufferPool = new BufferPool();
+    private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
+    private final BufferPool bufferPool = new BufferPool(MAX_ENTRY_SIZE);
 
     private final List<Segment> segments = new ArrayList<>();
 
@@ -311,16 +313,9 @@ public class UniqueMergeCombinerTest {
         private final Serializer<String> stringSerializer = new VStringSerializer();
 
         @Override
-        public ByteBuffer toBytes(TestEntry data) {
-            ByteBuffer bb = ByteBuffer.allocate(Integer.BYTES + VStringSerializer.sizeOf(data.label));
-            writeTo(data, bb);
-            return bb.flip();
-        }
-
-        @Override
         public void writeTo(TestEntry data, ByteBuffer dst) {
             dst.putInt(data.id);
-            dst.put(stringSerializer.toBytes(data.label));
+            stringSerializer.writeTo(data.label, dst);
         }
 
         @Override

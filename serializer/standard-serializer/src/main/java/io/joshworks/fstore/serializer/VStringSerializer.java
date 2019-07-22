@@ -10,13 +10,6 @@ import java.util.NoSuchElementException;
 public class VStringSerializer implements Serializer<String> {
 
     @Override
-    public ByteBuffer toBytes(String data) {
-        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
-        ByteBuffer bb = ByteBuffer.allocate(Integer.BYTES + bytes.length);
-        return bb.putInt(bytes.length).put(bytes).flip();
-    }
-
-    @Override
     public void writeTo(String data, ByteBuffer dst) {
         byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
         dst.putInt(bytes.length).put(bytes);

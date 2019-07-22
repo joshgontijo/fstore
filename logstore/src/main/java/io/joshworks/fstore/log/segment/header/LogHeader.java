@@ -60,7 +60,10 @@ public class LogHeader {
     }
 
     public long footerStart() {
-        return BYTES + this.dataSize() + Log.EOL.length;
+        if (completed == null) {
+            throw new IllegalStateException("Segment is not read only");
+        }
+        return completed.footerStart;
     }
 
     public long created() {
@@ -75,10 +78,7 @@ public class LogHeader {
         if (completed != null) {
             return footerStart() + completed.footerLength;
         }
-        if (open != null) {
-            return open.dataSize;
-        }
-        throw new IllegalStateException("Unknown segment state");
+        return dataSize();
     }
 
     public long dataSize() {
@@ -119,11 +119,6 @@ public class LogHeader {
         return completed == null ? 0 : completed.level;
     }
 
-
-    public long rolled() {
-        return completed == null ? UNKNOWN : completed.rolled;
-    }
-
     public long uncompressedSize() {
         return completed == null ? UNKNOWN : completed.uncompressedSize;
     }
@@ -156,8 +151,8 @@ public class LogHeader {
         verifyWrite();
     }
 
-    public void writeCompleted(long entries, int level, long actualDataSize, long footerMapPosition, long footerLength, long uncompressedSize, long physical) {
-        this.completed = new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerLength, System.currentTimeMillis(), uncompressedSize, physical);
+    public void writeCompleted(long entries, int level, long actualDataSize, long footerMapPosition, long footerStart, long footerLength, long uncompressedSize, long physical) {
+        this.completed = new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerStart, footerLength, System.currentTimeMillis(), uncompressedSize, physical);
         stream.write(COMPLETED_SECTION_START, completed, completedSerizalizer);
         verifyWrite();
     }

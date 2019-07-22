@@ -44,11 +44,6 @@ public class JsonSerializer<T> implements Serializer<T> {
     }
 
     @Override
-    public ByteBuffer toBytes(T event) {
-        return stringSerializer.toBytes(gson.toJson(event));
-    }
-
-    @Override
     public void writeTo(T data, ByteBuffer dst) {
         stringSerializer.writeTo(gson.toJson(data), dst);
     }

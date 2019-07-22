@@ -14,19 +14,46 @@ public interface Log<T> extends Writer<T>, Closeable {
     long START = LogHeader.BYTES;
     byte[] EOL = new byte[Memory.PAGE_SIZE]; //eof header, -1 length, 0 crc
 
+    /**
+     * The underlying file size
+     */
     long physicalSize();
 
+    /**
+     * The total bytes written in this segment, including header, data, EOL, and footer sections
+     */
     long logicalSize();
 
+    /**
+     * Initial segment data section size
+     */
     long dataSize();
 
+    /**
+     * Actual written bytes in this segment, can be greater than {@link Log#dataSize()}
+     */
     long actualDataSize();
 
+    /**
+     * The total uncompressed size of the data section bytes, when no compression, this values is equal to {@link Log#actualDataSize()}
+     */
     long uncompressedDataSize();
 
+    /**
+     * The size of the header, always {@link LogHeader#BYTES}
+     */
     long headerSize();
 
+    /**
+     * The total of written bytes in the footer area
+     */
     long footerSize();
+
+    /**
+     * Remaining bytes that can be written to the data size
+     * @return
+     */
+    long remaining();
 
     String name();
 
@@ -38,7 +65,6 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     T get(long position);
 
-    long remaining();
 
     void delete();
 

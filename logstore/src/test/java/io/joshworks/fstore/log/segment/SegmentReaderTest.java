@@ -24,9 +24,10 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class SegmentReaderTest {
 
+    private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
     protected static final double CHECKSUM_PROB = 1;
     protected static final int SEGMENT_SIZE = Size.KB.ofInt(128);
-    private static final int BUFFER_SIZE = Memory.PAGE_SIZE;
+    private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
 
     protected Log<String> segment;
     private File testFile;
@@ -100,10 +101,10 @@ public abstract class SegmentReaderTest {
                     StorageMode.RAF_CACHED,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new BufferPool(false),
+                    new BufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
-                    BUFFER_SIZE);
+                    READ_PAGE_SIZE);
         }
     }
 
@@ -116,10 +117,10 @@ public abstract class SegmentReaderTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new BufferPool(false),
+                    new BufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
-                    BUFFER_SIZE);
+                    READ_PAGE_SIZE);
         }
     }
 
@@ -132,10 +133,10 @@ public abstract class SegmentReaderTest {
                     StorageMode.RAF,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new BufferPool(false),
+                    new BufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
-                    BUFFER_SIZE);
+                    READ_PAGE_SIZE);
         }
     }
 }

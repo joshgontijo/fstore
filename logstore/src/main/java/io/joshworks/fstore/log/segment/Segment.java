@@ -96,15 +96,15 @@ public final class Segment<T> implements Log<T> {
             Function<List<RecordEntry<T>>, Integer> onEntryLoaded,
             Consumer<FooterWriter> footerWriter) {
 
-        this.footerWriter = footerWriter;
+        this.footerWriter = requireNonNull(footerWriter, "Footer writer must be provided");
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
 
         Storage storage = null;
         try {
             long alignedSegmentDataSize = Storage.align(segmentDataSize);
-            long fileLength = getTotalFileLength(alignedSegmentDataSize);
+            long fileLength = getTotalFileLength(alignedSegmentDataSize, bufferPool.capacity());
             this.storage = storage = Storage.createOrOpen(file, storageMode, fileLength);
-            this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize, alignedSegmentDataSize);
+            this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize);
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
             if (storage.length() <= LogHeader.BYTES) {
@@ -143,10 +143,10 @@ public final class Segment<T> implements Log<T> {
         if (readOnly()) {
             throw new IllegalStateException("Segment is read only");
         }
-        long recordPosition = stream.write(record, serializer, remaining());
-        if (recordPosition == EOF) {
+        if (remaining() <= 0) {
             return EOF;
         }
+        long recordPosition = stream.write(record, serializer);
         incrementEntry();
         dataWritePosition.set(storage.position());
         return recordPosition;
@@ -166,7 +166,10 @@ public final class Segment<T> implements Log<T> {
 
     @Override
     public long remaining() {
-        return header.dataSize() - dataWritten();
+        if (header.readOnly()) {
+            return 0;
+        }
+        return Math.max(0, header.dataSize() - dataWritten());
     }
 
     @Override
@@ -310,9 +313,7 @@ public final class Segment<T> implements Log<T> {
 
         FooterWriter footer = new FooterWriter(stream, footerMap);
         long footerStart = stream.position();
-        if (footerWriter != null) {
-            footerWriter.accept(footer);
-        }
+        footerWriter.accept(footer);
 
         long mapPosition = footerMap.writeTo(stream);
         long footerEnd = stream.position();
@@ -320,7 +321,7 @@ public final class Segment<T> implements Log<T> {
         if (trim) {
             storage.truncate(footerEnd);
         }
-        this.header.writeCompleted(entries.get(), level, actualDataSize, mapPosition, footerLength, uncompressedSize, storage.length());
+        this.header.writeCompleted(entries.get(), level, actualDataSize, mapPosition, footerStart, footerLength, uncompressedSize, storage.length());
     }
 
     @Override
@@ -350,7 +351,7 @@ public final class Segment<T> implements Log<T> {
 
     @Override
     public long uncompressedSize() {
-        return dataSize();
+        return actualDataSize();
     }
 
     @Override
@@ -440,9 +441,13 @@ public final class Segment<T> implements Log<T> {
         }
     }
 
-    private long getTotalFileLength(long segmentDataSize) {
+    private long getTotalFileLength(long segmentDataSize, int maxEntrySize) {
+        //TODO ideally footer would have its own size, so it can
         long footerExtra = Storage.align((long) (FOOTER_EXTRA_LENGTH_PERCENT * segmentDataSize));
-        return Storage.align(LogHeader.BYTES + segmentDataSize + EOL.length + footerExtra);
+        //Adding maxEntrySize makes sure storage will not need to resize when writing data
+        //This makes data storage more predictable and slightly faster since, the file will not need resizing in some cases
+        long withAdditionAlEntry = segmentDataSize + Storage.align(maxEntrySize);
+        return Storage.align(LogHeader.BYTES + withAdditionAlEntry + EOL.length + footerExtra);
     }
 
     //can only be used for data

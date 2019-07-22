@@ -15,8 +15,8 @@ final class BackwardRecordReader extends BaseReader implements Reader {
 
     @Override
     public <T> RecordEntry<T> read(Storage storage, final long position, Serializer<T> serializer) {
-        ByteBuffer buffer = bufferPool.allocate(pageReadSize);
-        try {
+        try (bufferPool) {
+            ByteBuffer buffer = bufferPool.allocate(pageReadSize);
             int limit = buffer.limit();
             if (position - limit < Log.START) {
                 int available = (int) (position - Log.START);
@@ -42,7 +42,7 @@ final class BackwardRecordReader extends BaseReader implements Reader {
             int recordSize = length + RecordHeader.HEADER_OVERHEAD;
 
             if (recordSize > buffer.limit()) {
-                bufferPool.free(buffer);
+                bufferPool.free();
                 buffer = bufferPool.allocate(recordSize);
 
                 buffer.limit(recordSize - RecordHeader.SECONDARY_HEADER); //limit to the entry size, excluding the secondary header
@@ -59,7 +59,7 @@ final class BackwardRecordReader extends BaseReader implements Reader {
             return readRecord(position, serializer, buffer, length);
 
         } finally {
-            bufferPool.free(buffer);
+            bufferPool.free();
         }
 
     }

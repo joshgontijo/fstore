@@ -14,8 +14,8 @@ final class ForwardRecordReader extends BaseReader implements Reader {
 
     @Override
     public <T> RecordEntry<T> read(Storage storage, final long position, Serializer<T> serializer) {
-        ByteBuffer buffer = bufferPool.allocate(pageReadSize);
-        try {
+        try (bufferPool) {
+            ByteBuffer buffer = bufferPool.allocate(pageReadSize);
             int read = storage.read(position, buffer);
             if (read == Storage.EOF) {
                 return RecordEntry.empty();
@@ -33,7 +33,7 @@ final class ForwardRecordReader extends BaseReader implements Reader {
 
             int recordSize = length + RecordHeader.HEADER_OVERHEAD;
             if (recordSize > buffer.limit()) {
-                bufferPool.free(buffer);
+                bufferPool.free();
                 buffer = bufferPool.allocate(recordSize);
                 storage.read(position, buffer);
                 buffer.flip();
@@ -45,8 +45,6 @@ final class ForwardRecordReader extends BaseReader implements Reader {
             checksum(checksum, buffer, position);
             T data = serializer.fromBytes(buffer);
             return new RecordEntry<>(length, data, position);
-        } finally {
-            bufferPool.free(buffer);
         }
     }
 }

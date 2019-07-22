@@ -1,17 +1,11 @@
 package io.joshworks.fstore.serializer.arrays;
 
+import io.joshworks.fstore.core.Serializer;
+
 import java.nio.ByteBuffer;
 
-public class BooleanArraySerializer extends SizePrefixedArraySerializer<boolean[]> {
-
-    @Override
-    public ByteBuffer toBytes(boolean[] data) {
-        ByteBuffer bb = allocate(data.length);
-        for (boolean aData : data) {
-            bb.put((byte) (aData ? 1 : 0));
-        }
-        return bb.flip();
-    }
+//TODO improve by packing into long
+public class BooleanArraySerializer implements Serializer<boolean[]> {
 
     @Override
     public void writeTo(boolean[] data, ByteBuffer dst) {
@@ -23,18 +17,12 @@ public class BooleanArraySerializer extends SizePrefixedArraySerializer<boolean[
 
     @Override
     public boolean[] fromBytes(ByteBuffer data) {
-        int size = getSize(data);
-        //TODO improve this
+        int size = data.getInt();
         boolean[] array = new boolean[size];
         for (int i = 0; i < array.length; i++) {
             array[i] = data.get() == (byte) 1;
         }
         return array;
-    }
-
-    @Override
-    int byteSize() {
-        return Byte.BYTES;
     }
 
 }
