@@ -7,11 +7,6 @@ import java.nio.ByteBuffer;
 public class FromByteArraySerializer implements Serializer<byte[]> {
 
     @Override
-    public ByteBuffer toBytes(byte[] data) {
-        return ByteBuffer.wrap(data);
-    }
-
-    @Override
     public void writeTo(byte[] data, ByteBuffer dst) {
         dst.put(data);
     }

@@ -11,11 +11,6 @@ import java.nio.ByteBuffer;
 public class ByteBufferCopy implements Serializer<ByteBuffer> {
 
     @Override
-    public ByteBuffer toBytes(ByteBuffer data) {
-        return copy(data);
-    }
-
-    @Override
     public void writeTo(ByteBuffer data, ByteBuffer dst) {
         dst.put(data);
     }

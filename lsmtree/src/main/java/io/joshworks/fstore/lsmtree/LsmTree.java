@@ -304,6 +304,11 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
+        public Builder<K, V> offHeapBlock() {
+            this.sstableBlockFactory = VLenBlock.factory(true);
+            return this;
+        }
+
         public Builder<K, V> blockCache(int cacheSize, int maxAgeSeconds) {
             this.blockCacheSize = cacheSize;
             this.blockCacheMaxAge = maxAgeSeconds * 1000;
@@ -325,12 +330,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             requireNonNull(mode, "StorageMode cannot be null");
             requireNonNull(mode);
             this.sstableStorageMode = mode;
-            return this;
-        }
-
-        public Builder<K, V> sstableBlockFactory(BlockFactory blockFactory) {
-            requireNonNull(blockFactory);
-            this.sstableBlockFactory = blockFactory;
             return this;
         }
 

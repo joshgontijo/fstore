@@ -90,7 +90,7 @@ public class LogAppender<T> implements Closeable {
         this.checksumProbability = config.checksumProbability;
         this.readPageSize = config.readPageSize;
         this.compactionDisabled = config.compactionDisabled;
-        this.bufferPool = config.bufferPool;
+        this.bufferPool = new BufferPool(config.maxEntrySize, config.directBufferPool);
         this.logger = Logging.namedLogger(config.name, "appender");
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
@@ -133,26 +133,11 @@ public class LogAppender<T> implements Closeable {
                 readPageSize,
                 checksumProbability);
 
-        logConfig(config);
+        logger.info(config.toString());
         if (!compactionDisabled) {
             compactor.compact();
         }
     }
-
-    private void logConfig(Config<T> config) {
-        logger.info("STORAGE LOCATION: {}", config.directory.toPath());
-        logger.info("COMPACTION ENABLED: {}", !config.compactionDisabled);
-        logger.info("MAX SEGMENTS: {} ({} bits)", MAX_SEGMENTS, SEGMENT_BITS);
-        logger.info("MAX SEGMENT ADDRESS: {} ({} bits)", MAX_SEGMENT_ADDRESS, SEGMENT_ADDRESS_BITS);
-
-        logger.info("BUFFER POOL: {}", config.bufferPool.getClass().getSimpleName());
-        logger.info("SEGMENT SIZE: {}", config.segmentSize);
-        logger.info("FLUSH MODE: {}", config.flushMode);
-        logger.info("COMPACTION ENABLED: {}", !this.compactionDisabled);
-        logger.info("COMPACTION THRESHOLD: {}", config.compactionThreshold);
-        logger.info("STORAGE MODE: {}", config.storageMode);
-    }
-
 
     private Log<T> createCurrentSegment() {
         long alignedSize = align(LogHeader.BYTES + metadata.segmentSize); //log + header
@@ -212,9 +197,9 @@ public class LogAppender<T> implements Closeable {
                     logger.warn("No entries in the current segment: {}", current.name());
                     return;
                 }
-                logger.info("Rolling segment: {}", current);
 
                 current.roll(1, false);
+                logger.info("Rolled segment: {}", current);
 
                 Log<T> newSegment = createCurrentSegment();
                 levels.appendSegment(newSegment);

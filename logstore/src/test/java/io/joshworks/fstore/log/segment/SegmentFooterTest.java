@@ -11,7 +11,6 @@ import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.serializer.collection.CollectionSerializer;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -19,7 +18,6 @@ import org.junit.Test;
 
 import java.io.Closeable;
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -31,6 +29,7 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class SegmentFooterTest {
 
+    public static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
     protected FooterSegment segment;
     private File testFile;
 
@@ -166,7 +165,7 @@ public abstract class SegmentFooterTest {
     public void large_footer_can_be_read() {
 
         segment.append("a");
-        int numFooterItems = 10000000;
+        int numFooterItems = MAX_ENTRY_SIZE / Long.BYTES;
         for (int i = 0; i < numFooterItems; i++) {
             segment.footerItems.add((long) i);
         }
@@ -238,18 +237,17 @@ public abstract class SegmentFooterTest {
     private static class FooterSegment implements Closeable {
 
         private static final String FOOTER_ITEM_NAME = "ITEMS";
-        private static Serializer<List<Long>> listSerializer = new CollectionSerializer<>(Serializers.LONG, a -> Long.BYTES, ArrayList::new);
+        private static Serializer<List<Long>> listSerializer = Serializers.listSerializer(Serializers.LONG);
         private List<Long> footerItems = new ArrayList<>();
 
         private final Segment<String> delegate;
 
         public FooterSegment(File file, StorageMode storageMode) {
-            this.delegate = new Segment<>(file, storageMode, Size.KB.ofInt(128), Serializers.VSTRING, new BufferPool(), WriteMode.LOG_HEAD, 1, Memory.PAGE_SIZE, List::size, this::writeFooter);
+            this.delegate = new Segment<>(file, storageMode, Size.KB.ofInt(128), Serializers.VSTRING, new BufferPool(MAX_ENTRY_SIZE), WriteMode.LOG_HEAD, 1, Memory.PAGE_SIZE, List::size, this::writeFooter);
         }
 
         public void writeFooter(FooterWriter footer) {
-            ByteBuffer data = listSerializer.toBytes(footerItems);
-            footer.write(FOOTER_ITEM_NAME, data);
+            footer.write(FOOTER_ITEM_NAME, footerItems, listSerializer);
         }
 
         private List<Long> readAllFooterItems() {

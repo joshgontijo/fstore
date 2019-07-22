@@ -1,6 +1,7 @@
 package io.joshworks.fstore.core.io;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.Memory;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -14,7 +15,7 @@ public class BufferPoolTest {
 
     @Before
     public void setUp() {
-        bufferPool = new BufferPool(false);
+        bufferPool = new BufferPool(Memory.PAGE_SIZE, false);
     }
 
     @Test
@@ -29,10 +30,15 @@ public class BufferPoolTest {
         int size = 1024;
         ByteBuffer allocated = bufferPool.allocate(size);
         allocated.putLong(1);
-        bufferPool.free(allocated);
+        bufferPool.free();
 
         allocated = bufferPool.allocate(size);
         assertEquals(size, allocated.limit());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void trying_to_allocate_buffer_greater_than_max_size_throws_exception() {
+        bufferPool.allocate(bufferPool.capacity() + 1);
     }
 
     //SingleBufferThreadCachedPool specific

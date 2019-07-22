@@ -9,12 +9,14 @@ public final class CompletedSection {
     public final long uncompressedSize;
     public final long actualDataLength;
     public final long footerMapPosition;
+    public final long footerStart;
     public final long footerLength;
     public final long physical;
 
-    public CompletedSection(int level, long entries, long actualDataLength, long footerMapPosition, long footerLength, long rolled, long uncompressedSize, long physical) {
+    public CompletedSection(int level, long entries, long actualDataLength, long footerMapPosition, long footerStart, long footerLength, long rolled, long uncompressedSize, long physical) {
         this.level = level;
         this.entries = entries;
+        this.footerStart = footerStart;
         this.rolled = rolled;
         this.uncompressedSize = uncompressedSize;
         this.actualDataLength = actualDataLength;

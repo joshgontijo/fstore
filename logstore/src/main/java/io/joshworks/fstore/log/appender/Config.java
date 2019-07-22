@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -17,29 +17,25 @@ import static java.util.Objects.requireNonNull;
 
 public class Config<T> {
 
-    private static final String DEFAULT_APPENDER_NAME = "default";
-    private static final int COMPACTION_THRESHOLD = 3;
-    private static final long DEFAULT_SEGMENT_SIZE = Size.MB.of(256);
-    private static final double DEFAULT_CHECKSUM_PROB = 1.0;
-    private static final int DEFAULT_BUFFER_SIZE = Size.KB.ofInt(4);
 
     final File directory;
     final Serializer<T> serializer;
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
     SegmentFactory<T> segmentFactory;
-    BufferPool bufferPool = new BufferPool(false);
 
-    String name = DEFAULT_APPENDER_NAME;
-    long segmentSize = DEFAULT_SEGMENT_SIZE;
-    double checksumProbability = DEFAULT_CHECKSUM_PROB;
+    String name = "default";
+    long segmentSize = Size.MB.of(256);
+    double checksumProbability = 1.0;
     StorageMode storageMode = StorageMode.RAF;
     FlushMode flushMode = FlushMode.MANUAL;
-    int compactionThreshold = COMPACTION_THRESHOLD;
+    int compactionThreshold = 3;
     boolean parallelCompaction;
     boolean compactionDisabled;
-    int readPageSize = DEFAULT_BUFFER_SIZE;
+    int readPageSize = Memory.PAGE_SIZE;
+    boolean directBufferPool = false;
     StorageMode compactionStorage;
+    int maxEntrySize = Size.MB.ofInt(2);
 
     Config(File directory, Serializer<T> serializer) {
         this.directory = requireNonNull(directory, "directory cannot be null");
@@ -77,8 +73,13 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> bufferPool(int initialSize, boolean direct) {
-        this.bufferPool = new BufferPool(direct, initialSize);
+    public Config<T> directBufferPool() {
+        this.directBufferPool = true;
+        return this;
+    }
+
+    public Config<T> maxEntrySize(int maxEntrySize) {
+        this.maxEntrySize = maxEntrySize;
         return this;
     }
 
@@ -133,4 +134,25 @@ public class Config<T> {
         return new LogAppender<>(this);
     }
 
+    @Override
+    public String toString() {
+        return "Config{" + "directory=" + directory +
+                ", serializer=" + serializer +
+                ", namingStrategy=" + namingStrategy.getClass().getSimpleName() +
+                ", combiner=" + combiner.getClass().getSimpleName() +
+                ", segmentFactory=" + segmentFactory.getClass().getSimpleName() +
+                ", name='" + name + '\'' +
+                ", segmentSize=" + segmentSize +
+                ", checksumProbability=" + checksumProbability +
+                ", storageMode=" + storageMode +
+                ", flushMode=" + flushMode +
+                ", compactionThreshold=" + compactionThreshold +
+                ", parallelCompaction=" + parallelCompaction +
+                ", compactionDisabled=" + compactionDisabled +
+                ", readPageSize=" + readPageSize +
+                ", directBufferPool=" + directBufferPool +
+                ", compactionStorage=" + compactionStorage +
+                ", maxEntrySize=" + maxEntrySize +
+                '}';
+    }
 }

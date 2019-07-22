@@ -14,11 +14,14 @@ import io.joshworks.fstore.serializer.collection.QueueSerializer;
 import io.joshworks.fstore.serializer.collection.SetSerializer;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class Serializers {
@@ -26,6 +29,7 @@ public class Serializers {
     private Serializers() {
 
     }
+
     //No serializer
 //    public static final Serializer<ByteBuffer> NONE = new DirectSerializer();
     public static final Serializer<ByteBuffer> COPY = new ByteBufferCopy();
@@ -52,24 +56,36 @@ public class Serializers {
     public static final Serializer<boolean[]> VLEN_BOOLEAN_ARRAY = new BooleanArraySerializer();
 
 
-    public static <K, V> Serializer<Map<K, V>> mapSerializer(Serializer<K> keySerializer, Serializer<V> valueSerializer, Function<K, Integer> sizeOfKey, Function<V, Integer> sizeOfValue) {
-        return new MapSerializer<>(keySerializer, valueSerializer, sizeOfKey, sizeOfValue);
+    public static <K, V> Serializer<Map<K, V>> mapSerializer(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
+        return mapSerializer(keySerializer, valueSerializer, HashMap::new);
     }
 
-    public static <K, V> Serializer<Map<K, V>> mapSerializer(Serializer<K> keySerializer, Serializer<V> valueSerializer, Function<K, Integer> sizeOfKey, Function<V, Integer> sizeOfValue, Supplier<Map<K, V>> instanceSupplier) {
-        return new MapSerializer<>(keySerializer, valueSerializer, sizeOfKey, sizeOfValue, instanceSupplier);
+    public static <K, V> Serializer<Map<K, V>> mapSerializer(Serializer<K> keySerializer, Serializer<V> valueSerializer, Supplier<Map<K, V>> instanceSupplier) {
+        return new MapSerializer<>(keySerializer, valueSerializer, instanceSupplier);
     }
 
-    public static <V> Serializer<List<V>> listSerializer(Serializer<V> valueSerializer, Function<V, Integer> sizeOfValue, Supplier<List<V>> instanceSupplier) {
-        return new ListSerializer<>(valueSerializer, sizeOfValue, instanceSupplier);
+    public static <V> Serializer<List<V>> listSerializer(Serializer<V> valueSerializer) {
+        return listSerializer(valueSerializer, ArrayList::new);
     }
 
-    public static <V> Serializer<Set<V>> setSerializer(Serializer<V> valueSerializer, Function<V, Integer> sizeOfValue, Supplier<Set<V>> instanceSupplier) {
-        return new SetSerializer<>(valueSerializer, sizeOfValue, instanceSupplier);
+    public static <V> Serializer<List<V>> listSerializer(Serializer<V> valueSerializer, Supplier<List<V>> instanceSupplier) {
+        return new ListSerializer<>(valueSerializer, instanceSupplier);
     }
 
-    public static <V> Serializer<Queue<V>> queueSerializer(Serializer<V> valueSerializer, Function<V, Integer> sizeOfValue, Supplier<Queue<V>> instanceSupplier) {
-        return new QueueSerializer<>(valueSerializer, sizeOfValue, instanceSupplier);
+    public static <V> Serializer<Set<V>> setSerializer(Serializer<V> valueSerializer) {
+        return setSerializer(valueSerializer, HashSet::new);
+    }
+
+    public static <V> Serializer<Set<V>> setSerializer(Serializer<V> valueSerializer, Supplier<Set<V>> instanceSupplier) {
+        return new SetSerializer<>(valueSerializer, instanceSupplier);
+    }
+
+    public static <V> Serializer<Queue<V>> queueSerializer(Serializer<V> valueSerializer) {
+        return queueSerializer(valueSerializer, ArrayDeque::new);
+    }
+
+    public static <V> Serializer<Queue<V>> queueSerializer(Serializer<V> valueSerializer, Supplier<Queue<V>> instanceSupplier) {
+        return new QueueSerializer<>(valueSerializer, instanceSupplier);
     }
 
 }

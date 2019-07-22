@@ -14,7 +14,7 @@ import java.util.function.BiFunction;
 
 public abstract class MemStorage implements Storage {
 
-    private static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
+    public static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
     private static final double GROWTH_RATE = 0.5; //50%
 
     //    protected final int bufferSize;

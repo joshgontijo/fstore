@@ -1,16 +1,10 @@
 package io.joshworks.fstore.serializer.arrays;
 
+import io.joshworks.fstore.core.Serializer;
+
 import java.nio.ByteBuffer;
 
-public class FloatArraySerializer extends SizePrefixedArraySerializer<float[]> {
-
-    @Override
-    public ByteBuffer toBytes(float[] data) {
-        ByteBuffer bb = allocate(data.length);
-        bb.asFloatBuffer().put(data);
-        bb.clear();
-        return bb;
-    }
+public class FloatArraySerializer implements Serializer<float[]> {
 
     @Override
     public void writeTo(float[] data, ByteBuffer dst) {
@@ -20,15 +14,12 @@ public class FloatArraySerializer extends SizePrefixedArraySerializer<float[]> {
 
     @Override
     public float[] fromBytes(ByteBuffer data) {
-        int size = getSize(data);
+        int size = data.getInt();
         float[] array = new float[size];
-        data.asFloatBuffer().get(array);
+        for (int i = 0; i < array.length; i++) {
+            array[i] = data.getFloat();
+        }
         return array;
-    }
-
-    @Override
-    int byteSize() {
-        return Float.BYTES;
     }
 
 }

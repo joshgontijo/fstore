@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 
 public class BlockSerializer implements Serializer<Block> {
 
+
     private final Codec codec;
     private final BlockFactory blockFactory;
 
@@ -16,18 +17,12 @@ public class BlockSerializer implements Serializer<Block> {
     }
 
     @Override
-    public ByteBuffer toBytes(Block data) {
-        return data.pack(codec);
+    public void writeTo(Block block, ByteBuffer dst) {
+        block.pack(codec, dst);
     }
 
     @Override
-    public void writeTo(Block data, ByteBuffer dst) {
-        ByteBuffer packed = data.pack(codec);
-        dst.put(packed);
-    }
-
-    @Override
-    public Block fromBytes(ByteBuffer buffer) {
-        return blockFactory.load(codec, buffer);
+    public Block fromBytes(ByteBuffer src) {
+        return blockFactory.load(codec, src);
     }
 }

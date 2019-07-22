@@ -21,23 +21,14 @@ public class Lz4Codec implements Codec {
     }
 
     @Override
-    public ByteBuffer compress(ByteBuffer data) {
-        int uncompressedLength = data.remaining();
+    public void compress(ByteBuffer src, ByteBuffer dst) {
         LZ4Compressor compressor = highCompression ? factory.highCompressor() : factory.fastCompressor();
-        int maxCompressedLength = compressor.maxCompressedLength(uncompressedLength);
-        ByteBuffer compressed = ByteBuffer.allocate(BLOCK_HEADER_SIZE + maxCompressedLength);
-        compressed.position(BLOCK_HEADER_SIZE);
-        compressor.compress(data, compressed);
-        compressed.putInt(0, uncompressedLength);
-        return compressed.flip();
+        compressor.compress(src, dst);
     }
 
     @Override
-    public ByteBuffer decompress(ByteBuffer compressed) {
-        int uncompressedSize = compressed.getInt();
+    public void decompress(ByteBuffer src, ByteBuffer dst) {
         LZ4FastDecompressor decompressor = factory.fastDecompressor();
-        ByteBuffer decompressed = ByteBuffer.allocate(uncompressedSize);
-        decompressor.decompress(compressed, decompressed);
-        return decompressed.flip();
+        decompressor.decompress(src, dst);
     }
 }

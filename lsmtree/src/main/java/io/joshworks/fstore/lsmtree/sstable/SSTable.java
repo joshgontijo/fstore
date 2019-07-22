@@ -8,6 +8,7 @@ import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.index.filter.BloomFilter;
 import io.joshworks.fstore.index.midpoints.Midpoint;
+import io.joshworks.fstore.index.midpoints.MidpointSerializer;
 import io.joshworks.fstore.index.midpoints.Midpoints;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -50,11 +51,13 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private final BlockSegment<Entry<K, V>> delegate;
     private final Serializer<Entry<K, V>> entrySerializer;
     private final Serializer<K> keySerializer;
+    private final BufferPool bufferPool;
 
-    private BloomFilter<K> bloomFilter;
+    private BloomFilter bloomFilter;
     private Midpoints<K> midpoints;
 
     private final Cache<String, Block> blockCache;
+    private final MidpointSerializer<K> midpointSerializer;
 
     public SSTable(File file,
                    StorageMode storageMode,
@@ -72,10 +75,12 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                    double checksumProb,
                    int readPageSize) {
 
+        this.bufferPool = bufferPool;
         this.keySerializer = keySerializer;
         this.entrySerializer = new EntrySerializer<>(keySerializer, valueSerializer);
+        this.midpointSerializer = new MidpointSerializer<>(keySerializer);
 
-        this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb, keySerializer);
+        this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb);
         this.midpoints = new Midpoints<>();
         this.blockCache = blockCache;
 
@@ -104,7 +109,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
             ByteBuffer bfData = reader.read(BLOOM_FILTER_BLOCK, Serializers.COPY);
             if (blockData != null) {
-                this.bloomFilter = BloomFilter.load(bfData, keySerializer);
+                this.bloomFilter = BloomFilter.load(bfData);
             }
         }
     }
@@ -113,7 +118,16 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         addToMidpoints(position, block);
         List<Entry<K, V>> entries = block.deserialize(entrySerializer);
         for (Entry<K, V> entry : entries) {
-            bloomFilter.add(entry.key);
+            addToBloomFilter(entry);
+        }
+    }
+
+    private void addToBloomFilter(Entry<K, V> entry) {
+        try (bufferPool) {
+            ByteBuffer bb = bufferPool.allocate();
+            keySerializer.writeTo(entry.key, bb);
+            bb.flip();
+            bloomFilter.add(bb);
         }
     }
 
@@ -132,10 +146,9 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private void writeFooter(FooterWriter writer) {
-        ByteBuffer midpointData = midpoints.serialize(keySerializer);
-        writer.write(MIDPOINT_BLOCK, midpointData);
+        writer.write(MIDPOINT_BLOCK, midpoints, midpointSerializer);
 
-        ByteBuffer bloomFilterData = bloomFilter.serialize();
+        ByteBuffer bloomFilterData = bloomFilter.writeTo();
         writer.write(BLOOM_FILTER_BLOCK, bloomFilterData);
     }
 
@@ -143,7 +156,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     public long append(Entry<K, V> data) {
         requireNonNull(data, "Entry must be provided");
         requireNonNull(data.key, "Entry Key must be provided");
-        bloomFilter.add(data.key);
+        addToBloomFilter(data);
         return delegate.append(data);
     }
 
@@ -159,8 +172,13 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         if (!readOnly()) {
             throw new IllegalStateException("Cannot read from a open segment");
         }
-        if (!bloomFilter.contains(key)) {
-            return null;
+        try (bufferPool) {
+            ByteBuffer bb = bufferPool.allocate();
+            keySerializer.writeTo(key, bb);
+            bb.flip();
+            if (!bloomFilter.contains(bb)) {
+                return null;
+            }
         }
         Midpoint<K> midpoint = midpoints.getMidpointFor(key);
         if (midpoint == null) {

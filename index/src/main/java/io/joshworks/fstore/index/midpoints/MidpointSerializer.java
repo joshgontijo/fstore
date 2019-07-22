@@ -13,17 +13,9 @@ public class MidpointSerializer<K extends Comparable<K>> implements Serializer<M
     }
 
     @Override
-    public ByteBuffer toBytes(Midpoint<K> data) {
-        ByteBuffer keyData = keySerializer.toBytes(data.key);
-        ByteBuffer bb = ByteBuffer.allocate(keyData.limit() + Long.BYTES);
-        bb.put(keyData);
-        bb.putLong(data.position);
-        return bb.flip();
-    }
-
-    @Override
     public void writeTo(Midpoint<K> data, ByteBuffer dst) {
-        throw new UnsupportedOperationException();
+        keySerializer.writeTo(data.key, dst);
+        dst.putLong(data.position);
     }
 
     @Override

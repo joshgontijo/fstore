@@ -8,11 +8,6 @@ import java.nio.charset.StandardCharsets;
 public class StringSerializer implements Serializer<String> {
 
     @Override
-    public ByteBuffer toBytes(String data) {
-        return ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8));
-    }
-
-    @Override
     public void writeTo(String data, ByteBuffer dst) {
         dst.put(data.getBytes(StandardCharsets.UTF_8));
     }

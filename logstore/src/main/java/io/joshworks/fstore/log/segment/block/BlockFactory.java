@@ -6,7 +6,7 @@ import java.nio.ByteBuffer;
 
 public interface BlockFactory {
 
-    Block create(int maxBlockSize);
+    Block create(int blockSize);
 
     Block load(Codec codec, ByteBuffer data);
 

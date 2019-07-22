@@ -29,11 +29,11 @@ public class BlockSegment<T> implements Log<T> {
     private static final String BLOCK_INFO_FOOTER_ITEM = "BLOCK_INFO";
 
     private final Serializer<T> serializer;
-    private final BlockFactory blockFactory;
     private final BiConsumer<Long, Block> blockWriteListener;
     private final BiConsumer<Long, Block> onBlockLoaded;
+    private final BufferPool bufferPool;
     private Consumer<FooterWriter> footerWriter;
-    protected Block block;
+    private final Block writeBlock;
 
     private BlockSegmentInfo info;
 
@@ -88,12 +88,12 @@ public class BlockSegment<T> implements Log<T> {
                         Consumer<FooterWriter> footerWriter) {
 
         this.serializer = serializer;
-        this.blockFactory = blockFactory;
+        this.bufferPool = bufferPool;
         this.info = new BlockSegmentInfo(blockSize);
         this.blockWriteListener = blockWriteListener;
         this.onBlockLoaded = onBlockLoaded;
         this.footerWriter = footerWriter;
-        this.block = blockFactory.create(blockSize);
+        this.writeBlock = blockFactory.create(blockSize);
         this.delegate = new Segment<>(
                 file,
                 storageMode,
@@ -120,23 +120,33 @@ public class BlockSegment<T> implements Log<T> {
     @Override
     public long append(T entry) {
         if (!hasSpaceAvailableForBlock()) {
-            if (!block.isEmpty()) {
+            if (!writeBlock.isEmpty()) {
                 throw new IllegalStateException("Block was not empty");
             }
             return Storage.EOF;
         }
-        ByteBuffer bb = serializer.toBytes(entry);
-        if (!block.add(bb)) {
-            writeBlock();
-            if (!hasSpaceAvailableForBlock()) {
-                return Storage.EOF;
+
+        try (bufferPool) {
+            ByteBuffer bb = bufferPool.allocate();
+            serializer.writeTo(entry, bb);
+            bb.flip();
+            if (!writeBlock.add(bb)) {
+                bufferPool.free(); //free so it can be used by DataStream
+                writeBlock();
+                if (!hasSpaceAvailableForBlock()) {
+                    return Storage.EOF;
+                }
+
+                bb = bufferPool.allocate();
+                serializer.writeTo(entry, bb);
+                bb.flip();
+                if (!writeBlock.add(bb)) {
+                    throw new IllegalStateException("Could not write to new block after flushing, block must ensure entry can be written or thrown an error");
+                }
             }
-            if (!block.add(bb)) {
-                throw new IllegalStateException("Could not write to new block after flushing, block must ensure entry can be written or thrown an error");
-            }
+            info.addEntryCount(1);
+            return delegate.position();
         }
-        info.addEntryCount(1);
-        return delegate.position();
     }
 
     private boolean hasSpaceAvailableForBlock() {
@@ -146,18 +156,18 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     private synchronized void writeBlock() {
-        if (block.isEmpty()) {
+        if (writeBlock.isEmpty()) {
             return;
         }
 
-        info.addUncompressedSize(block.uncompressedSize());
-        long blockPos = delegate.append(block);
+        info.addUncompressedSize(writeBlock.uncompressedSize());
+        long blockPos = delegate.append(writeBlock);
         if (blockPos == Storage.EOF) {
             throw new IllegalStateException("Got EOF when writing non empty block");
         }
 
-        this.blockWriteListener.accept(blockPos, block);
-        this.block = blockFactory.create(info.blockSize());
+        this.blockWriteListener.accept(blockPos, writeBlock);
+        writeBlock.clear();
     }
 
     public SegmentIterator<Block> blockIterator(Direction direction) {
@@ -331,7 +341,7 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize) {
-        return factory(codec, blockSize, VLenBlock.factory(), (a, b) -> {
+        return factory(codec, blockSize, Block.vlenBlock(), (a, b) -> {
         }, (l, block) -> {
         }, fWriter -> {
         });
@@ -342,7 +352,7 @@ public class BlockSegment<T> implements Log<T> {
                                                 BiConsumer<Long, Block> blockWriteListener,
                                                 BiConsumer<Long, Block> onBlockLoaded,
                                                 Consumer<FooterWriter> footerWriter) {
-        return factory(codec, blockSize, VLenBlock.factory(), blockWriteListener, onBlockLoaded, footerWriter);
+        return factory(codec, blockSize, Block.vlenBlock(), blockWriteListener, onBlockLoaded, footerWriter);
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec,

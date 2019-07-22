@@ -1,16 +1,10 @@
 package io.joshworks.fstore.serializer.arrays;
 
+import io.joshworks.fstore.core.Serializer;
+
 import java.nio.ByteBuffer;
 
-public class IntegerArraySerializer extends SizePrefixedArraySerializer<int[]> {
-
-    @Override
-    public ByteBuffer toBytes(int[] data) {
-        ByteBuffer bb = allocate(data.length);
-        bb.asIntBuffer().put(data);
-        bb.clear();
-        return bb;
-    }
+public class IntegerArraySerializer implements Serializer<int[]> {
 
     @Override
     public void writeTo(int[] data, ByteBuffer dst) {
@@ -20,16 +14,12 @@ public class IntegerArraySerializer extends SizePrefixedArraySerializer<int[]> {
 
     @Override
     public int[] fromBytes(ByteBuffer data) {
-        int size = getSize(data);
+        int size = data.getInt();
         int[] array = new int[size];
-        data.asIntBuffer().get(array);
-        data.position(data.position() + array.length * byteSize());
+        for (int i = 0; i < array.length; i++) {
+            array[i] = data.getInt();
+        }
         return array;
-    }
-
-    @Override
-    int byteSize() {
-        return Integer.BYTES;
     }
 
 }

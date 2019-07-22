@@ -4,86 +4,80 @@ import io.joshworks.fstore.core.Codec;
 
 import java.nio.ByteBuffer;
 
-public class FixedSizeEntryBlock extends BaseBlock {
+/**
+ * An space optmized block, in which entry size is stored only once, since all entries have the same size. Format:
+ * <p>
+ * |---- ENTRY_COUNT (4bytes) ----|
+ * |---- ENTRIES_LEN (4bytes) ---|
+ * |----- ENTRY_1 (XBytes) ----|
+ * |----- ENTRY_2 (XBytes) ----|
+ * ...
+ * |----- ENTRY_N (XBytes) ----|
+ */
+public class FixedSizeEntryBlock extends Block {
 
-    private final int entrySize;
+    private int entrySize;
 
-    public FixedSizeEntryBlock(int entrySize, int maxEntries) {
-        super(entrySize * maxEntries);
-        if (entrySize <= 0) {
-            throw new IllegalArgumentException("maxSize must be greater than zero");
-        }
+    public FixedSizeEntryBlock(int maxSize, boolean direct, int entrySize) {
+        super(maxSize, direct);
         this.entrySize = entrySize;
     }
 
-    protected FixedSizeEntryBlock(Codec codec, ByteBuffer data) {
-        super(codec, data);
-        this.readOnly = true;
-        this.entrySize = first().limit();
+    protected FixedSizeEntryBlock(Codec codec, ByteBuffer data, boolean direct) {
+        super(codec, data, direct);
+    }
+
+    //returns true if added, false otherwise
+    @Override
+    public boolean add(ByteBuffer entry) {
+        if (!checkConstraints(entry)) {
+            return false;
+        }
+        if (entry.remaining() != entrySize) {
+            throw new IllegalArgumentException("Expected entry of size: " + entrySize + ", got " + entry.remaining());
+        }
+
+        lengths.add(entrySize);
+        data.put(entry);
+        return true;
     }
 
     @Override
-    public ByteBuffer pack(Codec codec) {
-        if (readOnly()) {
-            throw new IllegalStateException("Block is read only");
-        }
-        readOnly = true;
-        int entryCount = buffers.size();
-        int uncompressedSize = uncompressedSize();
-
-        ByteBuffer withHeader = ByteBuffer.allocate((Integer.BYTES * 2) + uncompressedSize);
-        withHeader.putInt(entryCount);
-        withHeader.putInt(entrySize);
-
-        for (ByteBuffer data : buffers) {
-            if (data.limit() != entrySize) {
-                throw new IllegalStateException("Invalid entry size, expected " + entrySize + ", got " + data.limit());
-            }
-            withHeader.put(data);
-        }
-
-        withHeader.flip();
-        return codec.compress(withHeader);
+    public void pack(Codec codec, ByteBuffer dst) {
+        this.data.putInt(super.blockHeaderSize(), entrySize);
+        super.pack(codec, dst);
     }
 
     @Override
-    protected int unpack(Codec codec, ByteBuffer blockData) {
-        ByteBuffer decompressed = codec.decompress(blockData);
-        int entryCount = blockData.getInt();
-        int entriesSize = decompressed.getInt();
+    protected ByteBuffer unpack(Codec codec, ByteBuffer blockData, boolean direct) {
+        int uncompressedSize = blockData.getInt();
+
+        ByteBuffer data = createBuffer(uncompressedSize, direct);
+        codec.decompress(blockData, data);
+        data.flip();
+
+        int entryCount = data.getInt();
+        int entryLen = data.getInt();
         for (int i = 0; i < entryCount; i++) {
-            int dataEnd = decompressed.position() + entriesSize;
-            decompressed.limit(dataEnd);
-            ByteBuffer bb = decompressed.slice().asReadOnlyBuffer();
-            if (bb.limit() != entriesSize) {
-                throw new IllegalStateException("Invalid entry size, expected " + entrySize + ", got " + bb.limit());
-            }
-            buffers.add(bb);
+            lengths.add(entryLen);
+            positions.add(data.position());
+            data.position(data.position() + entryLen);
         }
-        return entryCount * entriesSize;
+        if (lengths.size() != entryCount) {
+            throw new IllegalStateException("Expected block with " + entryCount + ", got " + lengths.size());
+        }
+
+        return data;
     }
 
-    public static BlockFactory factory(int entrySize) {
-        return new FixedSizeBlockFactory(entrySize);
+    @Override
+    public int entryHeaderSize() {
+        return 0; //no entry header
     }
 
-    private static class FixedSizeBlockFactory implements BlockFactory {
-
-        private final int entrySize;
-
-        private FixedSizeBlockFactory(int entrySize) {
-            this.entrySize = entrySize;
-        }
-
-        @Override
-        public Block create(int maxBlockSize) {
-            return new FixedSizeEntryBlock(maxBlockSize, entrySize);
-        }
-
-        @Override
-        public Block load(Codec codec, ByteBuffer data) {
-            return new FixedSizeEntryBlock(codec, data);
-        }
+    @Override
+    public int blockHeaderSize() {
+        return super.blockHeaderSize() + Integer.BYTES; //entryCount + entrySize
     }
 
 }

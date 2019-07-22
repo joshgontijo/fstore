@@ -30,7 +30,7 @@ public abstract class LogHeaderTest {
         testFile = FileUtils.testFile();
         testFile.deleteOnExit();
         storage = Storage.create(testFile, store(), STORAGE_SIZE);
-        stream = new DataStream(new BufferPool(), storage);
+        stream = new DataStream(new BufferPool(STORAGE_SIZE), storage);
     }
 
     @After
@@ -60,7 +60,7 @@ public abstract class LogHeaderTest {
     @Test
     public void header_restores_rolled_state() {
         LogHeader created = LogHeader.read(stream);
-        created.writeCompleted(1, 2, 3, 4, 5, 6, 7);
+        created.writeCompleted(1, 2, 3, 4, 5, 6, 7, 8);
 
         LogHeader loaded = LogHeader.read(stream);
         assertEquals(created, loaded);
@@ -71,7 +71,7 @@ public abstract class LogHeaderTest {
         LogHeader created = LogHeader.read(stream);
         created.writeNew(WriteMode.LOG_HEAD, 123, 456, true);
         created.writeDeleted();
-        created.writeCompleted(1, 2, 3, 4, 5, 6, 7);
+        created.writeCompleted(1, 2, 3, 4, 5, 6, 7, 8);
 
         LogHeader loaded = LogHeader.read(stream);
         assertEquals(created, loaded);

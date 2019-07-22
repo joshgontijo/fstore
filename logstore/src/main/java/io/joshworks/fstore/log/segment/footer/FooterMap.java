@@ -8,16 +8,14 @@ import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.serializer.collection.MapSerializer;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class FooterMap {
 
-    private final Serializer<Map<Integer, Long>> mapSerializer = new MapSerializer<>(Serializers.INTEGER, Serializers.LONG, a -> Integer.BYTES, a -> Long.BYTES);
+    private final Serializer<Map<Integer, Long>> mapSerializer = Serializers.mapSerializer(Serializers.INTEGER, Serializers.LONG);
     private final Map<Integer, Long> items = new ConcurrentHashMap<>();
     private final Hash hasher = new XXHash();
     static final long NONE = -1;
@@ -49,7 +47,7 @@ public class FooterMap {
         long mapPosition = header.footerMapPosition();
         RecordEntry<Map<Integer, Long>> record = stream.read(Direction.FORWARD, mapPosition, mapSerializer);
         if (record.isEmpty()) {
-            throw new IllegalStateException("Could not load footer map");
+            throw new IllegalStateException("Could not load footer map: Empty footer map");
         }
         items.putAll(record.entry());
     }
@@ -57,20 +55,6 @@ public class FooterMap {
     <T> int write(String name, DataStream stream, T entry, Serializer<T> serializer) {
         int hash = validateName(name);
         long position = stream.write(entry, serializer);
-        items.put(hash, position);
-        return hash;
-    }
-
-    int write(String name, DataStream stream, ByteBuffer data) {
-        int hash = validateName(name);
-        long position = stream.write(data);
-        items.put(hash, position);
-        return hash;
-    }
-
-    int write(String name, DataStream stream, ByteBuffer[] data) {
-        int hash = validateName(name);
-        long position = stream.write(data);
         items.put(hash, position);
         return hash;
     }

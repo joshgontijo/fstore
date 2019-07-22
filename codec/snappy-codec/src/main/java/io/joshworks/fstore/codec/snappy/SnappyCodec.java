@@ -9,89 +9,79 @@ import java.nio.ByteBuffer;
 
 public class SnappyCodec implements Codec {
 
-
     @Override
-    public ByteBuffer compress(ByteBuffer data) {
+    public void compress(ByteBuffer src, ByteBuffer dst) {
         try {
-            byte[] bytes = getBytes(data);
-            byte[] compressed = Snappy.compress(bytes);
-            int dstLen = compressed.length + BLOCK_HEADER_SIZE;
-            ByteBuffer dst = getBuffer(data.isDirect(), dstLen);
-            dst.putInt(bytes.length);
-            dst.put(compressed);
-            return dst.flip();
+            if (src.isDirect() && dst.isDirect()) {
+                int compressedLen = Snappy.compress(src, dst);
+                dst.position(dst.position() + compressedLen);
+                src.position(src.position() + src.remaining());
+                return;
+            }
+            if (src.isDirect()) {
+                byte[] srcBytes = copy(src);
+                int compressedLen = Snappy.compress(srcBytes, 0, srcBytes.length, dst.array(), dst.position());
+                dst.position(dst.position() + compressedLen);
+                return;
+            }
+            if (dst.isDirect()) {
+                int maxCompressedLength = Snappy.maxCompressedLength(src.remaining());
+                byte[] dstBytes = new byte[maxCompressedLength];
+                int compressedBytes = Snappy.compress(src.array(), src.position(), src.remaining(), dstBytes, 0);
+                dst.put(dstBytes, 0, compressedBytes);
+                src.position(src.position() + src.remaining());
+                return;
+            }
+
+            int compressedLen = Snappy.compress(src.array(), src.position(), src.remaining(), dst.array(), dst.position());
+            dst.position(dst.position() + compressedLen);
+            src.position(src.position() + src.remaining());
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
     }
 
-    private static ByteBuffer getBuffer(boolean direct, int dstLen) {
-        return direct ? ByteBuffer.allocateDirect(dstLen) : ByteBuffer.allocate(dstLen);
-    }
-
     @Override
-    public ByteBuffer decompress(ByteBuffer compressed) {
+    public void decompress(ByteBuffer src, ByteBuffer dst) {
         try {
-            compressed.getInt(); //ignore
-            byte[] uncompressed = Snappy.uncompress(getBytes(compressed));
-            var buffer = getBuffer(compressed.isDirect(), uncompressed.length);
-            buffer.put(uncompressed);
-            return buffer.flip();
+            if (src.isDirect() && dst.isDirect()) {
+                if (!Snappy.isValidCompressedBuffer(src)) {
+                    throw new RuntimeException("Not a valid compressed data");
+                }
+                int uncompressed = Snappy.uncompress(src, dst);
+                dst.position(dst.position() + uncompressed);
+                src.position(src.position() + src.remaining());
+                return;
+            }
+            if (src.isDirect()) {
+                byte[] srcBytes = copy(src);
+                int uncompressed = Snappy.uncompress(srcBytes, 0, srcBytes.length, dst.array(), dst.position());
+                dst.position(dst.position() + uncompressed);
+                return;
+            }
+            if (dst.isDirect()) {
+                int srcRemaining = src.remaining();
+                int uncompressedLen = Snappy.uncompressedLength(src.array(), src.position(), srcRemaining);
+                byte[] dstBytes = new byte[uncompressedLen];
+                int actualUncompressedSize = Snappy.uncompress(src.array(), src.position(), srcRemaining, dstBytes, 0);
+                dst.put(dstBytes, 0, actualUncompressedSize);
+                src.position(src.position() + srcRemaining);
+                return;
+            }
+            int uncompressed = Snappy.uncompress(src.array(), src.position(), src.remaining(), dst.array(), dst.position());
+            dst.position(dst.position() + uncompressed);
+            src.position(src.position() + src.remaining());
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
     }
 
-    private static byte[] getBytes(ByteBuffer data) {
-        byte[] b = new byte[data.remaining()];
-        data.mark();
-        data.get(b);
-        data.reset();
-        return b;
+    private byte[] copy(ByteBuffer bb) {
+        byte[] data = new byte[bb.remaining()];
+        bb.get(data);
+        return data;
     }
+
 }
 
 
-//TODO probably better alternative, need to get it to work
-//    @Override
-//    public ByteBuffer compress(ByteBuffer data) {
-//        try {
-//            if(data.isDirect()) {
-//                return directCompress(data);
-//            }
-//            return heapCompress(data);
-//        } catch (IOException e) {
-//            throw RuntimeIOException.of(e);
-//        }
-//    }
-//    @Override
-//    public ByteBuffer decompress(int uncompressedSize, ByteBuffer compressed) {
-//        try {
-//            if(compressed.isDirect()) {
-//                return directDecompress(uncompressedSize, compressed);
-//            }
-//            return heapDecompress(uncompressedSize, compressed);
-//        } catch (IOException e) {
-//            throw RuntimeIOException.of(e);
-//        }
-//    }
-//    private static ByteBuffer directDecompress(int uncompressedSize, ByteBuffer src) throws IOException {
-//        var dst = ByteBuffer.allocateDirect(uncompressedSize);
-//        Snappy.uncompress(src, dst);
-//        return dst;
-//    }
-//    private static ByteBuffer heapDecompress(int uncompressedSize, ByteBuffer src) throws IOException {
-//        byte[] uncompressed = new byte[uncompressedSize];
-//        Snappy.uncompress(src.array(), src.position(), src.remaining(), uncompressed, 0);
-//        return ByteBuffer.wrap(uncompressed);
-//    }
-//    private static ByteBuffer directCompress(ByteBuffer src) throws IOException {
-//        var dst = ByteBuffer.allocateDirect(src.remaining() + EXTRA);
-//        Snappy.compress(src, dst);
-//        return dst;
-//    }
-//    private static ByteBuffer heapCompress(ByteBuffer src) throws IOException {
-//        byte[] dst = new byte[src.remaining() + EXTRA];
-//        Snappy.compress(src.array(), src.position(), src.remaining(), dst, 0);
-//        return ByteBuffer.wrap(dst);
-//    }

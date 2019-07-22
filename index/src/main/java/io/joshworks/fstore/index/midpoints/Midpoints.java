@@ -3,6 +3,7 @@ package io.joshworks.fstore.index.midpoints;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.segment.block.Block;
+import io.joshworks.fstore.log.segment.block.FixedSizeEntryBlock;
 import io.joshworks.fstore.log.segment.block.VLenBlock;
 
 import java.nio.ByteBuffer;
@@ -153,7 +154,7 @@ public class Midpoints<K extends Comparable<K>> {
     public ByteBuffer serialize(Serializer<K> keySerializer) {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
-        Block midpointsBlock = VLenBlock.factory().create(Integer.MAX_VALUE);
+        Block midpointsBlock = FixedSizeEntryBlock.vlenBlock().create(Integer.MAX_VALUE);
         for (Midpoint<K> midpoint : entries) {
             ByteBuffer data = serializer.toBytes(midpoint);
             if (!midpointsBlock.add(data)) {
@@ -171,7 +172,7 @@ public class Midpoints<K extends Comparable<K>> {
         }
 
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
-        Block block = VLenBlock.factory().load(Codec.noCompression(), blockData);
+        Block block = VLenBlock.factory().load(Codec.noCompression(), blockData, decompressedSize);
         List<Midpoint<K>> entries = block.deserialize(serializer);
         midpoints.entries.addAll(entries);
         midpoints.entries.sort(Comparator.comparing(o -> o.key));

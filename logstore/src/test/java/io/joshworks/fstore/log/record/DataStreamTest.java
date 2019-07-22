@@ -15,7 +15,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,6 +34,7 @@ public class DataStreamTest {
     private Storage storage;
     private BufferPool bufferPool;
     private static final long FILE_SIZE = Size.MB.of(10);
+    private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
 
     private DataStream stream;
 
@@ -43,7 +43,7 @@ public class DataStreamTest {
         file = FileUtils.testFile();
         storage = Storage.create(file, StorageMode.RAF, FILE_SIZE);
         storage.position(Log.START);
-        bufferPool = new BufferPool();
+        bufferPool = new BufferPool(MAX_ENTRY_SIZE);
         stream = new DataStream(bufferPool, storage, CHCKSUM_PROB, Memory.PAGE_SIZE);
     }
 
@@ -55,8 +55,7 @@ public class DataStreamTest {
 
     @Test
     public void write() {
-        ByteBuffer data1 = Serializers.STRING.toBytes("1");
-        long write1 = stream.write(data1);
+        long write1 = stream.write("1", Serializers.STRING);
 
         assertEquals(Log.START, write1);
     }
@@ -69,16 +68,14 @@ public class DataStreamTest {
         assertEquals(data, record.entry());
     }
 
-    @Test
-    public void write_typed_resize() {
-        int capacity = bufferPool.bufferCapacity();
-        byte[] data = new byte[capacity + 1];
+    @Test(expected = IllegalArgumentException.class)
+    public void maximum_entry_size_is_maxEntrySize_MINUS_RECORDHEADER_HEADER_OVERHEAD() {
+        int capacity = bufferPool.capacity();
+        byte[] data = new byte[capacity - RecordHeader.HEADER_OVERHEAD + 1];
         Arrays.fill(data, (byte) 65);
         String longString = new String(data);
 
-        long pos = stream.write(longString, Serializers.VSTRING);
-        RecordEntry<String> record = stream.read(Direction.FORWARD, pos, Serializers.VSTRING);
-        assertEquals(longString, record.entry());
+        stream.write(longString, Serializers.VSTRING);
     }
 
     @Test
@@ -117,24 +114,20 @@ public class DataStreamTest {
         assertEquals(10, storage.position());
     }
 
-    @Test
-    public void write_typed_resize_if_secondary_header_cannot_be_written() {
-        int capacity = bufferPool.bufferCapacity();
+    @Test(expected = IllegalArgumentException.class)
+    public void write_typed_throws_error_if_secondary_header_cannot_be_written() {
+        int capacity = bufferPool.capacity();
         byte[] data = new byte[capacity - RecordHeader.HEADER_OVERHEAD + 1];
         Arrays.fill(data, (byte) 65);
         String longString = new String(data);
 
-        long pos = stream.write(longString, Serializers.STRING);
-        RecordEntry<String> record = stream.read(Direction.FORWARD, pos, Serializers.STRING);
-        assertEquals(longString, record.entry());
+        stream.write(longString, Serializers.STRING);
     }
-
 
     @Test
     public void reading_forward_returns_all_data() {
 
-        ByteBuffer data1 = Serializers.STRING.toBytes("1");
-        long pos1 = stream.write(data1);
+        long pos1 = stream.write("1", Serializers.STRING);
 
         RecordEntry<String> found = stream.read(Direction.FORWARD, pos1, Serializers.STRING);
         assertNotNull(found);
@@ -144,8 +137,7 @@ public class DataStreamTest {
     @Test
     public void reading_backward_returns_all_data() {
 
-        ByteBuffer data1 = Serializers.STRING.toBytes("1");
-        stream.write(data1);
+        stream.write("1", Serializers.STRING);
 
         long pos = storage.position();
         RecordEntry<String> read = stream.read(Direction.BACKWARD, pos, Serializers.STRING);
@@ -158,7 +150,7 @@ public class DataStreamTest {
 
         int numItems = 10;
         for (int i = 0; i < numItems; i++) {
-            stream.write(Serializers.INTEGER.toBytes(i));
+            stream.write(i, Serializers.INTEGER);
         }
 
         List<RecordEntry<Integer>> entries = stream.bulkRead(Direction.FORWARD, Log.START, Serializers.INTEGER);
@@ -175,7 +167,7 @@ public class DataStreamTest {
 
         int numItems = 10;
         for (long i = 0; i < numItems; i++) {
-            stream.write(Serializers.LONG.toBytes(i));
+            stream.write(i, Serializers.LONG);
         }
 
         List<RecordEntry<Long>> found = stream.bulkRead(Direction.BACKWARD, storage.position(), Serializers.LONG);
@@ -192,7 +184,7 @@ public class DataStreamTest {
 
         int numItems = 10;
         for (int i = 0; i < numItems; i++) {
-            stream.write(Serializers.INTEGER.toBytes(i));
+            stream.write(i, Serializers.INTEGER);
         }
 
         List<RecordEntry<Integer>> found = stream.bulkRead(Direction.FORWARD, Log.START, Serializers.INTEGER);
@@ -203,10 +195,10 @@ public class DataStreamTest {
     public void read_forward_returns_only_whole_entry_data() {
 
         String first = ofSize(Memory.PAGE_SIZE / 2);
-        stream.write(Serializers.STRING.toBytes(first));
+        stream.write(first, Serializers.STRING);
 
         String second = ofSize(Memory.PAGE_SIZE / 2);
-        stream.write(Serializers.STRING.toBytes(second));
+        stream.write(second, Serializers.STRING);
 
         RecordEntry<String> found = stream.read(Direction.FORWARD, Log.START, Serializers.STRING);
         assertNotNull(found);
@@ -217,10 +209,10 @@ public class DataStreamTest {
     public void read_backward_returns_only_whole_entry_data() {
 
         String first = ofSize(Memory.PAGE_SIZE / 2);
-        stream.write(Serializers.STRING.toBytes(first));
+        stream.write(first, Serializers.STRING);
 
         String second = ofSize(Memory.PAGE_SIZE / 2);
-        stream.write(Serializers.STRING.toBytes(second));
+        stream.write(second, Serializers.STRING);
 
         RecordEntry<String> read = stream.read(Direction.BACKWARD, storage.position(), Serializers.STRING);
         assertNotNull(read);
@@ -231,8 +223,7 @@ public class DataStreamTest {
     public void many_items() {
 
         String content = ofSize(Memory.PAGE_SIZE + 1);
-        ByteBuffer data = Serializers.STRING.toBytes(content);
-        long pos = stream.write(data);
+        long pos = stream.write(content, Serializers.STRING);
 
         RecordEntry<String> found = stream.read(Direction.FORWARD, pos, Serializers.STRING);
         assertNotNull(found);
@@ -243,8 +234,7 @@ public class DataStreamTest {
     public void reading_backward_with_data_bigger_than_page_returns_all_data() {
 
         String content = ofSize(Memory.PAGE_SIZE + 1);
-        ByteBuffer data = Serializers.STRING.toBytes(content);
-        stream.write(data);
+        stream.write(content, Serializers.STRING);
 
         long pos = storage.position();
         RecordEntry<String> found = stream.read(Direction.BACKWARD, pos, Serializers.STRING);
@@ -260,9 +250,9 @@ public class DataStreamTest {
         int secondEntryLength = bufferCapacity;
 
         String firstEntry = ofSize(firstEntryLength);
-        stream.write(Serializers.STRING.toBytes(firstEntry));
+        stream.write(firstEntry, Serializers.STRING);
         String secondEntry = ofSize(secondEntryLength);
-        stream.write(Serializers.STRING.toBytes(secondEntry));
+        stream.write(secondEntry, Serializers.STRING);
 
         List<RecordEntry<String>> read = stream.bulkRead(Direction.FORWARD, Log.START, Serializers.STRING);
         assertEquals(1, read.size());
@@ -277,9 +267,9 @@ public class DataStreamTest {
         int secondEntryLength = bufferCapacity;
 
         String firstEntry = ofSize(firstEntryLength);
-        stream.write(Serializers.STRING.toBytes(firstEntry));
+        stream.write(firstEntry, Serializers.STRING);
         String secondEntry = ofSize(secondEntryLength);
-        stream.write(Serializers.STRING.toBytes(secondEntry));
+        stream.write(secondEntry, Serializers.STRING);
 
         List<RecordEntry<String>> read = stream.bulkRead(Direction.BACKWARD, storage.position(), Serializers.STRING);
         assertEquals(1, read.size());
@@ -290,7 +280,7 @@ public class DataStreamTest {
     public void readForward_returns_RecordEntry_with_correct_position() {
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < 10000; i++) {
-            long pos = stream.write(Serializers.STRING.toBytes(String.valueOf(i)));
+            long pos = stream.write(String.valueOf(i), Serializers.STRING);
             positions.add(pos);
         }
 
@@ -304,7 +294,7 @@ public class DataStreamTest {
     public void readBackward_returns_RecordEntry_with_correct_position() {
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < 10000; i++) {
-            stream.write(Serializers.STRING.toBytes(String.valueOf(i)));
+            stream.write(String.valueOf(i), Serializers.STRING);
             positions.add(stream.position());
         }
 
@@ -319,7 +309,7 @@ public class DataStreamTest {
     public void readBulkForward_returns_RecordEntry_with_correct_position() {
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < 10000; i++) {
-            long pos = stream.write(Serializers.STRING.toBytes(String.valueOf(i)));
+            long pos = stream.write(String.valueOf(i), Serializers.STRING);
             positions.add(pos);
         }
 
@@ -336,7 +326,7 @@ public class DataStreamTest {
     public void readBulkBackward_returns_RecordEntry_with_correct_position() {
         List<Long> positions = new ArrayList<>();
         for (int i = 0; i < 10000; i++) {
-            long pos = stream.write(Serializers.STRING.toBytes(String.valueOf(i)));
+            long pos = stream.write(String.valueOf(i), Serializers.STRING);
             positions.add(pos);
         }
 

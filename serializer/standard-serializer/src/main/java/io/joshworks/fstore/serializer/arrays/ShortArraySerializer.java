@@ -1,16 +1,10 @@
 package io.joshworks.fstore.serializer.arrays;
 
+import io.joshworks.fstore.core.Serializer;
+
 import java.nio.ByteBuffer;
 
-public class ShortArraySerializer extends SizePrefixedArraySerializer<short[]> {
-
-    @Override
-    public ByteBuffer toBytes(short[] data) {
-        ByteBuffer bb = allocate(data.length);
-        bb.asShortBuffer().put(data);
-        bb.clear();
-        return bb;
-    }
+public class ShortArraySerializer implements Serializer<short[]> {
 
     @Override
     public void writeTo(short[] data, ByteBuffer dst) {
@@ -20,15 +14,11 @@ public class ShortArraySerializer extends SizePrefixedArraySerializer<short[]> {
 
     @Override
     public short[] fromBytes(ByteBuffer data) {
-        int size = getSize(data);
+        int size = data.getInt();
         short[] array = new short[size];
-        data.asShortBuffer().get(array);
+        for (int i = 0; i < array.length; i++) {
+            array[i] = data.getShort();
+        }
         return array;
     }
-
-    @Override
-    int byteSize() {
-        return Short.BYTES;
-    }
-
 }

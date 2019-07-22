@@ -6,12 +6,6 @@ import java.nio.ByteBuffer;
 
 public class IndexKeySerializer implements Serializer<IndexKey> {
 
-    @Override
-    public ByteBuffer toBytes(IndexKey data) {
-        ByteBuffer bb = ByteBuffer.allocate(Long.BYTES + Integer.BYTES);
-        writeTo(data, bb);
-        return bb.flip();
-    }
 
     @Override
     public void writeTo(IndexKey data, ByteBuffer dst) {

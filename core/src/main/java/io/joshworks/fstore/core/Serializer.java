@@ -5,12 +5,6 @@ import java.nio.ByteBuffer;
 public interface Serializer<T> {
 
     /**
-     * @param data The data to be put in the ByteBuffer
-     * @return The flipped {@link ByteBuffer}, read to be read from
-     */
-    ByteBuffer toBytes(T data);
-
-    /**
      * Writes data to this {@link ByteBuffer}
      *
      * @param data The data to be put in the ByteBuffer

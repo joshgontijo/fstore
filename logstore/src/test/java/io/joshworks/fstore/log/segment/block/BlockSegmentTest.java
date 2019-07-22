@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 
 public class BlockSegmentTest {
 
+    private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
     protected BlockSegment<String> segment;
     private File testFile;
 
@@ -30,10 +31,10 @@ public class BlockSegmentTest {
         return new BlockSegment<>(
                 file, StorageMode.RAF,
                 Size.MB.of(10),
-                new BufferPool(false),
+                new BufferPool(MAX_ENTRY_SIZE, false),
                 WriteMode.LOG_HEAD,
                 Serializers.STRING,
-                VLenBlock.factory(),
+                Block.vlenBlock(),
                 new SnappyCodec(),
                 Memory.PAGE_SIZE,
                 CHECKSUM_PROB,
@@ -109,14 +110,6 @@ public class BlockSegmentTest {
         } while (bPos != Storage.EOF);
 
         assertEquals(Storage.EOF, segment.append("a"));
-    }
-
-    @Test
-    public void uncompressed_size_is_the_approximation_of_block_size() {
-        for (int i = 0; i < 1000000; i++) {
-            segment.append("a");
-        }
-        assertEquals(segment.blocks() * segment.blockSize(), segment.uncompressedSize());
     }
 
     @Test

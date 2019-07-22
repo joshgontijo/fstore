@@ -7,11 +7,6 @@ import java.nio.ByteBuffer;
 public class ByteSerializer implements Serializer<Byte> {
 
     @Override
-    public ByteBuffer toBytes(Byte data) {
-        return ByteBuffer.allocate(Byte.BYTES).put(data).flip();
-    }
-
-    @Override
     public void writeTo(Byte data, ByteBuffer dst) {
         dst.put(data);
     }
