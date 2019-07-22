@@ -1,6 +1,6 @@
 package io.joshworks.fstore.codec.test;
 
-import io.joshworks.fstore.codec.snappy.Lz4Codec;
+import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.util.Size;
@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -61,7 +62,6 @@ public abstract class CodecTest {
         testCompress(true, true, false);
     }
 
-
     @Test
     public void compress_decompress_heap_direct_direct() {
         testCompress(false, true, true);
@@ -83,13 +83,24 @@ public abstract class CodecTest {
             assertTrue("Compressed bytes be update its position", compressed.remaining() > 0);
             assertEquals("Compression source must consume all its remaining bytes", 0, src.remaining());
 
-            var uncompressed = allocate(src.capacity(), uncompressedDirect);
+            //bigger buffer size to avoid exact buffer issues
+            var uncompressed = allocate(src.position(), uncompressedDirect);
 
             codec.decompress(compressed, uncompressed);
 
             assertEquals("Uncompressed bytes must be ready to be flipped", dataSize, uncompressed.position());
             assertEquals("Compressed source must consume its bytes", 0, compressed.remaining());
-            assertEquals("Original and uncompressed must be the same", src, uncompressed);
+            assertEquals("Original and uncompressed must be the same", src.position(), uncompressed.position());
+
+            src.flip();
+            byte[] srcBytes = new byte[src.remaining()];
+            src.get(srcBytes);
+
+            uncompressed.flip();
+            byte[] uncompressedBytes = new byte[uncompressed.remaining()];
+            uncompressed.get(uncompressedBytes);
+
+            assertArrayEquals(srcBytes, uncompressedBytes);
         }
     }
 
@@ -119,7 +130,7 @@ public abstract class CodecTest {
 
         @Override
         public Codec codec() {
-            return new Lz4Codec();
+            return new LZ4Codec();
         }
     }
 
@@ -127,7 +138,7 @@ public abstract class CodecTest {
 
         @Override
         public Codec codec() {
-            return new Lz4Codec(true);
+            return new LZ4Codec(true);
         }
     }
 

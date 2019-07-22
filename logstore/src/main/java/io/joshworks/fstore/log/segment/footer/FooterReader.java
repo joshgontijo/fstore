@@ -5,6 +5,9 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 public class FooterReader {
 
     private final DataStream stream;
@@ -23,13 +26,13 @@ public class FooterReader {
         return readInternal(position, serializer);
     }
 
-    public <T> T read(int hash, Serializer<T> serializer) {
-        long position = map.get(hash);
-        if (FooterMap.NONE == position) {
-            return null;
-        }
-        return readInternal(position, serializer);
+    public <T> List<T> findAll(String prefix, Serializer<T> serializer) {
+        return map.findAll(prefix)
+                .stream()
+                .map(pos -> readInternal(pos, serializer))
+                .collect(Collectors.toList());
     }
+
 
     public long length() {
         return stream.length();

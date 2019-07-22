@@ -102,10 +102,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
         if (delegate.readOnly()) {
             FooterReader reader = delegate.footerReader();
-            ByteBuffer blockData = reader.read(MIDPOINT_BLOCK, Serializers.COPY);
-            if (blockData != null) {
-                this.midpoints = Midpoints.load(blockData, keySerializer);
-            }
+            this.midpoints = Midpoints.load(reader, bufferPool, keySerializer);
 
             ByteBuffer bfData = reader.read(BLOOM_FILTER_BLOCK, Serializers.COPY);
             if (blockData != null) {
@@ -146,6 +143,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private void writeFooter(FooterWriter writer) {
+        midpoints.serialize(writer, bufferPool, keySerializer);
         writer.write(MIDPOINT_BLOCK, midpoints, midpointSerializer);
 
         ByteBuffer bloomFilterData = bloomFilter.writeTo();

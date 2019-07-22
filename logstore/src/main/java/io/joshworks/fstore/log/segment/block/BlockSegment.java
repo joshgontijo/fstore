@@ -18,7 +18,6 @@ import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -126,27 +125,17 @@ public class BlockSegment<T> implements Log<T> {
             return Storage.EOF;
         }
 
-        try (bufferPool) {
-            ByteBuffer bb = bufferPool.allocate();
-            serializer.writeTo(entry, bb);
-            bb.flip();
-            if (!writeBlock.add(bb)) {
-                bufferPool.free(); //free so it can be used by DataStream
-                writeBlock();
-                if (!hasSpaceAvailableForBlock()) {
-                    return Storage.EOF;
-                }
-
-                bb = bufferPool.allocate();
-                serializer.writeTo(entry, bb);
-                bb.flip();
-                if (!writeBlock.add(bb)) {
-                    throw new IllegalStateException("Could not write to new block after flushing, block must ensure entry can be written or thrown an error");
-                }
+        if (!writeBlock.add(entry, serializer, bufferPool)) {
+            writeBlock();
+            if (!hasSpaceAvailableForBlock()) {
+                return Storage.EOF;
             }
-            info.addEntryCount(1);
-            return delegate.position();
+            if (!writeBlock.add(entry, serializer, bufferPool)) {
+                throw new IllegalStateException("Could not write to new block after flushing, block must ensure entry can be written or thrown an error");
+            }
         }
+        info.addEntryCount(1);
+        return delegate.position();
     }
 
     private boolean hasSpaceAvailableForBlock() {
