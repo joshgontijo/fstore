@@ -147,6 +147,10 @@ public class Midpoints<K extends Comparable<K>> {
                 blockIdx++;
             }
         }
+
+        if (!block.isEmpty()) {
+            writer.write(BLOCK_PREFIX + blockIdx, block, blockSerializer);
+        }
     }
 
     public static <K extends Comparable<K>> Midpoints<K> load(FooterReader reader, BufferPool bufferPool, Serializer<K> keySerializer) {

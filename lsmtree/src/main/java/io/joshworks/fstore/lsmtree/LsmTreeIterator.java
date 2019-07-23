@@ -15,12 +15,12 @@ import java.util.stream.Collectors;
 
 class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
 
-    private final List<PeekingIterator<Entry<K, V>>> segments;
+    private final List<PeekingIterator<Entry<K, V>>> segmentsIterators;
 
     LsmTreeIterator(List<LogIterator<Entry<K, V>>> segmentsIterators, Iterator<Entry<K, V>> memIterator) {
         segmentsIterators.add(Iterators.wrap(memIterator));
 
-        this.segments = segmentsIterators.stream()
+        this.segmentsIterators = segmentsIterators.stream()
                 .map(Iterators::peekingIterator)
                 .collect(Collectors.toList());
 
@@ -28,7 +28,7 @@ class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<E
     }
 
     private void removeSegmentIfCompleted() {
-        Iterator<PeekingIterator<Entry<K, V>>> itit = segments.iterator();
+        Iterator<PeekingIterator<Entry<K, V>>> itit = segmentsIterators.iterator();
         while (itit.hasNext()) {
             PeekingIterator<Entry<K, V>> seg = itit.next();
             if (!seg.hasNext()) {
@@ -42,8 +42,8 @@ class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<E
     public Entry<K, V> next() {
         Entry<K, V> entry;
         do {
-            entry = getNextEntry(segments);
-        } while (entry != null && hasNext() && entry.deletion);
+            entry = getNextEntry(segmentsIterators);
+        } while (entry != null && hasNext() && entry.deletion());
         if (entry == null) {
             throw new NoSuchElementException();
         }
@@ -52,14 +52,14 @@ class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<E
 
     @Override
     public void close() throws IOException {
-        for (PeekingIterator<Entry<K, V>> availableSegment : segments) {
+        for (PeekingIterator<Entry<K, V>> availableSegment : segmentsIterators) {
             availableSegment.close();
         }
     }
 
     @Override
     public boolean hasNext() {
-        for (PeekingIterator<Entry<K, V>> segment : segments) {
+        for (PeekingIterator<Entry<K, V>> segment : segmentsIterators) {
             if (segment.hasNext()) {
                 return true;
             }

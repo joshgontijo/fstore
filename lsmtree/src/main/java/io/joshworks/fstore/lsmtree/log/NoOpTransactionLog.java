@@ -5,7 +5,7 @@ import java.util.function.Consumer;
 public class NoOpTransactionLog<K extends Comparable<K>, V> implements TransactionLog<K, V> {
 
     @Override
-    public void append(Record<K, V> record) {
+    public void append(LogRecord<K, V> record) {
     }
 
     @Override
@@ -13,7 +13,7 @@ public class NoOpTransactionLog<K extends Comparable<K>, V> implements Transacti
     }
 
     @Override
-    public void restore(Consumer<Record<K, V>> consumer) {
+    public void restore(Consumer<LogRecord<K, V>> consumer) {
     }
 
     @Override

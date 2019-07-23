@@ -38,6 +38,7 @@ public class FixedSizeEntryBlock extends Block {
         }
 
         lengths.add(entrySize);
+        positions.add(data.position());
         data.put(entry);
         return true;
     }
@@ -51,7 +52,6 @@ public class FixedSizeEntryBlock extends Block {
     @Override
     protected ByteBuffer unpack(Codec codec, ByteBuffer blockData, boolean direct) {
         int uncompressedSize = blockData.getInt();
-
         ByteBuffer data = createBuffer(uncompressedSize, direct);
         codec.decompress(blockData, data);
         data.flip();

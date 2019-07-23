@@ -15,9 +15,9 @@ import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
+import io.joshworks.fstore.lsmtree.log.LogRecord;
 import io.joshworks.fstore.lsmtree.log.NoOpTransactionLog;
 import io.joshworks.fstore.lsmtree.log.PersistentTransactionLog;
-import io.joshworks.fstore.lsmtree.log.Record;
 import io.joshworks.fstore.lsmtree.log.TransactionLog;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.MemTable;
@@ -89,8 +89,13 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     //returns true if the index was flushed
     public boolean put(K key, V value) {
-        log.append(Record.add(key, value));
-        memTable.add(key, value);
+        requireNonNull(key, "Key must be provided");
+        requireNonNull(value, "Value must be provided");
+        LogRecord<K, V> record = LogRecord.add(key, value);
+        log.append(record);
+
+        Entry<K, V> entry = Entry.of(key, value);
+        memTable.add(entry);
         cache.remove(key); //evict
         if (memTable.size() >= flushThreshold) {
             flushMemTable(false);
@@ -100,16 +105,27 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public V get(K key) {
+        requireNonNull(key, "Key must be provided");
         V cached = cache.get(key);
         if (cached != null) {
             return cached;
         }
-        V found = memTable.get(key);
-        if (found != null) {
-            cache.add(key, found);
-            return found;
+        V fromMem = memTable.get(key);
+        if (fromMem != null) {
+            cache.add(key, fromMem);
+            return fromMem;
         }
-        return sstables.get(key);
+        V fromSSTable = sstables.get(key);
+        if (fromSSTable != null) {
+            cache.add(key, fromSSTable);
+        }
+        return fromSSTable;
+    }
+
+    public void remove(K key) {
+        requireNonNull(key, "Key must be provided");
+        log.append(LogRecord.delete(key));
+        memTable.add(Entry.delete(key));
     }
 
     /**
@@ -122,6 +138,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
      * @return The list of found entries
      */
     public List<Entry<K, V>> findAll(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
+        requireNonNull(key, "Key must be provided");
         List<Entry<K, V>> found = new ArrayList<>();
         Entry<K, V> memEntry = expression.apply(key, memTable);
         if (memEntry != null && matcher.test(memEntry)) {
@@ -175,20 +192,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     private boolean matchEntry(Predicate<Entry<K, V>> matcher, Entry<K, V> entry) {
-        return entry != null && !entry.deletion && matcher.test(entry);
-    }
-
-    public boolean remove(K key) {
-        if (memTable.delete(key)) {
-            return true;
-        }
-
-        V found = get(key);
-        if (found == null) {
-            return false;
-        }
-        log.append(Record.delete(key));
-        return true;
+        return entry != null && !entry.deletion() && matcher.test(entry);
     }
 
     public long size() {
@@ -214,7 +218,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         log.close();
     }
 
-    public synchronized void flushMemTable(boolean force) {
+    private synchronized void flushMemTable(boolean force) {
         if (!force && memTable.size() < flushThreshold) {
             return;
         }
@@ -224,13 +228,8 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         log.markFlushed();
     }
 
-    private void restore(Record<K, V> record) {
-        if (EntryType.ADD.equals(record.type)) {
-            memTable.add(record.key, record.value);
-        }
-        if (EntryType.DELETE.equals(record.type)) {
-            memTable.delete(record.key);
-        }
+    private void restore(LogRecord<K, V> record) {
+        memTable.add(Entry.of(record.key, record.value));
     }
 
     public void compact() {

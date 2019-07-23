@@ -5,8 +5,6 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
-import java.nio.ByteBuffer;
-
 public class ProjectionFailed {
 
     public final String name;
@@ -16,7 +14,6 @@ public class ProjectionFailed {
     public final long processedItems;
 
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_RUN_FAILED";
-    private static final Serializer<ProjectionFailed> serializer = JsonSerializer.of(ProjectionFailed.class);
 
     private ProjectionFailed(String name, String reason, long processedItems, String streamName, int streamVersion) {
         this.name = name;
@@ -27,12 +24,12 @@ public class ProjectionFailed {
     }
 
     public static EventRecord create(String name, String reason, long processedItems, String streamName, int streamVersion) {
-        var data = serializer.toBytes(new ProjectionFailed(name, reason, processedItems, streamName, streamVersion));
-        return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data.array());
+        var data = JsonSerializer.toBytes(new ProjectionFailed(name, reason, processedItems, streamName, streamVersion));
+        return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data);
     }
 
     public static ProjectionFailed from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.body));
+        return JsonSerializer.fromBytes(record.body, ProjectionFailed.class);
     }
 
 }

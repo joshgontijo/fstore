@@ -26,7 +26,6 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import static io.joshworks.fstore.lsmtree.sstable.EntrySerializer.KEY_START_POS;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -392,9 +391,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private int compareKey(ByteBuffer entry, K key) {
-        entry.position(KEY_START_POS);
         K entryKey = keySerializer.fromBytes(entry);
-
         return key.compareTo(entryKey);
     }
 

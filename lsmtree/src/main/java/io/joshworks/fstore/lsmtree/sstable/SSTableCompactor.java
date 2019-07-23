@@ -6,6 +6,6 @@ public class SSTableCompactor<K extends Comparable<K>, V> extends UniqueMergeCom
 
     @Override
     public boolean filter(Entry<K, V> entry) {
-        return !entry.deletion;
+        return !entry.deletion();
     }
 }

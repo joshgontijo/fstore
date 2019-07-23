@@ -186,6 +186,16 @@ public abstract class BlockTest {
         assertEquals("b", entries.get(1));
     }
 
+    @Test
+    public void can_get_all_entries_before_unpacking() {
+        Block block = factory.create(BLOCK_SIZE);
+        block.add(write("a"));
+        block.add(write("b"));
+
+        assertEquals("a", read(block, 0));
+        assertEquals("b", read(block, 1));
+    }
+
 
     private ByteBuffer packBlock(Block block) {
         ByteBuffer dst = ByteBuffer.allocate(BLOCK_SIZE);
@@ -202,6 +212,10 @@ public abstract class BlockTest {
 
     private static String read(ByteBuffer data) {
         return Serializers.STRING.fromBytes(data);
+    }
+
+    private static String read(Block block, int idx) {
+        return Serializers.STRING.fromBytes(block.get(idx));
     }
 
     public static class DefaultBlockTest extends BlockTest {
