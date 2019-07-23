@@ -57,11 +57,11 @@ public class FixedSizeEntryBlock extends Block {
         data.flip();
 
         int entryCount = data.getInt();
-        int entryLen = data.getInt();
+        entrySize = data.getInt();
         for (int i = 0; i < entryCount; i++) {
-            lengths.add(entryLen);
+            lengths.add(entrySize);
             positions.add(data.position());
-            data.position(data.position() + entryLen);
+            data.position(data.position() + entrySize);
         }
         if (lengths.size() != entryCount) {
             throw new IllegalStateException("Expected block with " + entryCount + ", got " + lengths.size());

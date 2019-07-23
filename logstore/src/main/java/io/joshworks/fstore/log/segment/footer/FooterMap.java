@@ -36,10 +36,10 @@ public class FooterMap {
     }
 
     <T> void write(String name, DataStream stream, T entry, Serializer<T> serializer) {
-        long position = stream.write(entry, serializer);
         if (items.containsKey(name)) {
             throw new IllegalArgumentException("'" + name + "' already exist in the footer map");
         }
+        long position = stream.write(entry, serializer);
         items.put(name, position);
     }
 

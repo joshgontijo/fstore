@@ -15,7 +15,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -181,7 +180,7 @@ public abstract class ConcurrencyIT {
 
         AtomicBoolean failed = new AtomicBoolean();
         Runnable readTask = () -> {
-            String name = UUID.randomUUID().toString().substring(0,4);
+            String name = Thread.currentThread().getName();
             for (int i = 0; i < scans; i++) {
                 if(failed.get()) {
                     break;

@@ -8,7 +8,6 @@ import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.index.filter.BloomFilter;
 import io.joshworks.fstore.index.midpoints.Midpoint;
-import io.joshworks.fstore.index.midpoints.MidpointSerializer;
 import io.joshworks.fstore.index.midpoints.Midpoints;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -22,7 +21,6 @@ import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.lsmtree.TreeFunctions;
-import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -45,19 +43,16 @@ import static java.util.Objects.requireNonNull;
  */
 public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, TreeFunctions<K, V> {
 
-    private static final String MIDPOINT_BLOCK = "MIDPOINT";
-    private static final String BLOOM_FILTER_BLOCK = "BLOOM_FILTER";
 
     private final BlockSegment<Entry<K, V>> delegate;
     private final Serializer<Entry<K, V>> entrySerializer;
     private final Serializer<K> keySerializer;
     private final BufferPool bufferPool;
 
-    private BloomFilter bloomFilter;
-    private Midpoints<K> midpoints;
+    private final BloomFilter bloomFilter;
+    private final Midpoints<K> midpoints;
 
     private final Cache<String, Block> blockCache;
-    private final MidpointSerializer<K> midpointSerializer;
 
     public SSTable(File file,
                    StorageMode storageMode,
@@ -78,10 +73,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         this.bufferPool = bufferPool;
         this.keySerializer = keySerializer;
         this.entrySerializer = new EntrySerializer<>(keySerializer, valueSerializer);
-        this.midpointSerializer = new MidpointSerializer<>(keySerializer);
 
-        this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb);
-        this.midpoints = new Midpoints<>();
         this.blockCache = blockCache;
 
         this.delegate = new BlockSegment<>(
@@ -103,11 +95,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         if (delegate.readOnly()) {
             FooterReader reader = delegate.footerReader();
             this.midpoints = Midpoints.load(reader, bufferPool, keySerializer);
-
-            ByteBuffer bfData = reader.read(BLOOM_FILTER_BLOCK, Serializers.COPY);
-            if (blockData != null) {
-                this.bloomFilter = BloomFilter.load(bfData);
-            }
+            this.bloomFilter = BloomFilter.load(reader, bufferPool);
+        } else {
+            this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb);
+            this.midpoints = new Midpoints<>();
         }
     }
 
@@ -143,11 +134,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private void writeFooter(FooterWriter writer) {
-        midpoints.serialize(writer, bufferPool, keySerializer);
-        writer.write(MIDPOINT_BLOCK, midpoints, midpointSerializer);
-
-        ByteBuffer bloomFilterData = bloomFilter.writeTo();
-        writer.write(BLOOM_FILTER_BLOCK, bloomFilterData);
+        midpoints.writeTo(writer, bufferPool, keySerializer);
+        bloomFilter.writeTo(writer, bufferPool);
     }
 
     @Override

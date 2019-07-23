@@ -21,8 +21,8 @@ public class ProjectionCompleted {
     }
 
     public static EventRecord create(String id, long processedItems) {
-        var data = serializer.toBytes(new ProjectionCompleted(id, processedItems));
-        return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data.array());
+        var data = JsonSerializer.toJsonBytes(new ProjectionCompleted(id, processedItems));
+        return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data);
     }
 
     public static ProjectionCompleted from(EventRecord record) {

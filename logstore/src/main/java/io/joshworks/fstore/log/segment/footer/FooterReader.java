@@ -29,6 +29,7 @@ public class FooterReader {
     public <T> List<T> findAll(String prefix, Serializer<T> serializer) {
         return map.findAll(prefix)
                 .stream()
+                .sorted()
                 .map(pos -> readInternal(pos, serializer))
                 .collect(Collectors.toList());
     }

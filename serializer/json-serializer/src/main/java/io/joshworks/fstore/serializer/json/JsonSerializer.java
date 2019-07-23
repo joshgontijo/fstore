@@ -31,13 +31,17 @@ public class JsonSerializer<T> implements Serializer<T> {
     }
 
     public static Map<String, Object> toMap(String json) {
-        return gson.fromJson(json, new TypeToken<Map<String, Object>>(){}.getType());
+        return gson.fromJson(json, new TypeToken<Map<String, Object>>() {
+        }.getType());
     }
 
     public static String toJson(Object data) {
         return gson.toJson(data);
     }
 
+    public static byte[] toJsonBytes(Object data) {
+        return toJson(data).getBytes(StandardCharsets.UTF_8);
+    }
 
     public static byte[] toJsonBytes(Map<String, Object> data) {
         return toJson(data).getBytes(StandardCharsets.UTF_8);

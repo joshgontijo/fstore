@@ -1,5 +1,13 @@
 package io.joshworks.fstore.index.filter;
 
+import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.record.DataStream;
+import io.joshworks.fstore.log.segment.footer.FooterMap;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -16,19 +24,29 @@ import static org.junit.Assert.assertTrue;
 
 public class BloomFilterTest {
 
-    private File testFolder;
     private BloomFilter filter;
-
+    private BufferPool bufferPool;
+    private Storage storage;
+    private FooterWriter writer;
+    private FooterReader reader;
 
     @Before
     public void setUp() {
-        testFolder = FileUtils.testFolder();
-        filter = BloomFilter.create(100, 0.01);
+        File testFile = FileUtils.testFile();
+        filter = BloomFilter.create(10000000, 0.01);
+
+        bufferPool = new BufferPool(Size.MB.ofInt(2), false);
+        storage = Storage.create(testFile, StorageMode.MMAP, Size.MB.of(2));
+        DataStream dataStream = new DataStream(bufferPool, storage);
+
+        FooterMap map = new FooterMap();
+        writer = new FooterWriter(dataStream, map);
+        reader = new FooterReader(dataStream, map);
     }
 
     @After
     public void tearDown() {
-        FileUtils.tryDelete(testFolder);
+        storage.delete();
     }
 
     @Test
@@ -44,15 +62,15 @@ public class BloomFilterTest {
         assertFalse(filter.contains(toBytes(2L)));
 
         ByteBuffer data = ByteBuffer.allocate(4096);
-        filter.writeTo(data);
+        filter.writeTo(writer, bufferPool);
 
         data.flip();
 
-        BloomFilter loaded = BloomFilter.load(data);
+        BloomFilter loaded = BloomFilter.load(reader, bufferPool);
 
-        assertEquals(filter.hashes, loaded.hashes);
         assertEquals(filter.hashes.size(), loaded.hashes.size());
         assertEquals(filter.hashes.length(), loaded.hashes.length());
+        assertEquals(filter.hashes, loaded.hashes);
         assertEquals(filter.hashes.hashCode(), loaded.hashes.hashCode());
         assertArrayEquals(filter.hashes.toByteArray(), loaded.hashes.toByteArray());
 

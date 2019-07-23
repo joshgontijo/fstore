@@ -10,7 +10,6 @@ import io.joshworks.fstore.log.segment.block.BlockSerializer;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -18,8 +17,8 @@ import java.util.List;
 
 public class Midpoints<K extends Comparable<K>> {
 
-    private static final String MIDPOINT_BLOCK_PREFIX = "MIDPOINT_";
-    public static final Codec CODEC = Codec.noCompression();
+    private static final String BLOCK_PREFIX = "MIDPOINT_";
+    private static final Codec CODEC = Codec.noCompression();
 
     private final List<Midpoint<K>> entries = new ArrayList<>();
 
@@ -131,7 +130,7 @@ public class Midpoints<K extends Comparable<K>> {
         return entries.get(entries.size() - 1);
     }
 
-    public void serialize(FooterWriter writer, BufferPool bufferPool, Serializer<K> keySerializer) {
+    public void writeTo(FooterWriter writer, BufferPool bufferPool, Serializer<K> keySerializer) {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
         int blockSize = Math.min(bufferPool.capacity(), Size.MB.ofInt(1));
@@ -143,17 +142,11 @@ public class Midpoints<K extends Comparable<K>> {
         entries.sort(Comparator.comparing(o -> o.key));
         for (Midpoint<K> midpoint : entries) {
             if (!block.add(midpoint, serializer, bufferPool)) {
-                writeBlock(writer, bufferPool, blockSize, blockSerializer, block, blockIdx);
+                writer.write(BLOCK_PREFIX + blockIdx, block, blockSerializer);
                 block.clear();
+                blockIdx++;
             }
         }
-    }
-
-    private void writeBlock(FooterWriter writer, BufferPool bufferPool, int blockSize, BlockSerializer blockSerializer, Block midpointsBlock, int blockIdx) {
-        ByteBuffer dst = bufferPool.allocate(blockSize);
-        midpointsBlock.pack(Codec.noCompression(), dst);
-        dst.flip();
-        writer.write(MIDPOINT_BLOCK_PREFIX + blockIdx, midpointsBlock, blockSerializer);
     }
 
     public static <K extends Comparable<K>> Midpoints<K> load(FooterReader reader, BufferPool bufferPool, Serializer<K> keySerializer) {
@@ -165,7 +158,7 @@ public class Midpoints<K extends Comparable<K>> {
         BlockFactory blockFactory = Block.vlenBlock(bufferPool.direct());
         BlockSerializer blockSerializer = new BlockSerializer(CODEC, blockFactory);
         Serializer<Midpoint<K>> midpointSerializer = new MidpointSerializer<>(keySerializer);
-        List<Block> blocks = reader.findAll(MIDPOINT_BLOCK_PREFIX, blockSerializer);
+        List<Block> blocks = reader.findAll(BLOCK_PREFIX, blockSerializer);
 
         for (Block block : blocks) {
             List<Midpoint<K>> entries = block.deserialize(midpointSerializer);

@@ -271,7 +271,7 @@ public abstract class StorageTest {
 
     //this mainly affects MemStorage
     @Test
-    public void MEM_SPECIFIC___buffer_expands_as_many_buffers_is_required() {
+    public void MEM_SPECIFIC___buffer_expands_as_many_buffers_are_required() {
         byte[] data = new byte[]{65};
         long pos = storage.length() + Integer.MAX_VALUE + 1;
         storage.position(pos);
