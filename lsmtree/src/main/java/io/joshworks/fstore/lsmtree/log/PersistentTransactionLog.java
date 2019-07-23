@@ -15,32 +15,32 @@ import java.util.function.Consumer;
 
 public class PersistentTransactionLog<K extends Comparable<K>, V> implements TransactionLog<K, V> {
 
-    private final LogAppender<Record<K, V>> appender;
+    private final LogAppender<LogRecord<K, V>> appender;
 
     public PersistentTransactionLog(File root, Serializer<K> keySerializer, Serializer<V> valueSerializer, String name, StorageMode mode) {
-        this.appender = LogAppender.builder(new File(root, "log"), new RecordSerializer<>(keySerializer, valueSerializer))
+        this.appender = LogAppender.builder(new File(root, "wal"), new RecordSerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new DiscardCombiner<>())
-                .name(name + "-log")
+                .name(name + "-wal")
                 .storageMode(mode)
                 .open();
     }
 
     @Override
-    public void append(Record<K, V> record) {
+    public void append(LogRecord<K, V> record) {
         appender.append(record);
     }
 
     @Override
     public void markFlushed() {
-        appender.append(Record.memFlushed());
+        appender.append(LogRecord.memFlushed());
     }
 
     @Override
-    public void restore(Consumer<Record<K, V>> consumer) {
-        Deque<Record<K, V>> stack = new ArrayDeque<>();
-        try (LogIterator<Record<K, V>> iterator = appender.iterator(Direction.BACKWARD)) {
+    public void restore(Consumer<LogRecord<K, V>> consumer) {
+        Deque<LogRecord<K, V>> stack = new ArrayDeque<>();
+        try (LogIterator<LogRecord<K, V>> iterator = appender.iterator(Direction.BACKWARD)) {
             while (iterator.hasNext()) {
-                Record<K, V> record = iterator.next();
+                LogRecord<K, V> record = iterator.next();
                 if (EntryType.MEM_FLUSHED.equals(record.type)) {
                     break;
                 }
@@ -50,7 +50,7 @@ public class PersistentTransactionLog<K extends Comparable<K>, V> implements Tra
             throw new RuntimeException(e);
         }
 
-        for (Record<K, V> kvRecord : stack) {
+        for (LogRecord<K, V> kvRecord : stack) {
             consumer.accept(kvRecord);
         }
     }

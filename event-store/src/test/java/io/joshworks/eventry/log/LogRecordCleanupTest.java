@@ -9,7 +9,6 @@ import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
-import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -25,7 +24,7 @@ import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class RecordCleanupTest {
+public class LogRecordCleanupTest {
 
     private static final int STREAMS_FLUSH_THRESHOLD = 1000;
     private RecordCleanup cleanup;
@@ -37,8 +36,8 @@ public class RecordCleanupTest {
     @Before
     public void setUp() {
         dummyFolder = FileUtils.testFolder();
-        streams = new Streams(dummyFolder, STREAMS_FLUSH_THRESHOLD,-1, -1);
-        index = new Index(dummyFolder, 10, Codec.noCompression(), -1, -1);
+        streams = new Streams(dummyFolder, STREAMS_FLUSH_THRESHOLD, -1, -1);
+        index = new Index(dummyFolder, 10, -1, -1);
         cleanup = new RecordCleanup(streams, index);
     }
 

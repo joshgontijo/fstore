@@ -2,36 +2,40 @@ package io.joshworks.fstore.lsmtree.sstable;
 
 import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
+
 public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>> {
 
-    public final boolean deletion;
     public final K key;
     public final V value;
 
-    private Entry(boolean deletion, K key, V value) {
-        this.deletion = deletion;
+    private Entry(K key, V value) {
         this.key = key;
         this.value = value;
     }
 
-    public static <K extends Comparable<K>, V> Entry<K, V> key(K key) {
-        return of(false, key, null);
+    public static <K extends Comparable<K>, V> Entry<K, V> of(K key, V value) {
+        return new Entry<>(key, value);
     }
 
-    public static <K extends Comparable<K>, V> Entry<K, V> of(boolean deletion, K key, V value) {
-        return new Entry<>(deletion, key, value);
+    public static <K extends Comparable<K>, V> Entry<K, V> key(K key) {
+        requireNonNull(key, "Key must be provided");
+        return of(key, null);
     }
 
     public static <K extends Comparable<K>, V> Entry<K, V> add(K key, V value) {
-        return of(false, key, value);
+        requireNonNull(key, "Key must be provided");
+        requireNonNull(value, "Value must be provided");
+        return of(key, value);
     }
 
     public static <K extends Comparable<K>, V> Entry<K, V> delete(K key) {
-        return of(true, key, null);
+        requireNonNull(key, "Key must be provided");
+        return new Entry<>(key, null);
     }
 
     public boolean deletion() {
-        return deletion;
+        return value == null;
     }
 
     public K key() {
@@ -62,6 +66,6 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
 
     @Override
     public String toString() {
-        return deletion ? "DELETE" : "ADD" + ":" + key + "=" + value;
+        return deletion() ? "DELETE" : "ADD" + ":" + key + "=" + value;
     }
 }

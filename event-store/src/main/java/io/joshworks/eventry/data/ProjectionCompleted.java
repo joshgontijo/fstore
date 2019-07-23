@@ -13,7 +13,6 @@ public class ProjectionCompleted {
     public final long processedItems;
 
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_RUN_COMPLETED";
-    private static final Serializer<ProjectionCompleted> serializer = JsonSerializer.of(ProjectionCompleted.class);
 
     private ProjectionCompleted(String id, long processedItems) {
         this.id = id;
@@ -21,12 +20,12 @@ public class ProjectionCompleted {
     }
 
     public static EventRecord create(String id, long processedItems) {
-        var data = JsonSerializer.toJsonBytes(new ProjectionCompleted(id, processedItems));
+        var data = JsonSerializer.toBytes(new ProjectionCompleted(id, processedItems));
         return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data);
     }
 
     public static ProjectionCompleted from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.body));
+        return JsonSerializer.fromBytes(record.body, ProjectionCompleted.class);
     }
 
 }

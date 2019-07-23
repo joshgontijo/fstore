@@ -24,19 +24,18 @@ import java.util.List;
  * Definitions:
  * streamHash: any real number
  * entryCount: greater than zero
- * pos: greater or equal zero
+ * pos: greater or equal zero for actual positions. Long.MIN_VALUE for NULL
  * <p>
  * version: positive greater or equal zero for insertions, negative value representing the truncated before version
  * of the it's absolute value, example... -10 represents truncated versions from version 0 until 10.
  * So only version 11 onwards will be available.
  * <p>
  * Deleting a stream means the truncated version will be Integer.MIN_VALUE
- * <p>
- * Entry.deletion field is ignored
  */
 public class IndexCodec implements Codec {
 
     private final Serializer<Entry<IndexKey, Long>> serializer = new EntrySerializer<>(new IndexKeySerializer(), Serializers.LONG);
+    private static final long NULL = Long.MIN_VALUE;
 
     @Override
     public void compress(ByteBuffer src, ByteBuffer dst) {
@@ -45,19 +44,19 @@ public class IndexCodec implements Codec {
         List<Integer> versions = new ArrayList<>();
         List<Long> positions = new ArrayList<>();
         while (src.hasRemaining()) {
-            Entry<IndexKey, Long> indexEntry = serializer.fromBytes(src);
+            Entry<IndexKey, Long> entry = serializer.fromBytes(src);
             if (last == null) {
-                last = indexEntry;
+                last = entry;
             }
-            if (last.key.stream != indexEntry.key.stream) {
+            if (last.key.stream != entry.key.stream) {
                 writeToBuffer(dst, last.key.stream, versions, positions);
                 versions = new ArrayList<>();
                 positions = new ArrayList<>();
             }
 
-            versions.add(indexEntry.key.version);
-            positions.add(indexEntry.value);
-            last = indexEntry;
+            versions.add(entry.key.version);
+            positions.add(entry.value == null ? NULL : entry.value);
+            last = entry;
         }
 
         if (last != null && !versions.isEmpty()) {
@@ -73,7 +72,8 @@ public class IndexCodec implements Codec {
             for (int i = 0; i < numVersions; i++) {
                 int version = src.getInt();
                 long position = src.getLong();
-                Entry<IndexKey, Long> ie = Entry.of(false, new IndexKey(stream, version), position);
+                Long p = position == NULL ? null : position;
+                Entry<IndexKey, Long> ie = Entry.of(new IndexKey(stream, version), p);
                 serializer.writeTo(ie, dst);
             }
         }

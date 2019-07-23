@@ -49,7 +49,7 @@ public class JsonEvent {
     }
 
     public EventRecord toEvent() {
-        return new EventRecord(stream, type, version, timestamp, JsonSerializer.toJsonBytes(body), JsonSerializer.toJsonBytes(metadata));
+        return new EventRecord(stream, type, version, timestamp, JsonSerializer.toBytes(body), JsonSerializer.toBytes(metadata));
     }
 
     public String dataAsJson() {

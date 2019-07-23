@@ -10,7 +10,6 @@ import java.nio.ByteBuffer;
 public class StreamDeleted {
 
     //serializing straight into a StreamMetadata
-    private static final Serializer<StreamDeleted> serializer = JsonSerializer.of(StreamDeleted.class);
 
     public final String stream;
     public final int versionAtDeletion;
@@ -23,12 +22,12 @@ public class StreamDeleted {
     }
 
     public static EventRecord create(String stream, int versionAtDeletion) {
-        var data = serializer.toBytes(new StreamDeleted(stream, versionAtDeletion));
-        return EventRecord.create(SystemStreams.STREAMS, TYPE, data.array());
+        var data = JsonSerializer.toBytes(new StreamDeleted(stream, versionAtDeletion));
+        return EventRecord.create(SystemStreams.STREAMS, TYPE, data);
     }
 
     public static StreamDeleted from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.body));
+        return JsonSerializer.fromBytes(record.body, StreamDeleted.class);
     }
 
 }

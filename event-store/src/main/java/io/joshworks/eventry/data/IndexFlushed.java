@@ -10,8 +10,6 @@ import static io.joshworks.eventry.StreamName.SYSTEM_PREFIX;
 
 public class IndexFlushed {
 
-    private static final Serializer<IndexFlushed> serializer = JsonSerializer.of(IndexFlushed.class);
-
     public final long logPosition;
     public final long timeTaken;
 
@@ -24,12 +22,12 @@ public class IndexFlushed {
 
     public static EventRecord create(long logPosition, long timeTaken) {
         var indexFlushed = new IndexFlushed(logPosition, timeTaken);
-        var data = serializer.toBytes(indexFlushed);
-        return EventRecord.create(SystemStreams.INDEX, TYPE, data.array());
+        var data = JsonSerializer.toBytes(indexFlushed);
+        return EventRecord.create(SystemStreams.INDEX, TYPE, data);
     }
 
     public static IndexFlushed from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.body));
+        return JsonSerializer.fromBytes(record.body, IndexFlushed.class);
     }
 
 }

@@ -5,7 +5,7 @@ import io.joshworks.fstore.lsmtree.EntryType;
 
 import java.nio.ByteBuffer;
 
-public class RecordSerializer<K, V> implements Serializer<Record<K, V>> {
+public class RecordSerializer<K, V> implements Serializer<LogRecord<K, V>> {
 
     private final Serializer<K> keySerializer;
     private final Serializer<V> valueSerializer;
@@ -16,7 +16,7 @@ public class RecordSerializer<K, V> implements Serializer<Record<K, V>> {
     }
 
     @Override
-    public void writeTo(Record<K, V> data, ByteBuffer dst) {
+    public void writeTo(LogRecord<K, V> data, ByteBuffer dst) {
         dst.putShort(data.type.code);
         if (data.key != null) {
             keySerializer.writeTo(data.key, dst);
@@ -27,19 +27,19 @@ public class RecordSerializer<K, V> implements Serializer<Record<K, V>> {
     }
 
     @Override
-    public Record<K, V> fromBytes(ByteBuffer buffer) {
+    public LogRecord<K, V> fromBytes(ByteBuffer buffer) {
         short code = buffer.getShort();
         if (code == EntryType.ADD.code) {
             K k = keySerializer.fromBytes(buffer);
             V v = valueSerializer.fromBytes(buffer);
-            return Record.add(k, v);
+            return LogRecord.add(k, v);
         }
         if (code == EntryType.DELETE.code) {
             K k = keySerializer.fromBytes(buffer);
-            return Record.delete(k);
+            return LogRecord.delete(k);
         }
         if (code == EntryType.MEM_FLUSHED.code) {
-            return Record.memFlushed();
+            return LogRecord.memFlushed();
         }
         throw new IllegalStateException("Unknown record type: " + code);
     }

@@ -24,6 +24,7 @@ public class LsmTreeTest {
 
     private LsmTree<Integer, String> lsmtree;
     private File testDirectory;
+    private static final int FLUSH_THRESHOLD = 1000;
 
 
     @Before
@@ -34,8 +35,7 @@ public class LsmTreeTest {
 
     private LsmTree<Integer, String> open(File dir) {
         return LsmTree.builder(dir, Serializers.INTEGER, Serializers.STRING)
-                .flushThreshold(100)
-                .disableTransactionLog()
+                .flushThreshold(FLUSH_THRESHOLD)
                 .sstableStorageMode(StorageMode.MMAP)
                 .ssTableFlushMode(FlushMode.MANUAL)
                 .open();
@@ -45,6 +45,26 @@ public class LsmTreeTest {
     public void tearDown() {
         lsmtree.close();
         FileUtils.tryDelete(testDirectory);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void key_must_be_provided_when_adding_an_entry() {
+        lsmtree.put(null, "a");
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void value_must_be_provided_when_adding_an_entry() {
+        lsmtree.put(1, null);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void key_must_be_provided_when_deleting_an_entry() {
+        lsmtree.remove(null);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void key_must_be_provided_when_getting_an_entry() {
+        lsmtree.get(null);
     }
 
     @Test
@@ -95,7 +115,7 @@ public class LsmTreeTest {
 
     @Test
     public void iterator_deleted_entries() throws Exception {
-        int items = 10000;
+        int items = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
         }
@@ -117,8 +137,8 @@ public class LsmTreeTest {
     }
 
     @Test
-    public void can_iterator_over_entries_without_reopening() {
-        int items = 10000;
+    public void can_get_without_reopening() {
+        int items = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
         }
@@ -131,7 +151,7 @@ public class LsmTreeTest {
 
     @Test
     public void can_iterator_over_entries_after_reopening() {
-        int items = 10000;
+        int items = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
         }
@@ -148,30 +168,16 @@ public class LsmTreeTest {
 
     @Test
     public void range_iterator() throws IOException {
-        int items = 10000;
+        int items = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
         }
 
-        try(CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.BACKWARD, Range.startingWith(9990))) {
+        try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.BACKWARD, Range.startingWith(9990))) {
             while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
                 System.out.println(entry);
             }
-        }
-    }
-
-    @Test
-    public void continuous_iterator() throws IOException {
-        lsmtree.put(1, "");
-
-        try(CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.FORWARD)) {
-            Entry<Integer, String> entry = iterator.next();
-            assertEquals(Integer.valueOf(1), entry.key);
-
-            lsmtree.put(2, "");
-            assertTrue(iterator.hasNext());
-            assertEquals(Integer.valueOf(2), iterator.next().key);
         }
     }
 

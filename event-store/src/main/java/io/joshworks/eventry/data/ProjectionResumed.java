@@ -16,7 +16,6 @@ public class ProjectionResumed {
     public final long processedItems;
 
     public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_RUN_FAILED";
-    private static final Serializer<ProjectionResumed> serializer = JsonSerializer.of(ProjectionResumed.class);
 
     private ProjectionResumed(String name, String reason, long processedItems, String streamName, int streamVersion) {
         this.name = name;
@@ -27,12 +26,12 @@ public class ProjectionResumed {
     }
 
     public static EventRecord create(String name, String reason, long processedItems, String streamName, int streamVersion) {
-        var data = serializer.toBytes(new ProjectionResumed(name, reason, processedItems, streamName, streamVersion));
-        return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data.array());
+        var data = JsonSerializer.toBytes(new ProjectionResumed(name, reason, processedItems, streamName, streamVersion));
+        return EventRecord.create(SystemStreams.PROJECTIONS, TYPE, data);
     }
 
     public static ProjectionResumed from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.body));
+        return JsonSerializer.fromBytes(record.body, ProjectionResumed.class);
     }
 
 }

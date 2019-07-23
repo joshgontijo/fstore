@@ -51,7 +51,7 @@ public class Block implements Iterable<ByteBuffer> {
     }
 
     public <T> boolean add(T entry, Serializer<T> serializer, BufferPool bufferPool) {
-        try(bufferPool) {
+        try (bufferPool) {
             ByteBuffer data = bufferPool.allocate();
             serializer.writeTo(entry, data);
             data.flip();
@@ -68,6 +68,7 @@ public class Block implements Iterable<ByteBuffer> {
 
         lengths.add(entrySize);
         data.putInt(entrySize);
+        positions.add(data.position());
         data.put(entry);
         return true;
     }
@@ -160,7 +161,10 @@ public class Block implements Iterable<ByteBuffer> {
         }
         int pos = positions.get(idx);
         int len = lengths.get(idx);
-        return data.asReadOnlyBuffer().limit(pos + len).position(pos);
+        return data.asReadOnlyBuffer()
+                .limit(pos + len)
+                .position(pos)
+                .slice();
     }
 
     public boolean readOnly() {

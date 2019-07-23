@@ -64,7 +64,7 @@ public class SSTablesTest {
 
         int x = 0;
         for (int i = 0; i < items; i += 5) {
-            memTable.add(i, String.valueOf(i));
+            memTable.add(Entry.add(i, String.valueOf(i)));
             treeMap.add(i);
 
             if (++x % itemsPerSegment == 0) {
@@ -95,7 +95,7 @@ public class SSTablesTest {
 
         int x = 0;
         for (int i = 0; i < items; i += 5) {
-            memTable.add(i, String.valueOf(i));
+            memTable.add(Entry.add(i, String.valueOf(i)));
             treeMap.add(i);
 
             if (++x % itemsPerSegment == 0) {
@@ -112,7 +112,7 @@ public class SSTablesTest {
         for (int i = 0; i < items / 4; i += 5) {
             int val = random.nextInt(items - 1);
             treeMap.add(val);
-            memTable.add(val, String.valueOf(val));
+            memTable.add(Entry.add(val, String.valueOf(val)));
 
             if (++x % itemsPerSegment == 0) {
                 memTable.writeTo(sstables);

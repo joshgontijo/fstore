@@ -39,12 +39,16 @@ public class JsonSerializer<T> implements Serializer<T> {
         return gson.toJson(data);
     }
 
-    public static byte[] toJsonBytes(Object data) {
+    public static byte[] toBytes(Object data) {
         return toJson(data).getBytes(StandardCharsets.UTF_8);
     }
 
-    public static byte[] toJsonBytes(Map<String, Object> data) {
+    public static byte[] toBytes(Map<String, Object> data) {
         return toJson(data).getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static <T> T fromBytes(byte[] data, Type type) {
+        return gson.fromJson(new String(data, StandardCharsets.UTF_8), type);
     }
 
     @Override
