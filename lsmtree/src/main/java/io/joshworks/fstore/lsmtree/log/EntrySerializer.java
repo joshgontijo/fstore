@@ -7,8 +7,6 @@ import java.nio.ByteBuffer;
 
 public class EntrySerializer<K extends Comparable<K>, V> implements Serializer<LogEntry<K, V>> {
 
-    private static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
-
     private final Serializer<K> keySerializer;
     private final Serializer<V> valueSerializer;
 
@@ -18,16 +16,10 @@ public class EntrySerializer<K extends Comparable<K>, V> implements Serializer<L
     }
 
     @Override
-    public ByteBuffer toBytes(LogEntry<K, V> data) {
-        ByteBuffer key = keySerializer.toBytes(data.key);
-        ByteBuffer val = EntryType.ADD.equals(data.type) ? valueSerializer.toBytes(data.value) : EMPTY;
-        ByteBuffer bb = ByteBuffer.allocate(Integer.BYTES + key.limit() + val.limit());
-        return bb.putInt(data.type.code).put(key).put(val).flip();
-    }
-
-    @Override
     public void writeTo(LogEntry<K, V> data, ByteBuffer dst) {
-        throw new UnsupportedOperationException();
+        dst.putInt(data.type.code);
+        keySerializer.writeTo(data.key, dst);
+        valueSerializer.writeTo(data.value, dst);
     }
 
     @Override

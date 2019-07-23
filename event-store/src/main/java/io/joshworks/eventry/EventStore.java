@@ -17,11 +17,9 @@ import io.joshworks.eventry.log.RecordCleanup;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
-import io.joshworks.eventry.utils.Memory;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.writer.EventWriter;
 import io.joshworks.eventry.writer.Writer;
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
@@ -79,14 +77,14 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
-        this.index = new Index(rootDir, INDEX_FLUSH_THRESHOLD, new SnappyCodec(), VERSION_CACHE_SIZE, VERSION_CACHE_MAX_AGE);
+        this.index = new Index(rootDir, INDEX_FLUSH_THRESHOLD, VERSION_CACHE_SIZE, VERSION_CACHE_MAX_AGE);
         this.streams = new Streams(rootDir, STREAMS_FLUSH_THRESHOLD, STREAM_CACHE_SIZE, STREAM_CACHE_MAX_AGE);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
                 .name("event-log")
                 .flushMode(FlushMode.MANUAL)
                 .storageMode(StorageMode.MMAP)
-                .directBufferPool(Memory.PAGE_SIZE, true)
+                .directBufferPool()
                 .checksumProbability(1)
                 .disableCompaction()
                 .namingStrategy(new SequentialNaming(rootDir))

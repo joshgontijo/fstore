@@ -10,28 +10,6 @@ public class EventSerializer implements Serializer<EventRecord> {
     private final Serializer<String> strSerializer = new VStringSerializer();
 
     @Override
-    public ByteBuffer toBytes(EventRecord data) {
-        int typeLength = VStringSerializer.sizeOf(data.type);
-        int streamNameLength = VStringSerializer.sizeOf(data.stream);
-
-        int metadataLen = data.metadata == null ? 0 : data.metadata.length;
-        ByteBuffer bb = ByteBuffer.allocate(
-                typeLength +
-                        streamNameLength +
-                        Integer.BYTES +
-                        Long.BYTES +
-                        Long.BYTES +
-                        Integer.BYTES +
-                        data.body.length +
-                        Integer.BYTES +
-                        metadataLen);
-
-        writeTo(data, bb);
-
-        return bb.flip();
-    }
-
-    @Override
     public void writeTo(EventRecord data, ByteBuffer dst) {
         strSerializer.writeTo(data.type, dst);
         strSerializer.writeTo(data.stream, dst);

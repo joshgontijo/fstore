@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.index.cache.NoCache;
 import io.joshworks.fstore.log.segment.WriteMode;
-import io.joshworks.fstore.log.segment.block.VLenBlock;
+import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -39,9 +39,9 @@ public class SSTableTest {
                 Size.MB.of(20),
                 Serializers.INTEGER,
                 Serializers.VSTRING,
-                new BufferPool(),
+                new BufferPool(Size.MB.ofInt(1)),
                 WriteMode.LOG_HEAD,
-                VLenBlock.factory(),
+                Block.vlenBlock(),
                 Codec.noCompression(),
                 new NoCache<>(),
                 10000,

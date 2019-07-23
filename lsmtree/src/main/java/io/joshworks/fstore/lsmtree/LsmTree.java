@@ -13,8 +13,8 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
-import io.joshworks.fstore.log.segment.block.VLenBlock;
 import io.joshworks.fstore.lsmtree.log.NoOpTransactionLog;
 import io.joshworks.fstore.lsmtree.log.PersistentTransactionLog;
 import io.joshworks.fstore.lsmtree.log.Record;
@@ -253,7 +253,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private String name = "lsm-tree";
         private StorageMode sstableStorageMode = StorageMode.MMAP;
         private FlushMode ssTableFlushMode = FlushMode.ON_ROLL;
-        private BlockFactory sstableBlockFactory = VLenBlock.factory();
+        private BlockFactory sstableBlockFactory = Block.vlenBlock(false);
         private StorageMode tlogStorageMode = StorageMode.RAF;
         private int segmentSize = Size.MB.ofInt(32);
 
@@ -305,7 +305,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
 
         public Builder<K, V> offHeapBlock() {
-            this.sstableBlockFactory = VLenBlock.factory(true);
+            this.sstableBlockFactory = Block.vlenBlock(true);
             return this;
         }
 

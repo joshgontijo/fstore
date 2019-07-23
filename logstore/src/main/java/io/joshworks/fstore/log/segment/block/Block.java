@@ -118,6 +118,7 @@ public class Block implements Iterable<ByteBuffer> {
     protected ByteBuffer unpack(Codec codec, ByteBuffer blockData, boolean direct) {
         int uncompressedSize = blockData.getInt();
 
+        //LZ4 required destination buffer to have the exact number uncompressed bytes
         ByteBuffer data = createBuffer(uncompressedSize, direct);
         codec.decompress(blockData, data);
         data.flip();
@@ -194,6 +195,10 @@ public class Block implements Iterable<ByteBuffer> {
     @Override
     public Iterator<ByteBuffer> iterator() {
         return new BlockEntryIterator(this);
+    }
+
+    public int remaining() {
+        return data.remaining();
     }
 
     private static final class BlockEntryIterator implements Iterator<ByteBuffer> {

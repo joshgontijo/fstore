@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.appender.FlushMode;
-import io.joshworks.fstore.log.segment.block.VLenBlock;
+import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.testutils.FileUtils;
 import org.junit.After;
@@ -40,7 +40,7 @@ public class SSTablesTest {
                 Size.MB.ofInt(5),
                 StorageMode.MMAP,
                 FlushMode.MANUAL,
-                VLenBlock.factory(),
+                Block.vlenBlock(),
                 new SnappyCodec(),
                 1000000,
                 0.01,

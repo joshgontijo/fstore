@@ -1,7 +1,20 @@
 package io.joshworks.fstore.index.filter;
 
+import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.io.MemStorage;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.record.RecordHeader;
+import io.joshworks.fstore.log.segment.block.Block;
+import io.joshworks.fstore.log.segment.block.BlockFactory;
+import io.joshworks.fstore.log.segment.block.BlockSerializer;
+import io.joshworks.fstore.log.segment.footer.FooterReader;
+import io.joshworks.fstore.log.segment.footer.FooterWriter;
+import io.joshworks.fstore.serializer.Serializers;
+
 import java.nio.ByteBuffer;
 import java.util.BitSet;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -12,6 +25,10 @@ import java.util.Objects;
  * Data -> long[]
  */
 public class BloomFilter {
+
+    private static final String BLOCK_PREFIX = "BLOOM_FILTER_";
+    public static final String BLOOM_HEADER = "BLOOM_HEADER";
+    private static final Codec CODEC = Codec.noCompression();
 
     private static final int HEADER_SIZE = Integer.BYTES * 3;
 
@@ -118,45 +135,106 @@ public class BloomFilter {
     }
 
 
-    public void writeTo(ByteBuffer dst) {
+    public void writeTo(FooterWriter writer, BufferPool bufferPool) {
         long[] items = hashes.toLongArray();
         int dataLength = items.length * Long.BYTES;
-        int totalSize = dataLength + HEADER_SIZE;
+        long totalSize = dataLength + HEADER_SIZE;
 
+        if (totalSize > MemStorage.MAX_BUFFER_SIZE) {
+            throw new IllegalStateException("Bloom filter too big");
+        }
 
+        writeHeader(writer, bufferPool, dataLength);
+
+        int blockSize = Math.min(bufferPool.capacity() - RecordHeader.HEADER_OVERHEAD, Size.MB.ofInt(1));
+        BlockFactory blockFactory = dataBlockFactory(bufferPool);
+        BlockSerializer blockSerializer = new BlockSerializer(CODEC, blockFactory);
+        Block block = blockFactory.create(blockSize);
+
+        int blockIdx = 0;
+        for (long item : items) {
+            if (!block.add(item, Serializers.LONG, bufferPool)) {
+                writer.write(BLOCK_PREFIX + blockIdx, block, blockSerializer);
+                block.clear();
+                blockIdx++;
+                block.add(item, Serializers.LONG, bufferPool);
+            }
+        }
+        if (!block.isEmpty()) {
+            writer.write(BLOCK_PREFIX + blockIdx, block, blockSerializer);
+        }
+    }
+
+    private void writeHeader(FooterWriter writer, BufferPool bufferPool, int dataLength) {
         //Format
         //Length -> 4bytes
         //Number of bits (m) -> 4bytes
-        //Number of hash (k) -> 4bytes
+        //Number of hashes (k) -> 4bytes
         //Data -> long[]
-        dst.putInt(dataLength);
-        dst.putInt(this.m);
-        dst.putInt(this.k);
-        for (long item : items) {
-            dst.putLong(item);
+        BlockFactory blockFactory = headerBlockFactory(bufferPool);
+        Block headerBlock = blockFactory.create(128);
+        try (bufferPool) {
+            headerBlock.add(dataLength, Serializers.INTEGER, bufferPool);
+            headerBlock.add(this.m, Serializers.INTEGER, bufferPool);
+            headerBlock.add(this.k, Serializers.INTEGER, bufferPool);
         }
+        BlockSerializer blockSerializer = new BlockSerializer(CODEC, blockFactory);
+        writer.write(BLOOM_HEADER, headerBlock, blockSerializer);
     }
 
     public static BloomFilter create(long n, double p) {
         return new BloomFilter(n, p);
     }
 
-    public static BloomFilter load(ByteBuffer data) {
+    public static BloomFilter load(FooterReader reader, BufferPool bufferPool) {
 
-        int length = data.getInt(); //unused
-        int m = data.getInt();
-        int k = data.getInt();
-
-        long[] longs = new long[data.remaining() / Long.BYTES];
-        int i = 0;
-        while (data.hasRemaining()) {
-            longs[i++] = data.getLong();
+        Block headerBlock = readHeader(reader, bufferPool);
+        if (headerBlock == null) {
+            throw new IllegalStateException("Could not find Bloom filter header block");
         }
+
+        int length = headerBlock.get(0).getInt(); //unused
+        int m = headerBlock.get(1).getInt();
+        int k = headerBlock.get(2).getInt();
+        long[] longs = readEntries(reader, bufferPool);
 
         BitSet bitSet = new BitSet(m);
         bitSet.or(BitSet.valueOf(longs));
 
         return new BloomFilter(bitSet, m, k);
+    }
+
+    private static long[] readEntries(FooterReader reader, BufferPool bufferPool) {
+        BlockFactory blockFactory = dataBlockFactory(bufferPool);
+        List<Block> blocks = reader.findAll(BLOCK_PREFIX, new BlockSerializer(CODEC, blockFactory));
+
+        if (blocks.isEmpty()) {
+            throw new IllegalStateException("Could not find any BloomFilter data block");
+        }
+
+        int numEntries = blocks.stream().mapToInt(Block::entryCount).sum();
+
+        long[] longs = new long[numEntries];
+        int i = 0;
+        for (Block block : blocks) {
+            for (ByteBuffer entry : block) {
+                longs[i++] = entry.getLong();
+            }
+        }
+        return longs;
+    }
+
+    private static BlockFactory dataBlockFactory(BufferPool bufferPool) {
+        return Block.vlenBlock(bufferPool.direct());
+    }
+
+    private static BlockFactory headerBlockFactory(BufferPool bufferPool) {
+        return Block.flenBlock(bufferPool.direct(), Integer.BYTES);
+    }
+
+    private static Block readHeader(FooterReader reader, BufferPool bufferPool) {
+        BlockFactory blockFactory = headerBlockFactory(bufferPool);
+        return reader.read(BLOOM_HEADER, new BlockSerializer(CODEC, blockFactory));
     }
 
     @Override

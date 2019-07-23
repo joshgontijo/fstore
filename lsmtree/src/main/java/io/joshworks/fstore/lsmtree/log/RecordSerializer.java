@@ -7,23 +7,12 @@ import java.nio.ByteBuffer;
 
 public class RecordSerializer<K, V> implements Serializer<Record<K, V>> {
 
-    private static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
     private final Serializer<K> keySerializer;
     private final Serializer<V> valueSerializer;
 
     public RecordSerializer(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         this.keySerializer = keySerializer;
         this.valueSerializer = valueSerializer;
-    }
-
-    @Override
-    public ByteBuffer toBytes(Record<K, V> data) {
-        ByteBuffer key = data.key != null ? keySerializer.toBytes(data.key) : EMPTY;
-        ByteBuffer value = data.value != null ? valueSerializer.toBytes(data.value) : EMPTY;
-
-        ByteBuffer rec = ByteBuffer.allocate(Integer.BYTES + key.limit() + value.limit());
-
-        return rec.putInt(data.type.code).put(key).put(value).flip();
     }
 
     @Override
