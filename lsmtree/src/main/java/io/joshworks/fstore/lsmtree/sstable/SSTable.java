@@ -218,14 +218,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
             Block block = delegate.getBlock(midpoint.position);
             int bidx = binarySearch(block, key);
-            if (bidx >= 0) {
-                Entry<K, V> found = readNextNonExpired(block, bidx, Direction.BACKWARD);
-                if(found != null) {
-                    return found;
-                }
-            }
-            if (bidx < 0 && Math.abs(bidx) <= 0) {
-                return null;
+            bidx = bidx < 0 ? Math.abs(bidx) - 2 : bidx;
+            Entry<K, V> found = readNextNonExpired(block, bidx, Direction.BACKWARD);
+            if (found != null) {
+                return found;
             }
         }
         return null;
