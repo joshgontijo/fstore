@@ -18,7 +18,6 @@ import java.util.List;
 public class Midpoints<K extends Comparable<K>> {
 
     private static final String BLOCK_PREFIX = "MIDPOINT_";
-    private static final Codec CODEC = Codec.noCompression();
 
     private final List<Midpoint<K>> entries = new ArrayList<>();
 
@@ -130,12 +129,12 @@ public class Midpoints<K extends Comparable<K>> {
         return entries.get(entries.size() - 1);
     }
 
-    public void writeTo(FooterWriter writer, BufferPool bufferPool, Serializer<K> keySerializer) {
+    public void writeTo(FooterWriter writer, Codec codec, BufferPool bufferPool, Serializer<K> keySerializer) {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
         int blockSize = Math.min(bufferPool.capacity(), Size.MB.ofInt(1));
         BlockFactory blockFactory = Block.vlenBlock(bufferPool.direct());
-        BlockSerializer blockSerializer = new BlockSerializer(CODEC, blockFactory);
+        BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
         Block block = blockFactory.create(blockSize);
 
         int blockIdx = 0;
@@ -153,14 +152,14 @@ public class Midpoints<K extends Comparable<K>> {
         }
     }
 
-    public static <K extends Comparable<K>> Midpoints<K> load(FooterReader reader, BufferPool bufferPool, Serializer<K> keySerializer) {
+    public static <K extends Comparable<K>> Midpoints<K> load(FooterReader reader, Codec codec, BufferPool bufferPool, Serializer<K> keySerializer) {
         Midpoints<K> midpoints = new Midpoints<>();
         if (!midpoints.isEmpty()) {
             throw new IllegalStateException("Midpoints is not empty");
         }
 
         BlockFactory blockFactory = Block.vlenBlock(bufferPool.direct());
-        BlockSerializer blockSerializer = new BlockSerializer(CODEC, blockFactory);
+        BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
         Serializer<Midpoint<K>> midpointSerializer = new MidpointSerializer<>(keySerializer);
         List<Block> blocks = reader.findAll(BLOCK_PREFIX, blockSerializer);
 

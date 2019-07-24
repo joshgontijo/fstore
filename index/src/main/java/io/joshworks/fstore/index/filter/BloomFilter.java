@@ -28,7 +28,6 @@ public class BloomFilter {
 
     private static final String BLOCK_PREFIX = "BLOOM_FILTER_";
     public static final String BLOOM_HEADER = "BLOOM_HEADER";
-    private static final Codec CODEC = Codec.noCompression();
 
     private static final int HEADER_SIZE = Integer.BYTES * 3;
 
@@ -135,7 +134,7 @@ public class BloomFilter {
     }
 
 
-    public void writeTo(FooterWriter writer, BufferPool bufferPool) {
+    public void writeTo(FooterWriter writer, Codec codec, BufferPool bufferPool) {
         long[] items = hashes.toLongArray();
         int dataLength = items.length * Long.BYTES;
         long totalSize = dataLength + HEADER_SIZE;
@@ -144,11 +143,11 @@ public class BloomFilter {
             throw new IllegalStateException("Bloom filter too big");
         }
 
-        writeHeader(writer, bufferPool, dataLength);
+        writeHeader(writer, codec, bufferPool, dataLength);
 
         int blockSize = Math.min(bufferPool.capacity() - RecordHeader.HEADER_OVERHEAD, Size.MB.ofInt(1));
         BlockFactory blockFactory = dataBlockFactory(bufferPool);
-        BlockSerializer blockSerializer = new BlockSerializer(CODEC, blockFactory);
+        BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
         Block block = blockFactory.create(blockSize);
 
         int blockIdx = 0;
@@ -165,7 +164,7 @@ public class BloomFilter {
         }
     }
 
-    private void writeHeader(FooterWriter writer, BufferPool bufferPool, int dataLength) {
+    private void writeHeader(FooterWriter writer, Codec codec, BufferPool bufferPool, int dataLength) {
         //Format
         //Length -> 4bytes
         //Number of bits (m) -> 4bytes
@@ -178,7 +177,7 @@ public class BloomFilter {
             headerBlock.add(this.m, Serializers.INTEGER, bufferPool);
             headerBlock.add(this.k, Serializers.INTEGER, bufferPool);
         }
-        BlockSerializer blockSerializer = new BlockSerializer(CODEC, blockFactory);
+        BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
         writer.write(BLOOM_HEADER, headerBlock, blockSerializer);
     }
 
@@ -186,9 +185,9 @@ public class BloomFilter {
         return new BloomFilter(n, p);
     }
 
-    public static BloomFilter load(FooterReader reader, BufferPool bufferPool) {
+    public static BloomFilter load(FooterReader reader, Codec codec, BufferPool bufferPool) {
 
-        Block headerBlock = readHeader(reader, bufferPool);
+        Block headerBlock = readHeader(reader, codec, bufferPool);
         if (headerBlock == null) {
             throw new IllegalStateException("Could not find Bloom filter header block");
         }
@@ -196,7 +195,7 @@ public class BloomFilter {
         int length = headerBlock.get(0).getInt(); //unused
         int m = headerBlock.get(1).getInt();
         int k = headerBlock.get(2).getInt();
-        long[] longs = readEntries(reader, bufferPool);
+        long[] longs = readEntries(reader, codec, bufferPool);
 
         BitSet bitSet = new BitSet(m);
         bitSet.or(BitSet.valueOf(longs));
@@ -204,9 +203,9 @@ public class BloomFilter {
         return new BloomFilter(bitSet, m, k);
     }
 
-    private static long[] readEntries(FooterReader reader, BufferPool bufferPool) {
+    private static long[] readEntries(FooterReader reader, Codec codec, BufferPool bufferPool) {
         BlockFactory blockFactory = dataBlockFactory(bufferPool);
-        List<Block> blocks = reader.findAll(BLOCK_PREFIX, new BlockSerializer(CODEC, blockFactory));
+        List<Block> blocks = reader.findAll(BLOCK_PREFIX, new BlockSerializer(codec, blockFactory));
 
         if (blocks.isEmpty()) {
             throw new IllegalStateException("Could not find any BloomFilter data block");
@@ -232,9 +231,9 @@ public class BloomFilter {
         return Block.flenBlock(bufferPool.direct(), Integer.BYTES);
     }
 
-    private static Block readHeader(FooterReader reader, BufferPool bufferPool) {
+    private static Block readHeader(FooterReader reader, Codec codec, BufferPool bufferPool) {
         BlockFactory blockFactory = headerBlockFactory(bufferPool);
-        return reader.read(BLOOM_HEADER, new BlockSerializer(CODEC, blockFactory));
+        return reader.read(BLOOM_HEADER, new BlockSerializer(codec, blockFactory));
     }
 
     @Override

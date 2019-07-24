@@ -1,5 +1,6 @@
 package io.joshworks.fstore.index.filter;
 
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
@@ -29,6 +30,7 @@ public class BloomFilterTest {
     private Storage storage;
     private FooterWriter writer;
     private FooterReader reader;
+    private Codec codec = Codec.noCompression();
 
     @Before
     public void setUp() {
@@ -62,11 +64,11 @@ public class BloomFilterTest {
         assertFalse(filter.contains(toBytes(2L)));
 
         ByteBuffer data = ByteBuffer.allocate(4096);
-        filter.writeTo(writer, bufferPool);
+        filter.writeTo(writer, codec, bufferPool);
 
         data.flip();
 
-        BloomFilter loaded = BloomFilter.load(reader, bufferPool);
+        BloomFilter loaded = BloomFilter.load(reader, codec, bufferPool);
 
         assertEquals(filter.hashes.size(), loaded.hashes.size());
         assertEquals(filter.hashes.length(), loaded.hashes.length());

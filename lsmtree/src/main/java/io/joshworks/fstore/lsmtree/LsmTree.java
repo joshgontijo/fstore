@@ -38,6 +38,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private final TransactionLog<K, V> log;
     private final int flushThreshold;
     private final boolean logDisabled;
+    private final boolean flushOnClose;
 
     private MemTable<K, V> memTable;
     private final Cache<K, V> cache;
@@ -48,6 +49,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         this.memTable = new MemTable<>();
         this.flushThreshold = builder.flushThreshold;
         this.logDisabled = builder.logDisabled;
+        this.flushOnClose = builder.flushOnClose;
         this.log.restore(this::restore);
         this.cache = Cache.create(builder.entryCacheSize, builder.entryCacheMaxAge);
     }
@@ -67,6 +69,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.ssTableFlushMode,
                 builder.sstableBlockFactory,
                 builder.codec,
+                builder.footerCodec,
                 builder.bloomNItems,
                 builder.bloomFPProb,
                 builder.blockSize,
@@ -212,7 +215,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     @Override
     public void close() {
         if (logDisabled && !memTable.isEmpty()) {
-            flushMemTable(true);
+            flushMemTable(flushOnClose);
         }
         sstables.close();
         log.close();
@@ -243,6 +246,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private final File directory;
         private final Serializer<K> keySerializer;
         private final Serializer<V> valueSerializer;
+        public Codec footerCodec = Codec.noCompression();
         private long bloomNItems = DEFAULT_THRESHOLD;
         private double bloomFPProb = 0.05;
         private int blockSize = Memory.PAGE_SIZE;
@@ -261,6 +265,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
         private int entryCacheSize = 10000;
         private int entryCacheMaxAge = 120000;
+        private boolean flushOnClose = true;
 
 
         private Builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -295,6 +300,12 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
+        public Builder<K, V> footerCodec(Codec footerCodec) {
+            requireNonNull(footerCodec, "Codec cannot be null");
+            this.footerCodec = footerCodec;
+            return this;
+        }
+
         public Builder<K, V> segmentSize(int size) {
             if (bloomNItems <= 0) {
                 throw new IllegalArgumentException("Segment size must be greater than zero");
@@ -305,6 +316,16 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
         public Builder<K, V> offHeapBlock() {
             this.sstableBlockFactory = Block.vlenBlock(true);
+            return this;
+        }
+
+        public Builder<K, V> blockFactory(BlockFactory blockFactory) {
+            this.sstableBlockFactory = blockFactory;
+            return this;
+        }
+
+        public Builder<K, V> blockSize(int blockSize) {
+            this.blockSize = blockSize;
             return this;
         }
 
@@ -322,6 +343,11 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
         public Builder<K, V> disableTransactionLog() {
             this.logDisabled = true;
+            return this;
+        }
+
+        public Builder<K, V> flushOnClose(boolean flushOnClose) {
+            this.flushOnClose = flushOnClose;
             return this;
         }
 

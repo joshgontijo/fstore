@@ -43,6 +43,7 @@ public class SSTableTest {
                 WriteMode.LOG_HEAD,
                 Block.vlenBlock(),
                 Codec.noCompression(),
+                Codec.noCompression(),
                 new NoCache<>(),
                 10000,
                 0.01,

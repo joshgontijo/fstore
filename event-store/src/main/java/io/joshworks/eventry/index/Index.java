@@ -2,9 +2,12 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.eventry.utils.Memory;
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.lsmtree.Expression;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
@@ -30,9 +33,11 @@ public class Index implements Closeable {
                 .disableTransactionLog()
                 .flushThreshold(indexFlushThreshold)
                 .sstableStorageMode(StorageMode.MMAP)
-                .codec(new IndexCodec())
+                .blockFactory(Block.flenBlock(true, IndexKey.BYTES + Long.BYTES))
+                .codec(new SnappyCodec())
+                .blockSize(Memory.PAGE_SIZE * 2)
+                .flushOnClose(false)
                 .name(NAME)
-                .offHeapBlock()
                 .open();
     }
 

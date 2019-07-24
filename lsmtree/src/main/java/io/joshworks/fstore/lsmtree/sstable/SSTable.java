@@ -48,6 +48,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private final Serializer<K> keySerializer;
     private final BufferPool bufferPool;
 
+    private final Codec footerCodec;
     private final BloomFilter bloomFilter;
     private final Midpoints<K> midpoints;
 
@@ -62,6 +63,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                    WriteMode writeMode,
                    BlockFactory blockFactory,
                    Codec codec,
+                   Codec footerCodec,
                    Cache<String, Block> blockCache,
                    long bloomNItems,
                    double bloomFPProb,
@@ -70,6 +72,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                    int readPageSize) {
 
         this.bufferPool = bufferPool;
+        this.footerCodec = footerCodec;
         this.keySerializer = keySerializer;
         this.entrySerializer = new EntrySerializer<>(keySerializer, valueSerializer);
 
@@ -93,8 +96,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
         if (delegate.readOnly()) {
             FooterReader reader = delegate.footerReader();
-            this.midpoints = Midpoints.load(reader, bufferPool, keySerializer);
-            this.bloomFilter = BloomFilter.load(reader, bufferPool);
+            this.midpoints = Midpoints.load(reader, footerCodec, bufferPool, keySerializer);
+            this.bloomFilter = BloomFilter.load(reader, footerCodec, bufferPool);
         } else {
             this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb);
             this.midpoints = new Midpoints<>();
@@ -133,8 +136,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private void writeFooter(FooterWriter writer) {
-        midpoints.writeTo(writer, bufferPool, keySerializer);
-        bloomFilter.writeTo(writer, bufferPool);
+        midpoints.writeTo(writer, footerCodec, bufferPool, keySerializer);
+        bloomFilter.writeTo(writer, footerCodec, bufferPool);
     }
 
     @Override
@@ -548,6 +551,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         private final Serializer<V> valueSerializer;
         private final BlockFactory blockFactory;
         private final Codec codec;
+        private final Codec footerCodec;
         private final long bloomNItems;
         private final double bloomFPProb;
         private final int blockSize;
@@ -557,6 +561,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                        Serializer<V> valueSerializer,
                        BlockFactory blockFactory,
                        Codec codec,
+                       Codec footerCodec,
                        long bloomNItems,
                        double bloomFPProb,
                        int blockSize,
@@ -566,6 +571,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             this.valueSerializer = valueSerializer;
             this.blockFactory = blockFactory;
             this.codec = codec;
+            this.footerCodec = footerCodec;
             this.bloomNItems = bloomNItems;
             this.bloomFPProb = bloomFPProb;
             this.blockSize = blockSize;
@@ -584,6 +590,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                     writeMode,
                     blockFactory,
                     codec,
+                    footerCodec,
                     blockCache,
                     bloomNItems,
                     bloomFPProb,

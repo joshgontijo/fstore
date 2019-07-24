@@ -137,7 +137,7 @@ public class Config<T> {
     @Override
     public String toString() {
         return "Config{" + "directory=" + directory +
-                ", serializer=" + serializer +
+                ", serializer=" + serializer.getClass().getSimpleName() +
                 ", namingStrategy=" + namingStrategy.getClass().getSimpleName() +
                 ", combiner=" + combiner.getClass().getSimpleName() +
                 ", segmentFactory=" + segmentFactory.getClass().getSimpleName() +
