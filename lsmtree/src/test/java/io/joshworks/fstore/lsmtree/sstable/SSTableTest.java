@@ -42,6 +42,7 @@ public class SSTableTest {
                 new BufferPool(Size.MB.ofInt(1)),
                 WriteMode.LOG_HEAD,
                 Block.vlenBlock(),
+                -1,
                 Codec.noCompression(),
                 Codec.noCompression(),
                 new NoCache<>(),

@@ -6,36 +6,46 @@ import static java.util.Objects.requireNonNull;
 
 public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>> {
 
+    public static final long NO_TIMESTAMP = -1;
+    public static final long NO_MAX_AGE = -1;
+
+    public final long timestamp;
     public final K key;
     public final V value;
 
-    private Entry(K key, V value) {
+    private Entry(long timestamp, K key, V value) {
+        this.timestamp = timestamp;
         this.key = key;
         this.value = value;
     }
 
-    public static <K extends Comparable<K>, V> Entry<K, V> of(K key, V value) {
-        return new Entry<>(key, value);
+    public static <K extends Comparable<K>, V> Entry<K, V> of(long timestamp, K key, V value) {
+        return new Entry<>(timestamp, key, value);
     }
 
     public static <K extends Comparable<K>, V> Entry<K, V> key(K key) {
         requireNonNull(key, "Key must be provided");
-        return of(key, null);
+        return of(NO_TIMESTAMP, key, null);
     }
 
     public static <K extends Comparable<K>, V> Entry<K, V> add(K key, V value) {
         requireNonNull(key, "Key must be provided");
         requireNonNull(value, "Value must be provided");
-        return of(key, value);
+        return of(System.currentTimeMillis() / 1000, key, value);
     }
 
     public static <K extends Comparable<K>, V> Entry<K, V> delete(K key) {
         requireNonNull(key, "Key must be provided");
-        return new Entry<>(key, null);
+        return new Entry<>(System.currentTimeMillis() / 1000, key, null);
     }
 
     public boolean deletion() {
         return value == null;
+    }
+
+    public boolean expired(long maxAge) {
+        long now = System.currentTimeMillis() / 1000;
+        return maxAge > 0 && timestamp > NO_TIMESTAMP && (now - timestamp > maxAge);
     }
 
     public K key() {

@@ -17,6 +17,7 @@ import java.io.File;
 import java.util.Random;
 import java.util.TreeSet;
 
+import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -42,6 +43,7 @@ public class SSTablesTest {
                 StorageMode.MMAP,
                 FlushMode.MANUAL,
                 Block.vlenBlock(),
+                NO_MAX_AGE,
                 new SnappyCodec(),
                 Codec.noCompression(),
                 1000000,

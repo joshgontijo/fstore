@@ -31,6 +31,7 @@ public class SSTables<K extends Comparable<K>, V> {
                     StorageMode storageMode,
                     FlushMode flushMode,
                     BlockFactory blockFactory,
+                    long maxAge,
                     Codec codec,
                     Codec footerCodec,
                     long bloomNItems,
@@ -40,14 +41,14 @@ public class SSTables<K extends Comparable<K>, V> {
                     int blockCacheMaxAge) {
 
         this.blockCache = Cache.create(blockCacheSize, blockCacheMaxAge);
-        this.appender = LogAppender.builder(dir, new EntrySerializer<>(keySerializer, valueSerializer))
-                .compactionStrategy(new SSTableCompactor<>())
+        this.appender = LogAppender.builder(dir, EntrySerializer.of(maxAge, keySerializer, valueSerializer))
+                .compactionStrategy(new SSTableCompactor<>(maxAge))
                 .name(name + "-sstable")
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)
                 .parallelCompaction()
                 .flushMode(flushMode)
-                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, footerCodec, bloomNItems, bloomFPProb, blockSize, blockCache));
+                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, footerCodec, bloomNItems, bloomFPProb, blockSize, maxAge, blockCache));
     }
 
     public long write(Entry<K, V> entry) {
@@ -61,9 +62,9 @@ public class SSTables<K extends Comparable<K>, V> {
                     continue;
                 }
                 SSTable<K, V> sstable = (SSTable<K, V>) segment;
-                V found = sstable.get(key);
+                Entry<K, V> found = sstable.get(key);
                 if (found != null) {
-                    return found;
+                    return found.value;
                 }
             }
             return null;

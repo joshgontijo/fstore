@@ -20,6 +20,7 @@ import io.joshworks.fstore.lsmtree.log.NoOpTransactionLog;
 import io.joshworks.fstore.lsmtree.log.PersistentTransactionLog;
 import io.joshworks.fstore.lsmtree.log.TransactionLog;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.Expression;
 import io.joshworks.fstore.lsmtree.sstable.MemTable;
 import io.joshworks.fstore.lsmtree.sstable.SSTable;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
@@ -68,6 +69,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.sstableStorageMode,
                 builder.ssTableFlushMode,
                 builder.sstableBlockFactory,
+                builder.maxAgeSeconds,
                 builder.codec,
                 builder.footerCodec,
                 builder.bloomNItems,
@@ -97,7 +99,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         LogRecord<K, V> record = LogRecord.add(key, value);
         log.append(record);
 
-        Entry<K, V> entry = Entry.of(key, value);
+        Entry<K, V> entry = Entry.add(key, value);
         memTable.add(entry);
         cache.remove(key); //evict
         if (memTable.size() >= flushThreshold) {
@@ -113,10 +115,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         if (cached != null) {
             return cached;
         }
-        V fromMem = memTable.get(key);
+        Entry<K, V> fromMem = memTable.get(key);
         if (fromMem != null) {
-            cache.add(key, fromMem);
-            return fromMem;
+            cache.add(key, fromMem.value);
+            return fromMem.value;
         }
         V fromSSTable = sstables.get(key);
         if (fromSSTable != null) {
@@ -232,7 +234,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     private void restore(LogRecord<K, V> record) {
-        memTable.add(Entry.of(record.key, record.value));
+        memTable.add(Entry.of(record.timestamp, record.key, record.value));
     }
 
     public void compact() {
@@ -242,6 +244,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     public static class Builder<K extends Comparable<K>, V> {
 
         private static final int DEFAULT_THRESHOLD = 1000000;
+        private static final int NO_MAX_AGE = -1;
 
         private final File directory;
         private final Serializer<K> keySerializer;
@@ -266,6 +269,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private int entryCacheSize = 10000;
         private int entryCacheMaxAge = 120000;
         private boolean flushOnClose = true;
+        private long maxAgeSeconds = NO_MAX_AGE;
 
 
         private Builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -297,6 +301,11 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         public Builder<K, V> codec(Codec codec) {
             requireNonNull(codec, "Codec cannot be null");
             this.codec = codec;
+            return this;
+        }
+
+        public Builder<K, V> maxAge(long maxAgeSeconds) {
+            this.maxAgeSeconds = maxAgeSeconds;
             return this;
         }
 

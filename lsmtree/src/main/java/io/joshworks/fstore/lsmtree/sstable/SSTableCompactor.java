@@ -4,8 +4,14 @@ import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
 
 public class SSTableCompactor<K extends Comparable<K>, V> extends UniqueMergeCombiner<Entry<K, V>> {
 
+    private final long maxAge;
+
+    SSTableCompactor(long maxAge) {
+        this.maxAge = maxAge;
+    }
+
     @Override
     public boolean filter(Entry<K, V> entry) {
-        return !entry.deletion();
+        return !entry.deletion() && (maxAge <= 0 || System.currentTimeMillis() - entry.timestamp < maxAge);
     }
 }

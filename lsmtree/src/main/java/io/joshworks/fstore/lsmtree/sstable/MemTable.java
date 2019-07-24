@@ -5,7 +5,6 @@ import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.lsmtree.TreeFunctions;
 
 import java.util.Iterator;
 import java.util.NavigableSet;
@@ -30,13 +29,14 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return size.incrementAndGet();
     }
 
-    public V get(K key) {
+    @Override
+    public Entry<K, V> get(K key) {
         requireNonNull(key, "Key must be provided");
         Entry<K, V> found = floor(key);
         if (found == null) {
             return null;
         }
-        return found.key.equals(key) ? found.value : null;
+        return found.key.equals(key) ? found : null;
     }
 
     @Override
