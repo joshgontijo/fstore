@@ -1,6 +1,9 @@
 package io.joshworks.fstore.core;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.TreeMap;
 
 public class RuntimeIOException extends RuntimeException {
@@ -22,17 +25,18 @@ public class RuntimeIOException extends RuntimeException {
     }
 
     public static void main(String[] args) {
-        TreeMap<Long, Integer> maps = new TreeMap<>();
-        maps.put(-1L, 1);
-        maps.put(0L, 2);
-        maps.put(1L, 3);
-        maps.put(2L, 4);
-        maps.put(5L, 5);
-        maps.put(8L, 6);
+        List<Integer> list = new ArrayList<>();
+        list.add(1);
+        list.add(3);
+        list.add(6);
+        list.add(7);
+        list.add(10);
 
-        System.out.println(maps.higherKey(1L));
-        System.out.println(maps.higherKey(0L));
-        System.out.println(maps.higherKey(5L));
-        System.out.println(maps.higherKey(8L));
+        int val = Collections.binarySearch(list, 0);
+        if(val < 0) {
+            System.out.println(Math.abs(val) -1);
+        }
+        System.out.println(val);
+
     }
 }

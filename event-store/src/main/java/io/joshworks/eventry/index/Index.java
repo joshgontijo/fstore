@@ -8,7 +8,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.index.cache.Cache;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.block.Block;
-import io.joshworks.fstore.lsmtree.Expression;
+import io.joshworks.fstore.lsmtree.sstable.Expression;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
