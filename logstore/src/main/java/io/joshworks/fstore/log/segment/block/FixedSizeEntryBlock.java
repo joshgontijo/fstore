@@ -6,9 +6,13 @@ import java.nio.ByteBuffer;
 
 /**
  * An space optmized block, in which entry size is stored only once, since all entries have the same size. Format:
- * <p>
+ *
+ * ---------- BLOCK HEADER -------------
+ * |---- UNCOMPRESSED_SIZE (4bytes) ----|
  * |---- ENTRY_COUNT (4bytes) ----|
- * |---- ENTRIES_LEN (4bytes) ---|
+ * |---- ENTRY_SIZE (4bytes) ----|
+ * <p>
+ * ---------- BODY -------------
  * |----- ENTRY_1 (XBytes) ----|
  * |----- ENTRY_2 (XBytes) ----|
  * ...
@@ -44,20 +48,23 @@ public class FixedSizeEntryBlock extends Block {
     }
 
     @Override
-    public void pack(Codec codec, ByteBuffer dst) {
-        this.data.putInt(super.blockHeaderSize(), entrySize);
-        super.pack(codec, dst);
+    protected void writeBlockHeader(ByteBuffer dst) {
+        super.writeBlockHeader(dst);
+        dst.putInt(entrySize);
     }
 
     @Override
-    protected ByteBuffer unpack(Codec codec, ByteBuffer blockData, boolean direct) {
-        int uncompressedSize = blockData.getInt();
+    protected ByteBuffer unpack(Codec codec, ByteBuffer compressed, boolean direct) {
+
+        //header
+        int entryCount = compressed.getInt(); //parent
+        int uncompressedSize = compressed.getInt(); //parent
+        int entrySize = compressed.getInt();
+
         ByteBuffer data = createBuffer(uncompressedSize, direct);
-        codec.decompress(blockData, data);
+        codec.decompress(compressed, data);
         data.flip();
 
-        int entryCount = data.getInt();
-        entrySize = data.getInt();
         for (int i = 0; i < entryCount; i++) {
             lengths.add(entrySize);
             positions.add(data.position());
@@ -74,10 +81,4 @@ public class FixedSizeEntryBlock extends Block {
     public int entryHeaderSize() {
         return 0; //no entry header
     }
-
-    @Override
-    public int blockHeaderSize() {
-        return super.blockHeaderSize() + Integer.BYTES; //entryCount + entrySize
-    }
-
 }

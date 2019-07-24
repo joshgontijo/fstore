@@ -9,6 +9,7 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -70,6 +71,29 @@ public abstract class CodecTest {
     @Test
     public void compress_decompress_direct_heap_direct() {
         testCompress(true, false, true);
+    }
+
+
+    @Test
+    public void compress_starts_from_the_current_buffer_position() {
+        ByteBuffer bb = ByteBuffer.allocate(256);
+        bb.putInt(123);
+        bb.putInt(456);
+
+        byte[] toBeCompressed = new byte[bb.remaining()];
+        Arrays.fill(toBeCompressed, (byte) 1);
+        bb.put(toBeCompressed);
+        bb.position(Integer.BYTES * 2);
+
+        ByteBuffer dst = ByteBuffer.allocate(bb.capacity());
+        codec.compress(bb, dst);
+
+        dst.flip();
+
+        ByteBuffer decompressed = ByteBuffer.allocate(toBeCompressed.length);
+        codec.decompress(dst, decompressed);
+
+        assertArrayEquals(toBeCompressed, decompressed.array());
     }
 
     private void testCompress(boolean srcDirect, boolean compressedDirect, boolean uncompressedDirect) {

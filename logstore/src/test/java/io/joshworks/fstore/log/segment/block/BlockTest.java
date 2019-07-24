@@ -196,6 +196,17 @@ public abstract class BlockTest {
         assertEquals("b", read(block, 1));
     }
 
+    @Test
+    public void clearing_the_block_reset_buffers_position_and_limit() {
+        Block block = factory.create(BLOCK_SIZE);
+
+        block.data.position(0).limit(0);
+        block.clear();
+
+        assertEquals(0, block.data.position());
+        assertEquals(block.data.capacity(), block.data.limit());
+    }
+
 
     private ByteBuffer packBlock(Block block) {
         ByteBuffer dst = ByteBuffer.allocate(BLOCK_SIZE);

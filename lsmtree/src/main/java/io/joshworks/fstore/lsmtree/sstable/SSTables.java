@@ -32,6 +32,7 @@ public class SSTables<K extends Comparable<K>, V> {
                     FlushMode flushMode,
                     BlockFactory blockFactory,
                     Codec codec,
+                    Codec footerCodec,
                     long bloomNItems,
                     double bloomFPProb,
                     int blockSize,
@@ -46,7 +47,7 @@ public class SSTables<K extends Comparable<K>, V> {
                 .segmentSize(segmentSize)
                 .parallelCompaction()
                 .flushMode(flushMode)
-                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, blockCache));
+                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, footerCodec, bloomNItems, bloomFPProb, blockSize, blockCache));
     }
 
     public long write(Entry<K, V> entry) {

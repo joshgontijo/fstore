@@ -12,7 +12,8 @@ import java.util.NoSuchElementException;
 
 /**
  * A variable length entry block. Format:
- * ---------- HEADER -------------
+ * ---------- BLOCK HEADER -------------
+ * |---- UNCOMPRESSED_SIZE (4bytes) ----|
  * |---- ENTRY_COUNT (4bytes) ----|
  * <p>
  * ---------- BODY -------------
@@ -37,7 +38,6 @@ public class Block implements Iterable<ByteBuffer> {
             throw new IllegalArgumentException("maxSize must be greater than zero");
         }
         this.data = createBuffer(blockSize, direct);
-        this.data.position(blockHeaderSize());
         this.readOnly = false;
     }
 
@@ -84,9 +84,9 @@ public class Block implements Iterable<ByteBuffer> {
 
     private void validateEntry(ByteBuffer entry) {
         int entrySize = entry.remaining();
-        int maxEntrySize = data.capacity() - blockHeaderSize() - entryHeaderSize();
+        int maxEntrySize = data.capacity() - entryHeaderSize();
         if (entrySize > maxEntrySize) { //data - entryCount - 1 entrySize
-            throw new IllegalArgumentException("Record size (" + entrySize + ") cannot be greater than (" + data.capacity() + ")");
+            throw new IllegalArgumentException("Record size (" + entrySize + ") cannot be greater than (" + maxEntrySize + ")");
         }
         if (entrySize == 0) {
             throw new IllegalArgumentException("Empty buffer is not allowed");
@@ -97,34 +97,37 @@ public class Block implements Iterable<ByteBuffer> {
         if (readOnly()) {
             throw new IllegalStateException("Block is read only");
         }
-        if (entryCount() == 0) {
+        if (isEmpty()) {
             return;
         }
-        int entryCount = entryCount();
-        int uncompressedSize = uncompressedSize();
 
-        data.putInt(0, entryCount);
+        //block header
+        writeBlockHeader(dst);
+
+        //block data
         data.flip();
+        writeBlockContent(codec, dst);
+    }
 
-        dst.putInt(uncompressedSize);
+    protected void writeBlockContent(Codec codec, ByteBuffer dst) {
         codec.compress(data, dst);
     }
 
-    public void clear() {
-        lengths.clear();
-        positions.clear();
-        this.data.position(blockHeaderSize());
+    protected void writeBlockHeader(ByteBuffer dst) {
+        dst.putInt(entryCount());
+        dst.putInt(uncompressedSize());
     }
 
-    protected ByteBuffer unpack(Codec codec, ByteBuffer blockData, boolean direct) {
-        int uncompressedSize = blockData.getInt();
+    protected ByteBuffer unpack(Codec codec, ByteBuffer compressedBlock, boolean direct) {
+        //head header
+        int entryCount = compressedBlock.getInt();
+        int uncompressedSize = compressedBlock.getInt();
 
         //LZ4 required destination buffer to have the exact number uncompressed bytes
         ByteBuffer data = createBuffer(uncompressedSize, direct);
-        codec.decompress(blockData, data);
+        codec.decompress(compressedBlock, data);
         data.flip();
 
-        int entryCount = data.getInt();
         for (int i = 0; i < entryCount; i++) {
             int entryLen = data.getInt();
             lengths.add(entryLen);
@@ -135,6 +138,12 @@ public class Block implements Iterable<ByteBuffer> {
             throw new IllegalStateException("Expected block with " + entryCount + ", got " + lengths.size());
         }
         return data;
+    }
+
+    public void clear() {
+        lengths.clear();
+        positions.clear();
+        data.clear();
     }
 
     public int entryCount() {
@@ -176,10 +185,6 @@ public class Block implements Iterable<ByteBuffer> {
     }
 
     protected int entryHeaderSize() {
-        return Integer.BYTES;
-    }
-
-    protected int blockHeaderSize() {
         return Integer.BYTES;
     }
 

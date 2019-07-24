@@ -1,6 +1,7 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
@@ -42,6 +43,7 @@ public class SSTablesTest {
                 FlushMode.MANUAL,
                 Block.vlenBlock(),
                 new SnappyCodec(),
+                Codec.noCompression(),
                 1000000,
                 0.01,
                 Memory.PAGE_SIZE,
