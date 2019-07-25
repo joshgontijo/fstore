@@ -12,6 +12,6 @@ public class SSTableCompactor<K extends Comparable<K>, V> extends UniqueMergeCom
 
     @Override
     public boolean filter(Entry<K, V> entry) {
-        return !entry.deletion() && (maxAge <= 0 || System.currentTimeMillis() - entry.timestamp < maxAge);
+        return entry.readable(maxAge);
     }
 }

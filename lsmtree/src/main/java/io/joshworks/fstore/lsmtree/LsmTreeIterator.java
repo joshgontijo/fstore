@@ -32,8 +32,8 @@ class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<E
         while (itit.hasNext()) {
             PeekingIterator<Entry<K, V>> seg = itit.next();
             if (!seg.hasNext()) {
-                IOUtils.closeQuietly(seg);
                 itit.remove();
+                IOUtils.closeQuietly(seg);
             }
         }
     }

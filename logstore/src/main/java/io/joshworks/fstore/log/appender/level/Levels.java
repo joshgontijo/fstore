@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
 //LEVEL3 ...
 public class Levels<T> {
 
-    private volatile List<Log<T>> segments = new ArrayList<>();
+    private volatile List<Log<T>> segments = new CopyOnWriteArrayList<>();
     private volatile Log<T> current;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();

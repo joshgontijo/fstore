@@ -48,6 +48,10 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
         return maxAge > 0 && timestamp > NO_TIMESTAMP && (now - timestamp > maxAge);
     }
 
+    public boolean readable(long maxAge) {
+        return !deletion() && !expired(maxAge);
+    }
+
     public K key() {
         return key;
     }

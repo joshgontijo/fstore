@@ -6,22 +6,21 @@ import io.joshworks.fstore.log.SegmentIterator;
 
 import java.io.IOException;
 
-public class RangeIterator<K extends Comparable<K>, V> implements SegmentIterator<Entry<K, V>> {
+public class RangeIterator<K extends Comparable<K>, V> extends SSTableIterator<K, V> {
 
     private final Range<K> range;
     private final Direction direction;
-    private final SegmentIterator<Entry<K, V>> delegate;
     private Entry<K, V> next = null;
 
-    public RangeIterator(Range<K> range, Direction direction, SegmentIterator<Entry<K, V>> delegate) {
+    public RangeIterator(long maxAge, SegmentIterator<Entry<K, V>> delegate, Range<K> range, Direction direction) {
+        super(maxAge, delegate);
         this.range = range;
         this.direction = direction;
-        this.delegate = delegate;
     }
 
     private Entry<K, V> dropWhile() {
-        while (delegate.hasNext()) {
-            Entry<K, V> entry = delegate.next();
+        while (super.hasNext()) {
+            Entry<K, V> entry = super.next();
             int compare = range.compareTo(entry.key);
             if (compare == 0) {
                 return entry;
@@ -41,7 +40,7 @@ public class RangeIterator<K extends Comparable<K>, V> implements SegmentIterato
         if (next != null) {
             return true;
         }
-        if (!delegate.hasNext()) {
+        if (!super.hasNext()) {
             return false;
         }
         next = dropWhile();
@@ -60,17 +59,17 @@ public class RangeIterator<K extends Comparable<K>, V> implements SegmentIterato
 
     @Override
     public boolean endOfLog() {
-        return delegate.endOfLog();
+        return super.endOfLog();
     }
 
     @Override
     public long position() {
-        return delegate.position();
+        return super.position();
     }
 
     @Override
     public void close() throws IOException {
-        delegate.close();
+        super.close();
     }
 
 

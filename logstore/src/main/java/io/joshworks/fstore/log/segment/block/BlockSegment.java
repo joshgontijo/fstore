@@ -32,7 +32,7 @@ public class BlockSegment<T> implements Log<T> {
     private final BiConsumer<Long, Block> onBlockLoaded;
     private final BufferPool bufferPool;
     private Consumer<FooterWriter> footerWriter;
-    private final Block writeBlock;
+    final Block writeBlock;
 
     private BlockSegmentInfo info;
 
@@ -116,15 +116,18 @@ public class BlockSegment<T> implements Log<T> {
         footerWriter.accept(writer);
     }
 
+    //When data is added to a block, it must ensure there will be space for the block in the segment
     @Override
     public long append(T entry) {
+        //no more data available and the block is empty
+        //do not add to the block, and return EOF, this allows that only one block gets inserted
+        //when the the writePosition is greater than the maxDataSize
         if (!hasSpaceAvailableForBlock()) {
-            if (!writeBlock.isEmpty()) {
-                throw new IllegalStateException("Block was not empty");
+            if(!writeBlock.isEmpty()) {
+                throw new IllegalStateException("No space remaining for block while is not empty");
             }
             return Storage.EOF;
         }
-
         if (!writeBlock.add(entry, serializer, bufferPool)) {
             writeBlock();
             if (!hasSpaceAvailableForBlock()) {
@@ -139,9 +142,7 @@ public class BlockSegment<T> implements Log<T> {
     }
 
     private boolean hasSpaceAvailableForBlock() {
-        long writePos = position();
-        long logSize = dataSize();
-        return writePos + info.blockSize() < logSize;
+        return delegate.remaining() >= info.blockSize();
     }
 
     private synchronized void writeBlock() {
@@ -254,7 +255,7 @@ public class BlockSegment<T> implements Log<T> {
 
     @Override
     public long remaining() {
-        return delegate.remaining();
+        return delegate.remaining() - writeBlock.uncompressedSize();
     }
 
     @Override
