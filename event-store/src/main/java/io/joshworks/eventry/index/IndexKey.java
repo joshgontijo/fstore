@@ -7,13 +7,16 @@ import java.util.Objects;
 
 public class IndexKey implements Comparable<IndexKey> {
 
-    public static final int BYTES = Long.BYTES + Integer.BYTES;
+    public static final int BYTES = Long.BYTES + Long.BYTES + Integer.BYTES;
     public static final int START_VERSION = 0;
     private static final int MAX_VERSION = Integer.MAX_VALUE;
+
     public final long stream;
     public final int version;
+    public final long timestamp;
 
     public IndexKey(long stream, int version) {
+        this.timestamp = System.currentTimeMillis();
         this.stream = stream;
         this.version = version;
     }

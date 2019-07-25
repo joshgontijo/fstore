@@ -17,7 +17,7 @@ public class EntrySerializer<K extends Comparable<K>, V> implements Serializer<E
     }
 
     public static <K extends Comparable<K>, V> Serializer<Entry<K, V>> of(long maxAge, Serializer<K> ks, Serializer<V> vs) {
-        return maxAge > 0 ? new EntrySerializer<>(ks, vs) : new TimestampedEntrySerializer<>(ks, vs);
+        return maxAge > 0 ? new TimestampedEntrySerializer<>(ks, vs) : new EntrySerializer<>(ks, vs);
     }
 
     @Override

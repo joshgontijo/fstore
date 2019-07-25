@@ -54,13 +54,17 @@ class ForwardLogReader<T> implements LogIterator<T> {
         }
         if (current.endOfLog()) {
             IOUtils.closeQuietly(current);
-            if (segmentsQueue.isEmpty()) {
-                return false;
-            }
-            current = segmentsQueue.poll();
+            current = nextSegment();
+        }
+        return current != null && current.hasNext();
+    }
+
+    private SegmentIterator<T> nextSegment() {
+        SegmentIterator<T> next = segmentsQueue.poll();
+        if (next != null) {
             segmentIdx++;
         }
-        return current.hasNext();
+        return next;
     }
 
     @Override
@@ -70,11 +74,7 @@ class ForwardLogReader<T> implements LogIterator<T> {
         }
         T next = current.next();
         if (next == null && current.endOfLog()) {
-            IOUtils.closeQuietly(current);
-            if (!segmentsQueue.isEmpty()) {
-                current = segmentsQueue.poll();
-                segmentIdx++;
-            }
+            current = nextSegment();
         }
         return next;
     }

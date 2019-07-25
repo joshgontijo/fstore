@@ -37,6 +37,7 @@ public class Index implements Closeable {
                 .codec(new SnappyCodec())
                 .blockSize(Memory.PAGE_SIZE * 2)
                 .flushOnClose(false)
+                .maxAge(Long.MAX_VALUE)
                 .name(NAME)
                 .open();
     }

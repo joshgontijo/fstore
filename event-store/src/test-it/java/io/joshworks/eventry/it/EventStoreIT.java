@@ -164,7 +164,7 @@ public class EventStoreIT {
 
     @Test
     public void insert_1000_streams_with_1000_version_each() {
-        testWith(1000, 1000);
+        testWith(10000, 1000);
     }
 
 

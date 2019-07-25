@@ -128,7 +128,23 @@ public class LsmTreeTest {
                 assertTrue(entry.key % 2 != 0);
             }
         }
+    }
 
+    @Test
+    public void deleted_interleaving_entries_are_not_returned_when_iterating() throws IOException {
+        for (int i = 0; i < 1000000; i++) {
+            lsmtree.put(i, String.valueOf(i));
+            if(i % 2 == 0) {
+                lsmtree.remove(i);
+            }
+        }
+
+        try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.FORWARD)) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                assertTrue(entry.key % 2 != 0);
+            }
+        }
     }
 
     @Test
