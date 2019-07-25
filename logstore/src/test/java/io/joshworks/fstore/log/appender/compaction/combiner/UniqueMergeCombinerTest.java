@@ -11,7 +11,7 @@ import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.VStringSerializer;
-import io.joshworks.fstore.testutils.FileUtils;
+import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Test;
 

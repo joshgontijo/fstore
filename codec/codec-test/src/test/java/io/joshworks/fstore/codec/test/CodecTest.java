@@ -2,6 +2,7 @@ package io.joshworks.fstore.codec.test;
 
 import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
+import io.joshworks.fstore.codec.std.DeflaterCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.util.Size;
 import org.junit.Before;
@@ -171,6 +172,14 @@ public abstract class CodecTest {
         @Override
         public Codec codec() {
             return Codec.noCompression();
+        }
+    }
+
+    public static class DeflaterTest extends CodecTest {
+
+        @Override
+        public Codec codec() {
+            return new DeflaterCodec();
         }
     }
 

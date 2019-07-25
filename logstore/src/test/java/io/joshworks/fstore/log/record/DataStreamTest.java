@@ -9,7 +9,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.testutils.FileUtils;
+import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

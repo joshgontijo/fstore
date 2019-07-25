@@ -22,11 +22,6 @@
             <artifactId>junit</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>io.joshworks.fstore</groupId>
-            <artifactId>test-utils</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
 </project>

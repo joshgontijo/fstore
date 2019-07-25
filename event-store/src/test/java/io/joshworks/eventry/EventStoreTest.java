@@ -6,7 +6,7 @@ import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.testutils.FileUtils;
+import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

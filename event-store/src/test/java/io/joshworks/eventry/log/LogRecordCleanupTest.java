@@ -10,7 +10,7 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.testutils.FileUtils;
+import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

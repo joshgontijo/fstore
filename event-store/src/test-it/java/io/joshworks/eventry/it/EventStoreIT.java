@@ -16,7 +16,7 @@ import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.testutils.FileUtils;
+import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
