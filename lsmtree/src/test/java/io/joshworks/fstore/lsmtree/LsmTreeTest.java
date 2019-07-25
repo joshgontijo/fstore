@@ -114,6 +114,24 @@ public class LsmTreeTest {
     }
 
     @Test
+    public void deleted_entries_are_not_returned_when_iterating() throws IOException {
+        for (int i = 0; i < 1000000; i++) {
+            lsmtree.put(i, String.valueOf(i));
+        }
+        for (int i = 0; i < 1000000; i+=2) {
+            lsmtree.remove(i);
+        }
+
+        try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.FORWARD)) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                assertTrue(entry.key % 2 != 0);
+            }
+        }
+
+    }
+
+    @Test
     public void iterator_deleted_entries() throws Exception {
         int items = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
         for (int i = 0; i < items; i++) {

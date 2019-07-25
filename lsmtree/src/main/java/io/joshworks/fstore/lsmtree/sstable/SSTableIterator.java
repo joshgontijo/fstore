@@ -1,17 +1,17 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.SegmentIterator;
 
 import java.io.IOException;
 
 
-public class MaxAgeFilteringIterator<K extends Comparable<K>, V> implements LogIterator<Entry<K, V>> {
+public class SSTableIterator<K extends Comparable<K>, V> implements SegmentIterator<Entry<K, V>> {
 
     private final long maxAge;
-    private final LogIterator<Entry<K, V>> delegate;
+    private final SegmentIterator<Entry<K, V>> delegate;
     private Entry<K, V> next;
 
-    MaxAgeFilteringIterator(long maxAge, LogIterator<Entry<K, V>> delegate) {
+    SSTableIterator(long maxAge, SegmentIterator<Entry<K, V>> delegate) {
         this.maxAge = maxAge;
         this.delegate = delegate;
     }
@@ -35,10 +35,10 @@ public class MaxAgeFilteringIterator<K extends Comparable<K>, V> implements LogI
             return next;
         }
         Entry<K, V> last = nextEntry();
-        while (last != null && last.expired(maxAge)) {
+        while (last != null && !last.readable(maxAge)) {
             last = nextEntry();
         }
-        return last != null && last.expired(maxAge) ? last : null;
+        return last != null && last.readable(maxAge) ? last : null;
     }
 
     private Entry<K, V> nextEntry() {
@@ -53,5 +53,10 @@ public class MaxAgeFilteringIterator<K extends Comparable<K>, V> implements LogI
     @Override
     public void close() throws IOException {
         delegate.close();
+    }
+
+    @Override
+    public boolean endOfLog() {
+        return delegate.endOfLog();
     }
 }

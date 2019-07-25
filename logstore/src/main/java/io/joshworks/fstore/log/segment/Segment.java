@@ -410,7 +410,7 @@ public final class Segment<T> implements Log<T> {
 
     private void checkClosed() {
         if (closed.get()) {
-            throw new SegmentException("Segment " + name() + "is closed");
+            throw new SegmentException("Segment " + name() + " is closed");
         }
     }
 
@@ -434,7 +434,9 @@ public final class Segment<T> implements Log<T> {
             if (markedForDeletion.get()) {
                 throw new SegmentException("Segment '" + name() + "' is marked for deletion");
             }
-            readers.add(reader);
+            if(!readers.add(reader)) {
+                throw new IllegalStateException("Failed to acquire reader: Already exist in the readers list");
+            }
             return reader;
         } finally {
             lock.unlock();

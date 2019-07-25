@@ -208,18 +208,56 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         if (midpoints.isEmpty()) {
             return null;
         }
+        if (key.compareTo(midpoints.first().key) < 0) {
+            return null;
+        }
+
         int idx = midpoints.binarySearch(key);
-        if (idx < 0 && Math.abs(idx) <= 0) {
+        if (idx < 0 && Math.abs(idx) < 0) {
             return null;
         }
         idx = idx < 0 ? Math.abs(idx) - 2 : idx;
+        if (idx < 0) {
+            return null;
+        }
 
         while (idx < midpoints.size()) {
             Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
             Block block = delegate.getBlock(midpoint.position);
-            int bidx = binarySearch(block, key);
-            bidx = bidx < 0 ? Math.abs(bidx) - 2 : bidx;
-            Entry<K, V> found = readNextNonExpired(block, bidx, Direction.BACKWARD);
+            int entryIdx = binarySearch(block, key);
+            entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 2 : entryIdx;
+            Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.BACKWARD);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Entry<K, V> lower(K key) {
+        if (midpoints.isEmpty()) {
+            return null;
+        }
+        if (key.compareTo(midpoints.first().key) <= 0) {
+            return null;
+        }
+
+        int idx = midpoints.binarySearch(key);
+        if (idx < 0 && Math.abs(idx) < 0) {
+            return null;
+        }
+        idx = idx < 0 ? Math.abs(idx) - 2 : idx - 1;
+        idx = Math.min(midpoints.size() - 1, idx);
+        if (idx < 0) {
+            return null;
+        }
+        while (idx < midpoints.size()) {
+            Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
+            Block block = delegate.getBlock(midpoint.position);
+            int entryIdx = binarySearch(block, key);
+            entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 2 : entryIdx - 1;
+            Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.BACKWARD);
             if (found != null) {
                 return found;
             }
@@ -232,139 +270,57 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         if (midpoints.isEmpty()) {
             return null;
         }
-        int midpointIdx = midpoints.getMidpointIdx(key);
-        midpointIdx = midpointIdx < 0 ? 0 : midpointIdx;
-
-        Midpoint<K> midpoint = midpoints.getMidpoint(midpointIdx);
-        Block block = delegate.getBlock(midpoint.position);
-        Entry<K, V> ceiling = ceilingEntry(key, block);
-        if (ceiling != null) {
-            return ceiling;
-        }
-
-        //not in block get next one
-        if (midpointIdx == midpoints.size() - 1) { //last midpoint, nothing in this segment
+        if (key.compareTo(midpoints.last().key) > 0) {
             return null;
         }
-        //has next midpoint, fetch first entry of next block
-        Midpoint<K> next = midpoints.getMidpoint(midpointIdx + 1);
-        Block nextBlock = delegate.getBlock(next.position);
-        return entrySerializer.fromBytes(nextBlock.first());
-    }
-
-    @Override
-    public Entry<K, V> higher(K key) {
-        //less than first entry, definitely first entry
-        if (key.compareTo(midpoints.first().key) < 0) {
-            return first();
-        }
-        //in range
-        int midpointIdx = midpoints.getMidpointIdx(key);
-        Midpoint<K> midpoint = midpoints.getMidpoint(midpointIdx);
-        Block block = delegate.getBlock(midpoint.position);
-        Entry<K, V> ceiling = higherEntry(key, block);
-        if (ceiling != null) {
-            return ceiling;
-        }
-
-        //not in block get next one
-        if (midpointIdx == midpoints.size() - 1) { //last midpoint, nothing in this segment
-            return null;
-        }
-        //has next midpoint, fetch first entry of next block
-        Midpoint<K> next = midpoints.getMidpoint(midpointIdx + 1);
-        Block nextBlock = delegate.getBlock(next.position);
-        return entrySerializer.fromBytes(nextBlock.first());
-    }
-
-    @Override
-    public Entry<K, V> lower(K key) {
         int idx = midpoints.binarySearch(key);
-        //exact match with the first element of the block, get last element from the previous block
-        //only do this for block before the last one, as the last two midpoints are the same block
-        if (idx > 0 && idx < midpoints.size() - 1) {
-            Midpoint<K> midpoint = midpoints.getMidpoint(idx - 1);
-            Block block = delegate.getBlock(midpoint.position);
-            return entrySerializer.fromBytes(block.last());
-        }
         idx = idx < 0 ? Math.abs(idx) - 2 : idx;
-        Midpoint<K> midpoint = midpoints.getMidpoint(idx);
-        Block block = delegate.getBlock(midpoint.position);
-
-        for (int i = 0; i < block.entryCount(); i++) {
-            ByteBuffer entryData = block.get(i);
-            int compare = compareKey(entryData, key);
-            if (compare <= 0) { //key is less than or equals
-                if (i == 0) {//less than first entry, definitely not in this segment
-                    return null;
-                }
-                //key is less than current item, and there's previous one, return previous one
-                ByteBuffer floorEntry = block.get(i - 1);
-                floorEntry.clear();
-                return entrySerializer.fromBytes(floorEntry);
-            }
-            //key greater or equals, continue...
+        idx = Math.max(0, idx);
+        if (idx >= midpoints.size()) {
+            return null;
         }
-        //greater than last block entry, definitely last block entry
-        return entrySerializer.fromBytes(block.last());
-    }
-
-    Entry<K, V> applyToBlock(Block block, K key, Expression exp) {
-        for (int i = 0; i < block.entryCount(); i++) {
-            ByteBuffer entryData = block.get(i);
-            int compare = compareKey(entryData, key);
-
-            //key is less than current entry block
-            if (compare < 0) {
-                //less than first entry in the block
-                if (i == 0 && (Expression.FLOOR.equals(exp) || Expression.LOWER.equals(exp))) {
-                    return null;
-                }
-                if (Expression.CEILING.equals(exp) || Expression.HIGHER.equals(exp)) {
-                    return readNextNonExpired(block, i, Direction.FORWARD);
-                }
-            }
-
-            //key equals to current item
-            if (compare == 0) {
-                if (Expression.EQUALS.equals(exp)) {
-                    //block will not have duplicated keys, no need to read any other entry
-                    return readNonExpired(block, i);
-                }
-
-                if (Expression.FLOOR.equals(exp)) {
-                    return readNextNonExpired(block, i, Direction.BACKWARD);
-                }
-                if (Expression.LOWER.equals(exp)) {
-                    return readNextNonExpired(block, i - 1, Direction.BACKWARD);
-                }
-                if (Expression.CEILING.equals(exp)) {
-                    return readNextNonExpired(block, i, Direction.FORWARD);
-                }
-                if (Expression.HIGHER.equals(exp)) {
-                    return readNextNonExpired(block, i + 1, Direction.FORWARD);
-                }
-            }
-
-            //key is greater than current entry
-            if (compare > 0) {
-                if (Expression.EQUALS.equals(exp)) {
-                    //pass by the entry and wasn't present, from now only greater entries will be returned
-                    return null;
-                }
-                //less than first entry in the block
-                if (i == block.entryCount() && (Expression.CEILING.equals(exp) || Expression.HIGHER.equals(exp))) {
-                    return null;
-                }
-                if (Expression.FLOOR.equals(exp) || Expression.LOWER.equals(exp)) {
-                    return readNextNonExpired(block, i, Direction.BACKWARD);
-                }
+        while (idx < midpoints.size()) {
+            Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
+            Block block = delegate.getBlock(midpoint.position);
+            int entryIdx = binarySearch(block, key);
+            entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 1 : entryIdx;
+            Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.FORWARD);
+            if (found != null) {
+                return found;
             }
         }
         return null;
     }
 
-    public int binarySearch(Block block, K key) {
+    @Override
+    public Entry<K, V> higher(K key) {
+        if (midpoints.isEmpty()) {
+            return null;
+        }
+        if (key.compareTo(midpoints.last().key) >= 0) {
+            return null;
+        }
+
+        int idx = midpoints.binarySearch(key);
+        idx = idx < 0 ? Math.abs(idx) - 2 : idx;
+        idx = Math.max(0, idx);
+        if (idx >= midpoints.size()) {
+            return null;
+        }
+        while (idx < midpoints.size()) {
+            Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
+            Block block = delegate.getBlock(midpoint.position);
+            int entryIdx = binarySearch(block, key);
+            entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 1 : entryIdx + 1;
+            Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.FORWARD);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    private int binarySearch(Block block, K key) {
         int low = 0;
         int high = block.entryCount() - 1;
 
@@ -388,7 +344,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         return entryKey.compareTo(key);
     }
 
-
     private Entry<K, V> readNextNonExpired(Block block, int idx, Direction direction) {
         while (idx >= 0 && idx < block.entryCount()) {
             Entry<K, V> found = readNonExpired(block, idx);
@@ -403,60 +358,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private Entry<K, V> readNonExpired(Block block, int i) {
         ByteBuffer data = block.get(i);
         Entry<K, V> entry = entrySerializer.fromBytes(data);
-        return entry.expired(maxAge) ? null : entry;
-    }
-
-
-    private Entry<K, V> ceilingEntry(K key, Block block) {
-        for (int i = block.entryCount() - 1; i >= 0; i--) {
-            ByteBuffer entryData = block.get(i);
-            int compare = compareKey(entryData, key);
-            if (compare > 0) { //key is greater tha current
-                //not in this block, is in the next get first entry of next one
-                //returning null will cause caller to get next block
-                if (i == block.entryCount() - 1) {
-                    return null;
-                }
-                ByteBuffer entry = block.get(i + 1);
-                entry.clear();
-                Entry<K, V> found = entrySerializer.fromBytes(entry);
-                if (!found.expired(maxAge)) {
-                    return found;
-                }
-            }
-            if (compare == 0) { //key equals to current item, return it
-                ByteBuffer entry = block.get(i);
-                entry.clear();
-                Entry<K, V> found = entrySerializer.fromBytes(entry);
-                if (!found.expired(maxAge)) {
-                    return found;
-                }
-            }
-        }
-        //less than first block entry, definitely first block entry
-        return entrySerializer.fromBytes(block.first());
-    }
-
-    private Entry<K, V> higherEntry(K key, Block block) {
-        for (int i = block.entryCount() - 1; i >= 0; i--) {
-            ByteBuffer entryData = block.get(i);
-            int compare = compareKey(entryData, key);
-            if (compare >= 0) { //key is greater tha current
-                //not in this block, is in the next get first entry of next one
-                //returning null will cause caller to get next block
-                if (i == block.entryCount() - 1) {
-                    return null;
-                }
-                ByteBuffer entry = block.get(i + 1);
-                entry.clear();
-                Entry<K, V> found = entrySerializer.fromBytes(entry);
-                if (!found.expired(maxAge)) {
-                    return found;
-                }
-            }
-        }
-        //less than first block entry, definitely first block entry
-        return entrySerializer.fromBytes(block.first());
+        return entry.readable(maxAge) ? entry : null;
     }
 
     private Entry<K, V> readFromBlock(K key, Midpoint<K> midpoint) {
@@ -468,47 +370,19 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                 return null;
             }
             blockCache.add(cacheKey, block);
-            return findExact(key, block);
+            return tryReadBlockEntry(key, block);
         }
-        return findExact(key, cached);
+        return tryReadBlockEntry(key, cached);
     }
 
-    private Entry<K, V> findExact(K key, Block block) {
-//        ByteBuffer keyBytes = keySerializer.toBytes(key);
-        for (ByteBuffer entryData : block) {
-            int compare = compareKey(entryData, key);
-            if (compare == 0) {
-                entryData.clear();
-                Entry<K, V> entry = entrySerializer.fromBytes(entryData);
-                return entry;
-            }
-            if (compare < 0) { //not found, short circuit (block entries are ordered)
-                return null;
-            }
+    private Entry<K, V> tryReadBlockEntry(K key, Block block) {
+        int idx = binarySearch(block, key);
+        if (idx < 0) {
+            return null;
         }
-        return null;
-    }
-
-    //Key must be the first serialized field in order for this method to work
-    private int compareKey(ByteBuffer entry, K key) {
-        int prevPos = entry.position();
-        K entryKey = keySerializer.fromBytes(entry);
-        entry.position(prevPos);
-        return key.compareTo(entryKey);
-    }
-
-    public SegmentIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
-        if (!readOnly()) {
-            throw new IllegalStateException("Cannot read from a open segment");
-        }
-        if ((range.start() != null && !midpoints.inRange(range.start())) && (range.end() != null && !midpoints.inRange(range.end()))) {
-            return SegmentIterator.empty();
-        }
-
-        long startPos = startPos(direction, range);
-        SegmentIterator<Entry<K, V>> iterator = iterator(startPos, direction);
-        return new RangeIterator<>(range, direction, iterator);
-
+        ByteBuffer entryData = block.get(idx);
+        Entry<K, V> entry = entrySerializer.fromBytes(entryData);
+        return entry.readable(maxAge) ? entry : null;
     }
 
     private long startPos(Direction direction, Range<K> range) {
@@ -532,12 +406,25 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
     @Override
     public SegmentIterator<Entry<K, V>> iterator(long position, Direction direction) {
-        return delegate.iterator(position, direction);
+        return new SSTableIterator<>(maxAge, delegate.iterator(position, direction));
     }
 
     @Override
     public SegmentIterator<Entry<K, V>> iterator(Direction direction) {
-        return delegate.iterator(direction);
+        return new SSTableIterator<>(maxAge, delegate.iterator(direction));
+    }
+
+    public SegmentIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
+        if (!readOnly()) {
+            throw new IllegalStateException("Cannot read from a open segment");
+        }
+        if ((range.start() != null && !midpoints.inRange(range.start())) && (range.end() != null && !midpoints.inRange(range.end()))) {
+            return SegmentIterator.empty();
+        }
+
+        long startPos = startPos(direction, range);
+        SegmentIterator<Entry<K, V>> iterator = iterator(startPos, direction);
+        return new RangeIterator<>(maxAge, iterator, range, direction);
     }
 
     @Override

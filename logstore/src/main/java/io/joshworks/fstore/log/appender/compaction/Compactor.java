@@ -49,6 +49,7 @@ public class Compactor<T> implements Closeable {
     private final Set<Log<T>> compacting = new CopyOnWriteArraySet<>();
 
     private final Map<String, ExecutorService> levelCompaction = new ConcurrentHashMap<>();
+    //TODO add discard queue
     private final ExecutorService cleanupWorker = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compaction-cleanup"));
     private final ExecutorService coordinator = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compaction-coordinator"));
 

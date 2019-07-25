@@ -17,10 +17,12 @@ import org.junit.Test;
 import java.io.File;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class BlockSegmentTest {
 
     private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
+    private static final int BLOCK_SIZE = Memory.PAGE_SIZE;
     protected BlockSegment<String> segment;
     private File testFile;
 
@@ -36,7 +38,7 @@ public class BlockSegmentTest {
                 Serializers.STRING,
                 Block.vlenBlock(),
                 new SnappyCodec(),
-                Memory.PAGE_SIZE,
+                BLOCK_SIZE,
                 CHECKSUM_PROB,
                 READ_PAGE_SIZE);
     }
@@ -80,6 +82,18 @@ public class BlockSegmentTest {
         segment.close();
         segment = open(testFile);
         assertEquals(2, segment.entries());
+    }
+
+    @Test
+    public void block_must_always_fit_in_the_underlying_segment() {
+        long bPos;
+        do {
+            bPos = segment.append("a");
+        } while (bPos != Storage.EOF);
+
+        long pos = segment.append("b");
+        assertEquals(Storage.EOF, pos);
+        assertTrue(segment.writeBlock.isEmpty());
     }
 
     @Test
