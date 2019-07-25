@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.zip.Deflater;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -98,13 +99,21 @@ public abstract class CodecTest {
     }
 
     private void testCompress(boolean srcDirect, boolean compressedDirect, boolean uncompressedDirect) {
-        for (int seed = 1; seed <= 1000; seed++) {
+        int items = 1000;
+        double compression = 0;
+        for (int seed = 1; seed <= items; seed++) {
             var src = randBytes(seed, srcDirect);
             int dataSize = src.remaining();
             var compressed = allocate(Size.MB.ofInt(1), compressedDirect);
+
             codec.compress(src, compressed);
 
             compressed.flip();
+
+            int compressedSize = compressed.remaining();
+            compression += (dataSize - compressedSize) / 100;
+
+
             assertTrue("Compressed bytes be update its position", compressed.remaining() > 0);
             assertEquals("Compression source must consume all its remaining bytes", 0, src.remaining());
 
@@ -127,6 +136,8 @@ public abstract class CodecTest {
 
             assertArrayEquals(srcBytes, uncompressedBytes);
         }
+
+        System.out.println(String.format("AVERAGE COMPRESSION: %.2f", (compression / items)));
     }
 
     private static ByteBuffer allocate(int size, boolean direct) {
@@ -180,6 +191,22 @@ public abstract class CodecTest {
         @Override
         public Codec codec() {
             return new DeflaterCodec();
+        }
+    }
+
+    public static class DeflaterWrapTest extends CodecTest {
+
+        @Override
+        public Codec codec() {
+            return new DeflaterCodec(Deflater.DEFAULT_COMPRESSION, false);
+        }
+    }
+
+    public static class DeflaterBestCompressionTest extends CodecTest {
+
+        @Override
+        public Codec codec() {
+            return new DeflaterCodec(Deflater.BEST_COMPRESSION, true);
         }
     }
 

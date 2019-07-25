@@ -8,13 +8,26 @@ import java.util.zip.Inflater;
 
 public class DeflaterCodec implements Codec {
 
+    private final ThreadLocal<Deflater> deflater;
+    private final ThreadLocal<Inflater> inflater;
+
+    public DeflaterCodec() {
+        this(Deflater.DEFAULT_COMPRESSION, true);
+    }
+
+    public DeflaterCodec(int level, boolean nowrap) {
+        this.deflater = ThreadLocal.withInitial(() -> new Deflater(level, nowrap));
+        this.inflater = ThreadLocal.withInitial(() -> new Inflater(nowrap));
+    }
+
     @Override
     public void compress(ByteBuffer src, ByteBuffer dst) {
         try {
-            Deflater deflater = new Deflater();
-            deflater.setInput(src);
-            deflater.finish();
-            deflater.deflate(dst);
+            Deflater instance = deflater.get();
+            instance.setInput(src);
+            instance.finish();
+            instance.deflate(dst);
+            instance.reset();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -23,10 +36,10 @@ public class DeflaterCodec implements Codec {
     @Override
     public void decompress(ByteBuffer src, ByteBuffer dst) {
         try {
-            Inflater inflater = new Inflater();
-            inflater.setInput(src);
-            inflater.inflate(dst);
-            inflater.end();
+            Inflater instance = inflater.get();
+            instance.setInput(src);
+            instance.inflate(dst);
+            instance.reset();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
