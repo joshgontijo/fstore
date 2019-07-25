@@ -1,4 +1,4 @@
-package io.joshworks.fstore.core.properties;
+package io.joshworks.fstore.core.util;
 
 import java.io.IOException;
 import java.io.InputStream;

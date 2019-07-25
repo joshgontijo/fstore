@@ -26,6 +26,11 @@
             <artifactId>lz4-codec</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>standard-codec</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 

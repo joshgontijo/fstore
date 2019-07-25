@@ -10,7 +10,7 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.testutils.FileUtils;
+import io.joshworks.fstore.core.util.FileUtils;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;

@@ -16,6 +16,7 @@
         <module>snappy-codec</module>
         <module>lz4-codec</module>
         <module>codec-test</module>
+        <module>standard-codec</module>
     </modules>
 
     <dependencies>
@@ -24,12 +25,6 @@
             <artifactId>core</artifactId>
 <!--            <scope>provided</scope>-->
         </dependency>
-        <dependency>
-            <groupId>io.joshworks.snappy</groupId>
-            <artifactId>snappy</artifactId>
-            <version>0.3</version>
-        </dependency>
-
     </dependencies>
 
 

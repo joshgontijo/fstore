@@ -13,15 +13,15 @@
 
     <dependencies>
         <dependency>
-            <groupId>${parent.groupId}</groupId>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>core</artifactId>
         </dependency>
         <dependency>
-            <groupId>${parent.groupId}</groupId>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>standard-serializer</artifactId>
         </dependency>
         <dependency>
-            <groupId>${parent.groupId}</groupId>
+            <groupId>${project.parent.groupId}</groupId>
             <artifactId>logstore</artifactId>
             <scope>provided</scope>
         </dependency>
@@ -29,11 +29,6 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.joshworks.fstore</groupId>
-            <artifactId>test-utils</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
