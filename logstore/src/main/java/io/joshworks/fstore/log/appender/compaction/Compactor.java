@@ -126,7 +126,7 @@ public class Compactor<T> implements Closeable {
 
     }
 
-    private synchronized void submitCompaction(CompactionEvent<T> event) {
+    private void submitCompaction(CompactionEvent<T> event) {
         executorFor(event.level).submit(() -> {
             if (closed.get()) {
                 return;
@@ -209,8 +209,7 @@ public class Compactor<T> implements Closeable {
                         1,
                         TimeUnit.MINUTES,
                         new ArrayBlockingQueue<>(20),
-                        Threads.namedThreadFactory(executorName),
-                        new ThreadPoolExecutor.DiscardPolicy());
+                        Threads.namedThreadFactory(executorName));
 
             }
             return v;
