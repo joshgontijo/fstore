@@ -5,7 +5,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.record.RecordEntry;
-import io.joshworks.fstore.log.segment.header.Type;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -69,16 +68,14 @@ class SegmentReader<T> implements SegmentIterator<T> {
     }
 
     private void fetchEntries() {
+        if (endOfLog()) {
+            close();
+            return;
+        }
         if (segment.closed()) {
             throw new RuntimeException("Closed segment: " + segment);
         }
         long pos = readPosition.get();
-        if (Direction.FORWARD.equals(direction) && pos >= segment.position()) {
-            return;
-        }
-        if (Direction.BACKWARD.equals(direction) && pos <= Log.START) {
-            return;
-        }
         List<RecordEntry<T>> entries = stream.bulkRead(direction, pos, serializer);
         pageQueue.addAll(entries);
         if (entries.isEmpty()) {
@@ -88,7 +85,13 @@ class SegmentReader<T> implements SegmentIterator<T> {
 
     @Override
     public boolean endOfLog() {
-        return this.position() >= segment.position() && !Type.LOG_HEAD.equals(segment.header.type());
+        if (!segment.readOnly()) {
+            return false;
+        }
+        if (Direction.FORWARD.equals(direction)) {
+            return this.position() >= segment.position() && segment.readOnly();
+        }
+        return this.position() <= Log.START;
     }
 
     @Override
