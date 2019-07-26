@@ -9,7 +9,7 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
     public static final long NO_TIMESTAMP = -1;
     public static final long NO_MAX_AGE = -1;
 
-    public final long timestamp;
+    public final long timestamp; //in seconds
     public final K key;
     public final V value;
 
@@ -43,9 +43,9 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
         return value == null;
     }
 
-    public boolean expired(long maxAge) {
+    public boolean expired(long maxAgeSeconds) {
         long now = System.currentTimeMillis() / 1000;
-        return maxAge > 0 && timestamp > NO_TIMESTAMP && (now - timestamp > maxAge);
+        return maxAgeSeconds > 0 && timestamp > NO_TIMESTAMP && (now - timestamp > maxAgeSeconds);
     }
 
     public boolean readable(long maxAge) {

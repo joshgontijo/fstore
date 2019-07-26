@@ -9,6 +9,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
@@ -16,6 +17,7 @@ import io.joshworks.fstore.log.segment.block.BlockFactory;
 import java.io.File;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class SSTables<K extends Comparable<K>, V> {
@@ -31,6 +33,7 @@ public class SSTables<K extends Comparable<K>, V> {
                     StorageMode storageMode,
                     FlushMode flushMode,
                     BlockFactory blockFactory,
+                    UniqueMergeCombiner<Entry<K, V>> compactor,
                     long maxAge,
                     Codec codec,
                     Codec footerCodec,
@@ -42,7 +45,7 @@ public class SSTables<K extends Comparable<K>, V> {
 
         this.blockCache = Cache.create(blockCacheSize, blockCacheMaxAge);
         this.appender = LogAppender.builder(dir, EntrySerializer.of(maxAge, keySerializer, valueSerializer))
-                .compactionStrategy(new SSTableCompactor<>(maxAge))
+                .compactionStrategy(compactor)
                 .name(name + "-sstable")
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)

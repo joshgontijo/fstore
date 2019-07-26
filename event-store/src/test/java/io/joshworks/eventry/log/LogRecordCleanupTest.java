@@ -16,11 +16,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -37,7 +39,7 @@ public class LogRecordCleanupTest {
     public void setUp() {
         dummyFolder = FileUtils.testFolder();
         streams = new Streams(dummyFolder, STREAMS_FLUSH_THRESHOLD, -1, -1);
-        index = new Index(dummyFolder, 10, -1, -1);
+        index = new Index(dummyFolder, 10, -1, -1, LogRecordCleanupTest::dummyMetadata);
         cleanup = new RecordCleanup(streams, index);
     }
 
@@ -46,6 +48,10 @@ public class LogRecordCleanupTest {
         streams.close();
         index.close();
         FileUtils.tryDelete(dummyFolder);
+    }
+
+    private static StreamMetadata dummyMetadata(long stream) {
+        return new StreamMetadata(String.valueOf(stream), stream, 0, NO_MAX_AGE, NO_MAX_COUNT, NO_TRUNCATE, new HashMap<>(), new HashMap<>(), StreamMetadata.STREAM_ACTIVE);
     }
 
     @Test(expected = IllegalArgumentException.class)

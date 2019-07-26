@@ -43,6 +43,7 @@ public class SSTablesTest {
                 StorageMode.MMAP,
                 FlushMode.MANUAL,
                 Block.vlenBlock(),
+                new SSTableCompactor<>(NO_MAX_AGE),
                 NO_MAX_AGE,
                 new SnappyCodec(),
                 Codec.noCompression(),

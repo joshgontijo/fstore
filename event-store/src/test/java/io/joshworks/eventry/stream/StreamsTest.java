@@ -14,7 +14,7 @@ import static org.junit.Assert.assertTrue;
 
 public class StreamsTest {
 
-    private static final int STREAMS_FLUSH_THRESHOLD = 1000000;
+    private static final int STREAMS_FLUSH_THRESHOLD = 100000;
     private Streams streams;
 
     private File dummyFile;
@@ -96,7 +96,7 @@ public class StreamsTest {
     @Test
     public void streams_are_loaded_after_restarting_WITH_DISK_ITEMS() {
 
-        int numStreams = (STREAMS_FLUSH_THRESHOLD * 2) + 10; //2 segments + 10 memItems
+        int numStreams = STREAMS_FLUSH_THRESHOLD + 10; //2 segments + 10 memItems
         for (int i = 0; i < numStreams; i++) {
             streams.create(String.valueOf(i));
         }
@@ -105,9 +105,6 @@ public class StreamsTest {
         streams = open();
 
         for (int i = 0; i < numStreams; i++) {
-            if(2000000 == i) {
-                System.out.println();
-            }
             StreamMetadata streamInfo = streams.get(String.valueOf(i));
             assertNotNull("Failed on " + i, streamInfo);
         }

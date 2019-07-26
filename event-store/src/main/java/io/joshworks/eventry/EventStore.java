@@ -77,8 +77,8 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
-        this.index = new Index(rootDir, INDEX_FLUSH_THRESHOLD, VERSION_CACHE_SIZE, VERSION_CACHE_MAX_AGE);
         this.streams = new Streams(rootDir, STREAMS_FLUSH_THRESHOLD, STREAM_CACHE_SIZE, STREAM_CACHE_MAX_AGE);
+        this.index = new Index(rootDir, INDEX_FLUSH_THRESHOLD, VERSION_CACHE_SIZE, VERSION_CACHE_MAX_AGE, streams::get);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
                 .name("event-log")
@@ -291,7 +291,7 @@ public class EventStore implements IEventStore {
                 .map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version)
                 .orElse(version);
 
-        StreamIterator streamIterator = index.iterator(Checkpoint.of(hash, startVersion), streams::get);
+        StreamIterator streamIterator = index.iterator(Checkpoint.of(hash, startVersion));
         StreamListenerRemoval listenerRemoval = new StreamListenerRemoval(streamListeners, streamIterator);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
@@ -306,7 +306,7 @@ public class EventStore implements IEventStore {
         }
 
         Set<Long> longs = streams.matchStreamHash(streamPrefix);
-        StreamIterator streamIterator = index.iterator(streamPrefix, Checkpoint.of(longs), streams::get);
+        StreamIterator streamIterator = index.iterator(streamPrefix, Checkpoint.of(longs));
         StreamListenerRemoval listenerRemoval = new StreamListenerRemoval(streamListeners, streamIterator);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
@@ -321,7 +321,7 @@ public class EventStore implements IEventStore {
 
         Set<Long> hashes = streamNames.stream().map(StreamName::hash).collect(Collectors.toSet());
 
-        StreamIterator streamIterator = index.iterator(Checkpoint.of(hashes), streams::get);
+        StreamIterator streamIterator = index.iterator(Checkpoint.of(hashes));
         StreamListenerRemoval listenerRemoval = new StreamListenerRemoval(streamListeners, streamIterator);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
