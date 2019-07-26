@@ -11,6 +11,11 @@ import io.joshworks.fstore.log.segment.Log;
 
 import java.util.List;
 
+import static io.joshworks.eventry.EventUtils.isExpired;
+import static io.joshworks.eventry.EventUtils.isObsolete;
+import static io.joshworks.eventry.EventUtils.isTruncated;
+import static io.joshworks.eventry.EventUtils.skipEntry;
+
 public class RecordCleanup implements SegmentCombiner<EventRecord> {
 
     private final Streams streams;
@@ -41,7 +46,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                 int version = record.version;
                 long timestamp = record.timestamp;
 
-                if (skipEntry(metadata, version, timestamp)) {
+                if (skipEntry(metadata, version, timestamp, index::version)) {
                     continue;
                 }
 
@@ -58,7 +63,6 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                 //TODO add position mapping to footer
                 //TODO New Segment class for the EventLog is needed to handle the mapping on read
                 //TODO mapping should be relative offset that the deleted entry adds to the subsequent entries
-
             }
 
 
@@ -76,11 +80,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
         StreamMetadata tgtMetadata = getMetadata(targetStream);
 
         //isExpired we can use the LinkTo event TS, since it will always be equals or greater than the original TS
-        return skipEntry(tgtMetadata, targetVersion, timestamp);
-    }
-
-    private boolean skipEntry(StreamMetadata metadata, int version, long timestamp) {
-        return isExpired(timestamp, metadata) || isObsolete(version, metadata) || isTruncated(version, metadata) || isStreamDeleted(metadata);
+        return skipEntry(tgtMetadata, targetVersion, timestamp, index::version);
     }
 
     private StreamMetadata getMetadata(String stream) {
@@ -92,20 +92,4 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
         return metadataOpt;
     }
 
-    private boolean isTruncated(int recordVersion, StreamMetadata metadata) {
-        return metadata.truncated() && recordVersion <= metadata.truncated;
-    }
-
-    private boolean isObsolete(int recordVersion, StreamMetadata metadata) {
-        int currentStreamVersion = index.version(metadata.hash);
-        return metadata.maxCount > 0 && currentStreamVersion - recordVersion >= metadata.maxCount;
-    }
-
-    private boolean isExpired(long recordTimestamp, StreamMetadata metadata) {
-        return metadata.maxAge > 0 && System.currentTimeMillis() - recordTimestamp > metadata.maxAge;
-    }
-
-    private boolean isStreamDeleted(StreamMetadata metadata) {
-        return metadata.streamDeleted();
-    }
 }

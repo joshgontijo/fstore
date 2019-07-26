@@ -26,10 +26,12 @@ public class Index implements Closeable {
     private static final String NAME = "index";
     private final LsmTree<IndexKey, Long> lsmTree;
     private final Cache<Long, AtomicInteger> versionCache;
+    private final Function<Long, StreamMetadata> metadataSupplier;
 
-    public Index(File rootDir, int indexFlushThreshold, int versionCacheSize, int versionCacheMaxAge) {
-        versionCache = Cache.create(versionCacheSize, versionCacheMaxAge);
-        lsmTree = LsmTree.builder(new File(rootDir, NAME), new IndexKeySerializer(), Serializers.LONG)
+    public Index(File rootDir, int indexFlushThreshold, int versionCacheSize, int versionCacheMaxAge, Function<Long, StreamMetadata> metadataSupplier) {
+        this.versionCache = Cache.create(versionCacheSize, versionCacheMaxAge);
+        this.metadataSupplier = metadataSupplier;
+        this.lsmTree = LsmTree.builder(new File(rootDir, NAME), new IndexKeySerializer(), Serializers.LONG)
                 .disableTransactionLog()
                 .flushThreshold(indexFlushThreshold)
                 .sstableStorageMode(StorageMode.MMAP)
@@ -38,6 +40,7 @@ public class Index implements Closeable {
                 .blockSize(Memory.PAGE_SIZE * 2)
                 .flushOnClose(false)
                 .maxAge(Long.MAX_VALUE)
+                .sstableCompactor(new IndexCompactor(metadataSupplier, this::version))
                 .name(NAME)
                 .open();
     }
@@ -70,7 +73,7 @@ public class Index implements Closeable {
     }
 
     /**
-     * Perform a backward scan on SSTables until the first key matching the stream
+     * Performs a backward scan on SSTables until the first key matching the stream
      */
     public int version(long stream) {
         AtomicInteger cached = versionCache.get(stream);
@@ -98,12 +101,12 @@ public class Index implements Closeable {
         }
     }
 
-    public StreamIterator iterator(Checkpoint checkpoint, Function<Long, StreamMetadata> metadataSupplier) {
+    public StreamIterator iterator(Checkpoint checkpoint) {
         FixedStreamIterator iterator = new FixedStreamIterator(lsmTree, Direction.FORWARD, checkpoint);
         return withMaxCount(iterator, metadataSupplier);
     }
 
-    public StreamIterator iterator(String streamPrefix, Checkpoint checkpoint, Function<Long, StreamMetadata> metadataSupplier) {
+    public StreamIterator iterator(String streamPrefix, Checkpoint checkpoint) {
         StreamPrefixIndexIterator iterator = new StreamPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPrefix);
         return withMaxCount(iterator, metadataSupplier);
     }

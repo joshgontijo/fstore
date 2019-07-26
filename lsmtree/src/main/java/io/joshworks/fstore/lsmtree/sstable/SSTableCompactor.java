@@ -6,7 +6,7 @@ public class SSTableCompactor<K extends Comparable<K>, V> extends UniqueMergeCom
 
     private final long maxAge;
 
-    SSTableCompactor(long maxAge) {
+    public SSTableCompactor(long maxAge) {
         this.maxAge = maxAge;
     }
 

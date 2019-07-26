@@ -12,6 +12,7 @@ import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
+import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
@@ -23,6 +24,7 @@ import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
 import io.joshworks.fstore.lsmtree.sstable.MemTable;
 import io.joshworks.fstore.lsmtree.sstable.SSTable;
+import io.joshworks.fstore.lsmtree.sstable.SSTableCompactor;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
 
 import java.io.Closeable;
@@ -69,6 +71,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.sstableStorageMode,
                 builder.ssTableFlushMode,
                 builder.sstableBlockFactory,
+                builder.sstableCompactor,
                 builder.maxAgeSeconds,
                 builder.codec,
                 builder.footerCodec,
@@ -249,13 +252,14 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private final File directory;
         private final Serializer<K> keySerializer;
         private final Serializer<V> valueSerializer;
-        public Codec footerCodec = Codec.noCompression();
+        private Codec footerCodec = Codec.noCompression();
+        private UniqueMergeCombiner<Entry<K, V>> sstableCompactor;
         private long bloomNItems = DEFAULT_THRESHOLD;
         private double bloomFPProb = 0.05;
         private int blockSize = Memory.PAGE_SIZE;
         private int flushThreshold = DEFAULT_THRESHOLD;
         private boolean logDisabled;
-        public Codec codec = new SnappyCodec();
+        private Codec codec = new SnappyCodec();
         private String name = "lsm-tree";
         private StorageMode sstableStorageMode = StorageMode.MMAP;
         private FlushMode ssTableFlushMode = FlushMode.ON_ROLL;
@@ -306,6 +310,11 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
         public Builder<K, V> maxAge(long maxAgeSeconds) {
             this.maxAgeSeconds = maxAgeSeconds;
+            return this;
+        }
+
+        public Builder<K, V> sstableCompactor(UniqueMergeCombiner<Entry<K, V>> sstableCompactor) {
+            this.sstableCompactor = sstableCompactor;
             return this;
         }
 
@@ -385,9 +394,9 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
 
         public LsmTree<K, V> open() {
+            this.sstableCompactor = this.sstableCompactor == null ? new SSTableCompactor<>(maxAgeSeconds) : sstableCompactor;
             return new LsmTree<>(this);
         }
-
     }
 
 }
