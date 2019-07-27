@@ -20,16 +20,15 @@ import static org.junit.Assert.assertTrue;
 public abstract class BlockTest {
 
     private static final int BLOCK_SIZE = Memory.PAGE_SIZE;
-    private static final boolean DIRECT = false;
     private BlockFactory factory;
     private Codec codec = Codec.noCompression();
 
     @Before
     public void setUp() {
-        factory = factory(DIRECT);
+        factory = factory();
     }
 
-    public abstract BlockFactory factory(boolean direct);
+    public abstract BlockFactory factory();
 
     @Test(expected = IllegalArgumentException.class)
     public void writing_entry_bigger_than_block_throws_exception() {
@@ -232,22 +231,22 @@ public abstract class BlockTest {
     public static class DefaultBlockTest extends BlockTest {
 
         @Override
-        public BlockFactory factory(boolean direct) {
-            return Block.vlenBlock(direct);
+        public BlockFactory factory() {
+            return Block.vlenBlock();
         }
     }
 
     public static class FixedBlockTest extends BlockTest {
 
         @Override
-        public BlockFactory factory(boolean direct) {
-            return Block.flenBlock(direct, 1);
+        public BlockFactory factory() {
+            return Block.flenBlock(1);
         }
 
         @Test(expected = IllegalArgumentException.class)
         public void writing_entry_bigger_entry_size_throws_exception() {
             int entrySize = 10;
-            Block block = Block.flenBlock(false, entrySize).create(entrySize * 2);
+            Block block = Block.flenBlock(entrySize).create(entrySize * 2);
 
             StringBuilder data = new StringBuilder();
             for (int i = 0; i < entrySize + 1; i++) {

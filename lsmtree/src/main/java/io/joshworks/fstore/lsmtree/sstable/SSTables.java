@@ -51,6 +51,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 .segmentSize(segmentSize)
                 .parallelCompaction()
                 .flushMode(flushMode)
+                .directBufferPool()
                 .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, footerCodec, bloomNItems, bloomFPProb, blockSize, maxAge, blockCache));
     }
 

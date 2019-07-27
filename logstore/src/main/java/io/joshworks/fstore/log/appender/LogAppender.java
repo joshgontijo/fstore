@@ -9,7 +9,9 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.appender.compaction.Compactor;
+import io.joshworks.fstore.log.appender.compaction.DefaultCompactor;
+import io.joshworks.fstore.log.appender.compaction.ICompactor;
+import io.joshworks.fstore.log.appender.compaction.NoOpCompactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -68,14 +70,11 @@ public class LogAppender<T> implements Closeable {
 
     final Levels<T> levels;
 
-    //state
-    private final boolean compactionDisabled;
-
     private AtomicBoolean closed = new AtomicBoolean();
 
     private final ScheduledExecutorService flushWorker;
     private final List<ForwardLogReader<T>> forwardReaders = new CopyOnWriteArrayList<>();
-    private final Compactor<T> compactor;
+    private final ICompactor compactor;
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
         return new Config<>(directory, serializer);
@@ -89,7 +88,6 @@ public class LogAppender<T> implements Closeable {
         this.namingStrategy = config.namingStrategy;
         this.checksumProbability = config.checksumProbability;
         this.readPageSize = config.readPageSize;
-        this.compactionDisabled = config.compactionDisabled;
         this.bufferPool = new BufferPool(config.maxEntrySize, config.directBufferPool);
         this.logger = Logging.namedLogger(config.name, "appender");
 
@@ -118,7 +116,17 @@ public class LogAppender<T> implements Closeable {
         }
 
         this.levels = loadSegments();
-        this.compactor = new Compactor<>(
+        this.compactor = createCompactor(config);
+
+        logger.info(config.toString());
+        compactor.compact();
+    }
+
+    private ICompactor createCompactor(Config<T> config) {
+        if (config.combiner == null) {
+            return new NoOpCompactor();
+        }
+        return new DefaultCompactor<>(
                 directory,
                 config.combiner,
                 factory,
@@ -132,11 +140,6 @@ public class LogAppender<T> implements Closeable {
                 config.parallelCompaction,
                 readPageSize,
                 checksumProbability);
-
-        logger.info(config.toString());
-        if (!compactionDisabled) {
-            compactor.compact();
-        }
     }
 
     private Log<T> createCurrentSegment() {
@@ -206,10 +209,7 @@ public class LogAppender<T> implements Closeable {
 
                 notifyPollers(newSegment);
 
-                if (!compactionDisabled) {
-                    compactor.compact();
-                }
-
+                compactor.compact();
 
             } catch (Exception e) {
                 throw new RuntimeIOException("Could not roll segment file", e);
@@ -344,20 +344,6 @@ public class LogAppender<T> implements Closeable {
         }
     }
 
-    public long size() {
-        return levels.apply(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::physicalSize).sum());
-    }
-
-    public long size(int level) {
-        if (level < 0) {
-            throw new IllegalArgumentException("Level must be at least zero");
-        }
-        if (level > levels.depth()) {
-            throw new IllegalArgumentException("No such level " + level + ", current depth: " + levels.depth());
-        }
-        return applyToSegments(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::physicalSize).sum());
-    }
-
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
@@ -365,7 +351,7 @@ public class LogAppender<T> implements Closeable {
         }
         logger.info("Closing log appender {}", directory.getName());
 
-        compactor.close();
+        IOUtils.closeQuietly(compactor);
         shutdownFlushWorker();
 
         Log<T> currentSegment = levels.current();
@@ -413,6 +399,20 @@ public class LogAppender<T> implements Closeable {
             return;
         }
         levels.current().flush();
+    }
+
+    public long physicalSize() {
+        return levels.apply(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::physicalSize).sum());
+    }
+
+    public long physicalSize(int level) {
+        if (level < 0) {
+            throw new IllegalArgumentException("Level must be at least zero");
+        }
+        if (level > levels.depth()) {
+            throw new IllegalArgumentException("No such level " + level + ", current depth: " + levels.depth());
+        }
+        return applyToSegments(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::physicalSize).sum());
     }
 
     public long entries() {

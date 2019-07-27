@@ -133,7 +133,7 @@ public class Midpoints<K extends Comparable<K>> {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
         int blockSize = Math.min(bufferPool.capacity(), Size.MB.ofInt(1));
-        BlockFactory blockFactory = Block.vlenBlock(bufferPool.direct());
+        BlockFactory blockFactory = Block.vlenBlock();
         BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
         Block block = blockFactory.create(blockSize);
 
@@ -152,13 +152,13 @@ public class Midpoints<K extends Comparable<K>> {
         }
     }
 
-    public static <K extends Comparable<K>> Midpoints<K> load(FooterReader reader, Codec codec, BufferPool bufferPool, Serializer<K> keySerializer) {
+    public static <K extends Comparable<K>> Midpoints<K> load(FooterReader reader, Codec codec, Serializer<K> keySerializer) {
         Midpoints<K> midpoints = new Midpoints<>();
         if (!midpoints.isEmpty()) {
             throw new IllegalStateException("Midpoints is not empty");
         }
 
-        BlockFactory blockFactory = Block.vlenBlock(bufferPool.direct());
+        BlockFactory blockFactory = Block.vlenBlock();
         BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
         Serializer<Midpoint<K>> midpointSerializer = new MidpointSerializer<>(keySerializer);
         List<Block> blocks = reader.findAll(BLOCK_PREFIX, blockSerializer);

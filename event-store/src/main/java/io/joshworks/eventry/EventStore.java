@@ -86,7 +86,6 @@ public class EventStore implements IEventStore {
                 .storageMode(StorageMode.MMAP)
                 .directBufferPool()
                 .checksumProbability(1)
-                .disableCompaction()
                 .namingStrategy(new SequentialNaming(rootDir))
                 .compactionStrategy(new RecordCleanup(streams, index)));
 

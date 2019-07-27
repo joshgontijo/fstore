@@ -35,7 +35,7 @@ public class Index implements Closeable {
                 .disableTransactionLog()
                 .flushThreshold(indexFlushThreshold)
                 .sstableStorageMode(StorageMode.MMAP)
-                .blockFactory(Block.flenBlock(true, IndexKey.BYTES + Long.BYTES))
+                .blockFactory(Block.flenBlock(IndexKey.BYTES + Long.BYTES))
                 .codec(new SnappyCodec())
                 .blockSize(Memory.PAGE_SIZE * 2)
                 .flushOnClose(false)

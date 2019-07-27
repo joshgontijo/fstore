@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
@@ -21,7 +20,7 @@ public class Config<T> {
     final File directory;
     final Serializer<T> serializer;
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
-    SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
+    SegmentCombiner<T> combiner;
     SegmentFactory<T> segmentFactory;
 
     String name = "default";
@@ -31,7 +30,6 @@ public class Config<T> {
     FlushMode flushMode = FlushMode.MANUAL;
     int compactionThreshold = 3;
     boolean parallelCompaction;
-    boolean compactionDisabled;
     int readPageSize = Memory.PAGE_SIZE;
     boolean directBufferPool = false;
     StorageMode compactionStorage;
@@ -96,11 +94,6 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> disableCompaction() {
-        this.compactionDisabled = true;
-        return this;
-    }
-
     public Config<T> parallelCompaction() {
         this.parallelCompaction = true;
         return this;
@@ -136,10 +129,11 @@ public class Config<T> {
 
     @Override
     public String toString() {
+        String combinerName = combiner == null ? "(none)" : combiner.getClass().getSimpleName();
         return "Config{" + "directory=" + directory +
                 ", serializer=" + serializer.getClass().getSimpleName() +
                 ", namingStrategy=" + namingStrategy.getClass().getSimpleName() +
-                ", combiner=" + combiner.getClass().getSimpleName() +
+                ", combiner=" + combinerName +
                 ", segmentFactory=" + segmentFactory.getClass().getSimpleName() +
                 ", name='" + name + '\'' +
                 ", segmentSize=" + segmentSize +
@@ -148,7 +142,6 @@ public class Config<T> {
                 ", flushMode=" + flushMode +
                 ", compactionThreshold=" + compactionThreshold +
                 ", parallelCompaction=" + parallelCompaction +
-                ", compactionDisabled=" + compactionDisabled +
                 ", readPageSize=" + readPageSize +
                 ", directBufferPool=" + directBufferPool +
                 ", compactionStorage=" + compactionStorage +

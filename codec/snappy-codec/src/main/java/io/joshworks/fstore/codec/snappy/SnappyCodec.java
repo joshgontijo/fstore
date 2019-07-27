@@ -13,8 +13,10 @@ public class SnappyCodec implements Codec {
     public void compress(ByteBuffer src, ByteBuffer dst) {
         try {
             if (src.isDirect() && dst.isDirect()) {
+                int limit = dst.limit();
                 int compressedLen = Snappy.compress(src, dst);
                 dst.position(dst.position() + compressedLen);
+                dst.limit(limit); //this compression mode will update the limit, we need to revert
                 src.position(src.position() + src.remaining());
                 return;
             }

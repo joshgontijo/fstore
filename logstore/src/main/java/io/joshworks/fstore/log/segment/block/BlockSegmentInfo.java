@@ -46,4 +46,13 @@ public class BlockSegmentInfo {
     public void addCompressedSize(int compressedSize) {
         this.compressedSize += compressedSize;
     }
+
+    @Override
+    public String toString() {
+        return "BlockSegmentInfo{" + "blockSize=" + blockSize +
+                ", entries=" + entries +
+                ", uncompressedSize=" + uncompressedSize +
+                ", compressedSize=" + compressedSize +
+                '}';
+    }
 }
