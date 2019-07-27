@@ -26,7 +26,7 @@ public class StreamInfo {
     }
 
     public static StreamInfo from(StreamMetadata metadata, int version) {
-        return new StreamInfo(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, version, metadata.acl, metadata.metadata);
+        return new StreamInfo(metadata.name, metadata.hash, metadata.created, metadata.maxAgeSec, metadata.maxCount, version, metadata.acl, metadata.metadata);
     }
 
 }

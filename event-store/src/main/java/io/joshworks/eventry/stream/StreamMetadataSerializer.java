@@ -17,7 +17,7 @@ public class StreamMetadataSerializer implements Serializer<StreamMetadata> {
     public void writeTo(StreamMetadata data, ByteBuffer dst) {
         dst.putLong(data.hash);
         dst.putLong(data.created);
-        dst.putLong(data.maxAge);
+        dst.putLong(data.maxAgeSec);
         dst.putInt(data.maxCount);
         dst.putInt(data.state);
         dst.putInt(data.truncated);

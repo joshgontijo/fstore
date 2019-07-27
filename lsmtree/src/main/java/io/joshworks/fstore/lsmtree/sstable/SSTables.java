@@ -16,11 +16,11 @@ import io.joshworks.fstore.log.segment.block.BlockFactory;
 
 import java.io.File;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class SSTables<K extends Comparable<K>, V> {
+public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V> {
 
     private final LogAppender<Entry<K, V>> appender;
     private final Cache<String, Block> blockCache;
@@ -58,7 +58,8 @@ public class SSTables<K extends Comparable<K>, V> {
         return appender.append(entry);
     }
 
-    public V get(K key) {
+    @Override
+    public Entry<K, V> get(K key) {
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<Entry<K, V>> segment : segments) {
                 if (!segment.readOnly()) {
@@ -67,66 +68,59 @@ public class SSTables<K extends Comparable<K>, V> {
                 SSTable<K, V> sstable = (SSTable<K, V>) segment;
                 Entry<K, V> found = sstable.get(key);
                 if (found != null) {
-                    return found.value;
+                    return found;
                 }
             }
             return null;
+        });
+    }
+
+    @Override
+    public Entry<K, V> floor(K key) {
+        return apply(key, Expression.FLOOR);
+    }
+
+    @Override
+    public Entry<K, V> lower(K key) {
+        return apply(key, Expression.LOWER);
+    }
+
+    @Override
+    public Entry<K, V> ceiling(K key) {
+        return apply(key, Expression.CEILING);
+    }
+
+    @Override
+    public Entry<K, V> higher(K key) {
+        return apply(key, Expression.HIGHER);
+    }
+
+    private Entry<K, V> apply(K key, Expression expression) {
+        return appender.applyToSegments(Direction.BACKWARD, segments -> {
+            TreeSet<Entry<K, V>> set = new TreeSet<>();
+            for (Log<Entry<K, V>> segment : segments) {
+                SSTable<K, V> sstable = (SSTable<K, V>) segment;
+                if (!sstable.readOnly()) {
+                    continue;
+                }
+                Entry<K, V> entry = expression.apply(key, sstable);
+                if (entry != null) {
+                    set.add(entry);
+                    if (key.equals(entry.key)) {
+                        //short circuit on exact match when ceiling, floor or equals
+                        if (Expression.CEILING.equals(expression) || Expression.FLOOR.equals(expression) || Expression.EQUALS.equals(expression)) {
+                            break;
+                        }
+                    }
+                }
+            }
+            return expression.apply(key, set);
         });
     }
 
     public <T> T applyToSegments(Direction direction, Function<List<Log<Entry<K, V>>>, T> func) {
         return appender.applyToSegments(direction, func);
     }
-
-    //returns the first floor occurrence of a given key
-    public Entry<K, V> floor(K key) {
-        return appender.applyToSegments(Direction.BACKWARD, segments -> {
-            for (Log<Entry<K, V>> segment : segments) {
-                SSTable<K, V> sstable = (SSTable<K, V>) segment;
-                if (!sstable.readOnly()) {
-                    continue;
-                }
-                Entry<K, V> floorEntry = sstable.floor(key);
-                if (floorEntry != null) {
-                    return floorEntry;
-                }
-            }
-            return null;
-        });
-    }
-
-    //returns the first ceiling occurrence of a given key
-    public Entry<K, V> ceiling(K key) {
-        return appender.applyToSegments(Direction.BACKWARD, segments -> {
-            for (Log<Entry<K, V>> segment : segments) {
-                if (!segment.readOnly()) {
-                    continue;
-                }
-                SSTable<K, V> sstable = (SSTable<K, V>) segment;
-                if (key.compareTo(sstable.firstKey()) > 0 && key.compareTo(sstable.lastKey()) <= 0) {
-                    return sstable.ceiling(key);
-                }
-            }
-            return null;
-        });
-    }
-
-    public void evictBlockCache() {
-        blockCache.clear();
-    }
-
-//    public Entry<K, V> ceiling(K key) {
-//        Entry<K, V> ceiling = memTable.ceiling(key);
-//    }
-//
-//    public Entry<K, V> higher(K key) {
-//        Entry<K, V> higher = memTable.higher(key);
-//    }
-//
-//    public Entry<K, V> lower(K key) {
-//        Entry<K, V> lower = memTable.lower(key);
-//    }
-
 
     public void roll() {
         appender.roll();

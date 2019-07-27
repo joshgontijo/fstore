@@ -3,12 +3,13 @@ package io.joshworks.fstore.lsmtree.sstable;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,7 +26,6 @@ public class SSTablesTest {
 
     private SSTables<Integer, String> sstables;
     private File testDirectory;
-
 
     @Before
     public void setUp() {
@@ -61,9 +61,34 @@ public class SSTablesTest {
     }
 
     @Test
+    public void writeTo_returns_the_actual_written_items() {
+        int items = 1000;
+        MemTable<Integer, String> memTable = new MemTable<>();
+        for (int i = 0; i < items; i++) {
+            memTable.add(Entry.add(i, String.valueOf(i)));
+        }
+
+        long written = memTable.writeTo(sstables, NO_MAX_AGE);
+        assertEquals(items, written);
+    }
+
+    @Test
+    public void max_aged_items_are_not_flushed_to_sstable() {
+        int items = 1000;
+        MemTable<Integer, String> memTable = new MemTable<>();
+        for (int i = 0; i < items; i++) {
+            memTable.add(Entry.add(i, String.valueOf(i)));
+        }
+
+        Threads.sleep(2000);
+        long written = memTable.writeTo(sstables, 1);
+        assertEquals(0, written);
+    }
+
+    @Test
     public void floor() {
         TreeSet<Integer> treeMap = new TreeSet<>();
-        int items = 1000000;
+        int items = 10000;
         int itemsPerSegment = 10000;
         MemTable<Integer, String> memTable = new MemTable<>();
 
@@ -73,16 +98,13 @@ public class SSTablesTest {
             treeMap.add(i);
 
             if (++x % itemsPerSegment == 0) {
-                memTable.writeTo(sstables);
+                memTable.writeTo(sstables, NO_MAX_AGE);
                 memTable = new MemTable<>();
             }
         }
-        memTable.writeTo(sstables);
+        memTable.writeTo(sstables, NO_MAX_AGE);
 
         for (int i = 0; i < items; i++) {
-            if(i == 49996) {
-                System.out.println();
-            }
             Integer expected = treeMap.floor(i);
             Entry<Integer, String> entry = sstables.floor(i);
 
@@ -94,47 +116,32 @@ public class SSTablesTest {
     @Test
     public void floor_with_update() {
         TreeSet<Integer> treeMap = new TreeSet<>();
-        int items = 1000000;
-        int itemsPerSegment = 10000;
+        int segments = 2;
+        int itemsPerSegment = 1000;
         MemTable<Integer, String> memTable = new MemTable<>();
 
-        int x = 0;
-        for (int i = 0; i < items; i += 5) {
-            memTable.add(Entry.add(i, String.valueOf(i)));
-            treeMap.add(i);
-
-            if (++x % itemsPerSegment == 0) {
-                memTable.writeTo(sstables);
-                memTable = new MemTable<>();
+        for (int segment = 0; segment < segments; segment++) {
+            for (int i = 0; i < itemsPerSegment; i += 5) {
+                memTable.add(Entry.add(i, String.valueOf(i)));
+                treeMap.add(i);
             }
+            memTable.writeTo(sstables, NO_MAX_AGE);
+            memTable = new MemTable<>();
         }
-        memTable.writeTo(sstables);
 
-
-        //update
-        x = 0;
         Random random = new Random(123L);
-        for (int i = 0; i < items / 4; i += 5) {
-            int val = random.nextInt(items - 1);
-            treeMap.add(val);
-            memTable.add(Entry.add(val, String.valueOf(val)));
-
-            if (++x % itemsPerSegment == 0) {
-                memTable.writeTo(sstables);
-                memTable = new MemTable<>();
+        for (int segment = 0; segment < segments; segment++) {
+            for (int i = 0; i < itemsPerSegment; i += 5) {
+                int val = random.nextInt(segments - 1);
+                treeMap.add(val);
+                memTable.add(Entry.add(val, String.valueOf(val)));
             }
+            memTable.writeTo(sstables, NO_MAX_AGE);
+            memTable = new MemTable<>();
         }
-        memTable.writeTo(sstables);
+        memTable.writeTo(sstables, NO_MAX_AGE);
 
-
-
-
-        for (int i = 0; i < items; i++) {
-
-            if(i == 85) {
-                System.out.println();
-            }
-
+        for (int i = 0; i < itemsPerSegment; i++) {
             Integer expected = treeMap.floor(i);
             Entry<Integer, String> entry = sstables.floor(i);
 

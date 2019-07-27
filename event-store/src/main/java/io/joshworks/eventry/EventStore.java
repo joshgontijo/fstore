@@ -58,7 +58,7 @@ public class EventStore implements IEventStore {
     private static final Logger logger = LoggerFactory.getLogger("event-store");
 
     private static final int WRITE_QUEUE_SIZE = 1000000;
-    private static final int INDEX_FLUSH_THRESHOLD = 50000;
+    private static final int INDEX_FLUSH_THRESHOLD = 40000;
     private static final int STREAMS_FLUSH_THRESHOLD = 50000;
 
     private static final int STREAM_CACHE_SIZE = 50000;
@@ -67,7 +67,7 @@ public class EventStore implements IEventStore {
     private static final int VERSION_CACHE_SIZE = 50000;
     private static final int VERSION_CACHE_MAX_AGE = (int) TimeUnit.MINUTES.toMillis(2);
 
-    private final Index index;
+    public final Index index;
     public final Streams streams; //TODO fix test to make this private
     private final IEventLog eventLog;
     private final EventWriter eventWriter;
@@ -219,14 +219,14 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public void createStream(String name, int maxCount, long maxAge) {
-        createStream(name, maxCount, maxAge, new HashMap<>(), new HashMap<>());
+    public void createStream(String name, int maxCount, long maxAgeSec) {
+        createStream(name, maxCount, maxAgeSec, new HashMap<>(), new HashMap<>());
     }
 
     @Override
-    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
+    public StreamMetadata createStream(String stream, int maxCount, long maxAgeSec, Map<String, Integer> acl, Map<String, String> metadata) {
         Future<StreamMetadata> task = eventWriter.queue(writer -> {
-            StreamMetadata created = streams.create(stream, maxAge, maxCount, acl, metadata);
+            StreamMetadata created = streams.create(stream, maxAgeSec, maxCount, acl, metadata);
             if (created == null) {
                 throw new IllegalStateException("Stream '" + stream + "' already exist");
             }
@@ -372,7 +372,7 @@ public class EventStore implements IEventStore {
             EventRecord resolved = resolve(event);
             StreamMetadata metadata = getOrCreateStream(writer, stream);
             //expired
-            if (metadata.maxAge > 0 && System.currentTimeMillis() - resolved.timestamp > metadata.maxAge) {
+            if (metadata.maxAgeSec > 0 && System.currentTimeMillis() - resolved.timestamp > metadata.maxAgeSec) {
                 return null;
             }
             EventRecord linkTo = LinkTo.create(stream, StreamName.from(resolved));
