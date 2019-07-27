@@ -53,20 +53,22 @@ public class ConcurrencyIT {
     public void concurrent_write_same_stream() throws InterruptedException {
 
         int threads = 20;
-        int totalItems = 15000000;
+        int itemsPerThread = 500000;
         String stream = "stream-0";
         ExecutorService executor = Executors.newFixedThreadPool(threads);
 
         final AtomicInteger writeCount = new AtomicInteger();
-        for (int written = 0; written < totalItems; written++) {
+        for (int thread = 0; thread < threads; thread++) {
             executor.execute(() -> {
-                int i = writeCount.getAndIncrement();
-                store.append(EventRecord.create(stream, "" + i, Map.of()));
+                for (int written = 0; written < itemsPerThread; written++) {
+                    int i = writeCount.getAndIncrement();
+                    store.append(EventRecord.create(stream, "" + i, Map.of()));
+                }
             });
         }
 
         Thread reportThread = new Thread(() -> {
-            while (writeCount.get() < totalItems) {
+            while (writeCount.get() < itemsPerThread) {
                 System.out.println("WRITES: " + writeCount.get());
                 sleep(2000);
             }
@@ -86,7 +88,7 @@ public class ConcurrencyIT {
             found++;
         }
 
-        assertEquals(totalItems, found);
+        assertEquals(itemsPerThread * threads, found);
     }
 
     @Test
@@ -205,9 +207,6 @@ public class ConcurrencyIT {
         Set<StreamName> streamHashes = streamNames.stream().map(StreamName::parse).collect(Collectors.toSet());
         try (EventLogIterator events = store.fromStreams(streamHashes)) {
             for (int i = 0; i < itemPerThread * threads; i++) {
-                if(i == 900000) {
-                    System.out.println();
-                }
                 assertTrue("Failed on " + i, events.hasNext());
                 EventRecord event = events.next();
 

@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.index.Range;
-import io.joshworks.fstore.index.cache.Cache;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -56,7 +56,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         this.logDisabled = builder.logDisabled;
         this.flushOnClose = builder.flushOnClose;
         this.log.restore(this::restore);
-        this.cache = Cache.create(builder.entryCacheSize, builder.entryCacheMaxAge);
+        this.cache = builder.entryCache;
     }
 
     public static <K extends Comparable<K>, V> Builder<K, V> builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -80,8 +80,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.bloomNItems,
                 builder.bloomFPProb,
                 builder.blockSize,
-                builder.blockCacheSize,
-                builder.blockCacheMaxAge);
+                builder.blockCache);
     }
 
     private TransactionLog<K, V> createTransactionLog(Builder<K, V> builder) {
@@ -272,11 +271,8 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private StorageMode tlogStorageMode = StorageMode.RAF;
         private int segmentSize = Size.MB.ofInt(32);
 
-        private int blockCacheSize = 500;
-        private int blockCacheMaxAge = 120000;
-
-        private int entryCacheSize = 10000;
-        private int entryCacheMaxAge = 120000;
+        private Cache<K, V> entryCache = Cache.softCache();
+        private Cache<String, Block> blockCache = Cache.softCache();
         private boolean flushOnClose = true;
         private long maxAgeSeconds = NO_MAX_AGE;
 
@@ -347,15 +343,13 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
-        public Builder<K, V> blockCache(int cacheSize, int maxAgeSeconds) {
-            this.blockCacheSize = cacheSize;
-            this.blockCacheMaxAge = maxAgeSeconds * 1000;
+        public Builder<K, V> blockCache(Cache<String, Block> blockCache) {
+            this.blockCache = requireNonNull(blockCache, "Cache must be provided");
             return this;
         }
 
-        public Builder<K, V> entryCache(int cacheSize, int maxAgeSeconds) {
-            this.entryCacheSize = cacheSize;
-            this.entryCacheMaxAge = maxAgeSeconds * 1000;
+        public Builder<K, V> entryCache(Cache<K, V> entryCache) {
+            this.entryCache = requireNonNull(entryCache, "Cache must be provided");
             return this;
         }
 

@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.index.Range;
-import io.joshworks.fstore.index.cache.Cache;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.index.filter.BloomFilter;
 import io.joshworks.fstore.index.midpoints.Midpoint;
 import io.joshworks.fstore.index.midpoints.Midpoints;

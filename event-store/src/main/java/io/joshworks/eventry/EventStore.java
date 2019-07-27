@@ -24,6 +24,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -43,6 +44,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -67,6 +69,10 @@ public class EventStore implements IEventStore {
     private static final int VERSION_CACHE_SIZE = 50000;
     private static final int VERSION_CACHE_MAX_AGE = (int) TimeUnit.MINUTES.toMillis(2);
 
+    //TODO externalize
+    private final Cache<Long, AtomicInteger> versionCache = Cache.softCache();
+    private final Cache<Long, StreamMetadata> streamCache = Cache.softCache();
+
     public final Index index;
     public final Streams streams; //TODO fix test to make this private
     private final IEventLog eventLog;
@@ -77,8 +83,8 @@ public class EventStore implements IEventStore {
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
-        this.streams = new Streams(rootDir, STREAMS_FLUSH_THRESHOLD, STREAM_CACHE_SIZE, STREAM_CACHE_MAX_AGE);
-        this.index = new Index(rootDir, INDEX_FLUSH_THRESHOLD, VERSION_CACHE_SIZE, VERSION_CACHE_MAX_AGE, streams::get);
+        this.streams = new Streams(rootDir, STREAMS_FLUSH_THRESHOLD, streamCache);
+        this.index = new Index(rootDir, INDEX_FLUSH_THRESHOLD, versionCache, streams::get);
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer())
                 .segmentSize(Size.MB.of(512))
                 .name("event-log")

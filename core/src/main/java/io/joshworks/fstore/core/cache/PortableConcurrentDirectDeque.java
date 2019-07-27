@@ -22,7 +22,7 @@
  * at http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-package io.joshworks.fstore.index.cache;
+package io.joshworks.fstore.core.cache;
 
 import java.util.ArrayList;
 import java.util.Collection;

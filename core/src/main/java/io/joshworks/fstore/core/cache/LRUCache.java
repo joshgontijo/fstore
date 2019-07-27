@@ -16,7 +16,7 @@
  *  limitations under the License.
  */
 
-package io.joshworks.fstore.index.cache;
+package io.joshworks.fstore.core.cache;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
  * @author Jason T. Greene
  * @author Stuart Douglas
  */
-public class LRUCache<K, V> implements Cache<K, V> {
+class LRUCache<K, V> implements Cache<K, V> {
     private static final int SAMPLE_INTERVAL = 5;
 
     /**
@@ -52,7 +52,7 @@ public class LRUCache<K, V> implements Cache<K, V> {
     private final int maxAge;
     private final boolean fifo;
 
-    public LRUCache(int maxEntries, final int maxAge) {
+    LRUCache(int maxEntries, final int maxAge) {
         this.maxAge = maxAge;
         this.cache = new ConcurrentHashMap<>(16);
         this.accessQueue = ConcurrentDirectDeque.newInstance();
@@ -60,7 +60,7 @@ public class LRUCache<K, V> implements Cache<K, V> {
         this.fifo = false;
     }
 
-    public LRUCache(int maxEntries, final int maxAge, boolean fifo) {
+    LRUCache(int maxEntries, final int maxAge, boolean fifo) {
         this.maxAge = maxAge;
         this.cache = new ConcurrentHashMap<>(16);
         this.accessQueue = ConcurrentDirectDeque.newInstance();

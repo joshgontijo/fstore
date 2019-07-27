@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.index.Range;
-import io.joshworks.fstore.index.cache.Cache;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V> {
 
     private final LogAppender<Entry<K, V>> appender;
-    private final Cache<String, Block> blockCache;
+    private final Cache<String, Block> blockCache; //propagated to sstables
 
     public SSTables(File dir,
                     Serializer<K> keySerializer,
@@ -40,10 +40,9 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                     long bloomNItems,
                     double bloomFPProb,
                     int blockSize,
-                    int blockCacheSize,
-                    int blockCacheMaxAge) {
+                    Cache<String, Block> blockCache) {
 
-        this.blockCache = Cache.create(blockCacheSize, blockCacheMaxAge);
+        this.blockCache = blockCache;
         this.appender = LogAppender.builder(dir, EntrySerializer.of(maxAge, keySerializer, valueSerializer))
                 .compactionStrategy(compactor)
                 .name(name + "-sstable")

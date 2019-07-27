@@ -2,6 +2,7 @@ package io.joshworks.eventry.stream;
 
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.utils.StringUtils;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -32,14 +33,14 @@ public class Streams implements Closeable {
     private static final String STORE_NAME = "streams";
     public final LsmTree<Long, StreamMetadata> store;
 
-    public Streams(File root, int flushThreshold, int cacheSize, int cacheMaxAge) {
+    public Streams(File root, int flushThreshold, Cache<Long, StreamMetadata> streamCache) {
         this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, new StreamMetadataSerializer())
                 .name(STORE_NAME)
                 .flushThreshold(flushThreshold)
                 .bloomFilter(0.01, flushThreshold)
                 .transacationLogStorageMode(StorageMode.MMAP)
                 .sstableStorageMode(StorageMode.MMAP)
-                .entryCache(cacheSize, cacheMaxAge)
+                .entryCache(streamCache)
                 .open();
     }
 

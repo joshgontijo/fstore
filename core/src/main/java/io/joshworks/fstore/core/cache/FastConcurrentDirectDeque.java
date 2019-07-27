@@ -22,7 +22,7 @@
  * at http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-package io.joshworks.fstore.index.cache;
+package io.joshworks.fstore.core.cache;
 
 import sun.misc.Unsafe;
 
@@ -39,7 +39,7 @@ import java.util.NoSuchElementException;
 /**
  * A modified version of ConcurrentLinkedDequeue which includes direct
  * removal. Like the original, it relies on Unsafe for better performance.
- *
+ * <p>
  * More specifically, an unbounded concurrent {@linkplain Deque deque} based on linked nodes.
  * Concurrent insertion, removal, and access operations execute safely
  * across multiple threads.
@@ -81,15 +81,14 @@ import java.util.NoSuchElementException;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
- * @since 1.7
+ * @param <E> the type of elements held in this collection
  * @author Doug Lea
  * @author Martin Buchholz
  * @author Jason T. Grene
- * @param <E> the type of elements held in this collection
+ * @since 1.7
  */
 
-public class FastConcurrentDirectDeque<E>
-    extends ConcurrentDirectDeque<E> implements Deque<E>, Serializable {
+public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> implements Deque<E>, Serializable {
 
     /*
      * This is an implementation of a concurrent lock-free deque
@@ -334,11 +333,11 @@ public class FastConcurrentDirectDeque<E>
                 UNSAFE = getUnsafe();
                 Class<?> k = Node.class;
                 prevOffset = UNSAFE.objectFieldOffset
-                    (k.getDeclaredField("prev"));
+                        (k.getDeclaredField("prev"));
                 itemOffset = UNSAFE.objectFieldOffset
-                    (k.getDeclaredField("item"));
+                        (k.getDeclaredField("item"));
                 nextOffset = UNSAFE.objectFieldOffset
-                    (k.getDeclaredField("next"));
+                        (k.getDeclaredField("next"));
             } catch (Exception e) {
                 throw new Error(e);
             }
@@ -364,10 +363,10 @@ public class FastConcurrentDirectDeque<E>
         final Node<E> newNode = new Node<>(e);
 
         restartFromHead:
-        for (;;)
-            for (Node<E> h = head, p = h, q;;) {
+        for (; ; )
+            for (Node<E> h = head, p = h, q; ; ) {
                 if ((q = p.prev) != null &&
-                    (q = (p = q).prev) != null)
+                        (q = (p = q).prev) != null)
                     // Check for head updates every other hop.
                     // If p == q, we are sure to follow head instead.
                     p = (h != (h = head)) ? h : q;
@@ -397,10 +396,10 @@ public class FastConcurrentDirectDeque<E>
         final Node<E> newNode = new Node<>(e);
 
         restartFromTail:
-        for (;;)
-            for (Node<E> t = tail, p = t, q;;) {
+        for (; ; )
+            for (Node<E> t = tail, p = t, q; ; ) {
                 if ((q = p.next) != null &&
-                    (q = (p = q).next) != null)
+                        (q = (p = q).next) != null)
                     // Check for tail updates every other hop.
                     // If p == q, we are sure to follow tail instead.
                     p = (t != (t = tail)) ? t : q;
@@ -477,8 +476,7 @@ public class FastConcurrentDirectDeque<E>
                     activePred = p;
                     isFirst = true;
                     break;
-                }
-                else if (p == q)
+                } else if (p == q)
                     return;
                 else
                     p = q;
@@ -498,8 +496,7 @@ public class FastConcurrentDirectDeque<E>
                     activeSucc = p;
                     isLast = true;
                     break;
-                }
-                else if (p == q)
+                } else if (p == q)
                     return;
                 else
                     p = q;
@@ -507,8 +504,8 @@ public class FastConcurrentDirectDeque<E>
 
             // TODO: better HOP heuristics
             if (hops < HOPS
-                // always squeeze out interior deleted nodes
-                && (isFirst | isLast))
+                    // always squeeze out interior deleted nodes
+                    && (isFirst | isLast))
                 return;
 
             // Squeeze out deleted nodes between activePred and
@@ -519,18 +516,18 @@ public class FastConcurrentDirectDeque<E>
             // Try to gc-unlink, if possible
             if ((isFirst | isLast) &&
 
-                // Recheck expected state of predecessor and successor
-                (activePred.next == activeSucc) &&
-                (activeSucc.prev == activePred) &&
-                (isFirst ? activePred.prev == null : activePred.item != null) &&
-                (isLast  ? activeSucc.next == null : activeSucc.item != null)) {
+                    // Recheck expected state of predecessor and successor
+                    (activePred.next == activeSucc) &&
+                    (activeSucc.prev == activePred) &&
+                    (isFirst ? activePred.prev == null : activePred.item != null) &&
+                    (isLast ? activeSucc.next == null : activeSucc.item != null)) {
 
                 updateHead(); // Ensure x is not reachable from head
                 updateTail(); // Ensure x is not reachable from tail
 
                 // Finally, actually gc-unlink
                 x.lazySetPrev(isFirst ? prevTerminator() : x);
-                x.lazySetNext(isLast  ? nextTerminator() : x);
+                x.lazySetNext(isLast ? nextTerminator() : x);
             }
         }
     }
@@ -542,13 +539,13 @@ public class FastConcurrentDirectDeque<E>
         // assert first != null;
         // assert next != null;
         // assert first.item == null;
-        for (Node<E> o = null, p = next, q;;) {
+        for (Node<E> o = null, p = next, q; ; ) {
             if (p.item != null || (q = p.next) == null) {
                 if (o != null && p.prev != p && first.casNext(next, p)) {
                     skipDeletedPredecessors(p);
                     if (first.prev == null &&
-                        (p.next == null || p.item != null) &&
-                        p.prev == first) {
+                            (p.next == null || p.item != null) &&
+                            p.prev == first) {
 
                         updateHead(); // Ensure o is not reachable from head
                         updateTail(); // Ensure o is not reachable from tail
@@ -559,8 +556,7 @@ public class FastConcurrentDirectDeque<E>
                     }
                 }
                 return;
-            }
-            else if (p == q)
+            } else if (p == q)
                 return;
             else {
                 o = p;
@@ -576,13 +572,13 @@ public class FastConcurrentDirectDeque<E>
         // assert last != null;
         // assert prev != null;
         // assert last.item == null;
-        for (Node<E> o = null, p = prev, q;;) {
+        for (Node<E> o = null, p = prev, q; ; ) {
             if (p.item != null || (q = p.prev) == null) {
                 if (o != null && p.next != p && last.casPrev(prev, p)) {
                     skipDeletedSuccessors(p);
                     if (last.next == null &&
-                        (p.prev == null || p.item != null) &&
-                        p.next == last) {
+                            (p.prev == null || p.item != null) &&
+                            p.next == last) {
 
                         updateHead(); // Ensure o is not reachable from head
                         updateTail(); // Ensure o is not reachable from tail
@@ -593,8 +589,7 @@ public class FastConcurrentDirectDeque<E>
                     }
                 }
                 return;
-            }
-            else if (p == q)
+            } else if (p == q)
                 return;
             else {
                 o = p;
@@ -615,17 +610,16 @@ public class FastConcurrentDirectDeque<E>
         Node<E> h, p, q;
         restartFromHead:
         while ((h = head).item == null && (p = h.prev) != null) {
-            for (;;) {
+            for (; ; ) {
                 if ((q = p.prev) == null ||
-                    (q = (p = q).prev) == null) {
+                        (q = (p = q).prev) == null) {
                     // It is possible that p is PREV_TERMINATOR,
                     // but if so, the CAS is guaranteed to fail.
                     if (casHead(h, p))
                         return;
                     else
                         continue restartFromHead;
-                }
-                else if (h != head)
+                } else if (h != head)
                     continue restartFromHead;
                 else
                     p = q;
@@ -645,17 +639,16 @@ public class FastConcurrentDirectDeque<E>
         Node<E> t, p, q;
         restartFromTail:
         while ((t = tail).item == null && (p = t.next) != null) {
-            for (;;) {
+            for (; ; ) {
                 if ((q = p.next) == null ||
-                    (q = (p = q).next) == null) {
+                        (q = (p = q).next) == null) {
                     // It is possible that p is NEXT_TERMINATOR,
                     // but if so, the CAS is guaranteed to fail.
                     if (casTail(t, p))
                         return;
                     else
                         continue restartFromTail;
-                }
-                else if (t != tail)
+                } else if (t != tail)
                     continue restartFromTail;
                 else
                     p = q;
@@ -672,7 +665,7 @@ public class FastConcurrentDirectDeque<E>
             // assert x != PREV_TERMINATOR;
             Node<E> p = prev;
             findActive:
-            for (;;) {
+            for (; ; ) {
                 if (p.item != null)
                     break findActive;
                 Node<E> q = p.prev;
@@ -680,8 +673,7 @@ public class FastConcurrentDirectDeque<E>
                     if (p.next == p)
                         continue whileActive;
                     break findActive;
-                }
-                else if (p == q)
+                } else if (p == q)
                     continue whileActive;
                 else
                     p = q;
@@ -703,7 +695,7 @@ public class FastConcurrentDirectDeque<E>
             // assert x != PREV_TERMINATOR;
             Node<E> p = next;
             findActive:
-            for (;;) {
+            for (; ; ) {
                 if (p.item != null)
                     break findActive;
                 Node<E> q = p.next;
@@ -711,8 +703,7 @@ public class FastConcurrentDirectDeque<E>
                     if (p.prev == p)
                         continue whileActive;
                     break findActive;
-                }
-                else if (p == q)
+                } else if (p == q)
                     continue whileActive;
                 else
                     p = q;
@@ -748,23 +739,23 @@ public class FastConcurrentDirectDeque<E>
 
     /**
      * Returns the first node, the unique node p for which:
-     *     p.prev == null && p.next != p
+     * p.prev == null && p.next != p
      * The returned node may or may not be logically deleted.
      * Guarantees that head is set to the returned node.
      */
     Node<E> first() {
         restartFromHead:
-        for (;;)
-            for (Node<E> h = head, p = h, q;;) {
+        for (; ; )
+            for (Node<E> h = head, p = h, q; ; ) {
                 if ((q = p.prev) != null &&
-                    (q = (p = q).prev) != null)
+                        (q = (p = q).prev) != null)
                     // Check for head updates every other hop.
                     // If p == q, we are sure to follow head instead.
                     p = (h != (h = head)) ? h : q;
                 else if (p == h
-                         // It is possible that p is PREV_TERMINATOR,
-                         // but if so, the CAS is guaranteed to fail.
-                         || casHead(h, p))
+                        // It is possible that p is PREV_TERMINATOR,
+                        // but if so, the CAS is guaranteed to fail.
+                        || casHead(h, p))
                     return p;
                 else
                     continue restartFromHead;
@@ -773,23 +764,23 @@ public class FastConcurrentDirectDeque<E>
 
     /**
      * Returns the last node, the unique node p for which:
-     *     p.next == null && p.prev != p
+     * p.next == null && p.prev != p
      * The returned node may or may not be logically deleted.
      * Guarantees that tail is set to the returned node.
      */
     Node<E> last() {
         restartFromTail:
-        for (;;)
-            for (Node<E> t = tail, p = t, q;;) {
+        for (; ; )
+            for (Node<E> t = tail, p = t, q; ; ) {
                 if ((q = p.next) != null &&
-                    (q = (p = q).next) != null)
+                        (q = (p = q).next) != null)
                     // Check for tail updates every other hop.
                     // If p == q, we are sure to follow tail instead.
                     p = (t != (t = tail)) ? t : q;
                 else if (p == t
-                         // It is possible that p is NEXT_TERMINATOR,
-                         // but if so, the CAS is guaranteed to fail.
-                         || casTail(t, p))
+                        // It is possible that p is NEXT_TERMINATOR,
+                        // but if so, the CAS is guaranteed to fail.
+                        || casTail(t, p))
                     return p;
                 else
                     continue restartFromTail;
@@ -851,7 +842,7 @@ public class FastConcurrentDirectDeque<E>
      *
      * @param c the collection of elements to initially contain
      * @throws NullPointerException if the specified collection or any
-     *         of its elements are null
+     *                              of its elements are null
      */
     public FastConcurrentDirectDeque(Collection<? extends E> c) {
         // Copy c into a private chain of Nodes
@@ -939,7 +930,8 @@ public class FastConcurrentDirectDeque<E>
         }
 
         Node node = (Node) (token);
-        while (! node.casItem(node.item, null)) {}
+        while (!node.casItem(node.item, null)) {
+        }
         unlink(node);
     }
 
@@ -1189,8 +1181,8 @@ public class FastConcurrentDirectDeque<E>
      *
      * @param c the elements to be inserted into this deque
      * @return {@code true} if this deque changed as a result of the call
-     * @throws NullPointerException if the specified collection or any
-     *         of its elements are null
+     * @throws NullPointerException     if the specified collection or any
+     *                                  of its elements are null
      * @throws IllegalArgumentException if the collection is this deque
      */
     public boolean addAll(Collection<? extends E> c) {
@@ -1216,10 +1208,10 @@ public class FastConcurrentDirectDeque<E>
 
         // Atomically append the chain at the tail of this collection
         restartFromTail:
-        for (;;)
-            for (Node<E> t = tail, p = t, q;;) {
+        for (; ; )
+            for (Node<E> t = tail, p = t, q; ; ) {
                 if ((q = p.next) != null &&
-                    (q = (p = q).next) != null)
+                        (q = (p = q).next) != null)
                     // Check for tail updates every other hop.
                     // If p == q, we are sure to follow tail instead.
                     p = (t != (t = tail)) ? t : q;
@@ -1249,7 +1241,8 @@ public class FastConcurrentDirectDeque<E>
      * Removes all of the elements from this deque.
      */
     public void clear() {
-        while (pollFirst() != null) { }
+        while (pollFirst() != null) {
+        }
     }
 
     /**
@@ -1292,8 +1285,8 @@ public class FastConcurrentDirectDeque<E>
      * The following code can be used to dump the deque into a newly
      * allocated array of {@code String}:
      *
-     *  <pre> {@code String[] y = x.toArray(new String[0]);}</pre>
-     *
+     * <pre> {@code String[] y = x.toArray(new String[0]);}</pre>
+     * <p>
      * Note that {@code toArray(new Object[0])} is identical in function to
      * {@code toArray()}.
      *
@@ -1301,9 +1294,9 @@ public class FastConcurrentDirectDeque<E>
      *          be stored, if it is big enough; otherwise, a new array of the
      *          same runtime type is allocated for this purpose
      * @return an array containing all of the elements in this deque
-     * @throws ArrayStoreException if the runtime type of the specified array
-     *         is not a supertype of the runtime type of every element in
-     *         this deque
+     * @throws ArrayStoreException  if the runtime type of the specified array
+     *                              is not a supertype of the runtime type of every element in
+     *                              this deque
      * @throws NullPointerException if the specified array is null
      */
     public <T> T[] toArray(T[] a) {
@@ -1366,6 +1359,7 @@ public class FastConcurrentDirectDeque<E>
         private Node<E> lastRet;
 
         abstract Node<E> startNode();
+
         abstract Node<E> nextNode(Node<E> p);
 
         AbstractItr() {
@@ -1380,7 +1374,7 @@ public class FastConcurrentDirectDeque<E>
             lastRet = nextNode;
 
             Node<E> p = (nextNode == null) ? startNode() : nextNode(nextNode);
-            for (;; p = nextNode(p)) {
+            for (; ; p = nextNode(p)) {
                 if (p == null) {
                     // p might be active end or TERMINATOR node; both are OK
                     nextNode = null;
@@ -1449,7 +1443,7 @@ public class FastConcurrentDirectDeque<E>
      * the proper order, followed by a null
      */
     private void writeObject(java.io.ObjectOutputStream s)
-        throws java.io.IOException {
+            throws java.io.IOException {
 
         // Write out any hidden stuff
         s.defaultWriteObject();
@@ -1469,7 +1463,7 @@ public class FastConcurrentDirectDeque<E>
      * Reconstitutes this deque from a stream (that is, deserializes it).
      */
     private void readObject(java.io.ObjectInputStream s)
-        throws java.io.IOException, ClassNotFoundException {
+            throws java.io.IOException, ClassNotFoundException {
         s.defaultReadObject();
 
         // Read in elements until trailing null sentinel found
@@ -1502,6 +1496,7 @@ public class FastConcurrentDirectDeque<E>
     private static final Unsafe UNSAFE;
     private static final long headOffset;
     private static final long tailOffset;
+
     static {
         PREV_TERMINATOR = new Node<>();
         PREV_TERMINATOR.next = PREV_TERMINATOR;
@@ -1511,9 +1506,9 @@ public class FastConcurrentDirectDeque<E>
             UNSAFE = getUnsafe();
             Class<?> k = FastConcurrentDirectDeque.class;
             headOffset = UNSAFE.objectFieldOffset
-                (k.getDeclaredField("head"));
+                    (k.getDeclaredField("head"));
             tailOffset = UNSAFE.objectFieldOffset
-                (k.getDeclaredField("tail"));
+                    (k.getDeclaredField("tail"));
         } catch (Exception e) {
             throw new Error(e);
         }
@@ -1530,7 +1525,7 @@ public class FastConcurrentDirectDeque<E>
         return getUnsafe0();
     }
 
-    private static Unsafe getUnsafe0()  {
+    private static Unsafe getUnsafe0() {
         try {
             Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
             theUnsafe.setAccessible(true);

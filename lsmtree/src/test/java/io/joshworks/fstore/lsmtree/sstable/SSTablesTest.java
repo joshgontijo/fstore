@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.serializer.Serializers;
@@ -50,8 +51,7 @@ public class SSTablesTest {
                 1000000,
                 0.01,
                 Memory.PAGE_SIZE,
-                50,
-                12000);
+                Cache.softCache());
     }
 
     @After

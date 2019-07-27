@@ -9,6 +9,7 @@ import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.log.segment.Log;
 import org.junit.After;
@@ -38,8 +39,8 @@ public class LogRecordCleanupTest {
     @Before
     public void setUp() {
         dummyFolder = FileUtils.testFolder();
-        streams = new Streams(dummyFolder, STREAMS_FLUSH_THRESHOLD, -1, -1);
-        index = new Index(dummyFolder, 10, -1, -1, LogRecordCleanupTest::dummyMetadata);
+        streams = new Streams(dummyFolder, STREAMS_FLUSH_THRESHOLD, Cache.noCache());
+        index = new Index(dummyFolder, 10, Cache.noCache(), LogRecordCleanupTest::dummyMetadata);
         cleanup = new RecordCleanup(streams, index);
     }
 

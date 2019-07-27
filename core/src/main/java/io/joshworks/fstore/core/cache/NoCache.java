@@ -1,4 +1,4 @@
-package io.joshworks.fstore.index.cache;
+package io.joshworks.fstore.core.cache;
 
 public class NoCache<K, V> implements Cache<K, V> {
 
