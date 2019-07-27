@@ -16,8 +16,7 @@ public class StreamMetadata {
     public static final int NO_MAX_AGE = -1;
     public static final int NO_MAX_COUNT = 0;
 
-    public static final int NO_TRUNCATE = 0;
-
+    public static final int NO_TRUNCATE = -1;
 
     public final String name;
     public final long hash;
