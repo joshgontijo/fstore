@@ -14,9 +14,9 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -54,8 +55,8 @@ public class EventStoreIT {
 
     @After
     public void tearDown() {
-        store.close();
-        FileUtils.tryDelete(directory);
+//        store.close();
+//        FileUtils.tryDelete(directory);
     }
 
     @Test
@@ -164,7 +165,26 @@ public class EventStoreIT {
 
     @Test
     public void insert_1000_streams_with_1000_version_each() {
-        testWith(10000, 1000);
+        testWith(10000, 2000);
+    }
+
+    @Test
+    public void insert_1_streams_with_1000_version_each_maxCount() {
+
+        String streamName = "stream-123";
+        store.createStream(streamName, 10000, NO_MAX_AGE);
+        for (int version = 1; version <= 500000; version++) {
+            try {
+                store.append(EventRecord.create(streamName, "type", Map.of()));
+            } catch (Exception e) {
+                throw new RuntimeException("Failed on stream " + streamName, e);
+            }
+        }
+        store.index.compact();
+        Threads.sleep(10000);
+
+        store.fromStream(StreamName.of(streamName))
+                .forEachRemaining(System.out::println);
     }
 
 
@@ -511,7 +531,7 @@ public class EventStoreIT {
         }
 
         EventLogIterator iterator = store.fromStream(StreamName.parse(SystemStreams.INDEX));
-        if(!Iterators.await(iterator, 1000, 10000)) {
+        if (!Iterators.await(iterator, 1000, 10000)) {
             fail("Did not receive any events");
         }
         List<EventRecord> indexEvents = iterator.stream().collect(Collectors.toList());

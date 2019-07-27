@@ -10,6 +10,7 @@ import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.Closeable;
 import java.io.File;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -74,15 +75,15 @@ public class Streams implements Closeable {
         return metadata;
     }
 
-    public StreamMetadata create(String stream, long maxAge, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata) {
+    public StreamMetadata create(String stream, long maxAgeSec, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata) {
         validateName(stream);
         long hash = StreamName.hash(stream);
-        return createInternal(stream, maxAge, maxCount, permissions, metadata, hash);
+        return createInternal(stream, maxAgeSec, maxCount, permissions, metadata, hash);
     }
 
     //must not hold the lock, since
-    private StreamMetadata createInternal(String stream, long maxAge, int maxCount, Map<String, Integer> acl, Map<String, String> metadata, long hash) {
-        StreamMetadata streamMeta = new StreamMetadata(stream, hash, System.currentTimeMillis(), maxAge, maxCount, NO_TRUNCATE, acl, metadata, STREAM_ACTIVE);
+    private StreamMetadata createInternal(String stream, long maxAgeSec, int maxCount, Map<String, Integer> acl, Map<String, String> metadata, long hash) {
+        StreamMetadata streamMeta = new StreamMetadata(stream, hash, Instant.now().getEpochSecond(), maxAgeSec, maxCount, NO_TRUNCATE, acl, metadata, STREAM_ACTIVE);
         StreamMetadata fromDisk = store.get(hash);
         if (fromDisk != null) {
             throw new StreamException("Stream '" + stream + "' already exist");
@@ -164,7 +165,7 @@ public class Streams implements Closeable {
             throw new StreamException("Truncate version: " + fromVersionInclusive + " must be less or equals stream version: " + currentVersion);
         }
 
-        StreamMetadata truncated = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAge, metadata.maxCount, fromVersionInclusive, metadata.acl, metadata.metadata, metadata.state);
+        StreamMetadata truncated = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAgeSec, metadata.maxCount, fromVersionInclusive, metadata.acl, metadata.metadata, metadata.state);
         store.put(truncated.hash, truncated);
         return truncated;
     }

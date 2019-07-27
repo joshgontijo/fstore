@@ -23,7 +23,7 @@ public class StreamMetadata {
     public final long hash;
     public final long created;
 
-    public final long maxAge;
+    public final long maxAgeSec;
     public final int maxCount;
 
     public final int truncated;
@@ -34,11 +34,11 @@ public class StreamMetadata {
     final Map<String, Integer> acl;
     final Map<String, String> metadata;
 
-    public StreamMetadata(String name, long hash, long created, long maxAge, int maxCount, int truncated, Map<String, Integer> acl, Map<String, String> metadata, int state) {
+    public StreamMetadata(String name, long hash, long created, long maxAgeSec, int maxCount, int truncated, Map<String, Integer> acl, Map<String, String> metadata, int state) {
         this.name = name;
         this.hash = hash;
         this.created = created;
-        this.maxAge = maxAge;
+        this.maxAgeSec = maxAgeSec;
         this.maxCount = maxCount;
         this.truncated = truncated;
         this.acl = acl;
@@ -86,7 +86,7 @@ public class StreamMetadata {
                 "name='" + name + '\'' +
                 ", hash=" + hash +
                 ", created=" + created +
-                ", maxAge=" + maxAge +
+                ", maxAge=" + maxAgeSec +
                 ", truncateBefore=" + truncated +
                 ", maxCount=" + maxCount +
                 ", state=" + state +

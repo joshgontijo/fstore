@@ -11,10 +11,7 @@ import io.joshworks.fstore.log.segment.Log;
 
 import java.util.List;
 
-import static io.joshworks.eventry.EventUtils.isExpired;
-import static io.joshworks.eventry.EventUtils.isObsolete;
-import static io.joshworks.eventry.EventUtils.isTruncated;
-import static io.joshworks.eventry.EventUtils.skipEntry;
+import static io.joshworks.eventry.EventUtils.validIndexEntry;
 
 public class RecordCleanup implements SegmentCombiner<EventRecord> {
 
@@ -46,11 +43,11 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                 int version = record.version;
                 long timestamp = record.timestamp;
 
-                if (skipEntry(metadata, version, timestamp, index::version)) {
+                if (!validIndexEntry(metadata, version, timestamp, index::version)) {
                     continue;
                 }
 
-                if (record.isLinkToEvent() && skipLinkToEntry(record, timestamp)) {
+                if (record.isLinkToEvent() && !validLinkToEntry(record, timestamp)) {
                     continue;
                 }
 
@@ -72,7 +69,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
 
     }
 
-    private boolean skipLinkToEntry(EventRecord record, long timestamp) {
+    private boolean validLinkToEntry(EventRecord record, long timestamp) {
         LinkTo linkTo = LinkTo.from(record);
         String targetStream = linkTo.stream;
         int targetVersion = linkTo.version;
@@ -80,7 +77,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
         StreamMetadata tgtMetadata = getMetadata(targetStream);
 
         //isExpired we can use the LinkTo event TS, since it will always be equals or greater than the original TS
-        return skipEntry(tgtMetadata, targetVersion, timestamp, index::version);
+        return validIndexEntry(tgtMetadata, targetVersion, timestamp, index::version);
     }
 
     private StreamMetadata getMetadata(String stream) {

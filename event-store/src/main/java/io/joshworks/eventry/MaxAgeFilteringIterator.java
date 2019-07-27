@@ -47,7 +47,7 @@ public class MaxAgeFilteringIterator implements EventLogIterator {
 
     private boolean withinMaxAge(EventRecord event) {
         StreamMetadata metadata = metadataSupplier.apply(event.stream);
-        long maxAge = metadata.maxAge;
+        long maxAge = metadata.maxAgeSec;
         long now = System.currentTimeMillis();
         long diff = ((now - event.timestamp) / 1000);
         return maxAge <= NO_MAX_AGE || diff <= maxAge;

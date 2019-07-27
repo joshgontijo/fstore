@@ -63,18 +63,26 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return table.iterator();
     }
 
-    public void writeTo(SSTables<K, V> sstables) {
+    public long writeTo(SSTables<K, V> sstables, long maxAge) {
         if (isEmpty()) {
-            return;
+            return 0;
         }
 
+        long inserted = 0;
         for (Entry<K, V> entry : table) {
+            if (entry.expired(maxAge)) {
+                continue;
+            }
             long entryPos = sstables.write(entry);
+            inserted++;
             if (entryPos == Storage.EOF) {
                 sstables.roll();
             }
         }
-        sstables.roll();
+        if (inserted > 0) {
+            sstables.roll();
+        }
+        return inserted;
     }
 
     public LogIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {

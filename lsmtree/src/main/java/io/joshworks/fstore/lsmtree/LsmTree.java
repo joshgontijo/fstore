@@ -45,8 +45,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     private MemTable<K, V> memTable;
     private final Cache<K, V> cache;
+    private final long maxAge;
 
     private LsmTree(Builder<K, V> builder) {
+        this.maxAge = builder.maxAgeSeconds;
         this.sstables = createSSTable(builder);
         this.log = createTransactionLog(builder);
         this.memTable = new MemTable<>();
@@ -123,11 +125,11 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             cache.add(key, fromMem.value);
             return fromMem.value;
         }
-        V fromSSTable = sstables.get(key);
+        Entry<K, V> fromSSTable = sstables.get(key);
         if (fromSSTable != null) {
-            cache.add(key, fromSSTable);
+            cache.add(key, fromSSTable.value);
         }
-        return fromSSTable;
+        return fromSSTable == null ? null : fromSSTable.value;
     }
 
     public void remove(K key) {
@@ -231,9 +233,11 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return;
         }
         MemTable<K, V> tmp = memTable;
-        tmp.writeTo(sstables);
+        long inserted = tmp.writeTo(sstables, maxAge);
+        if (inserted > 0) {
+            log.markFlushed();
+        }
         memTable = new MemTable<>();
-        log.markFlushed();
     }
 
     private void restore(LogRecord<K, V> record) {
@@ -241,6 +245,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public void compact() {
+        flushMemTable(true);
         sstables.compact();
     }
 

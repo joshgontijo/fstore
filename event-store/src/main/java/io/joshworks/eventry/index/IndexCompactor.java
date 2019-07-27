@@ -6,7 +6,7 @@ import io.joshworks.fstore.lsmtree.sstable.Entry;
 
 import java.util.function.Function;
 
-import static io.joshworks.eventry.EventUtils.skipEntry;
+import static io.joshworks.eventry.EventUtils.validIndexEntry;
 
 class IndexCompactor extends UniqueMergeCombiner<Entry<IndexKey, Long>> {
 
@@ -25,6 +25,6 @@ class IndexCompactor extends UniqueMergeCombiner<Entry<IndexKey, Long>> {
         long timestamp = entry.key.timestamp;
 
         StreamMetadata metadata = metadataSupplier.apply(stream);
-        return !skipEntry(metadata, version, timestamp, versionSupplier);
+        return validIndexEntry(metadata, version, timestamp, versionSupplier);
     }
 }
