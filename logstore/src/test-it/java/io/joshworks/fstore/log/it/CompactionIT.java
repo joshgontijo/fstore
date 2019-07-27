@@ -2,12 +2,13 @@ package io.joshworks.fstore.log.it;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,7 +16,6 @@ import org.junit.Test;
 import java.io.File;
 
 import static org.junit.Assert.assertEquals;
-
 
 public abstract class CompactionIT {
 
@@ -73,7 +73,6 @@ public abstract class CompactionIT {
         }
     }
 
-
     public static class CachedRafLogAppenderIT extends CompactionIT {
 
         @Override
@@ -82,6 +81,7 @@ public abstract class CompactionIT {
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF_CACHED)
                     .compactionThreshold(COMPACTION_THRESHOLD)
+                    .compactionStrategy(new ConcatenateCombiner<>())
                     .open();
         }
     }
@@ -95,6 +95,7 @@ public abstract class CompactionIT {
                     .storageMode(StorageMode.MMAP)
                     .compactionStorageMode(StorageMode.MMAP)
                     .compactionThreshold(COMPACTION_THRESHOLD)
+                    .compactionStrategy(new ConcatenateCombiner<>())
                     .open();
         }
     }
@@ -107,9 +108,38 @@ public abstract class CompactionIT {
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF)
                     .compactionThreshold(COMPACTION_THRESHOLD)
+                    .compactionStrategy(new ConcatenateCombiner<>())
                     .open();
         }
     }
 
+    public static class MMapParallelCompactionLogAppenderIT extends CompactionIT {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory) {
+            return LogAppender.builder(testDirectory, Serializers.STRING)
+                    .segmentSize(SEGMENT_SIZE)
+                    .storageMode(StorageMode.MMAP)
+                    .compactionStorageMode(StorageMode.MMAP)
+                    .compactionThreshold(COMPACTION_THRESHOLD)
+                    .compactionStrategy(new ConcatenateCombiner<>())
+                    .parallelCompaction()
+                    .open();
+        }
+    }
+
+    public static class RafParallelCompactionLogAppenderIT extends CompactionIT {
+
+        @Override
+        protected LogAppender<String> appender(File testDirectory) {
+            return LogAppender.builder(testDirectory, Serializers.STRING)
+                    .segmentSize(SEGMENT_SIZE)
+                    .storageMode(StorageMode.RAF)
+                    .compactionThreshold(COMPACTION_THRESHOLD)
+                    .compactionStrategy(new ConcatenateCombiner<>())
+                    .parallelCompaction()
+                    .open();
+        }
+    }
 
 }

@@ -25,7 +25,6 @@ public class NodeLog implements Iterable<EventRecord>, Closeable {
 
     public NodeLog(File root) {
         this.log = LogAppender.builder(new File(root, NAME), new EventSerializer()).flushMode(FlushMode.ALWAYS)
-                .disableCompaction()
                 .segmentSize(Size.MB.of(20))
                 .storageMode(StorageMode.RAF)
                 .name(NAME)

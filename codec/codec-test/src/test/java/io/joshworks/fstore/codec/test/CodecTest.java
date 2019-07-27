@@ -98,6 +98,55 @@ public abstract class CodecTest {
         assertArrayEquals(toBeCompressed, decompressed.array());
     }
 
+    @Test
+    public void compress_does_not_change_destination_buffer_limit() {
+        ByteBuffer bb = ByteBuffer.allocate(256);
+        bb.putInt(123);
+        bb.putInt(456);
+
+        ByteBuffer dst = ByteBuffer.allocate(bb.capacity());
+        codec.compress(bb, dst);
+
+        assertEquals("Compressor should not change the destination buffer limit", dst.limit(), dst.capacity());
+    }
+
+    @Test
+    public void compress_does_not_change_destination_buffer_limit_DIRECT_DIRECT() {
+        ByteBuffer bb = ByteBuffer.allocateDirect(256);
+        bb.putInt(123);
+        bb.putInt(456);
+
+        ByteBuffer dst = ByteBuffer.allocateDirect(bb.capacity());
+        codec.compress(bb, dst);
+
+        assertEquals("Compressor should not change the destination buffer limit", dst.limit(), dst.capacity());
+    }
+
+    @Test
+    public void compress_does_not_change_destination_buffer_limit_HEAP_DIRECT() {
+        ByteBuffer bb = ByteBuffer.allocate(256);
+        bb.putInt(123);
+        bb.putInt(456);
+
+        ByteBuffer dst = ByteBuffer.allocateDirect(bb.capacity());
+        codec.compress(bb, dst);
+
+        assertEquals("Compressor should not change the destination buffer limit", dst.limit(), dst.capacity());
+    }
+
+    @Test
+    public void compress_does_not_change_destination_buffer_limit_DIRECT_HEAP() {
+        ByteBuffer bb = ByteBuffer.allocateDirect(256);
+        bb.putInt(123);
+        bb.putInt(456);
+
+        ByteBuffer dst = ByteBuffer.allocate(bb.capacity());
+        codec.compress(bb, dst);
+
+        assertEquals("Compressor should not change the destination buffer limit", dst.limit(), dst.capacity());
+    }
+
+
     private void testCompress(boolean srcDirect, boolean compressedDirect, boolean uncompressedDirect) {
         int items = 1000;
         double compression = 0;

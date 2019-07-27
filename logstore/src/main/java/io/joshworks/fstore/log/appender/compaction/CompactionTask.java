@@ -45,22 +45,20 @@ public class CompactionTask<T> implements Runnable {
         this.onComplete = event.onComplete;
         this.checksumProbability = event.checksumProbability;
         this.readPageSize = event.readPageSize;
-
     }
 
     @Override
     public void run() {
         Log<T> output = null;
         try {
-
-            long newSegmentLogSize = segments.stream().mapToLong(this::totalUncompressedSize).sum();
+            long newSegmentLogSize = segments.stream().mapToLong(this::totalLogicalSize).sum();
 
             String names = Arrays.toString(segments.stream().map(Log::name).toArray());
-            logger.info("Compacting {} from level {} using {}, new segment fileSize: {}", names, level, combiner.getClass().getSimpleName(), newSegmentLogSize);
+            logger.info("Compacting {} from level {} using {}, new segment computed size: {}", names, level, combiner.getClass().getSimpleName(), newSegmentLogSize);
 
             for (int i = 0; i < segments.size(); i++) {
                 Log<T> segment = segments.get(i);
-                logger.info("Segment[{}] {} - size: {}, entries: {}", i, segment.name(), segment.position(), segment.entries());
+                logSegmentInfo(String.valueOf(i), segment);
             }
 
             long start = System.currentTimeMillis();
@@ -70,7 +68,7 @@ public class CompactionTask<T> implements Runnable {
             combiner.merge(segments, output);
             output.flush();
 
-            logger.info("Result Segment {} - final size: {}, entries: {}", output.name(), output.physicalSize(), output.entries());
+            logSegmentInfo("OUT", output);
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
             onComplete.accept(CompactionResult.success(segments, output, level));
@@ -81,7 +79,18 @@ public class CompactionTask<T> implements Runnable {
         }
     }
 
-    private long totalUncompressedSize(Log<T> log) {
-        return log.headerSize() + log.uncompressedSize() + log.footerSize();
+    private void logSegmentInfo(String id, Log<T> segment) {
+        logger.info("Segment[{}] {} - physicalSize: {}, logicalSize: {}, actualDataSize: {}, footerSize: {}, entries: {}",
+                id,
+                segment.name(),
+                segment.physicalSize(),
+                segment.logicalSize(),
+                segment.actualDataSize(),
+                segment.footerSize(),
+                segment.entries());
+    }
+
+    private long totalLogicalSize(Log<T> log) {
+        return log.headerSize() + log.physicalSize() + log.footerSize();
     }
 }

@@ -30,7 +30,7 @@ public class BufferPool implements Closeable {
         this.cache = ThreadLocal.withInitial(() -> new BufferHolder(createBuffer(maxSize, direct)));
     }
 
-    public static ByteBuffer createBuffer(int size, boolean direct) {
+    private static ByteBuffer createBuffer(int size, boolean direct) {
         if (size >= MAX_BUFFER_SIZE) {
             throw new IllegalArgumentException("Buffer too large: Max allowed size is: " + MAX_BUFFER_SIZE);
         }

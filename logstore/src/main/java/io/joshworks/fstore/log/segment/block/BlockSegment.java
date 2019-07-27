@@ -123,7 +123,7 @@ public class BlockSegment<T> implements Log<T> {
         //do not add to the block, and return EOF, this allows that only one block gets inserted
         //when the the writePosition is greater than the maxDataSize
         if (!hasSpaceAvailableForBlock()) {
-            if(!writeBlock.isEmpty()) {
+            if (!writeBlock.isEmpty()) {
                 throw new IllegalStateException("No space remaining for block while is not empty");
             }
             return Storage.EOF;
@@ -326,15 +326,39 @@ public class BlockSegment<T> implements Log<T> {
         return delegate.type();
     }
 
+    @Override
+    public void close() {
+        flush();
+        delegate.close();
+    }
+
+    @Override
+    public String toString() {
+        return "BlockSegment{" + "serializer=" + serializer.getClass().getSimpleName() +
+                ", bufferPool=" + bufferPool.getClass().getSimpleName() +
+                ", info=" + info +
+                ", delegate=" + delegate +
+                '}';
+    }
+
     public int blockSize() {
         return info.blockSize();
     }
 
+
+    private static BiConsumer<Long, Block> NO_BLOCKWRITELISTENER = (a, b) -> {
+    };
+    private static BiConsumer<Long, Block> NO_ONBLOCKLOADED = (l, block) -> {
+    };
+    private static Consumer<FooterWriter> NO_FOOTERWRITER = fWriter -> {
+    };
+
     public static <T> SegmentFactory<T> factory(Codec codec, int blockSize) {
-        return factory(codec, blockSize, Block.vlenBlock(), (a, b) -> {
-        }, (l, block) -> {
-        }, fWriter -> {
-        });
+        return factory(codec, blockSize, Block.vlenBlock(), NO_BLOCKWRITELISTENER, NO_ONBLOCKLOADED, NO_FOOTERWRITER);
+    }
+
+    public static <T> SegmentFactory<T> factory(Codec codec, int blockSize, BlockFactory blockFactory) {
+        return factory(codec, blockSize, blockFactory, NO_BLOCKWRITELISTENER, NO_ONBLOCKLOADED, NO_FOOTERWRITER);
     }
 
     public static <T> SegmentFactory<T> factory(Codec codec,
@@ -354,9 +378,4 @@ public class BlockSegment<T> implements Log<T> {
         return (file, storageMode, dataLength, serializer, bufferPool, writeMode, checksumProb, readPageSize) -> new BlockSegment<>(file, storageMode, dataLength, bufferPool, writeMode, serializer, blockFactory, codec, blockSize, checksumProb, readPageSize, blockWriteListener, onBlockLoaded, footerWriter);
     }
 
-    @Override
-    public void close() {
-        flush();
-        delegate.close();
-    }
 }

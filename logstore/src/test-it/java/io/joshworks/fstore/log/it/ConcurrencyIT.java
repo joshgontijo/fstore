@@ -249,7 +249,6 @@ public abstract class ConcurrencyIT {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
-                    .disableCompaction()
                     .storageMode(StorageMode.MMAP)
                     .open();
         }
@@ -261,7 +260,6 @@ public abstract class ConcurrencyIT {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
-                    .disableCompaction()
                     .storageMode(StorageMode.RAF_CACHED)
                     .open();
         }
@@ -273,7 +271,6 @@ public abstract class ConcurrencyIT {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, Serializers.STRING)
                     .segmentSize(SEGMENT_SIZE)
-                    .disableCompaction()
                     .storageMode(StorageMode.OFF_HEAP)
                     .open();
         }

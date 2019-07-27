@@ -13,7 +13,6 @@ import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.utils.LogFileUtils;
 import org.slf4j.Logger;
 
-import java.io.Closeable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,7 +28,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class Compactor<T> implements Closeable {
+public class DefaultCompactor<T> implements ICompactor {
 
     private final Logger logger;
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -49,23 +48,23 @@ public class Compactor<T> implements Closeable {
     private final Set<Log<T>> compacting = new CopyOnWriteArraySet<>();
 
     private final Map<String, ExecutorService> levelCompaction = new ConcurrentHashMap<>();
-    //TODO add discard queue
+
     private final ExecutorService cleanupWorker = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compaction-cleanup"));
     private final ExecutorService coordinator = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compaction-coordinator"));
 
-    public Compactor(File directory,
-                     SegmentCombiner<T> segmentCombiner,
-                     SegmentFactory<T> segmentFactory,
-                     StorageMode storageMode,
-                     Serializer<T> serializer,
-                     BufferPool bufferPool,
-                     NamingStrategy namingStrategy,
-                     int compactionThreshold,
-                     String name,
-                     Levels<T> levels,
-                     boolean threadPerLevel,
-                     int readPageSize,
-                     double checksumProbability) {
+    public DefaultCompactor(File directory,
+                            SegmentCombiner<T> segmentCombiner,
+                            SegmentFactory<T> segmentFactory,
+                            StorageMode storageMode,
+                            Serializer<T> serializer,
+                            BufferPool bufferPool,
+                            NamingStrategy namingStrategy,
+                            int compactionThreshold,
+                            String name,
+                            Levels<T> levels,
+                            boolean threadPerLevel,
+                            int readPageSize,
+                            double checksumProbability) {
         this.directory = directory;
         this.segmentCombiner = segmentCombiner;
         this.segmentFactory = segmentFactory;
@@ -82,6 +81,7 @@ public class Compactor<T> implements Closeable {
         this.checksumProbability = checksumProbability;
     }
 
+    @Override
     public void compact() {
         scheduleCompaction(1);
     }
@@ -100,10 +100,9 @@ public class Compactor<T> implements Closeable {
             return;
         }
         List<Log<T>> segmentsForCompaction = segmentsForCompaction(level);
-        if (segmentsForCompaction.size() < compactionThreshold) {
+        if (segmentsForCompaction.isEmpty()) {
             return;
         }
-        compacting.addAll(segmentsForCompaction);
 
         logger.info("Compacting level {}", level);
 
@@ -128,10 +127,9 @@ public class Compactor<T> implements Closeable {
 
     private void submitCompaction(CompactionEvent<T> event) {
         executorFor(event.level).submit(() -> {
-            if (closed.get()) {
-                return;
+            if (!closed.get()) {
+                new CompactionTask<>(event).run();
             }
-            new CompactionTask<>(event).run();
         });
     }
 
@@ -153,22 +151,25 @@ public class Compactor<T> implements Closeable {
                 return;
             }
 
-            if (target.entries() == 0) {
-                logger.info("No entries were found in the result segment {}, deleting", target.name());
-                deleteAll(List.of(target));
-                levels.remove(sources);
-            } else {
-                levels.merge(sources, target);
-            }
+            levels.lock(() -> {
+                if (target.entries() == 0) {
+                    logger.info("No entries were found in the result segment {}, deleting", target.name());
+                    deleteAll(List.of(target));
+                    levels.remove(sources);
+                } else {
+                    levels.merge(sources, target);
+                }
 
-            compacting.removeAll(sources);
+                compacting.removeAll(sources);
 
-            scheduleCompaction(level);
-            scheduleCompaction(level + 1);
-            deleteAll(sources);
+                scheduleCompaction(level);
+                scheduleCompaction(level + 1);
+                deleteAll(sources);
+            });
         });
     }
 
+    //returns either the segments to be compacted or empty if not enough segments
     private List<Log<T>> segmentsForCompaction(int level) {
         if (level <= 0) {
             throw new IllegalArgumentException("Level must be greater than zero");
@@ -183,6 +184,10 @@ public class Compactor<T> implements Closeable {
                     break;
                 }
             }
+            if (toBeCompacted.size() < compactionThreshold) {
+                return List.of();
+            }
+            compacting.addAll(toBeCompacted);
             return toBeCompacted;
         });
     }
@@ -201,19 +206,7 @@ public class Compactor<T> implements Closeable {
 
     private ExecutorService executorFor(int level) {
         String executorName = executorName(level);
-        return levelCompaction.compute(executorName, (k, v) -> {
-            if (v == null) {
-                return new ThreadPoolExecutor(
-                        1,
-                        1,
-                        1,
-                        TimeUnit.MINUTES,
-                        new ArrayBlockingQueue<>(20),
-                        Threads.namedThreadFactory(executorName));
-
-            }
-            return v;
-        });
+        return levelCompaction.compute(executorName, (k, v) -> v == null ? levelExecutor(executorName) : v);
     }
 
 
@@ -226,5 +219,13 @@ public class Compactor<T> implements Closeable {
             levelCompaction.values().forEach(exec -> Threads.awaitTerminationOf(exec, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction task")));
             Threads.awaitTerminationOf(cleanupWorker, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction cleanup task"));
         }
+    }
+
+    private static ExecutorService levelExecutor(String name) {
+        return new ThreadPoolExecutor(1, 1, 1,
+                TimeUnit.MINUTES,
+                new ArrayBlockingQueue<>(1),
+                Threads.namedThreadFactory(name),
+                new ThreadPoolExecutor.DiscardPolicy());
     }
 }

@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.record;
 
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
@@ -15,6 +16,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -339,12 +341,31 @@ public class DataStreamTest {
         }
     }
 
+    @Test
+    public void when_serializer_set_the_dst_limit_than_dataStream_should_extend_its_capacity_to_accomodate_secondary_header() {
+        Integer entry = 12345;
+        storage.position(10);
+        stream.write(5, entry, Serializers.INTEGER);
+        assertEquals(10, storage.position());
+    }
+
     private static String ofSize(int size) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < size; i++) {
-            sb.append("a");
-        }
+        sb.append("a".repeat(Math.max(0, size)));
         return sb.toString();
+    }
+
+    private static class SetDstLimitSerializer implements Serializer<Integer> {
+
+        @Override
+        public void writeTo(Integer data, ByteBuffer dst) {
+
+        }
+
+        @Override
+        public Integer fromBytes(ByteBuffer buffer) {
+            return null;
+        }
     }
 
 }

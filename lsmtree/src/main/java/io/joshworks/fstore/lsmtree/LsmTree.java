@@ -268,7 +268,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private String name = "lsm-tree";
         private StorageMode sstableStorageMode = StorageMode.MMAP;
         private FlushMode ssTableFlushMode = FlushMode.ON_ROLL;
-        private BlockFactory sstableBlockFactory = Block.vlenBlock(false);
+        private BlockFactory sstableBlockFactory = Block.vlenBlock();
         private StorageMode tlogStorageMode = StorageMode.RAF;
         private int segmentSize = Size.MB.ofInt(32);
 
@@ -334,11 +334,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 throw new IllegalArgumentException("Segment size must be greater than zero");
             }
             this.segmentSize = size;
-            return this;
-        }
-
-        public Builder<K, V> offHeapBlock() {
-            this.sstableBlockFactory = Block.vlenBlock(true);
             return this;
         }
 

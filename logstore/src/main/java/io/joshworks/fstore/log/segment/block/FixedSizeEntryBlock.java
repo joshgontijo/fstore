@@ -6,7 +6,7 @@ import java.nio.ByteBuffer;
 
 /**
  * An space optmized block, in which entry size is stored only once, since all entries have the same size. Format:
- *
+ * <p>
  * ---------- BLOCK HEADER -------------
  * |---- UNCOMPRESSED_SIZE (4bytes) ----|
  * |---- ENTRY_COUNT (4bytes) ----|
@@ -22,13 +22,13 @@ public class FixedSizeEntryBlock extends Block {
 
     private int entrySize;
 
-    public FixedSizeEntryBlock(int maxSize, boolean direct, int entrySize) {
-        super(maxSize, direct);
+    public FixedSizeEntryBlock(int maxSize, int entrySize) {
+        super(maxSize);
         this.entrySize = entrySize;
     }
 
-    protected FixedSizeEntryBlock(Codec codec, ByteBuffer data, boolean direct) {
-        super(codec, data, direct);
+    protected FixedSizeEntryBlock(Codec codec, ByteBuffer data) {
+        super(codec, data);
     }
 
     //returns true if added, false otherwise
@@ -54,14 +54,14 @@ public class FixedSizeEntryBlock extends Block {
     }
 
     @Override
-    protected ByteBuffer unpack(Codec codec, ByteBuffer compressed, boolean direct) {
+    protected ByteBuffer unpack(Codec codec, ByteBuffer compressed) {
 
         //header
         int entryCount = compressed.getInt(); //parent
         int uncompressedSize = compressed.getInt(); //parent
         int entrySize = compressed.getInt();
 
-        ByteBuffer data = createBuffer(uncompressedSize, direct);
+        ByteBuffer data = createBuffer(uncompressedSize);
         codec.decompress(compressed, data);
         data.flip();
 

@@ -98,7 +98,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
         if (delegate.readOnly()) {
             FooterReader reader = delegate.footerReader();
-            this.midpoints = Midpoints.load(reader, footerCodec, bufferPool, keySerializer);
+            this.midpoints = Midpoints.load(reader, footerCodec, keySerializer);
             this.bloomFilter = BloomFilter.load(reader, footerCodec, bufferPool);
         } else {
             this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb);

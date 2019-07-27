@@ -33,21 +33,21 @@ public class Block implements Iterable<ByteBuffer> {
     protected final boolean readOnly;
 
     //returns the uncompressed size
-    public Block(int blockSize, boolean direct) {
+    public Block(int blockSize) {
         if (blockSize <= 0) {
             throw new IllegalArgumentException("maxSize must be greater than zero");
         }
-        this.data = createBuffer(blockSize, direct);
+        this.data = createBuffer(blockSize);
         this.readOnly = false;
     }
 
-    protected Block(Codec codec, ByteBuffer data, boolean direct) {
+    protected Block(Codec codec, ByteBuffer data) {
         this.readOnly = true;
-        this.data = this.unpack(codec, data, direct);
+        this.data = this.unpack(codec, data);
     }
 
-    protected ByteBuffer createBuffer(int size, boolean direct) {
-        return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+    protected ByteBuffer createBuffer(int size) {
+        return ByteBuffer.allocate(size);
     }
 
     public <T> boolean add(T entry, Serializer<T> serializer, BufferPool bufferPool) {
@@ -118,13 +118,13 @@ public class Block implements Iterable<ByteBuffer> {
         dst.putInt(uncompressedSize());
     }
 
-    protected ByteBuffer unpack(Codec codec, ByteBuffer compressedBlock, boolean direct) {
+    protected ByteBuffer unpack(Codec codec, ByteBuffer compressedBlock) {
         //head header
         int entryCount = compressedBlock.getInt();
         int uncompressedSize = compressedBlock.getInt();
 
         //LZ4 required destination buffer to have the exact number uncompressed bytes
-        ByteBuffer data = createBuffer(uncompressedSize, direct);
+        ByteBuffer data = createBuffer(uncompressedSize);
         codec.decompress(compressedBlock, data);
         data.flip();
 
@@ -234,56 +234,40 @@ public class Block implements Iterable<ByteBuffer> {
     }
 
     public static BlockFactory vlenBlock() {
-        return new VLenBlockFactory(false);
-    }
-
-    public static BlockFactory vlenBlock(boolean direct) {
-        return new VLenBlockFactory(direct);
+        return new VLenBlockFactory();
     }
 
     public static BlockFactory flenBlock(int entrySize) {
-        return new FixedSizeBlockFactory(false, entrySize);
-    }
-
-    public static BlockFactory flenBlock(boolean direct, int entrySize) {
-        return new FixedSizeBlockFactory(direct, entrySize);
+        return new FixedSizeBlockFactory(entrySize);
     }
 
     private static class FixedSizeBlockFactory implements BlockFactory {
 
-        private final boolean direct;
         private final int entrySize;
 
-        private FixedSizeBlockFactory(boolean direct, int entrySize) {
-            this.direct = direct;
+        private FixedSizeBlockFactory(int entrySize) {
             this.entrySize = entrySize;
         }
 
         @Override
         public Block create(int maxBlockSize) {
-            return new FixedSizeEntryBlock(maxBlockSize, direct, entrySize);
+            return new FixedSizeEntryBlock(maxBlockSize, entrySize);
         }
 
         @Override
         public Block load(Codec codec, ByteBuffer data) {
-            return new FixedSizeEntryBlock(codec, data, direct);
+            return new FixedSizeEntryBlock(codec, data);
         }
     }
 
     private static class VLenBlockFactory implements BlockFactory {
 
-        private final boolean direct;
-
-        private VLenBlockFactory(boolean direct) {
-            this.direct = direct;
-        }
-
         public Block create(int maxBlockSize) {
-            return new Block(maxBlockSize, direct);
+            return new Block(maxBlockSize);
         }
 
         public Block load(Codec codec, ByteBuffer data) {
-            return new Block(codec, data, direct);
+            return new Block(codec, data);
         }
     }
 

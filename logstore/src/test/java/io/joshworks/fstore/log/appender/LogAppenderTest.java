@@ -25,6 +25,11 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.joshworks.fstore.log.appender.LogAppender.MAX_SEGMENTS;
+import static io.joshworks.fstore.log.appender.LogAppender.MAX_SEGMENT_ADDRESS;
+import static io.joshworks.fstore.log.appender.LogAppender.getPositionOnSegment;
+import static io.joshworks.fstore.log.appender.LogAppender.getSegment;
+import static io.joshworks.fstore.log.appender.LogAppender.toSegmentedPosition;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -99,10 +104,10 @@ public abstract class LogAppenderTest {
 
         int segmentIdx = 0;
         long positionOnSegment = 32;
-        long position = appender.toSegmentedPosition(segmentIdx, positionOnSegment);
+        long position = toSegmentedPosition(segmentIdx, positionOnSegment);
 
-        int segment = appender.getSegment(position);
-        long foundPositionOnSegment = appender.getPositionOnSegment(position);
+        int segment = getSegment(position);
+        long foundPositionOnSegment = getPositionOnSegment(position);
 
         assertEquals(segmentIdx, segment);
         assertEquals(positionOnSegment, foundPositionOnSegment);
@@ -288,33 +293,33 @@ public abstract class LogAppenderTest {
 
     @Test
     public void segmentBitShift() {
-        for (int i = 0; i < appender.MAX_SEGMENTS; i++) {
-            long position = appender.toSegmentedPosition(i, 0);
-            long foundSegment = appender.getSegment(position);
+        for (int i = 0; i < MAX_SEGMENTS; i++) {
+            long position = toSegmentedPosition(i, 0);
+            long foundSegment = getSegment(position);
             assertEquals("Failed on segIdx " + i + " - position: " + position + " - foundSegment: " + foundSegment, i, foundSegment);
         }
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void toSegmentedPosition_invalid() {
-        long invalidAddress = appender.MAX_SEGMENTS + 1;
-        appender.toSegmentedPosition(invalidAddress, 0);
+        long invalidAddress = MAX_SEGMENTS + 1;
+        toSegmentedPosition(invalidAddress, 0);
 
     }
 
     @Test
-    public void getPositionOnSegment() {
+    public void testGetPositionOnSegment() {
 
         long value = 1;
-        long position = appender.getPositionOnSegment(1);
+        long position = getPositionOnSegment(1);
         assertEquals("Failed on position: " + position, value, position);
 
-        value = appender.MAX_SEGMENT_ADDRESS / 2;
-        position = appender.getPositionOnSegment(value);
+        value = MAX_SEGMENT_ADDRESS / 2;
+        position = getPositionOnSegment(value);
         assertEquals("Failed on position: " + position, value, position);
 
-        value = appender.MAX_SEGMENT_ADDRESS;
-        position = appender.getPositionOnSegment(value);
+        value = MAX_SEGMENT_ADDRESS;
+        position = getPositionOnSegment(value);
         assertEquals("Failed on position: " + position, value, position);
     }
 
@@ -697,7 +702,6 @@ public abstract class LogAppenderTest {
             return LogAppender.builder(testDirectory, new StringSerializer())
                     .segmentSize(LogAppenderTest.SEGMENT_SIZE)
                     .storageMode(StorageMode.MMAP)
-                    .disableCompaction()
                     .open();
         }
     }
@@ -709,7 +713,6 @@ public abstract class LogAppenderTest {
             return LogAppender.builder(testDirectory, new StringSerializer())
                     .segmentSize(LogAppenderTest.SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF_CACHED)
-                    .disableCompaction()
                     .open();
         }
     }
@@ -721,7 +724,6 @@ public abstract class LogAppenderTest {
         protected LogAppender<String> appender(File testDirectory) {
             return LogAppender.builder(testDirectory, new StringSerializer())
                     .segmentSize(LogAppenderTest.SEGMENT_SIZE)
-                    .disableCompaction()
                     .open();
         }
     }
