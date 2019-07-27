@@ -9,8 +9,8 @@ import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
-import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.log.segment.Log;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -125,7 +125,6 @@ public class LogRecordCleanupTest {
         assertEquals(1, output.records.get(0).version);
         assertEquals(2, output.records.get(1).version);
     }
-
 
     @Test
     public void obsolete_linkTo_entries_are_removed() {
