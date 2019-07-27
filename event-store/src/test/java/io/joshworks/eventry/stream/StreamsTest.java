@@ -1,5 +1,6 @@
 package io.joshworks.eventry.stream;
 
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -26,7 +27,7 @@ public class StreamsTest {
     }
 
     private Streams open() {
-        return new Streams(dummyFile, STREAMS_FLUSH_THRESHOLD, 10, -1);
+        return new Streams(dummyFile, STREAMS_FLUSH_THRESHOLD, Cache.softCache());
     }
 
     @After

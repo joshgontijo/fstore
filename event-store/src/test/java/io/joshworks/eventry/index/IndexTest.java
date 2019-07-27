@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,7 +57,7 @@ public class IndexTest {
     }
 
     private Index index(Function<Long, StreamMetadata> metadataSupplier) {
-        return new Index(testDir, FLUSH_THRESHOLD, 10, -1, metadataSupplier);
+        return new Index(testDir, FLUSH_THRESHOLD, Cache.softCache(), metadataSupplier);
     }
 
 }

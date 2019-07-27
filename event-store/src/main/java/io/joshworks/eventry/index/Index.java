@@ -5,7 +5,7 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.utils.Memory;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.index.cache.Cache;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.lsmtree.LsmTree;
@@ -28,8 +28,8 @@ public class Index implements Closeable {
     private final Cache<Long, AtomicInteger> versionCache;
     private final Function<Long, StreamMetadata> metadataSupplier;
 
-    public Index(File rootDir, int indexFlushThreshold, int versionCacheSize, int versionCacheMaxAge, Function<Long, StreamMetadata> metadataSupplier) {
-        this.versionCache = Cache.create(versionCacheSize, versionCacheMaxAge);
+    public Index(File rootDir, int indexFlushThreshold, Cache<Long, AtomicInteger> versionCache, Function<Long, StreamMetadata> metadataSupplier) {
+        this.versionCache = versionCache;
         this.metadataSupplier = metadataSupplier;
         this.lsmTree = LsmTree.builder(new File(rootDir, NAME), new IndexKeySerializer(), Serializers.LONG)
                 .disableTransactionLog()

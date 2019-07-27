@@ -16,7 +16,7 @@
  *  limitations under the License.
  */
 
-package io.joshworks.fstore.index.cache;
+package io.joshworks.fstore.core.cache;
 
 import java.lang.reflect.Constructor;
 import java.util.AbstractCollection;
