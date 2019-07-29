@@ -68,9 +68,9 @@ public class CompactionTask<T> implements Runnable {
             combiner.merge(segments, output);
             output.flush();
 
-            logSegmentInfo("OUT", output);
-
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
+            logger.info("Result segment {}: physicalSize: {}, logicalSize: {}, entries: {}", output.name(), output.physicalSize(), output.logicalSize(), output.entries());
+
             onComplete.accept(CompactionResult.success(segments, output, level));
 
         } catch (Exception e) {
@@ -91,6 +91,6 @@ public class CompactionTask<T> implements Runnable {
     }
 
     private long totalLogicalSize(Log<T> log) {
-        return log.headerSize() + log.physicalSize() + log.footerSize();
+        return log.headerSize() + log.uncompressedSize() + log.footerSize();
     }
 }
