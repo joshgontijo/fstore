@@ -9,18 +9,20 @@ public class IndexEntry implements Comparable<IndexEntry> {
     public final long stream;
     public final int version;
     public final long position;
+    public final long timestamp;
 
-    private IndexEntry(long stream, int version, long position) {
+    private IndexEntry(long stream, int version, long position, long timestamp) {
         if (version <= EventRecord.NO_VERSION) {
             throw new IllegalArgumentException("Version must be at least zero");
         }
         this.stream = stream;
         this.version = version;
         this.position = position;
+        this.timestamp = timestamp;
     }
 
-    public static IndexEntry of(long stream, int version, long position) {
-        return new IndexEntry(stream, version, position);
+    public static IndexEntry of(long stream, int version, long position, long timestamp) {
+        return new IndexEntry(stream, version, position, timestamp);
     }
 
 
@@ -48,6 +50,7 @@ public class IndexEntry implements Comparable<IndexEntry> {
         return "IndexEntry{" + "stream=" + stream +
                 ", version=" + version +
                 ", position=" + position +
+                ", timestamp=" + timestamp +
                 '}';
     }
 

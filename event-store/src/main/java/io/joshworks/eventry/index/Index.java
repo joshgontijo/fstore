@@ -52,7 +52,8 @@ public class Index implements Closeable {
 
     public boolean add(long hash, int version, long position) {
         updateVersionIfCached(hash, version);
-        return lsmTree.put(new IndexKey(hash, version), position);
+        long entryTs = System.currentTimeMillis();
+        return lsmTree.put(new IndexKey(hash, version, entryTs), position);
     }
 
     public long size() {
@@ -64,7 +65,7 @@ public class Index implements Closeable {
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
-        Long entryPos = lsmTree.get(new IndexKey(stream, version));
+        Long entryPos = lsmTree.get(IndexKey.event(stream, version));
         return Optional.ofNullable(entryPos).map(pos -> IndexEntry.of(stream, version, pos));
     }
 
@@ -101,17 +102,17 @@ public class Index implements Closeable {
         }
     }
 
-    public StreamIterator iterator(Checkpoint checkpoint) {
-        FixedStreamIterator iterator = new FixedStreamIterator(lsmTree, Direction.FORWARD, checkpoint);
+    public IndexIterator iterator(Checkpoint checkpoint) {
+        FixedIndexIterator iterator = new FixedIndexIterator(lsmTree, Direction.FORWARD, checkpoint);
         return withMaxCount(iterator, metadataSupplier);
     }
 
-    public StreamIterator iterator(String streamPrefix, Checkpoint checkpoint) {
-        StreamPrefixIndexIterator iterator = new StreamPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPrefix);
+    public IndexIterator iterator(String streamPrefix, Checkpoint checkpoint) {
+        IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPrefix);
         return withMaxCount(iterator, metadataSupplier);
     }
 
-    private StreamIterator withMaxCount(StreamIterator iterator, Function<Long, StreamMetadata> metadataSupplier) {
-        return new MaxCountFilteringIterator(metadataSupplier, this::version, iterator);
+    private IndexIterator withMaxCount(IndexIterator iterator, Function<Long, StreamMetadata> metadataSupplier) {
+        return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 }

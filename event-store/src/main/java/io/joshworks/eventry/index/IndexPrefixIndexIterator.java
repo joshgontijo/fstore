@@ -7,11 +7,11 @@ import io.joshworks.fstore.lsmtree.LsmTree;
 
 import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
-class StreamPrefixIndexIterator extends FixedStreamIterator {
+class IndexPrefixIndexIterator extends FixedIndexIterator {
 
     private final String prefix;
 
-    StreamPrefixIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint, String prefix) {
+    IndexPrefixIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint, String prefix) {
         super(delegate, direction, checkpoint);
         this.prefix = prefix;
     }

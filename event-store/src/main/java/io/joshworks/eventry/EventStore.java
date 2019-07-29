@@ -8,7 +8,7 @@ import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
-import io.joshworks.eventry.index.StreamIterator;
+import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
@@ -287,7 +287,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStream(StreamName streamName) {
+    public StreamIterator fromStream(StreamName streamName) {
         requireNonNull(streamName, "Stream must be provided");
         int version = streamName.version();
         long hash = streamName.hash();
@@ -297,38 +297,38 @@ public class EventStore implements IEventStore {
                 .map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version)
                 .orElse(version);
 
-        StreamIterator streamIterator = index.iterator(Checkpoint.of(hash, startVersion));
-        StreamListenerRemoval listenerRemoval = new StreamListenerRemoval(streamListeners, streamIterator);
+        IndexIterator indexIterator = index.iterator(Checkpoint.of(hash, startVersion));
+        IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
-        return createEventLogIterator(streams::get, indexedLogIterator);
+        return createStreamIterator(streams::get, indexedLogIterator);
     }
 
     //TODO this requires another method that accepts checkpoint
     @Override
-    public EventLogIterator fromStreams(String streamPrefix) {
+    public StreamIterator fromStreams(String streamPrefix) {
         if (StringUtils.isBlank(streamPrefix)) {
             throw new IllegalArgumentException("stream prefix must not be empty");
         }
 
         Set<Long> longs = streams.matchStreamHash(streamPrefix);
-        StreamIterator streamIterator = index.iterator(streamPrefix, Checkpoint.of(longs));
-        StreamListenerRemoval listenerRemoval = new StreamListenerRemoval(streamListeners, streamIterator);
+        IndexIterator indexIterator = index.iterator(streamPrefix, Checkpoint.of(longs));
+        IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
         return createEventLogIterator(streams::get, indexedLogIterator);
     }
 
     @Override
-    public EventLogIterator fromStreams(Set<StreamName> streamNames) {
+    public StreamIterator fromStreams(Set<StreamName> streamNames) {
         if (streamNames.size() == 1) {
             return fromStream(streamNames.iterator().next());
         }
 
         Set<Long> hashes = streamNames.stream().map(StreamName::hash).collect(Collectors.toSet());
 
-        StreamIterator streamIterator = index.iterator(Checkpoint.of(hashes));
-        StreamListenerRemoval listenerRemoval = new StreamListenerRemoval(streamListeners, streamIterator);
+        IndexIterator indexIterator = index.iterator(Checkpoint.of(hashes));
+        IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
         return createEventLogIterator(streams::get, indexedLogIterator);
@@ -348,10 +348,9 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+    public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
         LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD);
-        NonIndexedLogIterator nonIndexedLogIterator = new NonIndexedLogIterator(logIterator);
-        EventPolicyFilterIterator eventPolicyFilterIterator = new EventPolicyFilterIterator(nonIndexedLogIterator, linkToPolicy, systemEventPolicy);
+        EventPolicyFilterIterator eventPolicyFilterIterator = new EventPolicyFilterIterator(logIterator, linkToPolicy, systemEventPolicy);
         if (LinkToPolicy.RESOLVE.equals(linkToPolicy)) {
             return new LinkToResolveIterator(eventPolicyFilterIterator, this::resolve);
         }
@@ -359,13 +358,12 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+    public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
         requireNonNull(lastEvent, "last event must be provided");
         Optional<IndexEntry> indexEntry = index.get(lastEvent.hash(), lastEvent.version());
         IndexEntry entry = indexEntry.orElseThrow(() -> new IllegalArgumentException("No index entry found for " + lastEvent));
         LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD, entry.position);
-        NonIndexedLogIterator nonIndexedLogIterator = new NonIndexedLogIterator(logIterator);
-        EventPolicyFilterIterator eventPolicyFilterIterator = new EventPolicyFilterIterator(nonIndexedLogIterator, linkToPolicy, systemEventPolicy);
+        EventPolicyFilterIterator eventPolicyFilterIterator = new EventPolicyFilterIterator(logIterator, linkToPolicy, systemEventPolicy);
         if (LinkToPolicy.RESOLVE.equals(linkToPolicy)) {
             return new LinkToResolveIterator(eventPolicyFilterIterator, this::resolve);
         }
@@ -463,7 +461,7 @@ public class EventStore implements IEventStore {
         }
     }
 
-    private EventLogIterator createEventLogIterator(Function<String, StreamMetadata> metadataSupplier, IndexedLogIterator indexedLogIterator) {
+    private StreamIterator createStreamIterator(Function<String, StreamMetadata> metadataSupplier, IndexedLogIterator indexedLogIterator) {
         MaxAgeFilteringIterator maxAgeFilteringIterator = new MaxAgeFilteringIterator(metadataSupplier, indexedLogIterator);
         return new LinkToResolveIterator(maxAgeFilteringIterator, this::resolve);
     }

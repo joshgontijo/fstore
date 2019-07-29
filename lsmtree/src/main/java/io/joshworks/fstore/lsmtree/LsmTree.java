@@ -131,6 +131,24 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         return fromSSTable == null ? null : fromSSTable.value;
     }
 
+    public Entry<K, V> get(K key) {
+        requireNonNull(key, "Key must be provided");
+        V cached = cache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        Entry<K, V> fromMem = memTable.get(key);
+        if (fromMem != null) {
+            cache.add(key, fromMem.value);
+            return fromMem;
+        }
+        Entry<K, V> fromSSTable = sstables.get(key);
+        if (fromSSTable != null) {
+            cache.add(key, fromSSTable.value);
+        }
+        return fromSSTable == null ? null : fromSSTable.value;
+    }
+
     public void remove(K key) {
         requireNonNull(key, "Key must be provided");
         log.append(LogRecord.delete(key));

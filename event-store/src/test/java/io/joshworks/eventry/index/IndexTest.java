@@ -48,7 +48,7 @@ public class IndexTest {
         }
         index.compact();
 
-        StreamIterator iterator = index.iterator(Checkpoint.of(Set.of(1L, 2L)));
+        IndexIterator iterator = index.iterator(Checkpoint.of(Set.of(1L, 2L)));
         while(iterator.hasNext()) {
             IndexEntry next = iterator.next();
             System.out.println(next);

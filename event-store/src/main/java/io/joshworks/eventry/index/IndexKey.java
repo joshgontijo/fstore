@@ -15,10 +15,14 @@ public class IndexKey implements Comparable<IndexKey> {
     public final int version;
     public final long timestamp;
 
-    public IndexKey(long stream, int version) {
-        this.timestamp = System.currentTimeMillis();
+    public IndexKey(long stream, int version, long timestamp) {
         this.stream = stream;
         this.version = version;
+        this.timestamp = timestamp;
+    }
+
+    public static IndexKey event(long stream, int version) {
+        return new IndexKey(stream, version)
     }
 
     public static Range<IndexKey> allOf(long stream) {
@@ -26,18 +30,17 @@ public class IndexKey implements Comparable<IndexKey> {
     }
 
     public static Range<IndexKey> rangeOf(long stream, int startInclusive, int endExclusive) {
-        return Range.of(new IndexKey(stream, startInclusive), new IndexKey(stream, endExclusive));
+        long now = System.currentTimeMillis();
+        return Range.of(new IndexKey(stream, startInclusive, now), new IndexKey(stream, endExclusive, now));
     }
 
     @Override
     public int compareTo(IndexKey other) {
         int keyCmp = Long.compare(stream, other.stream);
-        if (keyCmp == 0) {
-            keyCmp = version - other.version;
-            if (keyCmp != 0)
-                return keyCmp;
+        if (keyCmp != 0) {
+            return keyCmp;
         }
-        return keyCmp;
+        return version - other.version;
     }
 
     @Override
@@ -58,6 +61,7 @@ public class IndexKey implements Comparable<IndexKey> {
     public String toString() {
         return "IndexKey{" + "stream=" + stream +
                 ", version=" + version +
+                ", timestamp=" + timestamp +
                 '}';
     }
 }

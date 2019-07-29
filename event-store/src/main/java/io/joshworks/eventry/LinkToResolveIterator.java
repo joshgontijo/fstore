@@ -6,7 +6,7 @@ import io.joshworks.fstore.log.LogIterator;
 import java.io.IOException;
 import java.util.function.Function;
 
-public class LinkToResolveIterator implements EventLogIterator {
+public class LinkToResolveIterator implements LogIterator<EventRecord> {
 
     private final LogIterator<EventRecord> delegate;
     private final Function<EventRecord, EventRecord> resolver;
