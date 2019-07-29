@@ -13,18 +13,17 @@ import io.joshworks.eventry.log.EventLog;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.IEventLog;
-import io.joshworks.eventry.log.RecordCleanup;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.writer.EventWriter;
 import io.joshworks.eventry.writer.Writer;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -92,8 +91,10 @@ public class EventStore implements IEventStore {
                 .storageMode(StorageMode.MMAP)
                 .directBufferPool()
                 .checksumProbability(1)
-                .namingStrategy(new SequentialNaming(rootDir))
-                .compactionStrategy(new RecordCleanup(streams, index)));
+                .namingStrategy(new SequentialNaming(rootDir)));
+        //TODO log compaction (prune) not fully implemented
+//                .compactionThreshold(1)
+//                .compactionStrategy(new RecordCleanup(streams, index)));
 
         this.eventWriter = new EventWriter(eventLog, index, WRITE_QUEUE_SIZE);
         try {

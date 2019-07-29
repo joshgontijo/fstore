@@ -36,7 +36,7 @@ public class UniqueMergeCombiner<T extends Comparable<T>> extends MergeCombiner<
             if (nextEntry != null && filter(nextEntry)) {
                 long pos = output.append(nextEntry);
                 if (pos == Storage.EOF) {
-                    throw new IllegalStateException("Insufficient output segment space: " + output.physicalSize());
+                    throw new IllegalStateException("Insufficient output segment (" + output.name() + ") data space: " + output.dataSize());
                 }
             }
         }
