@@ -1,17 +1,17 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.index.IndexEntry;
-import io.joshworks.eventry.index.StreamIterator;
+import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.stream.StreamMetadata;
 
 import java.util.Set;
 
-public class StreamListenerRemoval implements StreamIterator {
+public class IndexListenerRemoval implements IndexIterator {
 
     private final Set<StreamListener> listeners;
-    private final StreamIterator delegate;
+    private final IndexIterator delegate;
 
-    public StreamListenerRemoval(Set<StreamListener> listeners, StreamIterator delegate) {
+    public IndexListenerRemoval(Set<StreamListener> listeners, IndexIterator delegate) {
         this.listeners = listeners;
         this.delegate = delegate;
         this.listeners.add(delegate);

@@ -1,26 +1,29 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.EventUtils;
 import io.joshworks.eventry.stream.StreamMetadata;
 
 import java.util.function.Function;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 
-class MaxCountFilteringIterator implements StreamIterator {
+/**
+ * Filters out maxAge and maxCount entries
+ */
+class IndexFilter implements IndexIterator {
 
     private final Function<Long, Integer> versionFetcher;
-    private final StreamIterator delegate;
+    private final IndexIterator delegate;
     private final Function<Long, StreamMetadata> metadataSupplier;
     private IndexEntry next;
 
-    MaxCountFilteringIterator(Function<Long, StreamMetadata> metadataSupplier,
-                              Function<Long, Integer> versionFetcher,
-                              StreamIterator delegate) {
+    IndexFilter(Function<Long, StreamMetadata> metadataSupplier,
+                Function<Long, Integer> versionFetcher,
+                IndexIterator delegate) {
         this.metadataSupplier = metadataSupplier;
         this.versionFetcher = versionFetcher;
         this.delegate = delegate;
     }
-
 
     @Override
     public boolean hasNext() {
@@ -45,8 +48,8 @@ class MaxCountFilteringIterator implements StreamIterator {
         IndexEntry last;
         do {
             last = nextEntry();
-        } while (last != null && !withinMaxCount(last));
-        return last != null && withinMaxCount(last) ? last : null;
+        } while (last != null && !validEntry(last));
+        return last != null && validEntry(last) ? last : null;
     }
 
     private IndexEntry nextEntry() {
@@ -54,9 +57,9 @@ class MaxCountFilteringIterator implements StreamIterator {
     }
 
     //count is based on stream version rather than event count
-    private boolean withinMaxCount(IndexEntry last) {
+    private boolean validEntry(IndexEntry last) {
         StreamMetadata metadata = metadataSupplier.apply(last.stream);
-        return metadata.maxCount <= NO_MAX_COUNT || last.version > (versionFetcher.apply(last.stream) - metadata.maxCount);
+        return EventUtils.validIndexEntry(metadata, last.version, last.timestamp, versionFetcher);
     }
 
     @Override

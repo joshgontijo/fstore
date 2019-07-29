@@ -8,7 +8,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class FixedStreamIterator implements StreamIterator {
+public class FixedIndexIterator implements IndexIterator {
 
     private final LsmTree<IndexKey, Long> delegate;
     protected final Checkpoint checkpoint;
@@ -18,7 +18,7 @@ public class FixedStreamIterator implements StreamIterator {
     private Iterator<Map.Entry<Long, Integer>> streamIt;
     private IndexEntry next;
 
-    FixedStreamIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint) {
+    FixedIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint) {
         this.delegate = delegate;
         this.checkpoint = checkpoint;
         this.direction = direction;
@@ -68,7 +68,7 @@ public class FixedStreamIterator implements StreamIterator {
         if (position == null) {
             return null;
         }
-        IndexEntry indexEntry = IndexEntry.of(stream, version, position);
+        IndexEntry indexEntry = IndexEntry.of(stream, version, position, );
         return isReadable(indexEntry) ? indexEntry : null;
     }
 

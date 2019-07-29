@@ -1,17 +1,20 @@
 package io.joshworks.eventry;
 
+import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.log.LogIterator;
+
 import java.util.Set;
 
 public interface ILogIterator {
 
-    EventLogIterator fromStream(StreamName stream);
+    StreamIterator fromStream(StreamName stream);
 
-    EventLogIterator fromStreams(String streamPattern);
+    StreamIterator fromStreams(String streamPattern);
 
-    EventLogIterator fromStreams(Set<StreamName> streams);
+    StreamIterator fromStreams(Set<StreamName> streams);
 
-    EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy);
+    LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy);
 
-    EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent);
+    LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent);
 
 }

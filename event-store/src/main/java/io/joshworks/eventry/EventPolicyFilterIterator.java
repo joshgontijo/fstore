@@ -6,11 +6,11 @@ import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.io.IOException;
 
-public class EventPolicyFilterIterator implements EventLogIterator {
+public class EventPolicyFilterIterator implements LogIterator<EventRecord> {
 
     private final LogIterator<EventRecord> delegate;
 
-    public EventPolicyFilterIterator(EventLogIterator delegate, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+    public EventPolicyFilterIterator(LogIterator<EventRecord> delegate, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
         this.delegate = Iterators.filtering(delegate, ev -> {
             if (ev == null) {
                 return false;
