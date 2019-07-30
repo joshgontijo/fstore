@@ -1,8 +1,8 @@
 package io.joshworks.eventry.it;
 
 import io.joshworks.eventry.EventStore;
-import io.joshworks.eventry.IEventStore;
-import io.joshworks.eventry.StreamIterator;
+import io.joshworks.eventry.api.IEventStore;
+import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.seda.TimeWatch;
@@ -123,7 +123,7 @@ public class ConcurrencyIT {
         for (int readTask = 0; readTask < readThreads; readTask++) {
             readExecutor.execute(() -> {
                 AtomicInteger localCounter = new AtomicInteger();
-                try (StreamIterator iterator = store.fromStream(StreamName.parse(stream))) {
+                try (EventStoreIterator iterator = store.fromStream(StreamName.parse(stream))) {
                     while (localCounter.get() < totalWrites) {
                         while (!iterator.hasNext()) {
                             sleep(1000);
@@ -135,8 +135,6 @@ public class ConcurrencyIT {
                     }
                     System.out.println("COMPLETED READING " + localCounter.get() + ": " + Thread.currentThread().getName());
                     readLatch.countDown();
-                } catch (IOException e) {
-                    e.printStackTrace();
                 }
 
 
@@ -205,7 +203,7 @@ public class ConcurrencyIT {
 
         Map<String, AtomicInteger> counter = new HashMap<>();
         Set<StreamName> streamHashes = streamNames.stream().map(StreamName::parse).collect(Collectors.toSet());
-        try (StreamIterator events = store.fromStreams(streamHashes)) {
+        try (EventStoreIterator events = store.fromStreams(streamHashes)) {
             for (int i = 0; i < itemPerThread * threads; i++) {
                 assertTrue("Failed on " + i, events.hasNext());
                 EventRecord event = events.next();

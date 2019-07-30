@@ -6,7 +6,6 @@ import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.lsmtree.EntryValue;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.serializer.Serializers;
 
@@ -33,15 +32,16 @@ public class Streams implements Closeable {
     private static final String WILDCARD = "*";
     private static final String STORE_NAME = "streams";
     public final LsmTree<Long, StreamMetadata> store;
+    private final Cache<Long, StreamMetadata> cache;
 
-    public Streams(File root, int flushThreshold, Cache<Long, EntryValue<StreamMetadata>> streamCache) {
+    public Streams(File root, int flushThreshold, Cache<Long, StreamMetadata> cache) {
+        this.cache = cache;
         this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, new StreamMetadataSerializer())
                 .name(STORE_NAME)
                 .flushThreshold(flushThreshold)
                 .bloomFilter(0.01, flushThreshold)
                 .transacationLogStorageMode(StorageMode.MMAP)
                 .sstableStorageMode(StorageMode.MMAP)
-                .entryCache(streamCache)
                 .open();
     }
 
@@ -50,7 +50,15 @@ public class Streams implements Closeable {
     }
 
     public StreamMetadata get(long streamHash) {
-        return store.get(streamHash);
+        StreamMetadata cached = cache.get(streamHash);
+        if (cached != null) {
+            return cached;
+        }
+        StreamMetadata metadata = store.get(streamHash);
+        if (metadata != null) {
+            cache.add(streamHash, metadata);
+        }
+        return metadata;
     }
 
     public List<StreamMetadata> all() {

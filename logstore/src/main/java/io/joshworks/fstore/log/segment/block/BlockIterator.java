@@ -69,7 +69,7 @@ public class BlockIterator<T> implements SegmentIterator<T> {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         cached.clear();
         delegate.close();
     }

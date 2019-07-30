@@ -67,6 +67,11 @@ public class Partitions implements AutoCloseable {
         partitions.clear();
     }
 
+    public int size() {
+        //TODO only active
+        return partitions.size();
+    }
+
     public Collection<Partition> all() {
         return partitions.values();
     }

@@ -262,8 +262,6 @@ public abstract class LogAppenderIT {
             assertEquals(appender.entries(), totalRead);
             System.out.println("APPENDER_READ -  READ " + totalRead + " ENTRIES IN " + (System.currentTimeMillis() - start) + "ms");
 
-        } catch (IOException e) {
-            e.printStackTrace();
         }
     }
 

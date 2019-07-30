@@ -6,7 +6,6 @@ import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 
-import java.util.Iterator;
 import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,8 +58,13 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return table.lower(Entry.key(key));
     }
 
-    public Iterator<Entry<K, V>> iterator() {
-        return table.iterator();
+    public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
+        NavigableSet<Entry<K, V>> subSet = table.subSet(Entry.key(range.start()), Entry.key(range.end()));
+        return Direction.FORWARD.equals(direction) ? Iterators.of(subSet) : Iterators.wrap(subSet.descendingIterator());
+    }
+
+    public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
+        return Direction.FORWARD.equals(direction) ? Iterators.of(table) : Iterators.wrap(table.descendingIterator());
     }
 
     public long writeTo(SSTables<K, V> sstables, long maxAge) {
@@ -83,11 +87,6 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
             sstables.roll();
         }
         return inserted;
-    }
-
-    public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
-        NavigableSet<Entry<K, V>> subSet = table.subSet(Entry.key(range.start()), Entry.key(range.end()));
-        return Direction.BACKWARD.equals(direction) ? Iterators.wrap(subSet.descendingIterator()) : Iterators.of(subSet);
     }
 
     public int size() {

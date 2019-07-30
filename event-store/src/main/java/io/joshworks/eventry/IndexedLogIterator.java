@@ -1,5 +1,6 @@
 package io.joshworks.eventry;
 
+import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
@@ -11,7 +12,7 @@ import java.util.function.Function;
 /**
  * Random access log iterator
  */
-public class IndexedLogIterator implements StreamIterator {
+public class IndexedLogIterator implements EventStoreIterator {
 
     private final IndexIterator indexIterator;
     private final IEventLog log;

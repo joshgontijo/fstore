@@ -44,7 +44,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private final boolean flushOnClose;
 
     private MemTable<K, V> memTable;
-    private final Cache<K, EntryValue<V>> cache;
     private final long maxAge;
 
     private LsmTree(Builder<K, V> builder) {
@@ -56,7 +55,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         this.logDisabled = builder.logDisabled;
         this.flushOnClose = builder.flushOnClose;
         this.log.restore(this::restore);
-        this.cache = builder.entryCache;
     }
 
     public static <K extends Comparable<K>, V> Builder<K, V> builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -105,7 +103,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
         Entry<K, V> entry = Entry.add(key, value);
         memTable.add(entry);
-        cache.remove(key); //evict
         if (memTable.size() >= flushThreshold) {
             flushMemTable(false);
             return true;
@@ -114,29 +111,17 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public V get(K key) {
-        EntryValue<V> entry = getEntry(key);
+        Entry<K, V> entry = getEntry(key);
         return entry == null ? null : entry.value;
     }
 
-    public EntryValue<V> getEntry(K key) {
+    public Entry<K, V> getEntry(K key) {
         requireNonNull(key, "Key must be provided");
-        EntryValue<V> cached = cache.get(key);
-        if (cached != null) {
-            return cached;
-        }
         Entry<K, V> fromMem = memTable.get(key);
         if (fromMem != null) {
-            EntryValue<V> entryVal = new EntryValue<>(fromMem.value, fromMem.timestamp);
-            cache.add(key, entryVal);
-            return entryVal;
+            return fromMem;
         }
-        Entry<K, V> fromSSTable = sstables.get(key);
-        if (fromSSTable != null) {
-            EntryValue<V> entryVal = new EntryValue<>(fromSSTable.value, fromSSTable.timestamp);
-            cache.add(key, entryVal);
-            return entryVal;
-        }
-        return null;
+        return sstables.get(key);
     }
 
     public void remove(K key) {
@@ -217,13 +202,13 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
-        List<LogIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction);
-        return new LsmTreeIterator<>(segmentsIterators, memTable.iterator());
+        List<CloseableIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction);
+        return new LsmTreeIterator<>(segmentsIterators, memTable.iterator(direction));
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
-        List<LogIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction, range);
-        return new LsmTreeIterator<>(segmentsIterators, memTable.iterator());
+        List<CloseableIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction, range);
+        return new LsmTreeIterator<>(segmentsIterators, memTable.iterator(direction, range));
     }
 
     @Override
@@ -279,7 +264,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private StorageMode tlogStorageMode = StorageMode.RAF;
         private long segmentSize = Size.MB.of(32);
 
-        private Cache<K, EntryValue<V>> entryCache = Cache.softCache();
         private Cache<String, Block> blockCache = Cache.softCache();
         private boolean flushOnClose = true;
         private long maxAgeSeconds = NO_MAX_AGE;
@@ -353,11 +337,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
         public Builder<K, V> blockCache(Cache<String, Block> blockCache) {
             this.blockCache = requireNonNull(blockCache, "Cache must be provided");
-            return this;
-        }
-
-        public Builder<K, V> entryCache(Cache<K, EntryValue<V>> entryCache) {
-            this.entryCache = requireNonNull(entryCache, "Cache must be provided");
             return this;
         }
 

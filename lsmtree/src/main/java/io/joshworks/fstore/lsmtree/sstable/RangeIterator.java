@@ -68,7 +68,7 @@ public class RangeIterator<K extends Comparable<K>, V> extends SSTableIterator<K
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         super.close();
     }
 

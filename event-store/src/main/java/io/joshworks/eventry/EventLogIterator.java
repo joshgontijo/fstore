@@ -1,5 +1,7 @@
 package io.joshworks.eventry;
 
+import io.joshworks.eventry.api.EventStoreIterator;
+import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -7,7 +9,7 @@ import io.joshworks.fstore.log.iterators.Iterators;
 import java.io.IOException;
 import java.util.function.Function;
 
-public class EventLogIterator implements Streamable<EventRecord> {
+public class EventLogIterator implements EventStoreIterator {
 
     private final LogIterator<EventRecord> delegate;
     private EventRecord last;
@@ -29,12 +31,8 @@ public class EventLogIterator implements Streamable<EventRecord> {
         this.delegate = Iterators.mapping(policyFiltered, mapping);
     }
 
-    public StreamName lastEvent() {
-        return last == null ? null : StreamName.from(last);
-    }
-
     @Override
-    public void close() throws IOException {
+    public void close() {
         delegate.close();
     }
 
@@ -50,5 +48,10 @@ public class EventLogIterator implements Streamable<EventRecord> {
             last = event;
         }
         return event;
+    }
+
+    @Override
+    public Checkpoint checkpoint() {
+        return last == null ? null : Checkpoint.from(StreamName.from(last));
     }
 }

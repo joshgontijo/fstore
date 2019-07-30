@@ -1,9 +1,9 @@
 package io.joshworks.eventry.it;
 
 import io.joshworks.eventry.EventStore;
-import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.StreamIterator;
+import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.data.StreamCreated;
@@ -165,7 +165,7 @@ public class EventStoreIT {
 
     @Test
     public void insert_1000_streams_with_1000_version_each() {
-        testWith(10000, 2000);
+        testWith(10000, 1000);
     }
 
     @Test
@@ -507,7 +507,7 @@ public class EventStoreIT {
         store.close();
         store = EventStore.open(directory);
 
-        StreamIterator iterator = store.fromStream(StreamName.parse(stream));
+        EventStoreIterator iterator = store.fromStream(StreamName.parse(stream));
 
         int total = 0;
         for (int i = 0; i < size; i++) {
@@ -530,7 +530,7 @@ public class EventStoreIT {
             store.append(EventRecord.create(stream, "type-1", Map.of()));
         }
 
-        StreamIterator iterator = store.fromStream(StreamName.parse(SystemStreams.INDEX));
+        EventStoreIterator iterator = store.fromStream(StreamName.parse(SystemStreams.INDEX));
         if (!Iterators.await(iterator, 1000, 10000)) {
             fail("Did not receive any events");
         }

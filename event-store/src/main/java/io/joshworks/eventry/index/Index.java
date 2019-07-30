@@ -8,7 +8,6 @@ import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.block.Block;
-import io.joshworks.fstore.lsmtree.EntryValue;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
@@ -69,7 +68,7 @@ public class Index implements Closeable {
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
-        EntryValue<Long> entry = lsmTree.getEntry(IndexKey.event(stream, version));
+        Entry<IndexKey, Long> entry = lsmTree.getEntry(IndexKey.event(stream, version));
         return Optional.ofNullable(entry).map(pos -> IndexEntry.of(stream, version, entry.value, entry.timestamp));
     }
 

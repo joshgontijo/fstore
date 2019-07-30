@@ -51,7 +51,7 @@ public class SSTableIterator<K extends Comparable<K>, V> implements SegmentItera
     }
 
     @Override
-    public void close() throws IOException {
+    public void close()  {
         delegate.close();
     }
 

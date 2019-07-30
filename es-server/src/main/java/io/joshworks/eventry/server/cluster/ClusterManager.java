@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.EventStore;
-import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterMessage;

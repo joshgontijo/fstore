@@ -23,7 +23,7 @@ class StreamingIterator<T> implements LogIterator<T> {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close()  {
         delegate.close();
     }
 

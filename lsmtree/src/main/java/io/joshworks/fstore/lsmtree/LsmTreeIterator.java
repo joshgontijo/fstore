@@ -17,7 +17,7 @@ class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<E
 
     private final List<PeekingIterator<Entry<K, V>>> segmentsIterators;
 
-    LsmTreeIterator(List<LogIterator<Entry<K, V>>> segmentsIterators, Iterator<Entry<K, V>> memIterator) {
+    LsmTreeIterator(List<CloseableIterator<Entry<K, V>>> segmentsIterators, Iterator<Entry<K, V>> memIterator) {
         segmentsIterators.add(Iterators.wrap(memIterator));
 
         this.segmentsIterators = segmentsIterators.stream()
@@ -51,7 +51,7 @@ class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<E
     }
 
     @Override
-    public void close() throws IOException {
+    public void close()  {
         for (PeekingIterator<Entry<K, V>> availableSegment : segmentsIterators) {
             availableSegment.close();
         }
