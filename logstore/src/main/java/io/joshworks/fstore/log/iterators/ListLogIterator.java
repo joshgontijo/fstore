@@ -1,22 +1,17 @@
 package io.joshworks.fstore.log.iterators;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.CloseableIterator;
 
 import java.util.Collection;
 import java.util.Iterator;
 
-class ListLogIterator<T> implements LogIterator<T> {
+class ListLogIterator<T> implements CloseableIterator<T> {
 
     private final Iterator<T> source;
     private int position;
 
     ListLogIterator(Collection<T> source) {
         this.source = source.iterator();
-    }
-
-    @Override
-    public long position() {
-        return position;
     }
 
     @Override

@@ -1,71 +1,54 @@
-//package io.joshworks.eventry;
-//
-//import io.joshworks.eventry.log.EventRecord;
-//import io.joshworks.fstore.log.LogIterator;
-//
-//import java.io.IOException;
-//import java.util.HashMap;
-//import java.util.Map;
-//import java.util.Objects;
-//import java.util.function.Consumer;
-//
-//public interface EventLogIterator extends LogIterator<EventRecord> {
-//
-//    default TypeMatch when(String type, Consumer<EventRecord> handler) {
-//        return new TypeMatch(this, type, handler);
-//    }
-//
-//    static EventLogIterator of(LogIterator<EventRecord> iterator) {
-//        return new DelegateIterator(iterator);
-//    }
-//
-//    class TypeMatch {
-//        private final Map<String, Consumer<EventRecord>> matchers = new HashMap<>();
-//        private final EventLogIterator iterator;
-//
-//        TypeMatch(EventLogIterator iterator, String type, Consumer<EventRecord> handler) {
-//            this.iterator = iterator;
-//            this.matchers.put(type, Objects.requireNonNull(handler));
-//        }
-//
-//        public TypeMatch when(String type, Consumer<EventRecord> handler) {
-//            this.matchers.put(type, Objects.requireNonNull(handler));
-//            return this;
-//        }
-//
-//        public void match() {
-//            iterator.stream().filter(er -> matchers.containsKey(er.type)).forEach(ev -> matchers.getOrDefault(ev.type, e -> {
-//            }).accept(ev));
-//        }
-//    }
-//
-//    class DelegateIterator implements EventLogIterator {
-//
-//        private final LogIterator<EventRecord> delegate;
-//
-//        public DelegateIterator(LogIterator<EventRecord> delegate) {
-//            this.delegate = delegate;
-//        }
-//
-//        @Override
-//        public long position() {
-//            return delegate.position();
-//        }
-//
-//        @Override
-//        public void close() throws IOException {
-//            delegate.close();
-//        }
-//
-//        @Override
-//        public boolean hasNext() {
-//            return delegate.hasNext();
-//        }
-//
-//        @Override
-//        public EventRecord next() {
-//            return delegate.next();
-//        }
-//    }
-//
-//}
+package io.joshworks.eventry;
+
+import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.iterators.Iterators;
+
+import java.io.IOException;
+import java.util.function.Function;
+
+public class EventLogIterator implements Streamable<EventRecord> {
+
+    private final LogIterator<EventRecord> delegate;
+    private EventRecord last;
+
+    public EventLogIterator(LogIterator<EventRecord> delegate, Function<EventRecord, EventRecord> resolver, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+        LogIterator<EventRecord> policyFiltered = Iterators.filtering(delegate, ev -> {
+            if (ev == null) {
+                return false;
+            }
+            if (LinkToPolicy.IGNORE.equals(linkToPolicy) && ev.isLinkToEvent()) {
+                return false;
+            }
+            if (SystemEventPolicy.IGNORE.equals(systemEventPolicy) && ev.isSystemEvent()) {
+                return false;
+            }
+            return true;
+        });
+        Function<EventRecord, EventRecord> mapping = LinkToPolicy.RESOLVE.equals(linkToPolicy) ? resolver : ev -> ev;
+        this.delegate = Iterators.mapping(policyFiltered, mapping);
+    }
+
+    public StreamName lastEvent() {
+        return last == null ? null : StreamName.from(last);
+    }
+
+    @Override
+    public void close() throws IOException {
+        delegate.close();
+    }
+
+    @Override
+    public boolean hasNext() {
+        return delegate.hasNext();
+    }
+
+    @Override
+    public EventRecord next() {
+        EventRecord event = delegate.next();
+        if (event != null) {
+            last = event;
+        }
+        return event;
+    }
+}

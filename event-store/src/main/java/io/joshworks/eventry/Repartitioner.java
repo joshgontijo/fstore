@@ -13,7 +13,7 @@ public class Repartitioner implements Runnable {
 
     private final IEventStore store;
     private final Function<EventRecord, String> partitioner;
-    private final EventLogIterator source;
+    private final StreamIterator source;
 
     public Repartitioner(IEventStore store, String sourceStream, Function<EventRecord, String> partitioner) {
         this.store = store;

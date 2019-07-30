@@ -1,9 +1,9 @@
 package io.joshworks.eventry.it;
 
-import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
+import io.joshworks.eventry.StreamIterator;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.data.StreamCreated;
@@ -507,7 +507,7 @@ public class EventStoreIT {
         store.close();
         store = EventStore.open(directory);
 
-        EventLogIterator iterator = store.fromStream(StreamName.parse(stream));
+        StreamIterator iterator = store.fromStream(StreamName.parse(stream));
 
         int total = 0;
         for (int i = 0; i < size; i++) {
@@ -530,7 +530,7 @@ public class EventStoreIT {
             store.append(EventRecord.create(stream, "type-1", Map.of()));
         }
 
-        EventLogIterator iterator = store.fromStream(StreamName.parse(SystemStreams.INDEX));
+        StreamIterator iterator = store.fromStream(StreamName.parse(SystemStreams.INDEX));
         if (!Iterators.await(iterator, 1000, 10000)) {
             fail("Did not receive any events");
         }
@@ -588,12 +588,11 @@ public class EventStoreIT {
 
     private void testWith(int streams, int numVersionPerStream) {
         long start = System.currentTimeMillis();
-
         String streamPrefix = "test-stream-";
 
         for (int stream = 0; stream < streams; stream++) {
+            String streamName = streamPrefix + stream;
             for (int version = 1; version <= numVersionPerStream; version++) {
-                String streamName = streamPrefix + stream;
                 try {
                     store.append(EventRecord.create(streamName, "" + stream, Map.of()));
                 } catch (Exception e) {

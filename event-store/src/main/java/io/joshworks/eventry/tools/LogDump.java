@@ -37,9 +37,8 @@ public class LogDump {
     public static void dumpStream(String stream, File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file); var iterator = store.fromStream(StreamName.parse(stream))) {
             while (iterator.hasNext()) {
-                long position = iterator.position();
                 EventRecord event = iterator.next();
-                fileWriter.write(position + " | " + event.toString() + System.lineSeparator());
+                fileWriter.write(event.toString() + System.lineSeparator());
             }
 
         } catch (IOException e) {
@@ -50,7 +49,7 @@ public class LogDump {
     public static void dumpLog(File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file); var iterator = store.fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.INCLUDE)) {
             while (iterator.hasNext()) {
-                long position = iterator.position();
+                StreamName position = iterator.lastEvent();
                 EventRecord event = iterator.next();
                 fileWriter.write(position + " | " + event.toString() + System.lineSeparator());
             }

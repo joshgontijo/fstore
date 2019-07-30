@@ -4,10 +4,11 @@ import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.utils.Memory;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.cache.Cache;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.block.Block;
+import io.joshworks.fstore.lsmtree.EntryValue;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
@@ -23,6 +24,9 @@ import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
 
 public class Index implements Closeable {
 
+    //stream + version + position + timestamp
+    private static final int INDEX_ENTRY_BYTES = IndexKey.BYTES + Long.BYTES + Long.BYTES;
+
     private static final String NAME = "index";
     private final LsmTree<IndexKey, Long> lsmTree;
     private final Cache<Long, AtomicInteger> versionCache;
@@ -35,11 +39,12 @@ public class Index implements Closeable {
                 .disableTransactionLog()
                 .flushThreshold(indexFlushThreshold)
                 .sstableStorageMode(StorageMode.MMAP)
-                .blockFactory(Block.flenBlock(IndexKey.BYTES + Long.BYTES))
+                .blockFactory(Block.flenBlock(INDEX_ENTRY_BYTES))
                 .codec(new SnappyCodec())
                 .blockSize(Memory.PAGE_SIZE * 2)
                 .flushOnClose(false)
                 .maxAge(Long.MAX_VALUE)
+                .segmentSize(INDEX_ENTRY_BYTES * indexFlushThreshold)
                 .sstableCompactor(new IndexCompactor(metadataSupplier, this::version))
                 .name(NAME)
                 .open();
@@ -52,8 +57,7 @@ public class Index implements Closeable {
 
     public boolean add(long hash, int version, long position) {
         updateVersionIfCached(hash, version);
-        long entryTs = System.currentTimeMillis();
-        return lsmTree.put(new IndexKey(hash, version, entryTs), position);
+        return lsmTree.put(new IndexKey(hash, version), position);
     }
 
     public long size() {
@@ -65,8 +69,8 @@ public class Index implements Closeable {
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
-        Long entryPos = lsmTree.get(IndexKey.event(stream, version));
-        return Optional.ofNullable(entryPos).map(pos -> IndexEntry.of(stream, version, pos));
+        EntryValue<Long> entry = lsmTree.getEntry(IndexKey.event(stream, version));
+        return Optional.ofNullable(entry).map(pos -> IndexEntry.of(stream, version, entry.value, entry.timestamp));
     }
 
     public int version(String stream) {
@@ -104,15 +108,11 @@ public class Index implements Closeable {
 
     public IndexIterator iterator(Checkpoint checkpoint) {
         FixedIndexIterator iterator = new FixedIndexIterator(lsmTree, Direction.FORWARD, checkpoint);
-        return withMaxCount(iterator, metadataSupplier);
+        return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 
     public IndexIterator iterator(String streamPrefix, Checkpoint checkpoint) {
         IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPrefix);
-        return withMaxCount(iterator, metadataSupplier);
-    }
-
-    private IndexIterator withMaxCount(IndexIterator iterator, Function<Long, StreamMetadata> metadataSupplier) {
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 }

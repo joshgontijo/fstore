@@ -1,9 +1,9 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.index.Checkpoint;
-import io.joshworks.fstore.log.CloseableIterator;
+import io.joshworks.eventry.log.EventRecord;
 
-public interface StreamIterator extends CloseableIterator<StreamData> {
+public interface StreamIterator extends Streamable<EventRecord> {
 
     Checkpoint checkpoint();
 }

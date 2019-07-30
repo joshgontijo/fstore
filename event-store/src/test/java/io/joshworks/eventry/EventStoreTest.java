@@ -5,7 +5,6 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -20,7 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
@@ -60,7 +58,7 @@ public class EventStoreTest {
         assertEquals(0, record.version);
         assertEquals(SystemStreams.STREAMS, record.stream);
 
-        List<EventRecord> stream = store.fromStream(StreamName.of(SystemStreams.STREAMS)).stream().collect(Collectors.toList());
+        List<EventRecord> stream = store.fromStream(StreamName.of(SystemStreams.STREAMS)).toList();
         assertEquals(3, stream.size());
     }
 
@@ -95,7 +93,7 @@ public class EventStoreTest {
 
         store = EventStore.open(directory);
 
-        LogIterator<EventRecord> iter = store.fromStream(StreamName.parse(stream));
+        StreamIterator iter = store.fromStream(StreamName.parse(stream));
 
         EventRecord event = iter.next();
         assertEquals(stream, event.stream);
@@ -218,7 +216,7 @@ public class EventStoreTest {
             store.append(EventRecord.create(stream, "type", Map.of()));
         }
 
-        EventLogIterator iterator = store.fromStream(StreamName.parse(stream));
+        StreamIterator iterator = store.fromStream(StreamName.parse(stream));
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
 
         long count = iterator.stream().count();
@@ -235,7 +233,7 @@ public class EventStoreTest {
             store.append(EventRecord.create(stream, "type", Map.of()));
         }
 
-        EventLogIterator iterator = store.fromStream(StreamName.parse(stream));
+        StreamIterator iterator = store.fromStream(StreamName.parse(stream));
 
         store.truncate(stream, truncatedBefore);
 
@@ -266,7 +264,7 @@ public class EventStoreTest {
         int maxAgeSeconds = 2;
         int numVersions = 50;
         store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
-        EventLogIterator iterator = store.fromStreams(Set.of(StreamName.of(stream)));
+        StreamIterator iterator = store.fromStreams(Set.of(StreamName.of(stream)));
 
         for (int version = 0; version < numVersions; version++) {
             store.append(EventRecord.create(stream, "type", Map.of()));
@@ -312,7 +310,7 @@ public class EventStoreTest {
             store.append(EventRecord.create(stream, "type", Map.of()));
         }
 
-        EventLogIterator iterator = store.fromStreams("test-");
+        StreamIterator iterator = store.fromStreams("test-");
         Thread.sleep(TimeUnit.SECONDS.toMillis(maxAgeSeconds + 1));
 
         long count = iterator.stream().count();
@@ -341,7 +339,7 @@ public class EventStoreTest {
 
         store.truncate(stream, truncateFrom);
 
-        List<EventRecord> events = store.fromStream(StreamName.parse(stream)).stream().collect(Collectors.toList());
+        List<EventRecord> events = store.fromStream(StreamName.parse(stream)).toList();
         assertEquals(600, events.size());
         assertEquals(400, events.get(0).version);
     }
@@ -424,7 +422,7 @@ public class EventStoreTest {
             store.append(EventRecord.create(stream, "type-abc", Map.of()));
         }
 
-        List<EventRecord> found = store.fromStream(StreamName.of(stream)).stream().collect(Collectors.toList());
+        List<EventRecord> found = store.fromStream(StreamName.of(stream)).toList();
         assertEquals(numStreams, found.size());
         int lastVersion = NO_VERSION;
         for (EventRecord record : found) {
@@ -445,7 +443,7 @@ public class EventStoreTest {
             store.append(EventRecord.create(sName, "type-abc", Map.of()));
         }
 
-        List<EventRecord> found = store.fromStreams(streams).stream().collect(Collectors.toList());
+        List<EventRecord> found = store.fromStreams(streams).toList();
         assertEquals(numStreams, found.size());
         for (EventRecord record : found) {
             Integer version = expectedVersions.get(record.stream);
@@ -463,7 +461,7 @@ public class EventStoreTest {
         }
 
         int startVersion = 50;
-        List<EventRecord> found = store.fromStream(StreamName.of(stream, startVersion)).stream().collect(Collectors.toList());
+        List<EventRecord> found = store.fromStream(StreamName.of(stream, startVersion)).toList();
         assertEquals(numStreams - startVersion - 1, found.size());
         int lastVersion = startVersion;
         for (EventRecord record : found) {
@@ -477,7 +475,7 @@ public class EventStoreTest {
         String stream = "abc";
 
         store.createStream(stream);
-        EventLogIterator iterator = store.fromStream(StreamName.of(stream));
+        StreamIterator iterator = store.fromStream(StreamName.of(stream));
         store.append(EventRecord.create(stream, "type-abc", Map.of()));
 
         assertTrue(iterator.hasNext());
@@ -487,7 +485,7 @@ public class EventStoreTest {
     public void fromStream_returns_data_when_instantiated_before_creating_stream_and_before_appending_event() {
         String stream = "abc";
 
-        EventLogIterator iterator = store.fromStream(StreamName.of(stream));
+        StreamIterator iterator = store.fromStream(StreamName.of(stream));
         store.append(EventRecord.create(stream, "type-abc", Map.of()));
 
         assertTrue(iterator.hasNext());
@@ -503,7 +501,7 @@ public class EventStoreTest {
         store.createStream(stream2);
 
         Set<StreamName> streams = Set.of(StreamName.of(stream1), StreamName.of(stream2));
-        EventLogIterator iterator = store.fromStreams(streams);
+        StreamIterator iterator = store.fromStreams(streams);
 
         store.append(EventRecord.create(stream1, "type-abc", Map.of()));
         assertTrue(iterator.hasNext());
@@ -521,7 +519,7 @@ public class EventStoreTest {
 
         Set<StreamName> streams = Set.of(StreamName.of(stream1), StreamName.of(stream2));
 
-        EventLogIterator iterator = store.fromStreams(streams);
+        StreamIterator iterator = store.fromStreams(streams);
 
         store.append(EventRecord.create(stream1, "type-abc", Map.of()));
         assertTrue(iterator.hasNext());
@@ -542,7 +540,7 @@ public class EventStoreTest {
         store.createStream(stream1);
         store.createStream(stream2);
 
-        EventLogIterator iterator = store.fromStreams(pattern);
+        StreamIterator iterator = store.fromStreams(pattern);
 
         store.append(EventRecord.create(stream1, "type-abc", Map.of()));
         assertTrue(iterator.hasNext());
@@ -559,7 +557,7 @@ public class EventStoreTest {
         String stream1 = "stream-1";
         String stream2 = "stream-2";
 
-        EventLogIterator iterator = store.fromStreams(pattern);
+        StreamIterator iterator = store.fromStreams(pattern);
 
         store.append(EventRecord.create(stream1, "type-abc", Map.of()));
         assertTrue(iterator.hasNext());

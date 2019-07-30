@@ -1,8 +1,5 @@
 package io.joshworks.eventry;
 
-import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.log.LogIterator;
-
 import java.util.Set;
 
 public interface ILogIterator {
@@ -13,8 +10,8 @@ public interface ILogIterator {
 
     StreamIterator fromStreams(Set<StreamName> streams);
 
-    LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy);
+    EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy);
 
-    LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent);
+    EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent);
 
 }

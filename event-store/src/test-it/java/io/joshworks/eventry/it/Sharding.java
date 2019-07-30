@@ -4,13 +4,14 @@ import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.Repartitioner;
+import io.joshworks.eventry.StreamIterator;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.fstore.log.CloseableIterator;
+import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +46,7 @@ public class Sharding {
             new Repartitioner(store2, "user-2", ev -> ev.type);
 
 
-            final LogIterator<EventRecord> ordered = fromStreams("EV_", store1, store2);
+            final CloseableIterator<EventRecord> ordered = fromStreams("EV_", store1, store2);
             new Thread(() -> {
                 while (true) {
                     System.out.println("------ CAs ------");
@@ -86,17 +87,17 @@ public class Sharding {
         }
     }
 
-    private static LogIterator<EventRecord> fromStream(StreamName stream, EventStore... stores) {
-        List<EventLogIterator> its = Arrays.stream(stores).map(s -> s.fromStream(stream)).collect(Collectors.toList());
+    private static CloseableIterator<EventRecord> fromStream(StreamName stream, EventStore... stores) {
+        List<StreamIterator> its = Arrays.stream(stores).map(s -> s.fromStream(stream)).collect(Collectors.toList());
         return Iterators.ordered(its, er -> er.timestamp);
     }
 
-    private static LogIterator<EventRecord> fromStreams(String prefix, EventStore... stores) {
-        List<EventLogIterator> its = Arrays.stream(stores).map(s -> s.fromStreams(prefix)).collect(Collectors.toList());
+    private static CloseableIterator<EventRecord> fromStreams(String prefix, EventStore... stores) {
+        List<StreamIterator> its = Arrays.stream(stores).map(s -> s.fromStreams(prefix)).collect(Collectors.toList());
         return Iterators.ordered(its, er -> er.timestamp);
     }
 
-    private static LogIterator<EventRecord> fromAll(EventStore... stores) {
+    private static CloseableIterator<EventRecord> fromAll(EventStore... stores) {
         List<EventLogIterator> its = Arrays.stream(stores).map(s -> s.fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.IGNORE)).collect(Collectors.toList());
         return Iterators.ordered(its, er -> er.timestamp);
     }
@@ -120,7 +121,7 @@ public class Sharding {
                 .forEachRemaining(eventRecord -> System.out.println(eventRecord + " | " + new String(eventRecord.body)));
     }
 
-    private static void print(LogIterator<EventRecord> iterator) {
+    private static void print(CloseableIterator<EventRecord> iterator) {
         iterator.forEachRemaining(eventRecord -> System.out.println(eventRecord + " | " + new String(eventRecord.body)));
     }
 

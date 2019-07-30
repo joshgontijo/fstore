@@ -1,16 +1,16 @@
 package io.joshworks.fstore.log.iterators;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.CloseableIterator;
 
 import java.io.IOException;
 
-public class PeekingIterator<E> implements LogIterator<E> {
+public class PeekingIterator<E> implements CloseableIterator<E> {
 
-    private final LogIterator<? extends E> iterator;
+    private final CloseableIterator<? extends E> iterator;
     private boolean hasPeeked;
     private E peekedElement;
 
-    public PeekingIterator(LogIterator<? extends E> iterator) {
+    public PeekingIterator(CloseableIterator<? extends E> iterator) {
         this.iterator = iterator;
     }
 
@@ -44,11 +44,6 @@ public class PeekingIterator<E> implements LogIterator<E> {
             hasPeeked = true;
         }
         return peekedElement;
-    }
-
-    @Override
-    public long position() {
-        return iterator.position();
     }
 
     @Override

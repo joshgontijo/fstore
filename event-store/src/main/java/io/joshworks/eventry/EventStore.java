@@ -30,6 +30,7 @@ import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.SequentialNaming;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.lsmtree.EntryValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +45,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
@@ -70,7 +70,7 @@ public class EventStore implements IEventStore {
 
     //TODO externalize
     private final Cache<Long, AtomicInteger> versionCache = Cache.softCache();
-    private final Cache<Long, StreamMetadata> streamCache = Cache.softCache();
+    private final Cache<Long, EntryValue<StreamMetadata>> streamCache = Cache.softCache();
 
     public final Index index;
     public final Streams streams; //TODO fix test to make this private
@@ -283,7 +283,6 @@ public class EventStore implements IEventStore {
         for (StreamListener streamListener : streamListeners) {
             streamListener.onStreamTruncated(truncated);
         }
-
     }
 
     @Override
@@ -300,8 +299,7 @@ public class EventStore implements IEventStore {
         IndexIterator indexIterator = index.iterator(Checkpoint.of(hash, startVersion));
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
-        IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
-        return createStreamIterator(streams::get, indexedLogIterator);
+        return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
     }
 
     //TODO this requires another method that accepts checkpoint
@@ -315,8 +313,7 @@ public class EventStore implements IEventStore {
         IndexIterator indexIterator = index.iterator(streamPrefix, Checkpoint.of(longs));
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
-        IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
-        return createEventLogIterator(streams::get, indexedLogIterator);
+        return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
     }
 
     @Override
@@ -330,8 +327,7 @@ public class EventStore implements IEventStore {
         IndexIterator indexIterator = index.iterator(Checkpoint.of(hashes));
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
-        IndexedLogIterator indexedLogIterator = new IndexedLogIterator(listenerRemoval, eventLog);
-        return createEventLogIterator(streams::get, indexedLogIterator);
+        return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
     }
 
     @Override
@@ -348,26 +344,18 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
         LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD);
-        EventPolicyFilterIterator eventPolicyFilterIterator = new EventPolicyFilterIterator(logIterator, linkToPolicy, systemEventPolicy);
-        if (LinkToPolicy.RESOLVE.equals(linkToPolicy)) {
-            return new LinkToResolveIterator(eventPolicyFilterIterator, this::resolve);
-        }
-        return eventPolicyFilterIterator;
+        return new EventLogIterator(logIterator, this::resolve, linkToPolicy, systemEventPolicy);
     }
 
     @Override
-    public LogIterator<EventRecord> fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
         requireNonNull(lastEvent, "last event must be provided");
         Optional<IndexEntry> indexEntry = index.get(lastEvent.hash(), lastEvent.version());
         IndexEntry entry = indexEntry.orElseThrow(() -> new IllegalArgumentException("No index entry found for " + lastEvent));
         LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD, entry.position);
-        EventPolicyFilterIterator eventPolicyFilterIterator = new EventPolicyFilterIterator(logIterator, linkToPolicy, systemEventPolicy);
-        if (LinkToPolicy.RESOLVE.equals(linkToPolicy)) {
-            return new LinkToResolveIterator(eventPolicyFilterIterator, this::resolve);
-        }
-        return eventPolicyFilterIterator;
+        return new EventLogIterator(logIterator, this::resolve, linkToPolicy, systemEventPolicy);
     }
 
     @Override
@@ -459,11 +447,6 @@ public class EventStore implements IEventStore {
         if (LinkTo.TYPE.equals(event.type)) {
             throw new IllegalArgumentException("Stream type cannot be " + LinkTo.TYPE);
         }
-    }
-
-    private StreamIterator createStreamIterator(Function<String, StreamMetadata> metadataSupplier, IndexedLogIterator indexedLogIterator) {
-        MaxAgeFilteringIterator maxAgeFilteringIterator = new MaxAgeFilteringIterator(metadataSupplier, indexedLogIterator);
-        return new LinkToResolveIterator(maxAgeFilteringIterator, this::resolve);
     }
 
     //TODO circular data flow between index and eventWriter might cause data to be lost in very specific scenarios

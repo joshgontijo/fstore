@@ -1,16 +1,14 @@
 package io.joshworks.fstore.log.iterators;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.CloseableIterator;
 
-import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class CycleIterator<T> implements LogIterator<T> {
+public class CycleIterator<T> implements CloseableIterator<T> {
 
     private final List<T> iterable;
-    private LogIterator<T> iterator = Iterators.empty();
+    private CloseableIterator<T> iterator = Iterators.empty();
 
     public CycleIterator(List<T> iterable) {
         this.iterable = iterable;
@@ -30,11 +28,6 @@ public class CycleIterator<T> implements LogIterator<T> {
             }
         }
         return iterator.next();
-    }
-
-    @Override
-    public long position() {
-        return 0;
     }
 
     @Override

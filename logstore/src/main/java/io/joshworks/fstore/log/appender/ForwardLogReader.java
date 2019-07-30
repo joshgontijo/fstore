@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -27,7 +28,7 @@ class ForwardLogReader<T> implements LogIterator<T> {
         this.closeListener = closeListener;
         this.segmentIdx = segmentIdx;
 
-        LogIterator<Log<T>> segIt = Iterators.of(segments);
+        CloseableIterator<Log<T>> segIt = Iterators.of(segments);
         // skip
         for (int i = 0; i < this.segmentIdx; i++) {
             segIt.next();

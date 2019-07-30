@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.iterators;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.CloseableIterator;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -10,12 +10,12 @@ import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-class OrderedIterator<T, C extends Comparable<C>> implements LogIterator<T> {
+class OrderedIterator<T, C extends Comparable<C>> implements CloseableIterator<T> {
 
     private final List<PeekingIterator<T>> iterators;
     private final Function<T, C> mapper;
 
-    OrderedIterator(Collection<? extends LogIterator<T>> iterators, Function<T, C> mapper) {
+    OrderedIterator(Collection<? extends CloseableIterator<T>> iterators, Function<T, C> mapper) {
         this.iterators = iterators.stream().map(PeekingIterator::new).collect(Collectors.toList());
         this.mapper = mapper;
     }
@@ -57,11 +57,6 @@ class OrderedIterator<T, C extends Comparable<C>> implements LogIterator<T> {
             return prev.next();
         }
         return null;
-    }
-
-    @Override
-    public long position() {
-        throw new UnsupportedOperationException("Position is not supported here");
     }
 
     @Override
