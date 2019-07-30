@@ -2,8 +2,8 @@ package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.util.Iterator;
@@ -85,7 +85,7 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return inserted;
     }
 
-    public LogIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
+    public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
         NavigableSet<Entry<K, V>> subSet = table.subSet(Entry.key(range.start()), Entry.key(range.end()));
         return Direction.BACKWARD.equals(direction) ? Iterators.wrap(subSet.descendingIterator()) : Iterators.of(subSet);
     }

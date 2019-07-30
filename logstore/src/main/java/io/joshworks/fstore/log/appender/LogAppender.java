@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Logging;
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.compaction.DefaultCompactor;
@@ -295,7 +296,7 @@ public class LogAppender<T> implements Closeable {
 
             LogAppender.validateSegmentIdx(segIdx, position, levels);
             long startPosition = LogAppender.getPositionOnSegment(position);
-            LogIterator<Log<T>> it = Iterators.of(segments);
+            CloseableIterator<Log<T>> it = Iterators.of(segments);
             // skip
             for (int i = 0; i < skips; i++) {
                 it.next();

@@ -30,7 +30,7 @@ public class Iterators {
         return it.next();
     }
 
-    public static boolean await(LogIterator<?> it, long pollMs, long maxTime) {
+    public static boolean await(CloseableIterator<?> it, long pollMs, long maxTime) {
         pollMs = Math.min(pollMs, maxTime);
         long start = System.currentTimeMillis();
         while(!it.hasNext()) {
@@ -42,7 +42,7 @@ public class Iterators {
         return true;
     }
 
-    public static <T> LogIterator<T> of(Collection<T> original) {
+    public static <T> CloseableIterator<T> of(Collection<T> original) {
         return new ListLogIterator<>(original);
     }
 
@@ -54,11 +54,11 @@ public class Iterators {
         return new ReversedIterator<>(original);
     }
 
-    public static <T> LogIterator<T> concat(Collection<? extends LogIterator<T>> original) {
+    public static <T> CloseableIterator<T> concat(Collection<? extends CloseableIterator<T>> original) {
         return new IteratorIterator<>(original);
     }
 
-    public static <T> LogIterator<T> concat(LogIterator<T>... originals) {
+    public static <T> CloseableIterator<T> concat(LogIterator<T>... originals) {
         return new IteratorIterator<>(Arrays.asList(originals));
     }
 
@@ -96,14 +96,14 @@ public class Iterators {
     /**
      * For <b>SORTED</b> iterators only.
      */
-    public static <T, C extends Comparable<C>> LogIterator<T> ordered(Collection<? extends LogIterator<T>> iterators, Function<T, C> mapper) {
+    public static <T, C extends Comparable<C>> CloseableIterator<T> ordered(Collection<? extends CloseableIterator<T>> iterators, Function<T, C> mapper) {
         return new OrderedIterator<>(iterators, mapper);
     }
 
     /**
      * For <b>UNIQUE</b> and <b>SORTED</b> iterators only.
      */
-    public static <T extends Comparable<T>> LogIterator<T> ordered(Collection<? extends LogIterator<T>> iterators) {
+    public static <T extends Comparable<T>> CloseableIterator<T> ordered(Collection<? extends CloseableIterator<T>> iterators) {
         return new OrderedIterator<>(iterators, t -> t);
     }
 
@@ -115,7 +115,7 @@ public class Iterators {
         return new PeekingIterator<>(iterator);
     }
 
-    public static <T> LogIterator<T> empty() {
+    public static <T> CloseableIterator<T> empty() {
         return new EmptyIterator<>();
     }
 

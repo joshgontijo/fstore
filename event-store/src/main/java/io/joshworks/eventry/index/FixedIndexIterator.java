@@ -2,6 +2,7 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.lsmtree.EntryValue;
 import io.joshworks.fstore.lsmtree.LsmTree;
 
 import java.util.Iterator;
@@ -64,11 +65,11 @@ public class FixedIndexIterator implements IndexIterator {
 
     private IndexEntry fetchEntry(long stream, int lastReadVersion) {
         int version = lastReadVersion + 1;
-        Long position = delegate.get(new IndexKey(stream, version));
-        if (position == null) {
+        EntryValue<Long> entry = delegate.getEntry(IndexKey.event(stream, version));
+        if (entry == null) {
             return null;
         }
-        IndexEntry indexEntry = IndexEntry.of(stream, version, position, );
+        IndexEntry indexEntry = IndexEntry.of(stream, version, entry.value, entry.timestamp);
         return isReadable(indexEntry) ? indexEntry : null;
     }
 
@@ -108,6 +109,11 @@ public class FixedIndexIterator implements IndexIterator {
     @Override
     public void close() {
         closed.set(true);
+    }
+
+    @Override
+    public Checkpoint checkpoint() {
+        return checkpoint;
     }
 
     //Stream listeners

@@ -22,7 +22,7 @@ class IndexCompactor extends UniqueMergeCombiner<Entry<IndexKey, Long>> {
     public boolean filter(Entry<IndexKey, Long> entry) {
         long stream = entry.key.stream;
         int version = entry.key.version;
-        long timestamp = entry.key.timestamp;
+        long timestamp = entry.timestamp;
 
         StreamMetadata metadata = metadataSupplier.apply(stream);
         return validIndexEntry(metadata, version, timestamp, versionSupplier);

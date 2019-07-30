@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
+import io.joshworks.fstore.lsmtree.EntryValue;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.serializer.Serializers;
 
@@ -33,7 +34,7 @@ public class Streams implements Closeable {
     private static final String STORE_NAME = "streams";
     public final LsmTree<Long, StreamMetadata> store;
 
-    public Streams(File root, int flushThreshold, Cache<Long, StreamMetadata> streamCache) {
+    public Streams(File root, int flushThreshold, Cache<Long, EntryValue<StreamMetadata>> streamCache) {
         this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, new StreamMetadataSerializer())
                 .name(STORE_NAME)
                 .flushThreshold(flushThreshold)

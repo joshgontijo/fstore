@@ -1,10 +1,10 @@
 package io.joshworks.fstore.log.iterators;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.CloseableIterator;
 
 import java.util.NoSuchElementException;
 
-class EmptyIterator<T> implements LogIterator<T> {
+class EmptyIterator<T> implements CloseableIterator<T> {
 
     @Override
     public boolean hasNext() {
@@ -14,11 +14,6 @@ class EmptyIterator<T> implements LogIterator<T> {
     @Override
     public T next() {
         throw new NoSuchElementException();
-    }
-
-    @Override
-    public long position() {
-        return 0;
     }
 
     @Override

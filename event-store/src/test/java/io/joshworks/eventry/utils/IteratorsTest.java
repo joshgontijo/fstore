@@ -1,7 +1,7 @@
 package io.joshworks.eventry.utils;
 
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
-import io.joshworks.fstore.log.LogIterator;
 import org.junit.Test;
 
 import java.util.Iterator;
@@ -19,10 +19,10 @@ public class IteratorsTest {
 
     @Test
     public void concat() {
-        LogIterator<Integer> first = Iterators.of(List.of(1));
-        LogIterator<Integer> second = Iterators.of(List.of(2));
+        CloseableIterator<Integer> first = Iterators.of(List.of(1));
+        CloseableIterator<Integer> second = Iterators.of(List.of(2));
 
-        LogIterator<Integer> concat = Iterators.concat(List.of(first, second));
+        CloseableIterator<Integer> concat = Iterators.concat(List.of(first, second));
 
         assertTrue(concat.hasNext());
         assertEquals(Integer.valueOf(1), concat.next());
@@ -36,8 +36,8 @@ public class IteratorsTest {
 
     @Test
     public void concat_empty() {
-        LogIterator<Integer> first = Iterators.empty();
-        LogIterator<Integer> second = Iterators.empty();
+        CloseableIterator<Integer> first = Iterators.empty();
+        CloseableIterator<Integer> second = Iterators.empty();
 
         Iterator<Integer> concat = Iterators.concat(List.of(first, second));
 
@@ -56,8 +56,8 @@ public class IteratorsTest {
 
     @Test
     public void concat_one_of_lists_empty() {
-        LogIterator<Integer> first = Iterators.of(List.of(1));
-        LogIterator<Integer> second = Iterators.empty();
+        CloseableIterator<Integer> first = Iterators.of(List.of(1));
+        CloseableIterator<Integer> second = Iterators.empty();
 
         Iterator<Integer> concat = Iterators.concat(List.of(first, second));
 
@@ -72,9 +72,9 @@ public class IteratorsTest {
 
     @Test
     public void concat_one_of_second_item_empty() {
-        LogIterator<Integer> first = Iterators.of(List.of(1));
-        LogIterator<Integer> second = Iterators.empty();
-        LogIterator<Integer> third = Iterators.of(List.of(2));
+        CloseableIterator<Integer> first = Iterators.of(List.of(1));
+        CloseableIterator<Integer> second = Iterators.empty();
+        CloseableIterator<Integer> third = Iterators.of(List.of(2));
 
         Iterator<Integer> concat = Iterators.concat(List.of(first, second, third));
 
@@ -92,31 +92,14 @@ public class IteratorsTest {
     }
 
     @Test
-    public void iterators_iterator_position_is_correct_after_completing() {
-        LogIterator<String> it1 = Iterators.of(List.of("a", "b"));
-
-        LogIterator<String> itit = Iterators.concat(it1);
-
-        assertEquals(0, itit.position());
-        assertEquals("a", itit.next());
-
-        assertEquals(1, itit.position());
-        assertEquals("b", itit.next());
-
-        itit.hasNext();
-        assertEquals(2, itit.position());
-    }
-
-
-    @Test
     public void ordered() {
         //must be ordered
         List<User> users1 = List.of(new User(1, "a"), new User(3, "b"), new User(5, "c"), new User(7, "d"));
         List<User> users2 = List.of(new User(2, "e"), new User(3, "f"), new User(6, "g"), new User(8, "h"));
 
-        List<LogIterator<User>> compose = List.of(Iterators.of(users1), Iterators.of(users2));
+        List<CloseableIterator<User>> compose = List.of(Iterators.of(users1), Iterators.of(users2));
 
-        LogIterator<User> ordered = Iterators.ordered(compose, User::age);
+        CloseableIterator<User> ordered = Iterators.ordered(compose, User::age);
 
         assertEquals("a", ordered.next().name);
         assertEquals("e", ordered.next().name);

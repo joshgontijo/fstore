@@ -7,22 +7,20 @@ import java.util.Objects;
 
 public class IndexKey implements Comparable<IndexKey> {
 
-    public static final int BYTES = Long.BYTES + Long.BYTES + Integer.BYTES;
+    public static final int BYTES = Long.BYTES + Integer.BYTES;
     public static final int START_VERSION = 0;
     private static final int MAX_VERSION = Integer.MAX_VALUE;
 
     public final long stream;
     public final int version;
-    public final long timestamp;
 
-    public IndexKey(long stream, int version, long timestamp) {
+    IndexKey(long stream, int version) {
         this.stream = stream;
         this.version = version;
-        this.timestamp = timestamp;
     }
 
     public static IndexKey event(long stream, int version) {
-        return new IndexKey(stream, version)
+        return new IndexKey(stream, version);
     }
 
     public static Range<IndexKey> allOf(long stream) {
@@ -30,8 +28,7 @@ public class IndexKey implements Comparable<IndexKey> {
     }
 
     public static Range<IndexKey> rangeOf(long stream, int startInclusive, int endExclusive) {
-        long now = System.currentTimeMillis();
-        return Range.of(new IndexKey(stream, startInclusive, now), new IndexKey(stream, endExclusive, now));
+        return Range.of(new IndexKey(stream, startInclusive), new IndexKey(stream, endExclusive));
     }
 
     @Override
@@ -61,7 +58,6 @@ public class IndexKey implements Comparable<IndexKey> {
     public String toString() {
         return "IndexKey{" + "stream=" + stream +
                 ", version=" + version +
-                ", timestamp=" + timestamp +
                 '}';
     }
 }

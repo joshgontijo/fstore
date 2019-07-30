@@ -1,18 +1,18 @@
 package io.joshworks.fstore.log.iterators;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.log.CloseableIterator;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-class IteratorIterator<T> implements LogIterator<T> {
+class IteratorIterator<T> implements CloseableIterator<T> {
 
-    private final Iterator<? extends LogIterator<T>> it;
-    private LogIterator<T> current;
+    private final Iterator<? extends CloseableIterator<T>> it;
+    private CloseableIterator<T> current;
 
-    IteratorIterator(Collection<? extends LogIterator<T>> iterators) {
+    IteratorIterator(Collection<? extends CloseableIterator<T>> iterators) {
         this.it = iterators.iterator();
         nextIterator();
     }
@@ -29,7 +29,7 @@ class IteratorIterator<T> implements LogIterator<T> {
 
     private void nextIterator() {
         while ((current == null || !current.hasNext()) && it.hasNext()) {
-            closeIterator(current);
+            IOUtils.closeQuietly(current);
             current = it.next();
         }
     }
@@ -45,26 +45,10 @@ class IteratorIterator<T> implements LogIterator<T> {
     }
 
     @Override
-    public long position() {
-        return current.position();
-    }
-
-    @Override
     public void close() {
-        closeIterator(current);
+        IOUtils.closeQuietly(current);
         while (it.hasNext()) {
-            closeIterator(it.next());
-        }
-    }
-
-    private void closeIterator(LogIterator<T> it) {
-        if (it == null) {
-            return;
-        }
-        try {
-            it.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            IOUtils.closeQuietly(it.next());
         }
     }
 }

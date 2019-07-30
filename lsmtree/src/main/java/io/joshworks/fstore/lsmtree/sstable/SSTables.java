@@ -29,7 +29,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                     Serializer<K> keySerializer,
                     Serializer<V> valueSerializer,
                     String name,
-                    int segmentSize,
+                    long segmentSize,
                     StorageMode storageMode,
                     FlushMode flushMode,
                     BlockFactory blockFactory,

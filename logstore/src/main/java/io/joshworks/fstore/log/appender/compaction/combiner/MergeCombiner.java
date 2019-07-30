@@ -1,8 +1,8 @@
 package io.joshworks.fstore.log.appender.compaction.combiner;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.log.segment.Log;
@@ -24,7 +24,7 @@ public abstract class MergeCombiner<T> implements SegmentCombiner<T> {
         try {
             mergeItems(new ArrayList<>(iterators), output);
         } finally {
-            for (LogIterator<T> iterator : iterators) {
+            for (CloseableIterator<T> iterator : iterators) {
                 IOUtils.closeQuietly(iterator);
             }
         }

@@ -5,8 +5,6 @@ import io.joshworks.eventry.stream.StreamMetadata;
 
 import java.util.function.Function;
 
-import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
-
 /**
  * Filters out maxAge and maxCount entries
  */
@@ -65,6 +63,11 @@ class IndexFilter implements IndexIterator {
     @Override
     public void close() {
         delegate.close();
+    }
+
+    @Override
+    public Checkpoint checkpoint() {
+        return delegate.checkpoint();
     }
 
     @Override
