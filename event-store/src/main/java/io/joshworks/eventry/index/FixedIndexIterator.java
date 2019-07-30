@@ -2,8 +2,8 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.lsmtree.EntryValue;
 import io.joshworks.fstore.lsmtree.LsmTree;
+import io.joshworks.fstore.lsmtree.sstable.Entry;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -65,7 +65,7 @@ public class FixedIndexIterator implements IndexIterator {
 
     private IndexEntry fetchEntry(long stream, int lastReadVersion) {
         int version = lastReadVersion + 1;
-        EntryValue<Long> entry = delegate.getEntry(IndexKey.event(stream, version));
+        Entry<IndexKey, Long> entry = delegate.getEntry(IndexKey.event(stream, version));
         if (entry == null) {
             return null;
         }

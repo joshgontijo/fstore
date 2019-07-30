@@ -1,195 +1,227 @@
-//package io.joshworks.eventry;
-//
-//import io.joshworks.eventry.log.EventRecord;
-//import io.joshworks.eventry.partition.Partition;
-//import io.joshworks.eventry.partition.Partitions;
-//import io.joshworks.eventry.stream.StreamInfo;
-//import io.joshworks.eventry.stream.StreamMetadata;
-//import io.joshworks.fstore.log.iterators.Iterators;
-//
-//import java.io.File;
-//import java.io.IOException;
-//import java.util.List;
-//import java.util.Map;
-//import java.util.Optional;
-//import java.util.Queue;
-//import java.util.Set;
-//import java.util.stream.Collectors;
-//
-//public class PartitionedStore implements IEventStore {
-//
-//    private final Partitions partitions;
-//    private final File root;
-//
-//    public PartitionedStore(Partitions partitions, File root) {
-//        this.partitions = partitions;
-//        this.root = root;
-//    }
-//
-//    @Override
-//    public void compact() {
-//        partitions.all().stream().map(Partition::store).forEach(IEventStore::compact);
-//    }
-//
-//    @Override
-//    public void close() {
-//        partitions.all().forEach(Partition::close);
-//    }
-//
-//    @Override
-//    public EventRecord linkTo(String stream, EventRecord event) {
-//        return null;
-//    }
-//
-//    @Override
-//    public EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
-//        return null;
-//    }
-//
-//    @Override
-//    public EventRecord append(EventRecord event) {
-//        return partitions.select(event.stream).store().append(event);
-//    }
-//
-//    @Override
-//    public EventRecord append(EventRecord event, int expectedVersion) {
-//        return partitions.select(event.stream).store().append(event, expectedVersion);
-//    }
-//
-//    @Override
-//    public EventLogIterator fromStream(StreamName stream) {
-//        return partitions.select(stream.name()).store().fromStream(stream);
-//    }
-//
-//    @Override
-//    public EventLogIterator fromStreams(String streamPattern) {
-//        //TODO implement properly
-//        List<EventLogIterator> iterators = partitions.all().stream()
-//                .map(Partition::store)
-//                .map(s -> s.fromStreams(streamPattern))
-//                .collect(Collectors.toList());
-//
-//        return EventLogIterator.of(Iterators.concat(iterators));
-//    }
-//
-//    @Override
-//    public EventLogIterator fromStreams(Set<StreamName> streams) {
-//        //TODO implement properly
-//        Map<Partition, Set<StreamName>> grouped = streams.stream()
-//                .map(s -> new StreamPartition(s, partitions.select(s.name())))
-//                .collect(Collectors.groupingBy(a -> a.partition, Collectors.mapping(b -> b.streamName, Collectors.toSet())));
-//
-//        List<EventLogIterator> iterators = grouped.entrySet()
-//                .stream()
-//                .map(kv -> kv.getKey().store().fromStreams(kv.getValue()))
-//                .collect(Collectors.toList());
-//
-//        return EventLogIterator.of(Iterators.concat(iterators));
-//    }
-//
-//    @Override
-//    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-//        return null;
-//    }
-//
-//    @Override
-//    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
-//        return null;
-//    }
-//
-//    @Override
-//    public void createStream(String name) {
-//
-//    }
-//
-//    @Override
-//    public void createStream(String name, int maxCount, long maxAge) {
-//
-//    }
-//
-//    @Override
-//    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
-//        return null;
-//    }
-//
-//    @Override
-//    public List<StreamInfo> streamsMetadata() {
-//        return null;
-//    }
-//
-//    @Override
-//    public Optional<StreamInfo> streamMetadata(String stream) {
-//        return Optional.empty();
-//    }
-//
-//    @Override
-//    public void truncate(String stream, int fromVersion) {
-//
-//    }
-//
-//    @Override
-//    public EventRecord get(StreamName stream) {
-//        return null;
-//    }
-//
-//    @Override
-//    public int version(String stream) {
-//        return 0;
-//    }
-//
-//    @Override
-//    public int count(String stream) {
-//        return 0;
-//    }
-//
-//
-//    private static class StreamPartition {
-//        private final StreamName streamName;
-//        private final Partition partition;
-//
-//        private StreamPartition(StreamName streamName, Partition partition) {
-//            this.streamName = streamName;
-//            this.partition = partition;
-//        }
-//    }
-//
-//    //TODO this should have N items of each partition (batched)
-//    private static final class PartitionedIterator implements EventLogIterator {
-//
-//        private final Map<String, EventLogIterator> iterators;
-//
-//        private PartitionedIterator(Map<String, EventLogIterator> iterators) {
-//            this.iterators = iterators;
-//        }
-//
-//        @Override
-//        public boolean hasNext() {
-//            for (Map.Entry<String, EventLogIterator> kv : iterators.entrySet()) {
-//                if (kv.getValue().hasNext()) {
-//                    return true;
-//                }
-//            }
-//            return false;
-//        }
-//
-//        @Override
-//        public EventRecord next() {
-//            for (Map.Entry<String, EventLogIterator> kv : iterators.entrySet()) {
-//                if (kv.getValue().hasNext()) {
-//
-//                }
-//            }
-//        }
-//
-//        @Override
-//        public long position() {
-//            return 0;
-//        }
-//
-//        @Override
-//        public void close() throws IOException {
-//
-//        }
-//
-//    }
-//}
+package io.joshworks.eventry;
+
+import io.joshworks.eventry.api.EventStoreIterator;
+import io.joshworks.eventry.api.IEventStore;
+import io.joshworks.eventry.index.Checkpoint;
+import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.eventry.partition.Partition;
+import io.joshworks.eventry.partition.Partitions;
+import io.joshworks.eventry.stream.StreamInfo;
+import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.core.io.IOUtils;
+
+import java.io.File;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+public class PartitionedStore implements IEventStore {
+
+    private final Partitions partitions;
+
+    public PartitionedStore(Partitions partitions) {
+        this.partitions = partitions;
+    }
+
+    public int partitionId(String stream) {
+        return partitions.select(stream).id;
+    }
+
+    public int partitions() {
+        return partitions.size();
+    }
+
+    public void forEachPartition(Consumer<IEventStore> consumer) {
+        for (Partition partition : partitions.all()) {
+            consumer.accept(partition.store());
+        }
+    }
+
+    @Override
+    public void compact() {
+        partitions.all().stream().map(Partition::store).forEach(IEventStore::compact);
+    }
+
+    @Override
+    public void close() {
+        partitions.all().forEach(Partition::close);
+    }
+
+    @Override
+    public EventRecord linkTo(String stream, EventRecord event) {
+        //TODO stream validation might be needed here
+        return partitions.select(event.stream).store().linkTo(stream, event);
+    }
+
+    @Override
+    public EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
+        return partitions.select(source.name()).store().linkTo(dstStream, source, sourceType);
+    }
+
+    @Override
+    public EventRecord append(EventRecord event) {
+        return partitions.select(event.stream).store().append(event);
+    }
+
+    @Override
+    public EventRecord append(EventRecord event, int expectedVersion) {
+        return partitions.select(event.stream).store().append(event, expectedVersion);
+    }
+
+    @Override
+    public EventStoreIterator fromStream(StreamName stream) {
+        return partitions.select(stream.name()).store().fromStream(stream);
+    }
+
+    @Override
+    public EventStoreIterator fromStreams(String streamPattern) {
+        List<EventStoreIterator> iterators = partitions.all().stream()
+                .map(Partition::store)
+                .map(s -> s.fromStreams(streamPattern))
+                .collect(Collectors.toList());
+
+        return new PartitionedEventStoreIterator(iterators);
+    }
+
+    @Override
+    public EventStoreIterator fromStreams(Set<StreamName> streams) {
+        Map<Partition, Set<StreamName>> grouped = streams.stream()
+                .map(s -> new StreamPartition(s, partitions.select(s.name())))
+                .collect(Collectors.groupingBy(a -> a.partition, Collectors.mapping(b -> b.streamName, Collectors.toSet())));
+
+        List<EventStoreIterator> iterators = grouped.entrySet()
+                .stream()
+                .map(kv -> kv.getKey().store().fromStreams(kv.getValue()))
+                .collect(Collectors.toList());
+
+        return new PartitionedEventStoreIterator(iterators);
+    }
+
+    @Override
+    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+        throw new UnsupportedOperationException("From all is not supported in a partitioned store");
+    }
+
+    @Override
+    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+        throw new UnsupportedOperationException("From all is not supported in a partitioned store");
+    }
+
+    public EventStoreIterator fromAll(int partitionId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+        return partitions.get(partitionId).store().fromAll(linkToPolicy, systemEventPolicy);
+    }
+
+    public EventStoreIterator fromAll(int partitionId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+        return partitions.get(partitionId).store().fromAll(linkToPolicy, systemEventPolicy, lastEvent);
+    }
+
+    @Override
+    public void createStream(String stream) {
+        partitions.select(stream).store().createStream(stream);
+    }
+
+    @Override
+    public void createStream(String stream, int maxCount, long maxAge) {
+        partitions.select(stream).store().createStream(stream, maxCount, maxAge);
+    }
+
+    @Override
+    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
+        return partitions.select(stream).store().createStream(stream, maxCount, maxAge, acl, metadata);
+    }
+
+    @Override
+    public List<StreamInfo> streamsMetadata() {
+        return partitions.all().stream()
+                .map(Partition::store)
+                .flatMap(es -> es.streamsMetadata().stream())
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<StreamInfo> streamMetadata(String stream) {
+        return partitions.select(stream).store().streamMetadata(stream);
+    }
+
+    @Override
+    public void truncate(String stream, int fromVersion) {
+        partitions.select(stream).store().truncate(stream, fromVersion);
+    }
+
+    @Override
+    public EventRecord get(StreamName stream) {
+        return partitions.select(stream.name()).store().get(stream);
+    }
+
+    @Override
+    public int version(String stream) {
+        return partitions.select(stream).store().version(stream);
+    }
+
+    @Override
+    public int count(String stream) {
+        return partitions.select(stream).store().count(stream);
+    }
+
+    private static class StreamPartition {
+        private final StreamName streamName;
+        private final Partition partition;
+
+        private StreamPartition(StreamName streamName, Partition partition) {
+            this.streamName = streamName;
+            this.partition = partition;
+        }
+    }
+
+    //Round robin
+    private static final class PartitionedEventStoreIterator implements EventStoreIterator {
+
+        private final List<EventStoreIterator> iterators;
+        private int partitionIdx;
+
+        private PartitionedEventStoreIterator(List<EventStoreIterator> iterators) {
+            this.iterators = iterators;
+        }
+
+        @Override
+        public boolean hasNext() {
+            for (int i = 0; i < iterators.size(); partitionIdx++) {
+                if (partitionIdx >= iterators.size()) {
+                    partitionIdx = 0;
+                }
+                if (iterators.get(partitionIdx).hasNext()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public EventRecord next() {
+            if (!hasNext()) {
+                return null;
+            }
+            return iterators.get(partitionIdx).next();
+        }
+
+        @Override
+        public void close() {
+            for (EventStoreIterator iterator : iterators) {
+                IOUtils.closeQuietly(iterator);
+            }
+        }
+
+        @Override
+        public Checkpoint checkpoint() {
+            Checkpoint checkpoint = Checkpoint.empty();
+            for (EventStoreIterator iterator : iterators) {
+                checkpoint.merge(iterator.checkpoint());
+            }
+            return checkpoint;
+        }
+    }
+}

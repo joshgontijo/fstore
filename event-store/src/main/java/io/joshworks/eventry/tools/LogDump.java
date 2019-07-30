@@ -2,10 +2,10 @@ package io.joshworks.eventry.tools;
 
 import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
-import io.joshworks.eventry.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.CloseableIterator;
@@ -49,9 +49,8 @@ public class LogDump {
     public static void dumpLog(File file, IEventStore store) {
         try (var fileWriter = new FileWriter(file); var iterator = store.fromAll(LinkToPolicy.INCLUDE, SystemEventPolicy.INCLUDE)) {
             while (iterator.hasNext()) {
-                StreamName position = iterator.lastEvent();
                 EventRecord event = iterator.next();
-                fileWriter.write(position + " | " + event.toString() + System.lineSeparator());
+                fileWriter.write(event.toString() + System.lineSeparator());
             }
         } catch (IOException e) {
             throw new RuntimeException(e);

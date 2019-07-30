@@ -21,7 +21,7 @@ class MappingIterator<R, T> implements LogIterator<R> {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close()  {
         delegate.close();
     }
 

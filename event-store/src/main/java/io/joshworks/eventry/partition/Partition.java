@@ -1,6 +1,6 @@
 package io.joshworks.eventry.partition;
 
-import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.api.IEventStore;
 
 import java.io.Closeable;
 import java.util.Collections;

@@ -46,12 +46,16 @@ public class Iterators {
         return new ListLogIterator<>(original);
     }
 
-    public static <T> LogIterator<T> wrap(Iterator<T> original) {
+    public static <T> CloseableIterator<T> wrap(Iterator<T> original) {
         return new WrappedIterator<>(original);
     }
 
-    public static <T> LogIterator<T> reversed(List<T> original) {
+    public static <T> CloseableIterator<T> reversed(List<T> original) {
         return new ReversedIterator<>(original);
+    }
+
+    public static <T> CloseableIterator<T> roundRobin(Collection<? extends CloseableIterator<T>> original) {
+        return new IteratorIterator<>(original);
     }
 
     public static <T> CloseableIterator<T> concat(Collection<? extends CloseableIterator<T>> original) {
@@ -77,6 +81,7 @@ public class Iterators {
     public static <T> LogIterator<List<T>> batching(LogIterator<T> iterator, int batchSize) {
         return new BatchingIterator<>(iterator, batchSize);
     }
+
 
     //not streaming in the sense of java.util.Stream
     //it means it will streamline a batched iterator
@@ -111,7 +116,7 @@ public class Iterators {
         throw new UnsupportedOperationException("TODO");
     }
 
-    public static <T> PeekingIterator<T> peekingIterator(LogIterator<T> iterator) {
+    public static <T> PeekingIterator<T> peekingIterator(CloseableIterator<T> iterator) {
         return new PeekingIterator<>(iterator);
     }
 

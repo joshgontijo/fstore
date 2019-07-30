@@ -47,7 +47,7 @@ public class PeekingIterator<E> implements CloseableIterator<E> {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         iterator.close();
     }
 }

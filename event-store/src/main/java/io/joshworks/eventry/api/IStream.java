@@ -1,4 +1,4 @@
-package io.joshworks.eventry;
+package io.joshworks.eventry.api;
 
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
@@ -9,9 +9,9 @@ import java.util.Optional;
 
 public interface IStream {
 
-    void createStream(String name);
+    void createStream(String stream);
 
-    void createStream(String name, int maxCount, long maxAge);
+    void createStream(String stream, int maxCount, long maxAge);
 
     StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata);
 

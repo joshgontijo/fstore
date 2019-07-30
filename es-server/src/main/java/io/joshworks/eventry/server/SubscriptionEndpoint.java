@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.snappy.sse.SseBroadcaster;

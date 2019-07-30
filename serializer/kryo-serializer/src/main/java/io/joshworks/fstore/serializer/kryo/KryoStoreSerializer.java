@@ -14,6 +14,7 @@ import de.javakaffee.kryoserializers.UnmodifiableCollectionsSerializer;
 import io.joshworks.fstore.core.Serializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.lang.reflect.InvocationHandler;
@@ -86,6 +87,36 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
             kryo.writeClassAndObject(output, data);
         }
         return baos.toByteArray();
+    }
+
+    public static <T> T deserialize(byte[] data) {
+        return deserialize(data, null);
+    }
+
+    public static <T> T deserialize(byte[] data, Class<T> type) {
+        Kryo kryo = localKryo.get();
+        InputStream inputStream = new ByteArrayInputStream(data);
+        try (Input input = new Input(inputStream)) {
+            if (type != null) {
+                return kryo.readObject(input, type);
+            }
+            return (T) kryo.readClassAndObject(input);
+        }
+    }
+
+    public static <T> T deserialize(ByteBuffer data) {
+        return deserialize(data, null);
+    }
+
+    public static <T> T deserialize(ByteBuffer data, Class<T> type) {
+        Kryo kryo = localKryo.get();
+        InputStream inputStream = new ByteBufferInputStream(data);
+        try (Input input = new Input(inputStream)) {
+            if (type != null) {
+                return kryo.readObject(input, type);
+            }
+            return (T) kryo.readClassAndObject(input);
+        }
     }
 
     public static <T> KryoStoreSerializer<T> of(Class<T> mainType, Class... types) {

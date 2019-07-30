@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projection;
 
-import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.data.ProjectionCompleted;
 import io.joshworks.eventry.data.ProjectionFailed;
 import io.joshworks.eventry.data.ProjectionStopped;

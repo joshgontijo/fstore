@@ -24,7 +24,7 @@ class BatchingIterator<T> implements LogIterator<List<T>> {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close()  {
         delegate.close();
     }
 

@@ -1,21 +1,16 @@
 package io.joshworks.fstore.log.iterators;
 
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.LogIterator;
 
 import java.util.Iterator;
 
-class WrappedIterator<T> implements LogIterator<T> {
+class WrappedIterator<T> implements CloseableIterator<T> {
 
-    private int position;
     private final Iterator<T> delegate;
 
     WrappedIterator(Iterator<T> delegate) {
         this.delegate = delegate;
-    }
-
-    @Override
-    public long position() {
-        return position;
     }
 
     @Override
@@ -30,8 +25,6 @@ class WrappedIterator<T> implements LogIterator<T> {
 
     @Override
     public T next() {
-        T next = delegate.next();
-        position++;
-        return next;
+        return delegate.next();
     }
 }

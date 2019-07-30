@@ -1,5 +1,7 @@
 package io.joshworks.eventry;
 
+import io.joshworks.eventry.api.EventStoreIterator;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
@@ -30,7 +32,6 @@ import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.SequentialNaming;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.lsmtree.EntryValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,7 +71,7 @@ public class EventStore implements IEventStore {
 
     //TODO externalize
     private final Cache<Long, AtomicInteger> versionCache = Cache.softCache();
-    private final Cache<Long, EntryValue<StreamMetadata>> streamCache = Cache.softCache();
+    private final Cache<Long, StreamMetadata> streamCache = Cache.softCache();
 
     public final Index index;
     public final Streams streams; //TODO fix test to make this private
@@ -286,7 +287,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public StreamIterator fromStream(StreamName streamName) {
+    public EventStoreIterator fromStream(StreamName streamName) {
         requireNonNull(streamName, "Stream must be provided");
         int version = streamName.version();
         long hash = streamName.hash();
@@ -304,7 +305,7 @@ public class EventStore implements IEventStore {
 
     //TODO this requires another method that accepts checkpoint
     @Override
-    public StreamIterator fromStreams(String streamPrefix) {
+    public EventStoreIterator fromStreams(String streamPrefix) {
         if (StringUtils.isBlank(streamPrefix)) {
             throw new IllegalArgumentException("stream prefix must not be empty");
         }
@@ -317,7 +318,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public StreamIterator fromStreams(Set<StreamName> streamNames) {
+    public EventStoreIterator fromStreams(Set<StreamName> streamNames) {
         if (streamNames.size() == 1) {
             return fromStream(streamNames.iterator().next());
         }
@@ -344,13 +345,13 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
         LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD);
         return new EventLogIterator(logIterator, this::resolve, linkToPolicy, systemEventPolicy);
     }
 
     @Override
-    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
         requireNonNull(lastEvent, "last event must be provided");
         Optional<IndexEntry> indexEntry = index.get(lastEvent.hash(), lastEvent.version());
         IndexEntry entry = indexEntry.orElseThrow(() -> new IllegalArgumentException("No index entry found for " + lastEvent));
@@ -413,7 +414,7 @@ public class EventStore implements IEventStore {
             throw new IllegalArgumentException("Version must be greater than " + NO_VERSION);
         }
         Optional<IndexEntry> indexEntry = index.get(stream.hash(), stream.version());
-        if (!indexEntry.isPresent()) {
+        if (indexEntry.isEmpty()) {
             return null;
         }
 

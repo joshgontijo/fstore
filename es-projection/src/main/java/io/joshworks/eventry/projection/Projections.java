@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projection;
 
-import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.projection.result.Metrics;
 import io.joshworks.eventry.projection.result.TaskStatus;
 import io.joshworks.eventry.utils.StringUtils;

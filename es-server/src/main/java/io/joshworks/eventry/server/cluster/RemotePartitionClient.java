@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.EventLogIterator;
-import io.joshworks.eventry.IEventStore;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
