@@ -289,10 +289,12 @@ public class EventStore implements IEventStore {
         if (streamPatterns == null || streamPatterns.isEmpty()) {
             throw new IllegalArgumentException("Stream pattern must be provided");
         }
-        checkpoint = updateWithMinVersion(checkpoint);
-
         Set<Long> longs = streams.matchStreamHash(streamPatterns);
-        IndexIterator indexIterator = index.iterator(checkpoint, streamPatterns);
+        EventMap fromPattern = EventMap.of(longs);
+        EventMap merged = checkpoint.merge(fromPattern);
+        EventMap resolved = updateWithMinVersion(merged);
+
+        IndexIterator indexIterator = index.iterator(resolved, streamPatterns);
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
@@ -382,6 +384,9 @@ public class EventStore implements IEventStore {
                     long stream = kv.getKey();
                     int version = kv.getValue();
                     StreamMetadata metadata = streams.get(stream);
+                    if (metadata == null) {
+                        return EventMap.of(stream, version);
+                    }
                     int minVersion = metadata.truncated() && version < metadata.truncated ? metadata.truncated : version;
                     return EventMap.of(stream, minVersion);
                 }).reduce(eventMap, EventMap::merge);
