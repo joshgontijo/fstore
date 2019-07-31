@@ -17,6 +17,7 @@ import io.joshworks.fstore.serializer.Serializers;
 import java.io.Closeable;
 import java.io.File;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -112,7 +113,7 @@ public class Index implements Closeable {
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 
-    public IndexIterator iterator(EventMap eventMap, String... streamPatterns) {
+    public IndexIterator iterator(EventMap eventMap, Set<String> streamPatterns) {
         IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(lsmTree, Direction.FORWARD, eventMap, streamPatterns);
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }

@@ -57,7 +57,7 @@ public class StreamsTest {
         streams.create("another1", 3, 0);
         streams.create("another2", 4, 0);
 
-        Set<String> names = streams.matchStreamName("abc-*");
+        Set<String> names = streams.matchStreamName(Set.of("abc-*"));
 
         assertEquals(2, names.size());
         assertTrue(names.contains("abc-123"));
@@ -72,7 +72,7 @@ public class StreamsTest {
         streams.create("another1", 3, 0);
         streams.create("another2", 4, 0);
 
-        Set<String> names = streams.matchStreamName("*aaa");
+        Set<String> names = streams.matchStreamName(Set.of("*aaa"));
 
         assertEquals(2, names.size());
         assertTrue(names.contains("44444aaa"));
@@ -87,7 +87,7 @@ public class StreamsTest {
         streams.create("another1", 3, 0);
         streams.create("another2", 4, 0);
 
-        Set<String> names = streams.matchStreamName("*yolo*");
+        Set<String> names = streams.matchStreamName(Set.of("*yolo*"));
 
         assertEquals(2, names.size());
         assertTrue(names.contains("aaaayolobbb"));

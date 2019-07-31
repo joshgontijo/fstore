@@ -8,6 +8,7 @@ import io.joshworks.eventry.partition.Partitions;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.util.Pair;
 
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.reducing;
 
 public class PartitionedStore implements IEventStore {
 
@@ -75,20 +80,22 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventStoreIterator fromStreams(String... streamPatterns) {
+    public EventStoreIterator fromStreams(EventMap eventMap, Set<String> streamPatterns) {
         List<EventStoreIterator> iterators = partitions.all().stream()
                 .map(Partition::store)
-                .map(s -> s.fromStreams(streamPatterns))
+                .map(s -> s.fromStreams(eventMap, streamPatterns))
                 .collect(Collectors.toList());
 
         return new PartitionedEventStoreIterator(iterators);
     }
 
     @Override
-    public EventStoreIterator fromStreams(Set<EventId> streams) {
-        Map<Partition, Set<EventId>> grouped = streams.stream()
-                .map(s -> new StreamPartition(s, partitions.select(s.name())))
-                .collect(Collectors.groupingBy(a -> a.partition, Collectors.mapping(b -> b.eventId, Collectors.toSet())));
+    public EventStoreIterator fromStreams(EventMap eventMap) {
+        //partition -> checkpoint per partition
+        Map<Partition, EventMap> grouped = eventMap.entrySet()
+                .stream()
+                .map(s -> Pair.of(s, partitions.select(s.getKey())))
+                .collect(groupingBy(Pair::right, mapping(kv -> EventMap.of(kv.left.getKey(), kv.left.getValue()), reducing(EventMap.empty(), EventMap::merge))));
 
         List<EventStoreIterator> iterators = grouped.entrySet()
                 .stream()
@@ -164,15 +171,6 @@ public class PartitionedStore implements IEventStore {
         return partitions.select(stream).store().count(stream);
     }
 
-    private static class StreamPartition {
-        private final EventId eventId;
-        private final Partition partition;
-
-        private StreamPartition(EventId eventId, Partition partition) {
-            this.eventId = eventId;
-            this.partition = partition;
-        }
-    }
 
     //Round robin
     private static final class PartitionedEventStoreIterator implements EventStoreIterator {

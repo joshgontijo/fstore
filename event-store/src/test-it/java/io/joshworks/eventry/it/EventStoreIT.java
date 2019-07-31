@@ -1,8 +1,9 @@
 package io.joshworks.eventry.it;
 
+import io.joshworks.eventry.EventId;
+import io.joshworks.eventry.EventMap;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
@@ -297,7 +298,8 @@ public class EventStoreIT {
         store.append(EventRecord.create(stream1, "test", Map.of()));
         store.append(EventRecord.create(stream2, "test", Map.of()));
 
-        try (var it = store.fromStreams(Set.of(EventId.parse(stream1), EventId.parse(stream2)))) {
+        EventMap eventMap = EventMap.from(EventId.parse(stream1)).add(EventId.parse(stream2));
+        try (var it = store.fromStreams(eventMap)) {
             assertTrue(it.hasNext());
             assertEquals(0, it.next().version);
 
@@ -337,16 +339,15 @@ public class EventStoreIT {
             }
         }
 
-        EventId eventToQuery = EventId.parse("test-1");
-        Iterator<EventRecord> eventStream = store.fromStreams(Set.of(eventToQuery));
+        String streamToQuery = "test-1";
+        Iterator<EventRecord> eventStream = store.fromStreams(EventMap.from(EventId.parse(streamToQuery)));
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
             EventRecord event = eventStream.next();
-            assertEquals(eventToQuery.name(), event.stream);
+            assertEquals(streamToQuery, event.stream);
             eventCounter++;
         }
-
         assertEquals(numVersions, eventCounter);
     }
 
@@ -463,7 +464,7 @@ public class EventStoreIT {
             store.append(EventRecord.create("someOtherStream", "type", Map.of()));
         }
 
-        Iterator<EventRecord> eventStream = store.fromStreams(streamPrefix);
+        Iterator<EventRecord> eventStream = store.fromStreams(EventMap.empty(), Set.of(streamPrefix));
 
         assertTrue(eventStream.hasNext());
 
