@@ -1,8 +1,7 @@
 package io.joshworks.eventry.data;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 public class ProjectionFailed {
@@ -13,7 +12,7 @@ public class ProjectionFailed {
     public final int streamVersion;
     public final long processedItems;
 
-    public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_RUN_FAILED";
+    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_RUN_FAILED";
 
     private ProjectionFailed(String name, String reason, long processedItems, String streamName, int streamVersion) {
         this.name = name;

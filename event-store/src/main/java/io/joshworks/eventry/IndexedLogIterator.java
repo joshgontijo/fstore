@@ -1,7 +1,6 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.api.EventStoreIterator;
-import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.log.EventRecord;
@@ -45,7 +44,7 @@ public class IndexedLogIterator implements EventStoreIterator {
     }
 
     @Override
-    public Checkpoint checkpoint() {
+    public EventMap checkpoint() {
         return indexIterator.checkpoint();
     }
 }

@@ -8,7 +8,7 @@ import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamMetadata;
 
-import static io.joshworks.eventry.StreamName.NO_EXPECTED_VERSION;
+import static io.joshworks.eventry.EventId.NO_EXPECTED_VERSION;
 
 public class Writer {
 

@@ -1,6 +1,6 @@
 package io.joshworks.eventry.log;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
@@ -8,7 +8,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-import static io.joshworks.eventry.StreamName.NO_VERSION;
+import static io.joshworks.eventry.EventId.NO_VERSION;
 import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class EventRecord {
@@ -42,11 +42,11 @@ public class EventRecord {
     }
 
     public String eventId() {
-        return StreamName.toString(stream, version);
+        return EventId.toString(stream, version);
     }
 
     public boolean isSystemEvent() {
-        return type.startsWith(StreamName.SYSTEM_PREFIX);
+        return type.startsWith(EventId.SYSTEM_PREFIX);
     }
 
     public boolean isLinkToEvent() {
@@ -54,11 +54,11 @@ public class EventRecord {
     }
 
     public long hash() {
-        return StreamName.hash(stream);
+        return EventId.hash(stream);
     }
 
-    public StreamName streamName() {
-        return StreamName.of(stream, version);
+    public EventId streamName() {
+        return EventId.of(stream, version);
     }
 
     @Override

@@ -1,6 +1,6 @@
 package io.joshworks.eventry.data;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.utils.StringUtils;
 
@@ -18,8 +18,8 @@ public class LinkTo {
         this.version = version;
     }
 
-    public static EventRecord create(String stream, StreamName tgtStreamName) {
-        return EventRecord.create(stream, TYPE, StringUtils.toUtf8Bytes(tgtStreamName.toString()));
+    public static EventRecord create(String stream, EventId tgtEventId) {
+        return EventRecord.create(stream, TYPE, StringUtils.toUtf8Bytes(tgtEventId.toString()));
     }
 
     public static LinkTo from(EventRecord record) {
@@ -27,8 +27,8 @@ public class LinkTo {
             throw new IllegalArgumentException("Not a LinkTo type event");
         }
         String target = new String(record.body, StandardCharsets.UTF_8);
-        StreamName streamName = StreamName.parse(target);
-        return new LinkTo(streamName.name(), streamName.version());
+        EventId eventId = EventId.parse(target);
+        return new LinkTo(eventId.name(), eventId.version());
     }
 
 }

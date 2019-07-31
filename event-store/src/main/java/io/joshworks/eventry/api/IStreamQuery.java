@@ -1,11 +1,11 @@
 package io.joshworks.eventry.api;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
 
 public interface IStreamQuery {
 
-    EventRecord get(StreamName stream);
+    EventRecord get(EventId stream);
 
     int version(String stream);
 

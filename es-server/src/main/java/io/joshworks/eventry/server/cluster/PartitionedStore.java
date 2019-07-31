@@ -4,7 +4,7 @@ import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.api.IStream;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.server.cluster.partition.Partition;
@@ -53,7 +53,7 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
+    public EventRecord linkTo(String dstStream, EventId source, String sourceType) {
         return select(source.name()).linkTo(dstStream, source, sourceType);
     }
 
@@ -68,7 +68,7 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStream(StreamName stream) {
+    public EventLogIterator fromStream(EventId stream) {
         return select(stream.name()).fromStream(stream);
     }
 
@@ -82,7 +82,7 @@ public class PartitionedStore implements IEventStore {
     //TODO this is not ideal, since it will return iterator of all partitions
     //the infinite iterators make more difficult to handle this this, since the stream can be created anywhere
     @Override
-    public EventLogIterator fromStreams(Set<StreamName> streams) {
+    public EventLogIterator fromStreams(Set<EventId> streams) {
         return applyToAll(store -> store.fromStreams(streams));
     }
 
@@ -92,7 +92,7 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
         //TODO each partition must keep track of the last read item
         //event-store should have its own iterator, that instead returning the position, returns the StreamName of last read
         //Last read event should be a Checkpoint type instead, that can hold multiple StreamName
@@ -134,7 +134,7 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventRecord get(StreamName stream) {
+    public EventRecord get(EventId stream) {
         return select(stream.name()).get(stream);
     }
 

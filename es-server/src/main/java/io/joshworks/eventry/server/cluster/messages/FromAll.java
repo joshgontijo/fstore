@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster.messages;
 
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.network.ClusterMessage;
 
@@ -19,7 +19,7 @@ public class FromAll implements ClusterMessage {
     public final LinkToPolicy linkToPolicy;
     public final SystemEventPolicy systemEventPolicy;
 
-    public FromAll(int timeout, int batchSize, int partitionId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+    public FromAll(int timeout, int batchSize, int partitionId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
         this.timeout = timeout;
         this.batchSize = batchSize;
         this.partitionId = partitionId;

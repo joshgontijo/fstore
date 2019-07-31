@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.server.cluster.messages.Append;
@@ -36,8 +36,8 @@ public class StoreReceiver implements Closeable {
     }
 
     ClusterMessage get(Get get) {
-        StreamName streamName = StreamName.parse(get.streamName);
-        EventRecord eventRecord = store.get(streamName);
+        EventId eventId = EventId.parse(get.streamName);
+        EventRecord eventRecord = store.get(eventId);
         return new EventData(eventRecord);
     }
 
@@ -48,14 +48,14 @@ public class StoreReceiver implements Closeable {
     }
 
     ClusterMessage fromStream(FromStream fromStream) {
-        StreamName streamName = StreamName.parse(fromStream.streamName);
-        LogIterator<EventRecord> iterator = store.fromStream(streamName);
+        EventId eventId = EventId.parse(fromStream.streamName);
+        LogIterator<EventRecord> iterator = store.fromStream(eventId);
         String iteratorId = remoteIterators.add(fromStream.timeout, fromStream.batchSize, iterator);
         return new IteratorCreated(iteratorId);
     }
 
     ClusterMessage fromStreams(FromStreams fromStreams) {
-        Set<StreamName> streams = fromStreams.streams.stream().map(StreamName::parse).collect(Collectors.toSet());
+        Set<EventId> streams = fromStreams.streams.stream().map(EventId::parse).collect(Collectors.toSet());
         LogIterator<EventRecord> iterator = store.fromStreams(streams);
         String iteratorId = remoteIterators.add(fromStreams.timeout, fromStreams.batchSize, iterator);
         return new IteratorCreated(iteratorId);

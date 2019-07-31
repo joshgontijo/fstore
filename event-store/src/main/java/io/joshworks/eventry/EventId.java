@@ -9,7 +9,9 @@ import io.joshworks.fstore.core.hash.XXHash;
 
 import java.util.Objects;
 
-public class StreamName {
+public class EventId {
+
+    //TODO ADD HEAD: stream-1@HEAD
 
     public static final String SYSTEM_PREFIX = "_";
     public static final String STREAM_VERSION_SEPARATOR = "@";
@@ -20,16 +22,16 @@ public class StreamName {
     public static final int NO_VERSION = -1;
     public static final int NO_EXPECTED_VERSION = -2;
 
-    private final String name;
+    private final String stream;
     private final int version;
 
-    private StreamName(String name, int version) {
-        this.name = name;
+    private EventId(String stream, int version) {
+        this.stream = stream;
         this.version = Math.max(version, NO_VERSION);
     }
 
     public String name() {
-        return name;
+        return stream;
     }
 
     public int version() {
@@ -37,33 +39,33 @@ public class StreamName {
     }
 
     public long hash() {
-        return hasher.hash(name);
+        return hasher.hash(stream);
     }
 
     public boolean isSystemStream() {
-        return name.startsWith(SYSTEM_PREFIX);
+        return stream.startsWith(SYSTEM_PREFIX);
     }
 
     public boolean isAll() {
-        return SystemStreams.ALL.equals(name);
+        return SystemStreams.ALL.equals(stream);
     }
 
     public boolean hasVersion() {
         return version > NO_VERSION;
     }
 
-    public static StreamName of(String stream) {
+    public static EventId of(String stream) {
         return of(stream, NO_VERSION);
     }
 
-    public static StreamName of(String stream, int version) {
+    public static EventId of(String stream, int version) {
         StringUtils.requireNonBlank(stream);
-        StreamName parsed = parse(stream);
+        validateStreamName(stream);
         version = Math.max(version, NO_VERSION);
-        return new StreamName(parsed.name, version);
+        return new EventId(stream, version);
     }
 
-    public static StreamName parse(String streamVersion) {
+    public static EventId parse(String streamVersion) {
         if (StringUtils.isBlank(streamVersion)) {
             throw new IllegalArgumentException("Null or empty stream value");
         }
@@ -72,13 +74,13 @@ public class StreamName {
             throw new IllegalArgumentException("Invalid stream format: '" + streamVersion + "'");
         }
 
-        String name = validateStreamName(split, streamVersion);
+        validateStreamName(split[0]);
         int version = getVersion(split, streamVersion);
-        return new StreamName(name, version);
+        return new EventId(split[0], version);
     }
 
-    public static StreamName from(EventRecord eventRecord) {
-        return new StreamName(eventRecord.stream, eventRecord.version);
+    public static EventId from(EventRecord eventRecord) {
+        return new EventId(eventRecord.stream, eventRecord.version);
     }
 
     public static long hash(String streamName) {
@@ -86,15 +88,13 @@ public class StreamName {
     }
 
 
-    private static String validateStreamName(String[] split, String original) {
-        String streamName = split[0];
+    private static void validateStreamName(String streamName) {
         if (StringUtils.isBlank(streamName)) {
-            throw new IllegalArgumentException("Null or empty stream name: '" + original + "'");
+            throw new IllegalArgumentException("Null or empty stream name: '" + streamName + "'");
         }
-        if (streamName.contains("@")) {
-            throw new IllegalArgumentException("Invalid stream name format: '" + original + "'");
+        if (streamName.contains(STREAM_VERSION_SEPARATOR)) {
+            throw new IllegalArgumentException("Invalid stream name: '" + streamName + "'");
         }
-        return streamName;
     }
 
     private static int getVersion(String[] split, String original) {
@@ -119,19 +119,19 @@ public class StreamName {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        StreamName that = (StreamName) o;
+        EventId that = (EventId) o;
         return version == that.version &&
-                Objects.equals(name, that.name);
+                Objects.equals(stream, that.stream);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, version);
+        return Objects.hash(stream, version);
     }
 
     @Override
     public String toString() {
-        return toString(name, version);
+        return toString(stream, version);
     }
 
 }

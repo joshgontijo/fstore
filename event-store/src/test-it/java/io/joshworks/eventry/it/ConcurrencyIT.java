@@ -3,7 +3,7 @@ package io.joshworks.eventry.it;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.api.EventStoreIterator;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.seda.TimeWatch;
 import io.joshworks.fstore.core.util.FileUtils;
@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static io.joshworks.eventry.StreamName.NO_VERSION;
+import static io.joshworks.eventry.EventId.NO_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -80,7 +80,7 @@ public class ConcurrencyIT {
 
 
         //READ
-        Iterator<EventRecord> events = store.fromStream(StreamName.parse(stream));
+        Iterator<EventRecord> events = store.fromStream(EventId.parse(stream));
         int found = 0;
 
         while (events.hasNext()) {
@@ -123,7 +123,7 @@ public class ConcurrencyIT {
         for (int readTask = 0; readTask < readThreads; readTask++) {
             readExecutor.execute(() -> {
                 AtomicInteger localCounter = new AtomicInteger();
-                try (EventStoreIterator iterator = store.fromStream(StreamName.parse(stream))) {
+                try (EventStoreIterator iterator = store.fromStream(EventId.parse(stream))) {
                     while (localCounter.get() < totalWrites) {
                         while (!iterator.hasNext()) {
                             sleep(1000);
@@ -202,7 +202,7 @@ public class ConcurrencyIT {
         //READ
 
         Map<String, AtomicInteger> counter = new HashMap<>();
-        Set<StreamName> streamHashes = streamNames.stream().map(StreamName::parse).collect(Collectors.toSet());
+        Set<EventId> streamHashes = streamNames.stream().map(EventId::parse).collect(Collectors.toSet());
         try (EventStoreIterator events = store.fromStreams(streamHashes)) {
             for (int i = 0; i < itemPerThread * threads; i++) {
                 assertTrue("Failed on " + i, events.hasNext());

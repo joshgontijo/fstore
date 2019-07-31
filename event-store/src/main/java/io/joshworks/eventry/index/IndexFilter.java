@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.EventMap;
 import io.joshworks.eventry.EventUtils;
 import io.joshworks.eventry.stream.StreamMetadata;
 
@@ -66,7 +67,7 @@ class IndexFilter implements IndexIterator {
     }
 
     @Override
-    public Checkpoint checkpoint() {
+    public EventMap checkpoint() {
         return delegate.checkpoint();
     }
 

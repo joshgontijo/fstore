@@ -1,12 +1,10 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.api.EventStoreIterator;
-import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 
-import java.io.IOException;
 import java.util.function.Function;
 
 public class EventLogIterator implements EventStoreIterator {
@@ -51,7 +49,7 @@ public class EventLogIterator implements EventStoreIterator {
     }
 
     @Override
-    public Checkpoint checkpoint() {
-        return last == null ? null : Checkpoint.from(StreamName.from(last));
+    public EventMap checkpoint() {
+        return last == null ? null : EventMap.from(EventId.from(last));
     }
 }

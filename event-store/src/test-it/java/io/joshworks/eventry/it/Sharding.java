@@ -4,7 +4,7 @@ import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.PartitionedStore;
 import io.joshworks.eventry.Repartitioner;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.log.EventRecord;
@@ -113,7 +113,7 @@ public class Sharding {
         return event(user, type, product);
     }
 
-    private static CloseableIterator<EventRecord> fromStream(StreamName stream, EventStore... stores) {
+    private static CloseableIterator<EventRecord> fromStream(EventId stream, EventStore... stores) {
         List<EventStoreIterator> its = Arrays.stream(stores).map(s -> s.fromStream(stream)).collect(Collectors.toList());
         return Iterators.ordered(its, er -> er.timestamp);
     }
@@ -134,7 +134,7 @@ public class Sharding {
     }
 
     private static void linkTo(EventStore store, String stream, Function<EventRecord, String> func) {
-        store.fromStream(StreamName.of(stream))
+        store.fromStream(EventId.of(stream))
                 .forEachRemaining(event -> {
                     Threads.sleep(1);
                     String targetStream = func.apply(event);

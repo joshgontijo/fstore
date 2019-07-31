@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.EventMap;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.LsmTree;
@@ -12,25 +13,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class FixedIndexIterator implements IndexIterator {
 
     private final LsmTree<IndexKey, Long> delegate;
-    protected final Checkpoint checkpoint;
+    protected final EventMap eventMap;
     private final Direction direction;
     private final AtomicBoolean closed = new AtomicBoolean();
     private long currentStream;
     private Iterator<Map.Entry<Long, Integer>> streamIt;
     private IndexEntry next;
 
-    FixedIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint) {
+    FixedIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, EventMap eventMap) {
         this.delegate = delegate;
-        this.checkpoint = checkpoint;
+        this.eventMap = eventMap;
         this.direction = direction;
-        this.streamIt = checkpoint.iterator();
+        this.streamIt = eventMap.iterator();
     }
 
     private IndexEntry checkConsistency(IndexEntry ie) {
         if (ie == null) {
             return null;
         }
-        int lastReadVersion = checkpoint.get(currentStream);
+        int lastReadVersion = eventMap.get(currentStream);
         if (Direction.FORWARD.equals(direction) && lastReadVersion >= ie.version) {
             throw new IllegalStateException("Reading already processed version, last processed version: " + lastReadVersion + " read version: " + ie.version);
         }
@@ -41,19 +42,20 @@ public class FixedIndexIterator implements IndexIterator {
         if (ie.version != nextVersion) {
             throw new IllegalStateException("Next expected version: " + nextVersion + " got: " + ie.version + ", stream " + ie.stream);
         }
-        checkpoint.update(currentStream, nextVersion);
+        //updates with the read version
+        eventMap.add(currentStream, nextVersion);
         return ie;
     }
 
     private IndexEntry fetch() {
-        if (next != null || checkpoint.size() == 0) {
+        if (next != null || eventMap.size() == 0) {
             return next;
         }
 
         currentStream = nextStream();
         long startStream = currentStream;
         do {
-            int lastReadVersion = checkpoint.get(currentStream);
+            int lastReadVersion = eventMap.get(currentStream);
             next = fetchEntry(currentStream, lastReadVersion);
             if (next == null) {
                 currentStream = nextStream();
@@ -74,11 +76,11 @@ public class FixedIndexIterator implements IndexIterator {
     }
 
     protected synchronized long nextStream() {
-        if (checkpoint.size() == 0) {
+        if (eventMap.size() == 0) {
             return 0;
         }
         if (!streamIt.hasNext()) {
-            streamIt = checkpoint.iterator();
+            streamIt = eventMap.iterator();
         }
         return streamIt.next().getKey();
     }
@@ -112,8 +114,8 @@ public class FixedIndexIterator implements IndexIterator {
     }
 
     @Override
-    public Checkpoint checkpoint() {
-        return checkpoint;
+    public EventMap checkpoint() {
+        return eventMap;
     }
 
     //Stream listeners
@@ -124,7 +126,7 @@ public class FixedIndexIterator implements IndexIterator {
 
     @Override
     public void onStreamTruncated(StreamMetadata metadata) {
-        checkpoint.put(metadata.hash, metadata.truncated);
+        eventMap.add(metadata.hash, metadata.truncated);
     }
 
     @Override

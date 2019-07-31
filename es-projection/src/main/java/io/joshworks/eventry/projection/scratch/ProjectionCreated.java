@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projection.scratch;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projection.Projection;
@@ -14,7 +14,7 @@ public class ProjectionCreated {
     //serializing straight into a StreamMetadata
     private static final Serializer<Projection> serializer = JsonSerializer.of(Projection.class);
 
-    public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_CREATED";
+    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_CREATED";
 
     public static EventRecord create(Projection metadata) {
         var data = serializer.toBytes(metadata);

@@ -1,14 +1,13 @@
 package io.joshworks.eventry.api;
 
-import io.joshworks.eventry.StreamName;
-
-import java.util.Set;
+import io.joshworks.eventry.EventId;
+import io.joshworks.eventry.EventMap;
 
 public interface IStreamIterator {
 
-    EventStoreIterator fromStream(StreamName stream);
+    EventStoreIterator fromStream(EventId stream);
 
-    EventStoreIterator fromStreams(String... streamPatterns);
+    EventStoreIterator fromStreams(EventMap checkpoint, String... streamPatterns);
 
-    EventStoreIterator fromStreams(Set<StreamName> streams);
+    EventStoreIterator fromStreams(EventMap streams);
 }
