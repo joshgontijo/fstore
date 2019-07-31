@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
+import static io.joshworks.eventry.StreamName.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
@@ -98,15 +98,14 @@ public class Streams implements Closeable {
         if (fromDisk != null) {
             throw new StreamException("Stream '" + stream + "' already exist");
         }
-        store.put(hash, streamMeta); //must be called before version
-        return streamMeta;
+        return update(streamMeta); //must be called before version
     }
 
     public void remove(long streamHash) {
         store.remove(streamHash);
     }
 
-    public Set<String> matchStreamName(String pattern) {
+    Set<String> matchStreamName(String... pattern) {
         if (pattern == null) {
             return new HashSet<>();
         }
@@ -115,7 +114,7 @@ public class Streams implements Closeable {
                 .collect(Collectors.toSet());
     }
 
-    public Set<Long> matchStreamHash(String pattern) {
+    public Set<Long> matchStreamHash(String... pattern) {
         if (pattern == null) {
             return new HashSet<>();
         }
@@ -124,10 +123,22 @@ public class Streams implements Closeable {
                 .collect(Collectors.toSet());
     }
 
-    private Stream<StreamMetadata> match(String pattern) {
+    private Stream<StreamMetadata> match(String... pattern) {
         return Iterators.stream(store.iterator(Direction.FORWARD))
                 .map(e -> e.value)
-                .filter(stream -> matches(stream.name, pattern));
+                .filter(stream -> matchAny(stream.name, pattern));
+    }
+
+    public static boolean matchAny(String streamName, String... patterns) {
+        if (patterns == null) {
+            return false;
+        }
+        for (String pattern : patterns) {
+            if (matches(streamName, pattern)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean matches(String streamName, String pattern) {
@@ -176,7 +187,13 @@ public class Streams implements Closeable {
         }
 
         StreamMetadata truncated = new StreamMetadata(metadata.name, metadata.hash, metadata.created, metadata.maxAgeSec, metadata.maxCount, fromVersionInclusive, metadata.acl, metadata.metadata, metadata.state);
-        store.put(truncated.hash, truncated);
-        return truncated;
+        return update(truncated);
     }
+
+    private StreamMetadata update(StreamMetadata metadata) {
+        store.put(metadata.hash, metadata);
+        cache.remove(metadata.hash);
+        return metadata;
+    }
+
 }

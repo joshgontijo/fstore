@@ -7,7 +7,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
+import static io.joshworks.eventry.StreamName.NO_VERSION;
+
 
 public class Checkpoint {
 
@@ -94,5 +95,10 @@ public class Checkpoint {
 
     public Iterator<Map.Entry<Long, Integer>> iterator() {
         return map.entrySet().iterator();
+    }
+
+    @Override
+    public String toString() {
+        return map.toString();
     }
 }

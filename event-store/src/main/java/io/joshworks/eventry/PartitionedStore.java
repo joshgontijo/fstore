@@ -10,13 +10,11 @@ import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.io.IOUtils;
 
-import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class PartitionedStore implements IEventStore {
@@ -35,9 +33,9 @@ public class PartitionedStore implements IEventStore {
         return partitions.size();
     }
 
-    public void forEachPartition(Consumer<IEventStore> consumer) {
+    public void forEachPartition(Consumer<Partition> consumer) {
         for (Partition partition : partitions.all()) {
-            consumer.accept(partition.store());
+            consumer.accept(partition);
         }
     }
 
@@ -78,10 +76,10 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventStoreIterator fromStreams(String streamPattern) {
+    public EventStoreIterator fromStreams(String... streamPatterns) {
         List<EventStoreIterator> iterators = partitions.all().stream()
                 .map(Partition::store)
-                .map(s -> s.fromStreams(streamPattern))
+                .map(s -> s.fromStreams(streamPatterns))
                 .collect(Collectors.toList());
 
         return new PartitionedEventStoreIterator(iterators);

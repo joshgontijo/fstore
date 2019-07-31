@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -37,13 +39,15 @@ public class Sharding {
     private static final String[] USERS = IntStream.range(0, 50).boxed().map(i -> "USER_" + i).toArray(String[]::new);
 
     private static final ThreadLocalRandom random = ThreadLocalRandom.current();
+    private static final AtomicBoolean stopped = new AtomicBoolean();
+    private static final AtomicLong items = new AtomicLong();
 
-    private static final KryoStoreSerializer serializer = KryoStoreSerializer.untyped();
 
     public static void main(String[] args) throws InterruptedException {
-        File file1 = new File("D:\\ess\\store-1");
-        File file2 = new File("D:\\ess\\store-2");
-        File file3 = new File("D:\\ess\\store-3");
+        File root = FileUtils.testFolder();
+        File file1 = new File(root, "store-1");
+        File file2 = new File(root, "store-2");
+        File file3 = new File(root, "store-3");
 
         FileUtils.tryDelete(file1);
         FileUtils.tryDelete(file2);
@@ -59,28 +63,54 @@ public class Sharding {
         try (PartitionedStore store = new PartitionedStore(partitions)) {
 
             //stream by type
-            new Repartitioner(store, "USER_*", r -> r.type).run();
-            new Repartitioner(store, "USER_*", r -> {
-                Map<String, Object> data = KryoStoreSerializer.deserialize(r.body);
-                return  (String) data.get("product");
-            }).run();
+            Repartitioner byType = new Repartitioner(store, "USER_*", byType());
+            Repartitioner byProd = new Repartitioner(store, "USER_*", byProduct());
+
+
+            Thread report = new Thread(() -> {
+                while (!stopped.get()) {
+                    System.out.println("ITEMS: " + items.get() + " | BY-TYPE: " + byType.stats() + " | BY-PROD: " + byProd.stats());
+                    Threads.sleep(2000);
+                }
+            });
 
 
 
-            for (int event = 0; event < 1000000; event++) {
-                store.append(randEvent());
+            for (int event = 0; event < 1000; event++) {
+                EventRecord ev = randEvent();
+                System.out.println(ev);
+                store.append(ev);
+                items.incrementAndGet();
             }
 
+            report.start();
+            byType.run();
+            byProd.run();
 
+            Threads.sleep(120000);
+            byProd.close();
+            byType.close();
+            stopped.set(true);
         }
+    }
 
+
+    private static Function<EventRecord, String> byType() {
+        return r -> r.type;
+    }
+
+    private static Function<EventRecord, String> byProduct() {
+        return r -> {
+            Map<String, Object> data = KryoStoreSerializer.deserialize(r.body);
+            return (String) data.get("product");
+        };
     }
 
     private static EventRecord randEvent() {
         String user = USERS[random.nextInt(0, USERS.length)];
         String type = EVENTS[random.nextInt(0, EVENTS.length)];
         String product = PRODUCTS[random.nextInt(0, PRODUCTS.length)];
-        return event("USER_" + user, type, product);
+        return event(user, type, product);
     }
 
     private static CloseableIterator<EventRecord> fromStream(StreamName stream, EventStore... stores) {
@@ -98,9 +128,9 @@ public class Sharding {
         return Iterators.ordered(its, er -> er.timestamp);
     }
 
-    private static EventRecord event(String user, String type, String product) {
-        byte[] data = KryoStoreSerializer.serialize(Map.of("product", product, "user", user));
-        return EventRecord.create(user, type, data);
+    private static EventRecord event(String stream, String type, String product) {
+        byte[] data = KryoStoreSerializer.serialize(Map.of("product", product, "user", stream));
+        return EventRecord.create(stream, type, data);
     }
 
     private static void linkTo(EventStore store, String stream, Function<EventRecord, String> func) {

@@ -48,8 +48,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
-import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
+import static io.joshworks.eventry.StreamName.NO_EXPECTED_VERSION;
+import static io.joshworks.eventry.StreamName.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
@@ -292,10 +292,7 @@ public class EventStore implements IEventStore {
         int version = streamName.version();
         long hash = streamName.hash();
 
-        //TODO this must be applied to fromStreams and fromStreamsPATTERN
-        int startVersion = Optional.ofNullable(streams.get(hash))
-                .map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version)
-                .orElse(version);
+        int startVersion = findStartVersion(version, hash);
 
         IndexIterator indexIterator = index.iterator(Checkpoint.of(hash, startVersion));
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
@@ -303,15 +300,14 @@ public class EventStore implements IEventStore {
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
     }
 
-    //TODO this requires another method that accepts checkpoint
     @Override
-    public EventStoreIterator fromStreams(String streamPrefix) {
-        if (StringUtils.isBlank(streamPrefix)) {
-            throw new IllegalArgumentException("stream prefix must not be empty");
+    public EventStoreIterator fromStreams(String... streamPatterns) {
+        if (streamPatterns == null) {
+            throw new IllegalArgumentException("Stream pattern must not be provided");
         }
 
-        Set<Long> longs = streams.matchStreamHash(streamPrefix);
-        IndexIterator indexIterator = index.iterator(streamPrefix, Checkpoint.of(longs));
+        Set<Long> longs = streams.matchStreamHash(streamPatterns);
+        IndexIterator indexIterator = index.iterator(Checkpoint.of(longs), streamPatterns);
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
@@ -389,6 +385,12 @@ public class EventStore implements IEventStore {
             return writer.append(linkTo, NO_EXPECTED_VERSION, metadata);
         });
         return Threads.waitFor(future);
+    }
+
+    private int findStartVersion(int version, long hash) {
+        return Optional.ofNullable(streams.get(hash))
+                .map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version)
+                .orElse(version);
     }
 
     private StreamMetadata getOrCreateStream(Writer writer, String stream) {

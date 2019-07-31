@@ -19,7 +19,8 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
+import static io.joshworks.eventry.StreamName.NO_VERSION;
+
 
 public class Index implements Closeable {
 
@@ -110,8 +111,8 @@ public class Index implements Closeable {
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 
-    public IndexIterator iterator(String streamPrefix, Checkpoint checkpoint) {
-        IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPrefix);
+    public IndexIterator iterator(Checkpoint checkpoint, String... streamPatterns) {
+        IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPatterns);
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 }

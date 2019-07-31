@@ -9,20 +9,23 @@ import io.joshworks.fstore.core.hash.XXHash;
 
 import java.util.Objects;
 
-import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
-
 public class StreamName {
 
     public static final String SYSTEM_PREFIX = "_";
     public static final String STREAM_VERSION_SEPARATOR = "@";
     private static final StreamHasher hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
 
+    public static final int START_VERSION = 0;
+    public static final int MAX_VERSION = Integer.MAX_VALUE;
+    public static final int NO_VERSION = -1;
+    public static final int NO_EXPECTED_VERSION = -2;
+
     private final String name;
     private final int version;
 
     private StreamName(String name, int version) {
         this.name = name;
-        this.version = version < NO_VERSION ? NO_VERSION : version;
+        this.version = Math.max(version, NO_VERSION);
     }
 
     public String name() {
@@ -56,7 +59,7 @@ public class StreamName {
     public static StreamName of(String stream, int version) {
         StringUtils.requireNonBlank(stream);
         StreamName parsed = parse(stream);
-        version = version <= NO_VERSION ? NO_VERSION : version;
+        version = Math.max(version, NO_VERSION);
         return new StreamName(parsed.name, version);
     }
 

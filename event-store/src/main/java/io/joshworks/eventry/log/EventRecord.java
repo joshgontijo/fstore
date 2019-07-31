@@ -8,12 +8,10 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
+import static io.joshworks.eventry.StreamName.NO_VERSION;
 import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class EventRecord {
-
-    public static final int NO_VERSION = -1;
-    public static final int NO_EXPECTED_VERSION = -2;
 
     public final String stream;
     public final String type;
