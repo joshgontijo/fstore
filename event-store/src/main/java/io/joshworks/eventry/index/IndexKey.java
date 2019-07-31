@@ -5,8 +5,8 @@ import io.joshworks.fstore.index.Range;
 
 import java.util.Objects;
 
-import static io.joshworks.eventry.StreamName.MAX_VERSION;
-import static io.joshworks.eventry.StreamName.START_VERSION;
+import static io.joshworks.eventry.EventId.MAX_VERSION;
+import static io.joshworks.eventry.EventId.START_VERSION;
 
 public class IndexKey implements Comparable<IndexKey> {
 

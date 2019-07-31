@@ -1,7 +1,7 @@
 package io.joshworks.eventry.log;
 
 import io.joshworks.eventry.InMemorySegment;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
@@ -348,8 +348,8 @@ public class LogRecordCleanupTest {
     }
 
     private EventRecord linkTo(String stream, EventRecord record, int version, long timestamp) {
-        StreamName streamName = StreamName.from(record);
-        return new EventRecord(stream, LinkTo.TYPE, version, timestamp, StringUtils.toUtf8Bytes(streamName.toString()), new byte[0]);
+        EventId eventId = EventId.from(record);
+        return new EventRecord(stream, LinkTo.TYPE, version, timestamp, StringUtils.toUtf8Bytes(eventId.toString()), new byte[0]);
     }
 
     private EventRecord systemRecord() {

@@ -1,12 +1,9 @@
 package io.joshworks.eventry.data;
 
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
-import java.nio.ByteBuffer;
-
-import static io.joshworks.eventry.StreamName.SYSTEM_PREFIX;
+import static io.joshworks.eventry.EventId.SYSTEM_PREFIX;
 
 public class IndexFlushed {
 

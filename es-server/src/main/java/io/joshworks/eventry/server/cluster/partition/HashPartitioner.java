@@ -1,12 +1,12 @@
 package io.joshworks.eventry.server.cluster.partition;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 
 public class HashPartitioner implements Partitioner {
 
     @Override
     public int select(String stream, int numPartitions) {
-        long hash = StreamName.hash(stream);
+        long hash = EventId.hash(stream);
         return (int) (Math.abs(hash) % numPartitions);
     }
 }

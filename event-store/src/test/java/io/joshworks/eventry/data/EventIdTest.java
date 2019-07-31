@@ -1,74 +1,74 @@
 package io.joshworks.eventry.data;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import org.junit.Test;
 
-import static io.joshworks.eventry.StreamName.NO_VERSION;
+import static io.joshworks.eventry.EventId.NO_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class StreamNameTest {
+public class EventIdTest {
 
     @Test
     public void toStringFormat() {
-        assertEquals("stream", StreamName.parse("stream").toString());
+        assertEquals("stream", EventId.parse("stream").toString());
     }
 
     @Test
     public void toStringFormatFromCreate() {
-        assertEquals("stream@123", StreamName.of("stream", 123).toString());
+        assertEquals("stream@123", EventId.of("stream", 123).toString());
     }
 
     @Test
     public void no_version() {
-        StreamName stream = StreamName.parse("stream");
+        EventId stream = EventId.parse("stream");
         assertEquals(NO_VERSION, stream.version());
         assertFalse(stream.hasVersion());
     }
 
     @Test
     public void name_is_correct() {
-        assertEquals("stream", StreamName.parse("stream@123").name());
+        assertEquals("stream", EventId.parse("stream@123").name());
     }
 
     @Test
     public void version_is_correct() {
-        assertEquals(123, StreamName.parse("stream@123").version());
+        assertEquals(123, EventId.parse("stream@123").version());
     }
 
     @Test
     public void isAll() {
-        assertTrue(StreamName.parse(SystemStreams.ALL).isAll());
+        assertTrue(EventId.parse(SystemStreams.ALL).isAll());
     }
 
     @Test
     public void isSystemStream() {
-        assertTrue(StreamName.parse(SystemStreams.STREAMS).isSystemStream());
+        assertTrue(EventId.parse(SystemStreams.STREAMS).isSystemStream());
     }
 
     @Test
     public void no_version_less_than_NO_VERSION_uses_NO_VERSION() {
-        StreamName stream = StreamName.parse("stream@-11111");
+        EventId stream = EventId.parse("stream@-11111");
         assertEquals("stream", stream.name());
         assertEquals(NO_VERSION, stream.version());
     }
 
     @Test
     public void with_version() {
-        StreamName stream = StreamName.parse("stream@1");
+        EventId stream = EventId.parse("stream@1");
         assertEquals("stream", stream.name());
         assertEquals(1, stream.version());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void multiple_ampersands_throw_exception() {
-        StreamName.parse("stream@@1");
+        EventId.parse("stream@@1");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void multiple_ampersands_throw_exception2() {
-        StreamName.parse("stream@1@");
+        EventId.parse("stream@1@");
     }
 
 

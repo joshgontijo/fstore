@@ -1,6 +1,7 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventMap;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.utils.Memory;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
@@ -19,7 +20,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static io.joshworks.eventry.StreamName.NO_VERSION;
+import static io.joshworks.eventry.EventId.NO_VERSION;
 
 
 public class Index implements Closeable {
@@ -74,7 +75,7 @@ public class Index implements Closeable {
     }
 
     public int version(String stream) {
-        return version(StreamName.hash(stream));
+        return version(EventId.hash(stream));
     }
 
     /**
@@ -106,13 +107,13 @@ public class Index implements Closeable {
         }
     }
 
-    public IndexIterator iterator(Checkpoint checkpoint) {
-        FixedIndexIterator iterator = new FixedIndexIterator(lsmTree, Direction.FORWARD, checkpoint);
+    public IndexIterator iterator(EventMap eventMap) {
+        FixedIndexIterator iterator = new FixedIndexIterator(lsmTree, Direction.FORWARD, eventMap);
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 
-    public IndexIterator iterator(Checkpoint checkpoint, String... streamPatterns) {
-        IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(lsmTree, Direction.FORWARD, checkpoint, streamPatterns);
+    public IndexIterator iterator(EventMap eventMap, String... streamPatterns) {
+        IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(lsmTree, Direction.FORWARD, eventMap, streamPatterns);
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 }

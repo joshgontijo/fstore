@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.EventMap;
 import io.joshworks.eventry.StreamListener;
 import io.joshworks.fstore.log.CloseableIterator;
 
@@ -11,5 +12,5 @@ public interface IndexIterator extends StreamListener, CloseableIterator<IndexEn
 
     void close();
 
-    Checkpoint checkpoint();
+    EventMap checkpoint();
 }

@@ -2,7 +2,6 @@ package io.joshworks.eventry;
 
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.partition.Partition;
 import io.joshworks.fstore.core.util.Threads;
@@ -59,7 +58,7 @@ public class Repartitioner implements Runnable, Closeable {
         });
     }
 
-    public Map<Integer, Checkpoint> stats() {
+    public Map<Integer, EventMap> stats() {
         return checkpoints.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().checkpoint()));
     }
 

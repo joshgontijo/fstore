@@ -2,7 +2,7 @@ package io.joshworks.eventry.projection.task;
 
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.data.SystemStreams;
 import io.joshworks.eventry.log.EventRecord;
@@ -128,19 +128,19 @@ public class ProjectionTask implements Callable<ExecutionResult> {
             LogIterator<EventRecord> source;
             if (checkpoint != null) {
                 if (isAllStream) {//there will be only single one
-                    StreamName lastProcessed = checkpoint.lastProcessed.iterator().next();
-                    StreamName start = StreamName.of(lastProcessed.name(), lastProcessed.version() + 1);
+                    EventId lastProcessed = checkpoint.lastProcessed.iterator().next();
+                    EventId start = EventId.of(lastProcessed.name(), lastProcessed.version() + 1);
                     source = store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE, start);
                 } else {
-                    Set<StreamName> mergedStreamStartVersions = mergeCheckpoint(projection, checkpoint);
+                    Set<EventId> mergedStreamStartVersions = mergeCheckpoint(projection, checkpoint);
                     source = store.fromStreams(mergedStreamStartVersions, true);
                 }
             } else {
                 if (isAllStream) {
                     source = store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE);
                 } else {
-                    Set<StreamName> streamNames = projection.sources.stream().map(StreamName::parse).collect(Collectors.toSet());
-                    source = store.fromStreams(streamNames, true);
+                    Set<EventId> eventIds = projection.sources.stream().map(EventId::parse).collect(Collectors.toSet());
+                    source = store.fromStreams(eventIds, true);
                 }
             }
 
@@ -151,9 +151,9 @@ public class ProjectionTask implements Callable<ExecutionResult> {
         } else { //multi source and parallel
             for (String stream : projection.sources) {
                 String taskId = projection.name + "-" + stream;
-                StreamName streamName = getSingleCheckpointOrCreate(checkpointer, stream, taskId);
+                EventId eventId = getSingleCheckpointOrCreate(checkpointer, stream, taskId);
 
-                LogIterator<EventRecord> source = isAllStream ? store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE, streamName) : store.fromStream(streamName);
+                LogIterator<EventRecord> source = isAllStream ? store.fromAll(LinkToPolicy.IGNORE, SystemEventPolicy.IGNORE, eventId) : store.fromStream(eventId);
                 ProjectionContext context = new ProjectionContext(store);
                 EventStreamHandler handler = createHandler(projection, context);
                 TaskItem taskItem = new TaskItem(taskId, source, checkpointer, handler, context, projection);
@@ -164,16 +164,16 @@ public class ProjectionTask implements Callable<ExecutionResult> {
         return tasks;
     }
 
-    private static Set<StreamName> mergeCheckpoint(Projection projection, Checkpointer.Checkpoint checkpoint) {
+    private static Set<EventId> mergeCheckpoint(Projection projection, Checkpointer.Checkpoint checkpoint) {
         //All the streams
-        Map<String, StreamName> allStreams = projection.sources.stream()
-                .map(StreamName::parse)
-                .collect(Collectors.toMap(StreamName::name, Function.identity()));
+        Map<String, EventId> allStreams = projection.sources.stream()
+                .map(EventId::parse)
+                .collect(Collectors.toMap(EventId::name, Function.identity()));
 
         //from checkpoint
-        Map<String, StreamName> checkpointStreams = checkpoint.lastProcessed.stream()
-                .map(sn -> StreamName.of(sn.name(), sn.version() + 1)) //next version
-                .collect(Collectors.toMap(StreamName::name, Function.identity()));
+        Map<String, EventId> checkpointStreams = checkpoint.lastProcessed.stream()
+                .map(sn -> EventId.of(sn.name(), sn.version() + 1)) //next version
+                .collect(Collectors.toMap(EventId::name, Function.identity()));
 
         //merge them together
         allStreams.putAll(checkpointStreams);
@@ -181,11 +181,11 @@ public class ProjectionTask implements Callable<ExecutionResult> {
     }
 
 
-    private static StreamName getSingleCheckpointOrCreate(Checkpointer checkpointer, String stream, String taskId) {
+    private static EventId getSingleCheckpointOrCreate(Checkpointer checkpointer, String stream, String taskId) {
         Checkpointer.Checkpoint checkpoint = checkpointer.get(taskId);
         //Only single stream here
         if (checkpoint == null || checkpoint.lastProcessed.size() != 1) {
-            return StreamName.parse(stream);
+            return EventId.parse(stream);
         }
         return checkpoint.lastProcessed.iterator().next();
     }

@@ -2,7 +2,7 @@ package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.FileUtils;
@@ -53,7 +53,7 @@ public class ClusterManagerTest {
     @Test
     public void append_to_another_node_returns_the_correct_event() {
         String stream = anyStreamForPartition(1, NUM_PARTITIONS);
-        var streamName = StreamName.of(stream, 0);
+        var streamName = EventId.of(stream, 0);
         EventRecord event = EventRecord.create(streamName.name(), "type", Map.of());
 
         writeNode.append(event);
@@ -71,7 +71,7 @@ public class ClusterManagerTest {
 
         writeNode.append(event1);
         writeNode.append(event2);
-        EventLogIterator it = writeNode.fromStream(StreamName.of(stream));
+        EventLogIterator it = writeNode.fromStream(EventId.of(stream));
 
         assertTrue(it.hasNext());
         EventRecord found = it.next();
@@ -99,7 +99,7 @@ public class ClusterManagerTest {
         int i = 0;
         while (true) {
             var sName = "stream-" + i++;
-            long hash = StreamName.hash(sName);
+            long hash = EventId.hash(sName);
             int idx = (int) (Math.abs(hash) % numPartitions);
             if (idx == partitionIdx) {
                 return sName;

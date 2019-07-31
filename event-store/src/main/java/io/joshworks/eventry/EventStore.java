@@ -7,7 +7,6 @@ import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
 import io.joshworks.eventry.data.SystemStreams;
-import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
@@ -44,12 +43,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static io.joshworks.eventry.StreamName.NO_EXPECTED_VERSION;
-import static io.joshworks.eventry.StreamName.NO_VERSION;
+import static io.joshworks.eventry.EventId.NO_EXPECTED_VERSION;
+import static io.joshworks.eventry.EventId.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
@@ -62,12 +60,6 @@ public class EventStore implements IEventStore {
     private static final int WRITE_QUEUE_SIZE = 1000000;
     private static final int INDEX_FLUSH_THRESHOLD = 40000;
     private static final int STREAMS_FLUSH_THRESHOLD = 50000;
-
-    private static final int STREAM_CACHE_SIZE = 50000;
-    private static final int STREAM_CACHE_MAX_AGE = -1;
-
-    private static final int VERSION_CACHE_SIZE = 50000;
-    private static final int VERSION_CACHE_MAX_AGE = (int) TimeUnit.MINUTES.toMillis(2);
 
     //TODO externalize
     private final Cache<Long, AtomicInteger> versionCache = Cache.softCache();
@@ -171,8 +163,8 @@ public class EventStore implements IEventStore {
             backwardsIndex.entrySet().stream().filter(kv -> kv.getValue().compareTo(lastPos) >= 0).sorted(Comparator.comparingLong(Map.Entry::getValue)).forEach(e -> {
                 EventRecord entry = e.getKey();
                 long position = e.getValue();
-                StreamName streamName = entry.streamName();
-                index.add(streamName.hash(), streamName.version(), position);
+                EventId eventId = entry.streamName();
+                index.add(eventId.hash(), eventId.version(), position);
             });
 
         } catch (Exception e) {
@@ -260,7 +252,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public Optional<StreamInfo> streamMetadata(String stream) {
-        long streamHash = StreamName.hash(stream);
+        long streamHash = EventId.hash(stream);
         return Optional.ofNullable(streams.get(streamHash)).map(meta -> {
             int version = index.version(meta.hash);
             return StreamInfo.from(meta, version);
@@ -287,19 +279,20 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventStoreIterator fromStream(StreamName streamName) {
-        requireNonNull(streamName, "Stream must be provided");
-        int version = streamName.version();
-        long hash = streamName.hash();
+    public EventStoreIterator fromStream(EventId eventId) {
+        requireNonNull(eventId, "Stream must be provided");
+        int version = eventId.version();
+        long hash = eventId.hash();
 
         int startVersion = findStartVersion(version, hash);
 
-        IndexIterator indexIterator = index.iterator(Checkpoint.of(hash, startVersion));
+        IndexIterator indexIterator = index.iterator(EventMap.of(hash, startVersion));
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
     }
 
+    //TODO this requires another method that accepts checkpoint
     @Override
     public EventStoreIterator fromStreams(String... streamPatterns) {
         if (streamPatterns == null) {
@@ -307,21 +300,21 @@ public class EventStore implements IEventStore {
         }
 
         Set<Long> longs = streams.matchStreamHash(streamPatterns);
-        IndexIterator indexIterator = index.iterator(Checkpoint.of(longs), streamPatterns);
+        IndexIterator indexIterator = index.iterator(EventMap.of(longs), streamPatterns);
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
     }
 
     @Override
-    public EventStoreIterator fromStreams(Set<StreamName> streamNames) {
-        if (streamNames.size() == 1) {
-            return fromStream(streamNames.iterator().next());
+    public EventStoreIterator fromStreams(Set<EventId> eventIds) {
+        if (eventIds.size() == 1) {
+            return fromStream(eventIds.iterator().next());
         }
 
-        Set<Long> hashes = streamNames.stream().map(StreamName::hash).collect(Collectors.toSet());
+        Set<Long> hashes = eventIds.stream().map(EventId::hash).collect(Collectors.toSet());
 
-        IndexIterator indexIterator = index.iterator(Checkpoint.of(hashes));
+        IndexIterator indexIterator = index.iterator(EventMap.of(hashes));
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
@@ -347,7 +340,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
         requireNonNull(lastEvent, "last event must be provided");
         Optional<IndexEntry> indexEntry = index.get(lastEvent.hash(), lastEvent.version());
         IndexEntry entry = indexEntry.orElseThrow(() -> new IllegalArgumentException("No index entry found for " + lastEvent));
@@ -364,7 +357,7 @@ public class EventStore implements IEventStore {
             if (metadata.maxAgeSec > 0 && System.currentTimeMillis() - resolved.timestamp > metadata.maxAgeSec) {
                 return null;
             }
-            EventRecord linkTo = LinkTo.create(stream, StreamName.from(resolved));
+            EventRecord linkTo = LinkTo.create(stream, EventId.from(resolved));
             return writer.append(linkTo, NO_EXPECTED_VERSION, metadata); // TODO expected version for LinkTo
         });
 
@@ -373,13 +366,13 @@ public class EventStore implements IEventStore {
 
     //TODO if viable, add maxAge validation before appending, to save unnecessary disk space
     @Override
-    public EventRecord linkTo(String srcStream, StreamName tgtEvent, String sourceType) {
+    public EventRecord linkTo(String srcStream, EventId tgtEvent, String sourceType) {
         Future<EventRecord> future = eventWriter.queue(writer -> {
             EventRecord linkTo = LinkTo.create(srcStream, tgtEvent);
             StreamMetadata metadata = getOrCreateStream(writer, srcStream);
             if (LinkTo.TYPE.equals(sourceType)) {
                 EventRecord resolvedEvent = get(tgtEvent);
-                StreamName resolvedStream = resolvedEvent.streamName();
+                EventId resolvedStream = resolvedEvent.streamName();
                 linkTo = LinkTo.create(srcStream, resolvedStream);
             }
             return writer.append(linkTo, NO_EXPECTED_VERSION, metadata);
@@ -405,13 +398,13 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventRecord get(StreamName stream) {
+    public EventRecord get(EventId stream) {
         EventRecord record = getInternal(stream);
         return resolve(record);
     }
 
     //GET WITHOUT RESOLVING
-    private EventRecord getInternal(StreamName stream) {
+    private EventRecord getInternal(EventId stream) {
         if (!stream.hasVersion()) {
             throw new IllegalArgumentException("Version must be greater than " + NO_VERSION);
         }
@@ -430,7 +423,7 @@ public class EventStore implements IEventStore {
         }
         if (record.isLinkToEvent()) {
             LinkTo linkTo = LinkTo.from(record);
-            StreamName targetEvent = StreamName.of(linkTo.stream, linkTo.version);
+            EventId targetEvent = EventId.of(linkTo.stream, linkTo.version);
             EventRecord resolved = getInternal(targetEvent);
             if (resolved != null && resolved.isLinkToEvent()) {
                 throw new IllegalStateException("Found second level LinkTo event");
@@ -444,8 +437,8 @@ public class EventStore implements IEventStore {
         requireNonNull(event, "Event must be provided");
         StringUtils.requireNonBlank(event.stream, "closeableStream must be provided");
         StringUtils.requireNonBlank(event.type, "Type must be provided");
-        if (event.stream.startsWith(StreamName.SYSTEM_PREFIX)) {
-            throw new IllegalArgumentException("Stream cannot start with " + StreamName.SYSTEM_PREFIX);
+        if (event.stream.startsWith(EventId.SYSTEM_PREFIX)) {
+            throw new IllegalArgumentException("Stream cannot start with " + EventId.SYSTEM_PREFIX);
         }
         if (LinkTo.TYPE.equals(event.type)) {
             throw new IllegalArgumentException("Stream type cannot be " + LinkTo.TYPE);

@@ -1,7 +1,7 @@
 package io.joshworks.eventry.projection.task;
 
 import io.joshworks.eventry.projection.ScriptExecutionException;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projection.Checkpointer;
 import io.joshworks.eventry.projection.EventStreamHandler;
@@ -118,7 +118,7 @@ class TaskItem implements Callable<TaskStatus>, Closeable {
 
         if (!batchRecords.isEmpty()) {
             EventRecord last = batchRecords.get(batchRecords.size() - 1);
-            metrics.lastEvent = StreamName.toString(last.stream, last.version);
+            metrics.lastEvent = EventId.toString(last.stream, last.version);
         }
         metrics.logPosition = source.position();
     }

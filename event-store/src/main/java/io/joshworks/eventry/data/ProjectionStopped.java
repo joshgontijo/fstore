@@ -1,6 +1,6 @@
 package io.joshworks.eventry.data;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
@@ -10,7 +10,7 @@ public class ProjectionStopped {
     public final String reason;
     public final long processedItems;
 
-    public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_RUN_STOPPED";
+    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_RUN_STOPPED";
 
     private ProjectionStopped(String name, String reason, long processedItems) {
         this.name = name;

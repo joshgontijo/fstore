@@ -1,6 +1,5 @@
 package io.joshworks.eventry;
 
-import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.stream.StreamMetadata;
@@ -25,7 +24,7 @@ public class IndexListenerRemoval implements IndexIterator {
     }
 
     @Override
-    public Checkpoint checkpoint() {
+    public EventMap checkpoint() {
         return delegate.checkpoint();
     }
 

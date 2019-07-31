@@ -1,15 +1,14 @@
 package io.joshworks.eventry.data;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 public class ProjectionDeleted {
 
     public final String name;
 
-    public static final String TYPE = StreamName.SYSTEM_PREFIX + "PROJECTION_DELETED";
+    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_DELETED";
 
     private ProjectionDeleted(String name) {
         this.name = name;

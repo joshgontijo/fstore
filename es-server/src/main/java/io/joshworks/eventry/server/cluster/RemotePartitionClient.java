@@ -3,7 +3,7 @@ package io.joshworks.eventry.server.cluster;
 import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.ClusterNode;
@@ -66,7 +66,7 @@ public class RemotePartitionClient implements IEventStore {
     }
 
     @Override
-    public EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
+    public EventRecord linkTo(String dstStream, EventId source, String sourceType) {
         return null;
     }
 
@@ -83,7 +83,7 @@ public class RemotePartitionClient implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStream(StreamName stream) {
+    public EventLogIterator fromStream(EventId stream) {
         IteratorCreated it = client.send(node.address, new FromStream(stream.toString(), DEFAULT_TIMEOUT, DEFAULT_BATCH_SIZE));
         return new RemoteStoreClientIterator(client, node.address, it.iteratorId);
     }
@@ -94,7 +94,7 @@ public class RemotePartitionClient implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStreams(Set<StreamName> streams) {
+    public EventLogIterator fromStreams(Set<EventId> streams) {
         return null;
     }
 
@@ -104,7 +104,7 @@ public class RemotePartitionClient implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
         FromAll fromAll = new FromAll(DEFAULT_TIMEOUT, DEFAULT_BATCH_SIZE, partitionId, linkToPolicy, systemEventPolicy, lastEvent);
         IteratorCreated it = client.send(node.address, fromAll);
         return new RemoteStoreClientIterator(client, node.address, it.iteratorId);
@@ -141,8 +141,8 @@ public class RemotePartitionClient implements IEventStore {
     }
 
     @Override
-    public EventRecord get(StreamName streamName) {
-        EventData eventData = client.send(node.address, new Get(streamName));
+    public EventRecord get(EventId eventId) {
+        EventData eventData = client.send(node.address, new Get(eventId));
         return eventData.record;
     }
 

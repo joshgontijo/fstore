@@ -2,7 +2,6 @@ package io.joshworks.eventry;
 
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.index.Checkpoint;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.partition.Partition;
 import io.joshworks.eventry.partition.Partitions;
@@ -56,7 +55,7 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventRecord linkTo(String dstStream, StreamName source, String sourceType) {
+    public EventRecord linkTo(String dstStream, EventId source, String sourceType) {
         return partitions.select(source.name()).store().linkTo(dstStream, source, sourceType);
     }
 
@@ -71,7 +70,7 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventStoreIterator fromStream(StreamName stream) {
+    public EventStoreIterator fromStream(EventId stream) {
         return partitions.select(stream.name()).store().fromStream(stream);
     }
 
@@ -86,10 +85,10 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventStoreIterator fromStreams(Set<StreamName> streams) {
-        Map<Partition, Set<StreamName>> grouped = streams.stream()
+    public EventStoreIterator fromStreams(Set<EventId> streams) {
+        Map<Partition, Set<EventId>> grouped = streams.stream()
                 .map(s -> new StreamPartition(s, partitions.select(s.name())))
-                .collect(Collectors.groupingBy(a -> a.partition, Collectors.mapping(b -> b.streamName, Collectors.toSet())));
+                .collect(Collectors.groupingBy(a -> a.partition, Collectors.mapping(b -> b.eventId, Collectors.toSet())));
 
         List<EventStoreIterator> iterators = grouped.entrySet()
                 .stream()
@@ -105,7 +104,7 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
         throw new UnsupportedOperationException("From all is not supported in a partitioned store");
     }
 
@@ -113,7 +112,7 @@ public class PartitionedStore implements IEventStore {
         return partitions.get(partitionId).store().fromAll(linkToPolicy, systemEventPolicy);
     }
 
-    public EventStoreIterator fromAll(int partitionId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, StreamName lastEvent) {
+    public EventStoreIterator fromAll(int partitionId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
         return partitions.get(partitionId).store().fromAll(linkToPolicy, systemEventPolicy, lastEvent);
     }
 
@@ -151,7 +150,7 @@ public class PartitionedStore implements IEventStore {
     }
 
     @Override
-    public EventRecord get(StreamName stream) {
+    public EventRecord get(EventId stream) {
         return partitions.select(stream.name()).store().get(stream);
     }
 
@@ -166,11 +165,11 @@ public class PartitionedStore implements IEventStore {
     }
 
     private static class StreamPartition {
-        private final StreamName streamName;
+        private final EventId eventId;
         private final Partition partition;
 
-        private StreamPartition(StreamName streamName, Partition partition) {
-            this.streamName = streamName;
+        private StreamPartition(EventId eventId, Partition partition) {
+            this.eventId = eventId;
             this.partition = partition;
         }
     }
@@ -214,12 +213,10 @@ public class PartitionedStore implements IEventStore {
         }
 
         @Override
-        public Checkpoint checkpoint() {
-            Checkpoint checkpoint = Checkpoint.empty();
-            for (EventStoreIterator iterator : iterators) {
-                checkpoint.merge(iterator.checkpoint());
-            }
-            return checkpoint;
+        public EventMap checkpoint() {
+            return iterators.stream()
+                    .map(EventStoreIterator::checkpoint)
+                    .reduce(EventMap.empty(), EventMap::merge);
         }
     }
 }

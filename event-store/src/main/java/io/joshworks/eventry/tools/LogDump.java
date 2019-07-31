@@ -3,7 +3,7 @@ package io.joshworks.eventry.tools;
 import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
@@ -35,7 +35,7 @@ public class LogDump {
     }
 
     public static void dumpStream(String stream, File file, IEventStore store) {
-        try (var fileWriter = new FileWriter(file); var iterator = store.fromStream(StreamName.parse(stream))) {
+        try (var fileWriter = new FileWriter(file); var iterator = store.fromStream(EventId.parse(stream))) {
             while (iterator.hasNext()) {
                 EventRecord event = iterator.next();
                 fileWriter.write(event.toString() + System.lineSeparator());

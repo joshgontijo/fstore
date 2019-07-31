@@ -1,5 +1,6 @@
 package io.joshworks.eventry.index;
 
+import io.joshworks.eventry.EventMap;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.util.FileUtils;
@@ -48,7 +49,7 @@ public class IndexTest {
         }
         index.compact();
 
-        IndexIterator iterator = index.iterator(Checkpoint.of(Set.of(1L, 2L)));
+        IndexIterator iterator = index.iterator(EventMap.of(Set.of(1L, 2L)));
         while(iterator.hasNext()) {
             IndexEntry next = iterator.next();
             System.out.println(next);

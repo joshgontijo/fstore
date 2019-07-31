@@ -1,6 +1,6 @@
 package io.joshworks.eventry.stream;
 
-import io.joshworks.eventry.StreamName;
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.joshworks.eventry.StreamName.NO_VERSION;
+import static io.joshworks.eventry.EventId.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
@@ -46,7 +46,7 @@ public class Streams implements Closeable {
     }
 
     public StreamMetadata get(String stream) {
-        return get(StreamName.hash(stream));
+        return get(EventId.hash(stream));
     }
 
     public StreamMetadata get(long streamHash) {
@@ -76,7 +76,7 @@ public class Streams implements Closeable {
     //return a metadata if existing, or create a new one using default values, invoking createdCallback on creation
     public StreamMetadata createIfAbsent(String stream, Consumer<StreamMetadata> createdCallback) {
         validateName(stream);
-        long streamHash = StreamName.hash(stream);
+        long streamHash = EventId.hash(stream);
         StreamMetadata metadata = store.get(streamHash);
         if (metadata == null) {
             metadata = this.createInternal(stream, NO_MAX_AGE, NO_MAX_COUNT, new HashMap<>(), new HashMap<>(), streamHash);
@@ -87,7 +87,7 @@ public class Streams implements Closeable {
 
     public StreamMetadata create(String stream, long maxAgeSec, int maxCount, Map<String, Integer> permissions, Map<String, String> metadata) {
         validateName(stream);
-        long hash = StreamName.hash(stream);
+        long hash = EventId.hash(stream);
         return createInternal(stream, maxAgeSec, maxCount, permissions, metadata, hash);
     }
 
@@ -173,8 +173,8 @@ public class Streams implements Closeable {
         if (streamName.contains(" ")) {
             throw new StreamException("Stream name must not contain whitespaces");
         }
-        if (streamName.contains(StreamName.STREAM_VERSION_SEPARATOR)) {
-            throw new StreamException("Stream name must not contain " + StreamName.STREAM_VERSION_SEPARATOR);
+        if (streamName.contains(EventId.STREAM_VERSION_SEPARATOR)) {
+            throw new StreamException("Stream name must not contain " + EventId.STREAM_VERSION_SEPARATOR);
         }
     }
 
