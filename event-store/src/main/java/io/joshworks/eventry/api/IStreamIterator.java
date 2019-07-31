@@ -8,7 +8,7 @@ public interface IStreamIterator {
 
     EventStoreIterator fromStream(StreamName stream);
 
-    EventStoreIterator fromStreams(String streamPattern);
+    EventStoreIterator fromStreams(String... streamPatterns);
 
     EventStoreIterator fromStreams(Set<StreamName> streams);
 }

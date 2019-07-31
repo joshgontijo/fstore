@@ -1,14 +1,13 @@
 package io.joshworks.eventry.it;
 
 import io.joshworks.eventry.EventStore;
-import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.StreamName;
 import io.joshworks.eventry.SystemEventPolicy;
+import io.joshworks.eventry.api.EventStoreIterator;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.SystemStreams;
-import io.joshworks.eventry.index.IndexKey;
 import io.joshworks.eventry.index.StreamHasher;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
@@ -35,6 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static io.joshworks.eventry.StreamName.START_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -220,9 +220,9 @@ public class EventStoreIT {
 
         try (IEventStore store = EventStore.open(directory)) {
             for (int i = 0; i < size; i++) {
-                EventRecord event = store.get(StreamName.of(streamPrefix + i, IndexKey.START_VERSION));
+                EventRecord event = store.get(StreamName.of(streamPrefix + i, START_VERSION));
                 assertNotNull(event);
-                assertEquals(IndexKey.START_VERSION, event.version);
+                assertEquals(START_VERSION, event.version);
                 assertEquals(streamPrefix + i, event.stream);
             }
         }

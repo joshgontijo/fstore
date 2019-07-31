@@ -23,8 +23,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
-import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
+import static io.joshworks.eventry.StreamName.NO_EXPECTED_VERSION;
+import static io.joshworks.eventry.StreamName.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static org.junit.Assert.assertEquals;
@@ -226,7 +226,7 @@ public class EventStoreTest {
     }
 
     @Test
-    public void fromStream_acquire_before_truncation_does_not_return_data_after_truncating() {
+    public void fromStream_acquired_before_truncation_does_not_return_data_after_truncating() {
         String stream = "test-stream";
         int numVersions = 50;
         int truncatedBefore = 30;

@@ -5,11 +5,12 @@ import io.joshworks.fstore.index.Range;
 
 import java.util.Objects;
 
+import static io.joshworks.eventry.StreamName.MAX_VERSION;
+import static io.joshworks.eventry.StreamName.START_VERSION;
+
 public class IndexKey implements Comparable<IndexKey> {
 
     public static final int BYTES = Long.BYTES + Integer.BYTES;
-    public static final int START_VERSION = 0;
-    private static final int MAX_VERSION = Integer.MAX_VALUE;
 
     public final long stream;
     public final int version;

@@ -1,8 +1,8 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.log.EventRecord;
-
 import java.util.Objects;
+
+import static io.joshworks.eventry.StreamName.NO_VERSION;
 
 public class IndexEntry implements Comparable<IndexEntry> {
 
@@ -12,7 +12,7 @@ public class IndexEntry implements Comparable<IndexEntry> {
     public final long timestamp;
 
     private IndexEntry(long stream, int version, long position, long timestamp) {
-        if (version <= EventRecord.NO_VERSION) {
+        if (version <= NO_VERSION) {
             throw new IllegalArgumentException("Version must be at least zero");
         }
         this.stream = stream;

@@ -5,20 +5,20 @@ import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.LsmTree;
 
-import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
+import static io.joshworks.eventry.StreamName.NO_VERSION;
 
 class IndexPrefixIndexIterator extends FixedIndexIterator {
 
-    private final String prefix;
+    private final String[] patterns;
 
-    IndexPrefixIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint, String prefix) {
+    IndexPrefixIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, Checkpoint checkpoint, String... streamPatterns) {
         super(delegate, direction, checkpoint);
-        this.prefix = prefix;
+        this.patterns = streamPatterns;
     }
 
     @Override
     public void onStreamCreated(StreamMetadata metadata) {
-        if (Streams.matches(metadata.name, prefix)) {
+        if (Streams.matchAny(metadata.name, patterns)) {
             checkpoint.put(metadata.hash, NO_VERSION);
         }
     }
