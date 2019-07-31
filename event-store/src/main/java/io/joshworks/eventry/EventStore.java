@@ -281,40 +281,31 @@ public class EventStore implements IEventStore {
     @Override
     public EventStoreIterator fromStream(EventId eventId) {
         requireNonNull(eventId, "Stream must be provided");
-        int version = eventId.version();
-        long hash = eventId.hash();
-
-        int startVersion = findStartVersion(version, hash);
-
-        IndexIterator indexIterator = index.iterator(EventMap.of(hash, startVersion));
-        IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
-
-        return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
+        return fromStreams(EventMap.from(eventId));
     }
 
-    //TODO this requires another method that accepts checkpoint
     @Override
-    public EventStoreIterator fromStreams(String... streamPatterns) {
-        if (streamPatterns == null) {
-            throw new IllegalArgumentException("Stream pattern must not be provided");
+    public EventStoreIterator fromStreams(EventMap checkpoint, Set<String> streamPatterns) {
+        if (streamPatterns == null || streamPatterns.isEmpty()) {
+            throw new IllegalArgumentException("Stream pattern must be provided");
         }
+        checkpoint = updateWithMinVersion(checkpoint);
 
         Set<Long> longs = streams.matchStreamHash(streamPatterns);
-        IndexIterator indexIterator = index.iterator(EventMap.of(longs), streamPatterns);
+        IndexIterator indexIterator = index.iterator(checkpoint, streamPatterns);
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
     }
 
     @Override
-    public EventStoreIterator fromStreams(Set<EventId> eventIds) {
-        if (eventIds.size() == 1) {
-            return fromStream(eventIds.iterator().next());
+    public EventStoreIterator fromStreams(EventMap streams) {
+        if (streams.isEmpty()) {
+            throw new IllegalArgumentException("At least one stream must be provided");
         }
+        streams = updateWithMinVersion(streams);
 
-        Set<Long> hashes = eventIds.stream().map(EventId::hash).collect(Collectors.toSet());
-
-        IndexIterator indexIterator = index.iterator(EventMap.of(hashes));
+        IndexIterator indexIterator = index.iterator(streams);
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
@@ -335,17 +326,21 @@ public class EventStore implements IEventStore {
 
     @Override
     public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-        LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD);
+        return fromAll(linkToPolicy, systemEventPolicy, null);
+    }
+
+    @Override //checkpoint is the actual log position, using EventId to keep consistent
+    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId checkpoint) {
+        long position = getStartPosition(checkpoint);
+        LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD, position);
         return new EventLogIterator(logIterator, this::resolve, linkToPolicy, systemEventPolicy);
     }
 
-    @Override
-    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
-        requireNonNull(lastEvent, "last event must be provided");
-        Optional<IndexEntry> indexEntry = index.get(lastEvent.hash(), lastEvent.version());
-        IndexEntry entry = indexEntry.orElseThrow(() -> new IllegalArgumentException("No index entry found for " + lastEvent));
-        LogIterator<EventRecord> logIterator = eventLog.iterator(Direction.FORWARD, entry.position);
-        return new EventLogIterator(logIterator, this::resolve, linkToPolicy, systemEventPolicy);
+    private long getStartPosition(EventId lastEvent) {
+        return Optional.ofNullable(lastEvent)
+                .flatMap(ev -> index.get(ev.hash(), ev.version()))
+                .map(ie -> ie.position)
+                .orElse(Log.START);
     }
 
     @Override
@@ -380,10 +375,16 @@ public class EventStore implements IEventStore {
         return Threads.waitFor(future);
     }
 
-    private int findStartVersion(int version, long hash) {
-        return Optional.ofNullable(streams.get(hash))
-                .map(metadata -> metadata.truncated() && version < metadata.truncated ? metadata.truncated : version)
-                .orElse(version);
+    private EventMap updateWithMinVersion(EventMap eventMap) {
+        return eventMap.entrySet()
+                .stream()
+                .map(kv -> {
+                    long stream = kv.getKey();
+                    int version = kv.getValue();
+                    StreamMetadata metadata = streams.get(stream);
+                    int minVersion = metadata.truncated() && version < metadata.truncated ? metadata.truncated : version;
+                    return EventMap.of(stream, minVersion);
+                }).reduce(eventMap, EventMap::merge);
     }
 
     private StreamMetadata getOrCreateStream(Writer writer, String stream) {

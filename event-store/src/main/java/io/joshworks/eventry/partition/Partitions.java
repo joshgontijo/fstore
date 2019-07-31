@@ -1,5 +1,8 @@
 package io.joshworks.eventry.partition;
 
+import io.joshworks.eventry.EventId;
+import io.joshworks.eventry.utils.StringUtils;
+
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,8 +23,20 @@ public class Partitions implements AutoCloseable {
         this.nodeId = nodeId;
     }
 
+    public Partition select(long streamHash) {
+        int idx = partitioner.select(streamHash, numPartitions);
+        Partition partition = partitions.get(idx);
+        if (partition == null) {
+            throw new IllegalStateException("Partition not found for " + streamHash + ", idx " + idx);
+        }
+        return partition;
+    }
+
     public Partition select(String stream) {
-        int idx = partitioner.select(stream, numPartitions);
+        if (StringUtils.isBlank(stream)) {
+            throw new IllegalArgumentException("Stream cannot be null or empty");
+        }
+        int idx = partitioner.select(EventId.hash(stream), numPartitions);
         Partition partition = partitions.get(idx);
         if (partition == null) {
             throw new IllegalStateException("Partition not found for " + stream + ", idx " + idx);
@@ -30,13 +45,13 @@ public class Partitions implements AutoCloseable {
     }
 
     public void add(Partition partition) {
-        if(partition == null) {
+        if (partition == null) {
             throw new IllegalArgumentException("Partition must not be empty");
         }
-        if(partition.ownedBy(nodeId)) {
+        if (partition.ownedBy(nodeId)) {
             partitions.put(partition.id, partition);
         }
-        if(partition.replicatedBy(nodeId)) {
+        if (partition.replicatedBy(nodeId)) {
             replicas.put(partition.id, new Replica());
         }
     }
@@ -62,7 +77,7 @@ public class Partitions implements AutoCloseable {
     }
 
     @Override
-    public void close()  {
+    public void close() {
         partitions.values().forEach(Partition::close);
         partitions.clear();
     }

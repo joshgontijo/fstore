@@ -10,7 +10,6 @@ import java.util.function.Function;
 public class EventLogIterator implements EventStoreIterator {
 
     private final LogIterator<EventRecord> delegate;
-    private EventRecord last;
 
     public EventLogIterator(LogIterator<EventRecord> delegate, Function<EventRecord, EventRecord> resolver, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
         LogIterator<EventRecord> policyFiltered = Iterators.filtering(delegate, ev -> {
@@ -41,15 +40,12 @@ public class EventLogIterator implements EventStoreIterator {
 
     @Override
     public EventRecord next() {
-        EventRecord event = delegate.next();
-        if (event != null) {
-            last = event;
-        }
-        return event;
+        return delegate.next();
     }
 
     @Override
     public EventMap checkpoint() {
-        return last == null ? null : EventMap.from(EventId.from(last));
+        //Using Event map with position instead of
+        return EventMap.of(delegate.position());
     }
 }

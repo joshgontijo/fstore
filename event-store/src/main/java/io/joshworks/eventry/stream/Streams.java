@@ -105,31 +105,31 @@ public class Streams implements Closeable {
         store.remove(streamHash);
     }
 
-    Set<String> matchStreamName(String... pattern) {
-        if (pattern == null) {
+    Set<String> matchStreamName(Set<String> patterns) {
+        if (patterns == null || patterns.isEmpty()) {
             return new HashSet<>();
         }
-        return match(pattern)
+        return match(patterns)
                 .map(stream -> stream.name)
                 .collect(Collectors.toSet());
     }
 
-    public Set<Long> matchStreamHash(String... pattern) {
-        if (pattern == null) {
+    public Set<Long> matchStreamHash(Set<String> patterns) {
+        if (patterns == null) {
             return new HashSet<>();
         }
-        return match(pattern)
+        return match(patterns)
                 .map(stream -> stream.hash)
                 .collect(Collectors.toSet());
     }
 
-    private Stream<StreamMetadata> match(String... pattern) {
+    private Stream<StreamMetadata> match(Set<String> patterns) {
         return Iterators.stream(store.iterator(Direction.FORWARD))
                 .map(e -> e.value)
-                .filter(stream -> matchAny(stream.name, pattern));
+                .filter(stream -> matchAny(stream.name, patterns));
     }
 
-    public static boolean matchAny(String streamName, String... patterns) {
+    public static boolean matchAny(String streamName, Set<String> patterns) {
         if (patterns == null) {
             return false;
         }

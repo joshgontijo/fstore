@@ -28,8 +28,8 @@ public class EventMap {
         return eventMap;
     }
 
-    public static EventMap of(long stream, int version) {
-        return empty().add(stream, version);
+    public static EventMap of(long streamHash, int version) {
+        return empty().add(streamHash, version);
     }
 
     public static EventMap from(Set<EventId> eventIds) {
@@ -78,11 +78,11 @@ public class EventMap {
         return map.isEmpty();
     }
 
-    public Iterable<? extends Map.Entry<Long, Integer>> entrySet() {
+    public Set<Map.Entry<Long, Integer>> entrySet() {
         return map.entrySet();
     }
 
-    public Set<Long> keySet() {
+    public Set<Long> streamHashes() {
         return map.keySet();
     }
 

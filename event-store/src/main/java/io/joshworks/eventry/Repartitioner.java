@@ -42,7 +42,7 @@ public class Repartitioner implements Runnable, Closeable {
     private void runRepartitioning(Partition partition) {
         executor.execute(() -> {
             IEventStore store = partition.store();
-            EventStoreIterator streamIt = store.fromStreams(sourceStream);
+            EventStoreIterator streamIt = store.fromStreams(EventMap.from(EventId.of(sourceStream)));
             checkpoints.put(partition.id, streamIt);
             while (!closed.get()) {
                 while (!streamIt.hasNext()) {

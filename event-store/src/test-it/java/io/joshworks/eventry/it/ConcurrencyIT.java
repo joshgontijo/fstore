@@ -1,5 +1,6 @@
 package io.joshworks.eventry.it;
 
+import io.joshworks.eventry.EventMap;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.api.EventStoreIterator;
@@ -23,6 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.EventId.NO_VERSION;
@@ -202,8 +204,8 @@ public class ConcurrencyIT {
         //READ
 
         Map<String, AtomicInteger> counter = new HashMap<>();
-        Set<EventId> streamHashes = streamNames.stream().map(EventId::parse).collect(Collectors.toSet());
-        try (EventStoreIterator events = store.fromStreams(streamHashes)) {
+        EventMap eventMap = streamNames.stream().map(EventId::parse).collect(Collector.of(EventMap::empty, EventMap::add, EventMap::merge));
+        try (EventStoreIterator events = store.fromStreams(eventMap)) {
             for (int i = 0; i < itemPerThread * threads; i++) {
                 assertTrue("Failed on " + i, events.hasNext());
                 EventRecord event = events.next();

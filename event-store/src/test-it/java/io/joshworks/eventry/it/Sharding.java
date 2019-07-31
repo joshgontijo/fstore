@@ -1,5 +1,6 @@
 package io.joshworks.eventry.it;
 
+import io.joshworks.eventry.EventMap;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.PartitionedStore;
@@ -20,6 +21,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -43,7 +45,7 @@ public class Sharding {
     private static final AtomicLong items = new AtomicLong();
 
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         File root = FileUtils.testFolder();
         File file1 = new File(root, "store-1");
         File file2 = new File(root, "store-2");
@@ -119,7 +121,7 @@ public class Sharding {
     }
 
     private static CloseableIterator<EventRecord> fromStreams(String prefix, EventStore... stores) {
-        List<EventStoreIterator> its = Arrays.stream(stores).map(s -> s.fromStreams(prefix)).collect(Collectors.toList());
+        List<EventStoreIterator> its = Arrays.stream(stores).map(s -> s.fromStreams(EventMap.empty(), Set.of(prefix))).collect(Collectors.toList());
         return Iterators.ordered(its, er -> er.timestamp);
     }
 
