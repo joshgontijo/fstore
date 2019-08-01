@@ -1,4 +1,4 @@
-package io.joshworks.eventry.it;
+package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.EventMap;
@@ -7,9 +7,9 @@ import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.partition.Node;
-import io.joshworks.eventry.partition.PartitionedStore;
-import io.joshworks.eventry.partition.Repartitioner;
+import io.joshworks.eventry.server.cluster.node.Partitions;
+import io.joshworks.eventry.server.cluster.node.PartitionedStore;
+import io.joshworks.eventry.server.cluster.node.Repartitioner;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.CloseableIterator;
@@ -49,7 +49,7 @@ public class Sharding {
         FileUtils.tryDelete(root);
 
         int buckets = 30;
-        Node node = new Node(root, "node-1", buckets);
+        Partitions node = new Partitions(root, "node-1", buckets);
         node.createPartition(0, IntStream.range(0, 30).toArray());
         node.createPartition(1, IntStream.range(10, 20).toArray());
         node.createPartition(2, IntStream.range(20, 30).toArray());

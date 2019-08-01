@@ -1,4 +1,4 @@
-package io.joshworks.eventry.partition;
+package io.joshworks.eventry.server.cluster.node;
 
 public enum Status {
     ACTIVE, // Can accept requests

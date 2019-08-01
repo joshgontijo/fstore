@@ -17,6 +17,7 @@ import org.objenesis.strategy.StdInstantiatorStrategy;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.InvocationHandler;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -74,11 +75,27 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
     }
 
     public static byte[] serialize(Object data) {
-        return serialize(data, null);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        serializeInternal(data, null, baos);
+        return baos.toByteArray();
     }
 
     public static byte[] serialize(Object data, Class<?> type) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        serializeInternal(data, type, baos);
+        return baos.toByteArray();
+    }
+
+    public static void serialize(Object data, ByteBuffer buffer) {
+        serialize(data, buffer, null);
+    }
+
+    public static void serialize(Object data, ByteBuffer buffer, Class<?> type) {
+        OutputStream baos = new ByteBufferOutputStream(buffer);
+        serializeInternal(data, type, baos);
+    }
+
+    private static void serializeInternal(Object data, Class<?> type, OutputStream baos) {
         Kryo kryo = localKryo.get();
         try (Output output = new Output(baos)) {
             if (type != null) {
@@ -86,7 +103,6 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
             }
             kryo.writeClassAndObject(output, data);
         }
-        return baos.toByteArray();
     }
 
     public static <T> T deserialize(byte[] data) {
@@ -145,13 +161,7 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
     @Override
     public void writeTo(T data, ByteBuffer dst) {
         ByteBufferOutputStream baos = new ByteBufferOutputStream(dst);
-        Kryo kryo = localKryo.get();
-        try (Output output = new Output(baos)) {
-            if (mainType != null) {
-                kryo.writeObject(output, data);
-            }
-            kryo.writeClassAndObject(output, data);
-        }
+        serializeInternal(data, mainType, baos);
     }
 
     @Override

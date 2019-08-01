@@ -1,4 +1,4 @@
-package io.joshworks.eventry.partition;
+package io.joshworks.eventry.server.cluster.node;
 
 import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.EventMap;
@@ -25,9 +25,9 @@ import static java.util.stream.Collectors.reducing;
 
 public class PartitionedStore implements IEventStore {
 
-    private final Node node;
+    private final Partitions node;
 
-    public PartitionedStore(Node node) {
+    public PartitionedStore(Partitions node) {
         this.node = node;
     }
 

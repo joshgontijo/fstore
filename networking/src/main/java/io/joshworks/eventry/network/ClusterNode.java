@@ -1,5 +1,6 @@
 package io.joshworks.eventry.network;
 
+import io.joshworks.eventry.network.util.AttachmentMap;
 import org.jgroups.Address;
 
 import java.net.InetAddress;
@@ -11,6 +12,8 @@ public class ClusterNode {
     public final Address address;
     public final long since;
     public final InetSocketAddress inetAddr;
+
+    public final AttachmentMap attachments = new AttachmentMap();
 
     public NodeStatus status = NodeStatus.UP;
 

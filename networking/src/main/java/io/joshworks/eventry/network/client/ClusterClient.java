@@ -30,13 +30,11 @@ public class ClusterClient {
     private final MessageDispatcher dispatcher;
     private final LockService lockService;
     private final ExecutionService executionService;
-    private final KryoStoreSerializer serializer;
 
-    public ClusterClient(MessageDispatcher dispatcher, LockService lockService, ExecutionService executionService, KryoStoreSerializer serializer) {
+    public ClusterClient(MessageDispatcher dispatcher, LockService lockService, ExecutionService executionService) {
         this.dispatcher = dispatcher;
         this.lockService = lockService;
         this.executionService = executionService;
-        this.serializer = serializer;
     }
 
     public ExecutorService executor() {
@@ -56,7 +54,7 @@ public class ClusterClient {
             return null;
         }
 
-        ClusterMessage cMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(response));
+        ClusterMessage cMessage = KryoStoreSerializer.deserialize(response);
         if(cMessage instanceof MessageError) {
             throw new RuntimeException("TODO " + cMessage);
         }
@@ -92,7 +90,7 @@ public class ClusterClient {
             requireNonNull(response, "Response cannot be null");
             byte[] respMsg = response.getValue();
             if(respMsg != null) {
-                ClusterMessage cm = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(respMsg));
+                ClusterMessage cm = KryoStoreSerializer.deserialize(respMsg);
                 nodeResponses.add(new MulticastResponse(null, cm));
             }
 
@@ -116,7 +114,7 @@ public class ClusterClient {
 
     private byte[] send(Address address, ClusterMessage message, RequestOptions options) {
         try {
-            byte[] data = serializer.toBytes(message).array();
+            byte[] data = KryoStoreSerializer.serialize(message);
             Object o = dispatcher.sendMessage(address, new Buffer(data), options);
             return (byte[]) o;
         } catch (Exception e) {
@@ -126,7 +124,8 @@ public class ClusterClient {
 
     private RspList<byte[]> cast(Collection<Address> addresses, ClusterMessage message, RequestOptions options) {
         try {
-            return dispatcher.castMessage(addresses, new Buffer(serializer.toBytes(message).array()), options);
+            byte[] data = KryoStoreSerializer.serialize(message);
+            return dispatcher.castMessage(addresses, new Buffer(data), options);
         } catch (Exception e) {
             throw new ClusterClientException("Failed sending message to " + Arrays.toString(addresses.toArray()) + ": ", e);
         }

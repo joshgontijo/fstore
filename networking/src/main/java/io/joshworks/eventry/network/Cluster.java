@@ -2,6 +2,7 @@ package io.joshworks.eventry.network;
 
 import io.joshworks.eventry.network.client.ClusterClient;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
 import org.jgroups.Event;
@@ -18,11 +19,14 @@ import org.jgroups.blocks.executor.ExecutionService;
 import org.jgroups.blocks.locking.LockService;
 import org.jgroups.stack.IpAddress;
 import org.jgroups.util.ByteArrayDataOutputStream;
+import org.jgroups.util.ByteBufferOutputStream;
 import org.jgroups.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.io.DataOutput;
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -43,7 +47,6 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     private final String clusterName;
     private final String nodeUuid;
-    private final KryoStoreSerializer serializer = KryoStoreSerializer.of();
 
     private JChannel channel;
     private View state;
@@ -59,11 +62,13 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private final Map<String, ClusterNode> nodeById = new ConcurrentHashMap<>();
     private final Map<Class, Function> handlers = new ConcurrentHashMap<>();
 
+    private final List<BiConsumer<ClusterNode, NodeStatus>> nodeUpdatedListeners = new ArrayList<>();
+
     private final List<BiConsumer<Message, ClusterMessage>> interceptors = new ArrayList<>();
 
-    private static final Function<? super ClusterMessage, ClusterMessage> NO_OP = msg -> {
+    private static final Function<? extends ClusterMessage, ClusterMessage> NO_OP = msg -> {
         logger.warn("No message handler for code {}", msg.getClass().getName());
-        return null; //This will cause sync clients to fail
+        return null;
     };
 
     public Cluster(String clusterName, String nodeUuid) {
@@ -94,7 +99,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                 taskPool.submit(executionRunner);
             }
 
-            clusterClient = new ClusterClient(dispatcher, lockService, executionService, serializer);
+            clusterClient = new ClusterClient(dispatcher, lockService, executionService);
 
             channel.connect(clusterName, null, 10000); //connect + getState
 
@@ -111,17 +116,25 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         interceptors.add(interceptor);
     }
 
+    public synchronized void onNodeUpdated(BiConsumer<ClusterNode, NodeStatus> handler) {
+        nodeUpdatedListeners.add(handler);
+    }
+
     public synchronized <T extends ClusterMessage> void register(Class<T> type, Function<T, ClusterMessage> handler) {
-//        KryoStoreSerializer.register(type);
         handlers.put(type, handler);
     }
 
     public synchronized <T extends ClusterMessage> void register(Class<T> type, Consumer<T> handler) {
-//        KryoStoreSerializer.register(type);
         handlers.put(type, bb -> {
             handler.accept((T) bb);
             return null;
         });
+    }
+
+    private void fireNodeUpdate(ClusterNode node, NodeStatus status) {
+        for (BiConsumer<ClusterNode, NodeStatus> listener : nodeUpdatedListeners) {
+            listener.accept(node, status);
+        }
     }
 
     public Address address() {
@@ -194,17 +207,18 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                 intercept(msg, null);
                 return null;
             }
-            ClusterMessage clusterMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(msg.buffer()));
+            ClusterMessage clusterMessage = KryoStoreSerializer.deserialize(msg.buffer());
 
             intercept(msg, clusterMessage);
 
             ClusterMessage resp = (ClusterMessage) handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
             if (resp == null) {
                 //should never return null, otherwise client will block
-                return null;
+                logger.warn("NULL RESPONSE FROM HANDLER");
+                resp = new NullMessage();
             }
-            ByteBuffer data = serializer.toBytes(resp);
-            return new Message(msg.src(), data.array()).setSrc(address());
+            byte[] data = KryoStoreSerializer.serialize(resp, ClusterMessage.class);
+            return new Message(msg.src(), data).setSrc(address());
         } catch (Exception e) {
             logger.error("Failed to receive message: " + msg, e);
             throw new RuntimeException(e);//TODO improve
@@ -222,8 +236,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                     return;
                 }
 
-                byte[] buffer = msg.buffer();
-                ClusterMessage clusterMessage = (ClusterMessage) serializer.fromBytes(ByteBuffer.wrap(buffer));
+                ClusterMessage clusterMessage = KryoStoreSerializer.deserialize(msg.buffer());
                 intercept(msg, clusterMessage);
 
                 ClusterMessage resp = (ClusterMessage) handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
@@ -241,10 +254,10 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             return;
         }
         replyMessage = Optional.ofNullable(replyMessage).orElse(new NullMessage());
-        ByteBuffer data = serializer.toBytes(replyMessage);
+        byte[] data = KryoStoreSerializer.serialize(replyMessage);
         //This is required to get JGroups to work with Message
-        ByteArrayDataOutputStream out = new ByteArrayDataOutputStream(data.limit() + Integer.BYTES, true);
-        Util.objectToStream(data.array(), out);
+        ByteArrayDataOutputStream out = new ByteArrayDataOutputStream(data.length + Integer.BYTES, true);
+        Util.objectToStream(data, out);
         Message rsp = new Message(dst, out.getBuffer());
         response.send(rsp, false);
     }

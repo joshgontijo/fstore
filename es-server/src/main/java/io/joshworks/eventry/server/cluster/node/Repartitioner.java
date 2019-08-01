@@ -1,4 +1,4 @@
-package io.joshworks.eventry.partition;
+package io.joshworks.eventry.server.cluster.node;
 
 import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.EventMap;
