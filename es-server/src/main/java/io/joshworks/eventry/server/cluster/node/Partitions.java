@@ -1,4 +1,4 @@
-package io.joshworks.eventry.partition;
+package io.joshworks.eventry.server.cluster.node;
 
 import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.EventStore;
@@ -11,7 +11,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class Node implements AutoCloseable {
+public class Partitions {
 
     private static final String PARTITION_FILE_PREFIX = "partition-";
     private final File root;
@@ -30,7 +30,7 @@ public class Node implements AutoCloseable {
 
     private final Partitioner partitioner = new HashPartitioner();
 
-    public Node(File root, String id, int numBuckets) {
+    public Partitions(File root, String id, int numBuckets) {
         this.root = root;
         this.id = id;
         this.buckets = new Partition[numBuckets];
@@ -55,6 +55,14 @@ public class Node implements AutoCloseable {
             throw new IllegalStateException("Partition not found for " + stream + ", idx " + idx);
         }
         return partition;
+    }
+
+    public String id() {
+        return id;
+    }
+
+    public synchronized void addRemotePartition(int id) {
+
     }
 
     public synchronized void createPartition(int id, int[] buckets) {

@@ -1,10 +1,11 @@
 package io.joshworks.eventry.server.cluster;
 
-import io.joshworks.eventry.EventLogIterator;
-import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.EventId;
+import io.joshworks.eventry.EventMap;
+import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.SystemEventPolicy;
+import io.joshworks.eventry.api.EventStoreIterator;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.client.ClusterClient;
@@ -31,7 +32,7 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 
-import static io.joshworks.eventry.log.EventRecord.NO_EXPECTED_VERSION;
+import static io.joshworks.eventry.EventId.NO_EXPECTED_VERSION;
 import static io.joshworks.eventry.server.cluster.RemoteIterators.DEFAULT_BATCH_SIZE;
 import static io.joshworks.eventry.server.cluster.RemoteIterators.DEFAULT_TIMEOUT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
@@ -83,28 +84,28 @@ public class RemotePartitionClient implements IEventStore {
     }
 
     @Override
-    public EventLogIterator fromStream(EventId stream) {
+    public EventStoreIterator fromStream(EventId stream) {
         IteratorCreated it = client.send(node.address, new FromStream(stream.toString(), DEFAULT_TIMEOUT, DEFAULT_BATCH_SIZE));
         return new RemoteStoreClientIterator(client, node.address, it.iteratorId);
     }
 
     @Override
-    public EventLogIterator fromStreams(String streamPattern) {
-        return null;
+    public EventStoreIterator fromStreams(EventMap checkpoint, Set<String> streamPatterns) {
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
-    public EventLogIterator fromStreams(Set<EventId> streams) {
-        return null;
+    public EventStoreIterator fromStreams(EventMap streams) {
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
-    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
+    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
         return fromAll(linkToPolicy, systemEventPolicy, null);
     }
 
     @Override
-    public EventLogIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
+    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
         FromAll fromAll = new FromAll(DEFAULT_TIMEOUT, DEFAULT_BATCH_SIZE, partitionId, linkToPolicy, systemEventPolicy, lastEvent);
         IteratorCreated it = client.send(node.address, fromAll);
         return new RemoteStoreClientIterator(client, node.address, it.iteratorId);
@@ -156,7 +157,7 @@ public class RemotePartitionClient implements IEventStore {
         throw new UnsupportedOperationException("TODO");
     }
 
-    private static class RemoteStoreClientIterator implements EventLogIterator {
+    private static class RemoteStoreClientIterator implements EventStoreIterator {
 
         private final ClusterClient client;
         private final Address address;
@@ -168,11 +169,6 @@ public class RemotePartitionClient implements IEventStore {
             this.client = client;
             this.iteratorId = iteratorId;
             this.address = address;
-        }
-
-        @Override
-        public long position() {
-            return 0;
         }
 
         @Override
@@ -202,6 +198,11 @@ public class RemotePartitionClient implements IEventStore {
             cached.addAll(events.records);
         }
 
+        @Override
+        public EventMap checkpoint() {
+            //TODO
+            throw new UnsupportedOperationException("TODO");
+        }
     }
 
 }
