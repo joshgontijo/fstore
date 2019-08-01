@@ -1,16 +1,15 @@
 package io.joshworks.eventry.it;
 
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.EventMap;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.PartitionedStore;
-import io.joshworks.eventry.Repartitioner;
-import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.partition.Partition;
-import io.joshworks.eventry.partition.Partitions;
+import io.joshworks.eventry.partition.Node;
+import io.joshworks.eventry.partition.PartitionedStore;
+import io.joshworks.eventry.partition.Repartitioner;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.CloseableIterator;
@@ -47,22 +46,15 @@ public class Sharding {
 
     public static void main(String[] args) {
         File root = FileUtils.testFolder();
-        File file1 = new File(root, "store-1");
-        File file2 = new File(root, "store-2");
-        File file3 = new File(root, "store-3");
+        FileUtils.tryDelete(root);
 
-        FileUtils.tryDelete(file1);
-        FileUtils.tryDelete(file2);
-        FileUtils.tryDelete(file3);
+        int buckets = 30;
+        Node node = new Node(root, "node-1", buckets);
+        node.createPartition(0, IntStream.range(0, 30).toArray());
+        node.createPartition(1, IntStream.range(10, 20).toArray());
+        node.createPartition(2, IntStream.range(20, 30).toArray());
 
-        int numPartitions = 3;
-        String nodeId = "test-node";
-        Partitions partitions = new Partitions(numPartitions, nodeId);
-        partitions.add(new Partition(0, nodeId, EventStore.open(file1)));
-        partitions.add(new Partition(1, nodeId, EventStore.open(file2)));
-        partitions.add(new Partition(2, nodeId, EventStore.open(file3)));
-
-        try (PartitionedStore store = new PartitionedStore(partitions)) {
+        try (PartitionedStore store = new PartitionedStore(node)) {
 
             //stream by type
             Repartitioner byType = new Repartitioner(store, "USER_*", byType());
@@ -75,7 +67,6 @@ public class Sharding {
                     Threads.sleep(2000);
                 }
             });
-
 
 
             for (int event = 0; event < 1000; event++) {

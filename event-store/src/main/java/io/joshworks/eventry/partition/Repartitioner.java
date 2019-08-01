@@ -1,9 +1,10 @@
-package io.joshworks.eventry;
+package io.joshworks.eventry.partition;
 
+import io.joshworks.eventry.EventId;
+import io.joshworks.eventry.EventMap;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.partition.Partition;
 import io.joshworks.fstore.core.util.Threads;
 
 import java.io.Closeable;

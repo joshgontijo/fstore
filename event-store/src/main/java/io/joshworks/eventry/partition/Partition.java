@@ -3,25 +3,21 @@ package io.joshworks.eventry.partition;
 import io.joshworks.eventry.api.IEventStore;
 
 import java.io.Closeable;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class Partition implements Closeable {
 
     public final int id;
     private boolean master;
-    private final String owner;
     private final IEventStore store;
-    private final Set<String> isr = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final Set<String> replicas = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final int[] buckets;
 
     public Status status; //TODO use, lock etc..
 
-    public Partition(int id, String owner, IEventStore store) {
+    public Partition(int id, int[] buckets, IEventStore store) {
         this.id = id;
-        this.owner = owner;
+        this.buckets = buckets;
         this.store = store;
     }
 
@@ -33,25 +29,13 @@ public class Partition implements Closeable {
         return store;
     }
 
-    public String owner() {
-        return owner;
-    }
-
-    public Set<String> replicas() {
-        return Collections.unmodifiableSet(replicas);
+    public int[] buckets() {
+        return Arrays.copyOf(buckets, buckets.length);
     }
 
     @Override
     public void close() {
         store.close();
-    }
-
-    public boolean ownedBy(String nodeId) {
-        return owner.equals(nodeId);
-    }
-
-    public boolean replicatedBy(String nodeId) {
-        return replicas.contains(nodeId);
     }
 
     @Override
@@ -61,15 +45,12 @@ public class Partition implements Closeable {
         Partition partition = (Partition) o;
         return id == partition.id &&
                 master == partition.master &&
-                Objects.equals(owner, partition.owner) &&
                 Objects.equals(store, partition.store) &&
-                Objects.equals(isr, partition.isr) &&
-                Objects.equals(replicas, partition.replicas) &&
                 status == partition.status;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, master, owner, store, isr, replicas, status);
+        return Objects.hash(id, master, store, status);
     }
 }
