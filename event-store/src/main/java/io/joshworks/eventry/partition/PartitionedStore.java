@@ -1,10 +1,12 @@
-package io.joshworks.eventry;
+package io.joshworks.eventry.partition;
 
+import io.joshworks.eventry.EventId;
+import io.joshworks.eventry.EventMap;
+import io.joshworks.eventry.LinkToPolicy;
+import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.partition.Partition;
-import io.joshworks.eventry.partition.Partitions;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.io.IOUtils;
@@ -23,65 +25,65 @@ import static java.util.stream.Collectors.reducing;
 
 public class PartitionedStore implements IEventStore {
 
-    private final Partitions partitions;
+    private final Node node;
 
-    public PartitionedStore(Partitions partitions) {
-        this.partitions = partitions;
+    public PartitionedStore(Node node) {
+        this.node = node;
     }
 
     public int partitionId(String stream) {
-        return partitions.select(stream).id;
+        return node.select(stream).id;
     }
 
     public int partitions() {
-        return partitions.size();
+        return node.numPartitions();
     }
 
     public void forEachPartition(Consumer<Partition> consumer) {
-        for (Partition partition : partitions.all()) {
+        for (Partition partition : node.partitions()) {
             consumer.accept(partition);
         }
     }
 
     @Override
     public void compact() {
-        partitions.all().stream().map(Partition::store).forEach(IEventStore::compact);
+        node.partitions().stream().map(Partition::store).forEach(IEventStore::compact);
     }
 
     @Override
     public void close() {
-        partitions.all().forEach(Partition::close);
+        node.partitions().forEach(Partition::close);
     }
 
     @Override
     public EventRecord linkTo(String stream, EventRecord event) {
         //TODO stream validation might be needed here
-        return partitions.select(event.stream).store().linkTo(stream, event);
+        return node.select(event.stream).store().linkTo(stream, event);
     }
 
     @Override
     public EventRecord linkTo(String dstStream, EventId source, String sourceType) {
-        return partitions.select(source.name()).store().linkTo(dstStream, source, sourceType);
+        return node.select(source.name()).store().linkTo(dstStream, source, sourceType);
     }
 
     @Override
     public EventRecord append(EventRecord event) {
-        return partitions.select(event.stream).store().append(event);
+        return node.select(event.stream).store().append(event);
     }
 
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
-        return partitions.select(event.stream).store().append(event, expectedVersion);
+        return node.select(event.stream).store().append(event, expectedVersion);
     }
 
     @Override
     public EventStoreIterator fromStream(EventId stream) {
-        return partitions.select(stream.name()).store().fromStream(stream);
+        return node.select(stream.name()).store().fromStream(stream);
     }
 
     @Override
     public EventStoreIterator fromStreams(EventMap eventMap, Set<String> streamPatterns) {
-        List<EventStoreIterator> iterators = partitions.all().stream()
+        List<EventStoreIterator> iterators = node.partitions().stream()
                 .map(Partition::store)
                 .map(s -> s.fromStreams(eventMap, streamPatterns))
                 .collect(Collectors.toList());
@@ -94,7 +96,7 @@ public class PartitionedStore implements IEventStore {
         //partition -> checkpoint per partition
         Map<Partition, EventMap> grouped = eventMap.entrySet()
                 .stream()
-                .map(s -> Pair.of(s, partitions.select(s.getKey())))
+                .map(s -> Pair.of(s, node.select(s.getKey())))
                 .collect(groupingBy(Pair::right, mapping(kv -> EventMap.of(kv.left.getKey(), kv.left.getValue()), reducing(EventMap.empty(), EventMap::merge))));
 
         List<EventStoreIterator> iterators = grouped.entrySet()
@@ -116,31 +118,31 @@ public class PartitionedStore implements IEventStore {
     }
 
     public EventStoreIterator fromAll(int partitionId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-        return partitions.get(partitionId).store().fromAll(linkToPolicy, systemEventPolicy);
+        return node.get(partitionId).store().fromAll(linkToPolicy, systemEventPolicy);
     }
 
     public EventStoreIterator fromAll(int partitionId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
-        return partitions.get(partitionId).store().fromAll(linkToPolicy, systemEventPolicy, lastEvent);
+        return node.get(partitionId).store().fromAll(linkToPolicy, systemEventPolicy, lastEvent);
     }
 
     @Override
     public void createStream(String stream) {
-        partitions.select(stream).store().createStream(stream);
+        node.select(stream).store().createStream(stream);
     }
 
     @Override
     public void createStream(String stream, int maxCount, long maxAge) {
-        partitions.select(stream).store().createStream(stream, maxCount, maxAge);
+        node.select(stream).store().createStream(stream, maxCount, maxAge);
     }
 
     @Override
     public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
-        return partitions.select(stream).store().createStream(stream, maxCount, maxAge, acl, metadata);
+        return node.select(stream).store().createStream(stream, maxCount, maxAge, acl, metadata);
     }
 
     @Override
     public List<StreamInfo> streamsMetadata() {
-        return partitions.all().stream()
+        return node.partitions().stream()
                 .map(Partition::store)
                 .flatMap(es -> es.streamsMetadata().stream())
                 .collect(Collectors.toList());
@@ -148,27 +150,27 @@ public class PartitionedStore implements IEventStore {
 
     @Override
     public Optional<StreamInfo> streamMetadata(String stream) {
-        return partitions.select(stream).store().streamMetadata(stream);
+        return node.select(stream).store().streamMetadata(stream);
     }
 
     @Override
     public void truncate(String stream, int fromVersion) {
-        partitions.select(stream).store().truncate(stream, fromVersion);
+        node.select(stream).store().truncate(stream, fromVersion);
     }
 
     @Override
     public EventRecord get(EventId stream) {
-        return partitions.select(stream.name()).store().get(stream);
+        return node.select(stream.name()).store().get(stream);
     }
 
     @Override
     public int version(String stream) {
-        return partitions.select(stream).store().version(stream);
+        return node.select(stream).store().version(stream);
     }
 
     @Override
     public int count(String stream) {
-        return partitions.select(stream).store().count(stream);
+        return node.select(stream).store().count(stream);
     }
 
 
