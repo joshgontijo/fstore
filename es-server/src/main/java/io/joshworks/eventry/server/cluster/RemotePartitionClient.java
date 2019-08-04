@@ -42,10 +42,10 @@ import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 public class RemotePartitionClient implements IEventStore {
 
     private final ClusterClient client;
-    private final int partitionId;
+    private final String partitionId;
     private final ClusterNode node;
 
-    public RemotePartitionClient(ClusterNode node, int partitionId, ClusterClient client) {
+    public RemotePartitionClient(ClusterNode node, String partitionId, ClusterClient client) {
         this.client = client;
         this.node = node;
         this.partitionId = partitionId;

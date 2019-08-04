@@ -2,7 +2,6 @@ package io.joshworks.eventry.network;
 
 import io.joshworks.eventry.network.client.ClusterClient;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
 import org.jgroups.Event;
@@ -19,14 +18,11 @@ import org.jgroups.blocks.executor.ExecutionService;
 import org.jgroups.blocks.locking.LockService;
 import org.jgroups.stack.IpAddress;
 import org.jgroups.util.ByteArrayDataOutputStream;
-import org.jgroups.util.ByteBufferOutputStream;
 import org.jgroups.util.Util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.io.DataOutput;
-import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -37,6 +33,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.Lock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -46,12 +43,12 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private static final Logger logger = LoggerFactory.getLogger(Cluster.class);
 
     private final String clusterName;
-    private final String nodeUuid;
+    private final String nodeId;
 
     private JChannel channel;
     private View state;
     private MessageDispatcher dispatcher;
-    private ClusterClient clusterClient;
+    private ClusterClient client;
     private ExecutionService executionService;
     private ExecutionRunner executionRunner;
 
@@ -71,9 +68,9 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return null;
     };
 
-    public Cluster(String clusterName, String nodeUuid) {
+    public Cluster(String clusterName, String nodeId) {
         this.clusterName = clusterName;
-        this.nodeUuid = nodeUuid;
+        this.nodeId = nodeId;
     }
 
     public synchronized void join() {
@@ -85,7 +82,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             //event channel
             channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("jgroups-stack.xml"));
             channel.setDiscardOwnMessages(true);
-            channel.setName(nodeUuid);
+            channel.setName(nodeId);
 
             dispatcher = new MessageDispatcher(channel, this);
             dispatcher.setMembershipListener(this);
@@ -99,7 +96,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                 taskPool.submit(executionRunner);
             }
 
-            clusterClient = new ClusterClient(dispatcher, lockService, executionService);
+            client = new ClusterClient(dispatcher, lockService, executionService);
 
             channel.connect(clusterName, null, 10000); //connect + getState
 
@@ -109,7 +106,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     public ClusterClient client() {
-        return clusterClient;
+        return client;
     }
 
     public synchronized void interceptor(BiConsumer<Message, ClusterMessage> interceptor) {
@@ -141,7 +138,15 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return channel.getAddress();
     }
 
+    public String nodeId() {
+        return nodeId;
+    }
+
     public ClusterNode node(String nodeId) {
+        return nodeById.get(nodeId);
+    }
+
+    public ClusterNode node() {
         return nodeById.get(nodeId);
     }
 
@@ -151,6 +156,19 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     public List<ClusterNode> nodes() {
         return new ArrayList<>(nodesByAddress.values());
+    }
+
+    public void lock(String name, Runnable runnable) {
+        Lock lock = client.lock(name);
+        logger.info("Acquiring lock [{}]", name);
+        lock.lock();
+        logger.info("Lock acquired [{}]", name);
+        try {
+            runnable.run();
+        } finally {
+            lock.unlock();
+            logger.info("Lock released [{}]", name);
+        }
     }
 
     @Override
@@ -173,9 +191,11 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
         } else {
             for (Address address : view.getMembers()) {
+                addNode(address);
                 if (!this.channel.getAddress().equals(address)) {
-                    System.out.println("[" + address() + "] Already connected nodes: " + address);
-                    addNode(address);
+                    System.out.println("[" + address() + "] Already connected node: " + address);
+                } else {
+                    System.out.println("[" + address() + "] Current node view updated");
                 }
             }
         }
@@ -275,18 +295,20 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     private void addNode(Address address) {
         PhysicalAddress physicalAddress = (PhysicalAddress) channel.down(new Event(Event.GET_PHYSICAL_ADDRESS, address));
+        ClusterNode node;
         if (physicalAddress instanceof IpAddress) {
             IpAddress ipAddr = (IpAddress) physicalAddress;
             InetAddress inetAddr = ipAddr.getIpAddress();
-            ClusterNode node = new ClusterNode(address, new InetSocketAddress(inetAddr, ipAddr.getPort()));
+            node = new ClusterNode(address, new InetSocketAddress(inetAddr, ipAddr.getPort()));
             nodesByAddress.put(address, node);
             nodeById.put(address.toString(), node);
+
         } else {
-            ClusterNode node = new ClusterNode(address);
+            node = new ClusterNode(address);
             nodesByAddress.put(address, node);
             nodeById.put(address.toString(), node);
         }
-
+        fireNodeUpdate(node, NodeStatus.UP);
     }
 
     private void updateNodeStatus(Address address, NodeStatus status) {
@@ -295,5 +317,6 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             throw new IllegalArgumentException("No such node for: " + address);
         }
         clusterNode.status = status;
+        fireNodeUpdate(clusterNode, status);
     }
 }

@@ -46,8 +46,8 @@ public class NodeLog implements Iterable<EventRecord>, Closeable {
             switch (entry.type) {
                 case PartitionCreatedEvent.TYPE:
                     partitions.add(PartitionCreatedEvent.from(entry).id);
-                case PartitionTransferredEvent.TYPE:
-                    partitions.remove(PartitionTransferredEvent.from(entry).id);
+//                case PartitionTransferredEvent.TYPE:
+//                    partitions.remove(PartitionTransferredEvent.from(entry).id);
             }
         }
         return partitions;

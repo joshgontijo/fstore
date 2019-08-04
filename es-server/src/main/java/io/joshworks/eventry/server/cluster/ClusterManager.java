@@ -1,77 +1,73 @@
 package io.joshworks.eventry.server.cluster;
 
-import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.MulticastResponse;
+import io.joshworks.eventry.server.cluster.events.NodeInfo;
+import io.joshworks.eventry.server.cluster.events.NodeInfoRequested;
+import io.joshworks.eventry.server.cluster.events.NodeJoined;
+import io.joshworks.eventry.server.cluster.events.NodeLeft;
+import io.joshworks.eventry.server.cluster.events.PartitionCreated;
+import io.joshworks.eventry.server.cluster.events.PartitionForkCompleted;
+import io.joshworks.eventry.server.cluster.events.PartitionForkRequested;
+import io.joshworks.eventry.server.cluster.messages.Ack;
 import io.joshworks.eventry.server.cluster.messages.Append;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
 import io.joshworks.eventry.server.cluster.messages.FromStream;
 import io.joshworks.eventry.server.cluster.messages.FromStreams;
 import io.joshworks.eventry.server.cluster.messages.Get;
 import io.joshworks.eventry.server.cluster.messages.IteratorNext;
-import io.joshworks.eventry.server.cluster.events.NodeInfo;
-import io.joshworks.eventry.server.cluster.events.NodeInfoRequested;
-import io.joshworks.eventry.server.cluster.events.NodeJoined;
-import io.joshworks.eventry.server.cluster.events.NodeLeft;
-import io.joshworks.eventry.server.cluster.events.PartitionAssigned;
-import io.joshworks.eventry.server.cluster.events.PartitionForkCompleted;
-import io.joshworks.eventry.server.cluster.events.PartitionForkRequested;
+import io.joshworks.eventry.server.cluster.events.BucketAssigned;
+import io.joshworks.eventry.server.cluster.node.PartitionedStore;
 import io.joshworks.eventry.server.cluster.nodelog.NodeJoinedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLeftEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
-import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
-import io.joshworks.eventry.server.cluster.nodelog.PartitionCreatedEvent;
-import io.joshworks.eventry.server.cluster.nodelog.PartitionTransferredEvent;
-import io.joshworks.eventry.server.cluster.partition.Partition;
-import io.joshworks.eventry.server.cluster.partition.Partitions;
+import io.joshworks.eventry.server.cluster.nodelog.NodeShutdownEvent;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.UUID;
+import java.util.stream.IntStream;
 
 public class ClusterManager implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterManager.class);
 
+    private static final String PARTITION_LOCK = "PARTITION_LOCK";
+
     private final Cluster cluster;
-    private final Partitions partitions;
-    private final File rootDir;
-    private final ClusterDescriptor descriptor;
 
     private final NodeLog nodeLog;
 
     private final PartitionedStore store;
     private final StoreReceiver storeReceiver;
 
-    private ClusterManager(File rootDir, Cluster cluster, Partitions partitions, ClusterDescriptor clusterDescriptor, PartitionedStore store) {
-        this.rootDir = rootDir;
-        this.partitions = partitions;
-        this.descriptor = clusterDescriptor;
-        this.cluster = cluster;
+    private ClusterManager(File rootDir, Cluster cluster, PartitionedStore store) {
         this.store = store;
+        this.cluster = cluster;
         this.nodeLog = new NodeLog(rootDir);
         this.storeReceiver = new StoreReceiver(store);
         this.registerHandlers();
     }
 
     private void registerHandlers() {
+        cluster.register(NodeInfoRequested.class, this::onNodeInfoRequested);
         cluster.register(NodeJoined.class, this::onNodeJoined);
         cluster.register(NodeLeft.class, this::onNodeLeft);
-        cluster.register(NodeInfoRequested.class, this::onNodeInfoRequested);
         cluster.register(NodeInfo.class, this::onNodeInfoReceived);
+        cluster.register(BucketAssigned.class, this::onBucketReassigned);
         cluster.register(PartitionForkRequested.class, this::onPartitionForkRequested);
         cluster.register(PartitionForkCompleted.class, this::onPartitionForkCompleted);
-        cluster.register(PartitionAssigned.class, this::onPartitionAssigned);
+        cluster.register(PartitionCreated.class, this::onPartitionCreated);
 
         cluster.register(IteratorNext.class, storeReceiver::onIteratorNext);
         cluster.register(FromAll.class, storeReceiver::fromAll);
@@ -81,99 +77,68 @@ public class ClusterManager implements Closeable {
         cluster.register(Get.class, storeReceiver::get);
     }
 
-    private void requestNodeInfo() {
-        Set<Integer> ownedPartitions = nodeLog.ownedPartitions();
-        if (descriptor.isNew && ownedPartitions.isEmpty()) {
-            logger.info("No nodes connected and no partitions, initializing...");
-            initPartitions();
-            return;
-        }
-        loadPartitions();
+    private Ack onBucketReassigned(BucketAssigned event) {
+        store.assignBuckets(event.partitionId, event.buckets);
+        return new Ack();
+    }
 
-        logger.info("Fetching node info");
-        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(descriptor.nodeId, ownedPartitions));
+    private Map<String, NodeInfo> readNodeBuckets(List<MulticastResponse> responses) {
+        Map<String, NodeInfo> nodeInfos = new HashMap<>();
         for (MulticastResponse response : responses) {
             NodeInfo nodeInfo = response.message();
             logger.info("Got {}", nodeInfo);
-            for (Integer partitionId : nodeInfo.partitions) {
-                Partition partition = createRemotePartitionClient(nodeInfo.nodeId, partitionId);
-                partitions.add(partition);
-            }
+            nodeInfos.put(nodeInfo.nodeId, nodeInfo);
         }
+        return nodeInfos;
     }
 
-    public IEventStore store() {
+    public PartitionedStore store() {
         return store;
     }
 
-    public static ClusterManager connect(File rootDir, String name, int numPartitions) {
-        ClusterDescriptor descriptor = ClusterDescriptor.acquire(rootDir);
-        Cluster cluster = new Cluster(name, descriptor.nodeId);
+    public static ClusterManager connect(File rootDir, String name, int numPartitions, int numBuckets) {
+        NodeDescriptor descriptor = NodeDescriptor.read(rootDir);
+        boolean isNew = descriptor == null;
 
-        Partitions partitions = new Partitions(numPartitions, descriptor.nodeId);
-        PartitionedStore store = new PartitionedStore(partitions);
-        ClusterManager manager = new ClusterManager(rootDir, cluster, partitions, descriptor, store);
-        try {
-            manager.nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
-            cluster.join();
-            logger.info("Connected to {}", name);
-            manager.requestNodeInfo();
-            return manager;
-        } catch (Exception e) {
-            IOUtils.closeQuietly(manager);
-            IOUtils.closeQuietly(descriptor);
-            cluster.leave();
-            throw new RuntimeException("Failed to connect to " + name, e);
+        if (descriptor == null) {
+            String[] partitionIds = IntStream.range(0, numPartitions).boxed().map(i -> UUID.randomUUID().toString().substring(0, 8)).toArray(String[]::new);
+            descriptor = NodeDescriptor.write(rootDir, name, numBuckets, partitionIds);
         }
-    }
-
-    private void loadPartitions() {
-        logger.info("Loading local partitions");
-        Set<Integer> owned = new HashSet<>();
-
-        for (EventRecord record : nodeLog) {
-            if (PartitionCreatedEvent.TYPE.equals(record.type)) {
-                owned.add(PartitionCreatedEvent.from(record).id);
-            }
-            if (PartitionTransferredEvent.TYPE.equals(record.type)) {
-                PartitionTransferredEvent transferred = PartitionTransferredEvent.from(record);
-                if (descriptor.nodeId.equals(transferred.newNodeId)) {
-                    owned.add(transferred.id);
-                } else {
-                    owned.remove(transferred.id);
-                }
-            }
+        if (!descriptor.clusterName().equals(name)) {
+            throw new IllegalArgumentException("Cannot connect store from cluster " + descriptor.clusterName() + " to another cluster: " + name);
         }
 
-        logger.info("Found {} local partitions, opening", owned.size());
-        for (Integer partitionId : owned) {
-            Partition partition = createLocalPartition(partitionId, rootDir);
-            partitions.add(partition);
-        }
-    }
+        PartitionedStore store = new PartitionedStore(rootDir, descriptor);
+        Cluster cluster = new Cluster(name, descriptor.nodeId());
+        cluster.join();
 
-    public void assignPartition(int partitionId) {
-        Partition localPartition = createLocalPartition(partitionId, rootDir);
-        partitions.add(localPartition);
-        nodeLog.append(new PartitionCreatedEvent(partitionId));
-        cluster.client().cast(new PartitionAssigned(partitionId, descriptor.nodeId));
+        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(descriptor.nodeId(), store.partitionIds()));
+        logger.info("Received {} node replies", responses.size());
+        if (isNew && responses.isEmpty()) {
+            store.bootstrapBuckets();
+        }
+
+        return new ClusterManager(rootDir, cluster, store);
     }
 
     private NodeInfo onNodeJoined(NodeJoined nodeJoined) {
         logger.info("Node joined: '{}': {}", nodeJoined.nodeId, nodeJoined);
         nodeLog.append(new NodeJoinedEvent(nodeJoined.nodeId));
-        for (int ownedPartition : nodeJoined.partitions) {
-            Partition remotePartition = createRemotePartitionClient(nodeJoined.nodeId, ownedPartition);
-            partitions.add(remotePartition);
+        for (String pid : nodeJoined.partitions) {
+            ClusterNode node = cluster.node(nodeJoined.nodeId);
+            IEventStore remoteStore = new RemotePartitionClient(node, nodeJoined.nodeId, cluster.client());
+            store.add(pid, nodeJoined.nodeId, remoteStore);
         }
 
-        return new NodeInfo(descriptor.nodeId, nodeLog.ownedPartitions());
+        return new NodeInfo(store.nodeId(), store.partitionBuckets());
     }
 
-    private void onPartitionAssigned(PartitionAssigned partitionAssigned) {
-        logger.info("Partition assigned node: {}, partition: {}", partitionAssigned.nodeId, partitionAssigned.id);
-        Partition remotePartition = createRemotePartitionClient(partitionAssigned.nodeId, partitionAssigned.id);
-        partitions.add(remotePartition);
+    private void onPartitionCreated(PartitionCreated partitionCreated) {
+        logger.info("Partition created on node: {}, partition: {}", partitionCreated.nodeId, partitionCreated.partitionId);
+
+        ClusterNode node = cluster.node(partitionCreated.nodeId);
+        IEventStore remoteStore = new RemotePartitionClient(node, partitionCreated.nodeId, cluster.client());
+        store.add(partitionCreated.partitionId, partitionCreated.nodeId, remoteStore);
     }
 
     private void onNodeLeft(NodeLeft nodeJoined) {
@@ -183,7 +148,7 @@ public class ClusterManager implements Closeable {
 
     private ClusterMessage onNodeInfoRequested(NodeInfoRequested nodeInfoRequested) {
         logger.info("Node info requested from {}", nodeInfoRequested.nodeId);
-        return new NodeInfo(descriptor.nodeId, partitions.partitions().stream().map(p -> p.id).collect(Collectors.toSet()));
+        return new NodeInfo(store.nodeId(), store.partitionBuckets());
     }
 
     private void onNodeInfoReceived(NodeInfo nodeInfo) {
@@ -200,50 +165,30 @@ public class ClusterManager implements Closeable {
     }
 
 
-    //--------------------- PARTITIONS -----------------------
-
-    //Eagerly create partitions
-    private void initPartitions() {
-        for (int id = 0; id < partitions.numPartitions(); id++) {
-            nodeLog.append(new PartitionCreatedEvent(id));
-            Partition partition = createLocalPartition(id, rootDir);
-            partitions.add(partition);
-        }
-    }
-
-    private Partition createLocalPartition(int id, File root) {
-        String pId = "partition-" + id;
-        File partitionRoot = new File(root, pId);
-        IEventStore store = EventStore.open(partitionRoot);
-        nodeLog.append(new PartitionCreatedEvent(id));
-        return new Partition(id, descriptor.nodeId, store);
-    }
-
-    private Partition createRemotePartitionClient(String nodeId, int partitionId) {
-        ClusterNode node = cluster.node(nodeId);
-        IEventStore store = new RemotePartitionClient(node, partitionId, cluster.client());
-        return new Partition(partitionId, nodeId, store);
-    }
-
-
     //-------------- CLUSTER CMDS ----------------------
 
-    //careful here to not send wrong stream to wrong partition
-    void appendToPartition(EventRecord event, int partitionId) {
-        Partition partition = partitions.get(partitionId);
-        partition.store().append(event);
+    public synchronized void reassignBuckets(String targetPartition, Set<Integer> buckets) {
+        Set<Integer> actuallyAssigned = store.assignBuckets(targetPartition, buckets);
+        cluster.client().cast(new BucketAssigned(targetPartition, actuallyAssigned));
     }
 
-    void readFromPartition(EventRecord event, int partitionId) {
-        Partition partition = partitions.get(partitionId);
-        partition.store().append(event);
+    public synchronized Set<Integer> nodeBuckets(String nodeId) {
+        return store.nodeBuckets(nodeId);
+    }
+
+    public synchronized Set<Integer> partitionBuckets(String partitionId) {
+        return store.partitionBuckets().get(partitionId);
+    }
+
+    public synchronized Map<String, Set<Integer>> buckets() {
+        return store.partitionBuckets();
     }
 
     @Override
     public void close() {
-        nodeLog.append(new NodeStartedEvent(descriptor.nodeId));
-        IOUtils.closeQuietly(descriptor);
+        nodeLog.append(new NodeShutdownEvent(store.nodeId()));
         cluster.leave();
+        IOUtils.closeQuietly(store);
         IOUtils.closeQuietly(storeReceiver);
         IOUtils.closeQuietly(store);
         IOUtils.closeQuietly(nodeLog);

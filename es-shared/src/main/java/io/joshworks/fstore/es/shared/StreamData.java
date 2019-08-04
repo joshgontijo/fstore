@@ -1,8 +1,8 @@
-package io.joshworks.eventry.server;
+package io.joshworks.fstore.es.shared;
 
 import java.util.Map;
 
-public class NewStream {
+public class StreamData {
 
     public final String name;
     public final int maxCount;
@@ -10,7 +10,7 @@ public class NewStream {
     public final Map<String, Integer> permissions;
     public final Map<String, String> metadata;
 
-    public NewStream(String name, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
+    public StreamData(String name, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
         this.name = name;
         this.maxCount = maxCount;
         this.maxAge = maxAge;

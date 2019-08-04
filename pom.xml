@@ -20,6 +20,8 @@
         <module>es-projection</module>
         <module>networking</module>
         <module>index</module>
+        <module>es-client</module>
+        <module>es-shared</module>
     </modules>
 
     <properties>
@@ -88,6 +90,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>event-store</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>es-shared</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
