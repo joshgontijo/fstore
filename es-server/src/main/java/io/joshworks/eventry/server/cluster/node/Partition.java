@@ -3,21 +3,20 @@ package io.joshworks.eventry.server.cluster.node;
 import io.joshworks.eventry.api.IEventStore;
 
 import java.io.Closeable;
-import java.util.Arrays;
 import java.util.Objects;
 
 public class Partition implements Closeable {
 
-    public final int id;
+    private final String id;
+    private final String nodeId;
     private boolean master;
     private final IEventStore store;
-    private final int[] buckets;
 
     public Status status; //TODO use, lock etc..
 
-    public Partition(int id, int[] buckets, IEventStore store) {
+    public Partition(String id, String nodeId, IEventStore store) {
         this.id = id;
-        this.buckets = buckets;
+        this.nodeId = nodeId;
         this.store = store;
     }
 
@@ -29,8 +28,16 @@ public class Partition implements Closeable {
         return store;
     }
 
-    public int[] buckets() {
-        return Arrays.copyOf(buckets, buckets.length);
+    public String id() {
+        return id;
+    }
+
+    public String nodeId() {
+        return nodeId;
+    }
+
+    public Status status() {
+        return status;
     }
 
     @Override

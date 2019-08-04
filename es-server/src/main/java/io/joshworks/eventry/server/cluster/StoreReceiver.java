@@ -1,7 +1,8 @@
 package io.joshworks.eventry.server.cluster;
 
-import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.EventId;
+import io.joshworks.eventry.api.EventStoreIterator;
+import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.server.cluster.messages.Append;
@@ -14,12 +15,9 @@ import io.joshworks.eventry.server.cluster.messages.FromStreams;
 import io.joshworks.eventry.server.cluster.messages.Get;
 import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
 import io.joshworks.eventry.server.cluster.messages.IteratorNext;
-import io.joshworks.fstore.log.LogIterator;
 
 import java.io.Closeable;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class StoreReceiver implements Closeable {
 
@@ -42,21 +40,20 @@ public class StoreReceiver implements Closeable {
     }
 
     ClusterMessage fromAll(FromAll fromAll) {
-        LogIterator<EventRecord> iterator = store.fromAll(fromAll.linkToPolicy, fromAll.systemEventPolicy);
+        EventStoreIterator iterator = store.fromAll(fromAll.linkToPolicy, fromAll.systemEventPolicy);
         String iteratorId = remoteIterators.add(fromAll.timeout, fromAll.batchSize, iterator);
         return new IteratorCreated(iteratorId);
     }
 
     ClusterMessage fromStream(FromStream fromStream) {
         EventId eventId = EventId.parse(fromStream.streamName);
-        LogIterator<EventRecord> iterator = store.fromStream(eventId);
+        EventStoreIterator iterator = store.fromStream(eventId);
         String iteratorId = remoteIterators.add(fromStream.timeout, fromStream.batchSize, iterator);
         return new IteratorCreated(iteratorId);
     }
 
     ClusterMessage fromStreams(FromStreams fromStreams) {
-        Set<EventId> streams = fromStreams.streams.stream().map(EventId::parse).collect(Collectors.toSet());
-        LogIterator<EventRecord> iterator = store.fromStreams(streams);
+        EventStoreIterator iterator = store.fromStreams(fromStreams.eventMap);
         String iteratorId = remoteIterators.add(fromStreams.timeout, fromStreams.batchSize, iterator);
         return new IteratorCreated(iteratorId);
     }

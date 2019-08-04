@@ -2,20 +2,20 @@ package io.joshworks.eventry.server.cluster.events;
 
 import io.joshworks.eventry.network.ClusterMessage;
 
-public class PartitionAssigned implements ClusterMessage {
+public class PartitionCreated implements ClusterMessage {
 
-    public final int id;
     public final String nodeId;
+    public final String partitionId;
 
-    public PartitionAssigned(int id, String nodeId) {
-        this.id = id;
+    public PartitionCreated(String partitionId, String nodeId) {
+        this.partitionId = partitionId;
         this.nodeId = nodeId;
     }
 
 
     @Override
     public String toString() {
-        return "PartitionAssigned{" + "id=" + id +
+        return "PartitionCreated{" + "id=" + partitionId +
                 ", nodeId='" + nodeId + '\'' +
                 '}';
     }

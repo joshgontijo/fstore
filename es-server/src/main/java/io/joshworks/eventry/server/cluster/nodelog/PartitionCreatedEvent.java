@@ -2,14 +2,9 @@ package io.joshworks.eventry.server.cluster.nodelog;
 
 import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
-import java.nio.ByteBuffer;
-
 public class PartitionCreatedEvent implements NodeEvent {
-
-    private static final Serializer<PartitionCreatedEvent> serializer = JsonSerializer.of(PartitionCreatedEvent.class);
 
     public static final String TYPE = EventId.SYSTEM_PREFIX + "PARTITION_CREATED";
 
@@ -20,12 +15,12 @@ public class PartitionCreatedEvent implements NodeEvent {
     }
 
     public static PartitionCreatedEvent from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.body));
+        return JsonSerializer.fromBytes(record.body, PartitionCreatedEvent.class);
     }
 
     @Override
     public EventRecord toEvent() {
-        ByteBuffer data = serializer.toBytes(this);
-        return EventRecord.create(NodeLog.PARTITIONS_STREAM, TYPE, data.array());
+        byte[] data = JsonSerializer.toBytes(this);
+        return EventRecord.create(NodeLog.PARTITIONS_STREAM, TYPE, data);
     }
 }

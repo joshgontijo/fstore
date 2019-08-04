@@ -1,11 +1,11 @@
 package io.joshworks.eventry.server.cluster;
 
+import io.joshworks.eventry.EventMap;
+import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.LogIterator;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +20,7 @@ public class RemoteIterators implements Closeable {
 
     private final Map<String, TimestampedIterator> items = new ConcurrentHashMap<>();
 
-    public String add(long timeout, int batchSize, LogIterator<EventRecord> delegate) {
+    public String add(long timeout, int batchSize, EventStoreIterator delegate) {
         String uuid = UUID.randomUUID().toString().substring(0, 8);
 
         TimestampedIterator timestamped = new TimestampedIterator(timeout, batchSize, delegate);
@@ -29,7 +29,7 @@ public class RemoteIterators implements Closeable {
         return uuid;
     }
 
-    public Optional<LogIterator<EventRecord>> get(String uuid) {
+    public Optional<EventStoreIterator> get(String uuid) {
         return Optional.ofNullable(items.get(uuid));
     }
 
@@ -53,24 +53,18 @@ public class RemoteIterators implements Closeable {
     }
 
 
-    private static class TimestampedIterator implements LogIterator<EventRecord> {
+    private static class TimestampedIterator implements EventStoreIterator {
         private final long created;
         private final long timeout;
         private final int batchSize;
         private long lastRead;
-        private final LogIterator<EventRecord> iterator;
+        private final EventStoreIterator iterator;
 
-        public TimestampedIterator(long timeout, int batchSize, LogIterator<EventRecord> iterator) {
+        public TimestampedIterator(long timeout, int batchSize, EventStoreIterator iterator) {
             this.timeout = timeout;
             this.batchSize = batchSize;
             this.created = System.currentTimeMillis();
             this.iterator = iterator;
-        }
-
-        @Override
-        public long position() {
-            lastRead = System.currentTimeMillis();
-            return iterator.position();
         }
 
         @Override
@@ -88,6 +82,11 @@ public class RemoteIterators implements Closeable {
         public EventRecord next() {
             lastRead = System.currentTimeMillis();
             return iterator.next();
+        }
+
+        @Override
+        public EventMap checkpoint() {
+            throw new UnsupportedOperationException("TODO");
         }
     }
 

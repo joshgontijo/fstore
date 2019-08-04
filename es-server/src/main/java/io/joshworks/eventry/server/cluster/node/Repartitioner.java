@@ -26,13 +26,13 @@ public class Repartitioner implements Runnable, Closeable {
 
     private final AtomicBoolean closed = new AtomicBoolean();
 
-    private final Map<Integer, EventStoreIterator> checkpoints = new ConcurrentHashMap<>();
+    private final Map<String, EventStoreIterator> checkpoints = new ConcurrentHashMap<>();
 
     public Repartitioner(PartitionedStore store, String sourceStream, Function<EventRecord, String> partitioner) {
         this.store = store;
         this.sourceStream = sourceStream;
         this.partitioner = partitioner;
-        this.executor = Executors.newFixedThreadPool(store.partitions());
+        this.executor = Executors.newFixedThreadPool(store.numPartitions());
     }
 
     @Override
@@ -44,7 +44,7 @@ public class Repartitioner implements Runnable, Closeable {
         executor.execute(() -> {
             IEventStore store = partition.store();
             EventStoreIterator streamIt = store.fromStreams(EventMap.from(EventId.of(sourceStream)));
-            checkpoints.put(partition.id, streamIt);
+            checkpoints.put(partition.id(), streamIt);
             while (!closed.get()) {
                 while (!streamIt.hasNext()) {
                     if (!closed.get()) {
@@ -59,7 +59,7 @@ public class Repartitioner implements Runnable, Closeable {
         });
     }
 
-    public Map<Integer, EventMap> stats() {
+    public Map<String, EventMap> stats() {
         return checkpoints.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().checkpoint()));
     }
 
