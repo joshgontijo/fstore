@@ -1,21 +1,26 @@
 package io.joshworks.eventry.server;
 
+import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.es.shared.EventHeader;
+import io.joshworks.fstore.es.shared.JsonEvent;
 import io.joshworks.fstore.es.shared.StreamData;
+import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.snappy.http.MediaType;
 import io.joshworks.snappy.http.Request;
 import io.joshworks.snappy.http.Response;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static io.joshworks.snappy.http.Response.badRequest;
 import static io.joshworks.snappy.http.Response.created;
+import static io.joshworks.snappy.http.Response.notFound;
 import static io.joshworks.snappy.http.Response.ok;
 
 public class StreamEndpoint {
@@ -40,11 +45,6 @@ public class StreamEndpoint {
     }
 
     public Response allStreams(Request request) {
-        String stream = request.pathParameter("stream");
-        if (StringUtils.isBlank(stream)) {
-            return badRequest();
-        }
-
         List<StreamData> streamDataList = store.streamsMetadata().stream().map(metadata -> new StreamData(metadata.name, metadata.maxCount, metadata.maxAge, metadata.permissions, metadata.metadata))
                 .collect(Collectors.toList());
 
@@ -82,4 +82,18 @@ public class StreamEndpoint {
     }
 
 
+    public Response event(Request request) {
+        String param = request.pathParameter("stream");
+        EventId eventId = EventId.parse(param);
+        EventRecord record = store.get(eventId);
+        if (record == null) {
+            return notFound();
+        }
+
+        Map<String, Object> data = record.body == null ? null : JsonSerializer.toMap(new String(record.body));
+        Map<String, Object> metadata = record.metadata == null ? null : JsonSerializer.toMap(new String(record.metadata));
+        JsonEvent event = new JsonEvent(record.type, record.timestamp, record.stream, record.version, data, metadata);
+
+        return ok(event);
+    }
 }

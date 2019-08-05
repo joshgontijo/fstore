@@ -20,4 +20,14 @@ public class JsonEvent {
         this.metadata = metadata;
     }
 
+    @Override
+    public String toString() {
+        return "JsonEvent{" + "type='" + type + '\'' +
+                ", timestamp=" + timestamp +
+                ", stream='" + stream + '\'' +
+                ", version=" + version +
+                ", data=" + data +
+                ", metadata=" + metadata +
+                '}';
+    }
 }

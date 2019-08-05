@@ -13,7 +13,7 @@ public class NodeInfo implements ClusterMessage {
 
     public NodeInfo(String id, String address, int port, NodeStatus status) {
         this.id = id;
-        this.address = address + ":" + port;
+        this.address = "http://" + address + ":" + port;
         this.status = status;
     }
 
