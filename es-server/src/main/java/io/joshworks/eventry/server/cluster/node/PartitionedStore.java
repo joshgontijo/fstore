@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster.node;
 
-import io.joshworks.eventry.EventId;
-import io.joshworks.eventry.EventMap;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.SystemEventPolicy;
@@ -11,7 +11,7 @@ import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.server.cluster.NodeDescriptor;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.eventry.utils.StringUtils;
+import io.joshworks.fstore.es.shared.utils.StringUtils;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Pair;
 import org.slf4j.Logger;

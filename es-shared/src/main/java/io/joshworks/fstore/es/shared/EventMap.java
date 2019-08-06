@@ -1,11 +1,11 @@
-package io.joshworks.eventry;
+package io.joshworks.fstore.es.shared;
 
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static io.joshworks.eventry.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 
 
 public class EventMap {

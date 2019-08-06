@@ -1,6 +1,6 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.EventMap;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.StreamListener;
 import io.joshworks.fstore.log.CloseableIterator;
 

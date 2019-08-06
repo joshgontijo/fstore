@@ -5,6 +5,7 @@ import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.IEventLog;
+import io.joshworks.fstore.es.shared.EventMap;
 
 import java.util.function.Function;
 

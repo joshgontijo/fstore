@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server.cluster.messages;
 
-import io.joshworks.eventry.EventMap;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.network.ClusterMessage;
 
 public class FromStreams implements ClusterMessage {

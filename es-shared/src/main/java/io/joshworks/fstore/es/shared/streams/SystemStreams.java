@@ -1,6 +1,6 @@
-package io.joshworks.eventry.data;
+package io.joshworks.fstore.es.shared.streams;
 
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 
 public class SystemStreams {
 

@@ -6,6 +6,7 @@ import io.joshworks.fstore.es.shared.EventHeader;
 import io.joshworks.fstore.es.shared.JsonEvent;
 import io.joshworks.fstore.es.shared.NodeInfo;
 import io.joshworks.fstore.es.shared.StreamData;
+import io.joshworks.fstore.es.shared.streams.StreamPattern;
 import io.joshworks.restclient.http.HttpResponse;
 import io.joshworks.restclient.http.Json;
 import io.joshworks.restclient.http.MediaType;
@@ -19,12 +20,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static io.joshworks.fstore.es.shared.HttpConstants.EVENT_TYPE_HEADER;
 
-public class Publisher {
-
+public class StoreClient {
 
     private final RestClient client = RestClient.builder().build();
 
@@ -37,12 +40,24 @@ public class Publisher {
 
     private final Hash hasher = new XXHash();
 
-    private Publisher(List<NodeInfo> nodes, Map<String, String> streamMap) {
+    private StoreClient(List<NodeInfo> nodes, Map<String, String> streamMap) {
         this.mapping.putAll(streamMap);
         this.nodes.addAll(nodes);
     }
 
-    public static Publisher connect(URL bootstrapServer) {
+    public static void main(String[] args) throws MalformedURLException {
+
+        StoreClient storeClient = StoreClient.connect(new URL("http://localhost:9000"));
+        storeClient.createStream("stream-1");
+        EventHeader eventHeader = storeClient.append("stream-1", "USER_CREATED", new UserCreated("josh", 123));
+        System.out.println("Added event: " + eventHeader);
+
+        JsonEvent event = storeClient.get("stream-1", 0);
+        System.out.println(event.as(UserCreated.class));
+
+    }
+
+    public static StoreClient connect(URL bootstrapServer) {
         try (HttpResponse<Json> nodeResp = Unirest.get(bootstrapServer.toExternalForm(), SERVERS_ENDPOINT).asJson()) {
             if (!nodeResp.isSuccessful()) {
                 throw new RuntimeException(nodeResp.asString());
@@ -61,20 +76,15 @@ public class Publisher {
                     }
                 }
             }
-            return new Publisher(nodes, streamMap);
+            return new StoreClient(nodes, streamMap);
         }
     }
 
-    public static void main(String[] args) throws MalformedURLException {
-
-        Publisher publisher = Publisher.connect(new URL("http://localhost:9000"));
-        publisher.createStream("stream-1");
-        EventHeader eventHeader = publisher.append("stream-1", "USER_CREATED", new UserCreated("josh", 123));
-        System.out.println("Added event: " + eventHeader);
-
-        JsonEvent event = publisher.get("stream-1", 0);
-        System.out.println(event);
-
+    public Subscription subscribe(String pattern, Consumer<JsonEvent> handler) {
+        Set<String> matches = mapping.keySet()
+                .stream()
+                .filter(stream -> StreamPattern.matches(stream, pattern))
+                .collect(Collectors.toSet());
     }
 
     public JsonEvent get(String stream, int version) {

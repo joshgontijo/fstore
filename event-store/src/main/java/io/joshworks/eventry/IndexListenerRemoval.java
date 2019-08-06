@@ -3,6 +3,7 @@ package io.joshworks.eventry;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.es.shared.EventMap;
 
 import java.util.Set;
 

@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster.node;
 
-import io.joshworks.eventry.EventId;
-import io.joshworks.eventry.EventMap;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;

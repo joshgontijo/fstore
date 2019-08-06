@@ -24,7 +24,11 @@
         <dependency>
             <groupId>io.joshworks.unirest</groupId>
             <artifactId>unirest-java</artifactId>
-            <version>1.7.1</version>
+            <version>1.8.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>json-serializer</artifactId>
         </dependency>
         <dependency>
             <groupId>io.joshworks.stream</groupId>

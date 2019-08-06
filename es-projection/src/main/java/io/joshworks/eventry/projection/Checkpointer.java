@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projection;
 
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.json.JsonSerializer;

@@ -1,14 +1,14 @@
 package io.joshworks.eventry.writer;
 
 import io.joshworks.eventry.data.IndexFlushed;
-import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamMetadata;
 
-import static io.joshworks.eventry.EventId.NO_EXPECTED_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 
 public class Writer {
 

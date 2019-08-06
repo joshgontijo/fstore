@@ -1,9 +1,10 @@
 package io.joshworks.eventry.data;
 
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import org.junit.Test;
 
-import static io.joshworks.eventry.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

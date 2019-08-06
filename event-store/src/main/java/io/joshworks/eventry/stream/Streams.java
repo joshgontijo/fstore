@@ -1,7 +1,6 @@
 package io.joshworks.eventry.stream;
 
-import io.joshworks.eventry.EventId;
-import io.joshworks.eventry.utils.StringUtils;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
@@ -22,15 +21,16 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.joshworks.eventry.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
 import static io.joshworks.eventry.stream.StreamMetadata.STREAM_ACTIVE;
+import static io.joshworks.fstore.es.shared.streams.StreamPattern.matchesPattern;
+import static io.joshworks.fstore.es.shared.utils.StringUtils.requireNonBlank;
 
 public class Streams implements Closeable {
 
-    private static final String WILDCARD = "*";
     private static final String STORE_NAME = "streams";
     public final LsmTree<Long, StreamMetadata> store;
     private final Cache<Long, StreamMetadata> cache;
@@ -127,41 +127,7 @@ public class Streams implements Closeable {
     private Stream<StreamMetadata> match(Set<String> patterns) {
         return Iterators.stream(store.iterator(Direction.FORWARD))
                 .map(e -> e.value)
-                .filter(stream -> matchAny(stream.name, patterns));
-    }
-
-    public static boolean matchAny(String streamName, Set<String> patterns) {
-        if (patterns == null) {
-            return false;
-        }
-        for (String pattern : patterns) {
-            if (matches(streamName, pattern)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static boolean matches(String streamName, String pattern) {
-        if (StringUtils.isBlank(pattern) || StringUtils.isBlank(streamName)) {
-            return false;
-        }
-        pattern = pattern.trim();
-        boolean startWildcard = pattern.startsWith(WILDCARD);
-        boolean endWildcard = pattern.endsWith(WILDCARD);
-        if (startWildcard && endWildcard) {
-            String patternValue = pattern.substring(1, pattern.length() - 1);
-            return !patternValue.isEmpty() && streamName.contains(patternValue);
-        }
-        if (startWildcard) {
-            String patternValue = pattern.substring(1);
-            return !patternValue.isEmpty() && streamName.endsWith(patternValue);
-        }
-        if (endWildcard) {
-            String patternValue = pattern.substring(0, pattern.length() - 1);
-            return !patternValue.isEmpty() && streamName.startsWith(patternValue);
-        }
-        return streamName.equals(pattern);
+                .filter(stream -> matchesPattern(stream.name, patterns));
     }
 
     @Override
@@ -170,7 +136,8 @@ public class Streams implements Closeable {
     }
 
     private void validateName(String streamName) {
-        StringUtils.requireNonBlank(streamName, "Stream name must be provided");
+        streamName = streamName.trim();
+        requireNonBlank(streamName, "Stream name must be provided");
         if (streamName.contains(" ")) {
             throw new StreamException("Stream name must not contain whitespaces");
         }

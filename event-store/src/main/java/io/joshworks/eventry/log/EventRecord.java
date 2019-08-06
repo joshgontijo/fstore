@@ -1,6 +1,6 @@
 package io.joshworks.eventry.log;
 
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
@@ -8,8 +8,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-import static io.joshworks.eventry.EventId.NO_VERSION;
-import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.utils.StringUtils.requireNonBlank;
 
 public class EventRecord {
 

@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster.messages;
 
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.network.ClusterMessage;
 

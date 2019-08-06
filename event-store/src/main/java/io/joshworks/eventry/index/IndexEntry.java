@@ -2,7 +2,7 @@ package io.joshworks.eventry.index;
 
 import java.util.Objects;
 
-import static io.joshworks.eventry.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 
 public class IndexEntry implements Comparable<IndexEntry> {
 

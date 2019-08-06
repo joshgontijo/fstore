@@ -16,6 +16,11 @@
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>networking</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>json-serializer</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
 </project>

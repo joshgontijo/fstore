@@ -1,12 +1,12 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.EventMap;
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.eventry.utils.Memory;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.lsmtree.LsmTree;
@@ -21,7 +21,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static io.joshworks.eventry.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 
 
 public class Index implements Closeable {
