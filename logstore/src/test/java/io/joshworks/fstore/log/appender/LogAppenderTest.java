@@ -3,13 +3,13 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.serializer.StringSerializer;
-import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,11 +25,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.joshworks.fstore.log.appender.LogAppender.MAX_SEGMENTS;
-import static io.joshworks.fstore.log.appender.LogAppender.MAX_SEGMENT_ADDRESS;
-import static io.joshworks.fstore.log.appender.LogAppender.getPositionOnSegment;
-import static io.joshworks.fstore.log.appender.LogAppender.getSegment;
-import static io.joshworks.fstore.log.appender.LogAppender.toSegmentedPosition;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -104,10 +99,10 @@ public abstract class LogAppenderTest {
 
         int segmentIdx = 0;
         long positionOnSegment = 32;
-        long position = toSegmentedPosition(segmentIdx, positionOnSegment);
+        long position = appender.toSegmentedPosition(segmentIdx, positionOnSegment);
 
-        int segment = getSegment(position);
-        long foundPositionOnSegment = getPositionOnSegment(position);
+        int segment = appender.getSegment(position);
+        long foundPositionOnSegment = appender.getPositionOnSegment(position);
 
         assertEquals(segmentIdx, segment);
         assertEquals(positionOnSegment, foundPositionOnSegment);
@@ -293,17 +288,17 @@ public abstract class LogAppenderTest {
 
     @Test
     public void segmentBitShift() {
-        for (int i = 0; i < MAX_SEGMENTS; i++) {
-            long position = toSegmentedPosition(i, 0);
-            long foundSegment = getSegment(position);
+        for (int i = 0; i < appender.maxSegments; i++) {
+            long position = appender.toSegmentedPosition(i, 0);
+            long foundSegment = appender.getSegment(position);
             assertEquals("Failed on segIdx " + i + " - position: " + position + " - foundSegment: " + foundSegment, i, foundSegment);
         }
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void toSegmentedPosition_invalid() {
-        long invalidAddress = MAX_SEGMENTS + 1;
-        toSegmentedPosition(invalidAddress, 0);
+        long invalidAddress = appender.maxSegments + 1;
+        appender.toSegmentedPosition(invalidAddress, 0);
 
     }
 
@@ -311,15 +306,15 @@ public abstract class LogAppenderTest {
     public void testGetPositionOnSegment() {
 
         long value = 1;
-        long position = getPositionOnSegment(1);
+        long position = appender.getPositionOnSegment(1);
         assertEquals("Failed on position: " + position, value, position);
 
-        value = MAX_SEGMENT_ADDRESS / 2;
-        position = getPositionOnSegment(value);
+        value = appender.maxSegmentAddress / 2;
+        position = appender.getPositionOnSegment(value);
         assertEquals("Failed on position: " + position, value, position);
 
-        value = MAX_SEGMENT_ADDRESS;
-        position = getPositionOnSegment(value);
+        value = appender.maxSegmentAddress;
+        position = appender.getPositionOnSegment(value);
         assertEquals("Failed on position: " + position, value, position);
     }
 

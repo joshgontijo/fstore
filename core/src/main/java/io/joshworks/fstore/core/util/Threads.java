@@ -1,5 +1,7 @@
 package io.joshworks.fstore.core.util;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -87,6 +89,24 @@ public class Threads {
             while (!executor.awaitTermination(checkInterval, timeUnit)) {
                 heartbeatTask.run();
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static List<Runnable> awaitTerminationOf(ExecutorService executor, long checkInterval, long maxWaitTime, TimeUnit timeUnit, Runnable heartbeatTask) {
+        try {
+            executor.shutdown();
+            long start = System.currentTimeMillis();
+            while (!executor.awaitTermination(checkInterval, timeUnit)) {
+                long now = System.currentTimeMillis();
+                if (now - start > timeUnit.toMillis(maxWaitTime)) {
+                    return executor.shutdownNow();
+                }
+                heartbeatTask.run();
+            }
+            return Collections.emptyList();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);

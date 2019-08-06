@@ -46,7 +46,7 @@ public class EventLogIterator implements EventStoreIterator {
 
     @Override
     public EventMap checkpoint() {
-        //Using Event map with position instead of
+        //Using Event map with position instead of stream
         return EventMap.of(delegate.position());
     }
 }

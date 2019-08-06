@@ -51,11 +51,11 @@ public class LogAppender<T> implements Closeable {
 
     private final Logger logger;
 
-    private static final int SEGMENT_BITS = 16;
-    private static final int SEGMENT_ADDRESS_BITS = Long.SIZE - SEGMENT_BITS;
+    final long maxSegments;
+    final long maxSegmentAddress;
 
-    static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
-    static final long MAX_SEGMENT_ADDRESS = BitUtil.maxValueForBits(SEGMENT_ADDRESS_BITS);
+    final int segmentBits;
+    final int segmentAddressBits;
 
     private static final int FLUSH_INTERVAL_SEC = 5;
 
@@ -92,13 +92,23 @@ public class LogAppender<T> implements Closeable {
         this.bufferPool = new BufferPool(config.maxEntrySize, config.directBufferPool);
         this.logger = Logging.namedLogger(config.name, "appender");
 
+        this.segmentBits = config.segmentBits;
+        this.segmentAddressBits = config.segmentAddressBits;
+
+        if (segmentBits + segmentAddressBits > Long.BYTES) {
+            throw new IllegalArgumentException("Segment bits + Address bits cannot be greater than " + Long.BYTES);
+        }
+
+        this.maxSegments = BitUtil.maxValueForBits(segmentBits);
+        this.maxSegmentAddress = BitUtil.maxValueForBits(segmentAddressBits);
+
         boolean metadataExists = LogFileUtils.metadataExists(directory);
 
         if (!metadataExists) {
             logger.info("Creating LogAppender");
 
-            if (config.segmentSize > MAX_SEGMENT_ADDRESS) {
-                throw new IllegalArgumentException("Maximum segment size allowed is " + MAX_SEGMENT_ADDRESS);
+            if (config.segmentSize > maxSegmentAddress) {
+                throw new IllegalArgumentException("Maximum segment size allowed is " + maxSegmentAddress);
             }
 
             LogFileUtils.createRoot(directory);
@@ -218,27 +228,27 @@ public class LogAppender<T> implements Closeable {
         });
     }
 
-    static int getSegment(long position) {
-        long segmentIdx = (position >>> SEGMENT_ADDRESS_BITS);
-        if (segmentIdx > MAX_SEGMENTS) {
-            throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + MAX_SEGMENTS);
+    int getSegment(long position) {
+        long segmentIdx = (position >>> segmentAddressBits);
+        if (segmentIdx > maxSegments) {
+            throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + maxSegments);
         }
 
         return (int) segmentIdx;
     }
 
-    static long toSegmentedPosition(long segmentIdx, long position) {
+    long toSegmentedPosition(long segmentIdx, long position) {
         if (segmentIdx < 0) {
             throw new IllegalArgumentException("Segment index must be greater than zero");
         }
-        if (segmentIdx > MAX_SEGMENTS) {
-            throw new IllegalArgumentException("Segment index cannot be greater than " + MAX_SEGMENTS);
+        if (segmentIdx > maxSegments) {
+            throw new IllegalArgumentException("Segment index cannot be greater than " + maxSegments);
         }
-        return (segmentIdx << SEGMENT_ADDRESS_BITS) | position;
+        return (segmentIdx << segmentAddressBits) | position;
     }
 
-    static long getPositionOnSegment(long position) {
-        long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
+    long getPositionOnSegment(long position) {
+        long mask = (1L << segmentAddressBits) - 1;
         return (position & mask);
     }
 
@@ -289,13 +299,13 @@ public class LogAppender<T> implements Closeable {
     private LogIterator<T> backwardIterator(long position) {
         return levels.apply(Direction.BACKWARD, segments -> {
             int numSegments = segments.size();
-            int segIdx = LogAppender.getSegment(position);
+            int segIdx = getSegment(position);
 
             segIdx = numSegments - (numSegments - segIdx);
             int skips = (numSegments - 1) - segIdx;
 
             LogAppender.validateSegmentIdx(segIdx, position, levels);
-            long startPosition = LogAppender.getPositionOnSegment(position);
+            long startPosition = getPositionOnSegment(position);
             CloseableIterator<Log<T>> it = Iterators.of(segments);
             // skip
             for (int i = 0; i < skips; i++) {
@@ -307,8 +317,8 @@ public class LogAppender<T> implements Closeable {
 
     private LogIterator<T> forwardIterator(long position) {
         return levels.apply(Direction.FORWARD, segments -> {
-            int segmentIdx = LogAppender.getSegment(position);
-            long startPosition = LogAppender.getPositionOnSegment(position);
+            int segmentIdx = getSegment(position);
+            long startPosition = getPositionOnSegment(position);
             LogAppender.validateSegmentIdx(segmentIdx, startPosition, levels);
             ForwardLogReader<T> forwardLogReader = new ForwardLogReader<>(startPosition, segments, segmentIdx, this::removeReader);
             forwardReaders.add(forwardLogReader);

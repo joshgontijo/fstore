@@ -6,7 +6,6 @@ import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
-import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
@@ -26,6 +25,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -47,11 +47,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
-import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.fstore.es.shared.utils.StringUtils.requireNonBlank;
 import static java.util.Objects.requireNonNull;
 
@@ -73,7 +73,6 @@ public class EventStore implements IEventStore {
     private final EventWriter eventWriter;
 
     private final Set<StreamListener> streamListeners = ConcurrentHashMap.newKeySet();
-
 
     private EventStore(File rootDir) {
         long start = System.currentTimeMillis();
@@ -117,19 +116,27 @@ public class EventStore implements IEventStore {
         StreamMetadata metadata = streams.create(SystemStreams.STREAMS);
         logger.info("Created {}", SystemStreams.STREAMS);
 
-        Future<Void> task = eventWriter.queue(writer -> {
-            writer.append(StreamCreated.create(metadata), NO_VERSION, metadata);
 
+        Future<Void> task1 = eventWriter.enqueue(SystemStreams.STREAMS_HASH, writer -> {
+            writer.append(StreamCreated.create(metadata), NO_VERSION, metadata);
+        });
+        Threads.waitFor(task1);
+
+        Future<Void> task2 = eventWriter.enqueue(SystemStreams.PROJECTIONS_HASH, writer -> {
             StreamMetadata projectionsMetadata = streams.create(SystemStreams.PROJECTIONS);
             writer.append(StreamCreated.create(projectionsMetadata), 0, metadata);
             logger.info("Created {}", SystemStreams.PROJECTIONS);
+        });
+        Threads.waitFor(task2);
 
+        Future<Void> task3 = eventWriter.enqueue(SystemStreams.INDEX_HASH, writer -> {
             StreamMetadata indexMetadata = streams.create(SystemStreams.INDEX);
             writer.append(StreamCreated.create(indexMetadata), 1, metadata);
             logger.info("Created {}", SystemStreams.INDEX);
-        });
 
-        Threads.waitFor(task);
+        });
+        Threads.waitFor(task3);
+
         return true;
     }
 
@@ -162,12 +169,15 @@ public class EventStore implements IEventStore {
             }
 
             final long lastPos = lastFlushedPos;
-            backwardsIndex.entrySet().stream().filter(kv -> kv.getValue().compareTo(lastPos) >= 0).sorted(Comparator.comparingLong(Map.Entry::getValue)).forEach(e -> {
-                EventRecord entry = e.getKey();
-                long position = e.getValue();
-                EventId eventId = entry.streamName();
-                index.add(eventId.hash(), eventId.version(), position);
-            });
+            backwardsIndex.entrySet().stream()
+                    .filter(kv -> kv.getValue().compareTo(lastPos) >= 0)
+                    .sorted(Comparator.comparingLong(Map.Entry::getValue))
+                    .forEach(e -> {
+                        EventRecord entry = e.getKey();
+                        long position = e.getValue();
+                        EventId eventId = entry.streamName();
+                        index.add(eventId.hash(), eventId.version(), position);
+                    });
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to load memIndex on position", e);
@@ -178,18 +188,9 @@ public class EventStore implements IEventStore {
 
     //replication
     public Future<EventRecord> add(EventRecord record) {
-        return eventWriter.queue(writer -> {
+        return eventWriter.enqueue(record.hash(), writer -> {
             StreamMetadata metadata = getOrCreateStream(writer, record.stream);
             return writer.append(record, NO_EXPECTED_VERSION, metadata);
-        });
-    }
-
-    public Future<Void> append(List<EventRecord> events) {
-        return eventWriter.queue(writer -> {
-            for (EventRecord record : events) {
-                StreamMetadata metadata = getOrCreateStream(writer, record.stream);
-                writer.append(record, NO_EXPECTED_VERSION, metadata);
-            }
         });
     }
 
@@ -201,7 +202,7 @@ public class EventStore implements IEventStore {
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
         validateEvent(event);
-        Future<EventRecord> future = eventWriter.queue(writer -> {
+        Future<EventRecord> future = eventWriter.enqueue(event.hash(), writer -> {
             StreamMetadata metadata = getOrCreateStream(writer, event.stream);
             return writer.append(event, expectedVersion, metadata);
         });
@@ -226,7 +227,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public StreamMetadata createStream(String stream, int maxCount, long maxAgeSec, Map<String, Integer> acl, Map<String, String> metadata) {
-        Future<StreamMetadata> task = eventWriter.queue(writer -> {
+        Future<StreamMetadata> task = eventWriter.enqueue(EventId.hash(stream), writer -> {
             StreamMetadata created = streams.create(stream, maxAgeSec, maxCount, acl, metadata);
             if (created == null) {
                 throw new IllegalStateException("Stream '" + stream + "' already exist");
@@ -263,7 +264,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public void truncate(String stream, int fromVersionInclusive) {
-        Future<StreamMetadata> op = eventWriter.queue(writer -> {
+        Future<StreamMetadata> op = eventWriter.enqueue(EventId.hash(stream), writer -> {
             StreamMetadata metadata = Optional.ofNullable(streams.get(stream)).orElseThrow(() -> new IllegalArgumentException("Invalid stream"));
             int currentVersion = index.version(metadata.hash);
             StreamMetadata truncatedMetadata = streams.truncate(metadata, currentVersion, fromVersionInclusive);
@@ -349,7 +350,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public EventRecord linkTo(String stream, final EventRecord event) {
-        Future<EventRecord> future = eventWriter.queue(writer -> {
+        Future<EventRecord> future = eventWriter.enqueue(EventId.hash(stream), writer -> {
             EventRecord resolved = resolve(event);
             StreamMetadata metadata = getOrCreateStream(writer, stream);
             //expired
@@ -366,7 +367,7 @@ public class EventStore implements IEventStore {
     //TODO if viable, add maxAge validation before appending, to save unnecessary disk space
     @Override
     public EventRecord linkTo(String srcStream, EventId tgtEvent, String sourceType) {
-        Future<EventRecord> future = eventWriter.queue(writer -> {
+        Future<EventRecord> future = eventWriter.enqueue(EventId.hash(srcStream), writer -> {
             EventRecord linkTo = LinkTo.create(srcStream, tgtEvent);
             StreamMetadata metadata = getOrCreateStream(writer, srcStream);
             if (LinkTo.TYPE.equals(sourceType)) {

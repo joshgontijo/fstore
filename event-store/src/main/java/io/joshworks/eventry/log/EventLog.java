@@ -1,5 +1,7 @@
 package io.joshworks.eventry.log;
 
+import io.joshworks.eventry.api.EventStoreIterator;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.Config;
@@ -33,28 +35,53 @@ public class EventLog implements IEventLog {
     }
 
     @Override
-    public long position() {
-        return appender.position();
-    }
-
-    @Override
     public void close() {
         appender.close();
     }
 
     @Override
-    public LogIterator<EventRecord> iterator(Direction direction) {
-        return appender.iterator(direction);
+    public EventStoreIterator iterator(Direction direction) {
+        return new IteratorWrapper(appender.iterator(direction));
     }
 
     @Override
-    public LogIterator<EventRecord> iterator(Direction direction, long position) {
-        return appender.iterator(direction, position);
+    public EventStoreIterator iterator(Direction direction, EventMap checkpoint) {
+        long pos = checkpoint.iterator().next().getKey(); //position instead stream
+        return new IteratorWrapper(appender.iterator(direction, pos));
     }
 
     @Override
     public void compact() {
         appender.compact();
+    }
+
+    private static class IteratorWrapper implements EventStoreIterator {
+
+        private final LogIterator<EventRecord> delegate;
+
+        private IteratorWrapper(LogIterator<EventRecord> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public EventRecord next() {
+            return delegate.next();
+        }
+
+        @Override
+        public EventMap checkpoint() {
+            return EventMap.of(delegate.position());
+        }
     }
 
 }

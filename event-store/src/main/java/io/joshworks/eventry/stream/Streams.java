@@ -1,8 +1,8 @@
 package io.joshworks.eventry.stream;
 
-import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.lsmtree.LsmTree;
@@ -21,11 +21,11 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
 import static io.joshworks.eventry.stream.StreamMetadata.STREAM_ACTIVE;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.fstore.es.shared.streams.StreamPattern.matchesPattern;
 import static io.joshworks.fstore.es.shared.utils.StringUtils.requireNonBlank;
 
@@ -92,14 +92,10 @@ public class Streams implements Closeable {
         return createInternal(stream, maxAgeSec, maxCount, permissions, metadata, hash);
     }
 
-    //must not hold the lock, since
-    private StreamMetadata createInternal(String stream, long maxAgeSec, int maxCount, Map<String, Integer> acl, Map<String, String> metadata, long hash) {
+    private synchronized StreamMetadata createInternal(String stream, long maxAgeSec, int maxCount, Map<String, Integer> acl, Map<String, String> metadata, long hash) {
         StreamMetadata streamMeta = new StreamMetadata(stream, hash, Instant.now().getEpochSecond(), maxAgeSec, maxCount, NO_TRUNCATE, acl, metadata, STREAM_ACTIVE);
         StreamMetadata fromDisk = store.get(hash);
-        if (fromDisk != null) {
-            throw new StreamException("Stream '" + stream + "' already exist");
-        }
-        return update(streamMeta); //must be called before version
+        return fromDisk == null ? update(streamMeta) : fromDisk;
     }
 
     public void remove(long streamHash) {
@@ -158,7 +154,7 @@ public class Streams implements Closeable {
         return update(truncated);
     }
 
-    private StreamMetadata update(StreamMetadata metadata) {
+    private synchronized StreamMetadata update(StreamMetadata metadata) {
         store.put(metadata.hash, metadata);
         cache.remove(metadata.hash);
         return metadata;

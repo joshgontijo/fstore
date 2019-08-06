@@ -35,6 +35,9 @@ public class Config<T> {
     StorageMode compactionStorage;
     int maxEntrySize = Size.MB.ofInt(2);
 
+    int segmentBits = 16;
+    int segmentAddressBits = Long.SIZE - segmentBits;
+
     Config(File directory, Serializer<T> serializer) {
         this.directory = requireNonNull(directory, "directory cannot be null");
         this.serializer = requireNonNull(serializer, "serializer cannot be null");
@@ -45,13 +48,29 @@ public class Config<T> {
         return this;
     }
 
+    public Config<T> segmentBits(int segmentBits) {
+        if (segmentBits <= 0) {
+            throw new IllegalArgumentException("Value must be greater than zero");
+        }
+        this.segmentBits = segmentBits;
+        return this;
+    }
+
+    public Config<T> segmentAddressBits(int segmentAddressBits) {
+        if (segmentAddressBits <= 0) {
+            throw new IllegalArgumentException("Value must be greater than zero");
+        }
+        this.segmentAddressBits = segmentAddressBits;
+        return this;
+    }
+
     public Config<T> storageMode(StorageMode mode) {
         this.storageMode = requireNonNull(mode);
         return this;
     }
 
     public Config<T> readPageSize(int readPageSize) {
-        if (this.readPageSize < 0) {
+        if (readPageSize < 0) {
             throw new IllegalArgumentException("bufferSize must be greater than zero");
         }
         this.readPageSize = readPageSize;

@@ -1,5 +1,8 @@
 package io.joshworks.eventry.log;
 
+import io.joshworks.eventry.api.EventStoreIterator;
+import io.joshworks.eventry.index.IndexEntry;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 
@@ -12,13 +15,11 @@ public interface IEventLog extends Closeable {
 
     long entries();
 
-    long position();
-
     void close();
 
-    LogIterator<EventRecord> iterator(Direction direction);
+    EventStoreIterator iterator(Direction direction);
 
-    LogIterator<EventRecord> iterator(Direction direction, long position);
+    EventStoreIterator iterator(Direction direction, EventMap checkpoint);
 
     void compact();
 }

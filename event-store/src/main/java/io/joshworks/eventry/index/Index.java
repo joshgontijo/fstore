@@ -1,12 +1,12 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Memory;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.lsmtree.LsmTree;
@@ -57,18 +57,19 @@ public class Index implements Closeable {
         lsmTree.close();
     }
 
-    public boolean add(long hash, int version, long position) {
+    public synchronized boolean add(long hash, int version, long position) {
         updateVersionIfCached(hash, version);
         return lsmTree.put(new IndexKey(hash, version), position);
+    }
+
+    public synchronized void compact() {
+        lsmTree.compact();
     }
 
     public long size() {
         return lsmTree.size();
     }
 
-    public void compact() {
-        lsmTree.compact();
-    }
 
     public Optional<IndexEntry> get(long stream, int version) {
         Entry<IndexKey, Long> entry = lsmTree.getEntry(IndexKey.event(stream, version));
