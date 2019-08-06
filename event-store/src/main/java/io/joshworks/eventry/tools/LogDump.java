@@ -3,7 +3,7 @@ package io.joshworks.eventry.tools;
 import io.joshworks.eventry.EventLogIterator;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.log.EventRecord;

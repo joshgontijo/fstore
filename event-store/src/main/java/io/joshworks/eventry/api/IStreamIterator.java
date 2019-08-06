@@ -1,7 +1,7 @@
 package io.joshworks.eventry.api;
 
-import io.joshworks.eventry.EventId;
-import io.joshworks.eventry.EventMap;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
 
 import java.util.Set;
 

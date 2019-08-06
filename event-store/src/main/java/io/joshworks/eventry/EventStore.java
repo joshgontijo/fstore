@@ -6,7 +6,7 @@ import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
-import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
@@ -17,7 +17,6 @@ import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
-import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.eventry.writer.EventWriter;
 import io.joshworks.eventry.writer.Writer;
 import io.joshworks.fstore.core.cache.Cache;
@@ -25,6 +24,8 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -46,11 +47,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static io.joshworks.eventry.EventId.NO_EXPECTED_VERSION;
-import static io.joshworks.eventry.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
+import static io.joshworks.fstore.es.shared.utils.StringUtils.requireNonBlank;
 import static java.util.Objects.requireNonNull;
 
 public class EventStore implements IEventStore {
@@ -354,7 +356,7 @@ public class EventStore implements IEventStore {
             if (metadata.maxAgeSec > 0 && System.currentTimeMillis() - resolved.timestamp > metadata.maxAgeSec) {
                 return null;
             }
-            EventRecord linkTo = LinkTo.create(stream, EventId.from(resolved));
+            EventRecord linkTo = LinkTo.create(stream, EventId.of(resolved.stream, resolved.version));
             return writer.append(linkTo, NO_EXPECTED_VERSION, metadata); // TODO expected version for LinkTo
         });
 
@@ -441,8 +443,8 @@ public class EventStore implements IEventStore {
 
     private void validateEvent(EventRecord event) {
         requireNonNull(event, "Event must be provided");
-        StringUtils.requireNonBlank(event.stream, "closeableStream must be provided");
-        StringUtils.requireNonBlank(event.type, "Type must be provided");
+        requireNonBlank(event.stream, "closeableStream must be provided");
+        requireNonBlank(event.type, "Type must be provided");
         if (event.stream.startsWith(EventId.SYSTEM_PREFIX)) {
             throw new IllegalArgumentException("Stream cannot start with " + EventId.SYSTEM_PREFIX);
         }

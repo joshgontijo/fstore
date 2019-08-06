@@ -81,6 +81,16 @@ public class Server {
             post("{stream}", streams::append, produces("json"));
         });
 
+        group("/from-stream/", () -> {
+
+        });
+
+//        group("/subscriptions", () -> {
+//            put("{id}", req -> {
+//
+//            });
+//        });
+
         cors();
         start();
     }

@@ -1,4 +1,4 @@
-package io.joshworks.eventry.index;
+package io.joshworks.fstore.es.shared.streams;
 
 import io.joshworks.fstore.core.hash.Hash;
 

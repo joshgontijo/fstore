@@ -1,6 +1,6 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.EventMap;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.util.FileUtils;

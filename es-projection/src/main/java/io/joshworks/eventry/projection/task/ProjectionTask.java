@@ -2,9 +2,9 @@ package io.joshworks.eventry.projection.task;
 
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
-import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projection.Checkpointer;
 import io.joshworks.eventry.projection.EventStreamHandler;

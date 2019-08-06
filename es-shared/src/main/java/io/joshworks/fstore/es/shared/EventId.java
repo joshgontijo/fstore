@@ -1,11 +1,10 @@
-package io.joshworks.eventry;
+package io.joshworks.fstore.es.shared;
 
-import io.joshworks.eventry.data.SystemStreams;
-import io.joshworks.eventry.index.StreamHasher;
-import io.joshworks.eventry.log.EventRecord;
-import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
+import io.joshworks.fstore.es.shared.utils.StringUtils;
 
 import java.util.Objects;
 
@@ -77,10 +76,6 @@ public class EventId {
         validateStreamName(split[0]);
         int version = getVersion(split, streamVersion);
         return new EventId(split[0], version);
-    }
-
-    public static EventId from(EventRecord eventRecord) {
-        return new EventId(eventRecord.stream, eventRecord.version);
     }
 
     public static long hash(String streamName) {

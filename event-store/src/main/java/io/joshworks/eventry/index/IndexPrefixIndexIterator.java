@@ -1,14 +1,14 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.eventry.EventMap;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.eventry.stream.Streams;
+import io.joshworks.fstore.es.shared.streams.StreamPattern;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.LsmTree;
 
 import java.util.Set;
 
-import static io.joshworks.eventry.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 
 class IndexPrefixIndexIterator extends FixedIndexIterator {
 
@@ -21,7 +21,7 @@ class IndexPrefixIndexIterator extends FixedIndexIterator {
 
     @Override
     public void onStreamCreated(StreamMetadata metadata) {
-        if (Streams.matchAny(metadata.name, patterns)) {
+        if (StreamPattern.matchesPattern(metadata.name, patterns)) {
             eventMap.add(metadata.hash, NO_VERSION);
         }
     }

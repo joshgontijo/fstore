@@ -1,7 +1,7 @@
 package io.joshworks.eventry.projection.result;
 
 import io.joshworks.eventry.api.IEventAppender;
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.projection.JsonEvent;
 import io.joshworks.eventry.utils.StringUtils;
 

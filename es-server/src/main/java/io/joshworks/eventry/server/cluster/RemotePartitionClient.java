@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.cluster;
 
-import io.joshworks.eventry.EventId;
-import io.joshworks.eventry.EventMap;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
@@ -32,7 +32,7 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 
-import static io.joshworks.eventry.EventId.NO_EXPECTED_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 import static io.joshworks.eventry.server.cluster.RemoteIterators.DEFAULT_BATCH_SIZE;
 import static io.joshworks.eventry.server.cluster.RemoteIterators.DEFAULT_TIMEOUT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;

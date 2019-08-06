@@ -2,12 +2,14 @@ package io.joshworks.eventry;
 
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -23,8 +25,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static io.joshworks.eventry.EventId.NO_EXPECTED_VERSION;
-import static io.joshworks.eventry.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static org.junit.Assert.assertEquals;
@@ -325,7 +327,7 @@ public class EventStoreTest {
         EventRecord original = store.append(EventRecord.create("original", "a", Map.of()));
         EventRecord linkTo = store.linkTo(linkToStream, original);
 
-        EventRecord found = store.get(EventId.from(linkTo));
+        EventRecord found = store.get(EventId.of(linkTo.stream, linkTo.version));
         assertEquals(original, found);
     }
 

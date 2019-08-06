@@ -1,16 +1,16 @@
 package io.joshworks.eventry.log;
 
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.InMemorySegment;
-import io.joshworks.eventry.EventId;
 import io.joshworks.eventry.data.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
-import io.joshworks.eventry.data.SystemStreams;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
-import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.es.shared.utils.StringUtils;
 import io.joshworks.fstore.log.segment.Log;
 import org.junit.After;
 import org.junit.Before;
@@ -348,7 +348,7 @@ public class LogRecordCleanupTest {
     }
 
     private EventRecord linkTo(String stream, EventRecord record, int version, long timestamp) {
-        EventId eventId = EventId.from(record);
+        EventId eventId = EventId.of(record.stream, record.version);
         return new EventRecord(stream, LinkTo.TYPE, version, timestamp, StringUtils.toUtf8Bytes(eventId.toString()), new byte[0]);
     }
 

@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server.cluster.nodelog;
 
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 

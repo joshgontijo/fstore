@@ -1,4 +1,4 @@
-package io.joshworks.eventry.utils;
+package io.joshworks.fstore.es.shared.utils;
 
 import java.nio.charset.StandardCharsets;
 

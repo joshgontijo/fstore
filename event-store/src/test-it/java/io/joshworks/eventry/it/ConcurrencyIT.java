@@ -1,10 +1,10 @@
 package io.joshworks.eventry.it;
 
-import io.joshworks.eventry.EventMap;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.api.EventStoreIterator;
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.core.seda.TimeWatch;
 import io.joshworks.fstore.core.util.FileUtils;
@@ -25,9 +25,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collector;
-import java.util.stream.Collectors;
 
-import static io.joshworks.eventry.EventId.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;

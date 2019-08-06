@@ -12,12 +12,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -168,9 +166,7 @@ public class EventBroadcaster implements Closeable {
 
         private void send(EventRecord event) {
             try {
-                Map<String, Object> data = JsonSerializer.toMap(new String(event.body, StandardCharsets.UTF_8));
-                Map<String, Object> metadata = JsonSerializer.toMap(new String(event.metadata, StandardCharsets.UTF_8));
-                JsonEvent jsonEvent = new JsonEvent(event.type, event.timestamp, event.stream, event.version, data, metadata);
+                JsonEvent jsonEvent = new JsonEvent(event.type, event.timestamp, event.stream, event.version, event.body, event.metadata);
 
                 String eventId = String.valueOf(event.eventId());
                 String stream = event.stream;

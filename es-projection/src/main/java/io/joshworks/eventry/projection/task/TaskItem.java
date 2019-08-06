@@ -1,7 +1,7 @@
 package io.joshworks.eventry.projection.task;
 
 import io.joshworks.eventry.projection.ScriptExecutionException;
-import io.joshworks.eventry.EventId;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.eventry.projection.Checkpointer;
 import io.joshworks.eventry.projection.EventStreamHandler;
