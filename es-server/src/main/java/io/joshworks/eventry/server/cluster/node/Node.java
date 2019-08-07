@@ -1,32 +1,27 @@
 package io.joshworks.eventry.server.cluster.node;
 
 import io.joshworks.eventry.api.IEventStore;
+import io.joshworks.fstore.es.shared.Status;
 
 import java.io.Closeable;
 import java.util.Objects;
 
 public class Node implements Closeable {
 
-    private final String id;
+    public final String id;
+    public final String address;
+    public Status status = Status.ACTIVE; //TODO use, lock etc..
+
     private final IEventStore store;
 
-    public Status status; //TODO use, lock etc..
-
-    public Node(String id, IEventStore store) {
+    public Node(String id, IEventStore store, String address) {
         this.id = id;
         this.store = store;
+        this.address = address;
     }
 
     public IEventStore store() {
         return store;
-    }
-
-    public String id() {
-        return id;
-    }
-
-    public Status status() {
-        return status;
     }
 
     @Override
@@ -39,8 +34,8 @@ public class Node implements Closeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Node node = (Node) o;
-        return id == node.id &&
-                Objects.equals(store, node.store) &&
+        return id.equals(node.id) &&
+                store.equals(node.store) &&
                 status == node.status;
     }
 

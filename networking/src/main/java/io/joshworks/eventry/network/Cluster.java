@@ -62,6 +62,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private final List<BiConsumer<ClusterNode, NodeStatus>> nodeUpdatedListeners = new ArrayList<>();
 
     private final List<BiConsumer<Message, ClusterMessage>> interceptors = new ArrayList<>();
+    private final List<Runnable> connectionListeners = new ArrayList<>();
 
     private static final Function<? extends ClusterMessage, ClusterMessage> NO_OP = msg -> {
         logger.warn("No message handler for code {}", msg.getClass().getName());
@@ -100,6 +101,8 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
             channel.connect(clusterName, null, 10000); //connect + getState
 
+            connectionListeners.forEach(Runnable::run);
+
         } catch (Exception e) {
             throw new RuntimeException("Failed to join cluster", e);
         }
@@ -111,6 +114,10 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     public synchronized void interceptor(BiConsumer<Message, ClusterMessage> interceptor) {
         interceptors.add(interceptor);
+    }
+
+    public synchronized void onConnected(Runnable runnable) {
+        connectionListeners.add(runnable);
     }
 
     public synchronized void onNodeUpdated(BiConsumer<ClusterNode, NodeStatus> handler) {

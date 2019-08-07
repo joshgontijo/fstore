@@ -8,12 +8,11 @@ public class NodeInfo implements ClusterMessage {
 
     public final String id;
     public final String address;
-    public final NodeStatus status;
+    public final Status status;
 
-
-    public NodeInfo(String id, String address, int port, NodeStatus status) {
+    public NodeInfo(String id, String address, Status status) {
         this.id = id;
-        this.address = "http://" + address + ":" + port;
+        this.address = address;
         this.status = status;
     }
 
