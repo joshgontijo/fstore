@@ -40,11 +40,11 @@ public class Repartitioner implements Runnable, Closeable {
         store.forEachPartition(this::runRepartitioning);
     }
 
-    private void runRepartitioning(Partition partition) {
+    private void runRepartitioning(Node node) {
         executor.execute(() -> {
-            IEventStore store = partition.store();
+            IEventStore store = node.store();
             EventStoreIterator streamIt = store.fromStreams(EventMap.from(EventId.of(sourceStream)));
-            checkpoints.put(partition.id(), streamIt);
+            checkpoints.put(node.id(), streamIt);
             while (!closed.get()) {
                 while (!streamIt.hasNext()) {
                     if (!closed.get()) {
