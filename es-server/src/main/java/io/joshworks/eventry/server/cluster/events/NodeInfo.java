@@ -2,24 +2,17 @@ package io.joshworks.eventry.server.cluster.events;
 
 import io.joshworks.eventry.network.ClusterMessage;
 
-import java.util.Map;
 import java.util.Set;
 
 public class NodeInfo implements ClusterMessage {
 
+    public final String address;
     public final String nodeId;
-    //partition -> [buckets]
-    public final Map<String, Set<Integer>> buckets;
+    public final Set<Long> streams;
 
-    public NodeInfo(String nodeId, Map<String, Set<Integer>> buckets) {
+    public NodeInfo(String nodeId, String address, Set<Long> streams) {
         this.nodeId = nodeId;
-        this.buckets = buckets;
-    }
-
-    @Override
-    public String toString() {
-        return "NodeInfo{" + "nodeId='" + nodeId + '\'' +
-                ", buckets=" + buckets +
-                '}';
+        this.address = address;
+        this.streams = streams;
     }
 }

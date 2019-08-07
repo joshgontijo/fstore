@@ -1,4 +1,4 @@
-package io.joshworks.eventry.server.cluster.node;
+package io.joshworks.fstore.es.shared;
 
 public enum Status {
     ACTIVE, // Can accept requests

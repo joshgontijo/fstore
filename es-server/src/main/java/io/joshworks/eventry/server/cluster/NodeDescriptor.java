@@ -63,7 +63,7 @@ public class NodeDescriptor implements Closeable {
         }
     }
 
-    public static NodeDescriptor write(File root, String clusterName, int numBuckets, String[] partitions) {
+    public static NodeDescriptor write(File root, String clusterName) {
         File pFile = new File(root, FILE);
         try {
             Files.createDirectories(root.toPath());
@@ -79,7 +79,7 @@ public class NodeDescriptor implements Closeable {
             lock = channel.lock();
 
             String uuid = UUID.randomUUID().toString().substring(0, 8);
-            Data data = new Data(uuid, clusterName, numBuckets, partitions);
+            Data data = new Data(uuid, clusterName);
             byte[] bytes = KryoStoreSerializer.serialize(data, Data.class);
             NodeDescriptor descriptor = new NodeDescriptor(data, channel, lock);
             channel.write(ByteBuffer.wrap(bytes));
@@ -93,16 +93,8 @@ public class NodeDescriptor implements Closeable {
         }
     }
 
-    public String[] partitions() {
-        return data.partitions;
-    }
-
     public String nodeId() {
         return data.nodeId;
-    }
-
-    public int numBuckets() {
-        return data.numBuckets;
     }
 
     public String clusterName() {
@@ -119,14 +111,10 @@ public class NodeDescriptor implements Closeable {
     private static class Data {
         public final String nodeId;
         public final String clusterName;
-        public final int numBuckets;
-        public final String[] partitions;
 
-        private Data(String id, String clusterName, int numBuckets, String[] partitions) {
+        private Data(String id, String clusterName) {
             this.nodeId = id;
             this.clusterName = clusterName;
-            this.numBuckets = numBuckets;
-            this.partitions = partitions;
         }
     }
 

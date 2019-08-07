@@ -44,33 +44,11 @@ public class Server {
         adminPort(serverPort + 10);
 
 
-        IEventStore store = EventStore.open(new File(path));
+        ClusterStore store = ClusterStore.connect(new File(path), "es-cluster", serverPort);
         StreamEndpoint streams = new StreamEndpoint(store);
 
-        Cluster cluster = new Cluster("es-cluster", UUID.randomUUID().toString().substring(0, 8));
-
-        cluster.register(NodeInfo.class, node -> {
-            nodes.put(node.id, node);
-            System.out.println("Received node info " + node);
-            ClusterNode thisNode = cluster.node();
-            return new NodeInfo(thisNode.id, thisNode.inetAddr.getAddress().getHostAddress(), serverPort, NodeStatus.UP);
-        });
-
-        cluster.join();
-        ClusterNode node = cluster.node();
-        NodeInfo thisNode = new NodeInfo(node.id, node.inetAddr.getAddress().getHostAddress(), serverPort, NodeStatus.UP);
-        nodes.put(thisNode.id, thisNode);
-
-        List<MulticastResponse> responses = cluster.client().cast(thisNode);
-        for (MulticastResponse response : responses) {
-            NodeInfo received = response.message();
-            nodes.put(received.id, received);
-            System.out.println("Response:" + received);
-        }
-
-
         group("/nodes", () -> {
-            get(req -> ok(nodes.values()));
+            get(req -> ok(store.nodesInfo()));
         });
 
         group("/streams", () -> {
