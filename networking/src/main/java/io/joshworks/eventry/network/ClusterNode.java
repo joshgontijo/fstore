@@ -1,5 +1,6 @@
 package io.joshworks.eventry.network;
 
+import io.joshworks.eventry.network.util.AttachmentKey;
 import io.joshworks.eventry.network.util.AttachmentMap;
 import org.jgroups.Address;
 
@@ -28,5 +29,17 @@ public class ClusterNode {
         this.address = address;
         this.since = System.currentTimeMillis();
         this.inetAddr = inetAddr;
+    }
+
+    public String hostAddress() {
+        return inetAddr.getAddress().getHostAddress();
+    }
+
+    public <T> void attach(AttachmentKey<T> key, T value) {
+        attachments.putAttachment(key, value);
+    }
+
+    public <T> T get(AttachmentKey<T> key) {
+        return attachments.getAttachment(key);
     }
 }

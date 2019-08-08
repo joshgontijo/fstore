@@ -1,12 +1,11 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.es.shared.EventHeader;
-import io.joshworks.fstore.es.shared.JsonEvent;
+import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.StreamData;
 import io.joshworks.fstore.es.shared.utils.StringUtils;
 import io.joshworks.snappy.http.MediaType;
@@ -84,12 +83,6 @@ public class StreamEndpoint {
         String param = request.pathParameter("stream");
         EventId eventId = EventId.parse(param);
         EventRecord record = store.get(eventId);
-        if (record == null) {
-            return notFound();
-        }
-
-        JsonEvent event = new JsonEvent(record.type, record.timestamp, record.stream, record.version, record.body, record.metadata);
-
-        return ok(event);
+        return record == null ? notFound() : ok(record.asJson());
     }
 }

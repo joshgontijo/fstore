@@ -1,12 +1,11 @@
 package io.joshworks.eventry.server.cluster.nodelog;
 
-import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 public class NodeShutdownEvent implements NodeEvent {
 
-    public static final String TYPE = EventId.SYSTEM_PREFIX + "NODE_SHUTDOWN";
+    public static final String TYPE = "NODE_SHUTDOWN";
 
     public final String nodeId;
 
@@ -15,7 +14,7 @@ public class NodeShutdownEvent implements NodeEvent {
     }
 
     public static NodeShutdownEvent from(EventRecord record) {
-        return JsonSerializer.fromBytes(record.body, NodeShutdownEvent.class);
+        return JsonSerializer.fromJson(record.data, NodeShutdownEvent.class);
     }
 
     @Override

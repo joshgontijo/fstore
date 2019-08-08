@@ -3,7 +3,7 @@ package io.joshworks.eventry.writer;
 import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.index.Index;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamMetadata;
@@ -40,7 +40,7 @@ public class Writer {
         int nextVersion = currentVersion + 1;
 
         long timestamp = System.currentTimeMillis();
-        var record = new EventRecord(event.stream, event.type, nextVersion, timestamp, event.body, event.metadata);
+        var record = new EventRecord(event.stream, event.type, nextVersion, timestamp, event.data, event.metadata);
 
         long position = eventLog.append(record);
 

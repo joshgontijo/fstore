@@ -1,12 +1,10 @@
 package io.joshworks.eventry.server.cluster;
 
-import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.client.ClusterClient;
 import io.joshworks.eventry.server.cluster.messages.Append;
@@ -21,6 +19,8 @@ import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
 import io.joshworks.eventry.server.cluster.messages.IteratorNext;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
 import org.jgroups.Address;
 
 import java.util.ArrayDeque;
@@ -32,11 +32,11 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 
-import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 import static io.joshworks.eventry.server.cluster.RemoteIterators.DEFAULT_BATCH_SIZE;
 import static io.joshworks.eventry.server.cluster.RemoteIterators.DEFAULT_TIMEOUT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 
 //CLIENT
 public class RemotePartitionClient implements IEventStore {
@@ -53,22 +53,22 @@ public class RemotePartitionClient implements IEventStore {
 
     @Override
     public void compact() {
-
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
     public void close() {
-
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
     public EventRecord linkTo(String stream, EventRecord event) {
-        return null;
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
     public EventRecord linkTo(String dstStream, EventId source, String sourceType) {
-        return null;
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
@@ -80,7 +80,7 @@ public class RemotePartitionClient implements IEventStore {
     public EventRecord append(EventRecord event, int expectedVersion) {
         Append append = new Append(event, expectedVersion);
         AppendResult response = client.send(node.address, append);
-        return new EventRecord(event.stream, event.type, response.version, response.timestamp, event.body, event.metadata);
+        return new EventRecord(event.stream, event.type, response.version, response.timestamp, event.data, event.metadata);
     }
 
     @Override
@@ -128,17 +128,22 @@ public class RemotePartitionClient implements IEventStore {
 
     @Override
     public List<StreamInfo> streamsMetadata() {
-        return null;
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    @Override
+    public Set<Long> streams() {
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
     public Optional<StreamInfo> streamMetadata(String stream) {
-        return Optional.empty();
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override
     public void truncate(String stream, int version) {
-
+        throw new UnsupportedOperationException("TODO");
     }
 
     @Override

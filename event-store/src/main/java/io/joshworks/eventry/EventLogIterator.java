@@ -1,7 +1,7 @@
 package io.joshworks.eventry;
 
 import io.joshworks.eventry.api.EventStoreIterator;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;

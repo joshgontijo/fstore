@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class StoreState {
 
@@ -32,6 +33,14 @@ public class StoreState {
 
     public Node getNode(String nodeId) {
         return nodes.get(nodeId);
+    }
+
+    public Set<Long> nodeStreams(String nodeId) {
+        return streamMapping.entrySet()
+                .stream()
+                .filter(kv -> kv.getValue().id.equals(nodeId))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
     }
 
     public boolean hasNode(String nodeId) {

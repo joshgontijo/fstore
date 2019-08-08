@@ -1,12 +1,11 @@
 package io.joshworks.eventry.server.cluster.nodelog;
 
-import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 public class NodeLeftEvent implements NodeEvent {
 
-    public static final String TYPE = EventId.SYSTEM_PREFIX + "NODE_LEFT";
+    public static final String TYPE = "NODE_LEFT";
 
     public final String nodeId;
 
@@ -15,7 +14,7 @@ public class NodeLeftEvent implements NodeEvent {
     }
 
     public static NodeLeftEvent from(EventRecord record) {
-        return JsonSerializer.fromBytes(record.body, NodeLeftEvent.class);
+        return JsonSerializer.fromJson(record.data, NodeLeftEvent.class);
     }
 
     @Override

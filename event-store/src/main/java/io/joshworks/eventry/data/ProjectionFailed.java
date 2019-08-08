@@ -1,7 +1,7 @@
 package io.joshworks.eventry.data;
 
 import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
@@ -29,7 +29,7 @@ public class ProjectionFailed {
     }
 
     public static ProjectionFailed from(EventRecord record) {
-        return JsonSerializer.fromBytes(record.body, ProjectionFailed.class);
+        return JsonSerializer.fromJson(record.data, ProjectionFailed.class);
     }
 
 }

@@ -5,7 +5,7 @@ import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.projection.Checkpointer;
 import io.joshworks.eventry.projection.EventStreamHandler;
 import io.joshworks.eventry.projection.Jsr223Handler;

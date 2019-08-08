@@ -1,9 +1,10 @@
 package io.joshworks.eventry.log;
 
-import io.joshworks.eventry.data.LinkTo;
+import io.joshworks.fstore.es.shared.LinkTo;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;

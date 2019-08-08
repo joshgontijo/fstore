@@ -1,7 +1,5 @@
-package io.joshworks.eventry.data;
+package io.joshworks.fstore.es.shared;
 
-import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.eventry.log.EventRecord;
 import io.joshworks.fstore.es.shared.utils.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -26,7 +24,7 @@ public class LinkTo {
         if(!record.isLinkToEvent()) {
             throw new IllegalArgumentException("Not a LinkTo type event");
         }
-        String target = new String(record.body, StandardCharsets.UTF_8);
+        String target = new String(record.data, StandardCharsets.UTF_8);
         EventId eventId = EventId.parse(target);
         return new LinkTo(eventId.name(), eventId.version());
     }

@@ -1,7 +1,7 @@
 package io.joshworks.eventry.projection.task;
 
 import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 
 import java.util.Map;
 import java.util.Set;

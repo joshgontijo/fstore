@@ -6,6 +6,7 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public interface IStream {
 
@@ -16,6 +17,8 @@ public interface IStream {
     StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata);
 
     List<StreamInfo> streamsMetadata();
+
+    Set<Long> streams();
 
     Optional<StreamInfo> streamMetadata(String stream);
 
