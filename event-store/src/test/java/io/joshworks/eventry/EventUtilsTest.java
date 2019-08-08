@@ -3,7 +3,6 @@ package io.joshworks.eventry;
 import io.joshworks.eventry.stream.StreamMetadata;
 import org.junit.Test;
 
-import java.time.Instant;
 import java.util.Map;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
@@ -43,9 +42,9 @@ public class EventUtilsTest {
 
     @Test
     public void max_aged() {
-        long now = Instant.now().getEpochSecond();
-        long old = now - 2;
-        long maxAge = now - 1;
+        int now = 123456;
+        int old = now - 2;
+        int maxAge = now - 1;
         var metadata = new StreamMetadata("a", 123, 0, maxAge, NO_MAX_COUNT, NO_TRUNCATE, Map.of(), Map.of(), 0);
         boolean valid = EventUtils.validIndexEntry(metadata, 0, old, l -> 0);
         assertFalse(valid);

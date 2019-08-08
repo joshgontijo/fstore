@@ -10,11 +10,9 @@ import java.util.Set;
 
 public interface IStream {
 
-    void createStream(String stream);
+    StreamMetadata createStream(String stream);
 
-    void createStream(String stream, int maxCount, long maxAge);
-
-    StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata);
+    StreamMetadata createStream(String stream, int maxCount, int maxAge, Map<String, Integer> acl, Map<String, String> metadata);
 
     List<StreamInfo> streamsMetadata();
 

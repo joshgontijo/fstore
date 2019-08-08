@@ -3,15 +3,12 @@ package io.joshworks.eventry;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.data.IndexFlushed;
-import io.joshworks.fstore.es.shared.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
-import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.log.EventLog;
-import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.StreamInfo;
@@ -26,6 +23,9 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
+import io.joshworks.fstore.es.shared.EventRecord;
+import io.joshworks.fstore.es.shared.LinkTo;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -47,11 +47,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
-import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.fstore.es.shared.utils.StringUtils.requireNonBlank;
 import static java.util.Objects.requireNonNull;
 
@@ -215,19 +215,14 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public void createStream(String name) {
-        createStream(name, NO_MAX_COUNT, NO_MAX_AGE);
+    public StreamMetadata createStream(String name) {
+        return createStream(name, NO_MAX_COUNT, NO_MAX_AGE, new HashMap<>(), new HashMap<>());
     }
 
     @Override
-    public void createStream(String name, int maxCount, long maxAgeSec) {
-        createStream(name, maxCount, maxAgeSec, new HashMap<>(), new HashMap<>());
-    }
-
-    @Override
-    public StreamMetadata createStream(String stream, int maxCount, long maxAgeSec, Map<String, Integer> acl, Map<String, String> metadata) {
+    public StreamMetadata createStream(String stream, int maxCount, int maxAgeSec, Map<String, Integer> acl, Map<String, String> metadata) {
         Future<StreamMetadata> task = eventWriter.queue(writer -> {
-            StreamMetadata created = streams.create(stream, maxAgeSec, maxCount, acl, metadata);
+            StreamMetadata created = streams.create(stream, maxCount, maxAgeSec, acl, metadata);
             if (created == null) {
                 throw new IllegalStateException("Stream '" + stream + "' already exist");
             }

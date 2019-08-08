@@ -2,14 +2,14 @@ package io.joshworks.eventry;
 
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.fstore.es.shared.streams.SystemStreams;
-import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
+import io.joshworks.fstore.es.shared.EventRecord;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,10 +25,10 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
-import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -118,7 +118,7 @@ public class EventStoreTest {
         String stream = "test-stream";
         int maxCount = 10;
         int numVersions = 50;
-        store.createStream(stream, maxCount, NO_MAX_AGE);
+        store.createStream(stream, maxCount, NO_MAX_AGE, new HashMap<>(), new HashMap<>());
 
         for (int version = 0; version < numVersions; version++) {
             store.append(EventRecord.create(stream, "type", Map.of()));
@@ -177,7 +177,7 @@ public class EventStoreTest {
         String stream = "test-stream";
         int maxAgeSeconds = 2;
         int numVersions = 50;
-        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds, new HashMap<>(), new HashMap<>());
 
         for (int version = 0; version < numVersions; version++) {
             store.append(EventRecord.create(stream, "type", Map.of()));
@@ -196,7 +196,7 @@ public class EventStoreTest {
         int maxAgeSeconds = 2;
         int numVersions = 50;
         store.createStream(stream);
-        store.createStream(linkToStream, NO_MAX_COUNT, maxAgeSeconds);
+        store.createStream(linkToStream, NO_MAX_COUNT, maxAgeSeconds, new HashMap<>(), new HashMap<>());
 
         for (int version = 0; version < numVersions; version++) {
             EventRecord event = store.append(EventRecord.create(stream, "type", Map.of()));
@@ -214,7 +214,7 @@ public class EventStoreTest {
         String stream = "test-stream";
         int maxAgeSeconds = 2;
         int numVersions = 50;
-        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds, new HashMap<>(), new HashMap<>());
 
         for (int version = 0; version < numVersions; version++) {
             store.append(EventRecord.create(stream, "type", Map.of()));
@@ -250,7 +250,7 @@ public class EventStoreTest {
         String stream = "stream-1";
         int maxAgeSeconds = 2;
         int numVersions = 50;
-        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds, new HashMap<>(), new HashMap<>());
 
         for (int version = 0; version < numVersions; version++) {
             store.append(EventRecord.create(stream, "type", Map.of()));
@@ -267,7 +267,7 @@ public class EventStoreTest {
         String stream = "test-stream";
         int maxAgeSeconds = 2;
         int numVersions = 50;
-        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds, new HashMap<>(), new HashMap<>());
         EventStoreIterator iterator = store.fromStreams(EventMap.from(EventId.of(stream)));
 
         for (int version = 0; version < numVersions; version++) {
@@ -286,8 +286,8 @@ public class EventStoreTest {
         String stream2 = "stream-2";
         int maxAgeSeconds = 2;
         int numVersions = 50;
-        store.createStream(stream1, NO_MAX_COUNT, maxAgeSeconds);
-        store.createStream(stream2, NO_MAX_COUNT, maxAgeSeconds);
+        store.createStream(stream1, NO_MAX_COUNT, maxAgeSeconds, new HashMap<>(), new HashMap<>());
+        store.createStream(stream2, NO_MAX_COUNT, maxAgeSeconds, new HashMap<>(), new HashMap<>());
 
         for (int version = 0; version < numVersions; version++) {
             store.append(EventRecord.create(stream1, "type", Map.of()));
@@ -308,7 +308,7 @@ public class EventStoreTest {
         String stream = "test-stream";
         int maxAgeSeconds = 2;
         int numVersions = 50;
-        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds);
+        store.createStream(stream, NO_MAX_COUNT, maxAgeSeconds, new HashMap<>(), new HashMap<>());
 
         for (int version = 0; version < numVersions; version++) {
             store.append(EventRecord.create(stream, "type", Map.of()));
