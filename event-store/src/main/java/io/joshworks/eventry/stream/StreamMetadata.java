@@ -22,7 +22,7 @@ public class StreamMetadata {
     public final long hash;
     public final long created;
 
-    public final long maxAgeSec;
+    public final int maxAgeSec;
     public final int maxCount;
 
     public final int truncated;
@@ -33,7 +33,7 @@ public class StreamMetadata {
     final Map<String, Integer> acl;
     final Map<String, String> metadata;
 
-    public StreamMetadata(String name, long hash, long created, long maxAgeSec, int maxCount, int truncated, Map<String, Integer> acl, Map<String, String> metadata, int state) {
+    public StreamMetadata(String name, long hash, long created, int maxAgeSec, int maxCount, int truncated, Map<String, Integer> acl, Map<String, String> metadata, int state) {
         this.name = name;
         this.hash = hash;
         this.created = created;
@@ -44,7 +44,6 @@ public class StreamMetadata {
         this.metadata = metadata;
         this.state = state;
     }
-
 
     public boolean hasReadPermission(String id) {
         return acl.getOrDefault(id, PERMISSION_NONE).equals(PERMISSION_READ);

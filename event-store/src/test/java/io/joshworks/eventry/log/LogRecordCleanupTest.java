@@ -1,16 +1,16 @@
 package io.joshworks.eventry.log;
 
-import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.InMemorySegment;
-import io.joshworks.fstore.es.shared.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
-import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventRecord;
+import io.joshworks.fstore.es.shared.LinkTo;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.fstore.es.shared.utils.StringUtils;
 import io.joshworks.fstore.log.segment.Log;
 import org.junit.After;
@@ -90,7 +90,7 @@ public class LogRecordCleanupTest {
         var stream = "stream-1";
         var maxCount = 2;
 
-        streams.create(stream, NO_MAX_AGE, maxCount);
+        streams.create(stream, maxCount, NO_MAX_AGE);
 
         var source = new InMemorySegment<EventRecord>();
         appendTo(source, recordOf(stream, 0, 0));
@@ -113,7 +113,7 @@ public class LogRecordCleanupTest {
         var stream = "stream-1";
         var maxAge = 10;
         var now = System.currentTimeMillis();
-        streams.create(stream, maxAge, NO_MAX_COUNT);
+        streams.create(stream, NO_MAX_COUNT, maxAge);
 
         var source = new InMemorySegment<EventRecord>();
         appendTo(source, recordOf(stream, 0, now - maxAge - 1));
@@ -136,7 +136,7 @@ public class LogRecordCleanupTest {
         var maxCount = 1;
 
         streams.create(originalStream);
-        streams.create(derivedStream, NO_MAX_AGE, maxCount);
+        streams.create(derivedStream, maxCount, NO_MAX_AGE);
 
         var source = new InMemorySegment<EventRecord>();
 
@@ -179,7 +179,7 @@ public class LogRecordCleanupTest {
         var now = System.currentTimeMillis();
 
         streams.create(originalStream);
-        streams.create(derivedStream, maxAge, NO_MAX_COUNT);
+        streams.create(derivedStream, NO_MAX_COUNT, maxAge);
 
         var source = new InMemorySegment<EventRecord>();
 
@@ -289,7 +289,7 @@ public class LogRecordCleanupTest {
         var derivedStream = "derived-stream";
         var maxAge = 10;
         var now = System.currentTimeMillis();
-        streams.create(srcStream, maxAge, NO_MAX_COUNT);
+        streams.create(srcStream, NO_MAX_COUNT, maxAge);
         streams.create(derivedStream); //no maxAge / maxCount for derived stream
 
         long ts1 = now - maxAge - 1;
@@ -321,7 +321,7 @@ public class LogRecordCleanupTest {
         var derivedStream = "derived-stream";
         var maxCount = 1;
 
-        streams.create(srcStream, NO_MAX_AGE, maxCount);
+        streams.create(srcStream, maxCount, NO_MAX_AGE);
         streams.create(derivedStream);
 
         EventRecord ev1 = recordOf(srcStream, 0, 0);

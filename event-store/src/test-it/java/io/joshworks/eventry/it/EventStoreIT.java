@@ -1,21 +1,21 @@
 package io.joshworks.eventry.it;
 
-import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.data.StreamCreated;
-import io.joshworks.fstore.es.shared.streams.SystemStreams;
-import io.joshworks.fstore.es.shared.streams.StreamHasher;
-import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
+import io.joshworks.fstore.es.shared.EventRecord;
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.fstore.log.iterators.Iterators;
 import org.junit.After;
 import org.junit.Before;
@@ -35,8 +35,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static io.joshworks.fstore.es.shared.EventId.START_VERSION;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
+import static io.joshworks.fstore.es.shared.EventId.START_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -173,7 +173,7 @@ public class EventStoreIT {
     public void insert_1_streams_with_1000_version_each_maxCount() {
 
         String streamName = "stream-123";
-        store.createStream(streamName, 10000, NO_MAX_AGE);
+        store.createStream(streamName, 10000, NO_MAX_AGE, new HashMap<>(), new HashMap<>());
         for (int version = 1; version <= 500000; version++) {
             try {
                 store.append(EventRecord.create(streamName, "type", Map.of()));
@@ -184,8 +184,8 @@ public class EventStoreIT {
         store.index.compact();
         Threads.sleep(10000);
 
-        store.fromStream(EventId.of(streamName))
-                .forEachRemaining(System.out::println);
+        //TODO assertion
+        store.fromStream(EventId.of(streamName)).forEachRemaining(System.out::println);
     }
 
 

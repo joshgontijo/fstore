@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,10 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
+import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElseGet;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.reducing;
@@ -229,7 +233,12 @@ public class ClusterStore implements IEventStore {
     }
 
     @Override
-    public void createStream(String stream) {
+    public StreamMetadata createStream(String stream) {
+        return createStream(stream, NO_MAX_COUNT, NO_MAX_AGE, new HashMap<>(), new HashMap<>());
+    }
+
+    @Override
+    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
         Node node = select(stream);
         if (node != null) {
             throw new IllegalArgumentException("Stream " + stream + " already exist");
@@ -241,24 +250,12 @@ public class ClusterStore implements IEventStore {
         //nodes.size() will return different node idx
         node = nodeForNewStream(stream);
 
+        //TODO add user who created / ACL
+        metadata = requireNonNullElseGet(metadata, HashMap::new);
+        metadata.put("_node", node.id);
+
         //TODO add an option to explicitly specify the node where the stream will be created, it does require global lock
         //Another thing cna be done is to return a SEE_OTHER response status and make the client go to another node
-        node.store().createStream(stream);
-    }
-
-    @Override
-    public void createStream(String stream, int maxCount, long maxAge) {
-        throw new UnsupportedOperationException("REMOVE ME, TOO MANY ITEMS");
-    }
-
-    @Override
-    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
-        //TODO add option to specify NodeId
-        Node node = select(stream);
-        if (node != null) {
-            throw new IllegalArgumentException("Stream " + stream + " already exist");
-        }
-        node = nodeForNewStream(stream);
         return node.store().createStream(stream, maxCount, maxAge, acl, metadata);
     }
 

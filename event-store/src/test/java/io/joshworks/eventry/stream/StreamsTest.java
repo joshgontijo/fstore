@@ -45,17 +45,17 @@ public class StreamsTest {
 
     @Test
     public void get_returns_correct_stream() {
-        StreamMetadata created = streams.create("a", 1, 0);
+        StreamMetadata created = streams.create("a", 0, 1);
         assertNotNull(streams.get(created.hash));
     }
 
     @Test
     public void streamsStartingWith() {
 
-        streams.create("abc-123", 1, 0);
-        streams.create("abc-345", 2, 0);
-        streams.create("another1", 3, 0);
-        streams.create("another2", 4, 0);
+        streams.create("abc-123", 0, 1);
+        streams.create("abc-345", 0, 2);
+        streams.create("another1", 0, 3);
+        streams.create("another2", 0, 4);
 
         Set<String> names = streams.matchStreamName(Set.of("abc-*"));
 
@@ -67,10 +67,10 @@ public class StreamsTest {
     @Test
     public void streamsEndingWith() {
 
-        streams.create("44444aaa", 1, 0);
-        streams.create("123-aaa", 2, 0);
-        streams.create("another1", 3, 0);
-        streams.create("another2", 4, 0);
+        streams.create("44444aaa", 0, 1);
+        streams.create("123-aaa", 0, 2);
+        streams.create("another1", 0, 3);
+        streams.create("another2", 0, 4);
 
         Set<String> names = streams.matchStreamName(Set.of("*aaa"));
 
@@ -82,10 +82,10 @@ public class StreamsTest {
     @Test
     public void streamsContaining() {
 
-        streams.create("aaaayolobbb", 1, 0);
-        streams.create("123-yolo", 2, 0);
-        streams.create("another1", 3, 0);
-        streams.create("another2", 4, 0);
+        streams.create("aaaayolobbb", 0, 1);
+        streams.create("123-yolo", 0, 2);
+        streams.create("another1", 0, 3);
+        streams.create("another2", 0, 4);
 
         Set<String> names = streams.matchStreamName(Set.of("*yolo*"));
 

@@ -6,7 +6,6 @@ import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.client.ClusterClient;
-import io.joshworks.eventry.server.cluster.messages.Ack;
 import io.joshworks.eventry.server.cluster.messages.Append;
 import io.joshworks.eventry.server.cluster.messages.AppendResult;
 import io.joshworks.eventry.server.cluster.messages.CreateStream;
@@ -114,13 +113,8 @@ public class ClusterStoreClient implements IEventStore {
     }
 
     @Override
-    public void createStream(String name) {
-        createStream(name, NO_MAX_COUNT, NO_MAX_AGE);
-    }
-
-    @Override
-    public void createStream(String name, int maxCount, long maxAge) {
-        createStream(name, NO_MAX_COUNT, NO_MAX_AGE, new HashMap<>(), new HashMap<>());
+    public StreamMetadata createStream(String name) {
+        return createStream(name, NO_MAX_COUNT, NO_MAX_AGE, new HashMap<>(), new HashMap<>());
     }
 
     @Override
