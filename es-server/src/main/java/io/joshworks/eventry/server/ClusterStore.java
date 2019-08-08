@@ -238,7 +238,7 @@ public class ClusterStore implements IEventStore {
     }
 
     @Override
-    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
+    public StreamMetadata createStream(String stream, int maxCount, int maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
         Node node = select(stream);
         if (node != null) {
             throw new IllegalArgumentException("Stream " + stream + " already exist");
