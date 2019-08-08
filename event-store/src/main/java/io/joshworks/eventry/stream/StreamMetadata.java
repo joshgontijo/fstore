@@ -13,7 +13,7 @@ public class StreamMetadata {
     public static final int STREAM_LOCKED = 1;
     public static final int STREAM_DELETED = 2;
 
-    public static final int NO_MAX_AGE = -1;
+    public static final int NO_MAX_AGE = 0;
     public static final int NO_MAX_COUNT = 0;
 
     public static final int NO_TRUNCATE = -1;
