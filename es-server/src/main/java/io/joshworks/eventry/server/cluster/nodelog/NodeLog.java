@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server.cluster.nodelog;
 
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
@@ -12,16 +12,15 @@ import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class NodeLog implements Iterable<EventRecord>, Closeable {
 
-    static final String PARTITIONS_STREAM = "PARTITIONS";
     static final String NODES_STREAM = "NODES";
     private static final String NAME = "node-log";
 
     private final LogAppender<EventRecord> log;
+    private final AtomicInteger version = new AtomicInteger();
 
     public NodeLog(File root) {
         this.log = LogAppender.builder(new File(root, NAME), new EventSerializer()).flushMode(FlushMode.ALWAYS)
@@ -29,28 +28,15 @@ public class NodeLog implements Iterable<EventRecord>, Closeable {
                 .storageMode(StorageMode.RAF)
                 .name(NAME)
                 .open();
+
+        this.version.set((int) log.entries());
+
     }
 
     public void append(NodeEvent event) {
         EventRecord record = event.toEvent();
-        EventRecord withTimestamp = new EventRecord(record.stream, record.type, -1, System.currentTimeMillis(), record.body, record.metadata);
+        EventRecord withTimestamp = new EventRecord(record.stream, record.type, version.getAndIncrement(), System.currentTimeMillis(), record.data, record.metadata);
         log.append(withTimestamp);
-    }
-
-    public Set<Integer> ownedPartitions() {
-        LogIterator<EventRecord> it = iterator();
-
-        Set<Integer> partitions = new HashSet<>();
-        while (it.hasNext()) {
-            EventRecord entry = it.next();
-            switch (entry.type) {
-                case PartitionCreatedEvent.TYPE:
-                    partitions.add(PartitionCreatedEvent.from(entry).id);
-//                case PartitionTransferredEvent.TYPE:
-//                    partitions.remove(PartitionTransferredEvent.from(entry).id);
-            }
-        }
-        return partitions;
     }
 
     @Override

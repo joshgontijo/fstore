@@ -5,22 +5,22 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.util.Set;
 
-public class NodeJoinedEvent implements NodeEvent {
+public class NodeInfoReceivedEvent implements NodeEvent {
 
-    public static final String TYPE = "NODE_JOINED";
+    public static final String TYPE = "NODE_INFO_RECEIVED";
 
     public final String nodeId;
     public final String address;
     public final Set<Long> streams; //TODO this can be huge
 
-    public NodeJoinedEvent(String nodeId, String address, Set<Long> streams) {
+    public NodeInfoReceivedEvent(String nodeId, String address, Set<Long> streams) {
         this.nodeId = nodeId;
         this.address = address;
         this.streams = streams;
     }
 
-    public static NodeJoinedEvent from(EventRecord record) {
-        return JsonSerializer.fromJson(record.data, NodeJoinedEvent.class);
+    public static NodeInfoReceivedEvent from(EventRecord record) {
+        return JsonSerializer.fromJson(record.data, NodeInfoReceivedEvent.class);
     }
 
     @Override

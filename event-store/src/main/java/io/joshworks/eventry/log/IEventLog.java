@@ -1,5 +1,6 @@
 package io.joshworks.eventry.log;
 
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 

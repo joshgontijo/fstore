@@ -1,12 +1,12 @@
 package io.joshworks.fstore.client;
 
 import io.joshworks.fstore.es.shared.EventMap;
-import io.joshworks.fstore.es.shared.JsonEvent;
+import io.joshworks.fstore.es.shared.EventRecord;
 
 import java.io.Closeable;
 import java.util.Iterator;
 
-public interface ClientStreamIterator extends Iterator<JsonEvent>, Closeable {
+public interface ClientStreamIterator extends Iterator<EventRecord>, Closeable {
 
     EventMap checkpoint();
 

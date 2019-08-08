@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projection;
 
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.projection.result.ScriptExecutionResult;
 import io.joshworks.eventry.projection.task.StopReason;
 

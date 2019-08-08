@@ -47,8 +47,20 @@ public class JsonSerializer<T> implements Serializer<T> {
         return toJson(data).getBytes(StandardCharsets.UTF_8);
     }
 
-    public static <T> T fromBytes(byte[] data, Type type) {
-        return gson.fromJson(new String(data, StandardCharsets.UTF_8), type);
+    public static <T> T fromJson(byte[] data, Type type) {
+        return fromJson(new String(data, StandardCharsets.UTF_8), type);
+    }
+
+    public static <T> T fromJson(String data, Type type) {
+        return gson.fromJson(data, type);
+    }
+
+    public static <T> T fromJson(byte[] data, Class<T> type) {
+        return fromJson(new String(data, StandardCharsets.UTF_8), type);
+    }
+
+    public static <T> T fromJson(String data, Class<T> type) {
+        return gson.fromJson(data, type);
     }
 
     @Override

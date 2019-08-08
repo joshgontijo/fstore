@@ -1,6 +1,7 @@
 package io.joshworks.eventry.log;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.serializer.VStringSerializer;
 
 import java.nio.ByteBuffer;
@@ -16,8 +17,8 @@ public class EventSerializer implements Serializer<EventRecord> {
         dst.putInt(data.version);
         dst.putLong(data.timestamp);
 
-        dst.putInt(data.body.length);
-        dst.put(data.body);
+        dst.putInt(data.data.length);
+        dst.put(data.data);
 
         int metadataLen = data.metadata == null ? 0 : data.metadata.length;
         dst.putInt(metadataLen);

@@ -1,11 +1,6 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.EventStore;
-import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.network.Cluster;
-import io.joshworks.eventry.network.ClusterNode;
-import io.joshworks.eventry.network.MulticastResponse;
-import io.joshworks.eventry.network.NodeStatus;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.core.util.AppProperties;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.es.shared.NodeInfo;
@@ -13,8 +8,8 @@ import io.joshworks.fstore.es.shared.NodeInfo;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import static io.joshworks.snappy.SnappyServer.adminPort;
 import static io.joshworks.snappy.SnappyServer.cors;
@@ -47,6 +42,7 @@ public class Server {
         ClusterStore store = ClusterStore.connect(new File(path), "es-cluster", serverPort);
         StreamEndpoint streams = new StreamEndpoint(store);
 
+
         group("/nodes", () -> {
             get(req -> ok(store.nodesInfo()));
         });
@@ -62,6 +58,11 @@ public class Server {
         group("/from-stream/", () -> {
 
         });
+
+        get("/nodelog", req -> {
+            List<EventRecord.JsonView> items = store.nodeLog().iterator().stream().map(EventRecord::asJson).collect(Collectors.toList());
+            return ok(items);
+        }, produces("json"));
 
 //        group("/subscriptions", () -> {
 //            put("{id}", req -> {

@@ -2,7 +2,7 @@ package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.api.EventStoreIterator;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.core.io.IOUtils;
 
 import java.io.Closeable;

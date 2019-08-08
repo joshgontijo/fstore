@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server.cluster.messages;
 
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.network.ClusterMessage;
 
 /**

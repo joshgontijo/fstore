@@ -1,7 +1,7 @@
 package io.joshworks.eventry.api;
 
 import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 
 public interface IEventAppender {
 

@@ -1,7 +1,7 @@
 package io.joshworks.fstore.client;
 
 import io.joshworks.fstore.es.shared.EventMap;
-import io.joshworks.fstore.es.shared.JsonEvent;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.NodeInfo;
 import io.joshworks.restclient.http.HttpResponse;
 import io.joshworks.restclient.http.Json;
@@ -18,7 +18,7 @@ public class NodeIterator implements ClientStreamIterator {
     private final NodeInfo node;
     private final RestClient client;
     private final int fetchSize;
-    private final Queue<JsonEvent> queue = new ArrayDeque<>();
+    private final Queue<EventRecord> queue = new ArrayDeque<>();
 
     public NodeIterator(String subscriptionId, NodeInfo node, RestClient client, int fetchSize) {
         this.subscriptionId = subscriptionId;
@@ -44,7 +44,7 @@ public class NodeIterator implements ClientStreamIterator {
     }
 
     @Override
-    public JsonEvent next() {
+    public EventRecord next() {
         return null;
     }
 

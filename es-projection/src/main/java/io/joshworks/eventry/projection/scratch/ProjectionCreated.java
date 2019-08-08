@@ -2,7 +2,7 @@ package io.joshworks.eventry.projection.scratch;
 
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.projection.Projection;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
@@ -22,7 +22,7 @@ public class ProjectionCreated {
     }
 
     public static Projection from(EventRecord record) {
-        return serializer.fromBytes(ByteBuffer.wrap(record.body));
+        return serializer.fromBytes(ByteBuffer.wrap(record.data));
     }
 
 }

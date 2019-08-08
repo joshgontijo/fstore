@@ -3,7 +3,7 @@ package io.joshworks.eventry.server;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.network.ClusterNode;
@@ -26,10 +26,14 @@ import io.joshworks.eventry.server.cluster.messages.Get;
 import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
 import io.joshworks.eventry.server.cluster.messages.IteratorNext;
 import io.joshworks.eventry.server.cluster.node.Node;
+import io.joshworks.eventry.server.cluster.nodelog.NodeInfoReceivedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeJoinedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLeftEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
+import io.joshworks.eventry.server.cluster.nodelog.NodeShutdownEvent;
+import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
 import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,13 +49,15 @@ public class EventHandler implements Closeable {
     private final RemoteIterators remoteIterators = new RemoteIterators();
 
     private final IEventStore localStore;
+    private final int port;
     private final NodeDescriptor descriptor;
     private final Cluster cluster;
     private final StoreState state;
     private final NodeLog nodeLog;
 
-    public EventHandler(EventStore localStore, NodeDescriptor descriptor, Cluster cluster, StoreState state, NodeLog nodeLog) {
+    public EventHandler(EventStore localStore, int port, NodeDescriptor descriptor, Cluster cluster, StoreState state, NodeLog nodeLog) {
         this.localStore = localStore;
+        this.port = port;
         this.descriptor = descriptor;
         this.cluster = cluster;
         this.state = state;
@@ -59,27 +65,6 @@ public class EventHandler implements Closeable {
 
         registerHandlers(cluster);
         cluster.onConnected(this::fetchNodeInfo);
-    }
-
-    private void fetchNodeInfo() {
-        Set<Long> streams = localStore.streamsMetadata().stream().map(si -> si.hash).collect(Collectors.toSet());
-        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(descriptor.nodeId(), streams));
-        for (MulticastResponse response : responses) {
-            NodeInfo nodeInfo = response.message();
-
-            ClusterNode cNode = cluster.node(nodeInfo.nodeId);
-            IEventStore remoteStore = new RemotePartitionClient(cNode, nodeInfo.nodeId, cluster.client());
-            Node node = new Node(nodeInfo.nodeId, remoteStore, nodeInfo.address);
-            state.addNode(node, nodeInfo.streams);
-        }
-    }
-
-    private NodeInfo thisNodeInfo() {
-        //TODO improve this, no need to scan the database each time
-        Set<Long> streams = localStore.streamsMetadata().stream().map(si -> si.hash).collect(Collectors.toSet());
-
-        Node thisNode = state.getNode(descriptor.nodeId());
-        return new NodeInfo(thisNode.id, thisNode.address, streams);
     }
 
     private void registerHandlers(Cluster cluster) {
@@ -96,11 +81,44 @@ public class EventHandler implements Closeable {
         cluster.register(Get.class, this::get);
     }
 
+    private void fetchNodeInfo() {
+
+        //add this node to the nodes list
+        Set<Long> streams = localStore.streams().stream().filter(h -> !SystemStreams.systemStream(h)).collect(Collectors.toSet());
+        ClusterNode cNode = cluster.node();
+        String nodeAddress = cNode.hostAddress() + ":" + port;
+        Node thisNode = new Node(cNode.id, localStore, nodeAddress);
+        state.addNode(thisNode, streams);
+
+        nodeLog.append(new NodeStartedEvent(cNode.id, nodeAddress));
+
+        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode.id, thisNode.address, streams));
+
+        for (MulticastResponse response : responses) {
+            NodeInfo nodeInfo = response.message();
+            logger.info("Received node info: {}", nodeInfo);
+
+            ClusterNode remoteNode = cluster.node(nodeInfo.nodeId);
+            IEventStore remoteStore = new RemotePartitionClient(remoteNode, nodeInfo.nodeId, cluster.client());
+            Node node = new Node(nodeInfo.nodeId, remoteStore, nodeInfo.address);
+            state.addNode(node, nodeInfo.streams);
+
+            nodeLog.append(new NodeInfoReceivedEvent(node.id, nodeInfo.address, nodeInfo.streams));
+        }
+    }
+
+    private NodeInfo thisNodeInfo() {
+        Set<Long> streams = state.nodeStreams(descriptor.nodeId());
+
+        Node thisNode = state.getNode(descriptor.nodeId());
+        return new NodeInfo(thisNode.id, thisNode.address, streams);
+    }
+
     private NodeInfo onNodeJoined(NodeJoined nodeJoined) {
         String nodeId = nodeJoined.nodeId;
 
         logger.info("Node joined: '{}': {}", nodeId, nodeJoined);
-        nodeLog.append(new NodeJoinedEvent(nodeId));
+        nodeLog.append(new NodeJoinedEvent(nodeId, nodeJoined.address, nodeJoined.streams));
 
         ClusterNode cNode = cluster.node(nodeId);
         IEventStore remoteStore = new RemotePartitionClient(cNode, nodeId, cluster.client());
@@ -124,7 +142,6 @@ public class EventHandler implements Closeable {
     private void onNodeInfoReceived(NodeInfo nodeInfo) {
         logger.info("Node info received from {}: {}", nodeInfo.nodeId, nodeInfo);
     }
-
 
     //-------------- STORE RPC ----------------------
 
@@ -166,6 +183,7 @@ public class EventHandler implements Closeable {
     @Override
     public void close() {
         remoteIterators.close();
+        nodeLog.append(new NodeShutdownEvent(cluster.nodeId()));
     }
 
 }

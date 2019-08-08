@@ -5,7 +5,7 @@ import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.core.seda.TimeWatch;
 import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;

@@ -62,6 +62,10 @@ public class Streams implements Closeable {
         return metadata;
     }
 
+    public Set<Long> allHashes() {
+        return Iterators.stream(store.iterator(Direction.FORWARD)).map(e -> e.key).collect(Collectors.toSet());
+    }
+
     public List<StreamMetadata> all() {
         return Iterators.stream(store.iterator(Direction.FORWARD)).map(e -> e.value).collect(Collectors.toList());
     }

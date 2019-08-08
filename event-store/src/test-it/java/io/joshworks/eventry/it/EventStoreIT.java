@@ -10,7 +10,7 @@ import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.hash.Murmur3Hash;
 import io.joshworks.fstore.core.hash.XXHash;
@@ -365,20 +365,20 @@ public class EventStoreIT {
 
         System.out.println("LinkTo 1");
         store.fromStream(EventId.parse(streamName)).stream().forEach(e -> {
-            String firstLetter = Arrays.toString(e.body).substring(0, 1);
+            String firstLetter = Arrays.toString(e.data).substring(0, 1);
             store.linkTo("letter-" + firstLetter, e);
         });
 
 //        LogDump.dumpIndex(new File("index2.txt"), store);
         System.out.println("LinkTo 2");
         store.fromStream(EventId.parse(streamName)).stream().forEach(e -> {
-            String firstLetter = Arrays.toString(e.body).substring(0, 2);
+            String firstLetter = Arrays.toString(e.data).substring(0, 2);
             store.linkTo("letter-" + firstLetter, e);
         });
 
         System.out.println("LinkTo 3");
         store.fromStream(EventId.parse(streamName)).stream().forEach(e -> {
-            String firstLetter = Arrays.toString(e.body).substring(0, 3);
+            String firstLetter = Arrays.toString(e.data).substring(0, 3);
             store.linkTo("letter-" + firstLetter, e);
         });
 

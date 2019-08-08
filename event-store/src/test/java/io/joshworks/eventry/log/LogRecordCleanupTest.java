@@ -2,8 +2,9 @@ package io.joshworks.eventry.log;
 
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.InMemorySegment;
-import io.joshworks.eventry.data.LinkTo;
+import io.joshworks.fstore.es.shared.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;

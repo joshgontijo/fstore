@@ -1,11 +1,9 @@
 package io.joshworks.eventry.server;
 
 import com.google.gson.Gson;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.es.shared.JsonEvent;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.snappy.sse.EventData;
 import io.joshworks.snappy.sse.SseBroadcaster;
 import org.slf4j.Logger;
@@ -166,12 +164,10 @@ public class EventBroadcaster implements Closeable {
 
         private void send(EventRecord event) {
             try {
-                JsonEvent jsonEvent = new JsonEvent(event.type, event.timestamp, event.stream, event.version, event.body, event.metadata);
-
                 String eventId = String.valueOf(event.eventId());
                 String stream = event.stream;
 
-                EventData eventData = new EventData(JsonSerializer.toJson(jsonEvent), eventId, stream);
+                EventData eventData = new EventData(event.asJson().asString(), eventId, stream);
                 SseBroadcaster.broadcast(eventData, stream);
             } catch (Exception e) {
                 logger.error("Error sending event", e);

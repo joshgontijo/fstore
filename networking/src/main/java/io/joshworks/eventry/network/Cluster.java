@@ -154,7 +154,11 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     public ClusterNode node() {
-        return nodeById.get(nodeId);
+        ClusterNode node = node(nodeId);
+        if (node == null) {
+            throw new IllegalStateException("Could not find current node, not connected to cluster");
+        }
+        return node;
     }
 
     public synchronized void leave() {

@@ -1,6 +1,6 @@
 package io.joshworks.eventry.projection;
 
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
@@ -9,7 +9,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import static io.joshworks.eventry.log.EventRecord.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventRecord.NO_VERSION;
 
 public class JsonEvent {
 
@@ -33,7 +33,7 @@ public class JsonEvent {
     }
 
     public static JsonEvent from(EventRecord event) {
-        Map<String, Object> data = serializer.fromBytes(ByteBuffer.wrap(event.body));
+        Map<String, Object> data = serializer.fromBytes(ByteBuffer.wrap(event.data));
         Map<String, Object> metadata = event.metadata == null ? new HashMap<>() : serializer.fromBytes(ByteBuffer.wrap(event.metadata));
         return new JsonEvent(event.type, event.timestamp, event.stream, event.version, data, metadata);
     }

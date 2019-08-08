@@ -4,7 +4,7 @@ import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.data.ProjectionCompleted;
 import io.joshworks.eventry.data.ProjectionFailed;
 import io.joshworks.eventry.data.ProjectionStopped;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.projection.result.ExecutionResult;
 import io.joshworks.eventry.projection.result.Status;
 import io.joshworks.eventry.projection.result.TaskError;

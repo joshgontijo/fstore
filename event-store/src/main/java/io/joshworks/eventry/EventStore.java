@@ -3,7 +3,7 @@ package io.joshworks.eventry;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.data.IndexFlushed;
-import io.joshworks.eventry.data.LinkTo;
+import io.joshworks.fstore.es.shared.LinkTo;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.data.StreamTruncated;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
@@ -11,7 +11,7 @@ import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.index.IndexEntry;
 import io.joshworks.eventry.index.IndexIterator;
 import io.joshworks.eventry.log.EventLog;
-import io.joshworks.eventry.log.EventRecord;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.log.EventSerializer;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.StreamInfo;
@@ -250,6 +250,11 @@ public class EventStore implements IEventStore {
             int version = index.version(meta.hash);
             return StreamInfo.from(meta, version);
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    public Set<Long> streams() {
+        return streams.allHashes();
     }
 
     @Override
