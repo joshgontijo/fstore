@@ -118,7 +118,7 @@ public class ClusterStoreClient implements IEventStore {
     }
 
     @Override
-    public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
+    public StreamMetadata createStream(String stream, int maxCount, int maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
         StreamMetadata created = client.send(node.address, new CreateStream(stream, maxCount, maxAge, acl, metadata));
         return created;
     }
