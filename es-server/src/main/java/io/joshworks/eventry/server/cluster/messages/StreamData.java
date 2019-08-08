@@ -1,10 +1,8 @@
 package io.joshworks.eventry.server.cluster.messages;
 
-import io.joshworks.eventry.network.ClusterMessage;
-
 import java.util.Map;
 
-public class StreamData implements ClusterMessage {
+public class StreamData  {
     public final String stream;
     public final int maxCount;
     public final  long maxAge;

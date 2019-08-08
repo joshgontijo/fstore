@@ -1,9 +1,8 @@
 package io.joshworks.eventry.server.cluster.messages;
 
 import io.joshworks.fstore.es.shared.EventMap;
-import io.joshworks.eventry.network.ClusterMessage;
 
-public class FromStreams implements ClusterMessage {
+public class FromStreams  {
 
     public final EventMap eventMap;
     public final int batchSize;

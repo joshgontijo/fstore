@@ -3,14 +3,15 @@ package io.joshworks.eventry.server;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
+import io.joshworks.eventry.server.cluster.messages.CreateStream;
+import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.network.Cluster;
-import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.MulticastResponse;
 import io.joshworks.eventry.server.cluster.NodeDescriptor;
 import io.joshworks.eventry.server.cluster.RemoteIterators;
-import io.joshworks.eventry.server.cluster.RemotePartitionClient;
+import io.joshworks.eventry.server.cluster.ClusterStoreClient;
 import io.joshworks.eventry.server.cluster.events.NodeInfo;
 import io.joshworks.eventry.server.cluster.events.NodeInfoRequested;
 import io.joshworks.eventry.server.cluster.events.NodeJoined;
@@ -73,6 +74,7 @@ public class EventHandler implements Closeable {
         cluster.register(NodeLeft.class, this::onNodeLeft);
         cluster.register(NodeInfo.class, this::onNodeInfoReceived);
 
+        cluster.register(CreateStream.class, this::onStreamCreationRequest);
         cluster.register(IteratorNext.class, this::onIteratorNext);
         cluster.register(FromAll.class, this::fromAll);
         cluster.register(FromStream.class, this::fromStream);
@@ -99,7 +101,7 @@ public class EventHandler implements Closeable {
             logger.info("Received node info: {}", nodeInfo);
 
             ClusterNode remoteNode = cluster.node(nodeInfo.nodeId);
-            IEventStore remoteStore = new RemotePartitionClient(remoteNode, nodeInfo.nodeId, cluster.client());
+            IEventStore remoteStore = new ClusterStoreClient(remoteNode, nodeInfo.nodeId, cluster.client());
             Node node = new Node(nodeInfo.nodeId, remoteStore, nodeInfo.address);
             state.addNode(node, nodeInfo.streams);
 
@@ -121,7 +123,7 @@ public class EventHandler implements Closeable {
         nodeLog.append(new NodeJoinedEvent(nodeId, nodeJoined.address, nodeJoined.streams));
 
         ClusterNode cNode = cluster.node(nodeId);
-        IEventStore remoteStore = new RemotePartitionClient(cNode, nodeId, cluster.client());
+        IEventStore remoteStore = new ClusterStoreClient(cNode, nodeId, cluster.client());
 
         Node node = new Node(nodeJoined.nodeId, remoteStore, nodeJoined.address);
         state.addNode(node, nodeJoined.streams);
@@ -133,7 +135,7 @@ public class EventHandler implements Closeable {
         nodeLog.append(new NodeLeftEvent(nodeJoined.nodeId));
     }
 
-    private ClusterMessage onNodeInfoRequested(NodeInfoRequested nodeInfoRequested) {
+    private NodeInfo onNodeInfoRequested(NodeInfoRequested nodeInfoRequested) {
         logger.info("Node info requested from {}", nodeInfoRequested.nodeId);
         Set<Long> streams = localStore.streamsMetadata().stream().map(si -> si.hash).collect(Collectors.toSet());
         return thisNodeInfo();
@@ -150,34 +152,39 @@ public class EventHandler implements Closeable {
         return new AppendResult(true, created.timestamp, created.version);
     }
 
-    private ClusterMessage get(Get get) {
+    private EventData get(Get get) {
         EventId eventId = EventId.parse(get.streamName);
         EventRecord eventRecord = localStore.get(eventId);
         return new EventData(eventRecord);
     }
 
-    private ClusterMessage fromAll(FromAll fromAll) {
+    private IteratorCreated fromAll(FromAll fromAll) {
         EventStoreIterator iterator = localStore.fromAll(fromAll.linkToPolicy, fromAll.systemEventPolicy);
         String iteratorId = remoteIterators.add(fromAll.timeout, fromAll.batchSize, iterator);
         return new IteratorCreated(iteratorId);
     }
 
-    private ClusterMessage fromStream(FromStream fromStream) {
+    private IteratorCreated fromStream(FromStream fromStream) {
         EventId eventId = EventId.parse(fromStream.streamName);
         EventStoreIterator iterator = localStore.fromStream(eventId);
         String iteratorId = remoteIterators.add(fromStream.timeout, fromStream.batchSize, iterator);
         return new IteratorCreated(iteratorId);
     }
 
-    private ClusterMessage fromStreams(FromStreams fromStreams) {
+    private IteratorCreated fromStreams(FromStreams fromStreams) {
         EventStoreIterator iterator = localStore.fromStreams(fromStreams.eventMap);
         String iteratorId = remoteIterators.add(fromStreams.timeout, fromStreams.batchSize, iterator);
         return new IteratorCreated(iteratorId);
     }
 
-    private ClusterMessage onIteratorNext(IteratorNext iteratorNext) {
+    private EventBatch onIteratorNext(IteratorNext iteratorNext) {
         List<EventRecord> records = remoteIterators.nextBatch(iteratorNext.uuid);
         return new EventBatch(records);
+    }
+
+    private StreamMetadata onStreamCreationRequest(CreateStream event) {
+        StreamMetadata created = localStore.createStream(event.stream, event.maxCount, event.maxAge, event.acl, event.metadata);
+        return created;
     }
 
     @Override

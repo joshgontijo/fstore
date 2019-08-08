@@ -109,10 +109,6 @@ public class ClusterStore implements IEventStore {
         return descriptor.nodeId();
     }
 
-    public String partitionOf(String stream) {
-        return select(stream).id;
-    }
-
     private Node nodeForNewStream(String stream) {
         Node node;
         long hash = EventId.hash(stream);
@@ -146,6 +142,8 @@ public class ClusterStore implements IEventStore {
     public EventRecord linkTo(String stream, EventRecord event) {
         //TODO stream validation might be needed here
         //TODO should only link to a local store
+
+
         return select(event.stream).store().linkTo(stream, event);
     }
 
@@ -250,14 +248,18 @@ public class ClusterStore implements IEventStore {
 
     @Override
     public void createStream(String stream, int maxCount, long maxAge) {
-        //TODO add option to specify NodeId
-        select(stream).store().createStream(stream, maxCount, maxAge);
+        throw new UnsupportedOperationException("REMOVE ME, TOO MANY ITEMS");
     }
 
     @Override
     public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
         //TODO add option to specify NodeId
-        return select(stream).store().createStream(stream, maxCount, maxAge, acl, metadata);
+        Node node = select(stream);
+        if (node != null) {
+            throw new IllegalArgumentException("Stream " + stream + " already exist");
+        }
+        node = nodeForNewStream(stream);
+        return node.store().createStream(stream, maxCount, maxAge, acl, metadata);
     }
 
     @Override

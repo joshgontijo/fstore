@@ -61,10 +61,10 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     private final List<BiConsumer<ClusterNode, NodeStatus>> nodeUpdatedListeners = new ArrayList<>();
 
-    private final List<BiConsumer<Message, ClusterMessage>> interceptors = new ArrayList<>();
+    private final List<BiConsumer<Message, Object>> interceptors = new ArrayList<>();
     private final List<Runnable> connectionListeners = new ArrayList<>();
 
-    private static final Function<? extends ClusterMessage, ClusterMessage> NO_OP = msg -> {
+    private static final Function<? extends Object, Object> NO_OP = msg -> {
         logger.warn("No message handler for code {}", msg.getClass().getName());
         return null;
     };
@@ -112,7 +112,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         return client;
     }
 
-    public synchronized void interceptor(BiConsumer<Message, ClusterMessage> interceptor) {
+    public synchronized void interceptor(BiConsumer<Message, Object> interceptor) {
         interceptors.add(interceptor);
     }
 
@@ -124,11 +124,11 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         nodeUpdatedListeners.add(handler);
     }
 
-    public synchronized <T extends ClusterMessage> void register(Class<T> type, Function<T, ClusterMessage> handler) {
+    public synchronized <T> void register(Class<T> type, Function<T, Object> handler) {
         handlers.put(type, handler);
     }
 
-    public synchronized <T extends ClusterMessage> void register(Class<T> type, Consumer<T> handler) {
+    public synchronized <T> void register(Class<T> type, Consumer<T> handler) {
         handlers.put(type, bb -> {
             handler.accept((T) bb);
             return null;
@@ -238,17 +238,17 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                 intercept(msg, null);
                 return null;
             }
-            ClusterMessage clusterMessage = KryoStoreSerializer.deserialize(msg.buffer());
+            Object clusterMessage = KryoStoreSerializer.deserialize(msg.buffer());
 
             intercept(msg, clusterMessage);
 
-            ClusterMessage resp = (ClusterMessage) handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
+            Object resp = handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
             if (resp == null) {
                 //should never return null, otherwise client will block
                 logger.warn("NULL RESPONSE FROM HANDLER");
                 resp = new NullMessage();
             }
-            byte[] data = KryoStoreSerializer.serialize(resp, ClusterMessage.class);
+            byte[] data = KryoStoreSerializer.serialize(resp);
             return new Message(msg.src(), data).setSrc(address());
         } catch (Exception e) {
             logger.error("Failed to receive message: " + msg, e);
@@ -267,10 +267,10 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                     return;
                 }
 
-                ClusterMessage clusterMessage = KryoStoreSerializer.deserialize(msg.buffer());
+                Object clusterMessage = KryoStoreSerializer.deserialize(msg.buffer());
                 intercept(msg, clusterMessage);
 
-                ClusterMessage resp = (ClusterMessage) handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
+                Object resp = handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
 
                 sendResponse(response, resp, msg.src());
             } catch (Exception e) {
@@ -280,7 +280,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         });
     }
 
-    private void sendResponse(Response response, ClusterMessage replyMessage, Address dst) throws Exception {
+    private void sendResponse(Response response, Object replyMessage, Address dst) throws Exception {
         if (response == null) {
             return;
         }
@@ -293,8 +293,8 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         response.send(rsp, false);
     }
 
-    private void intercept(Message message, ClusterMessage entity) {
-        for (BiConsumer<Message, ClusterMessage> interceptor : interceptors) {
+    private void intercept(Message message, Object entity) {
+        for (BiConsumer<Message, Object> interceptor : interceptors) {
             try {
                 interceptor.accept(message, entity);
             } catch (Exception e) {

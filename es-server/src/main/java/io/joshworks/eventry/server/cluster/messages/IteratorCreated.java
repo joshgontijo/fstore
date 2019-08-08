@@ -1,8 +1,6 @@
 package io.joshworks.eventry.server.cluster.messages;
 
-import io.joshworks.eventry.network.ClusterMessage;
-
-public class IteratorCreated implements ClusterMessage {
+public class IteratorCreated  {
 
     public final String iteratorId;
 

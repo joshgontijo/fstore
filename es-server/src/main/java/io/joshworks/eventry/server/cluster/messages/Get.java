@@ -1,9 +1,8 @@
 package io.joshworks.eventry.server.cluster.messages;
 
 import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.eventry.network.ClusterMessage;
 
-public class Get implements ClusterMessage {
+public class Get  {
 
     public final String streamName;
 

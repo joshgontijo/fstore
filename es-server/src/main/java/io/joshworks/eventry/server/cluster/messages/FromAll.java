@@ -1,11 +1,10 @@
 package io.joshworks.eventry.server.cluster.messages;
 
 import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.eventry.SystemEventPolicy;
-import io.joshworks.eventry.network.ClusterMessage;
+import io.joshworks.fstore.es.shared.EventId;
 
-public class FromAll implements ClusterMessage {
+public class FromAll  {
 
     private static final LinkToPolicy[] ltpItems = LinkToPolicy.values();
     private static final SystemEventPolicy[] sepItems = SystemEventPolicy.values();

@@ -2,7 +2,7 @@ package io.joshworks.eventry.network;
 
 import java.util.Objects;
 
-public class PingMessage implements ClusterMessage {
+public class PingMessage {
 
     private final String message = "PING";
 

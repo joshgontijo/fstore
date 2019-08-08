@@ -4,11 +4,12 @@ import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.client.ClusterClient;
+import io.joshworks.eventry.server.cluster.messages.Ack;
 import io.joshworks.eventry.server.cluster.messages.Append;
 import io.joshworks.eventry.server.cluster.messages.AppendResult;
+import io.joshworks.eventry.server.cluster.messages.CreateStream;
 import io.joshworks.eventry.server.cluster.messages.EventBatch;
 import io.joshworks.eventry.server.cluster.messages.EventData;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
@@ -21,6 +22,7 @@ import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
+import io.joshworks.fstore.es.shared.EventRecord;
 import org.jgroups.Address;
 
 import java.util.ArrayDeque;
@@ -39,13 +41,13 @@ import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 
 //CLIENT
-public class RemotePartitionClient implements IEventStore {
+public class ClusterStoreClient implements IEventStore {
 
     private final ClusterClient client;
     private final String partitionId;
     private final ClusterNode node;
 
-    public RemotePartitionClient(ClusterNode node, String partitionId, ClusterClient client) {
+    public ClusterStoreClient(ClusterNode node, String partitionId, ClusterClient client) {
         this.client = client;
         this.node = node;
         this.partitionId = partitionId;
@@ -123,7 +125,8 @@ public class RemotePartitionClient implements IEventStore {
 
     @Override
     public StreamMetadata createStream(String stream, int maxCount, long maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
-        throw new UnsupportedOperationException("TODO");
+        StreamMetadata created = client.send(node.address, new CreateStream(stream, maxCount, maxAge, acl, metadata));
+        return created;
     }
 
     @Override
