@@ -2,7 +2,7 @@ package io.joshworks.eventry.network;
 
 import java.util.Objects;
 
-public class PongMessage implements ClusterMessage {
+public class PongMessage  {
 
     private final String message = "PONG";
 

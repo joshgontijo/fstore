@@ -1,6 +1,6 @@
 package io.joshworks.eventry.network;
 
-public class NullMessage implements ClusterMessage {
+public class NullMessage {
 
     @Override
     public String toString() {

@@ -1,12 +1,11 @@
 package io.joshworks.eventry.server.cluster.messages;
 
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.eventry.network.ClusterMessage;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class EventBatch implements ClusterMessage {
+public class EventBatch  {
 
     public final List<EventRecord> records;
 

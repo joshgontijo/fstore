@@ -1,10 +1,6 @@
 package io.joshworks.fstore.es.shared;
 
-
-import io.joshworks.eventry.network.ClusterMessage;
-import io.joshworks.eventry.network.NodeStatus;
-
-public class NodeInfo implements ClusterMessage {
+public class NodeInfo {
 
     public final String id;
     public final String address;

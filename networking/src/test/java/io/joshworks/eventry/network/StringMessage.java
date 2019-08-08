@@ -1,6 +1,6 @@
 package io.joshworks.eventry.network;
 
-public class StringMessage implements ClusterMessage {
+public class StringMessage  {
 
     public final String message;
 

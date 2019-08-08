@@ -61,7 +61,7 @@ public class ClusterTest {
         node1.register(PingMessage.class, ping -> pong);
         node2.register(PongMessage.class, png -> {});
 
-        ClusterMessage resp = node2.client().send(node1.address(), new PingMessage());
+        Object resp = node2.client().send(node1.address(), new PingMessage());
         assertEquals(pong, resp);
     }
 
@@ -117,7 +117,7 @@ public class ClusterTest {
         PingMessage ping = new PingMessage();
         node1.register(PingMessage.class, p -> null);
 
-        ClusterMessage result = node2.client().send(node1.address(), ping);
+        Object result = node2.client().send(node1.address(), ping);
         assertNull(result);
     }
 

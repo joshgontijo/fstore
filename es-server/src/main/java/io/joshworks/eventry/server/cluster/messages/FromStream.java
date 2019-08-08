@@ -1,8 +1,6 @@
 package io.joshworks.eventry.server.cluster.messages;
 
-import io.joshworks.eventry.network.ClusterMessage;
-
-public class FromStream implements ClusterMessage {
+public class FromStream  {
 
     public final String streamName;
     public final int batchSize;

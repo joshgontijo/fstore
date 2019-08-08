@@ -1,6 +1,5 @@
 package io.joshworks.eventry.network.client;
 
-import io.joshworks.eventry.network.ClusterMessage;
 import io.joshworks.eventry.network.MessageError;
 import io.joshworks.eventry.network.MulticastResponse;
 import io.joshworks.eventry.network.NullMessage;
@@ -14,13 +13,11 @@ import org.jgroups.util.Buffer;
 import org.jgroups.util.Rsp;
 import org.jgroups.util.RspList;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.locks.Lock;
 
 import static java.util.Objects.requireNonNull;
@@ -48,17 +45,17 @@ public class ClusterClient {
     /**
      * Sends a synchronous request and wait for a response
      */
-    public <T extends ClusterMessage> T send(Address address, ClusterMessage message) {
+    public <T> T send(Address address, Object message) {
         byte[] response = send(address, message, RequestOptions.SYNC());
-        if(response == null) {
+        if (response == null) {
             return null;
         }
 
-        ClusterMessage cMessage = KryoStoreSerializer.deserialize(response);
-        if(cMessage instanceof MessageError) {
+        Object cMessage = KryoStoreSerializer.deserialize(response);
+        if (cMessage instanceof MessageError) {
             throw new RuntimeException("TODO " + cMessage);
         }
-        if(cMessage instanceof NullMessage) {
+        if (cMessage instanceof NullMessage) {
             return null;
         }
         return (T) cMessage;
@@ -67,21 +64,21 @@ public class ClusterClient {
     /**
      * Fire and forget, no response expected from the target node
      */
-    public void sendAsync(Address address, ClusterMessage message) {
+    public void sendAsync(Address address, Object message) {
         send(address, message, RequestOptions.ASYNC());
     }
 
     /**
      * Sends a synchronous request and wait for all responses
      */
-    public List<MulticastResponse> cast(ClusterMessage message) {
+    public List<MulticastResponse> cast(Object message) {
         return cast(null, message);
     }
 
     /**
      * Sends a synchronous request to the specified nodes and wait for all responses, responses must not be null,
      */
-    public List<MulticastResponse> cast(List<Address> addresses, ClusterMessage message) {
+    public List<MulticastResponse> cast(List<Address> addresses, Object message) {
         RspList<byte[]> responses = cast(addresses, message, RequestOptions.SYNC());
         requireNonNull(responses, "Responses cannot be null");
 
@@ -89,8 +86,8 @@ public class ClusterClient {
         for (Rsp<byte[]> response : responses) {
             requireNonNull(response, "Response cannot be null");
             byte[] respMsg = response.getValue();
-            if(respMsg != null) {
-                ClusterMessage cm = KryoStoreSerializer.deserialize(respMsg);
+            if (respMsg != null) {
+                Object cm = KryoStoreSerializer.deserialize(respMsg);
                 nodeResponses.add(new MulticastResponse(null, cm));
             }
 
@@ -101,18 +98,18 @@ public class ClusterClient {
     /**
      * Sends a asynchronous request to all nodes in the cluster
      */
-    public void castAsync(ClusterMessage message) {
+    public void castAsync(Object message) {
         castAsync(null, message);
     }
 
     /**
      * Sends a asynchronous request to the specified nodes in the cluster
      */
-    public void castAsync(List<Address> addresses, ClusterMessage message) {
+    public void castAsync(List<Address> addresses, Object message) {
         cast(addresses, message, RequestOptions.ASYNC());
     }
 
-    private byte[] send(Address address, ClusterMessage message, RequestOptions options) {
+    private byte[] send(Address address, Object message, RequestOptions options) {
         try {
             byte[] data = KryoStoreSerializer.serialize(message);
             Object o = dispatcher.sendMessage(address, new Buffer(data), options);
@@ -122,7 +119,7 @@ public class ClusterClient {
         }
     }
 
-    private RspList<byte[]> cast(Collection<Address> addresses, ClusterMessage message, RequestOptions options) {
+    private RspList<byte[]> cast(Collection<Address> addresses, Object message, RequestOptions options) {
         try {
             byte[] data = KryoStoreSerializer.serialize(message);
             return dispatcher.castMessage(addresses, new Buffer(data), options);

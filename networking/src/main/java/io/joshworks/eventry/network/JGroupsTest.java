@@ -54,7 +54,7 @@ public class JGroupsTest {
     }
 
 
-    private static class StringMessage implements ClusterMessage {
+    private static class StringMessage  {
         private final String data;
 
         private StringMessage(String data) {

@@ -1,8 +1,6 @@
 package io.joshworks.eventry.server.cluster.events;
 
-import io.joshworks.eventry.network.ClusterMessage;
-
-public class NodeLeft implements ClusterMessage {
+public class NodeLeft  {
 
     public final String nodeId;
 
