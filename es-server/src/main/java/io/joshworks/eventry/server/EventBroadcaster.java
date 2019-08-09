@@ -1,9 +1,9 @@
 package io.joshworks.eventry.server;
 
 import com.google.gson.Gson;
-import io.joshworks.fstore.es.shared.EventRecord;
+import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.snappy.sse.EventData;
 import io.joshworks.snappy.sse.SseBroadcaster;
 import org.slf4j.Logger;
@@ -51,11 +51,9 @@ public class EventBroadcaster implements Closeable {
             workers.add(worker);
             this.executor.submit(worker);
         }
-
     }
 
-
-    public boolean add(LogIterator<EventRecord> poller) {
+    public boolean add(EventStoreIterator iterator) {
         if (closed.get()) {
             logger.warn("Event broadcaster is closed");
             return false;
@@ -70,12 +68,12 @@ public class EventBroadcaster implements Closeable {
         }
 
         workers.stream().min(Comparator.comparingInt(BroadcastWorker::pollerCount))
-                .orElseThrow().pollers.add(poller);
+                .orElseThrow().pollers.add(iterator);
 
         return true;
     }
 
-    public void remove(LogIterator<EventRecord> poller) {
+    public void remove(EventStoreIterator poller) {
         for (BroadcastWorker worker : workers) {
             worker.remove(poller);
         }
@@ -109,7 +107,7 @@ public class EventBroadcaster implements Closeable {
         private static final Logger logger = LoggerFactory.getLogger(EventBroadcaster.class);
         private final Gson gson = new Gson();
         private final AtomicBoolean closed = new AtomicBoolean();
-        private final List<LogIterator<EventRecord>> pollers = new ArrayList<>();
+        private final List<EventStoreIterator> pollers = new ArrayList<>();
         private final long waitTime;
 
         private BroadcastWorker(long waitTime) {
@@ -126,7 +124,7 @@ public class EventBroadcaster implements Closeable {
                     }
 
                     List<EventRecord> available = new ArrayList<>();
-                    for (LogIterator<EventRecord> poller : pollers) {
+                    for (EventStoreIterator poller : pollers) {
                         EventRecord event = poller.next();
                         if (event == null) {
                             continue;
@@ -152,7 +150,7 @@ public class EventBroadcaster implements Closeable {
         @Override
         public void close() {
             closed.set(true);
-            for (LogIterator<EventRecord> poller : pollers) {
+            for (EventStoreIterator poller : pollers) {
                 remove(poller);
             }
         }
@@ -167,7 +165,7 @@ public class EventBroadcaster implements Closeable {
                 String eventId = String.valueOf(event.eventId());
                 String stream = event.stream;
 
-                EventData eventData = new EventData(event.asJson().asString(), eventId, stream);
+                EventData eventData = new EventData(event.dataAsJson().replaceAll("\\n", ""), eventId, stream);
                 SseBroadcaster.broadcast(eventData, stream);
             } catch (Exception e) {
                 logger.error("Error sending event", e);
@@ -175,7 +173,7 @@ public class EventBroadcaster implements Closeable {
 
         }
 
-        public void remove(LogIterator<EventRecord> poller) {
+        public void remove(EventStoreIterator poller) {
             pollers.remove(poller);
             IOUtils.closeQuietly(poller);
         }
