@@ -6,6 +6,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Threads {
     private Threads() {
@@ -24,6 +25,18 @@ public class Threads {
 
     public static ThreadFactory namedThreadFactory(String name) {
         return r -> Threads.named(name, r);
+    }
+
+    public static ThreadFactory namePrefixedThreadFactory(String name) {
+        return new ThreadFactory() {
+
+            private final AtomicLong counter = new AtomicLong();
+
+            @Override
+            public Thread newThread(Runnable r) {
+                return Threads.named(name + "-" + counter.getAndIncrement(), r);
+            }
+        };
     }
 
     public static ThreadFactory namedThreadFactory(String name, boolean daemon) {
