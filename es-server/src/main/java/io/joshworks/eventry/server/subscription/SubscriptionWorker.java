@@ -5,38 +5,47 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 public class SubscriptionWorker implements Runnable, Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(SubscriptionWorker.class);
 
-    private static final Map<String, ClientSubscription> items = new ConcurrentHashMap<>();
+    private final Map<String, ClientSubscription> items = new ConcurrentHashMap<>();
     private final int waitTime;
 
     private final AtomicBoolean closed = new AtomicBoolean();
 
-    public SubscriptionWorker(int waitTime) {
+    SubscriptionWorker(int waitTime) {
         this.waitTime = waitTime;
     }
 
     boolean add(ClientSubscription clientSubscription) {
-        if (items.containsKey(clientSubscription.subscriptionId())) {
-            logger.warn("Subscription with id {} already exist", clientSubscription.subscriptionId());
-            return false;
+        ClientSubscription found = items.get(clientSubscription.subscriptionId());
+        if (found != null) {
+            if (found.isOpen()) {
+                logger.warn("Subscription with id {} already exist", clientSubscription.subscriptionId());
+                return false;
+            }
+            found.forceClose();
         }
         items.put(clientSubscription.subscriptionId(), clientSubscription);
+        logger.info("Registered subscription {}", clientSubscription.subscriptionId());
         return true;
     }
 
     void remove(String subscriptionId) {
         ClientSubscription clientSubscription = items.remove(subscriptionId);
-        if (clientSubscription == null) {
-            throw new IllegalArgumentException("No subscription for id: " + subscriptionId);
+        if (clientSubscription != null) {
+            clientSubscription.close();
+            logger.info("Removed subscription {}", subscriptionId);
+        } else {
+            logger.warn("No subscription for id: {}", subscriptionId);
         }
-        clientSubscription.close();
     }
 
     void disable(String subscriptionId) {
@@ -45,6 +54,7 @@ public class SubscriptionWorker implements Runnable, Closeable {
             throw new IllegalArgumentException("No subscription for id: " + subscriptionId);
         }
         clientSubscription.disable();
+        logger.info("Disabled subscription {}", clientSubscription.subscriptionId());
     }
 
     void enable(String subscriptionId) {
@@ -52,9 +62,13 @@ public class SubscriptionWorker implements Runnable, Closeable {
         if (clientSubscription == null) {
             throw new IllegalArgumentException("No subscription for id: " + subscriptionId);
         }
+        logger.info("Enabled subscription {}", clientSubscription.subscriptionId());
         clientSubscription.enable();
     }
 
+    List<SubscriptionInfo> info() {
+        return items.values().stream().map(ClientSubscription::info).collect(Collectors.toList());
+    }
 
     @Override
     public void run() {

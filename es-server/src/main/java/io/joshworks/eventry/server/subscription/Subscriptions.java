@@ -3,21 +3,18 @@ package io.joshworks.eventry.server.subscription;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.fstore.core.hash.XXHash;
 import io.joshworks.fstore.core.util.Threads;
-import io.undertow.server.handlers.sse.ServerSentEventConnection;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.joshworks.fstore.es.shared.subscription.SubscriptionOptions;
+import io.joshworks.snappy.sse.SseContext;
 
 import java.io.Closeable;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 public class Subscriptions implements Closeable {
-
-    private static final Map<String, ClientSubscription> items = new ConcurrentHashMap<>();
-    private static final Logger logger = LoggerFactory.getLogger(Subscriptions.class);
 
     private final ExecutorService executor;
     private final SubscriptionWorker[] workers;
@@ -42,8 +39,8 @@ public class Subscriptions implements Closeable {
         return workers[idx];
     }
 
-    public boolean create(String subscriptionId, EventStoreIterator iterator, ServerSentEventConnection connection) {
-        var client = new ClientSubscription(subscriptionId, iterator, connection, maxItemsPerRound);
+    public boolean create(String subscriptionId, SubscriptionOptions options, EventStoreIterator iterator, SseContext context) {
+        var client = new ClientSubscription(subscriptionId, options, iterator, context, maxItemsPerRound);
         return select(subscriptionId).add(client);
     }
 
@@ -66,4 +63,7 @@ public class Subscriptions implements Closeable {
         }
     }
 
+    public List<SubscriptionInfo> info() {
+        return Arrays.stream(workers).flatMap(w -> w.info().stream()).collect(Collectors.toList());
+    }
 }
