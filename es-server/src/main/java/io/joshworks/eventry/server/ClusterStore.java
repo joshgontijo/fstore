@@ -305,7 +305,7 @@ public class ClusterStore implements IEventStore {
     private static final class PartitionedEventStoreIterator implements EventStoreIterator {
 
         private final List<EventStoreIterator> iterators;
-        private int partitionIdx;
+        private int nodeIdx;
 
         private PartitionedEventStoreIterator(List<EventStoreIterator> iterators) {
             this.iterators = iterators;
@@ -313,11 +313,12 @@ public class ClusterStore implements IEventStore {
 
         @Override
         public boolean hasNext() {
-            for (int i = 0; i < iterators.size(); partitionIdx++) {
-                if (partitionIdx >= iterators.size()) {
-                    partitionIdx = 0;
+            int nodes = iterators.size();
+            for (int i = 0; i < nodes; i++, nodeIdx++) {
+                if (nodeIdx >= nodes) {
+                    nodeIdx = 0;
                 }
-                if (iterators.get(partitionIdx).hasNext()) {
+                if (iterators.get(nodeIdx).hasNext()) {
                     return true;
                 }
             }
@@ -329,7 +330,7 @@ public class ClusterStore implements IEventStore {
             if (!hasNext()) {
                 return null;
             }
-            return iterators.get(partitionIdx).next();
+            return iterators.get(nodeIdx).next();
         }
 
         @Override

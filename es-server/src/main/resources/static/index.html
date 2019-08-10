@@ -12,22 +12,41 @@ Stream Pattern: <input id="pattern" type="text" value="stream-*"><br>
 <input type="button" value="Subscribe" onclick="subscribe()">
 <br>
 <input type="button" value="Clear" onclick="clear()">
+<br>
+<input type="button" value="Unsubscribe" onclick="unsubscribe()">
 <div id="events">
 
 </div>
 
 <script type="application/javascript">
-    function subscribe() {
+    var sse;
 
+    function subscribe() {
         var subscription = document.getElementById("subscriptionId").value;
         var pattern = document.getElementById("pattern").value;
-        var source = new EventSource("/subscriptions/" + subscription + "?stream=" + pattern);
-        source.onmessage = function (event) {
-            document.getElementById("events").innerHTML += event.data + "<br>";
+
+        console.log("Subscribing to " + pattern + ", with id: " + subscription);
+        sse = new EventSource("/subscriptions/" + subscription + "?stream=" + pattern);
+
+        // sse.addEventListener("notice", function(e) {
+        //     console.log(e.data)
+        //     document.getElementById("events").innerHTML += event.data + "<br>";
+        // });
+
+        sse.onmessage = function (event) {
+            document.getElementById("events").innerHTML += "<p>" + event.data + "</p>";
         };
+
+    }
+
+    function unsubscribe() {
+        console.log("Unsubscribing");
+        sse.close();
+        clear();
     }
 
     function clear() {
+        console.log("Clearing");
         document.getElementById("events").innerHTML = "";
     }
 

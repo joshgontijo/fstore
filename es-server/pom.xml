@@ -32,7 +32,12 @@
         <dependency>
             <groupId>io.joshworks.snappy</groupId>
             <artifactId>snappy</artifactId>
-            <version>0.5.2</version>
+            <version>0.6.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.joshworks.stream</groupId>
+            <artifactId>stream-client</artifactId>
+            <version>0.3.1</version>
         </dependency>
 
         <dependency>

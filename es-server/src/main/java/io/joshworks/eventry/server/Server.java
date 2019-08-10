@@ -1,20 +1,17 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.server.subscription.Subscriptions;
-import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.AppProperties;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.NodeInfo;
-import io.joshworks.snappy.sse.SseCallback;
-import io.undertow.server.handlers.sse.ServerSentEventConnection;
+import io.joshworks.fstore.es.shared.subscription.SubscriptionOptions;
 
 import java.io.File;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -39,8 +36,8 @@ public class Server {
 
     public static void main(String[] args) {
 
-        AppProperties properties = AppProperties.create();
-        String path = properties.get("store.path").orElse("S:\\es-server");
+        var properties = AppProperties.create();
+        var path = properties.get("store.path").orElse("S:\\es-server");
         int serverPort = properties.getInt("port").orElseThrow(() -> new RuntimeException("Port must be provided"));
 
         FileUtils.tryDelete(new File(path));
@@ -48,10 +45,10 @@ public class Server {
         port(serverPort);
         adminPort(serverPort + 10);
 
-        ClusterStore store = ClusterStore.connect(new File(path), "es-cluster", serverPort);
+        var store = ClusterStore.connect(new File(path), "es-cluster", serverPort);
 
-        StreamEndpoint streams = new StreamEndpoint(store);
-        Subscriptions subscriptions = new Subscriptions(3, 3000, 5);
+        var streams = new StreamEndpoint(store);
+        var subscriptions = new Subscriptions(3, 3000, 5);
 
         staticFiles("/", "static");
 
@@ -81,28 +78,29 @@ public class Server {
 //                String subscriptionId = req.pathParameter("id");
 //                Subscription subscription = req.body().asObject(Subscription.class);
 //                EventStoreIterator iterator = store.fromStreams(EventMap.empty(), Set.of(subscription.pattern));
-//                subscriptions.add(subscriptionId, iterator);
+//                subscriptions.create(subscriptionId, iterator);
 //                return created();
 //            });
 
-            sse("{subscriptionId}", new SseCallback() {
-                @Override
-                public void connected(ServerSentEventConnection connection, String lastEventId) {
-                    String subscriptionId = connection.getParameter("subscriptionId");
-                    String pattern = connection.getQueryParameters().get("stream").getFirst();
+            get(req -> ok(subscriptions.info()));
 
-                    EventStoreIterator iterator = store.fromStreams(EventMap.empty(), Set.of(pattern));
-                    boolean started = subscriptions.create(subscriptionId, iterator, connection);
-                    if (!started) {
-                        IOUtils.closeQuietly(connection);
-                    }
+            sse("{subscriptionId}", sse -> {
+                var subscriptionId = sse.pathParameter("subscriptionId");
+                var patterns = new HashSet<>(sse.queryParameters("stream"));
+                int batchSize = sse.queryParameterVal("batchSize").asInt().orElse(20);
+                boolean compress = sse.queryParameterVal("compress").asBoolean().orElse(false);
+//                boolean wrapEvent = sse.queryParameterVal("wrapEvent").asBoolean().orElse(false);
+
+                var options = new SubscriptionOptions(patterns, batchSize, compress);
+
+                var iterator = store.fromStreams(EventMap.empty(), patterns);
+                boolean started = subscriptions.create(subscriptionId, options, iterator, sse);
+                if (!started) {
+                    sse.close();
                 }
 
-                @Override
-                public void onClose(ServerSentEventConnection connection) {
-                    String subscriptionId = connection.getParameter("subscriptionId");
-                    subscriptions.remove(subscriptionId);
-                }
+                sse.keepAlive(15000);
+                sse.onClose(() -> subscriptions.remove(subscriptionId));
             });
         });
 
