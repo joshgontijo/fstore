@@ -6,7 +6,7 @@ import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.restclient.http.HttpResponse;
 import io.joshworks.restclient.http.MediaType;
-import io.joshworks.restclient.http.Unirest;
+import io.joshworks.restclient.http.RestClient;
 import io.joshworks.stream.client.StreamClient;
 import io.joshworks.stream.client.sse.SSEConnection;
 
@@ -20,11 +20,13 @@ public class PushEvents {
     public static void main(String[] args) throws InterruptedException {
 
 
+        RestClient client = RestClient.builder().baseUrl("http://localhost:9000").build();
         for (int i = 0; i < 1000000; i++) {
 
-            HttpResponse<String> response = Unirest.post("http://localhost:9000/streams/users-1")
+            HttpResponse<String> response = client.post("/streams/users-1")
                     .contentType(MediaType.APPLICATION_JSON_TYPE)
                     .header("Event-Type", "USER_CREATED")
+                    .header("Connection", "Keep-Alive")
                     .body(Map.of("name", "Josh", "age", 1, "gender", "m"))
                     .asString();
 

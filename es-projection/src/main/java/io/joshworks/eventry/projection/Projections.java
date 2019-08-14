@@ -3,9 +3,9 @@ package io.joshworks.eventry.projection;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.projection.result.Metrics;
 import io.joshworks.eventry.projection.result.TaskStatus;
-import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Logging;
+import io.joshworks.fstore.es.shared.utils.StringUtils;
 import org.slf4j.Logger;
 
 import java.io.Closeable;
@@ -17,8 +17,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static io.joshworks.eventry.utils.StringUtils.requireNonBlank;
 
 public class Projections implements Closeable {
 

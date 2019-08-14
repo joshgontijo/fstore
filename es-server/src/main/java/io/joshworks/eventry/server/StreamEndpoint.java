@@ -4,7 +4,7 @@ import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.es.shared.EventHeader;
+import io.joshworks.fstore.es.shared.tcp.EventCreated;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.StreamData;
 import io.joshworks.fstore.es.shared.utils.StringUtils;
@@ -74,8 +74,8 @@ public class StreamEndpoint {
         EventRecord record = EventRecord.create(stream, type, eventData);
         EventRecord created = store.append(record);
 
-        EventHeader eventHeader = new EventHeader(created.type, created.timestamp, created.stream, created.version);
-        return created(eventHeader);
+        EventCreated eventCreated = new EventCreated(created.timestamp, created.version);
+        return created(eventCreated);
     }
 
 

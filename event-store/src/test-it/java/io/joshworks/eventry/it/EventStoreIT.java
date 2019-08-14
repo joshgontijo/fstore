@@ -7,8 +7,6 @@ import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.core.hash.Murmur3Hash;
-import io.joshworks.fstore.core.hash.XXHash;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.es.shared.EventId;
@@ -389,11 +387,10 @@ public class EventStoreIT {
     @Test
     public void hash_collision() {
         Map<Long, String> hashes = new HashMap<>();
-        StreamHasher hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
 
         for (int i = 0; i < 10000000; i++) {
             String value = "test-stream-" + i;
-            long hash = hasher.hash(value);
+            long hash = StreamHasher.hash(value);
             if (hashes.containsKey(hash)) {
                 fail("Hash collision: " + hashes.get(hash) + " -> " + value);
             }

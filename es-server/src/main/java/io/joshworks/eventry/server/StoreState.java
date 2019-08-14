@@ -1,8 +1,8 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.server.cluster.node.Node;
-import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.Status;
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,11 +52,14 @@ public class StoreState {
     }
 
     public Node nodeForStream(String stream) {
-        return streamMapping.get(EventId.hash(stream));
+        return streamMapping.get(StreamHasher.hash(stream));
     }
 
     public List<Node> nodes() {
         return new ArrayList<>(nodes.values());
     }
 
+    public void addStream(long stream, Node node) {
+        this.streamMapping.put(stream, node);
+    }
 }

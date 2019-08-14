@@ -1,5 +1,6 @@
 package io.joshworks.eventry.projection.task;
 
+import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.fstore.es.shared.EventId;
@@ -125,7 +126,7 @@ public class ProjectionTask implements Callable<ExecutionResult> {
             Checkpointer.Checkpoint checkpoint = checkpointer.get(taskId);
 
             //TODO refactor this
-            LogIterator<EventRecord> source;
+            EventStoreIterator source;
             if (checkpoint != null) {
                 if (isAllStream) {//there will be only single one
                     EventId lastProcessed = checkpoint.lastProcessed.iterator().next();

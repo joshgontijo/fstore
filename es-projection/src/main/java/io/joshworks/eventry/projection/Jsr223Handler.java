@@ -1,11 +1,11 @@
 package io.joshworks.eventry.projection;
 
-import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.projection.result.ScriptExecutionResult;
 import io.joshworks.eventry.projection.task.ProjectionContext;
 import io.joshworks.eventry.projection.task.StopReason;
-import io.joshworks.eventry.utils.StringUtils;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.es.shared.EventRecord;
+import io.joshworks.fstore.es.shared.utils.StringUtils;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;

@@ -16,7 +16,9 @@ public class Checkpointer implements Closeable {
     private final LsmTree<String, Checkpoint> store;
 
     public Checkpointer(File rootDir) {
-        this.store = LsmTree.open(new File(rootDir, PROJECTIONS_DIR), Serializers.STRING, JsonSerializer.of(Checkpoint.class), 1000, PROJECTIONS_STORE_NAME);
+        this.store = LsmTree.builder(new File(rootDir, PROJECTIONS_DIR), Serializers.STRING, JsonSerializer.of(Checkpoint.class))
+                .name(PROJECTIONS_STORE_NAME)
+                .open();
     }
 
     public void checkpoint(String key, State state, Set<EventId> lastProvessed) {

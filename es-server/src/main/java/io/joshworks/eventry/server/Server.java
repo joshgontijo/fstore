@@ -1,18 +1,21 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.server.subscription.Subscriptions;
+import io.joshworks.eventry.server.subscription.polling.LocalPollingSubscription;
+import io.joshworks.eventry.server.tcp.TcpServer;
 import io.joshworks.fstore.core.util.AppProperties;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.NodeInfo;
 import io.joshworks.fstore.es.shared.subscription.SubscriptionOptions;
+import io.joshworks.snappy.websocket.WebsocketEndpoint;
+import io.undertow.websockets.core.WebSocketChannel;
+import io.undertow.websockets.spi.WebSocketHttpExchange;
 
 import java.io.File;
+import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static io.joshworks.snappy.SnappyServer.adminPort;
@@ -24,31 +27,32 @@ import static io.joshworks.snappy.SnappyServer.post;
 import static io.joshworks.snappy.SnappyServer.sse;
 import static io.joshworks.snappy.SnappyServer.start;
 import static io.joshworks.snappy.SnappyServer.staticFiles;
+import static io.joshworks.snappy.SnappyServer.websocket;
 import static io.joshworks.snappy.http.Response.ok;
 import static io.joshworks.snappy.parser.MediaTypes.produces;
 
 public class Server {
 
-    private static final String JAVASCRIPT_MIME = "application/javascript";
-
-    private static final Map<String, NodeInfo> nodes = new ConcurrentHashMap<>();
-
-
     public static void main(String[] args) {
 
         var properties = AppProperties.create();
         var path = properties.get("store.path").orElse("S:\\es-server");
-        int serverPort = properties.getInt("port").orElseThrow(() -> new RuntimeException("Port must be provided"));
+        int httpPort = properties.getInt("es.http.port").orElseThrow(() -> new RuntimeException("Http port must be provided"));
+        int tcpPort = properties.getInt("es.tcp.port").orElseThrow(() -> new RuntimeException("Tcp port must be provided"));
 
         FileUtils.tryDelete(new File(path));
 
-        port(serverPort);
-        adminPort(serverPort + 10);
+        port(httpPort);
+        adminPort(httpPort + 10);
 
-        var store = ClusterStore.connect(new File(path), "es-cluster", serverPort);
+        var store = ClusterStore.connect(new File(path), "es-cluster", httpPort, tcpPort);
 
         var streams = new StreamEndpoint(store);
         var subscriptions = new Subscriptions(3, 3000, 5);
+
+        var poolingSubscription = new LocalPollingSubscription(store.thisNode().store());
+        TcpServer server = TcpServer.start(store, poolingSubscription, new InetSocketAddress("localhost", tcpPort));
+
 
         staticFiles("/", "static");
 
@@ -83,6 +87,15 @@ public class Server {
 //            });
 
             get(req -> ok(subscriptions.info()));
+
+
+            websocket("/ws", new WebsocketEndpoint() {
+                @Override
+                public void onConnect(WebSocketHttpExchange exchange, WebSocketChannel channel) {
+
+                }
+
+            });
 
             sse("{subscriptionId}", sse -> {
                 var subscriptionId = sse.pathParameter("subscriptionId");

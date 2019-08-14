@@ -11,10 +11,10 @@ public class SystemStreams {
     public static final String PROJECTIONS = EventId.SYSTEM_PREFIX + "projections";
     public static final String ALL = EventId.SYSTEM_PREFIX + "all";
 
-    public static final long STREAMS_HASH = EventId.hash(STREAMS);
-    public static final long INDEX_HASH = EventId.hash(INDEX);
-    public static final long PROJECTIONS_HASH = EventId.hash(PROJECTIONS);
-    public static final long ALL_HASH = EventId.hash(ALL);
+    public static final long STREAMS_HASH = StreamHasher.hash(STREAMS);
+    public static final long INDEX_HASH = StreamHasher.hash(INDEX);
+    public static final long PROJECTIONS_HASH = StreamHasher.hash(PROJECTIONS);
+    public static final long ALL_HASH = StreamHasher.hash(ALL);
 
     private static final Set<Long> HASHES = Set.of(STREAMS_HASH, INDEX_HASH, PROJECTIONS_HASH, ALL_HASH);
 

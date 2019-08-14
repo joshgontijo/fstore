@@ -6,7 +6,9 @@ import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.network.Cluster;
+import io.joshworks.eventry.network.MulticastResponse;
 import io.joshworks.eventry.server.cluster.NodeDescriptor;
+import io.joshworks.eventry.server.cluster.messages.StreamCreated;
 import io.joshworks.eventry.server.cluster.node.Node;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
 import io.joshworks.eventry.stream.StreamInfo;
@@ -18,6 +20,7 @@ import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.NodeInfo;
 import io.joshworks.fstore.es.shared.Status;
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,21 +52,23 @@ public class ClusterStore implements IEventStore {
 
     private final EventStore localStore;
     private final NodeDescriptor descriptor;
-    private final EventHandler eventHandler;
+    private final ClusterEventHandler eventHandler;
     private final StoreState state = new StoreState();
     private final NodeLog nodeLog;
+    private final Cluster cluster;
 
 
-    private ClusterStore(File root, Cluster cluster, NodeDescriptor descriptor, int port) {
+    private ClusterStore(File root, Cluster cluster, NodeDescriptor descriptor, int httpPort, int tcpPort) {
         requireNonNull(root, "Root folder must be provided");
         this.descriptor = requireNonNull(descriptor, "Descriptor must be provided");
         this.nodeLog = new NodeLog(root);
+        this.cluster = cluster;
 
         this.localStore = EventStore.open(new File(root, LOCAL_STORE_LOCATION));
-        this.eventHandler = new EventHandler(localStore, port, descriptor, cluster, state, nodeLog);
+        this.eventHandler = new ClusterEventHandler(localStore, httpPort, tcpPort, descriptor, cluster, state, nodeLog);
     }
 
-    public static ClusterStore connect(File rootDir, String name, int port) {
+    public static ClusterStore connect(File rootDir, String name, int httpPort, int tcpPort) {
         NodeDescriptor descriptor = NodeDescriptor.read(rootDir);
 
         if (descriptor == null) {
@@ -74,7 +79,7 @@ public class ClusterStore implements IEventStore {
         }
 
         Cluster cluster = new Cluster(name, descriptor.nodeId());
-        ClusterStore clusterStore = new ClusterStore(rootDir, cluster, descriptor, port);
+        ClusterStore clusterStore = new ClusterStore(rootDir, cluster, descriptor, httpPort, tcpPort);
 
         cluster.join();
 
@@ -89,12 +94,12 @@ public class ClusterStore implements IEventStore {
         return state.nodes();
     }
 
-    private Node thisNode() {
+    public Node thisNode() {
         return state.getNode(descriptor.nodeId());
     }
 
     public List<NodeInfo> nodesInfo() {
-        return state.nodes().stream().map(n -> new NodeInfo(n.id, n.address, n.status)).collect(Collectors.toList());
+        return state.nodes().stream().map(n -> new NodeInfo(n.id, n.host, n.httpPort, n.tcpPort, n.status)).collect(Collectors.toList());
     }
 
     public NodeLog nodeLog() {
@@ -102,7 +107,7 @@ public class ClusterStore implements IEventStore {
     }
 
     private Node select(String stream) {
-        return select(EventId.hash(stream));
+        return select(StreamHasher.hash(stream));
     }
 
     private Node select(long streamHash) {
@@ -115,7 +120,7 @@ public class ClusterStore implements IEventStore {
 
     private Node nodeForNewStream(String stream) {
         Node node;
-        long hash = EventId.hash(stream);
+        long hash = StreamHasher.hash(stream);
         List<Node> nodes = nodes();
         int nodeIdx = (int) (Math.abs(hash) % nodes.size());
         node = nodes.get(nodeIdx);
@@ -169,7 +174,12 @@ public class ClusterStore implements IEventStore {
 
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
-        return select(event.stream).store().append(event, expectedVersion);
+        Node node = select(event.stream);
+        EventRecord appended = node.store().append(event, expectedVersion);
+        if (appended.version == EventId.START_VERSION) {
+            broadcastStreamCreation(event.stream, node);
+        }
+        return appended;
     }
 
     @Override
@@ -254,9 +264,21 @@ public class ClusterStore implements IEventStore {
         metadata = requireNonNullElseGet(metadata, HashMap::new);
         metadata.put("_node", node.id);
 
+
         //TODO add an option to explicitly specify the node where the stream will be created, it does require global lock
         //Another thing cna be done is to return a SEE_OTHER response status and make the client go to another node
-        return node.store().createStream(stream, maxCount, maxAge, acl, metadata);
+        StreamMetadata created = node.store().createStream(stream, maxCount, maxAge, acl, metadata);
+        if (node.id.equals(descriptor.nodeId())) {
+            broadcastStreamCreation(stream, node);
+        }
+        return created;
+    }
+
+    private void broadcastStreamCreation(String stream, Node node) {
+        //this node broadcast the stream creation and add to this stream mapping as well
+        state.addStream(StreamHasher.hash(stream), node);
+        List<MulticastResponse> responses = cluster.client().cast(new StreamCreated(stream));
+        //TODO do nothing with ack ?
     }
 
     @Override

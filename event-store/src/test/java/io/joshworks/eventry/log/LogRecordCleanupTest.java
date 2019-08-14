@@ -10,6 +10,7 @@ import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.LinkTo;
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.fstore.es.shared.utils.StringUtils;
 import io.joshworks.fstore.log.segment.Log;
@@ -359,7 +360,7 @@ public class LogRecordCleanupTest {
 
     private void appendTo(Log<EventRecord> segment, EventRecord record) {
         long pos = segment.append(record);
-        index.add(record.hash(), record.version, pos);
+        index.add(StreamHasher.hash(record.stream), record.version, pos);
     }
 
 

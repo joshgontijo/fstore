@@ -3,21 +3,19 @@ package io.joshworks.eventry.server;
 import io.joshworks.eventry.EventStore;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.server.cluster.messages.CreateStream;
-import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.MulticastResponse;
+import io.joshworks.eventry.server.cluster.ClusterStoreClient;
 import io.joshworks.eventry.server.cluster.NodeDescriptor;
 import io.joshworks.eventry.server.cluster.RemoteIterators;
-import io.joshworks.eventry.server.cluster.ClusterStoreClient;
 import io.joshworks.eventry.server.cluster.events.NodeInfo;
 import io.joshworks.eventry.server.cluster.events.NodeInfoRequested;
 import io.joshworks.eventry.server.cluster.events.NodeJoined;
 import io.joshworks.eventry.server.cluster.events.NodeLeft;
 import io.joshworks.eventry.server.cluster.messages.Append;
 import io.joshworks.eventry.server.cluster.messages.AppendResult;
+import io.joshworks.eventry.server.cluster.messages.CreateStream;
 import io.joshworks.eventry.server.cluster.messages.EventBatch;
 import io.joshworks.eventry.server.cluster.messages.EventData;
 import io.joshworks.eventry.server.cluster.messages.FromAll;
@@ -33,7 +31,9 @@ import io.joshworks.eventry.server.cluster.nodelog.NodeLeftEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
 import io.joshworks.eventry.server.cluster.nodelog.NodeShutdownEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
+import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,22 +43,24 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class EventHandler implements Closeable {
+public class ClusterEventHandler implements Closeable {
 
-    private static final Logger logger = LoggerFactory.getLogger(EventHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(ClusterEventHandler.class);
 
     private final RemoteIterators remoteIterators = new RemoteIterators();
 
     private final IEventStore localStore;
-    private final int port;
+    private final int httpPort;
+    private final int tcpPort;
     private final NodeDescriptor descriptor;
     private final Cluster cluster;
     private final StoreState state;
     private final NodeLog nodeLog;
 
-    public EventHandler(EventStore localStore, int port, NodeDescriptor descriptor, Cluster cluster, StoreState state, NodeLog nodeLog) {
+    public ClusterEventHandler(EventStore localStore, int httpPort, int tcpPort, NodeDescriptor descriptor, Cluster cluster, StoreState state, NodeLog nodeLog) {
         this.localStore = localStore;
-        this.port = port;
+        this.httpPort = httpPort;
+        this.tcpPort = tcpPort;
         this.descriptor = descriptor;
         this.cluster = cluster;
         this.state = state;
@@ -88,13 +90,12 @@ public class EventHandler implements Closeable {
         //add this node to the nodes list
         Set<Long> streams = localStore.streams().stream().filter(h -> !SystemStreams.systemStream(h)).collect(Collectors.toSet());
         ClusterNode cNode = cluster.node();
-        String nodeAddress = cNode.hostAddress() + ":" + port;
-        Node thisNode = new Node(cNode.id, localStore, nodeAddress);
+        Node thisNode = new Node(cNode.id, localStore, cNode.hostAddress(), httpPort, tcpPort);
         state.addNode(thisNode, streams);
 
-        nodeLog.append(new NodeStartedEvent(cNode.id, nodeAddress));
+        nodeLog.append(new NodeStartedEvent(cNode.id, cNode.hostAddress(), httpPort, tcpPort));
 
-        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode.id, thisNode.address, streams));
+        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode.id, thisNode.host, streams));
 
         for (MulticastResponse response : responses) {
             NodeInfo nodeInfo = response.message();
@@ -102,7 +103,7 @@ public class EventHandler implements Closeable {
 
             ClusterNode remoteNode = cluster.node(nodeInfo.nodeId);
             IEventStore remoteStore = new ClusterStoreClient(remoteNode, nodeInfo.nodeId, cluster.client());
-            Node node = new Node(nodeInfo.nodeId, remoteStore, nodeInfo.address);
+            Node node = new Node(nodeInfo.nodeId, remoteStore, nodeInfo.address, httpPort, tcpPort);
             state.addNode(node, nodeInfo.streams);
 
             nodeLog.append(new NodeInfoReceivedEvent(node.id, nodeInfo.address, nodeInfo.streams));
@@ -113,7 +114,7 @@ public class EventHandler implements Closeable {
         Set<Long> streams = state.nodeStreams(descriptor.nodeId());
 
         Node thisNode = state.getNode(descriptor.nodeId());
-        return new NodeInfo(thisNode.id, thisNode.address, streams);
+        return new NodeInfo(thisNode.id, thisNode.host, streams);
     }
 
     private NodeInfo onNodeJoined(NodeJoined nodeJoined) {
@@ -125,7 +126,7 @@ public class EventHandler implements Closeable {
         ClusterNode cNode = cluster.node(nodeId);
         IEventStore remoteStore = new ClusterStoreClient(cNode, nodeId, cluster.client());
 
-        Node node = new Node(nodeJoined.nodeId, remoteStore, nodeJoined.address);
+        Node node = new Node(nodeJoined.nodeId, remoteStore, nodeJoined.address, httpPort, tcpPort);
         state.addNode(node, nodeJoined.streams);
         return thisNodeInfo();
     }
@@ -183,8 +184,7 @@ public class EventHandler implements Closeable {
     }
 
     private StreamMetadata onStreamCreationRequest(CreateStream event) {
-        StreamMetadata created = localStore.createStream(event.stream, event.maxCount, event.maxAge, event.acl, event.metadata);
-        return created;
+        return localStore.createStream(event.stream, event.maxCount, event.maxAge, event.acl, event.metadata);
     }
 
     @Override

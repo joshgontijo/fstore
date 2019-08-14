@@ -2,19 +2,16 @@ package io.joshworks.fstore.client;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.es.shared.EventMap;
-import io.joshworks.fstore.es.shared.JsonEvent;
-import io.joshworks.fstore.es.shared.NodeInfo;
+import io.joshworks.fstore.es.shared.EventRecord;
 
-import java.util.Iterator;
 import java.util.List;
 
-//Round robin
-public final class PartitionedStreamIterator implements ClientStreamIterator {
+public final class NodeClientIterator implements ClientStreamIterator {
 
-    private final List<NodeInfo> nodes;
+    private final List<NodeIterator> nodes;
     private int nodeIdx;
 
-    private PartitionedStreamIterator(List<NodeInfo> nodes) {
+    NodeClientIterator(List<NodeIterator> nodes) {
         this.nodes = nodes;
     }
 
@@ -32,7 +29,7 @@ public final class PartitionedStreamIterator implements ClientStreamIterator {
     }
 
     @Override
-    public JsonEvent next() {
+    public EventRecord next() {
         if (!hasNext()) {
             return null;
         }
@@ -41,7 +38,7 @@ public final class PartitionedStreamIterator implements ClientStreamIterator {
 
     @Override
     public void close() {
-        for (EventStoreIterator iterator : nodes) {
+        for (NodeIterator iterator : nodes) {
             IOUtils.closeQuietly(iterator);
         }
     }
@@ -49,7 +46,7 @@ public final class PartitionedStreamIterator implements ClientStreamIterator {
     @Override
     public EventMap checkpoint() {
         return nodes.stream()
-                .map(EventStoreIterator::checkpoint)
+                .map(NodeIterator::checkpoint)
                 .reduce(EventMap.empty(), EventMap::merge);
     }
 }

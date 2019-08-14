@@ -3,6 +3,7 @@ package io.joshworks.eventry.stream;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.lsmtree.LsmTree;
@@ -47,7 +48,7 @@ public class Streams implements Closeable {
     }
 
     public StreamMetadata get(String stream) {
-        return get(EventId.hash(stream));
+        return get(StreamHasher.hash(stream));
     }
 
     public StreamMetadata get(long streamHash) {
@@ -81,7 +82,7 @@ public class Streams implements Closeable {
     //return a metadata if existing, or create a new one using default values, invoking createdCallback on creation
     public StreamMetadata createIfAbsent(String stream, Consumer<StreamMetadata> createdCallback) {
         validateName(stream);
-        long streamHash = EventId.hash(stream);
+        long streamHash = StreamHasher.hash(stream);
         StreamMetadata metadata = store.get(streamHash);
         if (metadata == null) {
             metadata = this.createInternal(stream, NO_MAX_AGE, NO_MAX_COUNT, new HashMap<>(), new HashMap<>(), streamHash);
@@ -92,7 +93,7 @@ public class Streams implements Closeable {
 
     public StreamMetadata create(String stream, int maxCount, int maxAgeSec, Map<String, Integer> permissions, Map<String, String> metadata) {
         validateName(stream);
-        long hash = EventId.hash(stream);
+        long hash = StreamHasher.hash(stream);
         return createInternal(stream, maxCount, maxAgeSec, permissions, metadata, hash);
     }
 
