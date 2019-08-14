@@ -80,10 +80,6 @@ public class EventRecord {
         return LinkTo.TYPE.equals(type);
     }
 
-    public long hash() {
-        return EventId.hash(stream);
-    }
-
     public EventId streamName() {
         return EventId.of(stream, version);
     }

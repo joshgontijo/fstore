@@ -25,6 +25,7 @@ import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.LinkTo;
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -166,7 +167,7 @@ public class EventStore implements IEventStore {
                 EventRecord entry = e.getKey();
                 long position = e.getValue();
                 EventId eventId = entry.streamName();
-                index.add(eventId.hash(), eventId.version(), position);
+                index.add(StreamHasher.hash(entry.stream), eventId.version(), position);
             });
 
         } catch (Exception e) {
@@ -254,7 +255,7 @@ public class EventStore implements IEventStore {
 
     @Override
     public Optional<StreamInfo> streamMetadata(String stream) {
-        long streamHash = EventId.hash(stream);
+        long streamHash = StreamHasher.hash(stream);
         return Optional.ofNullable(streams.get(streamHash)).map(meta -> {
             int version = index.version(meta.hash);
             return StreamInfo.from(meta, version);
@@ -342,7 +343,7 @@ public class EventStore implements IEventStore {
 
     private long getStartPosition(EventId lastEvent) {
         return Optional.ofNullable(lastEvent)
-                .flatMap(ev -> index.get(ev.hash(), ev.version()))
+                .flatMap(ev -> index.get(StreamHasher.hash(lastEvent.name()), ev.version()))
                 .map(ie -> ie.position)
                 .orElse(Log.START);
     }
@@ -416,7 +417,7 @@ public class EventStore implements IEventStore {
         if (!stream.hasVersion()) {
             throw new IllegalArgumentException("Version must be greater than " + NO_VERSION);
         }
-        Optional<IndexEntry> indexEntry = index.get(stream.hash(), stream.version());
+        Optional<IndexEntry> indexEntry = index.get(StreamHasher.hash(stream.name()), stream.version());
         if (indexEntry.isEmpty()) {
             return null;
         }

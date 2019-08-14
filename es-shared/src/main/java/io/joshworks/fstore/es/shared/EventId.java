@@ -1,8 +1,5 @@
 package io.joshworks.fstore.es.shared;
 
-import io.joshworks.fstore.core.hash.Murmur3Hash;
-import io.joshworks.fstore.core.hash.XXHash;
-import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.fstore.es.shared.utils.StringUtils;
 
@@ -14,7 +11,6 @@ public class EventId {
 
     public static final String SYSTEM_PREFIX = "_";
     public static final String STREAM_VERSION_SEPARATOR = "@";
-    private static final StreamHasher hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
 
     public static final int START_VERSION = 0;
     public static final int MAX_VERSION = Integer.MAX_VALUE;
@@ -35,10 +31,6 @@ public class EventId {
 
     public int version() {
         return version;
-    }
-
-    public long hash() {
-        return hasher.hash(stream);
     }
 
     public boolean isSystemStream() {
@@ -77,11 +69,6 @@ public class EventId {
         int version = getVersion(split, streamVersion);
         return new EventId(split[0], version);
     }
-
-    public static long hash(String streamName) {
-        return hasher.hash(streamName);
-    }
-
 
     private static void validateStreamName(String streamName) {
         if (StringUtils.isBlank(streamName)) {

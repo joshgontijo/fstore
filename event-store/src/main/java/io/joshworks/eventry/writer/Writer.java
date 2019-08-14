@@ -1,12 +1,13 @@
 package io.joshworks.eventry.writer;
 
 import io.joshworks.eventry.data.IndexFlushed;
-import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import io.joshworks.eventry.index.Index;
-import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.es.shared.EventRecord;
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
+import io.joshworks.fstore.es.shared.streams.SystemStreams;
 
 import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 
@@ -28,7 +29,7 @@ public class Writer {
     }
 
     private EventRecord appendInternal(EventRecord event, int expectedVersion, String streamName, long streamHash) {
-        long eventStreamHash = event.hash();
+        long eventStreamHash = StreamHasher.hash(event.stream);
         if (streamName.equals(event.stream) && streamHash != eventStreamHash) {
             throw new StreamException("Hash collision of stream: " + event.stream + " with existing name: " + streamName);
         }

@@ -9,11 +9,12 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import static io.joshworks.fstore.es.shared.EventRecord.NO_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 
+@Deprecated
 public class JsonEvent {
 
-    private static final Serializer<Map<String, Object>> serializer = KryoStoreSerializer.of();
+    private static final Serializer<Map<String, Object>> serializer = KryoStoreSerializer.mapOf(String.class, Object.class);
 
     public final String type;
     public final long timestamp;

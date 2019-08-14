@@ -1,5 +1,7 @@
 package io.joshworks.fstore.es.shared;
 
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
+
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -41,7 +43,7 @@ public class EventMap {
     }
 
     public static EventMap from(EventId eventId) {
-        return empty().add(eventId.hash(), eventId.version());
+        return empty().add(StreamHasher.hash(eventId.name()), eventId.version());
     }
 
 
@@ -51,7 +53,7 @@ public class EventMap {
     }
 
     public EventMap add(EventId eventId) {
-        map.put(eventId.hash(), eventId.version());
+        map.put(StreamHasher.hash(eventId.name()), eventId.version());
         return this;
     }
 
