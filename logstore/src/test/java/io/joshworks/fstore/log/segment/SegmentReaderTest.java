@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -101,7 +101,7 @@ public abstract class SegmentReaderTest {
                     StorageMode.RAF_CACHED,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new BufferPool(MAX_ENTRY_SIZE, false),
+                    new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
                     READ_PAGE_SIZE);
@@ -117,7 +117,7 @@ public abstract class SegmentReaderTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new BufferPool(MAX_ENTRY_SIZE, false),
+                    new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
                     READ_PAGE_SIZE);
@@ -133,7 +133,7 @@ public abstract class SegmentReaderTest {
                     StorageMode.RAF,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new BufferPool(MAX_ENTRY_SIZE, false),
+                    new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
                     READ_PAGE_SIZE);

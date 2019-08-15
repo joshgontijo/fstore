@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.RecordEntry;
@@ -30,7 +30,7 @@ public class BlockSegment<T> implements Log<T> {
     private final Serializer<T> serializer;
     private final BiConsumer<Long, Block> blockWriteListener;
     private final BiConsumer<Long, Block> onBlockLoaded;
-    private final BufferPool bufferPool;
+    private final ThreadLocalBufferPool bufferPool;
     private Consumer<FooterWriter> footerWriter;
     final Block writeBlock;
 
@@ -43,7 +43,7 @@ public class BlockSegment<T> implements Log<T> {
     public BlockSegment(File file,
                         StorageMode storageMode,
                         long dataLength,
-                        BufferPool bufferPool,
+                        ThreadLocalBufferPool bufferPool,
                         WriteMode writeMode,
                         Serializer<T> serializer,
                         BlockFactory blockFactory,
@@ -74,7 +74,7 @@ public class BlockSegment<T> implements Log<T> {
     public BlockSegment(File file,
                         StorageMode storageMode,
                         long dataLength,
-                        BufferPool bufferPool,
+                        ThreadLocalBufferPool bufferPool,
                         WriteMode writeMode,
                         Serializer<T> serializer,
                         BlockFactory blockFactory,

@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.appender.compaction.combiner;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -31,7 +31,7 @@ public class UniqueMergeCombinerTest {
     private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
     private static final int SEGMENT_SIZE = Memory.PAGE_SIZE * 2;
     private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
-    private final BufferPool bufferPool = new BufferPool(MAX_ENTRY_SIZE);
+    private final ThreadLocalBufferPool bufferPool = new ThreadLocalBufferPool(MAX_ENTRY_SIZE);
 
     private final List<Segment> segments = new ArrayList<>();
 

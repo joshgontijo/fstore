@@ -10,7 +10,7 @@ import java.nio.file.Files;
 
 import static java.util.Objects.requireNonNull;
 
-public interface Storage extends Flushable, Closeable {
+public interface Storage extends Flushable, Closeable{
 
     int EOF = -1;
 

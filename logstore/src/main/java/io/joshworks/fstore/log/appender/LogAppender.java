@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
@@ -65,7 +65,7 @@ public class LogAppender<T> implements Closeable {
     private final NamingStrategy namingStrategy;
     private final SegmentFactory<T> factory;
     private final StorageMode storageMode;
-    private final BufferPool bufferPool;
+    private final ThreadLocalBufferPool bufferPool;
     private final double checksumProbability;
     private final int readPageSize;
 
@@ -89,7 +89,7 @@ public class LogAppender<T> implements Closeable {
         this.namingStrategy = config.namingStrategy;
         this.checksumProbability = config.checksumProbability;
         this.readPageSize = config.readPageSize;
-        this.bufferPool = new BufferPool(config.maxEntrySize, config.directBufferPool);
+        this.bufferPool = new ThreadLocalBufferPool(config.maxEntrySize, config.directBufferPool);
         this.logger = Logging.namedLogger(config.name, "appender");
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);

@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.segment;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -255,7 +255,7 @@ public abstract class SegmentFooterTest {
         private final Segment<String> delegate;
 
         public FooterSegment(File file, StorageMode storageMode) {
-            this.delegate = new Segment<>(file, storageMode, Size.KB.ofInt(128), Serializers.VSTRING, new BufferPool(MAX_ENTRY_SIZE), WriteMode.LOG_HEAD, 1, Memory.PAGE_SIZE, List::size, this::writeFooter);
+            this.delegate = new Segment<>(file, storageMode, Size.KB.ofInt(128), Serializers.VSTRING, new ThreadLocalBufferPool(MAX_ENTRY_SIZE), WriteMode.LOG_HEAD, 1, Memory.PAGE_SIZE, List::size, this::writeFooter);
         }
 
         public void writeFooter(FooterWriter footer) {

@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.log.segment.Log;
 
 import java.nio.ByteBuffer;
@@ -12,7 +12,7 @@ import java.util.List;
 final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
 
 
-    BulkBackwardRecordReader(BufferPool bufferPool, double checksumProb, int bufferSize) {
+    BulkBackwardRecordReader(ThreadLocalBufferPool bufferPool, double checksumProb, int bufferSize) {
         super(bufferPool, checksumProb, bufferSize);
     }
 
@@ -22,7 +22,8 @@ final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
         List<RecordEntry<T>> entries = new ArrayList<>();
 
         try (bufferPool) {
-            ByteBuffer buffer = bufferPool.allocate(pageReadSize);
+            ByteBuffer buffer = bufferPool.allocate();
+            buffer.limit(pageReadSize);
             int limit = buffer.limit();
             if (position - limit < Log.START) {
                 int available = (int) (position - Log.START);
@@ -49,7 +50,8 @@ final class BulkBackwardRecordReader extends BaseReader implements BulkReader {
 
             if (recordSize > buffer.limit()) {
                 bufferPool.free();
-                buffer = bufferPool.allocate(recordSize);
+                buffer = bufferPool.allocate();
+                buffer.limit(recordSize);
 
                 buffer.limit(recordSize); //limit to the entry size, excluding the secondary header
                 long readStart = position - recordSize;

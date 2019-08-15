@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.segment.Log;
@@ -27,7 +27,7 @@ public class CompactionTask<T> implements Runnable {
     private final Serializer<T> serializer;
     private final StorageMode storageMode;
     private final SegmentFactory<T> segmentFactory;
-    private final BufferPool bufferPool;
+    private final ThreadLocalBufferPool bufferPool;
     private final Consumer<CompactionResult<T>> onComplete;
     private final double checksumProbability;
     private final int readPageSize;

@@ -4,7 +4,7 @@ import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -33,7 +33,7 @@ public class BlockSegmentTest {
         return new BlockSegment<>(
                 file, StorageMode.RAF,
                 Size.MB.of(10),
-                new BufferPool(MAX_ENTRY_SIZE, false),
+                new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
                 WriteMode.LOG_HEAD,
                 Serializers.STRING,
                 Block.vlenBlock(),

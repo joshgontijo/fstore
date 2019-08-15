@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -10,7 +10,7 @@ import java.util.List;
 
 final class BulkForwardRecordReader extends BaseReader implements BulkReader {
 
-    BulkForwardRecordReader(BufferPool bufferPool, double checksumProb, int bufferSize) {
+    BulkForwardRecordReader(ThreadLocalBufferPool bufferPool, double checksumProb, int bufferSize) {
         super(bufferPool, checksumProb, bufferSize);
     }
 

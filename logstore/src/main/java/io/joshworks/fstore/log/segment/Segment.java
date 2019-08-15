@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -76,7 +76,7 @@ public final class Segment<T> implements Log<T> {
             StorageMode storageMode,
             long segmentDataSize,
             Serializer<T> serializer,
-            BufferPool bufferPool,
+            ThreadLocalBufferPool bufferPool,
             WriteMode writeMode,
             double checksumProb,
             int readPageSize) {
@@ -89,7 +89,7 @@ public final class Segment<T> implements Log<T> {
             StorageMode storageMode,
             long segmentDataSize,
             Serializer<T> serializer,
-            BufferPool bufferPool,
+            ThreadLocalBufferPool bufferPool,
             WriteMode writeMode,
             double checksumProb,
             int readPageSize,
@@ -102,7 +102,7 @@ public final class Segment<T> implements Log<T> {
         Storage storage = null;
         try {
             long alignedSegmentDataSize = Storage.align(segmentDataSize);
-            long fileLength = getTotalFileLength(alignedSegmentDataSize, bufferPool.capacity());
+            long fileLength = getTotalFileLength(alignedSegmentDataSize, bufferPool.bufferSize());
             this.storage = storage = Storage.createOrOpen(file, storageMode, fileLength);
             this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize);
             this.logger = Logging.namedLogger(storage.name(), "segment");
@@ -162,6 +162,12 @@ public final class Segment<T> implements Log<T> {
         checkBounds(position);
         RecordEntry<T> entry = stream.read(Direction.FORWARD, position, serializer);
         return entry.entry();
+    }
+
+    public void read(long position, ByteBuffer buffer) {
+        checkClosed();
+        checkBounds(position);
+        stream.read(Direction.FORWARD, position, Serializers.transfer(buffer));
     }
 
     @Override
@@ -397,8 +403,7 @@ public final class Segment<T> implements Log<T> {
         } catch (Exception e) {
             e.printStackTrace();
             logger.warn("Found inconsistent entry on position " + position + ", segment '" + name() + "': " + e.getMessage());
-            storage.position(position);
-            stream.write(position, ByteBuffer.wrap(EOL), Serializers.COPY);
+            storage.write(position, ByteBuffer.wrap(EOL));
             storage.position(position);
         }
         logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
@@ -434,7 +439,7 @@ public final class Segment<T> implements Log<T> {
             if (markedForDeletion.get()) {
                 throw new SegmentException("Segment '" + name() + "' is marked for deletion");
             }
-            if(!readers.add(reader)) {
+            if (!readers.add(reader)) {
                 throw new IllegalStateException("Failed to acquire reader: Already exist in the readers list");
             }
             return reader;
