@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.segment.header;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -30,7 +30,7 @@ public abstract class LogHeaderTest {
         testFile = FileUtils.testFile();
         testFile.deleteOnExit();
         storage = Storage.create(testFile, store(), STORAGE_SIZE);
-        stream = new DataStream(new BufferPool(STORAGE_SIZE), storage);
+        stream = new DataStream(new ThreadLocalBufferPool(STORAGE_SIZE), storage);
     }
 
     @After

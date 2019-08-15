@@ -2,7 +2,7 @@ package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.cache.NoCache;
@@ -41,7 +41,7 @@ public class SSTableTest {
                 Size.MB.of(100),
                 Serializers.INTEGER,
                 Serializers.VSTRING,
-                new BufferPool(Size.MB.ofInt(1)),
+                new ThreadLocalBufferPool(Size.MB.ofInt(1)),
                 WriteMode.LOG_HEAD,
                 Block.vlenBlock(),
                 NO_MAX_AGE,

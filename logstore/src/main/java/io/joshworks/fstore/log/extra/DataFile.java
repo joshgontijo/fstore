@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -31,7 +31,7 @@ public class DataFile<T> implements Flushable, Closeable {
         Storage storage = null;
         try {
             this.storage = storage = Storage.createOrOpen(handler, mmap ? StorageMode.MMAP : StorageMode.RAF, initialSize);
-            this.stream = new DataStream(new BufferPool(maxEntrySize), storage, checksumProb, Memory.PAGE_SIZE * 4);
+            this.stream = new DataStream(new ThreadLocalBufferPool(maxEntrySize), storage, checksumProb, Memory.PAGE_SIZE * 4);
             this.serializer = serializer;
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);

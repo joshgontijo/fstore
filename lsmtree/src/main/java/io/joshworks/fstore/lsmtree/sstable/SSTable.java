@@ -3,7 +3,7 @@ package io.joshworks.fstore.lsmtree.sstable;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.index.filter.BloomFilter;
@@ -45,7 +45,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private final BlockSegment<Entry<K, V>> delegate;
     private final Serializer<Entry<K, V>> entrySerializer;
     private final Serializer<K> keySerializer;
-    private final BufferPool bufferPool;
+    private final ThreadLocalBufferPool bufferPool;
 
     private final Codec footerCodec;
     private final BloomFilter bloomFilter;
@@ -60,7 +60,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                    long segmentDataSize,
                    Serializer<K> keySerializer,
                    Serializer<V> valueSerializer,
-                   BufferPool bufferPool,
+                   ThreadLocalBufferPool bufferPool,
                    WriteMode writeMode,
                    BlockFactory blockFactory,
                    long maxAge,
@@ -568,7 +568,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         }
 
         @Override
-        public Log<Entry<K, V>> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<Entry<K, V>> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
+        public Log<Entry<K, V>> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<Entry<K, V>> serializer, ThreadLocalBufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
             return new SSTable<>(
                     file,
                     storageMode,

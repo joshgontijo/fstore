@@ -1,6 +1,7 @@
 package io.joshworks.eventry.server.tcp_xnio.tcp;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import org.xnio.Buffers;
 import org.xnio.ChannelListener;
 import org.xnio.StreamConnection;
@@ -16,10 +17,10 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
 
     private final StreamConnection connection;
     private final Config config;
-    private final BufferPool readPool;
+    private final ThreadLocalBufferPool readPool;
 
 
-    public ReadHandler(StreamConnection connection, Config config, BufferPool readPool) {
+    public ReadHandler(StreamConnection connection, Config config, ThreadLocalBufferPool readPool) {
         this.connection = connection;
         this.config = config;
         this.readPool = readPool;
@@ -105,6 +106,9 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
     private void dispatch(ByteBuffer buffer) {
         connection.getWorker().execute(() -> {
             try {
+
+                ByteBuffer allocate1 = pool.allocate();
+                allocate1.put(allocate);
 
                 String message = new String(data.array(), data.position(), data.remaining());
                 if ("aaaaaaaaaaaaaaaaaaa".equals(message)) {

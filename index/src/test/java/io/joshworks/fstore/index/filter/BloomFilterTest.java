@@ -3,7 +3,7 @@ package io.joshworks.fstore.index.filter;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.footer.FooterMap;
@@ -26,7 +26,7 @@ import static org.junit.Assert.assertTrue;
 public class BloomFilterTest {
 
     private BloomFilter filter;
-    private BufferPool bufferPool;
+    private ThreadLocalBufferPool bufferPool;
     private Storage storage;
     private FooterWriter writer;
     private FooterReader reader;
@@ -37,7 +37,7 @@ public class BloomFilterTest {
         File testFile = FileUtils.testFile();
         filter = BloomFilter.create(10000000, 0.01);
 
-        bufferPool = new BufferPool(Size.MB.ofInt(2), false);
+        bufferPool = new ThreadLocalBufferPool(Size.MB.ofInt(2), false);
         storage = Storage.create(testFile, StorageMode.MMAP, Size.MB.of(2));
         DataStream dataStream = new DataStream(bufferPool, storage);
 

@@ -2,14 +2,14 @@ package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.log.segment.Log;
 
 import java.nio.ByteBuffer;
 
 final class BackwardRecordReader extends BaseReader implements Reader {
 
-    BackwardRecordReader(BufferPool bufferPool, double checksumProb, int bufferSize) {
+    BackwardRecordReader(ThreadLocalBufferPool bufferPool, double checksumProb, int bufferSize) {
         super(bufferPool, checksumProb, bufferSize);
     }
 

@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -34,7 +34,7 @@ public class DataStreamTest {
 
     private File file;
     private Storage storage;
-    private BufferPool bufferPool;
+    private ThreadLocalBufferPool bufferPool;
     private static final long FILE_SIZE = Size.MB.of(10);
     private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
 
@@ -45,7 +45,7 @@ public class DataStreamTest {
         file = FileUtils.testFile();
         storage = Storage.create(file, StorageMode.RAF, FILE_SIZE);
         storage.position(Log.START);
-        bufferPool = new BufferPool(MAX_ENTRY_SIZE);
+        bufferPool = new ThreadLocalBufferPool(MAX_ENTRY_SIZE);
         stream = new DataStream(bufferPool, storage, CHCKSUM_PROB, Memory.PAGE_SIZE);
     }
 
@@ -72,7 +72,7 @@ public class DataStreamTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void maximum_entry_size_is_maxEntrySize_MINUS_RECORDHEADER_HEADER_OVERHEAD() {
-        int capacity = bufferPool.capacity();
+        int capacity = bufferPool.bufferSize();
         byte[] data = new byte[capacity - RecordHeader.HEADER_OVERHEAD + 1];
         Arrays.fill(data, (byte) 65);
         String longString = new String(data);
@@ -118,7 +118,7 @@ public class DataStreamTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void write_typed_throws_error_if_secondary_header_cannot_be_written() {
-        int capacity = bufferPool.capacity();
+        int capacity = bufferPool.bufferSize();
         byte[] data = new byte[capacity - RecordHeader.HEADER_OVERHEAD + 1];
         Arrays.fill(data, (byte) 65);
         String longString = new String(data);

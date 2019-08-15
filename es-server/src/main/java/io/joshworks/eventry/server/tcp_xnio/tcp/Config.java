@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server.tcp_xnio.tcp;
 
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import org.xnio.Option;
 import org.xnio.OptionMap;
 import org.xnio.Options;
@@ -74,7 +74,7 @@ public class Config {
     public XTcpServer connect() {
         try {
             final XnioWorker worker = Xnio.getInstance().createWorker(options.getMap());
-            BufferPool bufferPool = new BufferPool(maxBufferSize, true);
+            ThreadLocalBufferPool bufferPool = new ThreadLocalBufferPool(maxBufferSize, true);
             // OptionsMap is the override
             AcceptingChannel<StreamConnection> channel = worker.createStreamConnectionServer(bindAddress, new Acceptor(this, bufferPool), OptionMap.EMPTY);
             channel.resumeAccepts();

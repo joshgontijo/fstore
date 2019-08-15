@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
@@ -17,7 +17,7 @@ class CompactionEvent<T> {
     final File segmentFile;
     final SegmentFactory<T> segmentFactory;
     final StorageMode storageMode;
-    final BufferPool bufferPool;
+    final ThreadLocalBufferPool bufferPool;
     final Serializer<T> serializer;
     final String name;
     final int level;
@@ -33,7 +33,7 @@ class CompactionEvent<T> {
             SegmentFactory<T> segmentFactory,
             StorageMode storageMode,
             Serializer<T> serializer,
-            BufferPool bufferPool,
+            ThreadLocalBufferPool bufferPool,
             String name,
             int level,
             int readPageSize,

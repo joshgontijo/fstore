@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 
 import java.io.File;
 
@@ -13,7 +13,7 @@ public interface SegmentFactory<T> {
             StorageMode storageMode,
             long dataLength,
             Serializer<T> serializer,
-            BufferPool bufferPool,
+            ThreadLocalBufferPool bufferPool,
             WriteMode writeMode,
             double checksumProb,
             int readPageSize);

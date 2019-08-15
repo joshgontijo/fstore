@@ -1,6 +1,7 @@
 package io.joshworks.fstore.serializer;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.serializer.arrays.BooleanArraySerializer;
 import io.joshworks.fstore.serializer.arrays.ByteArraySerializer;
 import io.joshworks.fstore.serializer.arrays.DoubleArraySerializer;
@@ -32,7 +33,6 @@ public class Serializers {
 
     //No serializer
 //    public static final Serializer<ByteBuffer> NONE = new DirectSerializer();
-    public static final Serializer<ByteBuffer> COPY = new ByteBufferCopy();
     public static final Serializer<byte[]> FROM_BYTE_ARRAY = new FromByteArraySerializer();
 
     public static final Serializer<String> VSTRING = new VStringSerializer();
@@ -55,6 +55,13 @@ public class Serializers {
     public static final Serializer<short[]> VLEN_SHORT_ARRAY = new ShortArraySerializer();
     public static final Serializer<boolean[]> VLEN_BOOLEAN_ARRAY = new BooleanArraySerializer();
 
+    public static Serializer<ByteBuffer> transfer(BufferPool pool) {
+        return new ByteBufferTransfer(pool);
+    }
+
+    public static Serializer<ByteBuffer> transfer(ByteBuffer buffer) {
+        return new ByteBufferTransfer(buffer);
+    }
 
     public static <K, V> Serializer<Map<K, V>> mapSerializer(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         return mapSerializer(keySerializer, valueSerializer, HashMap::new);

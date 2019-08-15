@@ -1,16 +1,14 @@
 package io.joshworks.eventry.server.tcp_xnio.tcp;
 
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.undertow.conduits.IdleTimeoutConduit;
 import org.xnio.ByteBufferSlicePool;
 import org.xnio.ChannelListener;
 import org.xnio.Pooled;
 import org.xnio.StreamConnection;
 import org.xnio.channels.AcceptingChannel;
-import org.xnio.conduits.AbstractSourceConduit;
 import org.xnio.conduits.FramingMessageSourceConduit;
 import org.xnio.conduits.MessageStreamSourceConduit;
-import org.xnio.conduits.StreamSourceConduit;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -18,9 +16,9 @@ import java.nio.ByteBuffer;
 public class Acceptor implements ChannelListener<AcceptingChannel<StreamConnection>> {
 
     private final Config config;
-    private final BufferPool bufferPool;
+    private final ThreadLocalBufferPool bufferPool;
 
-    Acceptor(Config config, BufferPool bufferPool) {
+    Acceptor(Config config, ThreadLocalBufferPool bufferPool) {
         this.config = config;
         this.bufferPool = bufferPool;
     }
