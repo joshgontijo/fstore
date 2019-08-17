@@ -4,8 +4,11 @@ import io.joshworks.fstore.es.shared.EventRecord;
 
 public class Append extends Message {
 
-    public final int expectedVersion;
-    public final EventRecord record;
+    public int expectedVersion;
+    public EventRecord record;
+
+    public Append() {
+    }
 
     public Append(int expectedVersion, EventRecord record) {
         this.expectedVersion = expectedVersion;

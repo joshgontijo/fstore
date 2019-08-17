@@ -45,9 +45,8 @@ public class ThreadLocalBufferPool implements BufferPool {
         return bufferSize;
     }
 
-
     @Override
-    public void close() {
+    public void free() {
         cache.get().free();
     }
 

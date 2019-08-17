@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
@@ -34,7 +35,7 @@ public class DataStreamTest {
 
     private File file;
     private Storage storage;
-    private ThreadLocalBufferPool bufferPool;
+    private BufferPool bufferPool;
     private static final long FILE_SIZE = Size.MB.of(10);
     private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
 

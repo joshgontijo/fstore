@@ -25,4 +25,5 @@ public class StringSerializer implements Serializer<String> {
         buffer.get(data);
         return new String(data, StandardCharsets.UTF_8);
     }
+
 }

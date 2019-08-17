@@ -59,19 +59,19 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
     }
 
     public static <K, V> KryoStoreSerializer<Map<K, V>> mapOf(Class<K> keytype, Class<V> valueType) {
-        return (KryoStoreSerializer<Map<K, V>>) untyped(keytype, valueType);
+        return (KryoStoreSerializer<Map<K, V>>) register(keytype, valueType);
     }
 
     public static <T> KryoStoreSerializer<List<T>> listOf(Class<T> type) {
-        return (KryoStoreSerializer<List<T>>) untyped(type);
+        return (KryoStoreSerializer<List<T>>) register(type);
     }
 
     public static <T> KryoStoreSerializer<Set<T>> setOf(Class<T> type) {
-        return (KryoStoreSerializer<Set<T>>) untyped(type);
+        return (KryoStoreSerializer<Set<T>>) register(type);
     }
 
     public static <T> KryoStoreSerializer<Collection<T>> collectionOf(Class<T> type) {
-        return (KryoStoreSerializer<Collection<T>>) untyped(type);
+        return (KryoStoreSerializer<Collection<T>>) register(type);
     }
 
     public static byte[] serialize(Object data) {
@@ -148,7 +148,11 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
         return new KryoStoreSerializer<>(mainType);
     }
 
-    public static KryoStoreSerializer<?> untyped(Class... types) {
+    public static KryoStoreSerializer untyped() {
+        return new KryoStoreSerializer<>(null);
+    }
+
+    public static KryoStoreSerializer register(Class<?>... types) {
         if (types != null) {
             Kryo kryo = localKryo.get();
             for (Class type : types) {

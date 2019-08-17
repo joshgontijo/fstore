@@ -2,8 +2,11 @@ package io.joshworks.fstore.es.shared.tcp;
 
 public class SubscriptionIteratorNext extends Message {
 
-    public final String subscriptionId;
-    public final int batchSize;
+    public String subscriptionId;
+    public int batchSize;
+
+    public SubscriptionIteratorNext() {
+    }
 
     public SubscriptionIteratorNext(String subscriptionId, int batchSize) {
         this.subscriptionId = subscriptionId;

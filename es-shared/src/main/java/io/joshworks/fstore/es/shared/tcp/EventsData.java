@@ -6,7 +6,10 @@ import java.util.List;
 
 public class EventsData extends Message {
 
-    public final List<EventRecord> events;
+    public List<EventRecord> events;
+
+    public EventsData() {
+    }
 
     public EventsData(List<EventRecord> events) {
         this.events = events;

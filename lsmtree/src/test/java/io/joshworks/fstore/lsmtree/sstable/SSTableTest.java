@@ -1,15 +1,15 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.core.cache.NoCache;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -47,7 +47,7 @@ public class SSTableTest {
                 NO_MAX_AGE,
                 Codec.noCompression(),
                 Codec.noCompression(),
-                new NoCache<>(),
+                Cache.noCache(),
                 10000,
                 0.01,
                 Memory.PAGE_SIZE,

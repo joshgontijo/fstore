@@ -1,10 +1,10 @@
 package io.joshworks.fstore.core.io.buffers;
 
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SimpleBufferPool implements BufferPool {
 
@@ -25,15 +25,17 @@ public class SimpleBufferPool implements BufferPool {
     //allocate current buffer with its total capacity
     @Override
     public ByteBuffer allocate() {
+        BufferRef bufferRef = allocateRef();
+        return bufferRef.buffer;
+    }
+
+    public BufferRef allocateRef() {
         BufferRef bufferRef = pool.poll();
         if (bufferRef == null) {
             bufferRef = new BufferRef();
             cache.get().add(bufferRef);
         }
-        if (!bufferRef.available.compareAndSet(true, false)) {
-            throw new IllegalStateException("Buffer not released");
-        }
-        return bufferRef.buffer;
+        return bufferRef;
     }
 
     @Override
@@ -46,9 +48,8 @@ public class SimpleBufferPool implements BufferPool {
         return bufferSize;
     }
 
-
     @Override
-    public void close() {
+    public void free() {
         BufferRef ref;
         Queue<BufferRef> allocations = cache.get();
         while ((ref = allocations.poll()) != null) {
@@ -56,14 +57,21 @@ public class SimpleBufferPool implements BufferPool {
         }
     }
 
-    private final class BufferRef {
-        final ByteBuffer buffer = Buffers.allocate(bufferSize, direct);
-        final AtomicBoolean available = new AtomicBoolean(true);
+    public final class BufferRef implements Closeable {
+        public final ByteBuffer buffer = Buffers.allocate(bufferSize, direct);
 
-        void free() {
+        private BufferRef() {
+
+        }
+
+        public void free() {
             buffer.clear();
-            available.set(true);
             pool.add(this);
+        }
+
+        @Override
+        public void close() {
+            free();
         }
     }
 

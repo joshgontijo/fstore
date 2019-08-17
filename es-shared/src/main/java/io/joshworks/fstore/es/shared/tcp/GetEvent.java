@@ -4,7 +4,10 @@ import io.joshworks.fstore.es.shared.EventId;
 
 public class GetEvent extends Message {
 
-    public final EventId eventId;
+    public EventId eventId;
+
+    public GetEvent() {
+    }
 
     public GetEvent(EventId eventId) {
         this.eventId = eventId;

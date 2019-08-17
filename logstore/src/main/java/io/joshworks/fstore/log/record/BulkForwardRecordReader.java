@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -10,7 +10,7 @@ import java.util.List;
 
 final class BulkForwardRecordReader extends BaseReader implements BulkReader {
 
-    BulkForwardRecordReader(ThreadLocalBufferPool bufferPool, double checksumProb, int bufferSize) {
+    BulkForwardRecordReader(BufferPool bufferPool, double checksumProb, int bufferSize) {
         super(bufferPool, checksumProb, bufferSize);
     }
 
@@ -18,7 +18,8 @@ final class BulkForwardRecordReader extends BaseReader implements BulkReader {
     public <T> List<RecordEntry<T>> read(Storage storage, final long position, Serializer<T> serializer) {
         final List<RecordEntry<T>> entries = new ArrayList<>();
         try (bufferPool) {
-            ByteBuffer buffer = bufferPool.allocate(pageReadSize);
+            ByteBuffer buffer = bufferPool.allocate();
+            buffer.limit(Math.min(pageReadSize, buffer.capacity()));
             storage.read(position, buffer);
             buffer.flip();
 
@@ -34,7 +35,8 @@ final class BulkForwardRecordReader extends BaseReader implements BulkReader {
             int recordSize = length + RecordHeader.HEADER_OVERHEAD;
             if (recordSize > buffer.limit()) {
                 bufferPool.free();
-                buffer = bufferPool.allocate(recordSize);
+                buffer = bufferPool.allocate();
+                buffer.limit(Math.min(recordSize, buffer.capacity()));
                 storage.read(position, buffer);
                 buffer.flip();
                 buffer.getInt(); //skip length

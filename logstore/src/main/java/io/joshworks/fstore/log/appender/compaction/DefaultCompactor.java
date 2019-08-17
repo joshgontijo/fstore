@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -37,7 +37,7 @@ public class DefaultCompactor<T> implements ICompactor {
     private final SegmentFactory<T> segmentFactory;
     private final StorageMode storageMode;
     private final Serializer<T> serializer;
-    private final ThreadLocalBufferPool bufferPool;
+    private final BufferPool bufferPool;
     private final NamingStrategy namingStrategy;
     private final int compactionThreshold;
     private final String name;
@@ -57,7 +57,7 @@ public class DefaultCompactor<T> implements ICompactor {
                             SegmentFactory<T> segmentFactory,
                             StorageMode storageMode,
                             Serializer<T> serializer,
-                            ThreadLocalBufferPool bufferPool,
+                            BufferPool bufferPool,
                             NamingStrategy namingStrategy,
                             int compactionThreshold,
                             String name,

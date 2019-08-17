@@ -13,12 +13,15 @@ import static io.joshworks.fstore.es.shared.utils.StringUtils.requireNonBlank;
 
 public class EventRecord {
 
-    public final String stream;
-    public final String type;
-    public final int version;
-    public final long timestamp;
-    public final byte[] data;
-    public final byte[] metadata;
+    public String stream;
+    public String type;
+    public int version;
+    public long timestamp;
+    public byte[] data;
+    public byte[] metadata;
+
+    public EventRecord() {
+    }
 
     public EventRecord(String stream, String type, int version, long timestamp, byte[] data, byte[] metadata) {
         this.stream = requireNonBlank(stream, "Stream must be provided");

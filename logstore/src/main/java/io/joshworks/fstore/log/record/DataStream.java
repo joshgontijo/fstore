@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 
@@ -22,14 +22,14 @@ public class DataStream {
     private final BulkReader bulkBackwardReader;
     private final Reader backwardReader;
 
-    private final ThreadLocalBufferPool bufferPool;
+    private final BufferPool bufferPool;
 
 
-    public DataStream(ThreadLocalBufferPool bufferPool, Storage storage) {
+    public DataStream(BufferPool bufferPool, Storage storage) {
         this(bufferPool, storage, 0.1, Size.KB.ofInt(16));
     }
 
-    public DataStream(ThreadLocalBufferPool bufferPool, Storage storage, double checksumProb, int readPageSize) {
+    public DataStream(BufferPool bufferPool, Storage storage, double checksumProb, int readPageSize) {
         requireNonNull(bufferPool, "BufferPool must be provided");
         if (checksumProb < 0 || checksumProb > 1) {
             throw new IllegalArgumentException("Checksum verification frequency must be between 0 and 1");

@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -50,7 +50,7 @@ public class Block implements Iterable<ByteBuffer> {
         return ByteBuffer.allocate(size);
     }
 
-    public <T> boolean add(T entry, Serializer<T> serializer, ThreadLocalBufferPool bufferPool) {
+    public <T> boolean add(T entry, Serializer<T> serializer, BufferPool bufferPool) {
         try (bufferPool) {
             ByteBuffer data = bufferPool.allocate();
             serializer.writeTo(entry, data);
