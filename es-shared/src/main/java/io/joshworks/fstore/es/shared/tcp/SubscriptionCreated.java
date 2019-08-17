@@ -2,7 +2,10 @@ package io.joshworks.fstore.es.shared.tcp;
 
 public class SubscriptionCreated extends Message {
 
-    public final String subscriptionId;
+    public String subscriptionId;
+
+    public SubscriptionCreated() {
+    }
 
     public SubscriptionCreated(String id) {
         this.subscriptionId = id;

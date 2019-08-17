@@ -2,7 +2,10 @@ package io.joshworks.fstore.es.shared.tcp;
 
 public class CreateSubscription extends Message {
 
-    public final String pattern;
+    public String pattern;
+
+    public CreateSubscription() {
+    }
 
     public CreateSubscription(String pattern) {
         this.pattern = pattern;

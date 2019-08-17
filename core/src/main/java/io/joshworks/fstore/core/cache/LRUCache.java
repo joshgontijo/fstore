@@ -52,8 +52,8 @@ class LRUCache<K, V> implements Cache<K, V> {
     private final int maxAge;
     private final boolean fifo;
 
-    LRUCache(int maxEntries, final int maxAge) {
-        this.maxAge = maxAge;
+    LRUCache(int maxEntries, final int maxAgeSec) {
+        this.maxAge = maxAgeSec * 1000;
         this.cache = new ConcurrentHashMap<>(16);
         this.accessQueue = ConcurrentDirectDeque.newInstance();
         this.maxEntries = maxEntries;

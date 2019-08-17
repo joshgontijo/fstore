@@ -45,6 +45,7 @@ public class Index implements Closeable {
                 .codec(new SnappyCodec())
                 .blockSize(Memory.PAGE_SIZE * 2)
                 .flushOnClose(false)
+                .blockCache(Cache.lruCache(100, 60))
                 .maxAge(Long.MAX_VALUE)
                 .segmentSize(INDEX_ENTRY_BYTES * indexFlushThreshold)
                 .sstableCompactor(new IndexCompactor(metadataSupplier, this::version))

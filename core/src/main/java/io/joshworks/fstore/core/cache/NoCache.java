@@ -1,6 +1,6 @@
 package io.joshworks.fstore.core.cache;
 
-public class NoCache<K, V> implements Cache<K, V> {
+class NoCache<K, V> implements Cache<K, V> {
 
     @Override
     public void add(K key, V newValue) {

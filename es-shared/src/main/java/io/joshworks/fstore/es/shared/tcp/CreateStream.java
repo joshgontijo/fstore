@@ -4,11 +4,14 @@ import java.util.Map;
 
 public class CreateStream extends Message {
 
-    public final String name;
-    public final int maxAgeSec;
-    public final int maxCount;
-    public final Map<String, String> metadata;
-    public final Map<String, Integer> acl;
+    public String name;
+    public int maxAgeSec;
+    public int maxCount;
+    public Map<String, String> metadata;
+    public Map<String, Integer> acl;
+
+    public CreateStream() {
+    }
 
     public CreateStream(String name) {
         this(name, 0, 0, null, null); //TODO USE CONSTANTS

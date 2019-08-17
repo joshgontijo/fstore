@@ -2,7 +2,10 @@ package io.joshworks.fstore.es.shared.tcp;
 
 public class ErrorMessage extends Message {
 
-    public final String message;
+    public String message;
+
+    public ErrorMessage() {
+    }
 
     public ErrorMessage(String message) {
         this.message = message;

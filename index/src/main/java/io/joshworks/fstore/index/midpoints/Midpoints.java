@@ -2,7 +2,7 @@ package io.joshworks.fstore.index.midpoints;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
@@ -129,7 +129,7 @@ public class Midpoints<K extends Comparable<K>> {
         return entries.get(entries.size() - 1);
     }
 
-    public void writeTo(FooterWriter writer, Codec codec, ThreadLocalBufferPool bufferPool, Serializer<K> keySerializer) {
+    public void writeTo(FooterWriter writer, Codec codec, BufferPool bufferPool, Serializer<K> keySerializer) {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
         int blockSize = Math.min(bufferPool.bufferSize(), Size.MB.ofInt(1));

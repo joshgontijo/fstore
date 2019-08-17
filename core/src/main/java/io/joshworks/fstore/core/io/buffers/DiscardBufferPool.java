@@ -22,6 +22,11 @@ public class DiscardBufferPool implements BufferPool {
     }
 
     @Override
+    public void free() {
+
+    }
+
+    @Override
     public ByteBuffer allocate() {
         return Buffers.allocate(bufferSize, direct);
     }
@@ -31,8 +36,4 @@ public class DiscardBufferPool implements BufferPool {
         return direct;
     }
 
-    @Override
-    public void close() {
-        //do nothing
-    }
 }

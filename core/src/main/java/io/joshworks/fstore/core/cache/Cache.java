@@ -10,8 +10,8 @@ public interface Cache<K, V> {
 
     void clear();
 
-    static <K, V> Cache<K, V> lruCache(int size, int maxAge) {
-        return size > 0 ? new LRUCache<>(size, maxAge) : new NoCache<>();
+    static <K, V> Cache<K, V> lruCache(int size, int maxAgeSec) {
+        return size > 0 ? new LRUCache<>(size, maxAgeSec) : new NoCache<>();
     }
 
     static <K, V> Cache<K, V> softCache() {

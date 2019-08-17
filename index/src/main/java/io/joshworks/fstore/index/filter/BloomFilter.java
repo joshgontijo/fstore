@@ -2,7 +2,7 @@ package io.joshworks.fstore.index.filter;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.MemStorage;
-import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.block.Block;
@@ -134,7 +134,7 @@ public class BloomFilter {
     }
 
 
-    public void writeTo(FooterWriter writer, Codec codec, ThreadLocalBufferPool bufferPool) {
+    public void writeTo(FooterWriter writer, Codec codec, BufferPool bufferPool) {
         long[] items = hashes.toLongArray();
         int dataLength = items.length * Long.BYTES;
         long totalSize = dataLength + HEADER_SIZE;
@@ -164,7 +164,7 @@ public class BloomFilter {
         }
     }
 
-    private void writeHeader(FooterWriter writer, Codec codec, ThreadLocalBufferPool bufferPool, int dataLength) {
+    private void writeHeader(FooterWriter writer, Codec codec, BufferPool bufferPool, int dataLength) {
         //Format
         //Length -> 4bytes
         //Number of bits (m) -> 4bytes
@@ -185,7 +185,7 @@ public class BloomFilter {
         return new BloomFilter(n, p);
     }
 
-    public static BloomFilter load(FooterReader reader, Codec codec, ThreadLocalBufferPool bufferPool) {
+    public static BloomFilter load(FooterReader reader, Codec codec, BufferPool bufferPool) {
 
         Block headerBlock = readHeader(reader, codec);
         if (headerBlock == null) {
@@ -203,7 +203,7 @@ public class BloomFilter {
         return new BloomFilter(bitSet, m, k);
     }
 
-    private static long[] readEntries(FooterReader reader, Codec codec, ThreadLocalBufferPool bufferPool) {
+    private static long[] readEntries(FooterReader reader, Codec codec, BufferPool bufferPool) {
         BlockFactory blockFactory = dataBlockFactory();
         List<Block> blocks = reader.findAll(BLOCK_PREFIX, new BlockSerializer(codec, blockFactory));
 

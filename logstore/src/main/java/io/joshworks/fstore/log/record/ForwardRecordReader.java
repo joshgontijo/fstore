@@ -2,20 +2,21 @@ package io.joshworks.fstore.log.record;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 
 import java.nio.ByteBuffer;
 
 final class ForwardRecordReader extends BaseReader implements Reader {
 
-    ForwardRecordReader(ThreadLocalBufferPool bufferPool, double checksumProb, int bufferSize) {
+    ForwardRecordReader(BufferPool bufferPool, double checksumProb, int bufferSize) {
         super(bufferPool, checksumProb, bufferSize);
     }
 
     @Override
     public <T> RecordEntry<T> read(Storage storage, final long position, Serializer<T> serializer) {
         try (bufferPool) {
-            ByteBuffer buffer = bufferPool.allocate(pageReadSize);
+            ByteBuffer buffer = bufferPool.allocate();
+            buffer.limit(Math.min(pageReadSize, buffer.capacity()));
             int read = storage.read(position, buffer);
             if (read == Storage.EOF) {
                 return RecordEntry.empty();
@@ -34,7 +35,8 @@ final class ForwardRecordReader extends BaseReader implements Reader {
             int recordSize = length + RecordHeader.HEADER_OVERHEAD;
             if (recordSize > buffer.limit()) {
                 bufferPool.free();
-                buffer = bufferPool.allocate(recordSize);
+                buffer = bufferPool.allocate();
+                buffer.limit(Math.min(recordSize, buffer.capacity()));
                 storage.read(position, buffer);
                 buffer.flip();
                 buffer.getInt(); //skip length

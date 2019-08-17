@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -76,7 +76,7 @@ public final class Segment<T> implements Log<T> {
             StorageMode storageMode,
             long segmentDataSize,
             Serializer<T> serializer,
-            ThreadLocalBufferPool bufferPool,
+            BufferPool bufferPool,
             WriteMode writeMode,
             double checksumProb,
             int readPageSize) {
@@ -89,7 +89,7 @@ public final class Segment<T> implements Log<T> {
             StorageMode storageMode,
             long segmentDataSize,
             Serializer<T> serializer,
-            ThreadLocalBufferPool bufferPool,
+            BufferPool bufferPool,
             WriteMode writeMode,
             double checksumProb,
             int readPageSize,

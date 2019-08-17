@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.CloseableIterator;
@@ -65,7 +66,7 @@ public class LogAppender<T> implements Closeable {
     private final NamingStrategy namingStrategy;
     private final SegmentFactory<T> factory;
     private final StorageMode storageMode;
-    private final ThreadLocalBufferPool bufferPool;
+    private final BufferPool bufferPool;
     private final double checksumProbability;
     private final int readPageSize;
 
