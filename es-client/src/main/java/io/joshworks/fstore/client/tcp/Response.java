@@ -11,12 +11,15 @@ import java.util.function.Consumer;
 
 public class Response<T extends Message> implements Future<T> {
 
-    private static enum State {WAITING, DONE, CANCELLED}
+    private enum State {WAITING, DONE, CANCELLED}
 
+    private static final Object POISON_PILL = new Object();
     private final long id;
     private final Consumer<Long> cleaner;
     private State state = State.WAITING;
-    private final BlockingQueue<Message> queue = new ArrayBlockingQueue<>(1);
+    private final BlockingQueue<Object> queue = new ArrayBlockingQueue<>(1);
+    private final long start = System.nanoTime();
+    private long end;
 
     Response(long id, Consumer<Long> cleaner) {
         this.id = id;
@@ -24,13 +27,16 @@ public class Response<T extends Message> implements Future<T> {
     }
 
     void complete(Message response) {
-        queue.add(response);
+        if (!queue.offer(response)) {
+            throw new IllegalStateException("Failed to add response to the queue");
+        }
         state = State.DONE;
-        cleanUp();
+        end = System.nanoTime();
     }
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
+        queue.offer(POISON_PILL);
         state = State.CANCELLED;
         cleanUp();
         return true;
@@ -48,37 +54,39 @@ public class Response<T extends Message> implements Future<T> {
 
     @Override
     public T get() {
-        Message msg;
-        try {
-            msg = queue.take();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
-        return getOrThrow(msg);
+        return get(5, TimeUnit.SECONDS);
     }
 
     @Override
     public T get(long timeout, TimeUnit unit) {
-        Message msg;
+        Object response;
         try {
-            msg = queue.poll(timeout, unit);
+            response = queue.poll(timeout, unit);
+            if (response == null) {
+                cleanUp();
+                throw new TimeoutRuntimeException();
+            }
         } catch (InterruptedException e) {
+            e.printStackTrace();
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
-        if (msg == null) {
-            cleanUp();
-            throw new TimeoutRuntimeException();
-        }
-        return getOrThrow(msg);
+        return getOrThrow(response);
     }
 
-    private T getOrThrow(Message msg) {
+
+    private T getOrThrow(Object msg) {
         if (msg instanceof ErrorMessage) {
             throw new RuntimeException(((ErrorMessage) msg).message);
         }
+        if (POISON_PILL.equals(msg)) {
+            return null;
+        }
         return (T) msg;
+    }
+
+    public long timeTaken() {
+        return (end - start) / 1000;
     }
 
     private void cleanUp() {
