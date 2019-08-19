@@ -17,6 +17,8 @@ public class NodeIterator implements ClientStreamIterator {
     private final int fetchSize;
     private final Queue<EventRecord> queue = new ArrayDeque<>();
 
+    //TODO add empty entries backoff
+
     public NodeIterator(String subscriptionId, TcpClient client, int fetchSize) {
         this.subscriptionId = subscriptionId;
         this.client = client;
@@ -42,7 +44,8 @@ public class NodeIterator implements ClientStreamIterator {
 
     private void fetch() {
         Response<EventsData> received = client.send(new SubscriptionIteratorNext(subscriptionId, fetchSize));
-        queue.addAll(received.get().events);
+        EventsData data = received.get();
+        queue.addAll(data.events);
     }
 
     @Override

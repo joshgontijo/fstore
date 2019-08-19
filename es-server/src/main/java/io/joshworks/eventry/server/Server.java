@@ -1,33 +1,39 @@
 package io.joshworks.eventry.server;
 
+import io.joshworks.eventry.network.tcp.XTcpServer;
 import io.joshworks.eventry.server.subscription.Subscriptions;
 import io.joshworks.eventry.server.subscription.polling.LocalPollingSubscription;
-import io.joshworks.eventry.server.tcp.TcpServer;
+import io.joshworks.eventry.server.tcp.TcpEventHandler;
 import io.joshworks.fstore.core.util.AppProperties;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.subscription.SubscriptionOptions;
 import io.joshworks.snappy.websocket.WebsocketEndpoint;
 import io.undertow.websockets.core.WebSocketChannel;
 import io.undertow.websockets.spi.WebSocketHttpExchange;
+import org.xnio.Options;
 
 import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static io.joshworks.snappy.SnappyServer.adminPort;
 import static io.joshworks.snappy.SnappyServer.cors;
 import static io.joshworks.snappy.SnappyServer.get;
 import static io.joshworks.snappy.SnappyServer.group;
+import static io.joshworks.snappy.SnappyServer.ioThreads;
 import static io.joshworks.snappy.SnappyServer.port;
 import static io.joshworks.snappy.SnappyServer.post;
 import static io.joshworks.snappy.SnappyServer.sse;
 import static io.joshworks.snappy.SnappyServer.start;
 import static io.joshworks.snappy.SnappyServer.staticFiles;
 import static io.joshworks.snappy.SnappyServer.websocket;
+import static io.joshworks.snappy.SnappyServer.workerThreads;
 import static io.joshworks.snappy.http.Response.ok;
 import static io.joshworks.snappy.parser.MediaTypes.produces;
 
@@ -44,6 +50,8 @@ public class Server {
 
         port(httpPort);
         adminPort(httpPort + 10);
+        ioThreads(2);
+        workerThreads(3, 3, 10000);
 
         var store = ClusterStore.connect(new File(path), "es-cluster", httpPort, tcpPort);
 
@@ -51,7 +59,21 @@ public class Server {
         var subscriptions = new Subscriptions(3, 3000, 5);
 
         var poolingSubscription = new LocalPollingSubscription(store.thisNode().store());
-        TcpServer server = TcpServer.start(store, poolingSubscription, new InetSocketAddress("localhost", tcpPort));
+        XTcpServer tcpServer = XTcpServer.create()
+                .onOpen(conn -> System.out.println("Connection opened"))
+                .onClose(conn -> System.out.println("Connection closed"))
+                .onIdle(conn -> System.out.println("Connection idle"))
+                .idleTimeout(10, TimeUnit.SECONDS)
+                .bufferSize(Size.MB.ofInt(10))
+                .option(Options.REUSE_ADDRESSES, true)
+                .option(Options.TCP_NODELAY, true)
+                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(256))
+                .option(Options.WORKER_IO_THREADS, 1)
+//                .option(Options.RECEIVE_BUFFER, Size.MB.ofInt(5))
+                .onEvent(new TcpEventHandler(store, poolingSubscription))
+                .start(new InetSocketAddress("localhost", tcpPort));
+
+
 
 
         staticFiles("/", "static");

@@ -1,7 +1,7 @@
 package io.joshworks.eventry.server.tcp;
 
-import com.esotericsoftware.kryonet.Connection;
-import com.esotericsoftware.kryonet.Listener;
+import io.joshworks.eventry.network.tcp.EventHandler;
+import io.joshworks.eventry.network.tcp.TcpConnection;
 import io.joshworks.eventry.server.ClusterStore;
 import io.joshworks.eventry.server.subscription.polling.LocalPollingSubscription;
 import io.joshworks.eventry.stream.StreamMetadata;
@@ -11,8 +11,8 @@ import io.joshworks.fstore.es.shared.tcp.Append;
 import io.joshworks.fstore.es.shared.tcp.CreateStream;
 import io.joshworks.fstore.es.shared.tcp.CreateSubscription;
 import io.joshworks.fstore.es.shared.tcp.ErrorMessage;
-import io.joshworks.fstore.es.shared.tcp.EventData;
 import io.joshworks.fstore.es.shared.tcp.EventCreated;
+import io.joshworks.fstore.es.shared.tcp.EventData;
 import io.joshworks.fstore.es.shared.tcp.EventsData;
 import io.joshworks.fstore.es.shared.tcp.GetEvent;
 import io.joshworks.fstore.es.shared.tcp.Message;
@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 
-class TcpEventHandler extends Listener {
+public class TcpEventHandler implements EventHandler {
 
     private final ClusterStore store;
     private final LocalPollingSubscription subscription;
@@ -35,7 +35,7 @@ class TcpEventHandler extends Listener {
 
     private final Handlers handlers = new Handlers();
 
-    TcpEventHandler(ClusterStore store, LocalPollingSubscription subscription) {
+    public TcpEventHandler(ClusterStore store, LocalPollingSubscription subscription) {
         this.store = store;
         this.subscription = subscription;
 
@@ -47,19 +47,9 @@ class TcpEventHandler extends Listener {
     }
 
     @Override
-    public void connected(Connection connection) {
-        System.out.println("Accepted connection from " + connection.getRemoteAddressTCP());
-    }
-
-    @Override
-    public void disconnected(Connection connection) {
-        System.out.println("Client disconnected: " + connection.getRemoteAddressTCP());
-    }
-
-    @Override
-    public void received(Connection connection, Object object) {
-        if (object instanceof Message) {
-            Message msg = (Message) object;
+    public void onEvent(TcpConnection connection, Object data) {
+        if (data instanceof Message) {
+            Message msg = (Message) data;
             try {
                 handlers.handle(msg, connection);
             } catch (Exception e) {
@@ -76,43 +66,70 @@ class TcpEventHandler extends Listener {
     private static class Handlers {
 
         private final Logger logger = LoggerFactory.getLogger(Handlers.class);
-        private final Map<Class, BiConsumer<Connection, Message>> handlers = new ConcurrentHashMap<>();
-        private final BiConsumer<Connection, Message> NO_OP = (conn, msg) -> logger.warn("No handler for {}", msg.getClass().getSimpleName());
+        private final Map<Class, BiConsumer<TcpConnection, Message>> handlers = new ConcurrentHashMap<>();
+        private final BiConsumer<TcpConnection, Message> NO_OP = (conn, msg) -> logger.warn("No handler for {}", msg.getClass().getSimpleName());
 
-        private <T extends Message> void add(Class<T> type, BiConsumer<Connection, T> handler) {
-            handlers.put(type, (BiConsumer<Connection, Message>) handler);
+        private <T extends Message> void add(Class<T> type, BiConsumer<TcpConnection, T> handler) {
+            handlers.put(type, (BiConsumer<TcpConnection, Message>) handler);
         }
 
-        private void handle(Message msg, Connection conn) {
+        private void handle(Message msg, TcpConnection conn) {
             handlers.getOrDefault(msg.getClass(), NO_OP).accept(conn, msg);
         }
     }
 
-    private void createSubscription(Connection connection, CreateSubscription msg) {
-        String subscriptionId = subscription.create(msg.pattern);
-        reply(new SubscriptionCreated(subscriptionId), msg, connection);
+    private void createSubscription(TcpConnection connection, CreateSubscription msg) {
+        try {
+            String subscriptionId = subscription.create(msg.pattern);
+            reply(new SubscriptionCreated(subscriptionId), msg, connection);
+        } catch (Exception e) {
+            replyError(e, msg, connection);
+        }
     }
 
-    private void subscriptionIteratorNext(Connection connection, SubscriptionIteratorNext msg) {
-        List<EventRecord> entries = subscription.next(msg.subscriptionId, msg.batchSize);
-        reply(new EventsData(entries), msg, connection);
+    private void subscriptionIteratorNext(TcpConnection connection, SubscriptionIteratorNext msg) {
+        try {
+            long start = System.currentTimeMillis();
+            List<EventRecord> entries = subscription.next(msg.subscriptionId, msg.batchSize);
+//            System.out.println("ITERATOR NEXT TOOK: " + (System.currentTimeMillis() - start) + " ENTRIES: " + entries.size());
+            reply(new EventsData(entries), msg, connection);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            replyError(e, msg, connection);
+        }
     }
 
-    private void getEvent(Connection connection, GetEvent msg) {
-        EventRecord event = store.get(msg.eventId);
-        reply(new EventData(event), msg, connection);
+    private void getEvent(TcpConnection connection, GetEvent msg) {
+        try {
+            EventRecord event = store.get(msg.eventId);
+            reply(new EventData(event), msg, connection);
+        } catch (Exception e) {
+            replyError(e, msg, connection);
+        }
     }
 
-    private void createStream(Connection connection, CreateStream msg) {
-        StreamMetadata metadata = store.createStream(msg.name, msg.maxCount, msg.maxAgeSec, msg.acl, msg.metadata);
-        reply(new Ack(), msg, connection);
+    private void createStream(TcpConnection connection, CreateStream msg) {
+        try {
+            StreamMetadata metadata = store.createStream(msg.name, msg.maxCount, msg.maxAgeSec, msg.acl, msg.metadata);
+            reply(new Ack(), msg, connection);
+        } catch (Exception e) {
+            replyError(e, msg, connection);
+        }
     }
 
-    private void append(Connection connection, Append msg) {
-        EventRecord created = store.append(msg.record, msg.expectedVersion);
-        if (replyExpected(msg)) {
-            EventCreated eventCreated = new EventCreated(created.timestamp, created.version);
-            reply(eventCreated, msg, connection);
+    private void append(TcpConnection connection, Append msg) {
+        try {
+            EventRecord created = store.append(msg.record, msg.expectedVersion);
+            if (replyExpected(msg)) {
+                EventCreated eventCreated = new EventCreated(created.timestamp, created.version);
+                reply(eventCreated, msg, connection);
+            }
+        } catch (Exception e) {
+            if (replyExpected(msg)) {
+                replyError(e, msg, connection);
+            }
+            logger.error(e.getMessage(), e);
         }
     }
 
@@ -120,9 +137,13 @@ class TcpEventHandler extends Listener {
         return msg.id != Message.NO_RESP;
     }
 
-    private <T extends Message> void reply(T reply, Message original, Connection connection) {
+    private <T extends Message> void reply(T reply, Message original, TcpConnection connection) {
         reply.id = original.id;
-        connection.sendTCP(reply);
+        connection.sendAndFlush(reply);
+    }
+
+    private <T extends Message> void replyError(Exception e, Message original, TcpConnection connection) {
+        reply(new ErrorMessage(e.getMessage()), original, connection);
     }
 
 }

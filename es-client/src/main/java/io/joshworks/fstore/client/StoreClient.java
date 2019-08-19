@@ -62,14 +62,19 @@ public class StoreClient {
 
 
         Thread t1 = new Thread(() -> {
-            long start = System.currentTimeMillis();
-            for (int i = 0; i < 10000000; i++) {
+            try {
+                long start = System.currentTimeMillis();
+                for (int i = 0; i < 5000000; i++) {
 //            EventCreated eventCreated = storeClient.append(stream, "USER_CREATED", new UserCreated("josh", 123));
-                storeClient.appendAsync(stream1, "USER_CREATED", new UserCreated("josh", 123));
-                if (i % 10000 == 0) {
-                    System.out.println(i + " IN " + (System.currentTimeMillis() - start));
-                    start = System.currentTimeMillis();
+                    storeClient.appendAsync(stream1, "USER_CREATED", new UserCreated("josh", 123));
+                    if (i % 10000 == 0) {
+                        System.out.println("WRITE: " + i + " IN " + (System.currentTimeMillis() - start));
+                        start = System.currentTimeMillis();
+                    }
                 }
+
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         });
 
@@ -99,14 +104,15 @@ public class StoreClient {
             EventRecord next = iterator.next();
 //            System.out.println(next);
             if (i++ % 10000 == 0) {
-                System.out.println(i + " IN " + (System.currentTimeMillis() - start));
+                System.out.println("READ: " + i + " IN " + (System.currentTimeMillis() - start));
                 start = System.currentTimeMillis();
             }
         }
+        System.out.println("READ: " + i);
         iterator.close();
 
         System.out.println("----------------- READ AGAIN ---------------");
-        iterator = storeClient.iterator("stream-*", 100);
+        iterator = storeClient.iterator("stream-*", 50);
         while (iterator.hasNext()) {
             EventRecord next = iterator.next();
 

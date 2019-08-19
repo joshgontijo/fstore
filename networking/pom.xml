@@ -28,6 +28,13 @@
         </dependency>
 
         <dependency>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging</artifactId>
+            <version>3.4.0.Final</version>
+        </dependency>
+
+
+        <dependency>
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>kryo-serializer</artifactId>
         </dependency>

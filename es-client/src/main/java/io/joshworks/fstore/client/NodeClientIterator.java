@@ -17,7 +17,7 @@ public final class NodeClientIterator implements ClientStreamIterator {
 
     @Override
     public boolean hasNext() {
-        for (int i = 0; i < nodes.size(); nodeIdx++) {
+        for (int i = 0; i < nodes.size(); i++, nodeIdx++) {
             if (nodeIdx >= nodes.size()) {
                 nodeIdx = 0;
             }
