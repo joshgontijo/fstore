@@ -29,11 +29,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 
-/**
- * A message source conduit which implements a simple message framing protocol over a stream conduit.
- *
- * @author <a href="mailto:david.lloyd@redhat.com">David M. Lloyd</a>
- */
 public final class FramingMessageSourceConduit extends AbstractSourceConduit<StreamSourceConduit> implements MessageSourceConduit {
     public static final int LENGTH_LENGTH = Integer.BYTES;
     private final boolean keepHeader;
@@ -52,37 +47,44 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
         this.receiveBuffer = receiveBuffer;
     }
 
+    @Override
     public void resumeReads() {
         if (ready) next.wakeupReads();
         else next.resumeReads();
     }
 
+    @Override
     public void awaitReadable(final long time, final TimeUnit timeUnit) throws IOException {
         if (!ready) next.awaitReadable(time, timeUnit);
     }
 
+    @Override
     public void awaitReadable() throws IOException {
         if (!ready) next.awaitReadable();
     }
 
     public void terminateReads() throws IOException {
-//        receiveBuffer.free();
+        receiveBuffer.free();
         next.terminateReads();
     }
 
+    @Override
     public int receive(final ByteBuffer dst) throws IOException {
         final ByteBuffer receiveBuffer = this.receiveBuffer.getResource();
         int res;
+        int startPos = receiveBuffer.position();
         do {
             res = next.read(receiveBuffer);
         } while (res > 0);
-        if (receiveBuffer.position() < LENGTH_LENGTH) {
+        int totalRead = receiveBuffer.position() - startPos;
+        if (receiveBuffer.position() < LENGTH_LENGTH || (res == -1 && totalRead == 0 && !receiveBuffer.hasRemaining())) {
             if (res == -1) {
                 receiveBuffer.clear();
             }
             ready = false;
             return res;
         }
+
         receiveBuffer.flip();
         try {
             final int length = receiveBuffer.getInt();
@@ -119,6 +121,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
 
     }
 
+    @Override
     public long receive(final ByteBuffer[] dsts, final int offs, final int len) throws IOException {
         final ByteBuffer receiveBuffer = this.receiveBuffer.getResource();
         int res;

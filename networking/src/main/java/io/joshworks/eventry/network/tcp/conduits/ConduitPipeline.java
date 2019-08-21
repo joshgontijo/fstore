@@ -60,6 +60,11 @@ public class ConduitPipeline {
         return this;
     }
 
+    public ConduitPipeline writeListener(final ChannelListener<? super ConduitStreamSinkChannel> listener) {
+        sink.setWriteListener(listener);
+        return this;
+    }
+
     public ConduitPipeline closeListener(final ChannelListener<? super StreamConnection> listener) {
         conn.setCloseListener(listener);
         return this;

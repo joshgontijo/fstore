@@ -99,7 +99,7 @@ public class XTcpClient {
 
             pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
 
-            pipeline.readListener(new ReadHandler(tcpConnection, new KryoEventHandler(eventHandler)));
+            pipeline.readListener(new ReadHandler(tcpConnection, eventHandler));
 
             channel.getSourceChannel().resumeReads();
             channel.getSinkChannel().resumeWrites();

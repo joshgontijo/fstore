@@ -25,6 +25,12 @@ public class BytesReceivedStreamSourceConduit extends AbstractStreamSourceCondui
     }
 
     @Override
+    public void suspendReads() {
+        System.out.println("SUSPEND READS");
+        super.suspendReads();
+    }
+
+    @Override
     public long transferTo(long position, long count, FileChannel target) throws IOException {
         long l = super.transferTo(position, count, target);
         if (l > 0) {
