@@ -202,7 +202,7 @@ public class XTcpServer implements Closeable {
                     pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
 
                     //---------- listeners
-                    pipeline.readListener(new ReadHandler(tcpConnection, new KryoEventHandler(handler)));
+                    pipeline.readListener(new ReadHandler(tcpConnection, handler));
                     pipeline.closeListener(sc -> {
                         polled.free();
                         XTcpServer.this.onClose(sc);
@@ -210,6 +210,7 @@ public class XTcpServer implements Closeable {
 
                     onConnect(tcpConnection);
                     conn.getSourceChannel().resumeReads();
+                    conn.getSinkChannel().resumeWrites();
                 }
             } catch (Exception e) {
                 logger.error("Failed to accept connection", e);

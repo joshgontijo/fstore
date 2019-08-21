@@ -17,13 +17,7 @@ public class ServerConfig {
     private static final Consumer<TcpConnection> NO_OP = it -> {
     };
 
-    private final OptionMap.Builder options = OptionMap.builder()
-            .set(Options.WORKER_IO_THREADS, 5)
-            .set(Options.WORKER_TASK_CORE_THREADS, 3)
-            .set(Options.WORKER_TASK_MAX_THREADS, 3)
-            .set(Options.WORKER_NAME, "tcp-worker")
-            .set(Options.KEEP_ALIVE, true);
-
+    private final OptionMap.Builder options = OptionMap.builder().set(Options.WORKER_NAME, "tcp-server");
 
     private Consumer<TcpConnection> onOpen = NO_OP;
     private Consumer<TcpConnection> onClose = NO_OP;

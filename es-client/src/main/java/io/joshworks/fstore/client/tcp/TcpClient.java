@@ -7,6 +7,7 @@ import io.joshworks.fstore.es.shared.NodeInfo;
 import io.joshworks.fstore.es.shared.tcp.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xnio.Options;
 
 import java.net.InetSocketAddress;
 import java.util.Map;
@@ -62,7 +63,9 @@ public class TcpClient {
 
     public void connect(String host, int port) {
         this.client = TcpEventClient.create()
-                .keepAlive(2, TimeUnit.SECONDS)
+//                .keepAlive(2, TimeUnit.SECONDS)
+//                .option(Options.SEND_BUFFER, Size.MB.ofInt(100))
+                .option(Options.WORKER_IO_THREADS, 1)
                 .onEvent(new EventListener())
                 .connect(new InetSocketAddress(host, port), 5, TimeUnit.SECONDS);
     }

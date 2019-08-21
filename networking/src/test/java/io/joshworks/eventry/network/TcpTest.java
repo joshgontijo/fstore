@@ -8,19 +8,23 @@ import io.joshworks.fstore.core.util.Threads;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class TcpTest {
 
     private static final String HOST = "localhost";
     private static final int PORT = 12345;
 
-    private static final int ITEMS = 10000000;
+    private static final int ITEMS = 5000000;
+    private static final int CLIENTS = 1;
 
 
-    private static final AtomicLong sent = new AtomicLong();
-    private static final AtomicLong received = new AtomicLong();
+    private static final List<TcpConnection> clientConnections = new ArrayList<>();
 
     public static void main(String[] args) throws InterruptedException {
 
@@ -29,55 +33,77 @@ public class TcpTest {
                 .onClose(conn -> System.out.println("SERVER: Connection closed"))
                 .onIdle(conn -> System.out.println("SERVER: Connection idle"))
 //                .idleTimeout(10, TimeUnit.SECONDS)
-                .bufferSize(Size.MB.ofInt(5))
+                .bufferSize(Size.KB.ofInt(32))
+                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(32))
                 .option(Options.WORKER_NAME, "server")
-                .option(Options.WORKER_IO_THREADS, 1)
-                .option(Options.RECEIVE_BUFFER, 8096 * 50)
+                .option(Options.WORKER_IO_THREADS, 8)
+                .option(Options.WORKER_TASK_MAX_THREADS, 2)
+                .option(Options.TCP_NODELAY, true)
                 .onEvent((connection, data) -> {
-                    received.incrementAndGet();
+                    //do nothing
                 })
                 .start(new InetSocketAddress(HOST, PORT));
 
 
-        TcpConnection client = TcpEventClient.create()
-                .option(Options.WORKER_NAME, "client")
-                .option(Options.WORKER_IO_THREADS, 1)
-                .option(Options.TCP_NODELAY, true)
-                .option(Options.SEND_BUFFER, 8096 * 50)
-                .onEvent((connection, data) -> {
-                    //do nothing
-                })
-                .connect(new InetSocketAddress(HOST, PORT), 5, TimeUnit.SECONDS);
-
-
-        Thread clientThread = new Thread(() -> {
+        Runnable sendTask = () -> {
+            TcpConnection client = TcpEventClient.create()
+                    .option(Options.WORKER_NAME, "CLIENT-" + UUID.randomUUID().toString().substring(0, 3))
+                    .option(Options.WORKER_IO_THREADS, 1)
+                    .option(Options.TCP_NODELAY, true)
+                    .option(Options.SEND_BUFFER, Size.KB.ofInt(32))
+                    .bufferSize(Size.KB.ofInt(32))
+                    .onClose(conn -> System.out.println("CLIENT: closing connection " + conn))
+                    .onEvent((connection, data) -> {
+                        //do nothing
+                    })
+                    .connect(new InetSocketAddress(HOST, PORT), 5, TimeUnit.SECONDS);
+            clientConnections.add(client);
             long start = System.currentTimeMillis();
             for (int i = 0; i < ITEMS; i++) {
-                client.send(new Payload(String.valueOf(i)));
-                sent.incrementAndGet();
+                client.sendAndFlush(new Payload(String.valueOf(i)));
             }
-            System.out.println("Sent in " + (System.currentTimeMillis() - start));
-        });
+            System.out.println("COMPLETED IN " + (System.currentTimeMillis() - start));
+//            Threads.sleep(1000);
+            client.close();
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(CLIENTS);
+        for (int i = 0; i < CLIENTS; i++) {
+            executor.submit(sendTask);
+        }
 
 
         Thread monitor = new Thread(() -> {
-            long received = 0;
-            while (received < ITEMS) {
-                received = server.printConnections().values().stream().mapToLong(TcpConnection::messagesReceived).sum();
-                System.out.println(sent.get() + " -> " + client.messagesSent() + " / " + received);
+            long messageReceived = 0;
+            long messageSent = 0;
+            long bytesSent = 0;
+            long bytesReceived = 0;
+            while (true) {
+                long prevReceived = messageReceived;
+                long prevSent = messageSent;
+                long prevBytesSent = bytesSent;
+                long prevBytesReceived = bytesReceived;
+
+                messageReceived = server.printConnections().values().stream().mapToLong(TcpConnection::messagesReceived).sum();
+                bytesReceived = server.printConnections().values().stream().mapToLong(TcpConnection::bytesReceived).sum();
+
+                messageSent = clientConnections.stream().mapToLong(TcpConnection::messagesSent).sum();
+                bytesSent = clientConnections.stream().mapToLong(TcpConnection::bytesSent).sum();
+
+                String mbSent = String.format("%.1f MB", ((float) bytesSent - prevBytesSent) / 1000000);
+                String mbReceived = String.format("%.1f MB", ((float) bytesReceived - prevBytesReceived) / 1000000);
+
+                System.out.println(messageSent + " / " + messageReceived + " -> " + (messageSent - prevSent) + " / " + (messageReceived - prevReceived) + " -> " + mbSent + " / " + mbReceived);
                 Threads.sleep(2000);
             }
         });
 
 
-        Threads.sleep(2000);
-        clientThread.start();
         monitor.start();
-
         monitor.join();
-        clientThread.join();
+        executor.shutdown();
 
-        client.close();
+        System.out.println("CLOSING SERVER");
         server.close();
     }
 

@@ -19,7 +19,6 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static io.joshworks.snappy.SnappyServer.adminPort;
@@ -63,8 +62,8 @@ public class Server {
                 .onOpen(conn -> System.out.println("Connection opened"))
                 .onClose(conn -> System.out.println("Connection closed"))
                 .onIdle(conn -> System.out.println("Connection idle"))
-                .idleTimeout(10, TimeUnit.SECONDS)
-                .bufferSize(Size.MB.ofInt(10))
+//                .idleTimeout(10, TimeUnit.SECONDS)
+//                .bufferSize(Size.MB.ofInt(10))
                 .option(Options.REUSE_ADDRESSES, true)
                 .option(Options.TCP_NODELAY, true)
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(256))

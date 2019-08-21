@@ -1,18 +1,23 @@
 package io.joshworks.eventry.network.tcp;
 
-import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
+import io.joshworks.eventry.network.tcp.internal.KeepAlive;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.ChannelListener;
 import org.xnio.IoUtils;
 import org.xnio.conduits.ConduitStreamSourceChannel;
 
+import java.nio.ByteBuffer;
+
 public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> {
 
     private static final Logger logger = LoggerFactory.getLogger(ReadHandler.class);
 
     private final TcpConnection tcpConnection;
-    private final SimpleBufferPool appBuffer = new SimpleBufferPool(4096, true);
+    private final BufferPool appBuffer = new ThreadLocalBufferPool(4096 * 2, true);
     private final EventHandler handler;
 
     ReadHandler(TcpConnection tcpConnection, EventHandler handler) {
@@ -22,41 +27,47 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
 
     @Override
     public void handleEvent(ConduitStreamSourceChannel channel) {
-        try {
-            if (!channel.isOpen()) {
-                tcpConnection.close();
-                return;
-            }
-            SimpleBufferPool.BufferRef ref = appBuffer.allocateRef();
-            int read = channel.read(ref.buffer);
-            if (read == 0) {
-                return;
+        try (appBuffer) {
+            ByteBuffer buffer = appBuffer.allocate();
+            int read;
+            while ((read = channel.read(buffer)) > 0) {
+                buffer.flip();
+                handle(tcpConnection, buffer);
+                buffer.clear();
             }
             if (read == -1) {
-                tcpConnection.close();
-                return;
+                IoUtils.safeClose(channel);
             }
-            ref.buffer.flip();
-            handle(tcpConnection, ref);
-            channel.resumeReads();
+
         } catch (Exception e) {
             logger.warn("Error while reading message", e);
             IoUtils.safeClose(channel);
         }
     }
 
-    private void handle(TcpConnection tcpConnection, SimpleBufferPool.BufferRef bufferRef) {
-        //parsing happens in the io thread
-        tcpConnection.incrementMessageReceived();
+    private void handle(TcpConnection tcpConnection, ByteBuffer buffer) {
+        final Object object = parse(buffer);
+        if (object instanceof KeepAlive) {
+            logger.debug("Received keep alive");
+            System.out.println("KEEP ALIVE");
+//            return;
+        }
+
         tcpConnection.worker().execute(() -> {
             try {
-                handler.onEvent(tcpConnection, bufferRef.buffer);
-
+                tcpConnection.incrementMessageReceived();
+                handler.onEvent(tcpConnection, object);
             } catch (Exception e) {
                 logger.error("Event handler threw an exception", e);
-            } finally {
-                bufferRef.free();
             }
         });
+    }
+
+    private Object parse(ByteBuffer buffer) {
+        try {
+            return KryoStoreSerializer.deserialize(buffer);
+        } catch (Exception e) {
+            throw new RuntimeException("Error while parsing data", e);
+        }
     }
 }

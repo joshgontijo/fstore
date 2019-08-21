@@ -1,7 +1,6 @@
 package io.joshworks.eventry.network.tcp;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
 import org.xnio.IoUtils;
 import org.xnio.StreamConnection;
 import org.xnio.XnioWorker;
@@ -16,24 +15,24 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TcpConnection implements Closeable {
 
     private final StreamConnection connection;
-    private final SimpleBufferPool bufferPool;
+    private final BufferPool writePool;
     private final long since = System.currentTimeMillis();
     private final AtomicLong bytesSent = new AtomicLong(); //TODO long fieldupdater
     private final AtomicLong bytesReceived = new AtomicLong(); //TODO long fieldupdater
     private final AtomicLong messagesSent = new AtomicLong(); //TODO long fieldupdater
     private final AtomicLong messagesReceived = new AtomicLong(); //TODO long fieldupdater
 
-    TcpConnection(StreamConnection connection, SimpleBufferPool bufferPool) {
+    TcpConnection(StreamConnection connection, BufferPool writePool) {
         this.connection = connection;
-        this.bufferPool = bufferPool;
+        this.writePool = writePool;
     }
 
     public <T> void send(T data) {
         if (data == null) {
             return;
         }
-        try (SimpleBufferPool.BufferRef bufferRef = bufferPool.allocateRef()) {
-            ByteBuffer buffer = bufferRef.buffer;
+        try (writePool) {
+            ByteBuffer buffer = writePool.allocate();
             LengthPrefixCodec.serialize(data, buffer);
             buffer.flip();
             write(buffer, false);
@@ -44,10 +43,13 @@ public class TcpConnection implements Closeable {
         if (data == null) {
             return;
         }
-        try (SimpleBufferPool.BufferRef bufferRef = bufferPool.allocateRef()) {
-            ByteBuffer buffer = bufferRef.buffer;
+        try (writePool) {
+            ByteBuffer buffer = writePool.allocate();
             LengthPrefixCodec.serialize(data, buffer);
             buffer.flip();
+            if (!buffer.hasRemaining()) {
+                throw new RuntimeException("Empty buffer");
+            }
             write(buffer, true);
         }
     }
@@ -56,24 +58,17 @@ public class TcpConnection implements Closeable {
         return System.currentTimeMillis() - since;
     }
 
-    private void write(ByteBuffer data, boolean flush) {
+    private void write(ByteBuffer buffer, boolean flush) {
         var sink = connection.getSinkChannel();
         if (!sink.isOpen()) {
             throw new IllegalStateException("Closed channel");
         }
         try {
-            //TODO this might cause buffer problems when 'data' is from a bufferpool in which clears the buffers
-            // before fully flushed to the wire
-            Channels.writeBlocking(sink, data);
+            Channels.writeBlocking(sink, buffer);
             if (flush) {
                 Channels.flushBlocking(sink);
             }
             incrementMessageSent();
-            sink.wakeupWrites();
-
-
-//            sink.resumeWrites();
-//            Channels.resumeWritesAsync(sink);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -84,6 +79,7 @@ public class TcpConnection implements Closeable {
         try {
             Channels.flushBlocking(connection.getSinkChannel());
         } catch (Exception e) {
+            //TODO log ?
             System.err.println("Failed to flush buffer when closing");
         }
         IoUtils.safeClose(connection);
@@ -114,10 +110,6 @@ public class TcpConnection implements Closeable {
         return connection.getWorker();
     }
 
-    BufferPool bufferPool() {
-        return bufferPool;
-    }
-
     public void incrementMessageReceived() {
         messagesReceived.incrementAndGet();
     }
@@ -144,4 +136,5 @@ public class TcpConnection implements Closeable {
                 ", messagesReceived=" + messagesReceived +
                 '}';
     }
+
 }
