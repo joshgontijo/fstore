@@ -22,7 +22,7 @@ public class ServerConfig {
     private Consumer<TcpConnection> onOpen = NO_OP;
     private Consumer<TcpConnection> onClose = NO_OP;
     private Consumer<TcpConnection> onIdle = NO_OP;
-    private EventHandler handler;
+    private ServerEventHandler handler;
     private long timeout = -1;
     private int bufferSize = Size.MB.ofInt(1);
     private final Set<Class> registeredTypes = new HashSet<>();
@@ -64,7 +64,7 @@ public class ServerConfig {
         return this;
     }
 
-    public ServerConfig onEvent(EventHandler handler) {
+    public ServerConfig onEvent(ServerEventHandler handler) {
         this.handler = handler;
         return this;
     }
@@ -74,7 +74,7 @@ public class ServerConfig {
         return this;
     }
 
-    public XTcpServer start(InetSocketAddress bindAddress) {
-        return new XTcpServer(options.getMap(), bindAddress, registeredTypes, bufferSize, timeout, onOpen, onClose, onIdle, handler);
+    public TcpMessageServer start(InetSocketAddress bindAddress) {
+        return new TcpMessageServer(options.getMap(), bindAddress, registeredTypes, bufferSize, timeout, onOpen, onClose, onIdle, handler);
     }
 }

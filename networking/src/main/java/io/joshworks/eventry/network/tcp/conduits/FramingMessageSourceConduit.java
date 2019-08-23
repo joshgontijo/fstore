@@ -18,8 +18,8 @@
 
 package io.joshworks.eventry.network.tcp.conduits;
 
+import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
 import org.xnio.Buffers;
-import org.xnio.Pooled;
 import org.xnio.conduits.AbstractSourceConduit;
 import org.xnio.conduits.MessageSourceConduit;
 import org.xnio.conduits.StreamSourceConduit;
@@ -31,8 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 public final class FramingMessageSourceConduit extends AbstractSourceConduit<StreamSourceConduit> implements MessageSourceConduit {
     public static final int LENGTH_LENGTH = Integer.BYTES;
-    private final boolean keepHeader;
-    private final Pooled<ByteBuffer> receiveBuffer;
+    private final SimpleBufferPool.BufferRef receiveBuffer;
     private boolean ready;
 
     /**
@@ -41,9 +40,8 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
      * @param next          the delegate conduit to set
      * @param receiveBuffer the transmit buffer to use
      */
-    public FramingMessageSourceConduit(final StreamSourceConduit next, boolean keepHeader, final Pooled<ByteBuffer> receiveBuffer) {
+    public FramingMessageSourceConduit(final StreamSourceConduit next, final SimpleBufferPool.BufferRef receiveBuffer) {
         super(next);
-        this.keepHeader = keepHeader;
         this.receiveBuffer = receiveBuffer;
     }
 
@@ -70,14 +68,12 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
 
     @Override
     public int receive(final ByteBuffer dst) throws IOException {
-        final ByteBuffer receiveBuffer = this.receiveBuffer.getResource();
+        final ByteBuffer receiveBuffer = this.receiveBuffer.buffer;
         int res;
-        int startPos = receiveBuffer.position();
         do {
             res = next.read(receiveBuffer);
         } while (res > 0);
-        int totalRead = receiveBuffer.position() - startPos;
-        if (receiveBuffer.position() < LENGTH_LENGTH || (res == -1 && totalRead == 0 && !receiveBuffer.hasRemaining())) {
+        if (receiveBuffer.position() < LENGTH_LENGTH) {
             if (res == -1) {
                 receiveBuffer.clear();
             }
@@ -103,8 +99,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
                 return res;
             }
             if (dst.hasRemaining()) {
-                int l = keepHeader ? length - LENGTH_LENGTH : length;
-                return Buffers.copy(l, dst, receiveBuffer);
+                return Buffers.copy(length, dst, receiveBuffer);
             } else {
                 Buffers.skip(receiveBuffer, length);
                 return 0;
@@ -118,12 +113,11 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
                 }
             }
         }
-
     }
 
     @Override
     public long receive(final ByteBuffer[] dsts, final int offs, final int len) throws IOException {
-        final ByteBuffer receiveBuffer = this.receiveBuffer.getResource();
+        final ByteBuffer receiveBuffer = this.receiveBuffer.buffer;
         int res;
         do {
             res = next.read(receiveBuffer);
@@ -153,8 +147,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
                 return res;
             }
             if (Buffers.hasRemaining(dsts, offs, len)) {
-                int l = keepHeader ? length - 4 : length;
-                return Buffers.copy(l, dsts, offs, len, receiveBuffer);
+                return Buffers.copy(length, dsts, offs, len, receiveBuffer);
             } else {
                 Buffers.skip(receiveBuffer, length);
                 return 0;

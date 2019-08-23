@@ -15,14 +15,15 @@ import java.util.concurrent.atomic.AtomicLong;
 public class TcpConnection implements Closeable {
 
     private final StreamConnection connection;
-    private final BufferPool writePool;
+    protected final BufferPool writePool;
     private final long since = System.currentTimeMillis();
     private final AtomicLong bytesSent = new AtomicLong(); //TODO long fieldupdater
     private final AtomicLong bytesReceived = new AtomicLong(); //TODO long fieldupdater
     private final AtomicLong messagesSent = new AtomicLong(); //TODO long fieldupdater
     private final AtomicLong messagesReceived = new AtomicLong(); //TODO long fieldupdater
 
-    TcpConnection(StreamConnection connection, BufferPool writePool) {
+
+    public TcpConnection(StreamConnection connection, BufferPool writePool) {
         this.connection = connection;
         this.writePool = writePool;
     }
@@ -58,7 +59,7 @@ public class TcpConnection implements Closeable {
         return System.currentTimeMillis() - since;
     }
 
-    private void write(ByteBuffer buffer, boolean flush) {
+    protected void write(ByteBuffer buffer, boolean flush) {
         var sink = connection.getSinkChannel();
         if (!sink.isOpen()) {
             throw new IllegalStateException("Closed channel");

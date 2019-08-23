@@ -1,8 +1,5 @@
-package io.joshworks.eventry.network.client;
+package io.joshworks.eventry.network;
 
-import io.joshworks.eventry.network.MessageError;
-import io.joshworks.eventry.network.MulticastResponse;
-import io.joshworks.eventry.network.NullMessage;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
 import org.jgroups.blocks.MessageDispatcher;

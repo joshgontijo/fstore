@@ -1,22 +1,21 @@
 package io.joshworks.eventry.network.tcp.internal;
 
-//Message that expected a response
-public abstract class Message<T> {
+/**
+ * Message is used only for request-response scenarios, where a correlation must be carried along with the req / resp
+ */
+public class Message {
 
-    public final long id;
-    public final boolean response;
-    public final T data;
+    public long id;
+    public final Object data;
 
-    protected Message(long id, boolean response, T data) {
+    public Message(long id, Object data) {
         this.id = id;
-        this.response = response;
         this.data = data;
     }
 
     @Override
     public String toString() {
         return "Message{" + "id=" + id +
-                ", response=" + response +
                 ", data=" + data +
                 '}';
     }

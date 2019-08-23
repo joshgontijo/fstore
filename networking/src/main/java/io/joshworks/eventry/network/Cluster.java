@@ -1,6 +1,5 @@
 package io.joshworks.eventry.network;
 
-import io.joshworks.eventry.network.client.ClusterClient;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import org.jgroups.Address;
