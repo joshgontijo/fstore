@@ -1,5 +1,9 @@
-package io.joshworks.eventry.network.tcp;
+package io.joshworks.eventry.network.tcp.client;
 
+import io.joshworks.eventry.network.tcp.EventHandler;
+import io.joshworks.eventry.network.tcp.TcpClientConnection;
+import io.joshworks.eventry.network.tcp.TcpConnection;
+import io.joshworks.eventry.network.tcp.TcpMessageClient;
 import io.joshworks.fstore.core.util.Size;
 import org.xnio.Option;
 import org.xnio.OptionMap;
@@ -67,8 +71,8 @@ public class TcpEventClient {
         return this;
     }
 
-    public TcpConnection connect(InetSocketAddress bindAddress, long timeout, TimeUnit unit) {
-        XTcpClient client = new XTcpClient(options.getMap(), bindAddress, registeredTypes, bufferSize, keepAliveInterval, onClose, handler);
+    public TcpClientConnection connect(InetSocketAddress bindAddress, long timeout, TimeUnit unit) {
+        TcpMessageClient client = new TcpMessageClient(options.getMap(), bindAddress, registeredTypes, bufferSize, keepAliveInterval, onClose, handler);
         return client.connect(timeout, unit);
     }
 }

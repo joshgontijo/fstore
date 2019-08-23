@@ -1,5 +1,7 @@
-package io.joshworks.eventry.network.tcp;
+package io.joshworks.eventry.network.tcp.client;
 
+import io.joshworks.eventry.network.tcp.LengthPrefixCodec;
+import io.joshworks.eventry.network.tcp.WorkerUtils;
 import io.joshworks.eventry.network.tcp.internal.KeepAlive;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,25 +81,25 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
         this.keepAliveData = data.flip().slice();
     }
 
-    private void handleIdleTimeout() {
+    private void updateActivityTimestamp() {
         lastActivity = System.nanoTime();
     }
 
     @Override
     public int write(ByteBuffer src) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         return sink.write(src);
     }
 
     @Override
     public long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         return sink.write(srcs, offset, length);
     }
 
     @Override
     public int writeFinal(ByteBuffer src) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         int w = sink.writeFinal(src);
         if (source.isReadShutdown() && !src.hasRemaining()) {
             if (handle != null) {
@@ -110,7 +112,7 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
 
     @Override
     public long writeFinal(ByteBuffer[] srcs, int offset, int length) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         long w = sink.writeFinal(srcs, offset, length);
         if (source.isReadShutdown() && !Buffers.hasRemaining(srcs, offset, length)) {
             if (handle != null) {
@@ -123,7 +125,7 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
 
     @Override
     public long transferTo(long position, long count, FileChannel target) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         long w = source.transferTo(position, count, target);
         if (sink.isWriteShutdown() && w == -1) {
             if (handle != null) {
@@ -136,7 +138,7 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
 
     @Override
     public long transferTo(long count, ByteBuffer throughBuffer, StreamSinkChannel target) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         long w = source.transferTo(count, throughBuffer, target);
         if (sink.isWriteShutdown() && w == -1) {
             if (handle != null) {
@@ -149,7 +151,7 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
 
     @Override
     public long read(ByteBuffer[] dsts, int offset, int length) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         long r = source.read(dsts, offset, length);
         if (sink.isWriteShutdown() && r == -1) {
             if (handle != null) {
@@ -162,7 +164,7 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
 
     @Override
     public int read(ByteBuffer dst) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         int r = source.read(dst);
         if (sink.isWriteShutdown() && r == -1) {
             if (handle != null) {
@@ -175,13 +177,13 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
 
     @Override
     public long transferFrom(FileChannel src, long position, long count) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         return sink.transferFrom(src, position, count);
     }
 
     @Override
     public long transferFrom(StreamSourceChannel source, long count, ByteBuffer throughBuffer) throws IOException {
-        handleIdleTimeout();
+        updateActivityTimestamp();
         return sink.transferFrom(source, count, throughBuffer);
     }
 

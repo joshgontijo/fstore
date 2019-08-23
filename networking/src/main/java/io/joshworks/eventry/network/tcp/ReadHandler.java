@@ -1,6 +1,5 @@
 package io.joshworks.eventry.network.tcp;
 
-import io.joshworks.eventry.network.tcp.internal.KeepAlive;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
@@ -47,11 +46,6 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
 
     private void handle(TcpConnection tcpConnection, ByteBuffer buffer) {
         final Object object = parse(buffer);
-        if (object instanceof KeepAlive) {
-            logger.debug("Received keep alive");
-            System.out.println("KEEP ALIVE");
-//            return;
-        }
 
         tcpConnection.worker().execute(() -> {
             try {

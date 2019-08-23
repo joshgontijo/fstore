@@ -6,7 +6,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-public class Response<T extends Message> implements Future<T> {
+public class Response<T> implements Future<T> {
 
     private enum State {WAITING, DONE, CANCELLED}
 
@@ -18,12 +18,13 @@ public class Response<T extends Message> implements Future<T> {
     private final long start = System.nanoTime();
     private long end;
 
-    Response(long id, Consumer<Long> cleaner) {
+    public Response(long id, Consumer<Long> cleaner) {
         this.id = id;
         this.cleaner = cleaner;
     }
 
-    void complete(Object response) {
+    //TODO make package private
+    public void complete(Object response) {
         if (!queue.offer(response)) {
             throw new IllegalStateException("Failed to add response to the queue");
         }
@@ -33,10 +34,13 @@ public class Response<T extends Message> implements Future<T> {
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        queue.offer(POISON_PILL);
-        state = State.CANCELLED;
-        cleanUp();
-        return true;
+        try {
+            queue.offer(POISON_PILL);
+            state = State.CANCELLED;
+            return true;
+        } finally {
+            cleanUp();
+        }
     }
 
     @Override
@@ -64,6 +68,7 @@ public class Response<T extends Message> implements Future<T> {
                 return null; //time out
             }
         } catch (InterruptedException e) {
+            cleanUp();
             e.printStackTrace();
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
@@ -75,6 +80,9 @@ public class Response<T extends Message> implements Future<T> {
     private T getOrThrow(Object msg) {
         if (msg instanceof ErrorMessage) {
             throw new RuntimeException(((ErrorMessage) msg).message);
+        }
+        if (msg instanceof NullMessage) {
+            return null;
         }
         if (POISON_PILL.equals(msg)) {
             return null;

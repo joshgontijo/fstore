@@ -1,4 +1,4 @@
-package io.joshworks.eventry.network.client;
+package io.joshworks.eventry.network;
 
 public class ClusterClientException extends RuntimeException {
 

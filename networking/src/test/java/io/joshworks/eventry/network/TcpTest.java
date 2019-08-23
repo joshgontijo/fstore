@@ -1,8 +1,9 @@
 package io.joshworks.eventry.network;
 
+import io.joshworks.eventry.network.tcp.TcpClientConnection;
 import io.joshworks.eventry.network.tcp.TcpConnection;
-import io.joshworks.eventry.network.tcp.TcpEventClient;
-import io.joshworks.eventry.network.tcp.XTcpServer;
+import io.joshworks.eventry.network.tcp.TcpMessageServer;
+import io.joshworks.eventry.network.tcp.client.TcpEventClient;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import org.xnio.Options;
@@ -23,12 +24,11 @@ public class TcpTest {
     private static final int ITEMS = 5000000;
     private static final int CLIENTS = 1;
 
-
     private static final List<TcpConnection> clientConnections = new ArrayList<>();
 
     public static void main(String[] args) throws InterruptedException {
 
-        XTcpServer server = XTcpServer.create()
+        TcpMessageServer server = TcpMessageServer.create()
                 .onOpen(conn -> System.out.println("SERVER: Connection opened"))
                 .onClose(conn -> System.out.println("SERVER: Connection closed"))
                 .onIdle(conn -> System.out.println("SERVER: Connection idle"))
@@ -46,7 +46,7 @@ public class TcpTest {
 
 
         Runnable sendTask = () -> {
-            TcpConnection client = TcpEventClient.create()
+            TcpClientConnection client = TcpEventClient.create()
                     .option(Options.WORKER_NAME, "CLIENT-" + UUID.randomUUID().toString().substring(0, 3))
                     .option(Options.WORKER_IO_THREADS, 1)
                     .option(Options.TCP_NODELAY, true)
@@ -60,10 +60,11 @@ public class TcpTest {
             clientConnections.add(client);
             long start = System.currentTimeMillis();
             for (int i = 0; i < ITEMS; i++) {
-                client.sendAndFlush(new Payload(String.valueOf(i)));
+                client.send(new Payload(String.valueOf(i)));
+//                Ack ack = response.get();
             }
             System.out.println("COMPLETED IN " + (System.currentTimeMillis() - start));
-//            Threads.sleep(1000);
+            Threads.sleep(1000);
             client.close();
         };
 
