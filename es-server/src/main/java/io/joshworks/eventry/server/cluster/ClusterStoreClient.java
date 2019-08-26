@@ -5,7 +5,7 @@ import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.network.ClusterNode;
-import io.joshworks.eventry.network.client.ClusterClient;
+import io.joshworks.eventry.network.ClusterClient;
 import io.joshworks.eventry.server.cluster.messages.Append;
 import io.joshworks.eventry.server.cluster.messages.AppendResult;
 import io.joshworks.eventry.server.cluster.messages.CreateStream;

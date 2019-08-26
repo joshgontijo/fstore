@@ -1,7 +1,6 @@
 package io.joshworks.fstore.client;
 
-import io.joshworks.fstore.client.tcp.Response;
-import io.joshworks.fstore.client.tcp.TcpClient;
+import io.joshworks.eventry.network.tcp.internal.Response;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.tcp.EventsData;
@@ -13,15 +12,15 @@ import java.util.Queue;
 public class NodeIterator implements ClientStreamIterator {
 
     private final String subscriptionId;
-    private final TcpClient client;
+    private final Node node;
     private final int fetchSize;
     private final Queue<EventRecord> queue = new ArrayDeque<>();
 
     //TODO add empty entries backoff
 
-    public NodeIterator(String subscriptionId, TcpClient client, int fetchSize) {
+    public NodeIterator(String subscriptionId, Node node, int fetchSize) {
         this.subscriptionId = subscriptionId;
-        this.client = client;
+        this.node = node;
         this.fetchSize = fetchSize;
     }
 
@@ -43,7 +42,7 @@ public class NodeIterator implements ClientStreamIterator {
     }
 
     private void fetch() {
-        Response<EventsData> received = client.send(new SubscriptionIteratorNext(subscriptionId, fetchSize));
+        Response<EventsData> received = node.client().request(new SubscriptionIteratorNext(subscriptionId, fetchSize));
         EventsData data = received.get();
         queue.addAll(data.events);
     }

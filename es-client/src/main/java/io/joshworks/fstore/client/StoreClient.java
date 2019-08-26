@@ -1,9 +1,11 @@
 package io.joshworks.fstore.client;
 
-import io.joshworks.fstore.client.tcp.Response;
-import io.joshworks.fstore.client.tcp.TcpClient;
+import io.joshworks.eventry.network.tcp.TcpClientConnection;
+import io.joshworks.eventry.network.tcp.client.TcpEventClient;
+import io.joshworks.eventry.network.tcp.internal.Response;
 import io.joshworks.fstore.core.hash.Hash;
 import io.joshworks.fstore.core.hash.XXHash;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.NodeInfo;
@@ -19,10 +21,13 @@ import io.joshworks.fstore.es.shared.tcp.SubscriptionCreated;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.restclient.http.HttpResponse;
 import io.joshworks.restclient.http.Json;
-import io.joshworks.restclient.http.RestClient;
 import io.joshworks.restclient.http.Unirest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.xnio.Options;
 
-import java.net.MalformedURLException;
+import java.io.Closeable;
+import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -30,145 +35,80 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
-import static io.joshworks.fstore.es.shared.HttpConstants.EVENT_TYPE_HEADER;
-
-public class StoreClient {
+public class StoreClient implements Closeable {
 
     private static final String SERVERS_ENDPOINT = "/nodes";
     private static final String STREAMS_ENDPOINT = "/streams";
     private static final String METADATA = "metadata";
 
-    private final Map<String, TcpClient> mapping = new ConcurrentHashMap<>();
-    private final List<TcpClient> nodes = new ArrayList<>();
+    private static final Logger logger = LoggerFactory.getLogger(StoreClient.class);
+
+    private final Map<String, Node> mapping = new ConcurrentHashMap<>();
+    private final List<Node> nodes = new ArrayList<>();
 
     private final Hash hasher = new XXHash();
 
-    private final RestClient client = RestClient.builder().baseUrl("http://localhost:9000").build();
+//    private final RestClient client = RestClient.builder().baseUrl("http://localhost:9000").build();
 
-    private StoreClient(List<TcpClient> nodes, Map<String, TcpClient> streamMap) {
+    private StoreClient(List<Node> nodes, Map<String, Node> streamMap) {
         this.mapping.putAll(streamMap);
         this.nodes.addAll(nodes);
     }
 
-    public static void main(String[] args) throws MalformedURLException, InterruptedException {
 
-        StoreClient storeClient = StoreClient.connect(new URL("http://localhost:9000"));
-        String stream1 = "stream-1";
-        String stream2 = "stream-2";
-
-        storeClient.createStream(stream1);
-        storeClient.createStream(stream2);
-
-
-        Thread t1 = new Thread(() -> {
-            try {
-                long start = System.currentTimeMillis();
-                for (int i = 0; i < 5000000; i++) {
-//            EventCreated eventCreated = storeClient.append(stream, "USER_CREATED", new UserCreated("josh", 123));
-                    storeClient.appendAsync(stream1, "USER_CREATED", new UserCreated("josh", 123));
-                    if (i % 10000 == 0) {
-                        System.out.println("WRITE: " + i + " IN " + (System.currentTimeMillis() - start));
-                        start = System.currentTimeMillis();
+    public static StoreClient connect(URL... bootstrapServers) {
+        for (URL server : bootstrapServers) {
+            try (HttpResponse<Json> nodeResp = Unirest.get(server.toExternalForm(), SERVERS_ENDPOINT).asJson()) {
+                if (!nodeResp.isSuccessful()) {
+                    throw new RuntimeException(nodeResp.asString());
+                }
+                List<NodeInfo> nodes = nodeResp.body().asListOf(NodeInfo.class);
+                Map<String, Node> streamMap = new HashMap<>();
+                List<Node> clients = new ArrayList<>();
+                for (NodeInfo nodeInfo : nodes) {
+                    TcpClientConnection client = connect(nodeInfo.host, nodeInfo.tcpPort);
+                    Node nodeClient = new Node(nodeInfo, client);
+                    //TODO replace with TCP
+                    try (HttpResponse<Json> streamResp = Unirest.get(nodeInfo.httpAddress(), STREAMS_ENDPOINT).asJson()) {
+                        if (!streamResp.isSuccessful()) {
+                            throw new RuntimeException(streamResp.asString());
+                        }
+                        List<StreamData> serverStream = streamResp.body().asListOf(StreamData.class);
+                        for (StreamData stream : serverStream) {
+                            streamMap.put(stream.name, nodeClient);
+                        }
+                        clients.add(nodeClient);
                     }
                 }
-
+                return new StoreClient(clients, streamMap);
             } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-
-//        Thread t2 = new Thread(() -> {
-//            long start = System.currentTimeMillis();
-//            for (int i = 0; i < 5000000; i++) {
-////            EventCreated eventCreated = storeClient.append(stream, "USER_CREATED", new UserCreated("josh", 123));
-//                storeClient.append(stream2, "USER_CREATED", new UserCreated("josh", 123));
-//                if (i % 10000 == 0) {
-//                    System.out.println(i + " IN " + (System.currentTimeMillis() - start));
-//                    start = System.currentTimeMillis();
-//                }
-//            }
-//        });
-
-        t1.start();
-//        t2.start();
-        t1.join();
-//        t2.join();
-
-        System.out.println("----------------- READ ---------------");
-
-        long start = System.currentTimeMillis();
-        int i = 0;
-        NodeClientIterator iterator = storeClient.iterator("stream-*", 50);
-        while (iterator.hasNext()) {
-            EventRecord next = iterator.next();
-//            System.out.println(next);
-            if (i++ % 10000 == 0) {
-                System.out.println("READ: " + i + " IN " + (System.currentTimeMillis() - start));
-                start = System.currentTimeMillis();
+                logger.warn("Failed to connect to bootstrap servers", e);
             }
         }
-        System.out.println("READ: " + i);
-        iterator.close();
-
-        System.out.println("----------------- READ AGAIN ---------------");
-        iterator = storeClient.iterator("stream-*", 50);
-        while (iterator.hasNext()) {
-            EventRecord next = iterator.next();
-
-        }
-
-
-//        long start = System.currentTimeMillis();
-//        for (int i = 0; i < 1000000; i++) {
-//            EventCreated eventCreated = storeClient.appendHttp(stream, "USER_CREATED", new UserCreated("josh", 123));
-//            if(i % 10000 == 0) {
-//                System.out.println(i + " IN " + (System.currentTimeMillis() - start));
-//                start = System.currentTimeMillis();
-//            }
-//        }
-
-
-//
-//        EventCreated eventCreated = storeClient.append(stream, "USER_CREATED", new UserCreated("josh", 123));
-//        System.out.println("Added event: " + eventCreated);
-//
-//        EventRecord event = storeClient.get(stream, 0);
-//        System.out.println(event.as(UserCreated.class));
-
+        throw new RuntimeException("Could not connect to any of the bootstrap servers");
     }
 
-    public static StoreClient connect(URL bootstrapServer) {
-        try (HttpResponse<Json> nodeResp = Unirest.get(bootstrapServer.toExternalForm(), SERVERS_ENDPOINT).asJson()) {
-            if (!nodeResp.isSuccessful()) {
-                throw new RuntimeException(nodeResp.asString());
-            }
-            List<NodeInfo> nodes = nodeResp.body().asListOf(NodeInfo.class);
-            Map<String, TcpClient> streamMap = new HashMap<>();
-            List<TcpClient> clients = new ArrayList<>();
-            for (NodeInfo nodeInfo : nodes) {
-                TcpClient nodeClient = new TcpClient(nodeInfo);
-                nodeClient.connect(nodeInfo.host, nodeInfo.tcpPort);
-                try (HttpResponse<Json> streamResp = Unirest.get(nodeInfo.httpAddress(), STREAMS_ENDPOINT).asJson()) {
-                    if (!streamResp.isSuccessful()) {
-                        throw new RuntimeException(streamResp.asString());
-                    }
-                    List<StreamData> serverStream = streamResp.body().asListOf(StreamData.class);
-                    for (StreamData stream : serverStream) {
-                        streamMap.put(stream.name, nodeClient);
-                    }
-                    clients.add(nodeClient);
-                }
-            }
-            return new StoreClient(clients, streamMap);
-        }
+    private static TcpClientConnection connect(String host, int port) {
+        return TcpEventClient.create()
+//                .keepAlive(2, TimeUnit.SECONDS)
+//                .option(Options.SEND_BUFFER, Size.MB.ofInt(100))
+                .option(Options.WORKER_IO_THREADS, 1)
+                .bufferSize(Size.KB.ofInt(16))
+                .option(Options.SEND_BUFFER, Size.KB.ofInt(16))
+                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))
+                .onEvent((connection, data) -> {
+                    //TODO
+                })
+                .connect(new InetSocketAddress(host, port), 5, TimeUnit.SECONDS);
     }
 
     public NodeClientIterator iterator(String pattern, int fetchSize) {
 
         List<NodeIterator> iterators = new ArrayList<>();
-        for (TcpClient node : nodes) {
-            Response<SubscriptionCreated> send = node.send(new CreateSubscription(pattern));
+        for (Node node : nodes) {
+            Response<SubscriptionCreated> send = node.client().request(new CreateSubscription(pattern));
             String subId = send.get().subscriptionId;
             iterators.add(new NodeIterator(subId, node, fetchSize));
         }
@@ -184,12 +124,12 @@ public class StoreClient {
     }
 
     public EventRecord get(String stream, int version) {
-        TcpClient node = mapping.get(stream);
+        Node node = mapping.get(stream);
         if (node == null) {
             throw new RuntimeException("No node for stream " + stream);
         }
 
-        Response<EventData> response = node.send(new GetEvent(EventId.of(stream, version)));
+        Response<EventData> response = node.client().request(new GetEvent(EventId.of(stream, version)));
         return response.get().record;
     }
 
@@ -197,24 +137,24 @@ public class StoreClient {
         return append(stream, type, event, EventId.NO_EXPECTED_VERSION);
     }
 
-    public EventCreated appendHttp(String stream, String type, Object event) {
+//    public EventCreated appendHttp(String stream, String type, Object event) {
+//        byte[] data = JsonSerializer.toBytes(event);
+//        HttpResponse<EventCreated> response = client.post(STREAMS_ENDPOINT, stream)
+//                .contentType("json")
+//                .header("Connection", "Keep-Alive")
+//                .header("Keep-Alive", "timeout=5000, max=1000000")
+//                .header(EVENT_TYPE_HEADER, type)
+//                .body(EventRecord.create(stream, type, data))
+//                .asObject(EventCreated.class);
+//
+//        return response.body();
+//    }
+
+    public EventCreated append(String stream, String type, Object event, int expectedStreamVersion) {
+        Node node = getOrAssignNode(stream);
+
         byte[] data = JsonSerializer.toBytes(event);
-        HttpResponse<EventCreated> response = client.post(STREAMS_ENDPOINT, stream)
-                .contentType("json")
-                .header("Connection", "Keep-Alive")
-                .header("Keep-Alive", "timeout=5000, max=1000000")
-                .header(EVENT_TYPE_HEADER, type)
-                .body(EventRecord.create(stream, type, data))
-                .asObject(EventCreated.class);
-
-        return response.body();
-    }
-
-    public EventCreated append(String stream, String type, Object event, int expectedVersion) {
-        TcpClient node = getOrAssignNode(stream);
-
-        byte[] data = JsonSerializer.toBytes(event);
-        Response<EventCreated> response = node.send(new Append(expectedVersion, EventRecord.create(stream, type, data)));
+        Response<EventCreated> response = node.client().request(new Append(expectedStreamVersion, EventRecord.create(stream, type, data)));
         EventCreated created = response.get();
         if (created.version == EventId.START_VERSION) {
             mapping.put(stream, node); //success, add the node to mapped streams
@@ -226,40 +166,47 @@ public class StoreClient {
         if (!mapping.containsKey(stream)) {
             throw new IllegalArgumentException("Async append can only be executed on existing stream");
         }
-        TcpClient node = nodeForStream(stream);
+        Node node = nodeForStream(stream);
 
         byte[] data = JsonSerializer.toBytes(event);
-        node.sendAsync(new Append(EventId.NO_EXPECTED_VERSION, EventRecord.create(stream, type, data)));
+        node.client().send(new Append(EventId.NO_EXPECTED_VERSION, EventRecord.create(stream, type, data)));
     }
 
     public void createStream(String name) {
         createStream(name, 0, 0, null, null); //TODO use constants
     }
 
-    public void createStream(String name, int maxCount, int maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
+    public void createStream(String name, int maxAge, int maxCount, Map<String, Integer> acl, Map<String, String> metadata) {
         if (mapping.containsKey(name)) {
             throw new IllegalArgumentException("Stream " + name + " already exist");
         }
-        TcpClient node = nodeForStream(name);
+        Node node = nodeForStream(name);
 
-        Response<Ack> response = node.send(new CreateStream(name, maxCount, maxCount, acl, metadata));
+        Response<Ack> response = node.client().request(new CreateStream(name, maxAge, maxCount, acl, metadata));
         Ack ack = response.get();
         mapping.put(name, node);
     }
 
     //hash is only used to create a stream, reading must use the map
-    private TcpClient nodeForStream(String stream) {
+    private Node nodeForStream(String stream) {
         int hash = hasher.hash32(stream.getBytes(StandardCharsets.UTF_8));
         int nodeIdx = hash % nodes.size();
         return nodes.get(nodeIdx);
     }
 
-    private TcpClient getOrAssignNode(String stream) {
-        TcpClient node = mapping.get(stream);
+    private Node getOrAssignNode(String stream) {
+        Node node = mapping.get(stream);
         if (node == null) {
             node = nodeForStream(stream);
         }
         return node;
     }
 
+    @Override
+    public void close() {
+        for (Node node : nodes) {
+            node.client().close();
+        }
+        nodes.clear();
+    }
 }

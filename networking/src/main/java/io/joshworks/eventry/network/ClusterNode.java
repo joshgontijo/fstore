@@ -1,7 +1,7 @@
 package io.joshworks.eventry.network;
 
-import io.joshworks.eventry.network.util.AttachmentKey;
-import io.joshworks.eventry.network.util.AttachmentMap;
+import io.joshworks.eventry.network.util.AttributeKey;
+import io.joshworks.eventry.network.util.AttributeMap;
 import org.jgroups.Address;
 
 import java.net.InetSocketAddress;
@@ -13,7 +13,7 @@ public class ClusterNode {
     public final long since;
     public final InetSocketAddress inetAddr;
 
-    public final AttachmentMap attachments = new AttachmentMap();
+    public final AttributeMap attachments = new AttributeMap();
 
     public NodeStatus status = NodeStatus.UP;
 
@@ -35,11 +35,11 @@ public class ClusterNode {
         return inetAddr.getAddress().getHostAddress();
     }
 
-    public <T> void attach(AttachmentKey<T> key, T value) {
+    public <T> void attach(AttributeKey<T> key, T value) {
         attachments.putAttachment(key, value);
     }
 
-    public <T> T get(AttachmentKey<T> key) {
+    public <T> T get(AttributeKey<T> key) {
         return attachments.getAttachment(key);
     }
 }

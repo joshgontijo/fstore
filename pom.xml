@@ -22,6 +22,7 @@
         <module>index</module>
         <module>es-client</module>
         <module>es-shared</module>
+        <module>cli</module>
     </modules>
 
     <properties>
@@ -97,6 +98,12 @@
                 <artifactId>es-shared</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>es-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
 
             <dependency>
                 <groupId>${project.groupId}</groupId>

@@ -1,9 +1,9 @@
 package io.joshworks.eventry.network.util;
 
-public class AttachmentKey<T>  {
+public class AttributeKey<T>  {
     private final Class<T> valueType;
 
-    private AttachmentKey(Class<T> valueType) {
+    private AttributeKey(Class<T> valueType) {
         this.valueType = valueType;
     }
 
@@ -11,8 +11,8 @@ public class AttachmentKey<T>  {
         return valueType.cast(value);
     }
 
-    public static <T> AttachmentKey<T> create(Class<? super T> valueClass) {
-        return new AttachmentKey(valueClass);
+    public static <T> AttributeKey<T> create(Class<? super T> valueClass) {
+        return new AttributeKey(valueClass);
     }
 
     @Override
