@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.network.tcp.XTcpServer;
+import io.joshworks.eventry.network.tcp.TcpMessageServer;
 import io.joshworks.eventry.server.subscription.Subscriptions;
 import io.joshworks.eventry.server.subscription.polling.LocalPollingSubscription;
 import io.joshworks.eventry.server.tcp.TcpEventHandler;
@@ -58,15 +58,15 @@ public class Server {
         var subscriptions = new Subscriptions(3, 3000, 5);
 
         var poolingSubscription = new LocalPollingSubscription(store.thisNode().store());
-        XTcpServer tcpServer = XTcpServer.create()
+        TcpMessageServer tcpServer = TcpMessageServer.create()
                 .onOpen(conn -> System.out.println("Connection opened"))
                 .onClose(conn -> System.out.println("Connection closed"))
                 .onIdle(conn -> System.out.println("Connection idle"))
 //                .idleTimeout(10, TimeUnit.SECONDS)
-//                .bufferSize(Size.MB.ofInt(10))
+                .bufferSize(Size.KB.ofInt(16))
                 .option(Options.REUSE_ADDRESSES, true)
                 .option(Options.TCP_NODELAY, true)
-                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(256))
+                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))
                 .option(Options.WORKER_IO_THREADS, 1)
 //                .option(Options.RECEIVE_BUFFER, Size.MB.ofInt(5))
                 .onEvent(new TcpEventHandler(store, poolingSubscription))

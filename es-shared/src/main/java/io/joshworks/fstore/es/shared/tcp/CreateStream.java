@@ -2,7 +2,7 @@ package io.joshworks.fstore.es.shared.tcp;
 
 import java.util.Map;
 
-public class CreateStream extends Message {
+public class CreateStream {
 
     public String name;
     public int maxAgeSec;
@@ -23,18 +23,5 @@ public class CreateStream extends Message {
         this.maxCount = maxCount;
         this.acl = acl;
         this.metadata = metadata;
-    }
-
-    @Override
-    public String toString() {
-        final StringBuffer sb = new StringBuffer("CreateStream{");
-        sb.append("name='").append(name).append('\'');
-        sb.append(", maxAgeSec=").append(maxAgeSec);
-        sb.append(", maxCount=").append(maxCount);
-        sb.append(", metadata=").append(metadata);
-        sb.append(", acl=").append(acl);
-        sb.append(", id=").append(id);
-        sb.append('}');
-        return sb.toString();
     }
 }

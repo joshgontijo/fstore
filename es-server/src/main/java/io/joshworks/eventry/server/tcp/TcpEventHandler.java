@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server.tcp;
 
-import io.joshworks.eventry.network.tcp.EventHandler;
+import io.joshworks.eventry.network.tcp.ServerEventHandler;
 import io.joshworks.eventry.network.tcp.TcpConnection;
 import io.joshworks.eventry.server.ClusterStore;
 import io.joshworks.eventry.server.subscription.polling.LocalPollingSubscription;
@@ -15,7 +15,6 @@ import io.joshworks.fstore.es.shared.tcp.EventCreated;
 import io.joshworks.fstore.es.shared.tcp.EventData;
 import io.joshworks.fstore.es.shared.tcp.EventsData;
 import io.joshworks.fstore.es.shared.tcp.GetEvent;
-import io.joshworks.fstore.es.shared.tcp.Message;
 import io.joshworks.fstore.es.shared.tcp.SubscriptionCreated;
 import io.joshworks.fstore.es.shared.tcp.SubscriptionIteratorNext;
 import org.slf4j.Logger;
@@ -24,9 +23,9 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 
-public class TcpEventHandler implements EventHandler {
+public class TcpEventHandler implements ServerEventHandler {
 
     private final ClusterStore store;
     private final LocalPollingSubscription subscription;
@@ -47,103 +46,63 @@ public class TcpEventHandler implements EventHandler {
     }
 
     @Override
+    public Object onRequest(TcpConnection connection, Object data) {
+        return handlers.handle(data.getClass(), connection);
+    }
+
+    @Override
     public void onEvent(TcpConnection connection, Object data) {
-        if (data instanceof Message) {
-            Message msg = (Message) data;
-            try {
-                handlers.handle(msg, connection);
-            } catch (Exception e) {
-                logger.error("Error while handling message", e);
-                if (replyExpected(msg)) {
-                    reply(new ErrorMessage(e.getMessage()), msg, connection);
-                } else {
-                    logger.warn("Client will not know that the error occurred");
-                }
-            }
+        if (data instanceof Append) {
+            //response ignored, this was an appendAsync from the client
+            handlers.handle(data, connection);
         }
     }
 
     private static class Handlers {
 
         private final Logger logger = LoggerFactory.getLogger(Handlers.class);
-        private final Map<Class, BiConsumer<TcpConnection, Message>> handlers = new ConcurrentHashMap<>();
-        private final BiConsumer<TcpConnection, Message> NO_OP = (conn, msg) -> logger.warn("No handler for {}", msg.getClass().getSimpleName());
+        private final Map<Class, BiFunction<TcpConnection, Object, Object>> handlers = new ConcurrentHashMap<>();
+        private final BiFunction<TcpConnection, Object, Object> NO_OP = (conn, msg) -> {
+            logger.warn("No handler for {}", msg.getClass().getSimpleName());
+            return null;
+        };
 
-        private <T extends Message> void add(Class<T> type, BiConsumer<TcpConnection, T> handler) {
-            handlers.put(type, (BiConsumer<TcpConnection, Message>) handler);
+        private <T> void add(Class<T> type, BiFunction<TcpConnection, T, Object> handler) {
+            handlers.put(type, (BiFunction<TcpConnection, Object, Object>) handler);
         }
 
-        private void handle(Message msg, TcpConnection conn) {
-            handlers.getOrDefault(msg.getClass(), NO_OP).accept(conn, msg);
-        }
-    }
-
-    private void createSubscription(TcpConnection connection, CreateSubscription msg) {
-        try {
-            String subscriptionId = subscription.create(msg.pattern);
-            reply(new SubscriptionCreated(subscriptionId), msg, connection);
-        } catch (Exception e) {
-            replyError(e, msg, connection);
-        }
-    }
-
-    private void subscriptionIteratorNext(TcpConnection connection, SubscriptionIteratorNext msg) {
-        try {
-            long start = System.currentTimeMillis();
-            List<EventRecord> entries = subscription.next(msg.subscriptionId, msg.batchSize);
-//            System.out.println("ITERATOR NEXT TOOK: " + (System.currentTimeMillis() - start) + " ENTRIES: " + entries.size());
-            reply(new EventsData(entries), msg, connection);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            replyError(e, msg, connection);
-        }
-    }
-
-    private void getEvent(TcpConnection connection, GetEvent msg) {
-        try {
-            EventRecord event = store.get(msg.eventId);
-            reply(new EventData(event), msg, connection);
-        } catch (Exception e) {
-            replyError(e, msg, connection);
-        }
-    }
-
-    private void createStream(TcpConnection connection, CreateStream msg) {
-        try {
-            StreamMetadata metadata = store.createStream(msg.name, msg.maxCount, msg.maxAgeSec, msg.acl, msg.metadata);
-            reply(new Ack(), msg, connection);
-        } catch (Exception e) {
-            replyError(e, msg, connection);
-        }
-    }
-
-    private void append(TcpConnection connection, Append msg) {
-        try {
-            EventRecord created = store.append(msg.record, msg.expectedVersion);
-            if (replyExpected(msg)) {
-                EventCreated eventCreated = new EventCreated(created.timestamp, created.version);
-                reply(eventCreated, msg, connection);
+        private Object handle(Object msg, TcpConnection conn) {
+            try {
+                return handlers.getOrDefault(msg.getClass(), NO_OP).apply(conn, msg);
+            } catch (Exception e) {
+                logger.error("Error handling event " + msg.getClass().getSimpleName(), e);
+                return new ErrorMessage(e.getMessage());
             }
-        } catch (Exception e) {
-            if (replyExpected(msg)) {
-                replyError(e, msg, connection);
-            }
-            logger.error(e.getMessage(), e);
         }
     }
 
-    private boolean replyExpected(Message msg) {
-        return msg.id != Message.NO_RESP;
+    private SubscriptionCreated createSubscription(TcpConnection connection, CreateSubscription msg) {
+        String subscriptionId = subscription.create(msg.pattern);
+        return new SubscriptionCreated(subscriptionId);
     }
 
-    private <T extends Message> void reply(T reply, Message original, TcpConnection connection) {
-        reply.id = original.id;
-        connection.sendAndFlush(reply);
+    private Object subscriptionIteratorNext(TcpConnection connection, SubscriptionIteratorNext msg) {
+        List<EventRecord> entries = subscription.next(msg.subscriptionId, msg.batchSize);
+        return new EventsData(entries);
     }
 
-    private <T extends Message> void replyError(Exception e, Message original, TcpConnection connection) {
-        reply(new ErrorMessage(e.getMessage()), original, connection);
+    private EventData getEvent(TcpConnection connection, GetEvent msg) {
+        EventRecord event = store.get(msg.eventId);
+        return new EventData(event);
     }
 
+    private Ack createStream(TcpConnection connection, CreateStream msg) {
+        StreamMetadata metadata = store.createStream(msg.name, msg.maxCount, msg.maxAgeSec, msg.acl, msg.metadata);
+        return new Ack();
+    }
+
+    private EventCreated append(TcpConnection connection, Append msg) {
+        EventRecord created = store.append(msg.record, msg.expectedVersion);
+        return new EventCreated(created.timestamp, created.version);
+    }
 }
