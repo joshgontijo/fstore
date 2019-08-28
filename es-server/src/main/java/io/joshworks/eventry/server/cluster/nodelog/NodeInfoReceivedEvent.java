@@ -11,12 +11,12 @@ public class NodeInfoReceivedEvent implements NodeEvent {
 
     public final String nodeId;
     public final String address;
-    public final Set<Long> streams; //TODO this can be huge
+    public final Set<Integer> partitions;
 
-    public NodeInfoReceivedEvent(String nodeId, String address, Set<Long> streams) {
+    public NodeInfoReceivedEvent(String nodeId, String address, Set<Integer> partitions) {
         this.nodeId = nodeId;
         this.address = address;
-        this.streams = streams;
+        this.partitions = partitions;
     }
 
     public static NodeInfoReceivedEvent from(EventRecord record) {

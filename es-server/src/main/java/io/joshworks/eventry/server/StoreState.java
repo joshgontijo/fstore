@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server;
 
-import io.joshworks.eventry.server.cluster.node.Node;
+import io.joshworks.eventry.server.cluster.Node;
 import io.joshworks.fstore.es.shared.Status;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
 
@@ -10,16 +10,33 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class StoreState {
 
     private final Map<String, Node> nodes = new ConcurrentHashMap<>();
-    private final Map<Long, Node> streamMapping = new ConcurrentHashMap<>();
+    private final Node[] partitions;
 
-    public void addNode(Node node, Set<Long> streams) {
+    public StoreState(int numPartitions) {
+        this.partitions = new Node[numPartitions];
+    }
+
+    public void assign(int partition, Node node) {
+        partitions[partition] = node;
+    }
+
+    public Node select(long stream) {
+        return partitions[(int) (stream % partitions.length)];
+    }
+
+    public Node select(String stream) {
+        return select(StreamHasher.hash(stream));
+    }
+
+    public void addNode(Node node, Set<Integer> partitions) {
         nodes.put(node.id, node);
-        for (Long stream : streams) {
-            streamMapping.put(stream, node);
+        for (Integer pid : partitions) {
+            this.partitions[pid] = node;
         }
     }
 
@@ -35,31 +52,15 @@ public class StoreState {
         return nodes.get(nodeId);
     }
 
-    public Set<Long> nodeStreams(String nodeId) {
-        return streamMapping.entrySet()
-                .stream()
-                .filter(kv -> kv.getValue().id.equals(nodeId))
-                .map(Map.Entry::getKey)
+    public Set<Integer> nodePartitions(String nodeId) {
+        return IntStream.range(0, partitions.length)
+                .filter(i -> partitions[i] != null)
+                .filter(i -> nodeId.equals(partitions[i].id))
+                .boxed()
                 .collect(Collectors.toSet());
-    }
-
-    public boolean hasNode(String nodeId) {
-        return nodes.containsKey(nodeId);
-    }
-
-    public Node nodeForStream(long streamHash) {
-        return streamMapping.get(streamHash);
-    }
-
-    public Node nodeForStream(String stream) {
-        return streamMapping.get(StreamHasher.hash(stream));
     }
 
     public List<Node> nodes() {
         return new ArrayList<>(nodes.values());
-    }
-
-    public void addStream(long stream, Node node) {
-        this.streamMapping.put(stream, node);
     }
 }

@@ -6,11 +6,17 @@ import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.network.Cluster;
+import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.MulticastResponse;
+import io.joshworks.eventry.server.cluster.ClusterStoreClient;
+import io.joshworks.eventry.server.cluster.Node;
 import io.joshworks.eventry.server.cluster.NodeDescriptor;
-import io.joshworks.eventry.server.cluster.messages.StreamCreated;
-import io.joshworks.eventry.server.cluster.node.Node;
+import io.joshworks.eventry.server.cluster.events.ClusterNodeInfo;
+import io.joshworks.eventry.server.cluster.events.NodeJoined;
+import io.joshworks.eventry.server.cluster.nodelog.NodeInfoReceivedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
+import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
+import io.joshworks.eventry.server.cluster.nodelog.PartitionAssignedEvent;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.io.IOUtils;
@@ -40,7 +46,6 @@ import java.util.stream.Collectors;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static java.util.Objects.requireNonNull;
-import static java.util.Objects.requireNonNullElseGet;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.reducing;
@@ -48,12 +53,15 @@ import static java.util.stream.Collectors.reducing;
 public class ClusterStore implements IEventStore {
 
     private static final String LOCAL_STORE_LOCATION = "local";
+    private static final String NODE_JOINED_LOCK = "NODE_ADDED_LOCK";
+
+
     private static final Logger logger = LoggerFactory.getLogger(ClusterStore.class);
 
     private final EventStore localStore;
     private final NodeDescriptor descriptor;
     private final ClusterEventHandler eventHandler;
-    private final StoreState state = new StoreState();
+    private final StoreState state;
     private final NodeLog nodeLog;
     private final Cluster cluster;
 
@@ -63,27 +71,70 @@ public class ClusterStore implements IEventStore {
         this.descriptor = requireNonNull(descriptor, "Descriptor must be provided");
         this.nodeLog = new NodeLog(root);
         this.cluster = cluster;
+        this.state = new StoreState(descriptor.partitions());
 
         this.localStore = EventStore.open(new File(root, LOCAL_STORE_LOCATION));
         this.eventHandler = new ClusterEventHandler(localStore, httpPort, tcpPort, descriptor, cluster, state, nodeLog);
     }
 
-    public static ClusterStore connect(File rootDir, String name, int httpPort, int tcpPort) {
+    public static ClusterStore connect(File rootDir, String clusterName, int httpPort, int tcpPort, int partitions) {
         NodeDescriptor descriptor = NodeDescriptor.read(rootDir);
 
         if (descriptor == null) {
-            descriptor = NodeDescriptor.write(rootDir, name);
+            descriptor = NodeDescriptor.write(rootDir, clusterName, partitions);
         }
-        if (!descriptor.clusterName().equals(name)) {
-            throw new IllegalArgumentException("Cannot connect store from cluster " + descriptor.clusterName() + " to another cluster: " + name);
+        if (!descriptor.clusterName().equals(clusterName)) {
+            throw new IllegalArgumentException("Cannot connect store from cluster " + descriptor.clusterName() + " to another cluster: " + clusterName);
         }
 
-        Cluster cluster = new Cluster(name, descriptor.nodeId());
-        ClusterStore clusterStore = new ClusterStore(rootDir, cluster, descriptor, httpPort, tcpPort);
+        Cluster cluster = new Cluster(clusterName, descriptor.nodeId());
+        ClusterStore store = new ClusterStore(rootDir, cluster, descriptor, httpPort, tcpPort);
 
         cluster.join();
 
-        return clusterStore;
+        cluster.lock(NODE_JOINED_LOCK, () -> {
+            store.initialize(httpPort, tcpPort, partitions);
+        });
+
+        return store;
+    }
+
+    private void initialize(int httpPort, int tcpPort, int numPartitions) {
+        //add this node to the nodes list
+        Set<Integer> partitions = state.nodePartitions(cluster.nodeId());
+        ClusterNode cNode = cluster.node();
+        Node thisNode = new Node(cNode.id, localStore, cNode.hostAddress(), httpPort, tcpPort);
+        state.addNode(thisNode, partitions);
+
+        nodeLog.append(new NodeStartedEvent(cNode.id, cNode.hostAddress(), httpPort, tcpPort));
+
+        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode.id, thisNode.host, partitions));
+        for (MulticastResponse response : responses) {
+            ClusterNodeInfo clusterNodeInfo = response.message();
+            logger.info("Received node info: {}", clusterNodeInfo);
+
+            ClusterNode remoteNode = cluster.node(clusterNodeInfo.nodeId);
+            IEventStore remoteStore = new ClusterStoreClient(remoteNode, clusterNodeInfo.nodeId, cluster.client());
+            Node node = new Node(clusterNodeInfo.nodeId, remoteStore, clusterNodeInfo.address, httpPort, tcpPort);
+            state.addNode(node, clusterNodeInfo.partitions);
+
+            nodeLog.append(new NodeInfoReceivedEvent(node.id, clusterNodeInfo.address, clusterNodeInfo.partitions));
+        }
+
+        //no partitions assigned to this node
+        if (partitions.isEmpty()) { //new node
+            //first node of the cluster, initialize partitions
+            if (responses.isEmpty()) {
+                for (int i = 0; i < numPartitions; i++) {
+                    state.assign(i, thisNode);
+                    nodeLog.append(new PartitionAssignedEvent(thisNode.id));
+                }
+            } else { //move partitions to this node
+
+            }
+        }
+
+
     }
 
     public NodeDescriptor descriptor() {
@@ -111,7 +162,7 @@ public class ClusterStore implements IEventStore {
     }
 
     private Node select(long streamHash) {
-        return state.nodeForStream(streamHash);
+        return state.select(streamHash);
     }
 
     public String nodeId() {
@@ -175,11 +226,7 @@ public class ClusterStore implements IEventStore {
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
         Node node = select(event.stream);
-        EventRecord appended = node.store().append(event, expectedVersion);
-        if (appended.version == EventId.START_VERSION) {
-            broadcastStreamCreation(event.stream, node);
-        }
-        return appended;
+        return node.store().append(event, expectedVersion);
     }
 
     @Override
@@ -261,24 +308,13 @@ public class ClusterStore implements IEventStore {
         node = nodeForNewStream(stream);
 
         //TODO add user who created / ACL
-        metadata = requireNonNullElseGet(metadata, HashMap::new);
-        metadata.put("_node", node.id);
+//        metadata = requireNonNullElseGet(metadata, HashMap::new);
+//        metadata.put("_node", node.id);
 
 
         //TODO add an option to explicitly specify the node where the stream will be created, it does require global lock
         //Another thing cna be done is to return a SEE_OTHER response status and make the client go to another node
-        StreamMetadata created = node.store().createStream(stream, maxCount, maxAge, acl, metadata);
-        if (node.id.equals(descriptor.nodeId())) {
-            broadcastStreamCreation(stream, node);
-        }
-        return created;
-    }
-
-    private void broadcastStreamCreation(String stream, Node node) {
-        //this node broadcast the stream creation and add to this stream mapping as well
-        state.addStream(StreamHasher.hash(stream), node);
-        List<MulticastResponse> responses = cluster.client().cast(new StreamCreated(stream));
-        //TODO do nothing with ack ?
+        return node.store().createStream(stream, maxCount, maxAge, acl, metadata);
     }
 
     @Override
