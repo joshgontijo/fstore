@@ -1,4 +1,4 @@
-package io.joshworks.eventry.server.cluster.node;
+package io.joshworks.eventry.server.cluster;
 
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.fstore.es.shared.Status;

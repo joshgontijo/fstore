@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 public class StoreClient implements Closeable {
@@ -45,10 +44,10 @@ public class StoreClient implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(StoreClient.class);
 
-    private final Map<String, Node> mapping = new ConcurrentHashMap<>();
-    private final List<Node> nodes = new ArrayList<>();
 
-    private final Hash hasher = new XXHash();
+    private final Partitions partitions = new Partitions();
+
+
 
 //    private final RestClient client = RestClient.builder().baseUrl("http://localhost:9000").build();
 

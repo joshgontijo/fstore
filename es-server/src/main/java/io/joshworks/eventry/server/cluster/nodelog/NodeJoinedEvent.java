@@ -11,9 +11,9 @@ public class NodeJoinedEvent implements NodeEvent {
 
     public final String nodeId;
     public final String address;
-    public final Set<Long> streams; //TODO this can be huge
+    public final Set<Integer> streams;
 
-    public NodeJoinedEvent(String nodeId, String address, Set<Long> streams) {
+    public NodeJoinedEvent(String nodeId, String address, Set<Integer> streams) {
         this.nodeId = nodeId;
         this.address = address;
         this.streams = streams;

@@ -5,11 +5,11 @@ import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterNode;
-import io.joshworks.eventry.network.MulticastResponse;
 import io.joshworks.eventry.server.cluster.ClusterStoreClient;
+import io.joshworks.eventry.server.cluster.Node;
 import io.joshworks.eventry.server.cluster.NodeDescriptor;
 import io.joshworks.eventry.server.cluster.RemoteIterators;
-import io.joshworks.eventry.server.cluster.events.NodeInfo;
+import io.joshworks.eventry.server.cluster.events.ClusterNodeInfo;
 import io.joshworks.eventry.server.cluster.events.NodeInfoRequested;
 import io.joshworks.eventry.server.cluster.events.NodeJoined;
 import io.joshworks.eventry.server.cluster.events.NodeLeft;
@@ -24,17 +24,13 @@ import io.joshworks.eventry.server.cluster.messages.FromStreams;
 import io.joshworks.eventry.server.cluster.messages.Get;
 import io.joshworks.eventry.server.cluster.messages.IteratorCreated;
 import io.joshworks.eventry.server.cluster.messages.IteratorNext;
-import io.joshworks.eventry.server.cluster.node.Node;
-import io.joshworks.eventry.server.cluster.nodelog.NodeInfoReceivedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeJoinedEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLeftEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
 import io.joshworks.eventry.server.cluster.nodelog.NodeShutdownEvent;
-import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.streams.SystemStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,14 +63,13 @@ public class ClusterEventHandler implements Closeable {
         this.nodeLog = nodeLog;
 
         registerHandlers(cluster);
-        cluster.onConnected(this::fetchNodeInfo);
     }
 
     private void registerHandlers(Cluster cluster) {
         cluster.register(NodeInfoRequested.class, this::onNodeInfoRequested);
         cluster.register(NodeJoined.class, this::onNodeJoined);
         cluster.register(NodeLeft.class, this::onNodeLeft);
-        cluster.register(NodeInfo.class, this::onNodeInfoReceived);
+        cluster.register(ClusterNodeInfo.class, this::onNodeInfoReceived);
 
         cluster.register(CreateStream.class, this::onStreamCreationRequest);
         cluster.register(IteratorNext.class, this::onIteratorNext);
@@ -85,49 +80,25 @@ public class ClusterEventHandler implements Closeable {
         cluster.register(Get.class, this::get);
     }
 
-    private void fetchNodeInfo() {
-
-        //add this node to the nodes list
-        Set<Long> streams = localStore.streams().stream().filter(h -> !SystemStreams.systemStream(h)).collect(Collectors.toSet());
-        ClusterNode cNode = cluster.node();
-        Node thisNode = new Node(cNode.id, localStore, cNode.hostAddress(), httpPort, tcpPort);
-        state.addNode(thisNode, streams);
-
-        nodeLog.append(new NodeStartedEvent(cNode.id, cNode.hostAddress(), httpPort, tcpPort));
-
-        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode.id, thisNode.host, streams));
-
-        for (MulticastResponse response : responses) {
-            NodeInfo nodeInfo = response.message();
-            logger.info("Received node info: {}", nodeInfo);
-
-            ClusterNode remoteNode = cluster.node(nodeInfo.nodeId);
-            IEventStore remoteStore = new ClusterStoreClient(remoteNode, nodeInfo.nodeId, cluster.client());
-            Node node = new Node(nodeInfo.nodeId, remoteStore, nodeInfo.address, httpPort, tcpPort);
-            state.addNode(node, nodeInfo.streams);
-
-            nodeLog.append(new NodeInfoReceivedEvent(node.id, nodeInfo.address, nodeInfo.streams));
-        }
-    }
-
-    private NodeInfo thisNodeInfo() {
-        Set<Long> streams = state.nodeStreams(descriptor.nodeId());
+    private ClusterNodeInfo thisNodeInfo() {
+        Set<Integer> streams = state.nodePartitions(descriptor.nodeId());
 
         Node thisNode = state.getNode(descriptor.nodeId());
-        return new NodeInfo(thisNode.id, thisNode.host, streams);
+        return new ClusterNodeInfo(thisNode.id, thisNode.host, streams);
     }
 
-    private NodeInfo onNodeJoined(NodeJoined nodeJoined) {
+
+    private ClusterNodeInfo onNodeJoined(NodeJoined nodeJoined) {
         String nodeId = nodeJoined.nodeId;
 
         logger.info("Node joined: '{}': {}", nodeId, nodeJoined);
-        nodeLog.append(new NodeJoinedEvent(nodeId, nodeJoined.address, nodeJoined.streams));
+        nodeLog.append(new NodeJoinedEvent(nodeId, nodeJoined.address, nodeJoined.partitions));
 
         ClusterNode cNode = cluster.node(nodeId);
         IEventStore remoteStore = new ClusterStoreClient(cNode, nodeId, cluster.client());
 
         Node node = new Node(nodeJoined.nodeId, remoteStore, nodeJoined.address, httpPort, tcpPort);
-        state.addNode(node, nodeJoined.streams);
+        state.addNode(node, nodeJoined.partitions);
         return thisNodeInfo();
     }
 
@@ -136,14 +107,14 @@ public class ClusterEventHandler implements Closeable {
         nodeLog.append(new NodeLeftEvent(nodeJoined.nodeId));
     }
 
-    private NodeInfo onNodeInfoRequested(NodeInfoRequested nodeInfoRequested) {
+    private ClusterNodeInfo onNodeInfoRequested(NodeInfoRequested nodeInfoRequested) {
         logger.info("Node info requested from {}", nodeInfoRequested.nodeId);
         Set<Long> streams = localStore.streamsMetadata().stream().map(si -> si.hash).collect(Collectors.toSet());
         return thisNodeInfo();
     }
 
-    private void onNodeInfoReceived(NodeInfo nodeInfo) {
-        logger.info("Node info received from {}: {}", nodeInfo.nodeId, nodeInfo);
+    private void onNodeInfoReceived(ClusterNodeInfo clusterNodeInfo) {
+        logger.info("Node info received from {}: {}", clusterNodeInfo.nodeId, clusterNodeInfo);
     }
 
     //-------------- STORE RPC ----------------------
