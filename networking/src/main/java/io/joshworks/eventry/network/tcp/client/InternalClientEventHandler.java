@@ -4,15 +4,16 @@ import io.joshworks.eventry.network.tcp.EventHandler;
 import io.joshworks.eventry.network.tcp.TcpConnection;
 import io.joshworks.eventry.network.tcp.internal.Message;
 import io.joshworks.eventry.network.tcp.internal.Response;
+import io.joshworks.eventry.network.tcp.internal.ResponseTable;
 
 import java.util.Map;
 
 public class InternalClientEventHandler implements EventHandler {
 
     private final EventHandler delegate;
-    private final Map<Long, Response> responseTable;
+    private final ResponseTable responseTable;
 
-    public InternalClientEventHandler(EventHandler delegate, Map<Long, Response> responseTable) {
+    public InternalClientEventHandler(EventHandler delegate, ResponseTable responseTable) {
         this.delegate = delegate;
         this.responseTable = responseTable;
     }
@@ -21,7 +22,7 @@ public class InternalClientEventHandler implements EventHandler {
     public void onEvent(TcpConnection connection, Object data) {
         if (data instanceof Message) {
             Message msg = (Message) data;
-            Response response = responseTable.remove(msg.id);
+            Response response = responseTable.complete(msg.id);
             if (response == null) {
                 //TODO log and discard ?
                 System.err.println("Received null from the server");

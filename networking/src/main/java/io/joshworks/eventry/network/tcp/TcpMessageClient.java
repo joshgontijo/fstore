@@ -7,7 +7,7 @@ import io.joshworks.eventry.network.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.eventry.network.tcp.conduits.ConduitPipeline;
 import io.joshworks.eventry.network.tcp.conduits.FramingMessageSourceConduit;
 import io.joshworks.eventry.network.tcp.internal.KeepAlive;
-import io.joshworks.eventry.network.tcp.internal.Response;
+import io.joshworks.eventry.network.tcp.internal.ResponseTable;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
@@ -21,9 +21,7 @@ import org.xnio.Xnio;
 import org.xnio.XnioWorker;
 
 import java.net.InetSocketAddress;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -43,16 +41,16 @@ public class TcpMessageClient {
     private transient TcpClientConnection tcpConnection;
     private final CountDownLatch connectLatch = new CountDownLatch(1);
 
-    private final Map<Long, Response> responseTable = new ConcurrentHashMap<>();
+    private final ResponseTable responseTable;
 
-
-    public TcpMessageClient(OptionMap options, InetSocketAddress bindAddress, Set<Class> registeredTypes, int bufferSize, long keepAliveInterval, Consumer<TcpConnection> onClose, EventHandler handler) {
+    public TcpMessageClient(OptionMap options, InetSocketAddress bindAddress, Set<Class> registeredTypes, int bufferSize, long keepAliveInterval, Consumer<TcpConnection> onClose, EventHandler handler, ResponseTable responseTable) {
         this.bindAddress = bindAddress;
         this.keepAliveInterval = keepAliveInterval;
         this.onClose = onClose;
         this.eventHandler = handler;
         this.writePool = new ThreadLocalBufferPool(bufferSize, true);
-        this.readPool =  new SimpleBufferPool(bufferSize, true);
+        this.readPool = new SimpleBufferPool(bufferSize, true);
+        this.responseTable = responseTable;
 
         registeredTypes.add(KeepAlive.class);
         KryoStoreSerializer.register(registeredTypes.toArray(Class[]::new));

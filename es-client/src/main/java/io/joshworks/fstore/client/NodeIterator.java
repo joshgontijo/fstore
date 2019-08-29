@@ -1,10 +1,12 @@
 package io.joshworks.fstore.client;
 
+import io.joshworks.eventry.network.tcp.TcpClientConnection;
 import io.joshworks.eventry.network.tcp.internal.Response;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.tcp.EventsData;
-import io.joshworks.fstore.es.shared.tcp.SubscriptionIteratorNext;
+import io.joshworks.fstore.es.shared.Node;
+import io.joshworks.fstore.es.shared.messages.EventsData;
+import io.joshworks.fstore.es.shared.messages.SubscriptionIteratorNext;
 
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -12,15 +14,15 @@ import java.util.Queue;
 public class NodeIterator implements ClientStreamIterator {
 
     private final String subscriptionId;
-    private final Node node;
+    private final TcpClientConnection conn;
     private final int fetchSize;
     private final Queue<EventRecord> queue = new ArrayDeque<>();
 
     //TODO add empty entries backoff
 
-    public NodeIterator(String subscriptionId, Node node, int fetchSize) {
+    public NodeIterator(String subscriptionId, TcpClientConnection conn, int fetchSize) {
         this.subscriptionId = subscriptionId;
-        this.node = node;
+        this.conn = conn;
         this.fetchSize = fetchSize;
     }
 
@@ -42,7 +44,7 @@ public class NodeIterator implements ClientStreamIterator {
     }
 
     private void fetch() {
-        Response<EventsData> received = node.client().request(new SubscriptionIteratorNext(subscriptionId, fetchSize));
+        Response<EventsData> received = conn.request(new SubscriptionIteratorNext(subscriptionId, fetchSize));
         EventsData data = received.get();
         queue.addAll(data.events);
     }

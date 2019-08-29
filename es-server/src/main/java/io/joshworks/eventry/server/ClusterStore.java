@@ -1,363 +1,179 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.EventStore;
-import io.joshworks.eventry.LinkToPolicy;
-import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
-import io.joshworks.eventry.api.IEventStore;
 import io.joshworks.eventry.network.Cluster;
 import io.joshworks.eventry.network.ClusterNode;
 import io.joshworks.eventry.network.MulticastResponse;
-import io.joshworks.eventry.server.cluster.ClusterStoreClient;
-import io.joshworks.eventry.server.cluster.Node;
 import io.joshworks.eventry.server.cluster.NodeDescriptor;
-import io.joshworks.eventry.server.cluster.events.ClusterNodeInfo;
+import io.joshworks.eventry.server.cluster.events.NodeInfo;
+import io.joshworks.eventry.server.cluster.events.NodeInfoRequest;
 import io.joshworks.eventry.server.cluster.events.NodeJoined;
+import io.joshworks.eventry.server.cluster.events.NodeLeft;
 import io.joshworks.eventry.server.cluster.nodelog.NodeInfoReceivedEvent;
+import io.joshworks.eventry.server.cluster.nodelog.NodeJoinedEvent;
+import io.joshworks.eventry.server.cluster.nodelog.NodeLeftEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
+import io.joshworks.eventry.server.cluster.nodelog.NodeShutdownEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
-import io.joshworks.eventry.server.cluster.nodelog.PartitionAssignedEvent;
-import io.joshworks.eventry.stream.StreamInfo;
-import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.util.Pair;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.NodeInfo;
+import io.joshworks.fstore.es.shared.Node;
 import io.joshworks.fstore.es.shared.Status;
-import io.joshworks.fstore.es.shared.streams.StreamHasher;
+import io.joshworks.fstore.es.shared.routing.HashRouter;
+import io.joshworks.fstore.es.shared.routing.Router;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Optional;
-import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
-import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
+import static io.joshworks.fstore.es.shared.EventId.START_VERSION;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.mapping;
-import static java.util.stream.Collectors.reducing;
 
-public class ClusterStore implements IEventStore {
+public class ClusterStore extends EventStore {
 
     private static final String LOCAL_STORE_LOCATION = "local";
-    private static final String NODE_JOINED_LOCK = "NODE_ADDED_LOCK";
-
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterStore.class);
 
-    private final EventStore localStore;
     private final NodeDescriptor descriptor;
-    private final ClusterEventHandler eventHandler;
-    private final StoreState state;
+    private final ClusterState clusterState;
     private final NodeLog nodeLog;
     private final Cluster cluster;
 
+    private final Router router = new HashRouter();
 
-    private ClusterStore(File root, Cluster cluster, NodeDescriptor descriptor, int httpPort, int tcpPort) {
-        requireNonNull(root, "Root folder must be provided");
+    private ClusterStore(File root, Cluster cluster, NodeDescriptor descriptor) {
+        super(new File(root, LOCAL_STORE_LOCATION));
         this.descriptor = requireNonNull(descriptor, "Descriptor must be provided");
         this.nodeLog = new NodeLog(root);
         this.cluster = cluster;
-        this.state = new StoreState(descriptor.partitions());
 
-        this.localStore = EventStore.open(new File(root, LOCAL_STORE_LOCATION));
-        this.eventHandler = new ClusterEventHandler(localStore, httpPort, tcpPort, descriptor, cluster, state, nodeLog);
+        this.clusterState = new ClusterState(descriptor.nodeId());
+
+        registerHandlers(cluster);
     }
 
-    public static ClusterStore connect(File rootDir, String clusterName, int httpPort, int tcpPort, int partitions) {
+    public static ClusterStore connect(File rootDir, String clusterName, int httpPort, int tcpPort) {
         NodeDescriptor descriptor = NodeDescriptor.read(rootDir);
 
         if (descriptor == null) {
-            descriptor = NodeDescriptor.write(rootDir, clusterName, partitions);
+            descriptor = NodeDescriptor.write(rootDir, clusterName);
         }
         if (!descriptor.clusterName().equals(clusterName)) {
             throw new IllegalArgumentException("Cannot connect store from cluster " + descriptor.clusterName() + " to another cluster: " + clusterName);
         }
 
         Cluster cluster = new Cluster(clusterName, descriptor.nodeId());
-        ClusterStore store = new ClusterStore(rootDir, cluster, descriptor, httpPort, tcpPort);
+        ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
 
         cluster.join();
 
-        cluster.lock(NODE_JOINED_LOCK, () -> {
-            store.initialize(httpPort, tcpPort, partitions);
-        });
+        ClusterNode cNode = cluster.node();
+        Node thisNode = new Node(cNode.id, cNode.hostAddress(), httpPort, tcpPort, Status.ACTIVE);
+        store.clusterState.update(thisNode);
+        store.nodeLog.append(new NodeStartedEvent(cNode.id, cNode.hostAddress(), httpPort, tcpPort));
+        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode));
+        for (MulticastResponse response : responses) {
+            NodeInfo clusterNodeInfo = response.message();
+            logger.info("Received node info: {}", clusterNodeInfo);
+
+            store.clusterState.update(clusterNodeInfo.node);
+            store.nodeLog.append(new NodeInfoReceivedEvent(clusterNodeInfo.node));
+        }
 
         return store;
     }
 
-    private void initialize(int httpPort, int tcpPort, int numPartitions) {
-        //add this node to the nodes list
-        Set<Integer> partitions = state.nodePartitions(cluster.nodeId());
-        ClusterNode cNode = cluster.node();
-        Node thisNode = new Node(cNode.id, localStore, cNode.hostAddress(), httpPort, tcpPort);
-        state.addNode(thisNode, partitions);
-
-        nodeLog.append(new NodeStartedEvent(cNode.id, cNode.hostAddress(), httpPort, tcpPort));
-
-        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode.id, thisNode.host, partitions));
-        for (MulticastResponse response : responses) {
-            ClusterNodeInfo clusterNodeInfo = response.message();
-            logger.info("Received node info: {}", clusterNodeInfo);
-
-            ClusterNode remoteNode = cluster.node(clusterNodeInfo.nodeId);
-            IEventStore remoteStore = new ClusterStoreClient(remoteNode, clusterNodeInfo.nodeId, cluster.client());
-            Node node = new Node(clusterNodeInfo.nodeId, remoteStore, clusterNodeInfo.address, httpPort, tcpPort);
-            state.addNode(node, clusterNodeInfo.partitions);
-
-            nodeLog.append(new NodeInfoReceivedEvent(node.id, clusterNodeInfo.address, clusterNodeInfo.partitions));
-        }
-
-        //no partitions assigned to this node
-        if (partitions.isEmpty()) { //new node
-            //first node of the cluster, initialize partitions
-            if (responses.isEmpty()) {
-                for (int i = 0; i < numPartitions; i++) {
-                    state.assign(i, thisNode);
-                    nodeLog.append(new PartitionAssignedEvent(thisNode.id));
-                }
-            } else { //move partitions to this node
-
-            }
-        }
-
-
+    private void registerHandlers(Cluster cluster) {
+        cluster.register(NodeInfoRequest.class, this::onNodeInfoRequested);
+        cluster.register(NodeJoined.class, this::onNodeJoined);
+        cluster.register(NodeLeft.class, this::onNodeLeft);
     }
 
-    public NodeDescriptor descriptor() {
-        return descriptor;
+    private NodeInfo onNodeJoined(NodeJoined nodeJoined) {
+        logger.info("Node joined: {}", nodeJoined);
+        nodeLog.append(new NodeJoinedEvent(nodeJoined.node));
+        clusterState.update(nodeJoined.node);
+        return new NodeInfo(clusterState.thisNode());
     }
 
-    private List<Node> nodes() {
-        return state.nodes();
+    private void onNodeLeft(NodeLeft nodeLeft) {
+        logger.info("Node left: '{}'", nodeLeft.nodeId);
+        nodeLog.append(new NodeLeftEvent(nodeLeft.nodeId));
+        clusterState.update(nodeLeft.nodeId, Status.UNAVAILABLE);
+    }
+
+    private NodeInfo onNodeInfoRequested(NodeInfoRequest nodeInfoRequest) {
+        logger.info("Node info requested from {}", nodeInfoRequest.nodeId);
+        return new NodeInfo(clusterState.thisNode());
     }
 
     public Node thisNode() {
-        return state.getNode(descriptor.nodeId());
+        return clusterState.getNode(descriptor.nodeId());
     }
 
-    public List<NodeInfo> nodesInfo() {
-        return state.nodes().stream().map(n -> new NodeInfo(n.id, n.host, n.httpPort, n.tcpPort, n.status)).collect(Collectors.toList());
+    public List<Node> nodesInfo() {
+        return clusterState.all().stream().map(n -> new Node(n.id, n.host, n.httpPort, n.tcpPort, n.status)).collect(Collectors.toList());
     }
 
     public NodeLog nodeLog() {
         return nodeLog;
     }
 
-    private Node select(String stream) {
-        return select(StreamHasher.hash(stream));
-    }
-
-    private Node select(long streamHash) {
-        return state.select(streamHash);
-    }
-
     public String nodeId() {
         return descriptor.nodeId();
     }
 
-    private Node nodeForNewStream(String stream) {
-        Node node;
-        long hash = StreamHasher.hash(stream);
-        List<Node> nodes = nodes();
-        int nodeIdx = (int) (Math.abs(hash) % nodes.size());
-        node = nodes.get(nodeIdx);
-        return node;
-    }
-
-    public void forEachPartition(Consumer<Node> consumer) {
-        for (Node node : nodes()) {
-            consumer.accept(node);
+    @Override
+    public EventRecord append(EventRecord event) {
+        EventRecord record = super.append(event);
+        if (record.version == START_VERSION) {
+            //TODO broadcast stream ?
         }
+        return record;
     }
 
     @Override
-    public void compact() {
-        forEachPartition(node -> node.store().compact());
+    public EventRecord append(EventRecord event, int expectedVersion) {
+        EventRecord record = super.append(event, expectedVersion);
+        if (record.version == START_VERSION) {
+            //TODO broadcast stream ?
+        }
+        return record;
+    }
+
+    @Override
+    protected EventRecord resolve(EventRecord event) {
+        //do not resolve
+        Node node = router.route(clusterState.all(), event.stream);
+        if(clusterState.thisNode().equals(node)) {
+            return super.resolve(event);
+        }
+        //do not resolve
+        ReplyTo msg = new ReplyTo();
+        cluster.client().sendAsync(cluster.node(node.id).address, msg);
+
+        throw new UnsupportedOperationException("TODO IMPLEMENT CLUSTER REDIRECT");
     }
 
     @Override
     public void close() {
         //TODO improve
-        state.updateNode(descriptor.nodeId(), Status.UNAVAILABLE);
+        nodeLog.append(new NodeShutdownEvent(cluster.nodeId()));
+        clusterState.update(descriptor.nodeId(), Status.UNAVAILABLE);
         IOUtils.closeQuietly(descriptor);
         IOUtils.closeQuietly(nodeLog);
-        IOUtils.closeQuietly(localStore);
+        super.close();
     }
-
-    @Override
-    public EventRecord linkTo(String stream, EventRecord event) {
-        //TODO stream validation might be needed here
-        //TODO should only link to a local store
-
-
-        return select(event.stream).store().linkTo(stream, event);
-    }
-
-    @Override
-    public EventRecord linkTo(String dstStream, EventId source, String sourceType) {
-        return select(source.name()).store().linkTo(dstStream, source, sourceType);
-    }
-
-    @Override
-    public EventRecord append(EventRecord event) {
-        Node owner = select(event.stream);
-        if (owner == null) {
-            //stream does not exit select from the hash
-            owner = nodeForNewStream(event.stream);
-        }
-
-        return owner.store().append(event);
-    }
-
-    @Override
-    public EventRecord append(EventRecord event, int expectedVersion) {
-        Node node = select(event.stream);
-        return node.store().append(event, expectedVersion);
-    }
-
-    @Override
-    public EventStoreIterator fromStream(EventId stream) {
-        return select(stream.name()).store().fromStream(stream);
-    }
-
-    @Override
-    public EventStoreIterator fromStreams(EventMap eventMap, Set<String> streamPatterns) {
-        List<EventStoreIterator> iterators = nodes().stream()
-                .map(Node::store)
-                .map(s -> s.fromStreams(eventMap, streamPatterns))
-                .collect(Collectors.toList());
-
-        return new PartitionedEventStoreIterator(iterators);
-    }
-
-    @Override
-    public EventStoreIterator fromStreams(EventMap eventMap) {
-        //partition -> checkpoint per partition
-        Map<Node, EventMap> grouped = eventMap.entrySet()
-                .stream()
-                .map(s -> Pair.of(s, select(s.getKey())))
-                .collect(groupingBy(Pair::right, mapping(kv -> EventMap.of(kv.left.getKey(), kv.left.getValue()), reducing(EventMap.empty(), EventMap::merge))));
-
-        List<EventStoreIterator> iterators = grouped.entrySet()
-                .stream()
-                .map(kv -> kv.getKey().store().fromStreams(kv.getValue()))
-                .collect(Collectors.toList());
-
-        return new PartitionedEventStoreIterator(iterators);
-    }
-
-    @Override
-    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-        List<EventStoreIterator> iterators = nodes()
-                .stream()
-                .map(n -> n.store().fromAll(linkToPolicy, systemEventPolicy))
-                .collect(Collectors.toList());
-
-        return new OrderedIterator(iterators);
-    }
-
-    @Override
-    public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
-        //TODO handle lastEvent, pass only each individual value to each node
-        List<EventStoreIterator> iterators = nodes()
-                .stream()
-                .map(n -> n.store().fromAll(linkToPolicy, systemEventPolicy, lastEvent))
-                .collect(Collectors.toList());
-
-        return new OrderedIterator(iterators);
-    }
-
-    public EventStoreIterator fromAll(String nodeId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy) {
-        return state.getNode(nodeId).store().fromAll(linkToPolicy, systemEventPolicy);
-    }
-
-    public EventStoreIterator fromAll(String nodeId, LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
-        return state.getNode(nodeId).store().fromAll(linkToPolicy, systemEventPolicy, lastEvent);
-    }
-
-    @Override
-    public StreamMetadata createStream(String stream) {
-        return createStream(stream, NO_MAX_COUNT, NO_MAX_AGE, new HashMap<>(), new HashMap<>());
-    }
-
-    @Override
-    public StreamMetadata createStream(String stream, int maxCount, int maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
-        Node node = select(stream);
-        if (node != null) {
-            throw new IllegalArgumentException("Stream " + stream + " already exist");
-        }
-
-        //hashes the stream and select a node to create this stream
-        //this avoids cluster global lock.
-        //Can cause problem only if two requests to create the same stream happens at the same time and
-        //nodes.size() will return different node idx
-        node = nodeForNewStream(stream);
-
-        //TODO add user who created / ACL
-//        metadata = requireNonNullElseGet(metadata, HashMap::new);
-//        metadata.put("_node", node.id);
-
-
-        //TODO add an option to explicitly specify the node where the stream will be created, it does require global lock
-        //Another thing cna be done is to return a SEE_OTHER response status and make the client go to another node
-        return node.store().createStream(stream, maxCount, maxAge, acl, metadata);
-    }
-
-    @Override
-    public List<StreamInfo> streamsMetadata() {
-        return nodes().stream()
-                .map(Node::store)
-                .flatMap(es -> es.streamsMetadata().stream())
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public Set<Long> streams() {
-        return nodes().stream()
-                .map(Node::store)
-                .flatMap(es -> es.streams().stream())
-                .collect(Collectors.toSet());
-    }
-
-    @Override
-    public Optional<StreamInfo> streamMetadata(String stream) {
-        return select(stream).store().streamMetadata(stream);
-    }
-
-    @Override
-    public void truncate(String stream, int fromVersion) {
-        select(stream).store().truncate(stream, fromVersion);
-    }
-
-    @Override
-    public EventRecord get(EventId stream) {
-        return select(stream.name()).store().get(stream);
-    }
-
-    @Override
-    public int version(String stream) {
-        return select(stream).store().version(stream);
-    }
-
-    @Override
-    public int count(String stream) {
-        return select(stream).store().count(stream);
-    }
-
 
     //Round robin
     private static final class PartitionedEventStoreIterator implements EventStoreIterator {

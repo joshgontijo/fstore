@@ -1,4 +1,4 @@
-package io.joshworks.fstore.es.shared.tcp;
+package io.joshworks.fstore.es.shared.messages;
 
 import java.util.Map;
 

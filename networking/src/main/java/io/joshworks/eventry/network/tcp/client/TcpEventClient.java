@@ -4,6 +4,7 @@ import io.joshworks.eventry.network.tcp.EventHandler;
 import io.joshworks.eventry.network.tcp.TcpClientConnection;
 import io.joshworks.eventry.network.tcp.TcpConnection;
 import io.joshworks.eventry.network.tcp.TcpMessageClient;
+import io.joshworks.eventry.network.tcp.internal.ResponseTable;
 import io.joshworks.fstore.core.util.Size;
 import org.xnio.Option;
 import org.xnio.OptionMap;
@@ -29,6 +30,7 @@ public class TcpEventClient {
     private final Set<Class> registeredTypes = new HashSet<>();
     private long keepAliveInterval = -1;
     private int bufferSize = Size.MB.ofInt(1);
+    private ResponseTable responseTable = new ResponseTable();
 
     private TcpEventClient() {
 
@@ -61,6 +63,11 @@ public class TcpEventClient {
         return this;
     }
 
+    public TcpEventClient responseTable(ResponseTable table) {
+        this.responseTable = table;
+        return this;
+    }
+
     public TcpEventClient onEvent(EventHandler handler) {
         this.handler = handler;
         return this;
@@ -72,7 +79,7 @@ public class TcpEventClient {
     }
 
     public TcpClientConnection connect(InetSocketAddress bindAddress, long timeout, TimeUnit unit) {
-        TcpMessageClient client = new TcpMessageClient(options.getMap(), bindAddress, registeredTypes, bufferSize, keepAliveInterval, onClose, handler);
+        TcpMessageClient client = new TcpMessageClient(options.getMap(), bindAddress, registeredTypes, bufferSize, keepAliveInterval, onClose, handler, responseTable);
         return client.connect(timeout, unit);
     }
 }

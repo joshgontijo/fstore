@@ -3,93 +3,74 @@ package io.joshworks.fstore.client;
 import io.joshworks.eventry.network.tcp.TcpClientConnection;
 import io.joshworks.eventry.network.tcp.client.TcpEventClient;
 import io.joshworks.eventry.network.tcp.internal.Response;
-import io.joshworks.fstore.core.hash.Hash;
-import io.joshworks.fstore.core.hash.XXHash;
+import io.joshworks.eventry.network.tcp.internal.ResponseTable;
+import io.joshworks.fstore.es.shared.routing.Router;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.NodeInfo;
-import io.joshworks.fstore.es.shared.StreamData;
-import io.joshworks.fstore.es.shared.tcp.Ack;
-import io.joshworks.fstore.es.shared.tcp.Append;
-import io.joshworks.fstore.es.shared.tcp.CreateStream;
-import io.joshworks.fstore.es.shared.tcp.CreateSubscription;
-import io.joshworks.fstore.es.shared.tcp.EventCreated;
-import io.joshworks.fstore.es.shared.tcp.EventData;
-import io.joshworks.fstore.es.shared.tcp.GetEvent;
-import io.joshworks.fstore.es.shared.tcp.SubscriptionCreated;
+import io.joshworks.fstore.es.shared.Node;
+import io.joshworks.fstore.es.shared.messages.Ack;
+import io.joshworks.fstore.es.shared.messages.Append;
+import io.joshworks.fstore.es.shared.messages.ClusterInfoRequest;
+import io.joshworks.fstore.es.shared.messages.ClusterNodes;
+import io.joshworks.fstore.es.shared.messages.CreateStream;
+import io.joshworks.fstore.es.shared.messages.CreateSubscription;
+import io.joshworks.fstore.es.shared.messages.EventCreated;
+import io.joshworks.fstore.es.shared.messages.EventData;
+import io.joshworks.fstore.es.shared.messages.GetEvent;
+import io.joshworks.fstore.es.shared.messages.SubscriptionCreated;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
-import io.joshworks.restclient.http.HttpResponse;
-import io.joshworks.restclient.http.Json;
-import io.joshworks.restclient.http.Unirest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.Options;
 
 import java.io.Closeable;
 import java.net.InetSocketAddress;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 public class StoreClient implements Closeable {
 
-    private static final String SERVERS_ENDPOINT = "/nodes";
-    private static final String STREAMS_ENDPOINT = "/streams";
-    private static final String METADATA = "metadata";
-
     private static final Logger logger = LoggerFactory.getLogger(StoreClient.class);
 
+    private final Map<Node, TcpClientConnection> connections = new ConcurrentHashMap<>();
+    private final List<Node> nodes = new ArrayList<>();
 
-    private final Partitions partitions = new Partitions();
+    //shared response table, allowing tco clients to submit a request and wait for a response from any server
+    private final ResponseTable responseTable = new ResponseTable();
+    private final Router router;
 
-
-
-//    private final RestClient client = RestClient.builder().baseUrl("http://localhost:9000").build();
-
-    private StoreClient(List<Node> nodes, Map<String, Node> streamMap) {
-        this.mapping.putAll(streamMap);
-        this.nodes.addAll(nodes);
+    private StoreClient(Router router) {
+        this.router = router;
     }
 
-
-    public static StoreClient connect(URL... bootstrapServers) {
-        for (URL server : bootstrapServers) {
-            try (HttpResponse<Json> nodeResp = Unirest.get(server.toExternalForm(), SERVERS_ENDPOINT).asJson()) {
-                if (!nodeResp.isSuccessful()) {
-                    throw new RuntimeException(nodeResp.asString());
+    public static StoreClient connect(Router router, InetSocketAddress... bootstrapServers) {
+        StoreClient storeClient = new StoreClient(router);
+        for (InetSocketAddress bootstrapServer : bootstrapServers) {
+            TcpClientConnection client = connect(bootstrapServer, storeClient.responseTable);
+            try {
+                Response<ClusterNodes> response = client.request(new ClusterInfoRequest());
+                ClusterNodes receivedNodes = response.get();
+                for (Node node : receivedNodes.nodes) {
+                    storeClient.nodes.add(node);
+                    storeClient.connections.put(node, connect(node.tcp(), storeClient.responseTable));
                 }
-                List<NodeInfo> nodes = nodeResp.body().asListOf(NodeInfo.class);
-                Map<String, Node> streamMap = new HashMap<>();
-                List<Node> clients = new ArrayList<>();
-                for (NodeInfo nodeInfo : nodes) {
-                    TcpClientConnection client = connect(nodeInfo.host, nodeInfo.tcpPort);
-                    Node nodeClient = new Node(nodeInfo, client);
-                    //TODO replace with TCP
-                    try (HttpResponse<Json> streamResp = Unirest.get(nodeInfo.httpAddress(), STREAMS_ENDPOINT).asJson()) {
-                        if (!streamResp.isSuccessful()) {
-                            throw new RuntimeException(streamResp.asString());
-                        }
-                        List<StreamData> serverStream = streamResp.body().asListOf(StreamData.class);
-                        for (StreamData stream : serverStream) {
-                            streamMap.put(stream.name, nodeClient);
-                        }
-                        clients.add(nodeClient);
-                    }
-                }
-                return new StoreClient(clients, streamMap);
+                return storeClient;
             } catch (Exception e) {
                 logger.warn("Failed to connect to bootstrap servers", e);
+            } finally {
+                IOUtils.closeQuietly(client);
             }
         }
+        IOUtils.closeQuietly(storeClient);
         throw new RuntimeException("Could not connect to any of the bootstrap servers");
     }
 
-    private static TcpClientConnection connect(String host, int port) {
+    private static TcpClientConnection connect(InetSocketAddress address, ResponseTable responseTable) {
         return TcpEventClient.create()
 //                .keepAlive(2, TimeUnit.SECONDS)
 //                .option(Options.SEND_BUFFER, Size.MB.ofInt(100))
@@ -97,19 +78,20 @@ public class StoreClient implements Closeable {
                 .bufferSize(Size.KB.ofInt(16))
                 .option(Options.SEND_BUFFER, Size.KB.ofInt(16))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))
+                .responseTable(responseTable)
                 .onEvent((connection, data) -> {
                     //TODO
                 })
-                .connect(new InetSocketAddress(host, port), 5, TimeUnit.SECONDS);
+                .connect(address, 5, TimeUnit.SECONDS);
     }
 
     public NodeClientIterator iterator(String pattern, int fetchSize) {
 
         List<NodeIterator> iterators = new ArrayList<>();
-        for (Node node : nodes) {
-            Response<SubscriptionCreated> send = node.client().request(new CreateSubscription(pattern));
+        for (TcpClientConnection conn : connections.values()) {
+            Response<SubscriptionCreated> send = conn.request(new CreateSubscription(pattern));
             String subId = send.get().subscriptionId;
-            iterators.add(new NodeIterator(subId, node, fetchSize));
+            iterators.add(new NodeIterator(subId, conn, fetchSize));
         }
         return new NodeClientIterator(iterators);
     }
@@ -123,12 +105,7 @@ public class StoreClient implements Closeable {
     }
 
     public EventRecord get(String stream, int version) {
-        Node node = mapping.get(stream);
-        if (node == null) {
-            throw new RuntimeException("No node for stream " + stream);
-        }
-
-        Response<EventData> response = node.client().request(new GetEvent(EventId.of(stream, version)));
+        Response<EventData> response = select(stream).request(new GetEvent(EventId.of(stream, version)));
         return response.get().record;
     }
 
@@ -150,25 +127,14 @@ public class StoreClient implements Closeable {
 //    }
 
     public EventCreated append(String stream, String type, Object event, int expectedStreamVersion) {
-        Node node = getOrAssignNode(stream);
-
         byte[] data = JsonSerializer.toBytes(event);
-        Response<EventCreated> response = node.client().request(new Append(expectedStreamVersion, EventRecord.create(stream, type, data)));
-        EventCreated created = response.get();
-        if (created.version == EventId.START_VERSION) {
-            mapping.put(stream, node); //success, add the node to mapped streams
-        }
-        return created;
+        Response<EventCreated> response = select(stream).request(new Append(expectedStreamVersion, EventRecord.create(stream, type, data)));
+        return response.get();
     }
 
     public void appendAsync(String stream, String type, Object event) {
-        if (!mapping.containsKey(stream)) {
-            throw new IllegalArgumentException("Async append can only be executed on existing stream");
-        }
-        Node node = nodeForStream(stream);
-
         byte[] data = JsonSerializer.toBytes(event);
-        node.client().send(new Append(EventId.NO_EXPECTED_VERSION, EventRecord.create(stream, type, data)));
+        select(stream).send(new Append(EventId.NO_EXPECTED_VERSION, EventRecord.create(stream, type, data)));
     }
 
     public void createStream(String name) {
@@ -176,36 +142,21 @@ public class StoreClient implements Closeable {
     }
 
     public void createStream(String name, int maxAge, int maxCount, Map<String, Integer> acl, Map<String, String> metadata) {
-        if (mapping.containsKey(name)) {
-            throw new IllegalArgumentException("Stream " + name + " already exist");
-        }
-        Node node = nodeForStream(name);
-
-        Response<Ack> response = node.client().request(new CreateStream(name, maxAge, maxCount, acl, metadata));
+        Response<Ack> response = select(name).request(new CreateStream(name, maxAge, maxCount, acl, metadata));
         Ack ack = response.get();
-        mapping.put(name, node);
     }
 
-    //hash is only used to create a stream, reading must use the map
-    private Node nodeForStream(String stream) {
-        int hash = hasher.hash32(stream.getBytes(StandardCharsets.UTF_8));
-        int nodeIdx = hash % nodes.size();
-        return nodes.get(nodeIdx);
-    }
-
-    private Node getOrAssignNode(String stream) {
-        Node node = mapping.get(stream);
+    private TcpClientConnection select(String stream) {
+        Node node = router.route(nodes, stream);
         if (node == null) {
-            node = nodeForStream(stream);
+            throw new IllegalStateException("Node must not be null for stream: " + stream);
         }
-        return node;
+        return connections.get(node);
     }
 
     @Override
     public void close() {
-        for (Node node : nodes) {
-            node.client().close();
-        }
-        nodes.clear();
+        connections.values().forEach(IOUtils::closeQuietly);
+        connections.clear();
     }
 }

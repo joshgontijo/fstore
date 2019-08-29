@@ -57,7 +57,7 @@ public class Server {
         var streams = new StreamEndpoint(store);
         var subscriptions = new Subscriptions(3, 3000, 5);
 
-        var poolingSubscription = new LocalPollingSubscription(store.thisNode().store());
+        var poolingSubscription = new LocalPollingSubscription(store);
         TcpMessageServer tcpServer = TcpMessageServer.create()
                 .onOpen(conn -> System.out.println("Connection opened"))
                 .onClose(conn -> System.out.println("Connection closed"))

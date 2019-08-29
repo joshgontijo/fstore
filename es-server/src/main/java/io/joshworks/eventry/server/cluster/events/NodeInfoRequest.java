@@ -1,11 +1,11 @@
 package io.joshworks.eventry.server.cluster.events;
 
 
-public class NodeInfoRequested  {
+public class NodeInfoRequest {
 
     public final String nodeId;
 
-    public NodeInfoRequested(String nodeId) {
+    public NodeInfoRequest(String nodeId) {
         this.nodeId = nodeId;
     }
 

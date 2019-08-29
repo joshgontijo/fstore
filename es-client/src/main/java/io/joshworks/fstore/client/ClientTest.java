@@ -1,58 +1,28 @@
 package io.joshworks.fstore.client;
 
+import io.joshworks.fstore.es.shared.routing.HashRouter;
 import io.joshworks.fstore.es.shared.EventRecord;
 
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.InetSocketAddress;
 
 public class ClientTest {
-    public static void main(String[] args) throws MalformedURLException, InterruptedException {
+    public static void main(String[] args) throws Exception {
 
-        StoreClient storeClient = StoreClient.connect(new URL("http://localhost:9000"));
-        String stream1 = "stream-1";
-        String stream2 = "stream-2";
+        StoreClient storeClient = StoreClient.connect(new HashRouter(), new InetSocketAddress("localhost", 11111));
 
-        storeClient.createStream(stream1);
-        storeClient.createStream(stream2);
-
-
-        Thread t1 = new Thread(() -> {
-            try {
-                long start = System.currentTimeMillis();
-                for (int i = 0; i < 5000000; i++) {
-//            EventCreated eventCreated = storeClient.append(stream, "USER_CREATED", new UserCreated("josh", 123));
-                    storeClient.appendAsync(stream1, "USER_CREATED", new UserCreated("josh", 123));
-                    if (i % 10000 == 0) {
-                        System.out.println("WRITE: " + i + " IN " + (System.currentTimeMillis() - start));
-                        start = System.currentTimeMillis();
-                    }
-                }
-
-            } catch (Exception e) {
-                e.printStackTrace();
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 5000000; i++) {
+            String stream = "stream-" + (i % 10000);
+            storeClient.appendAsync(stream, "USER_CREATED", new UserCreated("josh", 123));
+            if (i % 10000 == 0) {
+                System.out.println("WRITE: " + i + " IN " + (System.currentTimeMillis() - start));
+                start = System.currentTimeMillis();
             }
-        });
-
-//        Thread t2 = new Thread(() -> {
-//            long start = System.currentTimeMillis();
-//            for (int i = 0; i < 5000000; i++) {
-////            EventCreated eventCreated = storeClient.append(stream, "USER_CREATED", new UserCreated("josh", 123));
-//                storeClient.append(stream2, "USER_CREATED", new UserCreated("josh", 123));
-//                if (i % 10000 == 0) {
-//                    System.out.println(i + " IN " + (System.currentTimeMillis() - start));
-//                    start = System.currentTimeMillis();
-//                }
-//            }
-//        });
-
-        t1.start();
-//        t2.start();
-        t1.join();
-//        t2.join();
+        }
 
         System.out.println("----------------- READ ---------------");
 
-        long start = System.currentTimeMillis();
+        start = System.currentTimeMillis();
         int i = 0;
         NodeClientIterator iterator = storeClient.iterator("stream-*", 50);
         while (iterator.hasNext()) {

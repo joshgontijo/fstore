@@ -75,8 +75,7 @@ public class EventStore implements IEventStore {
 
     private final Set<StreamListener> streamListeners = ConcurrentHashMap.newKeySet();
 
-
-    private EventStore(File rootDir) {
+    protected EventStore(File rootDir) {
         long start = System.currentTimeMillis();
         this.streams = new Streams(rootDir, STREAMS_FLUSH_THRESHOLD, streamCache);
         this.index = new Index(rootDir, INDEX_FLUSH_THRESHOLD, versionCache, streams::get);
@@ -426,7 +425,7 @@ public class EventStore implements IEventStore {
         return eventLog.get(ie.position);
     }
 
-    private EventRecord resolve(EventRecord record) {
+    protected EventRecord resolve(EventRecord record) {
         if (record == null) {
             return null;
         }
