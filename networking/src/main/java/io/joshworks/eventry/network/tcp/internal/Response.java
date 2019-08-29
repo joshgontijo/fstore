@@ -65,7 +65,7 @@ public class Response<T> implements Future<T> {
             response = queue.poll(timeout, unit);
             if (response == null) {
                 cleanUp();
-                return null; //time out
+                throw new RuntimeTimeoutException(unit.toMillis(timeout));
             }
         } catch (InterruptedException e) {
             cleanUp();

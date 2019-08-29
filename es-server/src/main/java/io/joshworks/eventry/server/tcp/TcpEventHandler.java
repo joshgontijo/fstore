@@ -6,17 +6,19 @@ import io.joshworks.eventry.server.ClusterStore;
 import io.joshworks.eventry.server.subscription.polling.LocalPollingSubscription;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.tcp.Ack;
-import io.joshworks.fstore.es.shared.tcp.Append;
-import io.joshworks.fstore.es.shared.tcp.CreateStream;
-import io.joshworks.fstore.es.shared.tcp.CreateSubscription;
-import io.joshworks.fstore.es.shared.tcp.ErrorMessage;
-import io.joshworks.fstore.es.shared.tcp.EventCreated;
-import io.joshworks.fstore.es.shared.tcp.EventData;
-import io.joshworks.fstore.es.shared.tcp.EventsData;
-import io.joshworks.fstore.es.shared.tcp.GetEvent;
-import io.joshworks.fstore.es.shared.tcp.SubscriptionCreated;
-import io.joshworks.fstore.es.shared.tcp.SubscriptionIteratorNext;
+import io.joshworks.fstore.es.shared.messages.Ack;
+import io.joshworks.fstore.es.shared.messages.Append;
+import io.joshworks.fstore.es.shared.messages.ClusterInfoRequest;
+import io.joshworks.fstore.es.shared.messages.ClusterNodes;
+import io.joshworks.fstore.es.shared.messages.CreateStream;
+import io.joshworks.fstore.es.shared.messages.CreateSubscription;
+import io.joshworks.fstore.es.shared.messages.ErrorMessage;
+import io.joshworks.fstore.es.shared.messages.EventCreated;
+import io.joshworks.fstore.es.shared.messages.EventData;
+import io.joshworks.fstore.es.shared.messages.EventsData;
+import io.joshworks.fstore.es.shared.messages.GetEvent;
+import io.joshworks.fstore.es.shared.messages.SubscriptionCreated;
+import io.joshworks.fstore.es.shared.messages.SubscriptionIteratorNext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +40,7 @@ public class TcpEventHandler implements ServerEventHandler {
         this.store = store;
         this.subscription = subscription;
 
+        handlers.add(ClusterInfoRequest.class, this::clusterNodes);
         handlers.add(CreateStream.class, this::createStream);
         handlers.add(Append.class, this::append);
         handlers.add(GetEvent.class, this::getEvent);
@@ -47,7 +50,7 @@ public class TcpEventHandler implements ServerEventHandler {
 
     @Override
     public Object onRequest(TcpConnection connection, Object data) {
-        return handlers.handle(data.getClass(), connection);
+        return handlers.handle(data, connection);
     }
 
     @Override
@@ -86,7 +89,11 @@ public class TcpEventHandler implements ServerEventHandler {
         return new SubscriptionCreated(subscriptionId);
     }
 
-    private Object subscriptionIteratorNext(TcpConnection connection, SubscriptionIteratorNext msg) {
+    private ClusterNodes clusterNodes(TcpConnection connection, ClusterInfoRequest msg) {
+        return new ClusterNodes(store.nodesInfo());
+    }
+
+    private EventsData subscriptionIteratorNext(TcpConnection connection, SubscriptionIteratorNext msg) {
         List<EventRecord> entries = subscription.next(msg.subscriptionId, msg.batchSize);
         return new EventsData(entries);
     }

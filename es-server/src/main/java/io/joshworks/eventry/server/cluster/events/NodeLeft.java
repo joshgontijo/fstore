@@ -1,6 +1,6 @@
 package io.joshworks.eventry.server.cluster.events;
 
-public class NodeLeft  {
+public class NodeLeft {
 
     public final String nodeId;
 

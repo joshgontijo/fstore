@@ -1,14 +1,16 @@
 package io.joshworks.fstore.es.shared;
 
-public class NodeInfo {
+import java.net.InetSocketAddress;
+
+public class Node {
 
     public final String id;
     public final String host;
     public final int httpPort;
     public final int tcpPort;
-    public final Status status;
+    public Status status;
 
-    public NodeInfo(String id, String host, int httpPort, int tcpPort, Status status) {
+    public Node(String id, String host, int httpPort, int tcpPort, Status status) {
         this.id = id;
         this.host = host;
         this.httpPort = httpPort;
@@ -16,8 +18,12 @@ public class NodeInfo {
         this.status = status;
     }
 
-    public String httpAddress() {
-        return "http://" + host + ":" + httpPort;
+    public InetSocketAddress http() {
+        return new InetSocketAddress(host, httpPort);
+    }
+
+    public InetSocketAddress tcp() {
+        return new InetSocketAddress(host, tcpPort);
     }
 
     @Override

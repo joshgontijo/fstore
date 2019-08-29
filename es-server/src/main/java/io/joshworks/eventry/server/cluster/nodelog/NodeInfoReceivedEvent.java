@@ -1,22 +1,17 @@
 package io.joshworks.eventry.server.cluster.nodelog;
 
 import io.joshworks.fstore.es.shared.EventRecord;
+import io.joshworks.fstore.es.shared.Node;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
-
-import java.util.Set;
 
 public class NodeInfoReceivedEvent implements NodeEvent {
 
     public static final String TYPE = "NODE_INFO_RECEIVED";
 
-    public final String nodeId;
-    public final String address;
-    public final Set<Integer> partitions;
+    public final Node node;
 
-    public NodeInfoReceivedEvent(String nodeId, String address, Set<Integer> partitions) {
-        this.nodeId = nodeId;
-        this.address = address;
-        this.partitions = partitions;
+    public NodeInfoReceivedEvent( Node node) {
+        this.node = node;
     }
 
     public static NodeInfoReceivedEvent from(EventRecord record) {

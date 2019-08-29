@@ -1,12 +1,12 @@
 package io.joshworks.eventry.server;
 
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.eventry.stream.StreamInfo;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.es.shared.tcp.EventCreated;
 import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.StreamData;
+import io.joshworks.fstore.es.shared.messages.EventCreated;
 import io.joshworks.fstore.es.shared.utils.StringUtils;
 import io.joshworks.snappy.http.MediaType;
 import io.joshworks.snappy.http.Request;
