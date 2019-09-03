@@ -17,22 +17,26 @@ import io.joshworks.eventry.server.cluster.nodelog.NodeLog;
 import io.joshworks.eventry.server.cluster.nodelog.NodeShutdownEvent;
 import io.joshworks.eventry.server.cluster.nodelog.NodeStartedEvent;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.Node;
 import io.joshworks.fstore.es.shared.Status;
 import io.joshworks.fstore.es.shared.routing.HashRouter;
 import io.joshworks.fstore.es.shared.routing.Router;
+import io.joshworks.fstore.es.shared.streams.StreamPattern;
+import io.joshworks.fstore.es.shared.utils.StringUtils;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static io.joshworks.fstore.es.shared.EventId.START_VERSION;
@@ -142,6 +146,7 @@ public class ClusterStore extends EventStore {
         return record;
     }
 
+
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
         EventRecord record = super.append(event, expectedVersion);
@@ -152,17 +157,29 @@ public class ClusterStore extends EventStore {
     }
 
     @Override
-    protected EventRecord resolve(EventRecord event) {
-        //do not resolve
-        Node node = router.route(clusterState.all(), event.stream);
-        if(clusterState.thisNode().equals(node)) {
-            return super.resolve(event);
-        }
-        //do not resolve
-        ReplyTo msg = new ReplyTo();
-        cluster.client().sendAsync(cluster.node(node.id).address, msg);
+    public EventStoreIterator fromStreams(EventMap checkpoint, Set<String> streamPatterns) {
+        Map<Boolean, List<String>> items = streamPatterns.stream()
+                .map(String::trim)
+                .filter(StringUtils::nonBlank)
+                .collect(Collectors.partitioningBy(StreamPattern::isWildcard));
 
-        throw new UnsupportedOperationException("TODO IMPLEMENT CLUSTER REDIRECT");
+        Set<String> wildcard = new HashSet<>(items.get(true));
+        Set<String> nonWildcard = new HashSet<>(items.get(false));
+
+        Set<String> thisNodePatterns = new HashSet<>(wildcard);
+
+        for (String pattern : nonWildcard) {
+            Node node = HashRouter.select(clusterState.all(), pattern);
+            if (node.equals(thisNode())) {
+                thisNodePatterns.add(pattern);
+            }
+        }
+
+        if (thisNodePatterns.isEmpty()) {
+            return null;
+        }
+        return super.fromStreams(checkpoint, thisNodePatterns);
+
     }
 
     @Override

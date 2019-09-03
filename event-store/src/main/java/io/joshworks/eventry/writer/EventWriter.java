@@ -2,6 +2,7 @@ package io.joshworks.eventry.writer;
 
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.log.IEventLog;
+import io.joshworks.fstore.core.metrics.MetricRegistry;
 import io.joshworks.fstore.core.util.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,14 +20,16 @@ import java.util.function.Function;
 public class EventWriter implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(EventWriter.class);
+    public static final String EVENT_WRITER = "event-writer";
     private final Writer writer;
     private final ThreadPoolExecutor executor;
     private final BlockingQueue<Runnable> queue;
 
     public EventWriter(IEventLog eventLog, Index index, int maxQueueSize) {
         this.queue = maxQueueSize < 0 ? new LinkedBlockingDeque<>() : new ArrayBlockingQueue<>(maxQueueSize);
-        this.executor = new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, queue, Threads.namedThreadFactory("event-writer"), new ThreadPoolExecutor.AbortPolicy());
+        this.executor = new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, queue, Threads.namedThreadFactory(EVENT_WRITER), new ThreadPoolExecutor.AbortPolicy());
         this.writer = new Writer(eventLog, index);
+        MetricRegistry.monitor(EVENT_WRITER, executor);
     }
 
     public <R> Future<R> queue(Function<Writer, R> func) {

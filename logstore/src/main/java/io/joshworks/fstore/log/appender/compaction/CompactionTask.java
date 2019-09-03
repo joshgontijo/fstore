@@ -52,6 +52,7 @@ public class CompactionTask<T> implements Runnable {
         Log<T> output = null;
         try {
             long newSegmentLogSize = segments.stream().mapToLong(this::totalLogicalSize).sum();
+            long totalEntries = segments.stream().mapToLong(Log::entries).sum();
 
             String names = Arrays.toString(segments.stream().map(Log::name).toArray());
             logger.info("Compacting {} from level {} using {}, new segment computed size: {}", names, level, combiner.getClass().getSimpleName(), newSegmentLogSize);
@@ -63,7 +64,7 @@ public class CompactionTask<T> implements Runnable {
 
             long start = System.currentTimeMillis();
 
-            output = segmentFactory.createOrOpen(segmentFile, storageMode, newSegmentLogSize, serializer, bufferPool, WriteMode.MERGE_OUT, checksumProbability, readPageSize);
+            output = segmentFactory.mergeOut(segmentFile, storageMode, newSegmentLogSize, totalEntries, serializer, bufferPool, WriteMode.MERGE_OUT, checksumProbability, readPageSize);
 
             combiner.merge(segments, output);
             output.flush();

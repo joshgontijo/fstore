@@ -21,4 +21,9 @@ class NoCache<K, V> implements Cache<K, V> {
     public void clear() {
 
     }
+
+    @Override
+    public long size() {
+        return 0;
+    }
 }

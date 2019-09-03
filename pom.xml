@@ -23,6 +23,7 @@
         <module>es-client</module>
         <module>es-shared</module>
         <module>cli</module>
+        <module>metrics</module>
     </modules>
 
     <properties>

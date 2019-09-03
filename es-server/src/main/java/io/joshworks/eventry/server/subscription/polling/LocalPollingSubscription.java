@@ -2,6 +2,7 @@ package io.joshworks.eventry.server.subscription.polling;
 
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
 
@@ -21,9 +22,12 @@ public class LocalPollingSubscription {
         this.localStore = localStore;
     }
 
-    public String create(String pattern) {
+    public String create(Set<String> patterns) {
         String subscriptionId = UUID.randomUUID().toString().substring(0, 8);
-        EventStoreIterator iterator = localStore.fromStreams(EventMap.empty(), Set.of(pattern));
+        EventStoreIterator iterator = localStore.fromStreams(EventMap.empty(), patterns);
+        if (iterator == null) { //no streams matching this node
+            return null;
+        }
         localIterators.put(subscriptionId, iterator);
         return subscriptionId;
     }
@@ -39,6 +43,11 @@ public class LocalPollingSubscription {
             records.add(it.next());
         }
         return records;
+    }
+
+    public void close(String subscriptionId) {
+        EventStoreIterator iterator = localIterators.get(subscriptionId);
+        IOUtils.closeQuietly(iterator);
     }
 
 

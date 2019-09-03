@@ -10,10 +10,13 @@ public interface Cache<K, V> {
 
     void clear();
 
+    long size();
+
     static <K, V> Cache<K, V> lruCache(int size, int maxAgeSec) {
         return size > 0 ? new LRUCache<>(size, maxAgeSec) : new NoCache<>();
     }
 
+    //TODO SOFT MAP accumulating too much memory
     static <K, V> Cache<K, V> softCache() {
         return new SoftCache<>();
     }

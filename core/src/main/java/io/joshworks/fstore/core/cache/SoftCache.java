@@ -25,4 +25,9 @@ class SoftCache<K, V> implements Cache<K, V> {
     public void clear() {
         map.clear();
     }
+
+    @Override
+    public long size() {
+        return map.size();
+    }
 }

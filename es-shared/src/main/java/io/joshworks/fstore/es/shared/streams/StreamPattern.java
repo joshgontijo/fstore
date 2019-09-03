@@ -42,4 +42,8 @@ public class StreamPattern {
         return streamName.equals(pattern);
     }
 
+    public static boolean isWildcard(String pattern) {
+        return !StringUtils.isBlank(pattern) && pattern.contains(WILDCARD);
+    }
+
 }

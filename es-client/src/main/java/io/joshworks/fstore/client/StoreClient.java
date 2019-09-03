@@ -4,7 +4,6 @@ import io.joshworks.eventry.network.tcp.TcpClientConnection;
 import io.joshworks.eventry.network.tcp.client.TcpEventClient;
 import io.joshworks.eventry.network.tcp.internal.Response;
 import io.joshworks.eventry.network.tcp.internal.ResponseTable;
-import io.joshworks.fstore.es.shared.routing.Router;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventId;
@@ -19,7 +18,9 @@ import io.joshworks.fstore.es.shared.messages.CreateSubscription;
 import io.joshworks.fstore.es.shared.messages.EventCreated;
 import io.joshworks.fstore.es.shared.messages.EventData;
 import io.joshworks.fstore.es.shared.messages.GetEvent;
+import io.joshworks.fstore.es.shared.messages.LinkToMessage;
 import io.joshworks.fstore.es.shared.messages.SubscriptionCreated;
+import io.joshworks.fstore.es.shared.routing.Router;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 
 public class StoreClient implements Closeable {
 
@@ -75,6 +78,8 @@ public class StoreClient implements Closeable {
 //                .keepAlive(2, TimeUnit.SECONDS)
 //                .option(Options.SEND_BUFFER, Size.MB.ofInt(100))
                 .option(Options.WORKER_IO_THREADS, 1)
+                .option(Options.WORKER_TASK_CORE_THREADS, 1)
+                .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .bufferSize(Size.KB.ofInt(16))
                 .option(Options.SEND_BUFFER, Size.KB.ofInt(16))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))
@@ -85,46 +90,48 @@ public class StoreClient implements Closeable {
                 .connect(address, 5, TimeUnit.SECONDS);
     }
 
-    public NodeClientIterator iterator(String pattern, int fetchSize) {
+    public NodeClientIterator iterator(int fetchSize, String... patterns) {
 
         List<NodeIterator> iterators = new ArrayList<>();
         for (TcpClientConnection conn : connections.values()) {
-            Response<SubscriptionCreated> send = conn.request(new CreateSubscription(pattern));
-            String subId = send.get().subscriptionId;
-            iterators.add(new NodeIterator(subId, conn, fetchSize));
+            Response<SubscriptionCreated> send = conn.request(new CreateSubscription(patterns));
+            String subId = send.get(30, TimeUnit.MINUTES).subscriptionId;
+            if (subId != null) {
+                iterators.add(new NodeIterator(subId, conn, fetchSize));
+            }
+        }
+        if (iterators.isEmpty()) { //safeguard
+            throw new IllegalStateException("None of the nodes matched the provided pattern");
         }
         return new NodeClientIterator(iterators);
     }
 
-    public Subscription subscribe(String pattern) {
-        throw new UnsupportedOperationException("TODO");
-//        Set<String> matches = mapping.keySet()
-//                .stream()
-//                .filter(stream -> StreamPattern.matches(stream, pattern))
-//                .collect(Collectors.toSet());
-    }
+//    public Subscription subscribe(String pattern) {
+//        throw new UnsupportedOperationException("TODO");
+////        Set<String> matches = mapping.keySet()
+////                .stream()
+////                .filter(stream -> StreamPattern.matches(stream, pattern))
+////                .collect(Collectors.toSet());
+//    }
 
     public EventRecord get(String stream, int version) {
         Response<EventData> response = select(stream).request(new GetEvent(EventId.of(stream, version)));
         return response.get().record;
     }
 
-    public EventCreated append(String stream, String type, Object event) {
-        return append(stream, type, event, EventId.NO_EXPECTED_VERSION);
+    public EventCreated linkTo(String stream, EventRecord event) {
+        return linkTo(stream, NO_EXPECTED_VERSION, event);
     }
 
-//    public EventCreated appendHttp(String stream, String type, Object event) {
-//        byte[] data = JsonSerializer.toBytes(event);
-//        HttpResponse<EventCreated> response = client.post(STREAMS_ENDPOINT, stream)
-//                .contentType("json")
-//                .header("Connection", "Keep-Alive")
-//                .header("Keep-Alive", "timeout=5000, max=1000000")
-//                .header(EVENT_TYPE_HEADER, type)
-//                .body(EventRecord.create(stream, type, data))
-//                .asObject(EventCreated.class);
-//
-//        return response.body();
-//    }
+    //TODO expected version not implemented in the backend
+    public EventCreated linkTo(String stream, int expectedVersion, EventRecord event) {
+        Response<EventCreated> response = select(event.stream).request(new LinkToMessage(stream, expectedVersion, event.stream, event.type, event.version));
+        return response.get();
+    }
+
+    public EventCreated append(String stream, String type, Object event) {
+        return append(stream, type, event, NO_EXPECTED_VERSION);
+    }
 
     public EventCreated append(String stream, String type, Object event, int expectedStreamVersion) {
         byte[] data = JsonSerializer.toBytes(event);
@@ -134,7 +141,7 @@ public class StoreClient implements Closeable {
 
     public void appendAsync(String stream, String type, Object event) {
         byte[] data = JsonSerializer.toBytes(event);
-        select(stream).send(new Append(EventId.NO_EXPECTED_VERSION, EventRecord.create(stream, type, data)));
+        select(stream).send(new Append(NO_EXPECTED_VERSION, EventRecord.create(stream, type, data)));
     }
 
     public void createStream(String name) {

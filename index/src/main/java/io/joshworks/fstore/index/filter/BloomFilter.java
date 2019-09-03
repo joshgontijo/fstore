@@ -32,6 +32,7 @@ public class BloomFilter {
     private static final int HEADER_SIZE = Integer.BYTES * 3;
 
     BitSet hashes;
+    private final long size;
     private BloomFilterHasher hash;
     private final int m; // The number of bits in the filter
     private int k; // Number of hash functions
@@ -45,6 +46,7 @@ public class BloomFilter {
         this.k = getOptimalNumberOfHashesByBits(n, this.m);
         this.hash = BloomFilterHasher.murmur64();
         this.hashes = new BitSet(this.m);
+        this.size = m / Byte.SIZE;
     }
 
     /**
@@ -54,8 +56,9 @@ public class BloomFilter {
      * @param m      The number of bits in the 'hashes'
      * @param k      The number of hash functions
      */
-    private BloomFilter(BitSet hashes, int m, int k) {
+    private BloomFilter(BitSet hashes, int m, int k, long size) {
         this.hashes = hashes;
+        this.size = size;
         this.hash = BloomFilterHasher.murmur64();
         this.m = m;
         this.k = k;
@@ -192,7 +195,7 @@ public class BloomFilter {
             throw new IllegalStateException("Could not find Bloom filter header block");
         }
 
-        int length = headerBlock.get(0).getInt(); //unused
+        int size = headerBlock.get(0).getInt();
         int m = headerBlock.get(1).getInt();
         int k = headerBlock.get(2).getInt();
         long[] longs = readEntries(reader, codec, bufferPool);
@@ -200,7 +203,7 @@ public class BloomFilter {
         BitSet bitSet = new BitSet(m);
         bitSet.or(BitSet.valueOf(longs));
 
-        return new BloomFilter(bitSet, m, k);
+        return new BloomFilter(bitSet, m, k, size);
     }
 
     private static long[] readEntries(FooterReader reader, Codec codec, BufferPool bufferPool) {
@@ -234,6 +237,10 @@ public class BloomFilter {
     private static Block readHeader(FooterReader reader, Codec codec) {
         BlockFactory blockFactory = headerBlockFactory();
         return reader.read(BLOOM_HEADER, new BlockSerializer(codec, blockFactory));
+    }
+
+    public long size() {
+        return size;
     }
 
     @Override

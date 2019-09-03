@@ -45,7 +45,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
@@ -61,15 +60,15 @@ public class EventStore implements IEventStore {
     private static final Logger logger = LoggerFactory.getLogger("event-store");
 
     private static final int WRITE_QUEUE_SIZE = 1000000;
-    private static final int INDEX_FLUSH_THRESHOLD = 40000;
+    private static final int INDEX_FLUSH_THRESHOLD = 1000000;
     private static final int STREAMS_FLUSH_THRESHOLD = 50000;
 
     //TODO externalize
-    private final Cache<Long, AtomicInteger> versionCache = Cache.softCache();
-    private final Cache<Long, StreamMetadata> streamCache = Cache.softCache();
+    private final Cache<Long, Integer> versionCache = Cache.lruCache(1000000, -1);
+    private final Cache<Long, StreamMetadata> streamCache = Cache.lruCache(100000, 120);
 
     public final Index index;
-    public final Streams streams; //TODO fix test to make this private
+    public final Streams streams; //TODO fix test to make this protected
     private final IEventLog eventLog;
     private final EventWriter eventWriter;
 
@@ -174,14 +173,6 @@ public class EventStore implements IEventStore {
         }
 
         logger.info("Loaded {} index entries in {}ms", index.size(), (System.currentTimeMillis() - start));
-    }
-
-    //replication
-    public Future<EventRecord> add(EventRecord record) {
-        return eventWriter.queue(writer -> {
-            StreamMetadata metadata = getOrCreateStream(writer, record.stream);
-            return writer.append(record, NO_EXPECTED_VERSION, metadata);
-        });
     }
 
     public Future<Void> append(List<EventRecord> events) {
@@ -348,7 +339,7 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public EventRecord linkTo(String stream, final EventRecord event) {
+    public EventRecord linkTo(String stream, EventRecord event) {
         Future<EventRecord> future = eventWriter.queue(writer -> {
             EventRecord resolved = resolve(event);
             StreamMetadata metadata = getOrCreateStream(writer, stream);
@@ -398,6 +389,7 @@ public class EventStore implements IEventStore {
         return streams.createIfAbsent(stream, created -> {
             EventRecord eventRecord = StreamCreated.create(created);
             StreamMetadata metadata = streams.get(SystemStreams.STREAMS);
+            versionCache.add(created.hash, NO_VERSION); //cache, so when Writer is called the info will be available
             writer.append(eventRecord, NO_EXPECTED_VERSION, metadata);
             for (StreamListener listener : streamListeners) {
                 listener.onStreamCreated(created);

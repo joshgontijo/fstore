@@ -2,13 +2,14 @@ package io.joshworks.eventry.stream;
 
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.serializer.json.JsonSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
 import java.io.Closeable;
 import java.io.File;
@@ -38,12 +39,14 @@ public class Streams implements Closeable {
 
     public Streams(File root, int flushThreshold, Cache<Long, StreamMetadata> cache) {
         this.cache = cache;
-        this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, JsonSerializer.of(StreamMetadata.class))
+        this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, KryoStoreSerializer.of(StreamMetadata.class))
                 .name(STORE_NAME)
                 .flushThreshold(flushThreshold)
                 .bloomFilter(0.01, flushThreshold)
                 .transacationLogStorageMode(StorageMode.MMAP)
                 .sstableStorageMode(StorageMode.MMAP)
+                .blockSize(Size.KB.ofInt(2))
+                .blockCache(Cache.lruCache(5000, -1))
                 .open();
     }
 

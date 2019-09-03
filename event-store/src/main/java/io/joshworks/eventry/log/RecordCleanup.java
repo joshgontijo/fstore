@@ -12,7 +12,7 @@ import io.joshworks.fstore.log.segment.Log;
 
 import java.util.List;
 
-import static io.joshworks.eventry.EventUtils.validIndexEntry;
+import static io.joshworks.eventry.EventUtils.isValidEntry;
 
 public class RecordCleanup implements SegmentCombiner<EventRecord> {
 
@@ -44,7 +44,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
                 int version = record.version;
                 long timestamp = record.timestamp;
 
-                if (!validIndexEntry(metadata, version, timestamp, index::version)) {
+                if (!isValidEntry(metadata, version, timestamp, index::version)) {
                     continue;
                 }
 
@@ -78,7 +78,7 @@ public class RecordCleanup implements SegmentCombiner<EventRecord> {
         StreamMetadata tgtMetadata = getMetadata(targetStream);
 
         //isExpired we can use the LinkTo event TS, since it will always be equals or greater than the original TS
-        return validIndexEntry(tgtMetadata, targetVersion, timestamp, index::version);
+        return isValidEntry(tgtMetadata, targetVersion, timestamp, index::version);
     }
 
     private StreamMetadata getMetadata(String stream) {

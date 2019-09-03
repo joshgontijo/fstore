@@ -17,7 +17,10 @@ public class ResponseTable {
         long reqId = reqids.getAndIncrement();
         Message message = new Message(reqId, data);
         LengthPrefixCodec.serialize(message, buffer);
-        return new Response<>(reqId, table::remove);
+        Response<T> response = new Response<>(reqId, table::remove);
+        table.put(reqId, response);
+        return response;
+
     }
 
     public Response complete(long id) {
