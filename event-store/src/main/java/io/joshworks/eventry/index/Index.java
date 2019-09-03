@@ -18,7 +18,6 @@ import java.io.Closeable;
 import java.io.File;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
@@ -31,10 +30,10 @@ public class Index implements Closeable {
 
     private static final String NAME = "index";
     private final LsmTree<IndexKey, Long> lsmTree;
-    private final Cache<Long, AtomicInteger> versionCache;
+    private final Cache<Long, Integer> versionCache;
     private final Function<Long, StreamMetadata> metadataSupplier;
 
-    public Index(File rootDir, int indexFlushThreshold, Cache<Long, AtomicInteger> versionCache, Function<Long, StreamMetadata> metadataSupplier) {
+    public Index(File rootDir, int indexFlushThreshold, Cache<Long, Integer> versionCache, Function<Long, StreamMetadata> metadataSupplier) {
         this.versionCache = versionCache;
         this.metadataSupplier = metadataSupplier;
         this.lsmTree = LsmTree.builder(new File(rootDir, NAME), new IndexKeySerializer(), Serializers.LONG)
@@ -43,7 +42,7 @@ public class Index implements Closeable {
                 .sstableStorageMode(StorageMode.MMAP)
                 .blockFactory(Block.flenBlock(INDEX_ENTRY_BYTES))
                 .codec(new SnappyCodec())
-                .blockSize(Memory.PAGE_SIZE * 2)
+                .blockSize(Memory.PAGE_SIZE)
                 .flushOnClose(false)
                 .blockCache(Cache.lruCache(100, 60))
                 .maxAge(Long.MAX_VALUE)
@@ -59,8 +58,9 @@ public class Index implements Closeable {
     }
 
     public boolean add(long hash, int version, long position) {
-        updateVersionIfCached(hash, version);
-        return lsmTree.put(new IndexKey(hash, version), position);
+        boolean put = lsmTree.put(new IndexKey(hash, version), position);
+        versionCache.add(hash, version);
+        return put;
     }
 
     public long size() {
@@ -84,15 +84,15 @@ public class Index implements Closeable {
      * Performs a backward scan on SSTables until the first key matching the stream
      */
     public int version(long stream) {
-        AtomicInteger cached = versionCache.get(stream);
+        Integer cached = versionCache.get(stream);
         if (cached != null) {
-            return cached.get();
+            return cached;
         }
         IndexKey maxStreamVersion = IndexKey.allOf(stream).end();
         Entry<IndexKey, Long> found = lsmTree.find(maxStreamVersion, Expression.FLOOR, entry -> matchStream(stream, entry));
         if (found != null) {
             int fetched = found.key.version;
-            versionCache.add(stream, new AtomicInteger(fetched));
+            versionCache.add(stream, fetched);
             return fetched;
         }
         return NO_VERSION;
@@ -102,12 +102,6 @@ public class Index implements Closeable {
         return entry.key.stream == stream;
     }
 
-    private void updateVersionIfCached(long hash, int version) {
-        AtomicInteger cached = versionCache.get(hash);
-        if (cached != null) {
-            cached.set(version);
-        }
-    }
 
     public IndexIterator iterator(EventMap eventMap) {
         FixedIndexIterator iterator = new FixedIndexIterator(lsmTree, Direction.FORWARD, eventMap);

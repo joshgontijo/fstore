@@ -71,6 +71,7 @@ public final class Segment<T> implements Log<T> {
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<SegmentIterator> readers = ConcurrentHashMap.newKeySet();
 
+
     public Segment(
             File file,
             StorageMode storageMode,

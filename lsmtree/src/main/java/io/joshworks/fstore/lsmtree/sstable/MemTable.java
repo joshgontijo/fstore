@@ -1,6 +1,8 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.metrics.MetricRegistry;
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
@@ -16,6 +18,12 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
     private final ConcurrentSkipListSet<Entry<K, V>> table = new ConcurrentSkipListSet<>();
     private final AtomicInteger size = new AtomicInteger();
+    private final Metrics metrics;
+
+    public MemTable(String name) {
+        metrics = MetricRegistry.create("lsm.memtable." + name);
+        metrics.register("size", () -> (long) size.get());
+    }
 
     public int add(Entry<K, V> entry) {
         requireNonNull(entry, "Entry must be provided");

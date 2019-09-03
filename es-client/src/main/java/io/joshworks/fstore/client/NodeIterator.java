@@ -4,8 +4,8 @@ import io.joshworks.eventry.network.tcp.TcpClientConnection;
 import io.joshworks.eventry.network.tcp.internal.Response;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.Node;
 import io.joshworks.fstore.es.shared.messages.EventsData;
+import io.joshworks.fstore.es.shared.messages.SubscriptionClose;
 import io.joshworks.fstore.es.shared.messages.SubscriptionIteratorNext;
 
 import java.util.ArrayDeque;
@@ -56,7 +56,7 @@ public class NodeIterator implements ClientStreamIterator {
 
     @Override
     public void close() {
-
+       conn.send(new SubscriptionClose(subscriptionId));
     }
 
 }

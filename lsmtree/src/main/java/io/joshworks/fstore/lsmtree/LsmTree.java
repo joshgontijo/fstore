@@ -5,12 +5,13 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.metrics.MetricRegistry;
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
 import io.joshworks.fstore.log.segment.Log;
@@ -42,19 +43,24 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private final int flushThreshold;
     private final boolean logDisabled;
     private final boolean flushOnClose;
+    private final String name;
 
     private MemTable<K, V> memTable;
     private final long maxAge;
 
+    private final Metrics metrics;
+
     private LsmTree(Builder<K, V> builder) {
+        this.name = builder.name;
         this.maxAge = builder.maxAgeSeconds;
         this.sstables = createSSTable(builder);
         this.log = createTransactionLog(builder);
-        this.memTable = new MemTable<>();
+        this.memTable = new MemTable<>(builder.name);
         this.flushThreshold = builder.flushThreshold;
         this.logDisabled = builder.logDisabled;
         this.flushOnClose = builder.flushOnClose;
         this.log.restore(this::restore);
+        this.metrics = MetricRegistry.create("lsm." + builder.name);
     }
 
     public static <K extends Comparable<K>, V> Builder<K, V> builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -100,6 +106,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         requireNonNull(value, "Value must be provided");
         LogRecord<K, V> record = LogRecord.add(key, value);
         log.append(record);
+        metrics.update("puts");
 
         Entry<K, V> entry = Entry.add(key, value);
         memTable.add(entry);
@@ -111,12 +118,15 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public V get(K key) {
+        metrics.update("gets");
         Entry<K, V> entry = getEntry(key);
         return entry == null ? null : entry.value;
     }
 
     public Entry<K, V> getEntry(K key) {
         requireNonNull(key, "Key must be provided");
+
+        metrics.update("gets");
         Entry<K, V> fromMem = memTable.get(key);
         if (fromMem != null) {
             return fromMem;
@@ -125,6 +135,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public void remove(K key) {
+        metrics.update("deletes");
         requireNonNull(key, "Key must be provided");
         log.append(LogRecord.delete(key));
         memTable.add(Entry.delete(key));
@@ -174,6 +185,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
      * @return The first match, or null
      */
     public Entry<K, V> find(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
+        metrics.update("finds");
         Entry<K, V> fromMem = expression.apply(key, memTable);
         if (matchEntry(matcher, fromMem)) {
             return fromMem;
@@ -218,6 +230,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
         sstables.close();
         log.close();
+        metrics.close();
     }
 
     private synchronized void flushMemTable(boolean force) {
@@ -229,7 +242,8 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         if (inserted > 0) {
             log.markFlushed();
         }
-        memTable = new MemTable<>();
+        memTable = new MemTable<>(name);
+        metrics.update("memFlush");
     }
 
     private void restore(LogRecord<K, V> record) {
@@ -264,7 +278,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private StorageMode tlogStorageMode = StorageMode.RAF;
         private long segmentSize = Size.MB.of(32);
 
-        private Cache<String, Block> blockCache = Cache.softCache();
+        private Cache<String, Block> blockCache = Cache.lruCache(1000, -1);
         private boolean flushOnClose = true;
         private long maxAgeSeconds = NO_MAX_AGE;
 

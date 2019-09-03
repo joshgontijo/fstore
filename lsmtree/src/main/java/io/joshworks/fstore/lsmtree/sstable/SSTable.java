@@ -2,10 +2,12 @@ package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.metrics.MetricRegistry;
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.index.Range;
-import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.index.filter.BloomFilter;
 import io.joshworks.fstore.index.midpoints.Midpoint;
 import io.joshworks.fstore.index.midpoints.Midpoints;
@@ -52,6 +54,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private final Midpoints<K> midpoints;
 
     private final long maxAge;
+
+    private static final Metrics metrics = MetricRegistry.create("sstable");
+    private static final Metrics blockCacheMetrics = MetricRegistry.create("sstable.blockCache");
+    private static final Metrics midpointsMetrics = MetricRegistry.create("sstable.midpoints");
+    private static final Metrics bloomFilterMetrics = MetricRegistry.create("sstable.bloomFilter");
 
     private final Cache<String, Block> blockCache;
 
@@ -167,6 +174,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             keySerializer.writeTo(key, bb);
             bb.flip();
             if (!bloomFilter.contains(bb)) {
+                metrics.update("bloom.filtered");
                 return null;
             }
         }
@@ -175,7 +183,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             return null;
         }
 
-        return readFromBlock(key, midpoint);
+        Entry<K, V> found = readFromBlock(key, midpoint);
+        if (found == null) {
+            metrics.update("bloom.fp");
+        }
+        return found;
     }
 
     public K firstKey() {
@@ -365,12 +377,15 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         String cacheKey = cacheKey(midpoint.position);
         Block cached = blockCache.get(cacheKey);
         if (cached == null) {
+            blockCacheMetrics.update("miss");
             Block block = delegate.getBlock(midpoint.position);
             if (block == null) {
                 return null;
             }
             blockCache.add(cacheKey, block);
             return tryReadBlockEntry(key, block);
+        } else {
+            blockCacheMetrics.update("hit");
         }
         return tryReadBlockEntry(key, cached);
     }
@@ -475,11 +490,17 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     @Override
     public void delete() {
         delegate.delete();
+        blockCacheMetrics.update("size", -blockCache.size());
+        midpointsMetrics.update("size", -midpoints.size());
+        bloomFilterMetrics.update("size", -bloomFilter.size());
     }
 
     @Override
     public void roll(int level, boolean trim) {
         delegate.roll(level, trim);
+        blockCacheMetrics.update("size", blockCache.size());
+        midpointsMetrics.update("size", midpoints.size());
+        bloomFilterMetrics.update("size", bloomFilter.size());
     }
 
     @Override
@@ -583,6 +604,28 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                     footerCodec,
                     blockCache,
                     bloomNItems,
+                    bloomFPProb,
+                    blockSize,
+                    checksumProb,
+                    readPageSize);
+        }
+
+        @Override
+        public Log<Entry<K, V>> mergeOut(File file, StorageMode storageMode, long dataLength, long entries, Serializer<Entry<K, V>> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
+            return new SSTable<>(
+                    file,
+                    storageMode,
+                    dataLength,
+                    keySerializer,
+                    valueSerializer,
+                    bufferPool,
+                    writeMode,
+                    blockFactory,
+                    maxAge,
+                    codec,
+                    footerCodec,
+                    blockCache,
+                    entries,
                     bloomFPProb,
                     blockSize,
                     checksumProb,

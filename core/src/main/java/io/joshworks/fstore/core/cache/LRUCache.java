@@ -90,6 +90,9 @@ class LRUCache<K, V> implements Cache<K, V> {
                     this.remove(oldest.key());
                 }
             }
+        } else {
+            value.value = newValue;
+            bumpAccess(value);
         }
     }
 
@@ -100,7 +103,7 @@ class LRUCache<K, V> implements Cache<K, V> {
             return null;
         }
         long expires = cacheEntry.getExpires();
-        if (expires != -1) {
+        if (expires >= 0) {
             if (System.currentTimeMillis() > expires) {
                 remove(key);
                 return null;
@@ -148,6 +151,11 @@ class LRUCache<K, V> implements Cache<K, V> {
         } else {
             return null;
         }
+    }
+
+    @Override
+    public long size() {
+        return cache.size();
     }
 
     @Override

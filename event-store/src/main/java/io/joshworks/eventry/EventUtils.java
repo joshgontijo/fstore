@@ -6,7 +6,7 @@ import java.util.function.Function;
 
 public class EventUtils {
 
-    public static boolean validIndexEntry(StreamMetadata metadata, int version, long timestamp, Function<Long, Integer> versionFetcher) {
+    public static boolean isValidEntry(StreamMetadata metadata, int version, long timestamp, Function<Long, Integer> versionFetcher) {
         if (metadata.streamDeleted()) {
             return false;
         }

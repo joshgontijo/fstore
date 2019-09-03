@@ -58,7 +58,7 @@ class IndexFilter implements IndexIterator {
     //count is based on stream version rather than event count
     private boolean validEntry(IndexEntry last) {
         StreamMetadata metadata = metadataSupplier.apply(last.stream);
-        return EventUtils.validIndexEntry(metadata, last.version, last.timestamp, versionFetcher);
+        return EventUtils.isValidEntry(metadata, last.version, last.timestamp, versionFetcher);
     }
 
     @Override

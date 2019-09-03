@@ -40,8 +40,8 @@ public class StreamMetadata {
         this.maxAgeSec = maxAgeSec;
         this.maxCount = maxCount;
         this.truncated = truncated;
-        this.acl = acl;
-        this.metadata = metadata;
+        this.acl = null;
+        this.metadata = null;
         this.state = state;
     }
 

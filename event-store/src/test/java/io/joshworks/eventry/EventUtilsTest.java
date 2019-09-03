@@ -18,7 +18,7 @@ public class EventUtilsTest {
         int truncated = 10;
         int version = truncated;
         var metadata = new StreamMetadata("a", 123, 0, NO_MAX_AGE, NO_MAX_COUNT, truncated, Map.of(), Map.of(), 0);
-        boolean valid = EventUtils.validIndexEntry(metadata, version, 0, l -> version);
+        boolean valid = EventUtils.isValidEntry(metadata, version, 0, l -> version);
         assertFalse(valid);
     }
 
@@ -27,7 +27,7 @@ public class EventUtilsTest {
         int truncated = 10;
         int version = truncated - 1;
         var metadata = new StreamMetadata("a", 123, 0, NO_MAX_AGE, NO_MAX_COUNT, truncated, Map.of(), Map.of(), 0);
-        boolean valid = EventUtils.validIndexEntry(metadata, version, 0, l -> version);
+        boolean valid = EventUtils.isValidEntry(metadata, version, 0, l -> version);
         assertFalse(valid);
     }
 
@@ -36,7 +36,7 @@ public class EventUtilsTest {
         int truncated = 10;
         int version = truncated + 1;
         var metadata = new StreamMetadata("a", 123, 0, NO_MAX_AGE, NO_MAX_COUNT, truncated, Map.of(), Map.of(), 0);
-        boolean valid = EventUtils.validIndexEntry(metadata, version, 0, l -> version);
+        boolean valid = EventUtils.isValidEntry(metadata, version, 0, l -> version);
         assertTrue(valid);
     }
 
@@ -46,7 +46,7 @@ public class EventUtilsTest {
         int old = now - 2;
         int maxAge = now - 1;
         var metadata = new StreamMetadata("a", 123, 0, maxAge, NO_MAX_COUNT, NO_TRUNCATE, Map.of(), Map.of(), 0);
-        boolean valid = EventUtils.validIndexEntry(metadata, 0, old, l -> 0);
+        boolean valid = EventUtils.isValidEntry(metadata, 0, old, l -> 0);
         assertFalse(valid);
     }
 
@@ -56,7 +56,7 @@ public class EventUtilsTest {
         int streamVersion = 10;
         int maxCount = 1;
         var metadata = new StreamMetadata("a", 123, 0, NO_MAX_AGE, maxCount, NO_TRUNCATE, Map.of(), Map.of(), 0);
-        boolean valid = EventUtils.validIndexEntry(metadata, version, 0, l -> streamVersion);
+        boolean valid = EventUtils.isValidEntry(metadata, version, 0, l -> streamVersion);
         assertFalse(valid);
     }
 }
