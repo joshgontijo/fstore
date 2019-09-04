@@ -7,6 +7,8 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.metrics.MetricRegistry;
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
@@ -74,6 +76,8 @@ public class LogAppender<T> implements Closeable {
 
     private AtomicBoolean closed = new AtomicBoolean();
 
+    private final Metrics metrics;
+
     private final ScheduledExecutorService flushWorker;
     private final List<ForwardLogReader<T>> forwardReaders = new CopyOnWriteArrayList<>();
     private final ICompactor compactor;
@@ -92,6 +96,7 @@ public class LogAppender<T> implements Closeable {
         this.readPageSize = config.readPageSize;
         this.bufferPool = new ThreadLocalBufferPool(config.maxEntrySize, config.directBufferPool);
         this.logger = Logging.namedLogger(config.name, "appender");
+        this.metrics = MetricRegistry.create(config.name + "appender");
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
 
@@ -122,6 +127,9 @@ public class LogAppender<T> implements Closeable {
 
         logger.info(config.toString());
         compactor.compact();
+
+        this.metrics.register("segments", () -> (long) levels.numSegments());
+        this.metrics.register("depth", () -> (long) levels.depth());
     }
 
     private ICompactor createCompactor(Config<T> config) {
@@ -205,6 +213,7 @@ public class LogAppender<T> implements Closeable {
 
                 current.roll(1, false);
                 logger.info("Rolled segment: {}", current);
+                metrics.update("rolled");
 
                 Log<T> newSegment = createCurrentSegment();
                 levels.appendSegment(newSegment);
@@ -254,6 +263,7 @@ public class LogAppender<T> implements Closeable {
             throw new AppendException("Stored closed");
         }
         Log<T> current = levels.current();
+        metrics.update("append");
 
         int segments = levels.numSegments();
         long positionOnSegment = current.append(data);
@@ -327,6 +337,7 @@ public class LogAppender<T> implements Closeable {
 
     //must support multiple readers
     public T get(long position) {
+        metrics.update("get");
         return levels.apply(Direction.FORWARD, segments -> {
             int segmentIdx = getSegment(position);
             validateSegmentIdx(segmentIdx, position, levels);
@@ -400,6 +411,7 @@ public class LogAppender<T> implements Closeable {
         if (closed.get()) {
             return;
         }
+        metrics.update("flush");
         levels.current().flush();
     }
 

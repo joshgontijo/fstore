@@ -20,11 +20,15 @@ import java.util.function.Supplier;
 public class Metrics implements DynamicMBean, Closeable {
 
     private final Map<String, Metric> table = new ConcurrentHashMap<>();
+    private final String type;
+    private final Consumer<String> closeListener;
+    private final ObjectName objectName;
 
-    Metrics(String type) {
+    Metrics(String type, ObjectName objectName, Consumer<String> closeListener) {
         try {
-            final ObjectName objectName = new ObjectName("fstore:type=" + type);
-            ManagementFactory.getPlatformMBeanServer().registerMBean(this, objectName);
+            this.type = type;
+            this.closeListener = closeListener;
+            this.objectName = objectName;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -107,6 +111,12 @@ public class Metrics implements DynamicMBean, Closeable {
 
     @Override
     public void close() {
-        table.clear();
+        try {
+            table.clear();
+            closeListener.accept(type);
+            ManagementFactory.getPlatformMBeanServer().unregisterMBean(objectName);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

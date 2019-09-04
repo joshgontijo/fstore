@@ -84,4 +84,6 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     Type type();
 
+//    MetricsTable metrics()
+
 }

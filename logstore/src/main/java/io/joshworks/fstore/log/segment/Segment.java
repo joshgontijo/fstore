@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.metrics.MetricsTable;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -70,6 +71,8 @@ public final class Segment<T> implements Log<T> {
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<SegmentIterator> readers = ConcurrentHashMap.newKeySet();
+
+    private final MetricsTable metrics = new MetricsTable();
 
 
     public Segment(

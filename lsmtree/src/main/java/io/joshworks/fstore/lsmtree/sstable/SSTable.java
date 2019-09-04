@@ -57,7 +57,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
     private static final Metrics metrics = MetricRegistry.create("sstable");
     private static final Metrics blockCacheMetrics = MetricRegistry.create("sstable.blockCache");
-    private static final Metrics midpointsMetrics = MetricRegistry.create("sstable.midpoints");
     private static final Metrics bloomFilterMetrics = MetricRegistry.create("sstable.bloomFilter");
 
     private final Cache<String, Block> blockCache;
@@ -174,7 +173,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             keySerializer.writeTo(key, bb);
             bb.flip();
             if (!bloomFilter.contains(bb)) {
-                metrics.update("bloom.filtered");
+                bloomFilterMetrics.update("filtered");
                 return null;
             }
         }
@@ -185,7 +184,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
         Entry<K, V> found = readFromBlock(key, midpoint);
         if (found == null) {
-            metrics.update("bloom.fp");
+            bloomFilterMetrics.update("falsePositives");
         }
         return found;
     }
@@ -210,7 +209,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     //true if first block element
     //false if last block element
     private Entry<K, V> getAt(Midpoint<K> midpoint, boolean firstLast) {
-        Block block = delegate.getBlock(midpoint.position);
+        Block block = readBlock(midpoint);
         ByteBuffer lastEntry = firstLast ? block.first() : block.last();
         return entrySerializer.fromBytes(lastEntry);
     }
@@ -235,7 +234,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
         while (idx < midpoints.size()) {
             Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
-            Block block = delegate.getBlock(midpoint.position);
+            Block block = readBlock(midpoint);
             int entryIdx = binarySearch(block, key);
             entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 2 : entryIdx;
             Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.BACKWARD);
@@ -244,6 +243,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             }
         }
         return null;
+    }
+
+    private Block readBlock(Midpoint<K> midpoint) {
+        metrics.update("blockRead");
+        return delegate.getBlock(midpoint.position);
     }
 
     @Override
@@ -266,7 +270,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         }
         while (idx < midpoints.size()) {
             Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
-            Block block = delegate.getBlock(midpoint.position);
+            Block block = readBlock(midpoint);
             int entryIdx = binarySearch(block, key);
             entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 2 : entryIdx - 1;
             Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.BACKWARD);
@@ -293,7 +297,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         }
         while (idx < midpoints.size()) {
             Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
-            Block block = delegate.getBlock(midpoint.position);
+            Block block = readBlock(midpoint);
             int entryIdx = binarySearch(block, key);
             entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 1 : entryIdx;
             Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.FORWARD);
@@ -321,7 +325,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         }
         while (idx < midpoints.size()) {
             Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
-            Block block = delegate.getBlock(midpoint.position);
+            Block block = readBlock(midpoint);
             int entryIdx = binarySearch(block, key);
             entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 1 : entryIdx + 1;
             Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.FORWARD);
@@ -378,7 +382,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         Block cached = blockCache.get(cacheKey);
         if (cached == null) {
             blockCacheMetrics.update("miss");
-            Block block = delegate.getBlock(midpoint.position);
+            Block block = readBlock(midpoint);
             if (block == null) {
                 return null;
             }
@@ -490,17 +494,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     @Override
     public void delete() {
         delegate.delete();
-        blockCacheMetrics.update("size", -blockCache.size());
-        midpointsMetrics.update("size", -midpoints.size());
-        bloomFilterMetrics.update("size", -bloomFilter.size());
     }
 
     @Override
     public void roll(int level, boolean trim) {
         delegate.roll(level, trim);
-        blockCacheMetrics.update("size", blockCache.size());
-        midpointsMetrics.update("size", midpoints.size());
-        bloomFilterMetrics.update("size", bloomFilter.size());
     }
 
     @Override

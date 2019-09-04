@@ -43,24 +43,23 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private final int flushThreshold;
     private final boolean logDisabled;
     private final boolean flushOnClose;
-    private final String name;
 
     private MemTable<K, V> memTable;
     private final long maxAge;
 
     private final Metrics metrics;
 
+
     private LsmTree(Builder<K, V> builder) {
-        this.name = builder.name;
         this.maxAge = builder.maxAgeSeconds;
         this.sstables = createSSTable(builder);
         this.log = createTransactionLog(builder);
-        this.memTable = new MemTable<>(builder.name);
+        this.memTable = new MemTable<>();
         this.flushThreshold = builder.flushThreshold;
         this.logDisabled = builder.logDisabled;
         this.flushOnClose = builder.flushOnClose;
         this.log.restore(this::restore);
-        this.metrics = MetricRegistry.create("lsm." + builder.name);
+        this.metrics = MetricRegistry.create(builder.name + ".lsm");
     }
 
     public static <K extends Comparable<K>, V> Builder<K, V> builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -242,7 +241,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         if (inserted > 0) {
             log.markFlushed();
         }
-        memTable = new MemTable<>(name);
+        memTable = new MemTable<>();
         metrics.update("memFlush");
     }
 

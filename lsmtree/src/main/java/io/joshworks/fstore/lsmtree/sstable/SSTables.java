@@ -4,8 +4,6 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.metrics.MetricRegistry;
-import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
@@ -27,10 +25,6 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
     private final LogAppender<Entry<K, V>> appender;
     private final Cache<String, Block> blockCache; //propagated to sstables
-
-    private static final Metrics blockCacheMetrics = MetricRegistry.create("sstables.blockCache");
-    private static final Metrics midpointsMetrics = MetricRegistry.create("sstables.midpoints");
-    private static final Metrics bloomFilterMetrics = MetricRegistry.create("sstables.bloomFilter");
 
     public SSTables(File dir,
                     Serializer<K> keySerializer,
