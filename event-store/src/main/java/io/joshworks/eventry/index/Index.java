@@ -33,12 +33,12 @@ public class Index implements Closeable {
     private final Cache<Long, Integer> versionCache;
     private final Function<Long, StreamMetadata> metadataSupplier;
 
-    public Index(File rootDir, int indexFlushThreshold, Cache<Long, Integer> versionCache, Function<Long, StreamMetadata> metadataSupplier) {
+    public Index(File rootDir, int flushThreshold, Cache<Long, Integer> versionCache, Function<Long, StreamMetadata> metadataSupplier) {
         this.versionCache = versionCache;
         this.metadataSupplier = metadataSupplier;
         this.lsmTree = LsmTree.builder(new File(rootDir, NAME), new IndexKeySerializer(), Serializers.LONG)
                 .disableTransactionLog()
-                .flushThreshold(indexFlushThreshold)
+                .flushThreshold(flushThreshold)
                 .sstableStorageMode(StorageMode.MMAP)
                 .blockFactory(Block.flenBlock(INDEX_ENTRY_BYTES))
                 .codec(new SnappyCodec())
@@ -46,7 +46,8 @@ public class Index implements Closeable {
                 .flushOnClose(false)
                 .blockCache(Cache.lruCache(100, 60))
                 .maxAge(Long.MAX_VALUE)
-                .segmentSize(INDEX_ENTRY_BYTES * indexFlushThreshold)
+                .segmentSize(INDEX_ENTRY_BYTES * flushThreshold)
+                .bloomFilter(0.01, flushThreshold)
                 .sstableCompactor(new IndexCompactor(metadataSupplier, this::version))
                 .name(NAME)
                 .open();
