@@ -5,7 +5,6 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.metrics.MetricRegistry;
 import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.index.filter.BloomFilter;
@@ -55,9 +54,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
     private final long maxAge;
 
-    private static final Metrics metrics = MetricRegistry.create("sstable");
-    private static final Metrics blockCacheMetrics = MetricRegistry.create("sstable.blockCache");
-    private static final Metrics bloomFilterMetrics = MetricRegistry.create("sstable.bloomFilter");
+    private final Metrics metrics = new Metrics();
 
     private final Cache<String, Block> blockCache;
 
@@ -173,7 +170,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             keySerializer.writeTo(key, bb);
             bb.flip();
             if (!bloomFilter.contains(bb)) {
-                bloomFilterMetrics.update("filtered");
+                metrics.update("bloom.filtered");
                 return null;
             }
         }
@@ -184,7 +181,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
         Entry<K, V> found = readFromBlock(key, midpoint);
         if (found == null) {
-            bloomFilterMetrics.update("falsePositives");
+            metrics.update("bloom.falsePositives");
         }
         return found;
     }
@@ -246,7 +243,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private Block readBlock(Midpoint<K> midpoint) {
-        metrics.update("blockRead");
+        metrics.update("block.read");
         return delegate.getBlock(midpoint.position);
     }
 
@@ -381,7 +378,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         String cacheKey = cacheKey(midpoint.position);
         Block cached = blockCache.get(cacheKey);
         if (cached == null) {
-            blockCacheMetrics.update("miss");
+            metrics.update("blockCache.miss");
             Block block = readBlock(midpoint);
             if (block == null) {
                 return null;
@@ -389,7 +386,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             blockCache.add(cacheKey, block);
             return tryReadBlockEntry(key, block);
         } else {
-            blockCacheMetrics.update("hit");
+            metrics.update("blockCache.hit");
         }
         return tryReadBlockEntry(key, cached);
     }
@@ -551,6 +548,14 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         return name();
     }
 
+    @Override
+    public Metrics metrics() {
+        Metrics metrics = Metrics.merge(this.metrics, delegate.metrics());
+        metrics.set("bloom.size", bloomFilter.size());
+        metrics.set("midpoint.entries", midpoints.size());
+        return metrics;
+    }
+
     static class SSTableFactory<K extends Comparable<K>, V> implements SegmentFactory<Entry<K, V>> {
         private final Serializer<K> keySerializer;
         private final Serializer<V> valueSerializer;
@@ -561,7 +566,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         private final double bloomFPProb;
         private final int blockSize;
         private final long maxAge;
-        private Cache<String, Block> blockCache;
+        private final Cache<String, Block> blockCache;
 
         SSTableFactory(Serializer<K> keySerializer,
                        Serializer<V> valueSerializer,

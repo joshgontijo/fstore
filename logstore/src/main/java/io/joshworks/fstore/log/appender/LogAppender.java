@@ -7,7 +7,6 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
-import io.joshworks.fstore.core.metrics.MetricRegistry;
 import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.CloseableIterator;
@@ -76,11 +75,11 @@ public class LogAppender<T> implements Closeable {
 
     private AtomicBoolean closed = new AtomicBoolean();
 
-    private final Metrics metrics;
-
     private final ScheduledExecutorService flushWorker;
     private final List<ForwardLogReader<T>> forwardReaders = new CopyOnWriteArrayList<>();
     private final ICompactor compactor;
+
+    private final Metrics metrics = new Metrics();
 
     public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
         return new Config<>(directory, serializer);
@@ -94,9 +93,8 @@ public class LogAppender<T> implements Closeable {
         this.namingStrategy = config.namingStrategy;
         this.checksumProbability = config.checksumProbability;
         this.readPageSize = config.readPageSize;
-        this.bufferPool = new ThreadLocalBufferPool(config.maxEntrySize, config.directBufferPool);
+        this.bufferPool = new ThreadLocalBufferPool(config.name + "-pool", config.maxEntrySize, config.directBufferPool);
         this.logger = Logging.namedLogger(config.name, "appender");
-        this.metrics = MetricRegistry.create(config.name + "appender");
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
 
@@ -127,9 +125,15 @@ public class LogAppender<T> implements Closeable {
 
         logger.info(config.toString());
         compactor.compact();
+    }
 
-        this.metrics.register("segments", () -> (long) levels.numSegments());
-        this.metrics.register("depth", () -> (long) levels.depth());
+    public Metrics metrics() {
+        Metrics metrics = levels.apply(Direction.FORWARD, segs -> Metrics.merge(segs.stream().map(Log::metrics).toArray(Metrics[]::new)));
+        this.metrics.set("depth", levels.depth());
+        this.metrics.set("entries", entries());
+        this.metrics.set("position", position());
+        this.metrics.set("segments", levels.numSegments());
+        return Metrics.merge(metrics, this.metrics);
     }
 
     private ICompactor createCompactor(Config<T> config) {
@@ -418,6 +422,7 @@ public class LogAppender<T> implements Closeable {
     public long physicalSize() {
         return levels.apply(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::physicalSize).sum());
     }
+
 
     public long physicalSize(int level) {
         if (level < 0) {

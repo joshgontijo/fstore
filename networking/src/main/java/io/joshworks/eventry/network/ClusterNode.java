@@ -1,7 +1,7 @@
 package io.joshworks.eventry.network;
 
-import io.joshworks.eventry.network.util.AttributeKey;
-import io.joshworks.eventry.network.util.AttributeMap;
+import io.joshworks.fstore.core.util.AttributeKey;
+import io.joshworks.fstore.core.util.AttributeMap;
 import org.jgroups.Address;
 
 import java.net.InetSocketAddress;

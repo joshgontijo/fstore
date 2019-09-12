@@ -1,4 +1,4 @@
-package io.joshworks.eventry.network.util;
+package io.joshworks.fstore.core.util;
 
 import java.util.Map;
 import java.util.Objects;

@@ -1,11 +1,15 @@
 package io.joshworks.fstore.core.io.buffers;
 
+import io.joshworks.fstore.core.metrics.MetricRegistry;
+import io.joshworks.fstore.core.metrics.Metrics;
+
 import java.nio.ByteBuffer;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Single dynamic sized buffer, cached per thread.
- * Throws IllegalState exception if the buffer is tried to be allocated without releasing it first
+ * Throws IllegalState exception is thrown if an attempt to allocate a buffer without releasing it first occurs
  * A single thread may only allocate a single buffer at the time,
  * allocating more than once without freeing the previous buffer will corrupt the buffer contents
  */
@@ -14,15 +18,17 @@ public class ThreadLocalBufferPool implements BufferPool {
     private final int bufferSize;
     private final boolean direct;
 
+
     private final ThreadLocal<Holder> cache = ThreadLocal.withInitial(Holder::new);
 
-    public ThreadLocalBufferPool(int size) {
-        this(size, false);
-    }
+    private final Metrics metrics = new Metrics();
 
-    public ThreadLocalBufferPool(int bufferSize, boolean direct) {
+    public ThreadLocalBufferPool(String name, int bufferSize, boolean direct) {
         this.bufferSize = bufferSize;
         this.direct = direct;
+
+        this.metrics.set("bufferSize", bufferSize);
+        MetricRegistry.register(Map.of("type", "bufferPools", "impl", "ThreadLocalBufferPool", "name", name), () -> metrics);
     }
 
     //allocate current buffer with its total capacity
@@ -32,6 +38,7 @@ public class ThreadLocalBufferPool implements BufferPool {
         if (!holder.available.compareAndSet(true, false)) {
             throw new IllegalStateException("Buffer not released");
         }
+        metrics.update("allocated", 1);
         return holder.buffer;
     }
 
@@ -54,9 +61,16 @@ public class ThreadLocalBufferPool implements BufferPool {
         final ByteBuffer buffer = Buffers.allocate(bufferSize, direct);
         final AtomicBoolean available = new AtomicBoolean(true);
 
+        public Holder() {
+            metrics.update("buffers");
+        }
+
         void free() {
-            buffer.clear();
-            available.set(true);
+            if (available.compareAndSet(false, true)) {
+                buffer.clear();
+                available.set(true);
+                metrics.update("allocated", -1);
+            }
         }
     }
 

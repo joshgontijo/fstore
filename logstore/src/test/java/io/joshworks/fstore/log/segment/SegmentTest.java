@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -14,7 +15,6 @@ import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.header.LogHeader;
 import io.joshworks.fstore.log.segment.header.Type;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -558,7 +558,7 @@ public abstract class SegmentTest {
                 StorageMode.MMAP,
                 SEGMENT_SIZE,
                 Serializers.STRING,
-                new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
+                new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
                 WriteMode.MERGE_OUT,
                 CHECKSUM_PROB,
                 READ_PAGE_SIZE);
@@ -573,7 +573,7 @@ public abstract class SegmentTest {
                     StorageMode.RAF_CACHED,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
+                    new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
                     READ_PAGE_SIZE);
@@ -589,7 +589,7 @@ public abstract class SegmentTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
+                    new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
                     READ_PAGE_SIZE);
@@ -605,7 +605,7 @@ public abstract class SegmentTest {
                     StorageMode.RAF,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
+                    new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB,
                     READ_PAGE_SIZE);

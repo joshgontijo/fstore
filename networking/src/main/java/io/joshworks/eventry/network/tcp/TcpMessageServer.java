@@ -71,8 +71,8 @@ public class TcpMessageServer implements Closeable {
         this.onIdle = onIdle;
         this.handler = handler;
 
-        this.messagePool = new SimpleBufferPool(maxBufferSize, true);
-        this.readPool = new SimpleBufferPool(maxBufferSize, true);
+        this.messagePool = new SimpleBufferPool("tcp-message-pool", maxBufferSize, true);
+        this.readPool = new SimpleBufferPool("tcp-read-pool", maxBufferSize, true);
 
         registeredTypes.add(KeepAlive.class);
         this.serializer = KryoStoreSerializer.register(registeredTypes.toArray(Class[]::new));

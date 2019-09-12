@@ -1,5 +1,6 @@
 package io.joshworks.eventry.stream;
 
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
@@ -43,10 +44,12 @@ public class Streams implements Closeable {
                 .name(STORE_NAME)
                 .flushThreshold(flushThreshold)
                 .bloomFilter(0.01, flushThreshold)
-                .transacationLogStorageMode(StorageMode.MMAP)
+//                .transacationLogStorageMode(StorageMode.RAF)
+//                .disableTransactionLog()
                 .sstableStorageMode(StorageMode.MMAP)
-                .blockSize(Size.KB.ofInt(2))
-                .blockCache(Cache.lruCache(5000, -1))
+                .blockSize(Size.KB.ofInt(4))
+                .blockCache(Cache.lruCache(100, -1))
+                .codec(Codec.noCompression())
                 .open();
     }
 

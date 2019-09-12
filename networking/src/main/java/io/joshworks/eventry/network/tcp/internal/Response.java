@@ -55,7 +55,7 @@ public class Response<T> implements Future<T> {
 
     @Override
     public T get() {
-        return get(5, TimeUnit.SECONDS);
+        return get(20, TimeUnit.SECONDS);
     }
 
     @Override

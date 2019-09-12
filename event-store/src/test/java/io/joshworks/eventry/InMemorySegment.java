@@ -1,5 +1,6 @@
 package io.joshworks.eventry;
 
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
@@ -147,6 +148,11 @@ public class InMemorySegment<T> implements Log<T> {
 
     @Override
     public Type type() {
+        return null;
+    }
+
+    @Override
+    public Metrics metrics() {
         return null;
     }
 
