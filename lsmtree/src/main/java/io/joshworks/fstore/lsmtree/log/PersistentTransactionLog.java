@@ -18,9 +18,11 @@ public class PersistentTransactionLog<K extends Comparable<K>, V> implements Tra
     private final LogAppender<LogRecord<K, V>> appender;
 
     public PersistentTransactionLog(File root, Serializer<K> keySerializer, Serializer<V> valueSerializer, String name, StorageMode mode) {
-        this.appender = LogAppender.builder(new File(root, "wal"), new RecordSerializer<>(keySerializer, valueSerializer))
+        //TODO when segment roll, then sstable must be flushed, otherwise the log compactor might delete entries that are
+        //not persisted to disk yet
+        this.appender = LogAppender.builder(new File(root, "log"), new RecordSerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new DiscardCombiner<>())
-                .name(name + "-wal")
+                .name(name + "-log")
                 .storageMode(mode)
                 .open();
     }

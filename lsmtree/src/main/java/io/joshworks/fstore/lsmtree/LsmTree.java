@@ -5,8 +5,6 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.metrics.MetricRegistry;
-import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.index.Range;
@@ -47,9 +45,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private MemTable<K, V> memTable;
     private final long maxAge;
 
-    private final Metrics metrics;
-
-
     private LsmTree(Builder<K, V> builder) {
         this.maxAge = builder.maxAgeSeconds;
         this.sstables = createSSTable(builder);
@@ -59,7 +54,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         this.logDisabled = builder.logDisabled;
         this.flushOnClose = builder.flushOnClose;
         this.log.restore(this::restore);
-        this.metrics = MetricRegistry.create(builder.name + ".lsm");
     }
 
     public static <K extends Comparable<K>, V> Builder<K, V> builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -105,7 +99,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         requireNonNull(value, "Value must be provided");
         LogRecord<K, V> record = LogRecord.add(key, value);
         log.append(record);
-        metrics.update("puts");
 
         Entry<K, V> entry = Entry.add(key, value);
         memTable.add(entry);
@@ -117,7 +110,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public V get(K key) {
-        metrics.update("gets");
         Entry<K, V> entry = getEntry(key);
         return entry == null ? null : entry.value;
     }
@@ -125,7 +117,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     public Entry<K, V> getEntry(K key) {
         requireNonNull(key, "Key must be provided");
 
-        metrics.update("gets");
         Entry<K, V> fromMem = memTable.get(key);
         if (fromMem != null) {
             return fromMem;
@@ -134,7 +125,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public void remove(K key) {
-        metrics.update("deletes");
         requireNonNull(key, "Key must be provided");
         log.append(LogRecord.delete(key));
         memTable.add(Entry.delete(key));
@@ -184,7 +174,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
      * @return The first match, or null
      */
     public Entry<K, V> find(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
-        metrics.update("finds");
         Entry<K, V> fromMem = expression.apply(key, memTable);
         if (matchEntry(matcher, fromMem)) {
             return fromMem;
@@ -229,7 +218,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
         sstables.close();
         log.close();
-        metrics.close();
     }
 
     private synchronized void flushMemTable(boolean force) {
@@ -242,7 +230,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             log.markFlushed();
         }
         memTable = new MemTable<>();
-        metrics.update("memFlush");
     }
 
     private void restore(LogRecord<K, V> record) {

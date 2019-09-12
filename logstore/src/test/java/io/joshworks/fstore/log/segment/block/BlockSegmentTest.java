@@ -5,11 +5,11 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,7 +33,7 @@ public class BlockSegmentTest {
         return new BlockSegment<>(
                 file, StorageMode.RAF,
                 Size.MB.of(10),
-                new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
+                new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
                 WriteMode.LOG_HEAD,
                 Serializers.STRING,
                 Block.vlenBlock(),

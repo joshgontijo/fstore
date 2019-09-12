@@ -1,17 +1,21 @@
 package io.joshworks.eventry.log;
 
+import io.joshworks.fstore.core.metrics.MetricRegistry;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
+
+import java.util.Map;
 
 public class EventLog implements IEventLog {
 
     private final LogAppender<EventRecord> appender;
+    private final String metricsKey;
 
-    public EventLog(Config<EventRecord> config) {
-        this.appender = config.open();
+    public EventLog(LogAppender<EventRecord> appender) {
+        this.appender = appender;
+        this.metricsKey = MetricRegistry.register(Map.of("name", appender.name(), "type", "event-log"), appender::metrics);
     }
 
     @Override
@@ -40,6 +44,7 @@ public class EventLog implements IEventLog {
 
     @Override
     public void close() {
+        MetricRegistry.remove(metricsKey);
         appender.close();
     }
 

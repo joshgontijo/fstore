@@ -4,6 +4,8 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.metrics.MetricRegistry;
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
@@ -17,6 +19,7 @@ import io.joshworks.fstore.log.segment.block.BlockFactory;
 
 import java.io.File;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -25,6 +28,8 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
     private final LogAppender<Entry<K, V>> appender;
     private final Cache<String, Block> blockCache; //propagated to sstables
+
+    private final String metricsKey;
 
     public SSTables(File dir,
                     Serializer<K> keySerializer,
@@ -51,8 +56,17 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 .segmentSize(segmentSize)
                 .parallelCompaction()
                 .flushMode(flushMode)
-                .directBufferPool()
+                .checksumProbability(0.05)
                 .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, footerCodec, bloomNItems, bloomFPProb, blockSize, maxAge, blockCache));
+
+
+        this.metricsKey = MetricRegistry.register(Map.of("name", name, "type", "lsm"), () -> {
+            Metrics metrics = appender.metrics();
+            metrics.set("blockCache.size", blockCache.size());
+            Metrics segmentMetrics = appender.metrics();
+            return Metrics.merge(metrics, segmentMetrics);
+        });
+
     }
 
     public long write(Entry<K, V> entry) {
@@ -129,6 +143,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
     public void close() {
         appender.close();
+        MetricRegistry.remove(metricsKey);
     }
 
     public LogIterator<Entry<K, V>> iterator(Direction direction) {

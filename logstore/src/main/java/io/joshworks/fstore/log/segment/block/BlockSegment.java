@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.RecordEntry;
@@ -324,6 +325,17 @@ public class BlockSegment<T> implements Log<T> {
     @Override
     public Type type() {
         return delegate.type();
+    }
+
+    @Override
+    public Metrics metrics() {
+        Metrics metrics = delegate.metrics();
+        metrics.set("blockSize", info.blockSize());
+        metrics.set("entries", info.entries());
+        metrics.set("uncompressedSize", info.uncompressedSize());
+        metrics.set("compressedSize", info.compressedSize());
+        metrics.set("compressedSize", info.compressedSize());
+        return metrics;
     }
 
     @Override

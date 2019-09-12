@@ -48,8 +48,8 @@ public class TcpMessageClient {
         this.keepAliveInterval = keepAliveInterval;
         this.onClose = onClose;
         this.eventHandler = handler;
-        this.writePool = new ThreadLocalBufferPool(bufferSize, true);
-        this.readPool = new SimpleBufferPool(bufferSize, true);
+        this.writePool = new ThreadLocalBufferPool("tcp-client-write-pool", bufferSize, true);
+        this.readPool = new SimpleBufferPool("tcp-client-read-pool", bufferSize, true);
         this.responseTable = responseTable;
 
         registeredTypes.add(KeepAlive.class);

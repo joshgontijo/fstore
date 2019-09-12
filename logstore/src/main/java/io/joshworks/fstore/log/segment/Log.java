@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.segment;
 
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -84,6 +85,6 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     Type type();
 
-//    MetricsTable metrics()
+    Metrics metrics();
 
 }

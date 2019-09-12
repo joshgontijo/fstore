@@ -3,9 +3,12 @@ package io.joshworks.fstore.core.metrics;
 public class MetricTest {
     public static void main(String[] args) throws InterruptedException {
 
-        Metrics abc = MetricRegistry.create("domain1.prefix1");
-        Metrics def = MetricRegistry.create("domain1.prefix2");
-        Metrics bbb = MetricRegistry.create("domain2.prefix123");
+        Metrics abc = new Metrics();
+        Metrics def = new Metrics();
+        Metrics bbb = new Metrics();
+        MetricRegistry.register("domain1.prefix1", () -> abc);
+        MetricRegistry.register("domain1.prefix2", () -> def);
+        MetricRegistry.register("domain2.prefix123", () -> bbb);
 
         abc.update("aaaa");
         abc.update("bbbb");

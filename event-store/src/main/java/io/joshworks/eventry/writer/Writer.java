@@ -5,40 +5,37 @@ import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.log.IEventLog;
 import io.joshworks.eventry.stream.StreamException;
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.core.metrics.MetricRegistry;
-import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 
 import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
+import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 
 public class Writer {
 
     private final IEventLog eventLog;
     private final Index index;
 
-    private static final Metrics metrics = MetricRegistry.create("es.writer");
-
     Writer(IEventLog eventLog, Index index) {
         this.eventLog = eventLog;
         this.index = index;
     }
 
-    public EventRecord append(EventRecord event, int expectedVersion, StreamMetadata metadata) {
+    public EventRecord append(EventRecord event, int expectedVersion, StreamMetadata metadata, boolean newStream) {
         String streamName = metadata.name;
         long streamHash = metadata.hash;
 
-        return appendInternal(event, expectedVersion, streamName, streamHash);
+        return appendInternal(event, expectedVersion, streamName, streamHash, newStream);
     }
 
-    private EventRecord appendInternal(EventRecord event, int expectedVersion, String streamName, long streamHash) {
+    private EventRecord appendInternal(EventRecord event, int expectedVersion, String streamName, long streamHash, boolean newStream) {
         long eventStreamHash = StreamHasher.hash(event.stream);
         if (streamName.equals(event.stream) && streamHash != eventStreamHash) {
             throw new StreamException("Hash collision of stream: " + event.stream + " with existing name: " + streamName);
         }
 
-        int currentVersion = index.version(streamHash);
+        int currentVersion = newStream ? NO_VERSION : index.version(streamHash);
         if (!matchVersion(expectedVersion, currentVersion)) {
             throw new StreamException("Version mismatch for '" + streamName + "': expected: " + expectedVersion + " current :" + currentVersion);
         }
@@ -54,7 +51,7 @@ public class Writer {
         if (memFlushed) {
             long end = System.currentTimeMillis();
             var indexFlushedEvent = IndexFlushed.create(position, end - start);
-            appendInternal(indexFlushedEvent, NO_EXPECTED_VERSION, SystemStreams.INDEX, SystemStreams.INDEX_HASH);
+            appendInternal(indexFlushedEvent, NO_EXPECTED_VERSION, SystemStreams.INDEX, SystemStreams.INDEX_HASH, false);
         }
         return record;
     }
