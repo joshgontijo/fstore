@@ -24,6 +24,7 @@
         <module>es-shared</module>
         <module>cli</module>
         <module>metrics</module>
+        <module>logstore-server</module>
     </modules>
 
     <properties>

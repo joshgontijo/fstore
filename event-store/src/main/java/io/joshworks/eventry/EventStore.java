@@ -65,9 +65,9 @@ public class EventStore implements IEventStore {
     private static final int STREAMS_FLUSH_THRESHOLD = 50000;
 
     //TODO externalize
-    private final Cache<Long, Integer> versionCache = Cache.lruCache(1000000, -1);
+    private final Cache<Long, Integer> versionCache = Cache.lruCache(5000000, -1);
     //    private final Cache<Long, StreamMetadata> streamCache = Cache.lruCache(100000, 120);
-    private final Cache<Long, StreamMetadata> streamCache = Cache.noCache();
+    private final Cache<Long, StreamMetadata> streamCache = Cache.lruCache(5000, -1);
 
     public final Index index;
     public final Streams streams; //TODO fix test to make this protected
@@ -85,9 +85,9 @@ public class EventStore implements IEventStore {
                 .segmentSize(Size.MB.of(512))
                 .name("event-log")
                 .flushMode(FlushMode.MANUAL)
-                .storageMode(StorageMode.RAF)
+                .storageMode(StorageMode.MMAP)
                 .directBufferPool()
-                .checksumProbability(1)
+                .checksumProbability(0.1)
                 .namingStrategy(new SequentialNaming(rootDir))
                 .open());
         //TODO log compaction (prune) not fully implemented
@@ -377,18 +377,17 @@ public class EventStore implements IEventStore {
     }
 
     private EventMap updateWithMinVersion(EventMap eventMap) {
-        return eventMap.entrySet()
-                .stream()
-                .map(kv -> {
-                    long stream = kv.getKey();
-                    int version = kv.getValue();
-                    StreamMetadata metadata = streams.get(stream);
-                    if (metadata == null) {
-                        return EventMap.of(stream, version);
-                    }
-                    int minVersion = metadata.truncated() && version < metadata.truncated ? metadata.truncated : version;
-                    return EventMap.of(stream, minVersion);
-                }).reduce(eventMap, EventMap::merge);
+        for (Map.Entry<Long, Integer> kv : eventMap.entrySet()) {
+            long stream = kv.getKey();
+            int version = kv.getValue();
+            StreamMetadata metadata = streams.get(stream);
+            if (metadata == null) {
+                return EventMap.of(stream, version);
+            }
+            int minVersion = metadata.truncated() && version < metadata.truncated ? metadata.truncated : version;
+            kv.setValue(minVersion);
+        }
+        return eventMap;
     }
 
     private EventRecord appendInternal(Writer writer, int expectedVersion, EventRecord record) {

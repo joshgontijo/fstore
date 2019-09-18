@@ -1,7 +1,7 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
+import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
@@ -41,13 +41,13 @@ public class Index implements Closeable {
                 .flushThreshold(flushThreshold)
                 .sstableStorageMode(StorageMode.MMAP)
                 .blockFactory(Block.flenBlock(INDEX_ENTRY_BYTES))
-                .codec(new SnappyCodec())
+                .codec(new LZ4Codec())
                 .blockSize(Size.KB.ofInt(4))
                 .flushOnClose(false)
                 .blockCache(Cache.lruCache(100, -1))
                 .maxAge(Long.MAX_VALUE) //FIXME, this is required on serialization to match BLOCK byte size (28bytes)
                 .segmentSize(INDEX_ENTRY_BYTES * flushThreshold)
-                .bloomFilter(0.01, flushThreshold)
+                .bloomFilter(0.01, flushThreshold * 2)
                 .sstableCompactor(new IndexCompactor(metadataSupplier, this::version))
                 .name(NAME)
                 .open();

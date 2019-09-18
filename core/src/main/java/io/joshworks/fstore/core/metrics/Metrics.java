@@ -29,6 +29,18 @@ public class Metrics {
         items.put(name, value);
     }
 
+    public void clear() {
+        items.clear();
+    }
+
+    public Long remove(String key) {
+        return items.remove(key);
+    }
+
+    public Long get(String key) {
+        return items.get(key);
+    }
+
     public static Metrics merge(Metrics... items) {
         Map<String, Long> merged = Stream.of(items)
                 .flatMap(map -> map.items.entrySet().stream())

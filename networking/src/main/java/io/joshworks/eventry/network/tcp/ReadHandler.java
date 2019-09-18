@@ -47,14 +47,14 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
     private void handle(TcpConnection tcpConnection, ByteBuffer buffer) {
         final Object object = parse(buffer);
 
-        tcpConnection.worker().execute(() -> {
+//        tcpConnection.worker().execute(() -> {
             try {
                 tcpConnection.incrementMessageReceived();
                 handler.onEvent(tcpConnection, object);
             } catch (Exception e) {
                 logger.error("Event handler threw an exception", e);
             }
-        });
+//        });
     }
 
     private Object parse(ByteBuffer buffer) {
