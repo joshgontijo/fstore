@@ -1,11 +1,14 @@
-package io.joshworks.fstore.client;
+package io.joshworks.eventry.it;
 
+import io.joshworks.eventry.EventStore;
+import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.fstore.core.metrics.Metrics;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.routing.HashRouter;
+import io.joshworks.fstore.serializer.json.JsonSerializer;
 
-import java.net.InetSocketAddress;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -14,12 +17,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ClientTest {
+public class StorePerf {
 
     private static final String STREAM_PREFIX = "stream-";
-    private static final int ITEMS = 5000000;
+    private static final int ITEMS = 15000000;
     private static final int STREAMS = 50000;
-    private static final int THREADS = 10;
+    private static final int THREADS = 1;
     private static final int LOG_INTERVAL = 10000;
 
     private static final Metrics metrics = new Metrics();
@@ -27,21 +30,20 @@ public class ClientTest {
 
     public static void main(String[] args) throws Exception {
 
-        StoreClient storeClient = StoreClient.connect(new HashRouter(), new InetSocketAddress("localhost", 10000));
+        EventStore store = EventStore.open(FileUtils.testFolder());
 
         System.out.println("----------------- WRITE ---------------");
         ExecutorService executor = Executors.newFixedThreadPool(THREADS);
 
         for (int i = 0; i < THREADS; i++) {
-            executor.submit(() -> write(storeClient));
+            executor.submit(() -> write(store));
         }
 
-        Thread monitor = new Thread(ClientTest::monitor);
+        Thread monitor = new Thread(StorePerf::monitor);
         monitor.start();
 
         executor.shutdown();
         executor.awaitTermination(1, TimeUnit.DAYS);
-
 
 
 //        System.out.println("----------------- READ ---------------");
@@ -49,21 +51,23 @@ public class ClientTest {
 //        iterateAll(iterator);
 
         System.out.println("----------------- READ ALL ---------------");
-        NodeClientIterator iterator = storeClient.iterator(50, STREAM_PREFIX + "*");
+        EventStoreIterator iterator = store.fromStreams(EventMap.empty(), Set.of(STREAM_PREFIX + "*"));
         iterateAll(iterator);
 
         monitoring.set(false);
-        storeClient.close();
+        iterator.close();
+        store.close();
 
     }
 
-    private static void write(StoreClient storeClient) {
+    private static void write(EventStore store) {
         long s = System.currentTimeMillis();
+        byte[] data = JsonSerializer.toBytes(new UserCreated("josh", 123));
         for (int i = 0; i < ITEMS; i++) {
             String stream = STREAM_PREFIX + (i % STREAMS);
 
             long start = System.currentTimeMillis();
-            storeClient.append(stream, "USER_CREATED", new UserCreated("josh", i));
+            store.append(EventRecord.create(stream, "USER_CREATED", data));
             metrics.update("writeTime", (System.currentTimeMillis() - start));
             metrics.update("writes");
             metrics.update("totalWrites");
@@ -84,7 +88,7 @@ public class ClientTest {
         }
     }
 
-    private static void iterateAll(NodeClientIterator iterator) {
+    private static void iterateAll(EventStoreIterator iterator) {
         int i = 0;
         long start = System.currentTimeMillis();
         long s = System.currentTimeMillis();
