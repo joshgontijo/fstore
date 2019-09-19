@@ -27,6 +27,7 @@ import io.joshworks.fstore.lsmtree.sstable.MemTable;
 import io.joshworks.fstore.lsmtree.sstable.SSTable;
 import io.joshworks.fstore.lsmtree.sstable.SSTableCompactor;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
+import io.joshworks.fstore.lsmtree.sstable.SSTablesIterator;
 
 import java.io.Closeable;
 import java.io.File;
@@ -40,22 +41,15 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     private final SSTables<K, V> sstables;
     private final TransactionLog<K, V> log;
-    private final int flushThreshold;
     private final boolean logDisabled;
     private final boolean flushOnClose;
 
-    private MemTable<K, V> memTable;
-    private final long maxAge;
-
     private final Metrics metrics;
-
 
     private LsmTree(Builder<K, V> builder) {
         this.maxAge = builder.maxAgeSeconds;
         this.sstables = createSSTable(builder);
         this.log = createTransactionLog(builder);
-        this.memTable = new MemTable<>();
-        this.flushThreshold = builder.flushThreshold;
         this.logDisabled = builder.logDisabled;
         this.flushOnClose = builder.flushOnClose;
         this.log.restore(this::restore);
@@ -100,7 +94,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     //returns true if the index was flushed
-    public boolean put(K key, V value) {
+    public void put(K key, V value) {
         requireNonNull(key, "Key must be provided");
         requireNonNull(value, "Value must be provided");
         LogRecord<K, V> record = LogRecord.add(key, value);
@@ -108,12 +102,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         metrics.update("puts");
 
         Entry<K, V> entry = Entry.add(key, value);
-        memTable.add(entry);
-        if (memTable.size() >= flushThreshold) {
-            flushMemTable(false);
-            return true;
-        }
-        return false;
+        sstables.add(entry);
     }
 
     public V get(K key) {
@@ -124,12 +113,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     public Entry<K, V> getEntry(K key) {
         requireNonNull(key, "Key must be provided");
-
         metrics.update("gets");
-        Entry<K, V> fromMem = memTable.get(key);
-        if (fromMem != null) {
-            return fromMem;
-        }
         return sstables.get(key);
     }
 
@@ -137,7 +121,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         metrics.update("deletes");
         requireNonNull(key, "Key must be provided");
         log.append(LogRecord.delete(key));
-        memTable.add(Entry.delete(key));
+        sstables.add(Entry.delete(key));
     }
 
     /**
@@ -204,22 +188,16 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         });
     }
 
-    private boolean matchEntry(Predicate<Entry<K, V>> matcher, Entry<K, V> entry) {
-        return entry != null && !entry.deletion() && matcher.test(entry);
-    }
-
     public long size() {
         return sstables.size();
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
-        List<CloseableIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction);
-        return new LsmTreeIterator<>(segmentsIterators, memTable.iterator(direction));
+        return sstables.iterator(direction);
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
-        List<CloseableIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction, range);
-        return new LsmTreeIterator<>(segmentsIterators, memTable.iterator(direction, range));
+        return sstables.iterator(direction, range);
     }
 
     @Override
