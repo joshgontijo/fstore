@@ -1,4 +1,4 @@
-package io.joshworks.fstore.lsmtree;
+package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.CloseableIterator;
@@ -13,11 +13,11 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
-class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
+public class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
 
     private final List<PeekingIterator<Entry<K, V>>> segmentsIterators;
 
-    LsmTreeIterator(List<CloseableIterator<Entry<K, V>>> segmentsIterators, Iterator<Entry<K, V>> memIterator) {
+    SSTablesIterator(List<CloseableIterator<Entry<K, V>>> segmentsIterators, Iterator<Entry<K, V>> memIterator) {
         segmentsIterators.add(Iterators.wrap(memIterator));
 
         this.segmentsIterators = segmentsIterators.stream()

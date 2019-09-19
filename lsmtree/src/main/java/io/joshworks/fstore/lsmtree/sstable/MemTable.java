@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.util.NavigableSet;
@@ -67,7 +68,7 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return Direction.FORWARD.equals(direction) ? Iterators.of(table) : Iterators.wrap(table.descendingIterator());
     }
 
-    public long writeTo(SSTables<K, V> sstables, long maxAge) {
+    public long writeTo(LogAppender<Entry<K, V>> appender, long maxAge) {
         if (isEmpty()) {
             return 0;
         }
@@ -77,20 +78,20 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
             if (entry.expired(maxAge)) {
                 continue;
             }
-            long entryPos = sstables.write(entry);
+            long entryPos = appender.append(entry);
             inserted++;
             if (entryPos == Storage.EOF) {
-                sstables.roll();
+                appender.flush();
             }
         }
         if (inserted > 0) {
-            sstables.roll();
+            appender.flush();
         }
         return inserted;
     }
 
     public int size() {
-        return table.size();
+        return size.get();
     }
 
     public boolean isEmpty() {
