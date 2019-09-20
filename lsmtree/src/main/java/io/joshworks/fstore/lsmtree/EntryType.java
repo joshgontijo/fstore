@@ -10,4 +10,9 @@ public enum EntryType {
     EntryType(short code) {
         this.code = code;
     }
+
+    public static EntryType of(short code) {
+        return EntryType.values()[code];
+    }
+
 }

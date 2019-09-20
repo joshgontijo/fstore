@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.index.Range;
@@ -12,24 +13,26 @@ import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
-import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
+import io.joshworks.fstore.lsmtree.log.EntryAdded;
+import io.joshworks.fstore.lsmtree.log.EntryDeleted;
 import io.joshworks.fstore.lsmtree.log.LogRecord;
-import io.joshworks.fstore.lsmtree.log.NoOpTransactionLog;
 import io.joshworks.fstore.lsmtree.log.PersistentTransactionLog;
 import io.joshworks.fstore.lsmtree.log.TransactionLog;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
-import io.joshworks.fstore.lsmtree.sstable.MemTable;
-import io.joshworks.fstore.lsmtree.sstable.SSTable;
 import io.joshworks.fstore.lsmtree.sstable.SSTableCompactor;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import static java.util.Objects.requireNonNull;
@@ -37,23 +40,17 @@ import static java.util.Objects.requireNonNull;
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     private final SSTables<K, V> sstables;
-    private final TransactionLog<K, V> log;
-    private final int flushThreshold;
-    private final boolean logDisabled;
-    private final boolean flushOnClose;
+    private final TransactionLog log;
 
-    private MemTable<K, V> memTable;
-    private final long maxAge;
+    private final ExecutorService writer;
 
     private LsmTree(Builder<K, V> builder) {
-        this.maxAge = builder.maxAgeSeconds;
         this.sstables = createSSTable(builder);
         this.log = createTransactionLog(builder);
-        this.memTable = new MemTable<>();
-        this.flushThreshold = builder.flushThreshold;
-        this.logDisabled = builder.logDisabled;
-        this.flushOnClose = builder.flushOnClose;
         this.log.restore(this::restore);
+        this.writer = new MonitoredThreadPool("lsm-write", new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, new LinkedBlockingDeque<>()));
+
+
     }
 
     public static <K extends Comparable<K>, V> Builder<K, V> builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -67,24 +64,20 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.valueSerializer,
                 builder.name,
                 builder.segmentSize,
+                builder.flushThreshold,
                 builder.sstableStorageMode,
                 builder.ssTableFlushMode,
                 builder.sstableBlockFactory,
                 builder.sstableCompactor,
                 builder.maxAgeSeconds,
                 builder.codec,
-                builder.footerCodec,
                 builder.bloomNItems,
                 builder.bloomFPProb,
                 builder.blockSize,
                 builder.blockCache);
     }
 
-    private TransactionLog<K, V> createTransactionLog(Builder<K, V> builder) {
-        if (builder.logDisabled) {
-            return new NoOpTransactionLog<>();
-        }
-
+    private TransactionLog createTransactionLog(Builder<K, V> builder) {
         return new PersistentTransactionLog<>(
                 builder.directory,
                 builder.keySerializer,
@@ -93,20 +86,16 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.tlogStorageMode);
     }
 
-    //returns true if the index was flushed
-    public boolean put(K key, V value) {
+    public void put(K key, V value) {
         requireNonNull(key, "Key must be provided");
         requireNonNull(value, "Value must be provided");
-        LogRecord<K, V> record = LogRecord.add(key, value);
-        log.append(record);
+        final long recPos = log.append(LogRecord.add(key, value));
 
         Entry<K, V> entry = Entry.add(key, value);
-        memTable.add(entry);
-        if (memTable.size() >= flushThreshold) {
-            flushMemTable(false);
-            return true;
+        CompletableFuture<Void> flushTask = sstables.add(entry);
+        if (flushTask != null) {
+            flushTask.thenRun(() -> log.markFlushed(recPos));
         }
-        return false;
     }
 
     public V get(K key) {
@@ -116,18 +105,13 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     public Entry<K, V> getEntry(K key) {
         requireNonNull(key, "Key must be provided");
-
-        Entry<K, V> fromMem = memTable.get(key);
-        if (fromMem != null) {
-            return fromMem;
-        }
         return sstables.get(key);
     }
 
     public void remove(K key) {
         requireNonNull(key, "Key must be provided");
         log.append(LogRecord.delete(key));
-        memTable.add(Entry.delete(key));
+        sstables.add(Entry.delete(key));
     }
 
     /**
@@ -140,28 +124,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
      * @return The list of found entries
      */
     public List<Entry<K, V>> findAll(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
-        requireNonNull(key, "Key must be provided");
-        List<Entry<K, V>> found = new ArrayList<>();
-        Entry<K, V> memEntry = expression.apply(key, memTable);
-        if (memEntry != null && matcher.test(memEntry)) {
-            found.add(memEntry);
-        }
-        List<Entry<K, V>> fromDisk = sstables.applyToSegments(Direction.BACKWARD, segments -> {
-            List<Entry<K, V>> diskEntries = new ArrayList<>();
-            for (Log<Entry<K, V>> segment : segments) {
-                if (!segment.readOnly()) {
-                    continue;
-                }
-                SSTable<K, V> sstable = (SSTable<K, V>) segment;
-                Entry<K, V> diskEntry = expression.apply(key, sstable);
-                if (diskEntry != null && matcher.test(diskEntry)) {
-                    diskEntries.add(diskEntry);
-                }
-            }
-            return diskEntries;
-        });
-        found.addAll(fromDisk);
-        return found;
+        return sstables.findAll(key, expression, matcher);
     }
 
     /**
@@ -174,27 +137,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
      * @return The first match, or null
      */
     public Entry<K, V> find(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
-        Entry<K, V> fromMem = expression.apply(key, memTable);
-        if (matchEntry(matcher, fromMem)) {
-            return fromMem;
-        }
-        return sstables.applyToSegments(Direction.BACKWARD, segments -> {
-            for (Log<Entry<K, V>> segment : segments) {
-                if (!segment.readOnly()) {
-                    continue;
-                }
-                SSTable<K, V> sstable = (SSTable<K, V>) segment;
-                Entry<K, V> fromDisk = expression.apply(key, sstable);
-                if (matchEntry(matcher, fromDisk)) {
-                    return fromDisk;
-                }
-            }
-            return null;
-        });
-    }
-
-    private boolean matchEntry(Predicate<Entry<K, V>> matcher, Entry<K, V> entry) {
-        return entry != null && !entry.deletion() && matcher.test(entry);
+        return sstables.find(key, expression, matcher);
     }
 
     public long size() {
@@ -202,42 +145,34 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
-        List<CloseableIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction);
-        return new LsmTreeIterator<>(segmentsIterators, memTable.iterator(direction));
+        return sstables.iterator(direction);
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
-        List<CloseableIterator<Entry<K, V>>> segmentsIterators = sstables.segmentsIterator(direction, range);
-        return new LsmTreeIterator<>(segmentsIterators, memTable.iterator(direction, range));
+        return sstables.iterator(direction, range);
     }
 
     @Override
     public void close() {
-        if (logDisabled && !memTable.isEmpty()) {
-            flushMemTable(flushOnClose);
-        }
         sstables.close();
         log.close();
     }
 
-    private synchronized void flushMemTable(boolean force) {
-        if (!force && memTable.size() < flushThreshold) {
-            return;
-        }
-        MemTable<K, V> tmp = memTable;
-        long inserted = tmp.writeTo(sstables, maxAge);
-        if (inserted > 0) {
-            log.markFlushed();
-        }
-        memTable = new MemTable<>();
-    }
 
-    private void restore(LogRecord<K, V> record) {
-        memTable.add(Entry.of(record.timestamp, record.key, record.value));
+    private void restore(LogRecord record) {
+        switch (record.type) {
+            case ADD:
+                EntryAdded<K, V> added = (EntryAdded<K, V>) record;
+                sstables.add(Entry.of(record.timestamp, added.key, added.value));
+                break;
+            case DELETE:
+                EntryDeleted<K> deleted = (EntryDeleted<K>) record;
+                sstables.add(Entry.of(record.timestamp, deleted.key, null));
+                break;
+        }
     }
 
     public void compact() {
-        flushMemTable(true);
         sstables.compact();
     }
 
@@ -249,13 +184,11 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private final File directory;
         private final Serializer<K> keySerializer;
         private final Serializer<V> valueSerializer;
-        private Codec footerCodec = Codec.noCompression();
         private UniqueMergeCombiner<Entry<K, V>> sstableCompactor;
         private long bloomNItems = DEFAULT_THRESHOLD;
         private double bloomFPProb = 0.05;
         private int blockSize = Memory.PAGE_SIZE;
         private int flushThreshold = DEFAULT_THRESHOLD;
-        private boolean logDisabled;
         private Codec codec = new SnappyCodec();
         private String name = "lsm-tree";
         private StorageMode sstableStorageMode = StorageMode.MMAP;
@@ -265,7 +198,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private long segmentSize = Size.MB.of(32);
 
         private Cache<String, Block> blockCache = Cache.lruCache(1000, -1);
-        private boolean flushOnClose = true;
         private long maxAgeSeconds = NO_MAX_AGE;
 
 
@@ -311,12 +243,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
-        public Builder<K, V> footerCodec(Codec footerCodec) {
-            requireNonNull(footerCodec, "Codec cannot be null");
-            this.footerCodec = footerCodec;
-            return this;
-        }
-
         public Builder<K, V> segmentSize(long size) {
             if (size <= 0) {
                 throw new IllegalArgumentException("Segment size must be greater than zero");
@@ -337,16 +263,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
         public Builder<K, V> blockCache(Cache<String, Block> blockCache) {
             this.blockCache = requireNonNull(blockCache, "Cache must be provided");
-            return this;
-        }
-
-        public Builder<K, V> disableTransactionLog() {
-            this.logDisabled = true;
-            return this;
-        }
-
-        public Builder<K, V> flushOnClose(boolean flushOnClose) {
-            this.flushOnClose = flushOnClose;
             return this;
         }
 

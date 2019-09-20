@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.iterators.Iterators;
 
 import java.util.NavigableSet;
@@ -16,6 +17,10 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
     private final ConcurrentSkipListSet<Entry<K, V>> table = new ConcurrentSkipListSet<>();
     private final AtomicInteger size = new AtomicInteger();
+
+    MemTable() {
+
+    }
 
     public int add(Entry<K, V> entry) {
         requireNonNull(entry, "Entry must be provided");
@@ -59,7 +64,16 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
-        NavigableSet<Entry<K, V>> subSet = table.subSet(Entry.key(range.start()), Entry.key(range.end()));
+        NavigableSet<Entry<K, V>> subSet;
+        if (range.start() != null && range.end() == null) {
+            subSet = table.tailSet(Entry.key(range.start()), true);
+        } else if (range.start() == null && range.end() != null) {
+            subSet = table.headSet(Entry.key(range.end()), false);
+        } else if (range.start() != null && range.end() != null) {
+            subSet = table.subSet(Entry.key(range.start()), Entry.key(range.end()));
+        } else {
+            throw new IllegalArgumentException("Range start or end must be provided");
+        }
         return Direction.FORWARD.equals(direction) ? Iterators.of(subSet) : Iterators.wrap(subSet.descendingIterator());
     }
 
@@ -67,25 +81,23 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return Direction.FORWARD.equals(direction) ? Iterators.of(table) : Iterators.wrap(table.descendingIterator());
     }
 
-    public long writeTo(SSTables<K, V> sstables, long maxAge) {
+    long writeTo(LogAppender<Entry<K, V>> sstables, long maxAge) {
         if (isEmpty()) {
             return 0;
         }
 
         long inserted = 0;
         for (Entry<K, V> entry : table) {
-            if (entry.expired(maxAge)) {
+            if (entry.expired(maxAge) && !entry.deletion()) {
                 continue;
             }
-            long entryPos = sstables.write(entry);
+            long entryPos = sstables.append(entry);
             inserted++;
             if (entryPos == Storage.EOF) {
                 sstables.roll();
             }
         }
-        if (inserted > 0) {
-            sstables.roll();
-        }
+        sstables.roll();
         return inserted;
     }
 

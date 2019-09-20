@@ -1,13 +1,13 @@
 package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -16,6 +16,7 @@ import java.io.File;
 import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -114,27 +115,30 @@ public class LsmTreeTest {
     }
 
     @Test
-    public void deleted_entries_are_not_returned_when_iterating() throws IOException {
-        for (int i = 0; i < 1000000; i++) {
+    public void deleted_entries_are_not_returned_when_iterating() {
+        int items = (int) (FLUSH_THRESHOLD * 3.5);
+        for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
         }
-        for (int i = 0; i < 1000000; i+=2) {
+        //remove even keys
+        for (int i = 0; i < items; i += 2) {
             lsmtree.remove(i);
         }
 
         try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.FORWARD)) {
             while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
-                assertTrue(entry.key % 2 != 0);
+                assertNotEquals(0, entry.key % 2);
             }
         }
     }
 
     @Test
-    public void deleted_interleaving_entries_are_not_returned_when_iterating() throws IOException {
-        for (int i = 0; i < 1000000; i++) {
+    public void deleted_interleaving_entries_are_not_returned_when_iterating() {
+        int items = (int) (FLUSH_THRESHOLD * 5.5);
+        for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
-            if(i % 2 == 0) {
+            if (i % 2 == 0) {
                 lsmtree.remove(i);
             }
         }
@@ -185,7 +189,7 @@ public class LsmTreeTest {
 
     @Test
     public void can_iterator_over_entries_after_reopening() {
-        int items = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
+        int items = (int) (FLUSH_THRESHOLD * 2.5);
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
         }
@@ -207,7 +211,7 @@ public class LsmTreeTest {
             lsmtree.put(i, String.valueOf(i));
         }
 
-        try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.BACKWARD, Range.startingWith(9990))) {
+        try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.BACKWARD, Range.start(9990))) {
             while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
                 System.out.println(entry);
