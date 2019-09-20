@@ -46,7 +46,6 @@ public class SSTableTest {
                 Block.vlenBlock(),
                 NO_MAX_AGE,
                 Codec.noCompression(),
-                Codec.noCompression(),
                 Cache.noCache(),
                 10000,
                 0.01,

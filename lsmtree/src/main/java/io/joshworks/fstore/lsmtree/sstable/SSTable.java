@@ -42,13 +42,12 @@ import static java.util.Objects.requireNonNull;
  */
 public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, TreeFunctions<K, V> {
 
-
     private final BlockSegment<Entry<K, V>> delegate;
     private final Serializer<Entry<K, V>> entrySerializer;
     private final Serializer<K> keySerializer;
+    private final Codec codec;
     private final BufferPool bufferPool;
 
-    private final Codec footerCodec;
     private final BloomFilter bloomFilter;
     private final Midpoints<K> midpoints;
 
@@ -68,7 +67,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                    BlockFactory blockFactory,
                    long maxAge,
                    Codec codec,
-                   Codec footerCodec,
                    Cache<String, Block> blockCache,
                    long bloomNItems,
                    double bloomFPProb,
@@ -78,8 +76,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
         this.bufferPool = bufferPool;
         this.maxAge = maxAge;
-        this.footerCodec = footerCodec;
         this.keySerializer = keySerializer;
+        this.codec = codec;
         this.entrySerializer = EntrySerializer.of(maxAge, keySerializer, valueSerializer);
 
         this.blockCache = blockCache;
@@ -101,8 +99,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
         if (delegate.readOnly()) {
             FooterReader reader = delegate.footerReader();
-            this.midpoints = Midpoints.load(reader, footerCodec, keySerializer);
-            this.bloomFilter = BloomFilter.load(reader, footerCodec, bufferPool);
+            this.midpoints = Midpoints.load(reader, codec, keySerializer);
+            this.bloomFilter = BloomFilter.load(reader, codec, bufferPool);
         } else {
             this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb);
             this.midpoints = new Midpoints<>();
@@ -141,8 +139,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private void writeFooter(FooterWriter writer) {
-        midpoints.writeTo(writer, footerCodec, bufferPool, keySerializer);
-        bloomFilter.writeTo(writer, footerCodec, bufferPool);
+        midpoints.writeTo(writer, codec, bufferPool, keySerializer);
+        bloomFilter.writeTo(writer, codec, bufferPool);
     }
 
     @Override
@@ -561,7 +559,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         private final Serializer<V> valueSerializer;
         private final BlockFactory blockFactory;
         private final Codec codec;
-        private final Codec footerCodec;
         private final long bloomNItems;
         private final double bloomFPProb;
         private final int blockSize;
@@ -572,7 +569,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                        Serializer<V> valueSerializer,
                        BlockFactory blockFactory,
                        Codec codec,
-                       Codec footerCodec,
                        long bloomNItems,
                        double bloomFPProb,
                        int blockSize,
@@ -583,7 +579,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             this.valueSerializer = valueSerializer;
             this.blockFactory = blockFactory;
             this.codec = codec;
-            this.footerCodec = footerCodec;
             this.bloomNItems = bloomNItems;
             this.bloomFPProb = bloomFPProb;
             this.blockSize = blockSize;
@@ -604,7 +599,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                     blockFactory,
                     maxAge,
                     codec,
-                    footerCodec,
                     blockCache,
                     bloomNItems,
                     bloomFPProb,
@@ -626,7 +620,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                     blockFactory,
                     maxAge,
                     codec,
-                    footerCodec,
                     blockCache,
                     entries,
                     bloomFPProb,

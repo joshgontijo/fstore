@@ -1,39 +1,25 @@
-package io.joshworks.fstore.lsmtree;
+package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.CloseableIterator;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
-import io.joshworks.fstore.lsmtree.sstable.Entry;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.stream.Collectors;
 
-class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
+class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
 
-    private final List<PeekingIterator<Entry<K, V>>> segmentsIterators;
+    private final List<PeekingIterator<Entry<K, V>>> segmentsIterators = new ArrayList<>();
 
-    LsmTreeIterator(List<CloseableIterator<Entry<K, V>>> segmentsIterators, Iterator<Entry<K, V>> memIterator) {
-        segmentsIterators.add(Iterators.wrap(memIterator));
-
-        this.segmentsIterators = segmentsIterators.stream()
-                .map(Iterators::peekingIterator)
-                .collect(Collectors.toList());
-
-        removeSegmentIfCompleted();
-    }
-
-    private void removeSegmentIfCompleted() {
-        Iterator<PeekingIterator<Entry<K, V>>> itit = segmentsIterators.iterator();
-        while (itit.hasNext()) {
-            PeekingIterator<Entry<K, V>> seg = itit.next();
-            if (!seg.hasNext()) {
-                itit.remove();
-                IOUtils.closeQuietly(seg);
+    SSTablesIterator(List<CloseableIterator<Entry<K, V>>> iterators) {
+        for (CloseableIterator<Entry<K, V>> itit : iterators) {
+            if (!itit.hasNext()) {
+                IOUtils.closeQuietly(itit);
+            } else {
+                segmentsIterators.add(Iterators.peekingIterator(itit));
             }
         }
     }
@@ -43,7 +29,7 @@ class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<E
         Entry<K, V> entry;
         do {
             entry = getNextEntry(segmentsIterators);
-        } while (entry != null && hasNext() && entry.deletion());
+        } while (entry != null && entry.deletion() && hasNext());
         if (entry == null) {
             throw new NoSuchElementException();
         }
@@ -51,7 +37,7 @@ class LsmTreeIterator<K extends Comparable<K>, V> implements CloseableIterator<E
     }
 
     @Override
-    public void close()  {
+    public void close() {
         for (PeekingIterator<Entry<K, V>> availableSegment : segmentsIterators) {
             availableSegment.close();
         }
