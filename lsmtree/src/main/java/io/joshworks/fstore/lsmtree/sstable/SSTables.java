@@ -42,6 +42,8 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     private final long maxAge;
     private final Cache<String, Block> blockCache; //propagated to sstables
 
+    public static final long NO_MAX_AGE = -1;
+
     private final AtomicBoolean closed = new AtomicBoolean();
     private final BlockingQueue<FlushTask> flushQueue = new ArrayBlockingQueue<>(3, false);
 

@@ -8,16 +8,18 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.segment.block.Block;
-import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
+import io.joshworks.fstore.lsmtree.sstable.SSTables;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.Closeable;
 import java.io.File;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
@@ -29,51 +31,53 @@ public class Index implements Closeable {
     private static final int INDEX_ENTRY_BYTES = IndexKey.BYTES + Long.BYTES + Long.BYTES;
 
     private static final String NAME = "index";
-    private final LsmTree<IndexKey, Long> lsmTree;
+    private final SSTables<IndexKey, Long> sstables;
     private final Cache<Long, Integer> versionCache;
     private final Function<Long, StreamMetadata> metadataSupplier;
 
     public Index(File rootDir, int flushThreshold, Cache<Long, Integer> versionCache, Function<Long, StreamMetadata> metadataSupplier) {
         this.versionCache = versionCache;
         this.metadataSupplier = metadataSupplier;
-        this.lsmTree = LsmTree.builder(new File(rootDir, NAME), new IndexKeySerializer(), Serializers.LONG)
-                .disableTransactionLog()
-                .flushThreshold(flushThreshold)
-                .sstableStorageMode(StorageMode.MMAP)
-                .blockFactory(Block.flenBlock(INDEX_ENTRY_BYTES))
-                .codec(new LZ4Codec())
-                .blockSize(Size.KB.ofInt(4))
-                .flushOnClose(false)
-                .blockCache(Cache.lruCache(100, -1))
-                .maxAge(Long.MAX_VALUE) //FIXME, this is required on serialization to match BLOCK byte size (28bytes)
-                .segmentSize(INDEX_ENTRY_BYTES * flushThreshold)
-                .bloomFilter(0.01, flushThreshold * 2)
-                .sstableCompactor(new IndexCompactor(metadataSupplier, this::version))
-                .name(NAME)
-                .open();
+        this.sstables = new SSTables<>(
+                new File(rootDir, NAME),
+                new IndexKeySerializer(),
+                Serializers.LONG,
+                NAME,
+                INDEX_ENTRY_BYTES * flushThreshold,
+                flushThreshold,
+                StorageMode.MMAP,
+                FlushMode.MANUAL,
+                Block.flenBlock(INDEX_ENTRY_BYTES),
+                new IndexCompactor(metadataSupplier, this::version),
+                SSTables.NO_MAX_AGE,
+                new LZ4Codec(),
+                flushThreshold * 2,
+                0.01,
+                Size.KB.ofInt(4),
+                Cache.lruCache(100, -1));
     }
 
     @Override
     public void close() {
-        lsmTree.close();
+        sstables.close();
     }
 
-    public boolean add(long hash, int version, long position) {
-        boolean put = lsmTree.put(new IndexKey(hash, version), position);
+    public CompletableFuture<Void> add(long hash, int version, long position) {
+        CompletableFuture<Void> flushTask = sstables.add(Entry.add(new IndexKey(hash, version), position));
         versionCache.add(hash, version);
-        return put;
+        return flushTask;
     }
 
     public long size() {
-        return lsmTree.size();
+        return sstables.size();
     }
 
     public void compact() {
-        lsmTree.compact();
+        sstables.compact();
     }
 
     public Optional<IndexEntry> get(long stream, int version) {
-        Entry<IndexKey, Long> entry = lsmTree.getEntry(IndexKey.event(stream, version));
+        Entry<IndexKey, Long> entry = sstables.get(IndexKey.event(stream, version));
         return Optional.ofNullable(entry).map(pos -> IndexEntry.of(stream, version, entry.value, entry.timestamp));
     }
 
@@ -90,7 +94,7 @@ public class Index implements Closeable {
             return cached;
         }
         IndexKey maxStreamVersion = IndexKey.allOf(stream).end();
-        Entry<IndexKey, Long> found = lsmTree.find(maxStreamVersion, Expression.FLOOR, entry -> matchStream(stream, entry));
+        Entry<IndexKey, Long> found = sstables.find(maxStreamVersion, Expression.FLOOR, entry -> matchStream(stream, entry));
         if (found != null) {
             int fetched = found.key.version;
             versionCache.add(stream, fetched);
@@ -105,12 +109,12 @@ public class Index implements Closeable {
 
 
     public IndexIterator iterator(EventMap eventMap) {
-        FixedIndexIterator iterator = new FixedIndexIterator(lsmTree, Direction.FORWARD, eventMap);
+        FixedIndexIterator iterator = new FixedIndexIterator(sstables, Direction.FORWARD, eventMap);
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 
     public IndexIterator iterator(EventMap eventMap, Set<String> streamPatterns) {
-        IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(lsmTree, Direction.FORWARD, eventMap, streamPatterns);
+        IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(sstables, Direction.FORWARD, eventMap, streamPatterns);
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 }

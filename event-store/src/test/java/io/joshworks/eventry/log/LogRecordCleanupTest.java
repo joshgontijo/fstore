@@ -1,7 +1,7 @@
 package io.joshworks.eventry.log;
 
 import io.joshworks.eventry.InMemorySegment;
-import io.joshworks.eventry.data.StreamCreated;
+import io.joshworks.eventry.data.IndexFlushed;
 import io.joshworks.eventry.index.Index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.eventry.stream.Streams;
@@ -69,7 +69,7 @@ public class LogRecordCleanupTest {
     @Test
     public void system_events_are_always_written_to_new_segment() {
 
-        var stream = SystemStreams.STREAMS;
+        var stream = SystemStreams.INDEX;
 
         streams.create(stream);
 
@@ -355,7 +355,7 @@ public class LogRecordCleanupTest {
     }
 
     private EventRecord systemRecord() {
-        return new EventRecord(SystemStreams.STREAMS, StreamCreated.TYPE, 0, 0, new byte[0], new byte[0]);
+        return new EventRecord(SystemStreams.INDEX, IndexFlushed.TYPE, 0, 0, new byte[0], new byte[0]);
     }
 
     private void appendTo(Log<EventRecord> segment, EventRecord record) {
