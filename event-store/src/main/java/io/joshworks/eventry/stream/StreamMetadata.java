@@ -66,7 +66,7 @@ public class StreamMetadata {
     }
 
     public boolean truncated() {
-        return truncated > 0;
+        return truncated > NO_TRUNCATE;
     }
 
     public String metadata(String key) {

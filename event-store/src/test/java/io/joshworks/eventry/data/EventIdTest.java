@@ -45,7 +45,7 @@ public class EventIdTest {
 
     @Test
     public void isSystemStream() {
-        assertTrue(EventId.parse(SystemStreams.STREAMS).isSystemStream());
+        assertTrue(EventId.parse(SystemStreams.INDEX).isSystemStream());
     }
 
     @Test

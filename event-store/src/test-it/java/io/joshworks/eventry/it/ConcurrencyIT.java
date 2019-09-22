@@ -69,7 +69,7 @@ public class ConcurrencyIT {
         }
 
         Thread reportThread = new Thread(() -> {
-            while (writeCount.get() < itemsPerThread) {
+            while (writeCount.get() < itemsPerThread * threads) {
                 System.out.println("WRITES: " + writeCount.get());
                 sleep(2000);
             }

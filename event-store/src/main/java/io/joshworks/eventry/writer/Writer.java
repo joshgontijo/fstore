@@ -9,6 +9,8 @@ import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
 
+import java.util.concurrent.CompletableFuture;
+
 import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 
@@ -16,10 +18,12 @@ public class Writer {
 
     private final IEventLog eventLog;
     private final Index index;
+    private EventWriter eventWriter;
 
-    Writer(IEventLog eventLog, Index index) {
+    public Writer(IEventLog eventLog, Index index, EventWriter eventWriter) {
         this.eventLog = eventLog;
         this.index = index;
+        this.eventWriter = eventWriter;
     }
 
     public EventRecord append(EventRecord event, int expectedVersion, StreamMetadata metadata, boolean newStream) {
@@ -47,11 +51,17 @@ public class Writer {
         long position = eventLog.append(record);
 
         long start = System.currentTimeMillis();
-        boolean memFlushed = index.add(streamHash, nextVersion, position);
-        if (memFlushed) {
-            long end = System.currentTimeMillis();
-            var indexFlushedEvent = IndexFlushed.create(position, end - start);
-            appendInternal(indexFlushedEvent, NO_EXPECTED_VERSION, SystemStreams.INDEX, SystemStreams.INDEX_HASH, false);
+        CompletableFuture<Void> memFlushed = index.add(streamHash, nextVersion, position);
+        if (memFlushed != null) {
+            memFlushed.thenRun(() -> {
+                eventWriter.queue(() -> {
+                    long end = System.currentTimeMillis();
+                    var indexFlushedEvent = IndexFlushed.create(position, end - start);
+                    appendInternal(indexFlushedEvent, NO_EXPECTED_VERSION, SystemStreams.INDEX, SystemStreams.INDEX_HASH, false);
+                    return null;
+                });
+            });
+
         }
         return record;
     }

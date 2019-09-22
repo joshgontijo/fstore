@@ -37,6 +37,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -444,6 +445,13 @@ public class LogAppender<T> implements Closeable {
 
     public <R> R applyToSegments(Direction direction, Function<List<Log<T>>, R> function) {
         return levels.apply(direction, function);
+    }
+
+    public void acquireSegments(Direction direction, Consumer<List<Log<T>>> consumer) {
+        levels.apply(direction, segs -> {
+            consumer.accept(segs);
+            return null;
+        });
     }
 
     public int depth() {
