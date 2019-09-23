@@ -13,6 +13,7 @@ import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 import org.junit.After;
 import org.junit.Before;
@@ -413,6 +414,26 @@ public class EventStoreIT {
             assertEquals(0, event.version);
         }
     }
+
+    @Test
+    public void readStream() {
+        int streams = 1;
+        int items = 1000;
+        String streamPrefix = "stream-";
+
+        for (int i = 0; i < items; i++) {
+            String stream = streamPrefix + i % streams;
+//            List<EventRecord> events = store.read(stream, 0, -1);
+            store.append(EventRecord.create(stream, "test", Map.of("size", 1)));
+        }
+
+        long a = System.currentTimeMillis();
+        List<EventRecord> events = store.read(Direction.BACKWARD, "stream-0", items, items);
+        System.out.println((System.currentTimeMillis() - a));
+        events.stream().map(EventRecord::asJson).forEach(System.out::println);
+
+    }
+
 
     @Test
     public void many_streams_linkTo() {

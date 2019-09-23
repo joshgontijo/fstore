@@ -107,14 +107,13 @@ public class Index implements Closeable {
         return entry.key.stream == stream;
     }
 
-
-    public IndexIterator iterator(EventMap eventMap) {
-        FixedIndexIterator iterator = new FixedIndexIterator(sstables, Direction.FORWARD, eventMap);
+    public IndexIterator iterator(Direction direction, EventMap eventMap) {
+        FixedIndexIterator iterator = new FixedIndexIterator(sstables, direction, eventMap);
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 
-    public IndexIterator iterator(EventMap eventMap, Set<String> streamPatterns) {
-        IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(sstables, Direction.FORWARD, eventMap, streamPatterns);
+    public IndexIterator iterator(Direction direction, EventMap eventMap, Set<String> streamPatterns) {
+        IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(sstables, direction, eventMap, streamPatterns);
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
 }

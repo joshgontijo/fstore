@@ -30,6 +30,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.SequentialNaming;
+import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.segment.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -280,7 +281,8 @@ public class EventStore implements IEventStore {
         EventMap merged = checkpoint.merge(fromPattern);
         EventMap resolved = updateWithMinVersion(merged);
 
-        IndexIterator indexIterator = index.iterator(resolved, streamPatterns);
+        //TODO pass Direction as argument
+        IndexIterator indexIterator = index.iterator(Direction.FORWARD, resolved, streamPatterns);
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
@@ -293,7 +295,7 @@ public class EventStore implements IEventStore {
         }
         streams = updateWithMinVersion(streams);
 
-        IndexIterator indexIterator = index.iterator(streams);
+        IndexIterator indexIterator = index.iterator(Direction.FORWARD, streams);
         IndexListenerRemoval listenerRemoval = new IndexListenerRemoval(streamListeners, indexIterator);
 
         return new IndexedLogIterator(listenerRemoval, eventLog, this::resolve);
@@ -388,6 +390,14 @@ public class EventStore implements IEventStore {
     public EventRecord get(EventId stream) {
         EventRecord record = getInternal(stream);
         return resolve(record);
+    }
+
+    public List<EventRecord> read(Direction direction, String stream, int startInclusive, int limit) {
+        long hash = StreamHasher.hash(stream);
+        return Iterators.closeableStream(index.iterator(direction, EventMap.of(hash, startInclusive)))
+                .map(ie -> resolve(eventLog.get(ie.position)))
+                .limit(limit)
+                .collect(Collectors.toList());
     }
 
     //GET WITHOUT RESOLVING
