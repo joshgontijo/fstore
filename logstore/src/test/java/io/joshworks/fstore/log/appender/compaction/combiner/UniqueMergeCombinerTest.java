@@ -32,7 +32,7 @@ public class UniqueMergeCombinerTest {
     private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
     private static final int SEGMENT_SIZE = Memory.PAGE_SIZE * 2;
     private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
-    private final BufferPool bufferPool = new ThreadLocalBufferPool(MAX_ENTRY_SIZE);
+    private final BufferPool bufferPool = new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false);
 
     private final List<Segment> segments = new ArrayList<>();
 

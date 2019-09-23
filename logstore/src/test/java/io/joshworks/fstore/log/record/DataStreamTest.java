@@ -6,12 +6,12 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -46,7 +46,7 @@ public class DataStreamTest {
         file = FileUtils.testFile();
         storage = Storage.create(file, StorageMode.RAF, FILE_SIZE);
         storage.position(Log.START);
-        bufferPool = new ThreadLocalBufferPool(MAX_ENTRY_SIZE);
+        bufferPool = new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false);
         stream = new DataStream(bufferPool, storage, CHCKSUM_PROB, Memory.PAGE_SIZE);
     }
 

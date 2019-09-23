@@ -67,9 +67,9 @@ public class Server {
                 .option(Options.REUSE_ADDRESSES, true)
                 .option(Options.TCP_NODELAY, true)
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))
-                .option(Options.WORKER_IO_THREADS, 1)
-                .option(Options.WORKER_TASK_CORE_THREADS, 1)
-                .option(Options.WORKER_TASK_MAX_THREADS, 1)
+                .option(Options.WORKER_IO_THREADS, 3)
+                .option(Options.WORKER_TASK_CORE_THREADS, 10)
+                .option(Options.WORKER_TASK_MAX_THREADS, 10)
 //                .option(Options.RECEIVE_BUFFER, Size.MB.ofInt(5))
                 .onEvent(new TcpEventHandler(store, poolingSubscription))
                 .start(new InetSocketAddress("localhost", tcpPort));

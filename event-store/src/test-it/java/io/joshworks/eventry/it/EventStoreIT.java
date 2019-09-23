@@ -5,7 +5,6 @@ import io.joshworks.eventry.LinkToPolicy;
 import io.joshworks.eventry.SystemEventPolicy;
 import io.joshworks.eventry.api.EventStoreIterator;
 import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.data.StreamCreated;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Threads;
@@ -551,14 +550,14 @@ public class EventStoreIT {
         store.close();
         store = EventStore.open(directory);
 
-        List<EventRecord> foundStreams = store.fromStream(EventId.of(SystemStreams.STREAMS)).stream().collect(Collectors.toList());
+        List<StreamMetadata> allMetadata = store.streams.all();
+
 
         //stream also contains the stream definition itself
-        assertTrue(foundStreams.size() >= createdStreams.size());
+        assertTrue(allMetadata.size() >= createdStreams.size());
 
         int hits = 0;
-        for (EventRecord streamRecord : foundStreams) {
-            StreamMetadata streamMetadata = StreamCreated.from(streamRecord);
+        for (StreamMetadata streamMetadata : allMetadata) {
             if (createdStreams.contains(streamMetadata.name)) {
                 hits++;
             }

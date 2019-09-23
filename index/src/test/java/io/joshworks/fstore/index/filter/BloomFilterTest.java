@@ -38,7 +38,7 @@ public class BloomFilterTest {
         File testFile = FileUtils.testFile();
         filter = BloomFilter.create(10000000, 0.01);
 
-        bufferPool = new ThreadLocalBufferPool(Size.MB.ofInt(2), false);
+        bufferPool = new ThreadLocalBufferPool("buffer", Size.MB.ofInt(2), false);
         storage = Storage.create(testFile, StorageMode.MMAP, Size.MB.of(2));
         DataStream dataStream = new DataStream(bufferPool, storage);
 

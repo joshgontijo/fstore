@@ -41,11 +41,10 @@ public class SSTableTest {
                 Size.MB.of(100),
                 Serializers.INTEGER,
                 Serializers.VSTRING,
-                new ThreadLocalBufferPool(Size.MB.ofInt(1)),
+                new ThreadLocalBufferPool("pool", Size.MB.ofInt(1), false),
                 WriteMode.LOG_HEAD,
                 Block.vlenBlock(),
                 NO_MAX_AGE,
-                Codec.noCompression(),
                 Codec.noCompression(),
                 Cache.noCache(),
                 10000,
@@ -289,7 +288,7 @@ public class SSTableTest {
         }
 
         //delete all
-        for (int i = 0; i < 10000; i+=2) {
+        for (int i = 0; i < 10000; i += 2) {
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
 
@@ -332,12 +331,12 @@ public class SSTableTest {
     private void ceilingWithStep(int items, int steps) {
         TreeSet<Integer> treeSet = new TreeSet<>();
         for (int i = 0; i < items; i += steps) {
-            if(i == 806707) {
+            if (i == 806707) {
                 System.out.println();
             }
             treeSet.add(i);
             long append = sstable.append(Entry.add(i, String.valueOf(i)));
-            if(append == EOF) {
+            if (append == EOF) {
                 System.out.println();
             }
         }
@@ -345,7 +344,7 @@ public class SSTableTest {
 
 
         for (int i = 0; i < items - steps; i += 1) {
-            if(i == 806707) {
+            if (i == 806707) {
                 System.out.println();
             }
             Integer expected = treeSet.ceiling(i);

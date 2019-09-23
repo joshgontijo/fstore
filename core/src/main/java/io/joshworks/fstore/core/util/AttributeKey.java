@@ -1,4 +1,4 @@
-package io.joshworks.eventry.network.util;
+package io.joshworks.fstore.core.util;
 
 public class AttributeKey<T>  {
     private final Class<T> valueType;

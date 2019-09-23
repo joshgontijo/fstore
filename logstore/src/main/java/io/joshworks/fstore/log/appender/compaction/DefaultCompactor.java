@@ -3,6 +3,7 @@ package io.joshworks.fstore.log.appender.compaction;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.appender.compaction.combiner.SegmentCombiner;
@@ -23,7 +24,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -49,8 +50,8 @@ public class DefaultCompactor<T> implements ICompactor {
 
     private final Map<String, ExecutorService> levelCompaction = new ConcurrentHashMap<>();
 
-    private final ExecutorService cleanupWorker = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compaction-cleanup"));
-    private final ExecutorService coordinator = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compaction-coordinator"));
+    private final ExecutorService cleanupWorker;
+    private final ExecutorService coordinator;
 
     public DefaultCompactor(File directory,
                             SegmentCombiner<T> segmentCombiner,
@@ -79,6 +80,8 @@ public class DefaultCompactor<T> implements ICompactor {
         this.logger = Logging.namedLogger(name, "compactor");
         this.readPageSize = readPageSize;
         this.checksumProbability = checksumProbability;
+        this.cleanupWorker = singleThreadExecutor(name + "-compaction-cleanup");
+        this.coordinator = singleThreadExecutor(name + "-compaction-coordinator");
     }
 
     @Override
@@ -134,7 +137,7 @@ public class DefaultCompactor<T> implements ICompactor {
     }
 
     private String executorName(int level) {
-        return threadPerLevel ? "compaction-level-" + level : "compaction";
+        return threadPerLevel ? name + "-compaction-level-" + level : name + "-compaction";
     }
 
     private void cleanup(CompactionResult<T> result) {
@@ -222,10 +225,20 @@ public class DefaultCompactor<T> implements ICompactor {
     }
 
     private static ExecutorService levelExecutor(String name) {
-        return new ThreadPoolExecutor(1, 1, 1,
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1,
                 TimeUnit.MINUTES,
-                new ArrayBlockingQueue<>(1),
+                new ArrayBlockingQueue<>(5),
                 Threads.namedThreadFactory(name),
                 new ThreadPoolExecutor.DiscardPolicy());
+        return new MonitoredThreadPool(name, executor);
+    }
+
+    private static ExecutorService singleThreadExecutor(String name) {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1,
+                TimeUnit.HOURS,
+                new LinkedBlockingDeque<>(),
+                Threads.namedThreadFactory(name),
+                new ThreadPoolExecutor.DiscardPolicy());
+        return new MonitoredThreadPool(name, executor);
     }
 }

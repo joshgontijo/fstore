@@ -14,11 +14,11 @@ public class Range<K extends Comparable<K>> {
         return new Range<>(startInclusive, endExclusive);
     }
 
-    public static <K extends Comparable<K>> Range<K> startingWith(K startInclusive) {
+    public static <K extends Comparable<K>> Range<K> start(K startInclusive) {
         return new Range<>(startInclusive, null);
     }
 
-    public static <K extends Comparable<K>> Range<K> endingWith(K endExclusive) {
+    public static <K extends Comparable<K>> Range<K> end(K endExclusive) {
         return new Range<>(null, endExclusive);
     }
 

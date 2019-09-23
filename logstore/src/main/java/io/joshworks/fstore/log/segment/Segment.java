@@ -3,10 +3,11 @@ package io.joshworks.fstore.log.segment;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.MetricStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.metrics.MetricsTable;
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -55,7 +56,7 @@ public final class Segment<T> implements Log<T> {
     private static final double FOOTER_EXTRA_LENGTH_PERCENT = 0.1;
 
     private final Serializer<T> serializer;
-    private final Storage storage;
+    private final MetricStorage storage;
     private final DataStream stream;
 
     protected final AtomicLong entries = new AtomicLong();
@@ -72,8 +73,7 @@ public final class Segment<T> implements Log<T> {
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<SegmentIterator> readers = ConcurrentHashMap.newKeySet();
 
-    private final MetricsTable metrics = new MetricsTable();
-
+    private final Metrics metrics = new Metrics();
 
     public Segment(
             File file,
@@ -103,11 +103,11 @@ public final class Segment<T> implements Log<T> {
         this.footerWriter = requireNonNull(footerWriter, "Footer writer must be provided");
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
 
-        Storage storage = null;
+        MetricStorage storage = null;
         try {
             long alignedSegmentDataSize = Storage.align(segmentDataSize);
             long fileLength = getTotalFileLength(alignedSegmentDataSize, bufferPool.bufferSize());
-            this.storage = storage = Storage.createOrOpen(file, storageMode, fileLength);
+            this.storage = storage = new MetricStorage(Storage.createOrOpen(file, storageMode, fileLength));
             this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize);
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
@@ -153,6 +153,7 @@ public final class Segment<T> implements Log<T> {
         long recordPosition = stream.write(record, serializer);
         incrementEntry();
         dataWritePosition.set(storage.position());
+        metrics.update("append");
         return recordPosition;
     }
 
@@ -165,6 +166,7 @@ public final class Segment<T> implements Log<T> {
         checkClosed();
         checkBounds(position);
         RecordEntry<T> entry = stream.read(Direction.FORWARD, position, serializer);
+        metrics.update("get");
         return entry.entry();
     }
 
@@ -477,6 +479,19 @@ public final class Segment<T> implements Log<T> {
         logger.info("Deleting {}", name());
         storage.delete();
         close();
+    }
+
+    @Override
+    public Metrics metrics() {
+        metrics.set("physicalSize", physicalSize());
+        metrics.set("logicalSize", logicalSize());
+        metrics.set("dataSize", dataSize());
+        metrics.set("actualDataSize", actualDataSize());
+        metrics.set("entries", entries());
+        metrics.set("headerSize", headerSize());
+        metrics.set("footerSize", footerSize());
+        metrics.set("uncompressedDataSize", uncompressedDataSize());
+        return Metrics.merge(storage.metrics(), metrics);
     }
 
     @Override
