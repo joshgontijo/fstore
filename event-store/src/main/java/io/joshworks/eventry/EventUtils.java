@@ -13,7 +13,7 @@ public class EventUtils {
         if (isExpired(timestamp, metadata)) {
             return false;
         }
-        if (isTruncated(version, metadata.truncated)) {
+        if (isGreaterThanTruncatedVersion(version, metadata.truncated)) {
             return false;
         }
         if (metadata.maxCount > StreamMetadata.NO_MAX_COUNT) {
@@ -23,7 +23,7 @@ public class EventUtils {
         return true;
     }
 
-    private static boolean isTruncated(int version, int truncatedVersion) {
+    private static boolean isGreaterThanTruncatedVersion(int version, int truncatedVersion) {
         return version <= truncatedVersion;
     }
 

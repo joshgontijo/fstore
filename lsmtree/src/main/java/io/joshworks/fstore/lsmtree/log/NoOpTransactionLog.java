@@ -2,18 +2,19 @@ package io.joshworks.fstore.lsmtree.log;
 
 import java.util.function.Consumer;
 
-public class NoOpTransactionLog<K extends Comparable<K>, V> implements TransactionLog<K, V> {
+public class NoOpTransactionLog<K extends Comparable<K>, V> implements TransactionLog {
 
     @Override
-    public void append(LogRecord<K, V> record) {
+    public long append(LogRecord record) {
+        return -1;
     }
 
     @Override
-    public void markFlushed() {
+    public void markFlushed(long position) {
     }
 
     @Override
-    public void restore(Consumer<LogRecord<K, V>> consumer) {
+    public void restore(Consumer<LogRecord> consumer) {
     }
 
     @Override

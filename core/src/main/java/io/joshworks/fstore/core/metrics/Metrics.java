@@ -1,37 +1,20 @@
 package io.joshworks.fstore.core.metrics;
 
-import javax.management.Attribute;
-import javax.management.AttributeList;
-import javax.management.DynamicMBean;
-import javax.management.MBeanAttributeInfo;
-import javax.management.MBeanInfo;
-import javax.management.MBeanNotificationInfo;
-import javax.management.ObjectName;
-import java.io.Closeable;
-import java.lang.management.ManagementFactory;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class Metrics implements DynamicMBean, Closeable {
+public class Metrics {
 
-    private final Map<String, Metric> table = new ConcurrentHashMap<>();
-    private final String type;
-    private final Consumer<String> closeListener;
-    private final ObjectName objectName;
+    final Map<String, Long> items;
 
-    Metrics(String type, ObjectName objectName, Consumer<String> closeListener) {
-        try {
-            this.type = type;
-            this.closeListener = closeListener;
-            this.objectName = objectName;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public Metrics() {
+        this.items = new ConcurrentHashMap<>();
+    }
+
+    private Metrics(Map<String, Long> items) {
+        this.items = items;
     }
 
     public void update(String name) {
@@ -39,84 +22,31 @@ public class Metrics implements DynamicMBean, Closeable {
     }
 
     public void update(String name, long delta) {
-        table.compute(name, (k, v) -> {
-            if (v == null) {
-                v = new StandardMetric();
-            }
-            v.update(delta);
-            return v;
-        });
+        items.compute(name, (k, v) -> v == null ? delta : v + (delta));
     }
 
     public void set(String name, long value) {
-        table.compute(name, (k, v) -> {
-            if (v == null) {
-                v = new StandardMetric();
-            }
-            v.set(value);
-            return v;
-        });
+        items.put(name, value);
     }
 
-    public void register(String name, Supplier<Long> supplier) {
-        table.put(name, new SupplierMetric(supplier));
+    public void clear() {
+        items.clear();
     }
 
-    public void register(String name, Consumer<AtomicLong> supplier) {
-        table.put(name, new ConsumerMetric(supplier));
+    public Long remove(String key) {
+        return items.remove(key);
     }
 
-    @Override
-    public Object getAttribute(String attribute) {
-        Metric val = table.get(attribute);
-        return val == null ? null : val.get();
+    public Long get(String key) {
+        return items.get(key);
     }
 
-    @Override
-    public void setAttribute(Attribute attribute) {
-        //do nothing
+    public static Metrics merge(Metrics... items) {
+        Map<String, Long> merged = Stream.of(items)
+                .flatMap(map -> map.items.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Long::sum));
+
+        return new Metrics(merged);
     }
 
-    @Override
-    public AttributeList getAttributes(String[] attributes) {
-        AttributeList list = new AttributeList();
-        for (Map.Entry<String, Metric> kv : table.entrySet()) {
-            list.add(new Attribute(kv.getKey(), kv.getValue().get()));
-        }
-        return list;
-    }
-
-    @Override
-    public AttributeList setAttributes(AttributeList attributes) {
-        return null;
-    }
-
-    @Override
-    public Object invoke(String actionName, Object[] params, String[] signature) {
-        return null;
-    }
-
-    @Override
-    public MBeanInfo getMBeanInfo() {
-        MBeanAttributeInfo[] dAttributes = new MBeanAttributeInfo[table.keySet().size()];
-
-        // Dynamically Build one attribute per thread.
-        List<String> items = new ArrayList<>(table.keySet());
-        for (int i = 0; i < dAttributes.length; i++) {
-            dAttributes[i] = new MBeanAttributeInfo(items.get(i), Long.class.getSimpleName(), "(no description)", true, false, false);
-        }
-
-        return new MBeanInfo(this.getClass().getName(), null, dAttributes, null, null, new MBeanNotificationInfo[0]);
-    }
-
-    @Override
-    public void close() {
-        try {
-            table.clear();
-            closeListener.accept(type);
-            ManagementFactory.getPlatformMBeanServer().unregisterMBean(objectName);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 }

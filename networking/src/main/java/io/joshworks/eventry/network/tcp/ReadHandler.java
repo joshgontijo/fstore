@@ -16,7 +16,7 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
     private static final Logger logger = LoggerFactory.getLogger(ReadHandler.class);
 
     private final TcpConnection tcpConnection;
-    private final BufferPool appBuffer = new ThreadLocalBufferPool(4096 * 2, true);
+    private final BufferPool appBuffer = new ThreadLocalBufferPool("tcp-appBuffer-pool", 4096 * 2, true);
     private final EventHandler handler;
 
     ReadHandler(TcpConnection tcpConnection, EventHandler handler) {
@@ -47,14 +47,14 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
     private void handle(TcpConnection tcpConnection, ByteBuffer buffer) {
         final Object object = parse(buffer);
 
-        tcpConnection.worker().execute(() -> {
+//        tcpConnection.worker().execute(() -> {
             try {
                 tcpConnection.incrementMessageReceived();
                 handler.onEvent(tcpConnection, object);
             } catch (Exception e) {
                 logger.error("Event handler threw an exception", e);
             }
-        });
+//        });
     }
 
     private Object parse(ByteBuffer buffer) {

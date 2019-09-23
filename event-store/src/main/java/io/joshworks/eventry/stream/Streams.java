@@ -1,5 +1,6 @@
 package io.joshworks.eventry.stream;
 
+import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
@@ -42,11 +43,12 @@ public class Streams implements Closeable {
         this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, KryoStoreSerializer.of(StreamMetadata.class))
                 .name(STORE_NAME)
                 .flushThreshold(flushThreshold)
-                .bloomFilter(0.01, flushThreshold)
+                .bloomFilter(0.01, flushThreshold * 2)
                 .transacationLogStorageMode(StorageMode.MMAP)
                 .sstableStorageMode(StorageMode.MMAP)
-                .blockSize(Size.KB.ofInt(2))
-                .blockCache(Cache.lruCache(5000, -1))
+                .blockSize(Size.BYTE.ofInt(256))
+                .blockCache(Cache.lruCache(100, -1))
+                .codec(new LZ4Codec())
                 .open();
     }
 

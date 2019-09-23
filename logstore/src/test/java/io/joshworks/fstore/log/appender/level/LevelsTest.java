@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.appender.level;
 
+import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
@@ -408,6 +409,11 @@ public class LevelsTest {
         @Override
         public Type type() {
             return type;
+        }
+
+        @Override
+        public Metrics metrics() {
+            return null;
         }
 
         @Override

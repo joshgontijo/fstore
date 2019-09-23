@@ -1,10 +1,10 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.stream.StreamMetadata;
+import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.SSTables;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class FixedIndexIterator implements IndexIterator {
 
-    private final LsmTree<IndexKey, Long> delegate;
+    private final SSTables<IndexKey, Long> delegate;
     protected final EventMap eventMap;
     private final Direction direction;
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -20,7 +20,7 @@ public class FixedIndexIterator implements IndexIterator {
     private Iterator<Map.Entry<Long, Integer>> streamIt;
     private IndexEntry next;
 
-    FixedIndexIterator(LsmTree<IndexKey, Long> delegate, Direction direction, EventMap eventMap) {
+    FixedIndexIterator(SSTables<IndexKey, Long> delegate, Direction direction, EventMap eventMap) {
         this.delegate = delegate;
         this.eventMap = eventMap;
         this.direction = direction;
@@ -67,7 +67,7 @@ public class FixedIndexIterator implements IndexIterator {
 
     private IndexEntry fetchEntry(long stream, int lastReadVersion) {
         int version = lastReadVersion + 1;
-        Entry<IndexKey, Long> entry = delegate.getEntry(IndexKey.event(stream, version));
+        Entry<IndexKey, Long> entry = delegate.get(IndexKey.event(stream, version));
         if (entry == null) {
             return null;
         }

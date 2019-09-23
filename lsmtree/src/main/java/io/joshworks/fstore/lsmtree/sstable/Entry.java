@@ -31,12 +31,12 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
     public static <K extends Comparable<K>, V> Entry<K, V> add(K key, V value) {
         requireNonNull(key, "Key must be provided");
         requireNonNull(value, "Value must be provided");
-        return of(System.currentTimeMillis() / 1000, key, value);
+        return of(nowSeconds(), key, value);
     }
 
     public static <K extends Comparable<K>, V> Entry<K, V> delete(K key) {
         requireNonNull(key, "Key must be provided");
-        return new Entry<>(System.currentTimeMillis() / 1000, key, null);
+        return new Entry<>(nowSeconds(), key, null);
     }
 
     public boolean deletion() {
@@ -44,8 +44,12 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
     }
 
     public boolean expired(long maxAgeSeconds) {
-        long now = System.currentTimeMillis() / 1000;
+        long now = nowSeconds();
         return maxAgeSeconds > 0 && timestamp > NO_TIMESTAMP && (now - timestamp > maxAgeSeconds);
+    }
+
+    private static long nowSeconds() {
+        return System.currentTimeMillis() / 1000;
     }
 
     public boolean readable(long maxAge) {
@@ -80,6 +84,6 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
 
     @Override
     public String toString() {
-        return deletion() ? "DELETE" : "ADD" + ":" + key + "=" + value;
+        return deletion() ? "DELETE: " + key : "ADD :" + key + "=" + value;
     }
 }

@@ -13,36 +13,40 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.function.Consumer;
 
-public class PersistentTransactionLog<K extends Comparable<K>, V> implements TransactionLog<K, V> {
+public class PersistentTransactionLog<K extends Comparable<K>, V> implements TransactionLog {
 
-    private final LogAppender<LogRecord<K, V>> appender;
+    private final LogAppender<LogRecord> appender;
 
     public PersistentTransactionLog(File root, Serializer<K> keySerializer, Serializer<V> valueSerializer, String name, StorageMode mode) {
-        this.appender = LogAppender.builder(new File(root, "wal"), new RecordSerializer<>(keySerializer, valueSerializer))
+        //TODO when segment rolls, then sstable must be flushed, otherwise the log compactor might delete entries that are
+        //not persisted to disk yet
+        this.appender = LogAppender.builder(new File(root, "log"), new LogRecordSerializer<>(keySerializer, valueSerializer))
                 .compactionStrategy(new DiscardCombiner<>())
-                .name(name + "-wal")
+                .name(name + "-log")
                 .storageMode(mode)
                 .open();
     }
 
     @Override
-    public void append(LogRecord<K, V> record) {
-        appender.append(record);
+    public synchronized long append(LogRecord record) {
+        return appender.append(record);
     }
 
     @Override
-    public void markFlushed() {
-        appender.append(LogRecord.memFlushed());
+    public synchronized void markFlushed(long position) {
+        appender.append(LogRecord.memFlushed(position));
     }
 
     @Override
-    public void restore(Consumer<LogRecord<K, V>> consumer) {
-        Deque<LogRecord<K, V>> stack = new ArrayDeque<>();
-        try (LogIterator<LogRecord<K, V>> iterator = appender.iterator(Direction.BACKWARD)) {
-            while (iterator.hasNext()) {
-                LogRecord<K, V> record = iterator.next();
+    public void restore(Consumer<LogRecord> consumer) {
+        Deque<LogRecord> stack = new ArrayDeque<>();
+        try (LogIterator<LogRecord> iterator = appender.iterator(Direction.BACKWARD)) {
+            long lastFlush = -1;
+            while (iterator.hasNext() && iterator.position() > lastFlush) {
+                LogRecord record = iterator.next();
                 if (EntryType.MEM_FLUSHED.equals(record.type)) {
-                    break;
+                    IndexFlushed flushed = (IndexFlushed) record;
+                    lastFlush = flushed.position;
                 }
                 stack.push(record);
             }
@@ -50,7 +54,7 @@ public class PersistentTransactionLog<K extends Comparable<K>, V> implements Tra
             throw new RuntimeException(e);
         }
 
-        for (LogRecord<K, V> kvRecord : stack) {
+        for (LogRecord kvRecord : stack) {
             consumer.accept(kvRecord);
         }
     }

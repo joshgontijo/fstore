@@ -1,8 +1,6 @@
 package io.joshworks.eventry.writer;
 
-import io.joshworks.eventry.index.Index;
-import io.joshworks.eventry.log.IEventLog;
-import io.joshworks.fstore.core.metrics.MetricRegistry;
+import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
 import io.joshworks.fstore.core.util.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,37 +8,32 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 public class EventWriter implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(EventWriter.class);
-    public static final String EVENT_WRITER = "event-writer";
-    private final Writer writer;
-    private final ThreadPoolExecutor executor;
+    private static final String EVENT_WRITER = "event-writer";
+    private final ExecutorService executor;
     private final BlockingQueue<Runnable> queue;
 
-    public EventWriter(IEventLog eventLog, Index index, int maxQueueSize) {
-        this.queue = maxQueueSize < 0 ? new LinkedBlockingDeque<>() : new ArrayBlockingQueue<>(maxQueueSize);
-        this.executor = new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, queue, Threads.namedThreadFactory(EVENT_WRITER), new ThreadPoolExecutor.AbortPolicy());
-        this.writer = new Writer(eventLog, index);
-        MetricRegistry.monitor(EVENT_WRITER, executor);
+    public EventWriter(int maxQueueSize) {
+        this.queue = maxQueueSize <= 0 ? new LinkedBlockingDeque<>() : new ArrayBlockingQueue<>(maxQueueSize);
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, queue, Threads.namedThreadFactory(EVENT_WRITER), new ThreadPoolExecutor.AbortPolicy());
+        this.executor = new MonitoredThreadPool(EVENT_WRITER, executor);
     }
 
-    public <R> Future<R> queue(Function<Writer, R> func) {
-        return executor.submit(() -> func.apply(writer));
+    public CompletableFuture<Void> queue(Runnable task) {
+        return CompletableFuture.runAsync(task, executor);
     }
 
-    public Future<Void> queue(Consumer<Writer> func) {
-        return queue(writer -> {
-            func.accept(writer);
-            return null;
-        });
+    public <R> CompletableFuture<R> queue(Supplier<R> func) {
+        return CompletableFuture.supplyAsync(func, executor);
     }
 
     @Override

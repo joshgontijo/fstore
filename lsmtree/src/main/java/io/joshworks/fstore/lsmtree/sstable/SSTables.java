@@ -20,16 +20,17 @@ import io.joshworks.fstore.log.segment.block.BlockFactory;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeSet;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 
@@ -41,11 +42,16 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     private final long maxAge;
     private final Cache<String, Block> blockCache; //propagated to sstables
 
-    private final AtomicBoolean closed = new AtomicBoolean();
-    private final BlockingQueue<MemTable<K, V>> flushQueue = new ArrayBlockingQueue<>(3, false);
+    public static final long NO_MAX_AGE = -1;
 
-    private final Metrics metrics;
+    private final AtomicBoolean closed = new AtomicBoolean();
+    private final BlockingQueue<FlushTask> flushQueue = new ArrayBlockingQueue<>(3, false);
+
+    private final Metrics metrics = new Metrics();
+    private final String metricsKey;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+
+    private final Object FLUSH_LOCK = new Object();
 
     public SSTables(File dir,
                     Serializer<K> keySerializer,
@@ -57,78 +63,88 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                     FlushMode flushMode,
                     BlockFactory blockFactory,
                     UniqueMergeCombiner<Entry<K, V>> compactor,
-                    long maxAge,
+                    long maxAgeSeconds,
                     Codec codec,
-                    Codec footerCodec,
                     long bloomNItems,
                     double bloomFPProb,
                     int blockSize,
                     Cache<String, Block> blockCache) {
 
         this.flushThreshold = flushThreshold;
-        this.maxAge = maxAge;
+        this.maxAge = maxAgeSeconds;
         this.blockCache = blockCache;
         this.memTable = new MemTable<>();
-        name = name + "-sstables";
-        executor.execute(flushTask());
-        this.metrics = MetricRegistry.create(name);
-        this.appender = LogAppender.builder(dir, EntrySerializer.of(maxAge, keySerializer, valueSerializer))
+        this.executor.execute(flushTask());
+        this.metricsKey = MetricRegistry.register(Map.of("type", "sstables", "name", name), () -> {
+            metrics.set("blockCacheSize", blockCache.size());
+            return metrics;
+        });
+        this.appender = LogAppender.builder(dir, EntrySerializer.of(maxAgeSeconds, keySerializer, valueSerializer))
                 .compactionStrategy(compactor)
-                .name(name)
+                .name(name + "-sstables")
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)
                 .parallelCompaction()
                 .flushMode(flushMode)
                 .directBufferPool()
-                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, footerCodec, bloomNItems, bloomFPProb, blockSize, maxAge, blockCache));
+                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, maxAgeSeconds, blockCache));
     }
 
-    public void add(Entry<K, V> entry) {
+    public CompletableFuture<Void> add(Entry<K, V> entry) {
         int size = memTable.add(entry);
         if (size >= flushThreshold) {
-            scheduleFlush(false);
+            return scheduleFlush(false);
         }
+        return null;
     }
 
-    private synchronized boolean scheduleFlush(boolean force) {
-        int size = memTable.size();
-        if (size == 0) {
-            return false;
+    private CompletableFuture<Void> scheduleFlush(boolean force) {
+        synchronized (FLUSH_LOCK) {
+            int size = memTable.size();
+            if (!force && size < flushThreshold) {
+                return null;
+            }
+            if (size == 0) {
+                return null;
+            }
+
+            try {
+                CompletableFuture<Void> completion = new CompletableFuture<>();
+                flushQueue.put(new FlushTask(completion, memTable));
+                memTable = new MemTable<>();
+                return completion;
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Failed to queue flush task", e);
+            }
         }
-        if (!force && size < flushThreshold) {
-            return false;
-        }
-        flushQueue.add(memTable);
-        memTable = new MemTable<>();
-        return true;
     }
 
     private Runnable flushTask() {
         return () -> {
             while (!closed.get()) {
-                MemTable<K, V> polled = flushQueue.peek();
-                if (polled == null) {
+                FlushTask task = flushQueue.peek();
+                if (task == null) {
                     Threads.sleep(500);
                     continue;
                 }
 
-                long start = System.currentTimeMillis();
-                long inserted = polled.writeTo(appender, maxAge);
-                long end = System.currentTimeMillis();
+                try {
+                    long start = System.currentTimeMillis();
 
-                flushQueue.poll();
-                if (inserted > 0) {
-                    log.markFlushed();
+                    long inserted = task.memTable.writeTo(appender, maxAge);
+                    flushQueue.poll();
+
+                    long end = System.currentTimeMillis();
+                    metrics.set("lastFlushTime", (end - start));
+                    metrics.update("flushTime", (end - start));
+                    metrics.update("flushed");
+                    metrics.update("lastFlush", start);
+                    metrics.update("flushedItems", inserted);
+                } finally {
+                    task.completionListener.complete(null);
                 }
-
-
-                metrics.set("lastFlushTime", (end - start));
-                metrics.update("flushTime", (end - start));
-                metrics.update("flushed");
-                metrics.update("lastFlush", start);
-                metrics.update("flushedItems", inserted);
-
-
             }
         };
     }
@@ -139,7 +155,8 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         if (fromMem != null) {
             return fromMem;
         }
-        for (MemTable<K, V> memTable : flushQueue) {
+        for (FlushTask flushTask : flushQueue) {
+            MemTable<K, V> memTable = flushTask.memTable;
             fromMem = memTable.get(key);
             if (fromMem != null) {
                 return fromMem;
@@ -195,6 +212,13 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         if (matchEntry(matcher, fromMem)) {
             return fromMem;
         }
+        for (FlushTask flushTask : flushQueue) {
+            MemTable<K, V> memTable = flushTask.memTable;
+            fromMem = expression.apply(key, memTable);
+            if (matchEntry(matcher, fromMem)) {
+                return fromMem;
+            }
+        }
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             for (Log<Entry<K, V>> segment : segments) {
                 if (!segment.readOnly()) {
@@ -226,6 +250,15 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         if (memEntry != null && matcher.test(memEntry)) {
             found.add(memEntry);
         }
+
+        for (FlushTask flushTask : flushQueue) {
+            MemTable<K, V> memTable = flushTask.memTable;
+            memEntry = expression.apply(key, memTable);
+            if (memEntry != null && matcher.test(memEntry)) {
+                found.add(memEntry);
+            }
+        }
+
         List<Entry<K, V>> fromDisk = appender.applyToSegments(Direction.BACKWARD, segments -> {
             List<Entry<K, V>> diskEntries = new ArrayList<>();
             for (Log<Entry<K, V>> segment : segments) {
@@ -245,8 +278,21 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     }
 
     private Entry<K, V> apply(K key, Expression expression) {
+
         return appender.applyToSegments(Direction.BACKWARD, segments -> {
             TreeSet<Entry<K, V>> set = new TreeSet<>();
+
+            Entry<K, V> fromMem = expression.apply(key, memTable);
+            if (fromMem != null) {
+                if (key.equals(fromMem.key)) {
+                    //short circuit on exact match when ceiling, floor or equals
+                    if (Expression.CEILING.equals(expression) || Expression.FLOOR.equals(expression) || Expression.EQUALS.equals(expression)) {
+                        return fromMem;
+                    }
+                }
+                set.add(fromMem);
+            }
+
             for (Log<Entry<K, V>> segment : segments) {
                 SSTable<K, V> sstable = (SSTable<K, V>) segment;
                 if (!sstable.readOnly()) {
@@ -271,18 +317,33 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return entry != null && !entry.deletion() && matcher.test(entry);
     }
 
-    public void flush() {
-        scheduleFlush(true);
+    public CompletableFuture<Void> flush() {
+        return scheduleFlush(true);
+    }
+
+    public void flushSync() {
+        try {
+            CompletableFuture<Void> completion = scheduleFlush(true);
+            if (completion != null) {
+                completion.get();
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public long memTableSize() {
+        return memTable.size();
     }
 
     public void close() {
-
         if (!closed.compareAndSet(false, true)) {
             return;
         }
         try {
             executor.shutdown();
             executor.awaitTermination(1, TimeUnit.MINUTES);
+            MetricRegistry.remove(metricsKey);
 
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -292,32 +353,65 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
-        List<CloseableIterator<Entry<K, V>>> sstableIterators = appender.applyToSegments(Direction.FORWARD, segments -> segments.stream()
-                .filter(Log::readOnly)
-                .map(seg -> seg.iterator(direction))
-                .collect(Collectors.toList()));
+        synchronized (FLUSH_LOCK) {
+            List<CloseableIterator<Entry<K, V>>> iterators = new ArrayList<>();
 
-        return new SSTablesIterator<>(sstableIterators, memTable.iterator(direction));
+            //OLDEST -> NEWEST
+            appender.acquireSegments(Direction.FORWARD, segments -> {
+                segments.stream()
+                        .filter(Log::readOnly)
+                        .map(seg -> seg.iterator(direction))
+                        .forEach(iterators::add);
 
+                flushQueue.stream().map(t -> t.memTable).map(mem -> mem.iterator(direction)).forEach(iterators::add);
+                iterators.add(memTable.iterator(direction));
+            });
+
+            return new SSTablesIterator<>(iterators);
+        }
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
-        List<CloseableIterator<Entry<K, V>>> sstableIterators = appender.applyToSegments(Direction.FORWARD, segments -> segments.stream()
-                .filter(Log::readOnly)
-                .map(seg -> {
-                    SSTable<K, V> sstable = (SSTable<K, V>) seg;
-                    return sstable.iterator(direction, range);
-                })
-                .collect(Collectors.toList()));
 
-        return new SSTablesIterator<>(sstableIterators, memTable.iterator(direction, range));
+        synchronized (FLUSH_LOCK) {
+            List<CloseableIterator<Entry<K, V>>> iterators = new ArrayList<>();
+
+            //OLDEST -> NEWEST
+            appender.acquireSegments(Direction.FORWARD, segments -> {
+                segments.stream()
+                        .filter(Log::readOnly)
+                        .map(seg -> {
+                            SSTable<K, V> sstable = (SSTable<K, V>) seg;
+                            return sstable.iterator(direction, range);
+                        })
+                        .forEach(iterators::add);
+
+                flushQueue.stream().map(t -> t.memTable).map(mem -> mem.iterator(direction, range)).forEach(iterators::add);
+                iterators.add(memTable.iterator(direction, range));
+            });
+
+            return new SSTablesIterator<>(iterators);
+        }
     }
 
     public long size() {
-        return appender.applyToSegments(Direction.FORWARD, segs -> segs.stream().mapToLong(Log::entries).sum());
+        long sstablesSize = appender.applyToSegments(Direction.FORWARD, segs -> segs.stream().mapToLong(Log::entries).sum());
+        return sstablesSize + memTableSize();
     }
 
     public void compact() {
         appender.compact();
     }
+
+    private class FlushTask {
+
+        final CompletableFuture<Void> completionListener;
+        final MemTable<K, V> memTable;
+
+        FlushTask(CompletableFuture<Void> completionListener, MemTable<K, V> memTable) {
+            this.completionListener = completionListener;
+            this.memTable = memTable;
+        }
+    }
+
 }

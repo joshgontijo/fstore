@@ -2,13 +2,13 @@ package io.joshworks.fstore.lsmtree.log;
 
 import java.util.function.Consumer;
 
-public interface TransactionLog<K extends Comparable<K>, V> {
+public interface TransactionLog {
 
-    void append(LogRecord<K, V> record);
+    long append(LogRecord record);
 
-    void markFlushed();
+    void markFlushed(long position);
 
-    void restore(Consumer<LogRecord<K, V>> consumer);
+    void restore(Consumer<LogRecord> consumer);
 
     void close();
 }

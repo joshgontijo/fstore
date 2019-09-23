@@ -9,7 +9,7 @@ import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.streams.SystemStreams;
+import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,14 +30,13 @@ import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class EventStoreTest {
 
     private File directory;
-    private IEventStore store;
+    private EventStore store;
 
     @Before
     public void setUp() {
@@ -49,21 +48,6 @@ public class EventStoreTest {
     public void tearDown() {
         store.close();
         FileUtils.tryDelete(directory);
-    }
-
-    @Test
-    public void system_events_are_loaded_on_reopen() {
-
-        store.close();
-        store = EventStore.open(directory);
-
-        EventRecord record = store.get(EventId.of(SystemStreams.STREAMS, 0));
-        assertNotNull(record);
-        assertEquals(0, record.version);
-        assertEquals(SystemStreams.STREAMS, record.stream);
-
-        List<EventRecord> stream = store.fromStream(EventId.of(SystemStreams.STREAMS)).toList();
-        assertEquals(3, stream.size());
     }
 
     @Test
@@ -517,7 +501,30 @@ public class EventStoreTest {
     }
 
     @Test
-    public void fromStreams_returns_data_when_instantiated_before_creating_stream_and_before_appending_event() {
+    public void updateWithMinVersion_returns_EventMap_as_is_when_no_stream_exists() {
+        EventMap eventMap = store.updateWithMinVersion(EventMap.of(Set.of(12L, 34L, 56L)));
+        assertEquals(3, eventMap.size());
+        assertEquals(-1, eventMap.get(12L));
+        assertEquals(-1, eventMap.get(34L));
+        assertEquals(-1, eventMap.get(56L));
+    }
+
+    @Test
+    public void updateWithMinVersion_updates_truncated_streams() {
+        String stream = "abc";
+        long hash = StreamHasher.hash(stream);
+
+        store.append(EventRecord.create(stream, "type-abc", Map.of()));
+        store.append(EventRecord.create(stream, "type-abc", Map.of()));
+
+        store.truncate(stream, 0);
+
+        EventMap eventMap = store.updateWithMinVersion(EventMap.of(hash));
+        assertEquals(0, eventMap.get(hash));
+    }
+
+    @Test
+    public void fromStreams_returns_data_when_instantiated_before_creating_stream() {
         String stream1 = "abc";
         String stream2 = "def";
 

@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 
+import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_TIMESTAMP;
 
 public class EntrySerializer<K extends Comparable<K>, V> implements Serializer<Entry<K, V>> {
@@ -17,7 +18,7 @@ public class EntrySerializer<K extends Comparable<K>, V> implements Serializer<E
     }
 
     public static <K extends Comparable<K>, V> Serializer<Entry<K, V>> of(long maxAge, Serializer<K> ks, Serializer<V> vs) {
-        return maxAge > 0 ? new TimestampedEntrySerializer<>(ks, vs) : new EntrySerializer<>(ks, vs);
+        return maxAge <= NO_MAX_AGE ? new TimestampedEntrySerializer<>(ks, vs) : new EntrySerializer<>(ks, vs);
     }
 
     @Override
