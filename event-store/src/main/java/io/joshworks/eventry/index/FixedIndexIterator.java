@@ -66,7 +66,7 @@ public class FixedIndexIterator implements IndexIterator {
     }
 
     private IndexEntry fetchEntry(long stream, int lastReadVersion) {
-        int version = lastReadVersion + 1;
+        int version = Direction.FORWARD.equals(direction) ? lastReadVersion + 1 : lastReadVersion - 1;
         Entry<IndexKey, Long> entry = delegate.get(IndexKey.event(stream, version));
         if (entry == null) {
             return null;
@@ -75,7 +75,7 @@ public class FixedIndexIterator implements IndexIterator {
         return isReadable(indexEntry) ? indexEntry : null;
     }
 
-    protected synchronized long nextStream() {
+    private synchronized long nextStream() {
         if (eventMap.size() == 0) {
             return 0;
         }
