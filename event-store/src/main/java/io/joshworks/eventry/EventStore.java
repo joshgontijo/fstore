@@ -394,7 +394,7 @@ public class EventStore implements IEventStore {
 
     public List<EventRecord> read(Direction direction, String stream, int startInclusive, int limit) {
         long hash = StreamHasher.hash(stream);
-        return Iterators.closeableStream(index.iterator(direction, EventMap.of(hash, startInclusive)))
+        return Iterators.closeableStream(index.iterator(direction, hash, startInclusive))
                 .map(ie -> resolve(eventLog.get(ie.position)))
                 .limit(limit)
                 .collect(Collectors.toList());
