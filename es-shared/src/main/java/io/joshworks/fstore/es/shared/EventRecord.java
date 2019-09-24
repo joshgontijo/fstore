@@ -137,6 +137,11 @@ public class EventRecord {
         public String asString() {
             return JsonSerializer.toJson(this);
         }
+
+        @Override
+        public String toString() {
+            return asString();
+        }
     }
 
 

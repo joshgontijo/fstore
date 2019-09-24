@@ -1,9 +1,11 @@
 package io.joshworks.eventry.index;
 
-import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.es.shared.EventMap;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.iterators.Iterators;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -17,6 +19,7 @@ import java.util.function.Function;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_MAX_COUNT;
 import static io.joshworks.eventry.stream.StreamMetadata.NO_TRUNCATE;
+import static org.junit.Assert.assertEquals;
 
 public class IndexTest {
 
@@ -27,6 +30,9 @@ public class IndexTest {
     @Before
     public void setUp() {
         testDir = FileUtils.testFolder();
+        index = new Index(testDir, FLUSH_THRESHOLD, Cache.softCache(), stream -> {
+            return new StreamMetadata(String.valueOf(stream), stream, 0, NO_MAX_AGE, NO_MAX_COUNT, NO_TRUNCATE, new HashMap<>(), new HashMap<>(), StreamMetadata.STREAM_ACTIVE);
+        });
     }
 
     private Map.Entry<Long, StreamMetadata> metadata(long stream, int maxAgeSec, int maxCount, int truncatedVersion) {
@@ -49,12 +55,31 @@ public class IndexTest {
         }
         index.compact();
 
-        IndexIterator iterator = index.iterator(EventMap.of(Set.of(1L, 2L)));
-        while(iterator.hasNext()) {
+        IndexIterator iterator = index.iterator(Direction.FORWARD, EventMap.of(Set.of(1L, 2L)));
+        while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             System.out.println(next);
         }
+    }
 
+    @Test
+    public void backward_read() {
+        long stream = 123L;
+        int items = FLUSH_THRESHOLD * 5;
+        for (int i = 0; i < FLUSH_THRESHOLD * 5; i++) {
+            index.add(stream, i, i);
+        }
+
+        long count = Iterators.closeableStream(index.iterator(Direction.BACKWARD, EventMap.of(stream, items))).count();
+        assertEquals(items, count);
+
+        IndexIterator iterator = index.iterator(Direction.BACKWARD, EventMap.of(stream, items));
+        int expectedVersion = items;
+        while (iterator.hasNext()) {
+            IndexEntry ie = iterator.next();
+            assertEquals(expectedVersion - 1, ie.version);
+            expectedVersion = ie.version;
+        }
     }
 
     private Index index(Function<Long, StreamMetadata> metadataSupplier) {
