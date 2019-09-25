@@ -7,6 +7,8 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
+import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.segment.block.Block;
@@ -107,6 +109,12 @@ public class Index implements Closeable {
         return entry.key.stream == stream;
     }
 
+    public IndexIterator iterator(Direction direction, long stream, int startVersionInclusive) {
+        Range<IndexKey> range = IndexKey.rangeOf(stream, startVersionInclusive, Integer.MAX_VALUE);
+        CloseableIterator<Entry<IndexKey, Long>> iterator = sstables.iterator(direction, range);
+        return new IndexRangeIterator(iterator, stream, startVersionInclusive);
+    }
+
     public IndexIterator iterator(Direction direction, EventMap eventMap) {
         FixedIndexIterator iterator = new FixedIndexIterator(sstables, direction, eventMap);
         return new IndexFilter(metadataSupplier, this::version, iterator);
@@ -116,4 +124,5 @@ public class Index implements Closeable {
         IndexPrefixIndexIterator iterator = new IndexPrefixIndexIterator(sstables, direction, eventMap, streamPatterns);
         return new IndexFilter(metadataSupplier, this::version, iterator);
     }
+
 }

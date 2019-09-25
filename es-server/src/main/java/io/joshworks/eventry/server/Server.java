@@ -5,7 +5,6 @@ import io.joshworks.eventry.server.subscription.Subscriptions;
 import io.joshworks.eventry.server.subscription.polling.LocalPollingSubscription;
 import io.joshworks.eventry.server.tcp.TcpEventHandler;
 import io.joshworks.fstore.core.util.AppProperties;
-import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
@@ -45,7 +44,7 @@ public class Server {
         int httpPort = properties.getInt("es.http.port").orElseThrow(() -> new RuntimeException("Http port must be provided"));
         int tcpPort = properties.getInt("es.tcp.port").orElseThrow(() -> new RuntimeException("Tcp port must be provided"));
 
-        FileUtils.tryDelete(new File(path));
+//        FileUtils.tryDelete(new File(path));
 
         port(httpPort);
         adminPort(httpPort + 10);
