@@ -2,26 +2,18 @@ package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.CloseableIterator;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
 class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
 
-    private final List<PeekingIterator<Entry<K, V>>> segmentsIterators = new ArrayList<>();
+    private final List<PeekingIterator<Entry<K, V>>> segmentsIterators;
 
-    SSTablesIterator(List<CloseableIterator<Entry<K, V>>> iterators) {
-        for (CloseableIterator<Entry<K, V>> itit : iterators) {
-            if (!itit.hasNext()) {
-                IOUtils.closeQuietly(itit);
-            } else {
-                segmentsIterators.add(Iterators.peekingIterator(itit));
-            }
-        }
+    SSTablesIterator(List<PeekingIterator<Entry<K, V>>> iterators) {
+        this.segmentsIterators = iterators;
     }
 
     @Override
