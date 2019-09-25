@@ -17,8 +17,10 @@ import io.joshworks.fstore.es.shared.messages.CreateStream;
 import io.joshworks.fstore.es.shared.messages.CreateSubscription;
 import io.joshworks.fstore.es.shared.messages.EventCreated;
 import io.joshworks.fstore.es.shared.messages.EventData;
+import io.joshworks.fstore.es.shared.messages.EventsData;
 import io.joshworks.fstore.es.shared.messages.GetEvent;
 import io.joshworks.fstore.es.shared.messages.LinkToMessage;
+import io.joshworks.fstore.es.shared.messages.ReadStream;
 import io.joshworks.fstore.es.shared.messages.SubscriptionCreated;
 import io.joshworks.fstore.es.shared.routing.Router;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
@@ -88,6 +90,16 @@ public class StoreClient implements Closeable {
                     //TODO
                 })
                 .connect(address, 5, TimeUnit.SECONDS);
+    }
+
+    public List<EventRecord> readStream(String stream, int version, int count) {
+        //TODO redo this
+        for (TcpClientConnection conn : connections.values()) {
+            Response<EventsData> resp = conn.request(new ReadStream(stream, version, count));
+            EventsData data = resp.get(5, TimeUnit.SECONDS);
+            return data.events;
+        }
+        throw new RuntimeException("Not connected");
     }
 
     public NodeClientIterator iterator(int fetchSize, String... patterns) {

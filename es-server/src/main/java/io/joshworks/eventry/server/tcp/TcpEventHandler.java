@@ -19,9 +19,11 @@ import io.joshworks.fstore.es.shared.messages.EventData;
 import io.joshworks.fstore.es.shared.messages.EventsData;
 import io.joshworks.fstore.es.shared.messages.GetEvent;
 import io.joshworks.fstore.es.shared.messages.LinkToMessage;
+import io.joshworks.fstore.es.shared.messages.ReadStream;
 import io.joshworks.fstore.es.shared.messages.SubscriptionClose;
 import io.joshworks.fstore.es.shared.messages.SubscriptionCreated;
 import io.joshworks.fstore.es.shared.messages.SubscriptionIteratorNext;
+import io.joshworks.fstore.log.Direction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +54,7 @@ public class TcpEventHandler implements ServerEventHandler {
         handlers.add(CreateSubscription.class, this::createSubscription);
         handlers.add(SubscriptionIteratorNext.class, this::subscriptionIteratorNext);
         handlers.add(SubscriptionClose.class, this::closeSubscription);
+        handlers.add(ReadStream.class, this::readStream);
     }
 
     @Override
@@ -126,6 +129,12 @@ public class TcpEventHandler implements ServerEventHandler {
         EventRecord created = store.append(msg.record, msg.expectedVersion);
         return new EventCreated(created.timestamp, created.version);
     }
+
+    private EventsData readStream(TcpConnection tcpConnection, ReadStream msg) {
+        List<EventRecord> events = store.read(Direction.FORWARD, msg.stream, msg.startVersion, msg.limit);
+        return new EventsData(events);
+    }
+
 
     private EventCreated linkTo(TcpConnection connection, LinkToMessage msg) {
         EventRecord linkToRecord = store.linkTo(msg.stream, EventId.of(msg.originalStream, msg.originalVersion), msg.originalType);
