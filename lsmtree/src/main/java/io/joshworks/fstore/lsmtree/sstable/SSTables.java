@@ -13,6 +13,8 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
+import io.joshworks.fstore.log.iterators.Iterators;
+import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
@@ -354,17 +356,21 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
         synchronized (FLUSH_LOCK) {
-            List<CloseableIterator<Entry<K, V>>> iterators = new ArrayList<>();
+            List<PeekingIterator<Entry<K, V>>> iterators = new ArrayList<>();
 
             //OLDEST -> NEWEST
             appender.acquireSegments(Direction.FORWARD, segments -> {
                 segments.stream()
                         .filter(Log::readOnly)
                         .map(seg -> seg.iterator(direction))
-                        .forEach(iterators::add);
+                        .forEach(it -> iterators.add(Iterators.peekingIterator(it)));
 
-                flushQueue.stream().map(t -> t.memTable).map(mem -> mem.iterator(direction)).forEach(iterators::add);
-                iterators.add(memTable.iterator(direction));
+                flushQueue.stream()
+                        .map(t -> t.memTable)
+                        .map(mem -> mem.iterator(direction))
+                        .forEach(it -> iterators.add(Iterators.peekingIterator(it)));
+
+                iterators.add(Iterators.peekingIterator(memTable.iterator(direction)));
             });
 
             return new SSTablesIterator<>(iterators);
@@ -374,7 +380,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
 
         synchronized (FLUSH_LOCK) {
-            List<CloseableIterator<Entry<K, V>>> iterators = new ArrayList<>();
+            List<PeekingIterator<Entry<K, V>>> iterators = new ArrayList<>();
 
             //OLDEST -> NEWEST
             appender.acquireSegments(Direction.FORWARD, segments -> {
@@ -384,10 +390,14 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                             SSTable<K, V> sstable = (SSTable<K, V>) seg;
                             return sstable.iterator(direction, range);
                         })
-                        .forEach(iterators::add);
+                        .forEach(it -> iterators.add(Iterators.peekingIterator(it)));
 
-                flushQueue.stream().map(t -> t.memTable).map(mem -> mem.iterator(direction, range)).forEach(iterators::add);
-                iterators.add(memTable.iterator(direction, range));
+                flushQueue.stream()
+                        .map(t -> t.memTable)
+                        .map(mem -> mem.iterator(direction, range))
+                        .forEach(it -> iterators.add(Iterators.peekingIterator(it)));
+
+                iterators.add(Iterators.peekingIterator(memTable.iterator(direction, range)));
             });
 
             return new SSTablesIterator<>(iterators);

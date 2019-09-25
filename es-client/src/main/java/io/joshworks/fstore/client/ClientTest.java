@@ -6,6 +6,7 @@ import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.routing.HashRouter;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,8 +20,7 @@ public class ClientTest {
     private static final String STREAM_PREFIX = "stream-";
     private static final int ITEMS = 5000000;
     private static final int STREAMS = 50000;
-    private static final int THREADS = 10;
-    private static final int LOG_INTERVAL = 10000;
+    private static final int THREADS = 1;
 
     private static final Metrics metrics = new Metrics();
     private static final AtomicBoolean monitoring = new AtomicBoolean(true);
@@ -32,9 +32,9 @@ public class ClientTest {
         System.out.println("----------------- WRITE ---------------");
         ExecutorService executor = Executors.newFixedThreadPool(THREADS);
 
-        for (int i = 0; i < THREADS; i++) {
-            executor.submit(() -> write(storeClient));
-        }
+//        for (int i = 0; i < THREADS; i++) {
+//            executor.submit(() -> write(storeClient));
+//        }
 
         Thread monitor = new Thread(ClientTest::monitor);
         monitor.start();
@@ -48,9 +48,12 @@ public class ClientTest {
 //        NodeClientIterator iterator = storeClient.iterator(50, "stream-2", "stream-4");
 //        iterateAll(iterator);
 
+//        System.out.println("----------------- READ ALL ---------------");
+//        NodeClientIterator iterator = storeClient.iterator(50, STREAM_PREFIX + "*");
+//        iterateAll(iterator);
+
         System.out.println("----------------- READ ALL ---------------");
-        NodeClientIterator iterator = storeClient.iterator(50, STREAM_PREFIX + "*");
-        iterateAll(iterator);
+        readAll(storeClient);
 
         monitoring.set(false);
         storeClient.close();
@@ -78,9 +81,22 @@ public class ClientTest {
             Long totalWrites = metrics.get("totalWrites");
             Long totalReads = metrics.get("totalReads");
             Long writeTime = metrics.get("writeTime");
+
+            Long streamReads = metrics.remove("readStream");
+            Long totalReadStream = metrics.get("totalReadStream");
+
             long avgWriteTime = totalWrites == null ? 0 : totalWrites / writeTime;
-            System.out.println("WRITE: " + writes + "/s - TOTAL WRITE: " + totalWrites + " - AVG_WRITE_TIME: " + avgWriteTime + " READ: " + reads + "/s - TOTAL READ: " + totalReads);
+            System.out.println("WRITE: " + writes + "/s - TOTAL WRITE: " + totalWrites + " - AVG_WRITE_TIME: " + avgWriteTime + " READ: " + reads + "/s - TOTAL READ: " + totalReads + " STREAM_READ: " + streamReads + "/s - TOTAL_STREAM_READ: " + totalReadStream);
             Threads.sleep(1000);
+        }
+    }
+
+    private static void readAll(StoreClient client) {
+        for (int i = 0; i < ITEMS; i++) {
+            String stream = STREAM_PREFIX + (i % STREAMS);
+            List<EventRecord> records = client.readStream(stream, 0, 1);
+            metrics.update("readStream");
+            metrics.update("totalReadStream");
         }
     }
 
