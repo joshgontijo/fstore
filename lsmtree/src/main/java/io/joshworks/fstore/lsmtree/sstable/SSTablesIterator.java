@@ -2,6 +2,7 @@ package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.CloseableIterator;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 
 import java.util.Iterator;
@@ -10,9 +11,11 @@ import java.util.NoSuchElementException;
 
 class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
 
+    private final Direction direction;
     private final List<PeekingIterator<Entry<K, V>>> segmentsIterators;
 
-    SSTablesIterator(List<PeekingIterator<Entry<K, V>>> iterators) {
+    SSTablesIterator(Direction direction, List<PeekingIterator<Entry<K, V>>> iterators) {
+        this.direction = direction;
         this.segmentsIterators = iterators;
     }
 
@@ -20,7 +23,7 @@ class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<
     public Entry<K, V> next() {
         Entry<K, V> entry;
         do {
-            entry = getNextEntry(segmentsIterators);
+            entry = getNextEntry(direction, segmentsIterators);
         } while (entry != null && entry.deletion() && hasNext());
         if (entry == null) {
             throw new NoSuchElementException();
@@ -45,7 +48,7 @@ class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<
         return false;
     }
 
-    private Entry<K, V> getNextEntry(List<PeekingIterator<Entry<K, V>>> segmentIterators) {
+    private Entry<K, V> getNextEntry(Direction direction, List<PeekingIterator<Entry<K, V>>> segmentIterators) {
         if (!segmentIterators.isEmpty()) {
             PeekingIterator<Entry<K, V>> prev = null;
             Iterator<PeekingIterator<Entry<K, V>>> itit = segmentIterators.iterator();
@@ -65,8 +68,11 @@ class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<
                 int c = prevItem.compareTo(currItem);
                 if (c == 0) { //duplicate remove from oldest entry
                     prev.next();
+                    if (Direction.BACKWARD.equals(direction)) {
+                        prev = curr;
+                    }
                 }
-                if (c >= 0) {
+                if ((Direction.FORWARD.equals(direction)) && c >= 0 || (Direction.BACKWARD.equals(direction) && c < 0)) {
                     prev = curr;
                 }
             }

@@ -121,6 +121,22 @@ public class SSTablesTest {
     }
 
     @Test
+    public void range_forward_scan() {
+        int items = FLUSH_THRESHOLD * 5;
+        for (int i = 0; i < items; i++) {
+            sstables.add(Entry.add(i, String.valueOf(i)));
+        }
+        CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD, Range.of(0, items));
+        int key = 0;
+
+        while (iterator.hasNext()) {
+            Entry<Integer, String> entry = iterator.next();
+            assertEquals(Integer.valueOf(key), entry.key);
+            key++;
+        }
+    }
+
+    @Test
     public void iterator_returns_items_from_disk() {
         int items = FLUSH_THRESHOLD * 2;
         for (int i = 0; i < items; i++) {
@@ -253,8 +269,27 @@ public class SSTablesTest {
     }
 
     @Test
-    public void iterator_with_range_returns_items_from_disk_and_memTable2222222222222222() {
+    public void iterator_with_range_returns_items_from_disk_and_memTable2() {
+        int diskItems = (int) (FLUSH_THRESHOLD * 100.5);
+        for (int i = 0; i < diskItems; i++) {
+            sstables.add(Entry.add(i, String.valueOf(i)));
+        }
 
+        int startKey = 50;
+        int endKey = diskItems / 2;
+
+        long count = Iterators.stream(sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey))).count();
+        assertEquals(endKey - startKey, count);
+
+        CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey));
+        int expected = startKey;
+        while (iterator.hasNext()) {
+            Entry<Integer, String> entry = iterator.next();
+            assertNotNull(entry);
+            assertEquals(Integer.valueOf(expected), entry.key);
+            assertEquals(String.valueOf(expected), entry.value);
+            expected++;
+        }
     }
 
     @Test
@@ -395,4 +430,103 @@ public class SSTablesTest {
             }
         }
     }
+
+    @Test
+    public void scan_backwards() {
+        int items = (int) (FLUSH_THRESHOLD * 5.5);
+        for (int i = 0; i < items; i++) {
+            sstables.add(Entry.add(i, String.valueOf(i)));
+        }
+
+        long count = Iterators.stream(sstables.iterator(Direction.BACKWARD)).count();
+        assertEquals(items, count);
+
+        int expectedKey = items - 1;
+        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.BACKWARD)) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                assertEquals(Integer.valueOf(expectedKey), entry.key);
+                expectedKey = entry.key - 1;
+            }
+        }
+    }
+
+    @Test
+    public void scan_backwards_with_updated_entries() {
+        int items = (int) (FLUSH_THRESHOLD * 5.5);
+        for (int i = 0; i < items; i++) {
+            sstables.add(Entry.add(i, String.valueOf(i)));
+        }
+
+        String updatedValue = "EVEN_KEY_UPDATED_VALUE";
+        for (int i = 0; i < items; i += 2) {
+            sstables.add(Entry.add(i, updatedValue));
+        }
+
+        int expectedKey = items - 1;
+        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.BACKWARD)) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                assertEquals(Integer.valueOf(expectedKey), entry.key);
+                expectedKey = entry.key - 1;
+                if (entry.key % 2 == 0) {
+                    assertEquals(updatedValue, entry.value);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void range_scan_backwards() {
+        int items = (int) (FLUSH_THRESHOLD * 3.5);
+        for (int i = 0; i < items; i++) {
+            sstables.add(Entry.add(i, String.valueOf(i)));
+        }
+
+        int start = 0;
+        int end = items / 2;
+
+        int expectedKey = end - 1;
+        int found = 0;
+        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.BACKWARD, Range.of(start, end))) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                assertEquals(Integer.valueOf(expectedKey), entry.key);
+                expectedKey = entry.key - 1;
+                found++;
+            }
+
+            assertEquals(end - start, found);
+        }
+    }
+
+
+    @Test
+    public void range_scan_backwards_with_updated_entries() {
+        int items = (int) (FLUSH_THRESHOLD * 5.5);
+        for (int i = 0; i < items; i++) {
+            sstables.add(Entry.add(i, String.valueOf(i)));
+        }
+
+        String updatedValue = "EVEN_KEY_UPDATED_VALUE";
+        for (int i = 0; i < items; i += 2) {
+            sstables.add(Entry.add(i, updatedValue));
+        }
+
+        int start = 0;
+        int end = items / 2;
+
+        int expectedKey = end - 1;
+        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.BACKWARD, Range.of(start, end))) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                assertEquals(Integer.valueOf(expectedKey), entry.key);
+                expectedKey = entry.key - 1;
+                if (entry.key % 2 == 0) {
+                    assertEquals(updatedValue, entry.value);
+                }
+            }
+        }
+    }
+
 }

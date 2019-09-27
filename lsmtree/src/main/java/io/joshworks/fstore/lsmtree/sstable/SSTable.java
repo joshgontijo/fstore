@@ -432,12 +432,12 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         if (!readOnly()) {
             throw new IllegalStateException("Cannot read from a open segment");
         }
-        if ((range.start() != null && !midpoints.inRange(range.start())) && (range.end() != null && !midpoints.inRange(range.end()))) {
+        if (!range.intersects(midpoints.first().key, midpoints.last().key)) {
             return SegmentIterator.empty();
         }
 
         long startPos = startPos(direction, range);
-        SegmentIterator<Entry<K, V>> iterator = iterator(startPos, direction);
+        SegmentIterator<Entry<K, V>> iterator = delegate.iterator(startPos, direction);
         return new RangeIterator<>(maxAge, iterator, range, direction);
     }
 

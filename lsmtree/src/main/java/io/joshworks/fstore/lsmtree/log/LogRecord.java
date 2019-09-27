@@ -2,6 +2,9 @@ package io.joshworks.fstore.lsmtree.log;
 
 import io.joshworks.fstore.lsmtree.EntryType;
 
+import java.util.Objects;
+import java.util.UUID;
+
 public class LogRecord {
 
     public final EntryType type;
@@ -20,12 +23,30 @@ public class LogRecord {
         return new EntryDeleted<>(timeInSeconds(), key);
     }
 
-    static LogRecord memFlushed(long position) {
-        return new IndexFlushed(timeInSeconds(), position);
+    static LogRecord memFlushed(String token) {
+        return new IndexFlushed(timeInSeconds(), token);
+    }
+
+    static IndexFlushedStarted memFlushStarted(long position) {
+        String token = UUID.randomUUID().toString().substring(0, 8);
+        return new IndexFlushedStarted(timeInSeconds(), position, token);
     }
 
     private static long timeInSeconds() {
         return System.currentTimeMillis() / 1000;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LogRecord logRecord = (LogRecord) o;
+        return timestamp == logRecord.timestamp &&
+                type == logRecord.type;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(type, timestamp);
+    }
 }
