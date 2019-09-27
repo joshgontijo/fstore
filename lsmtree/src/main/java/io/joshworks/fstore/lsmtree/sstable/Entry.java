@@ -84,6 +84,6 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
 
     @Override
     public String toString() {
-        return deletion() ? "DELETE: " + key : "ADD :" + key + "=" + value;
+        return deletion() ? "DELETE: " + key : "ADD:" + key + "=" + value;
     }
 }

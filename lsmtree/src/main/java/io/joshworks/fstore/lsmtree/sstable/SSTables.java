@@ -77,10 +77,6 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         this.blockCache = blockCache;
         this.memTable = new MemTable<>();
         this.executor.execute(flushTask());
-        this.metricsKey = MetricRegistry.register(Map.of("type", "sstables", "name", name), () -> {
-            metrics.set("blockCacheSize", blockCache.size());
-            return metrics;
-        });
         this.appender = LogAppender.builder(dir, EntrySerializer.of(maxAgeSeconds, keySerializer, valueSerializer))
                 .compactionStrategy(compactor)
                 .name(name + "-sstables")
@@ -90,6 +86,13 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 .flushMode(flushMode)
                 .directBufferPool()
                 .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, maxAgeSeconds, blockCache));
+
+        this.metricsKey = MetricRegistry.register(Map.of("type", "sstables", "name", name), () -> {
+            metrics.set("blockCacheSize", blockCache.size());
+            Metrics metrics = appender.metrics();
+            return Metrics.merge(metrics, this.metrics);
+        });
+
     }
 
     public CompletableFuture<Void> add(Entry<K, V> entry) {
@@ -155,12 +158,14 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     public Entry<K, V> get(K key) {
         Entry<K, V> fromMem = memTable.get(key);
         if (fromMem != null) {
+            metrics.update("memTableReads");
             return fromMem;
         }
         for (FlushTask flushTask : flushQueue) {
             MemTable<K, V> memTable = flushTask.memTable;
             fromMem = memTable.get(key);
             if (fromMem != null) {
+                metrics.update("memTableReads");
                 return fromMem;
             }
         }
@@ -172,6 +177,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 SSTable<K, V> sstable = (SSTable<K, V>) segment;
                 Entry<K, V> found = sstable.get(key);
                 if (found != null) {
+                    metrics.update("sstableReads");
                     return found;
                 }
             }
@@ -247,6 +253,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
      */
     public List<Entry<K, V>> findAll(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
         requireNonNull(key, "Key must be provided");
+        metrics.update("findAll");
         List<Entry<K, V>> found = new ArrayList<>();
         Entry<K, V> memEntry = expression.apply(key, memTable);
         if (memEntry != null && matcher.test(memEntry)) {
@@ -320,7 +327,12 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     }
 
     public CompletableFuture<Void> flush() {
-        return scheduleFlush(true);
+        CompletableFuture<Void> completableFuture = scheduleFlush(true);
+        if (completableFuture == null) {
+            completableFuture = new CompletableFuture<>();
+            completableFuture.complete(null);
+        }
+        return completableFuture;
     }
 
     public void flushSync() {
@@ -373,7 +385,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 iterators.add(Iterators.peekingIterator(memTable.iterator(direction)));
             });
 
-            return new SSTablesIterator<>(iterators);
+            return new SSTablesIterator<>(direction, iterators);
         }
     }
 
@@ -400,7 +412,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 iterators.add(Iterators.peekingIterator(memTable.iterator(direction, range)));
             });
 
-            return new SSTablesIterator<>(iterators);
+            return new SSTablesIterator<>(direction, iterators);
         }
     }
 

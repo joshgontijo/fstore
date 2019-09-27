@@ -30,12 +30,12 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.naming.SequentialNaming;
-import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.segment.Log;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -394,11 +394,23 @@ public class EventStore implements IEventStore {
 
     public List<EventRecord> read(Direction direction, String stream, int startInclusive, int limit) {
         long hash = StreamHasher.hash(stream);
-        return Iterators.closeableStream(index.iterator(direction, EventMap.of(hash, startInclusive - 1)))
-                .map(ie -> resolve(eventLog.get(ie.position)))
-                .limit(limit)
-                .collect(Collectors.toList());
+
+        List<EventRecord> events = new ArrayList<>();
+        EventRecord record;
+        int version = startInclusive;
+        int count = 0;
+        do {
+            EventRecord eventRecord = get(EventId.of(stream, version));
+            if (eventRecord != null) {
+                events.add(eventRecord);
+            }
+            record = eventRecord;
+            version++;
+        } while (record != null && count++ < limit);
+
+        return events;
     }
+
 
     //GET WITHOUT RESOLVING
     private EventRecord getInternal(EventId stream) {
