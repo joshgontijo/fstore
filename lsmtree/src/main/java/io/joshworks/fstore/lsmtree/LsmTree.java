@@ -8,7 +8,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.lsmtree.sstable.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -69,7 +69,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.sstableCompactor,
                 builder.maxAgeSeconds,
                 builder.codec,
-                builder.bloomNItems,
                 builder.bloomFPProb,
                 builder.blockSize,
                 builder.blockCache);
@@ -135,7 +134,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
      * @param matcher    The matcher, used to filter entries that matches the expression
      * @return The first match, or null
      */
-    public Entry<K, V> find(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
+    public Entry<K, V> find(K key, Expression expression, Predicate<K> matcher) {
         return sstables.find(key, expression, matcher);
     }
 
@@ -171,6 +170,14 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
     }
 
+    public void flushSync() {
+        sstables.flushSync();
+    }
+
+    public CompletableFuture<Void> flush() {
+        return sstables.flush();
+    }
+
     public void compact() {
         sstables.compact();
     }
@@ -184,7 +191,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private final Serializer<K> keySerializer;
         private final Serializer<V> valueSerializer;
         private UniqueMergeCombiner<Entry<K, V>> sstableCompactor;
-        private long bloomNItems = DEFAULT_THRESHOLD;
         private double bloomFPProb = 0.05;
         private int blockSize = Memory.PAGE_SIZE;
         private int flushThreshold = DEFAULT_THRESHOLD;
@@ -222,7 +228,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 throw new IllegalArgumentException("Number of expected items in the bloom filter must be greater than zero");
             }
             this.bloomFPProb = bloomFPProb;
-            this.bloomNItems = bloomNItems;
             return this;
         }
 

@@ -13,7 +13,7 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
     public final K key;
     public final V value;
 
-    private Entry(long timestamp, K key, V value) {
+    protected Entry(long timestamp, K key, V value) {
         this.timestamp = timestamp;
         this.key = key;
         this.value = value;

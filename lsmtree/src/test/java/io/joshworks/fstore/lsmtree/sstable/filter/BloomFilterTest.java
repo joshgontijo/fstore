@@ -1,4 +1,4 @@
-package io.joshworks.fstore.index.filter;
+package io.joshworks.fstore.lsmtree.sstable.filter;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.Storage;

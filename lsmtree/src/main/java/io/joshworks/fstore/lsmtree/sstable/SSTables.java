@@ -7,7 +7,6 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.metrics.MetricRegistry;
 import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -51,7 +50,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
     private final Metrics metrics = new Metrics();
     private final String metricsKey;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService flushWorker = Executors.newSingleThreadExecutor();
 
     private final Object FLUSH_LOCK = new Object();
 
@@ -67,7 +66,6 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                     UniqueMergeCombiner<Entry<K, V>> compactor,
                     long maxAgeSeconds,
                     Codec codec,
-                    long bloomNItems,
                     double bloomFPProb,
                     int blockSize,
                     Cache<String, Block> blockCache) {
@@ -76,16 +74,17 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         this.maxAge = maxAgeSeconds;
         this.blockCache = blockCache;
         this.memTable = new MemTable<>();
-        this.executor.execute(flushTask());
+        this.flushWorker.execute(flushTask());
         this.appender = LogAppender.builder(dir, EntrySerializer.of(maxAgeSeconds, keySerializer, valueSerializer))
                 .compactionStrategy(compactor)
                 .name(name + "-sstables")
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)
                 .parallelCompaction()
+                .compactionThreshold(10)
                 .flushMode(flushMode)
                 .directBufferPool()
-                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomNItems, bloomFPProb, blockSize, maxAgeSeconds, blockCache));
+                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomFPProb, blockSize, maxAgeSeconds, blockCache));
 
         this.metricsKey = MetricRegistry.register(Map.of("type", "sstables", "name", name), () -> {
             metrics.set("blockCacheSize", blockCache.size());
@@ -214,7 +213,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
      * @param matcher    The matcher, used to filter entries that matches the expression
      * @return The first match, or null
      */
-    public Entry<K, V> find(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
+    public Entry<K, V> find(K key, Expression expression, Predicate<K> matcher) {
         metrics.update("finds");
         Entry<K, V> fromMem = expression.apply(key, memTable);
         if (matchEntry(matcher, fromMem)) {
@@ -322,8 +321,8 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         });
     }
 
-    private boolean matchEntry(Predicate<Entry<K, V>> matcher, Entry<K, V> entry) {
-        return entry != null && !entry.deletion() && matcher.test(entry);
+    private boolean matchEntry(Predicate<K> matcher, Entry<K, V> entry) {
+        return entry != null && !entry.deletion() && matcher.test(entry.key);
     }
 
     public CompletableFuture<Void> flush() {
@@ -355,8 +354,8 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
             return;
         }
         try {
-            executor.shutdown();
-            executor.awaitTermination(1, TimeUnit.MINUTES);
+            flushWorker.shutdown();
+            flushWorker.awaitTermination(1, TimeUnit.MINUTES);
             MetricRegistry.remove(metricsKey);
 
         } catch (InterruptedException e) {
@@ -385,7 +384,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 iterators.add(Iterators.peekingIterator(memTable.iterator(direction)));
             });
 
-            return new SSTablesIterator<>(direction, iterators);
+            return new SSTablesIterator<>(maxAge, direction, iterators);
         }
     }
 
@@ -412,7 +411,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 iterators.add(Iterators.peekingIterator(memTable.iterator(direction, range)));
             });
 
-            return new SSTablesIterator<>(direction, iterators);
+            return new SSTablesIterator<>(maxAge, direction, iterators);
         }
     }
 
@@ -425,7 +424,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         appender.compact();
     }
 
-    private class FlushTask {
+    class FlushTask {
 
         final CompletableFuture<Void> completionListener;
         final MemTable<K, V> memTable;
