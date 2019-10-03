@@ -6,7 +6,6 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -43,6 +42,12 @@ public class SSTablesTest {
         sstables = open(testDirectory);
     }
 
+    @After
+    public void tearDown() {
+        sstables.close();
+        FileUtils.tryDelete(testDirectory);
+    }
+
     private SSTables<Integer, String> open(File dir) {
         return new SSTables<>(
                 dir,
@@ -57,16 +62,9 @@ public class SSTablesTest {
                 new SSTableCompactor<>(NO_MAX_AGE),
                 NO_MAX_AGE,
                 new SnappyCodec(),
-                1000000,
                 0.01,
                 Memory.PAGE_SIZE,
                 Cache.softCache());
-    }
-
-    @After
-    public void tearDown() {
-        sstables.close();
-        FileUtils.tryDelete(testDirectory);
     }
 
     @Test
@@ -270,7 +268,7 @@ public class SSTablesTest {
 
     @Test
     public void iterator_with_range_returns_items_from_disk_and_memTable2() {
-        int diskItems = (int) (FLUSH_THRESHOLD * 100.5);
+        int diskItems = (int) (FLUSH_THRESHOLD * 10.5);
         for (int i = 0; i < diskItems; i++) {
             sstables.add(Entry.add(i, String.valueOf(i)));
         }
@@ -278,17 +276,20 @@ public class SSTablesTest {
         int startKey = 50;
         int endKey = diskItems / 2;
 
-        long count = Iterators.stream(sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey))).count();
+        sstables.flushSync();
+
+        long count = Iterators.closeableStream(sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey))).count();
         assertEquals(endKey - startKey, count);
 
-        CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey));
-        int expected = startKey;
-        while (iterator.hasNext()) {
-            Entry<Integer, String> entry = iterator.next();
-            assertNotNull(entry);
-            assertEquals(Integer.valueOf(expected), entry.key);
-            assertEquals(String.valueOf(expected), entry.value);
-            expected++;
+        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey))) {
+            int expected = startKey;
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                assertNotNull(entry);
+                assertEquals(Integer.valueOf(expected), entry.key);
+                assertEquals(String.valueOf(expected), entry.value);
+                expected++;
+            }
         }
     }
 

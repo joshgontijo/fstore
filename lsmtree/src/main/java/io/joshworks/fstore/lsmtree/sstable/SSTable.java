@@ -6,10 +6,6 @@ import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.metrics.Metrics;
-import io.joshworks.fstore.index.Range;
-import io.joshworks.fstore.index.filter.BloomFilter;
-import io.joshworks.fstore.index.midpoints.Midpoint;
-import io.joshworks.fstore.index.midpoints.Midpoints;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
@@ -18,13 +14,11 @@ import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
-import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
@@ -48,14 +42,14 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private final Codec codec;
     private final BufferPool bufferPool;
 
-    private final BloomFilter bloomFilter;
-    private final Midpoints<K> midpoints;
+    private final Index<K> index;
 
     private final long maxAge;
 
     private final Metrics metrics = new Metrics();
 
     private final Cache<String, Block> blockCache;
+
 
     public SSTable(File file,
                    StorageMode storageMode,
@@ -68,7 +62,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                    long maxAge,
                    Codec codec,
                    Cache<String, Block> blockCache,
-                   long bloomNItems,
                    double bloomFPProb,
                    int blockSize,
                    double checksumProb,
@@ -93,62 +86,28 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                 blockSize,
                 checksumProb,
                 readPageSize,
-                this::onBlockWrite,
-                this::onBlockLoaded,
+                (a, b) -> {
+                },
+                (a, b) -> {
+                },
                 this::writeFooter);
 
-        if (delegate.readOnly()) {
-            FooterReader reader = delegate.footerReader();
-            this.midpoints = Midpoints.load(reader, codec, keySerializer);
-            this.bloomFilter = BloomFilter.load(reader, codec, bufferPool);
-        } else {
-            this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb);
-            this.midpoints = new Midpoints<>();
-        }
-    }
-
-    private void onBlockLoaded(long position, Block block) {
-        addToMidpoints(position, block);
-        List<Entry<K, V>> entries = block.deserialize(entrySerializer);
-        for (Entry<K, V> entry : entries) {
-            addToBloomFilter(entry);
-        }
-    }
-
-    private void addToBloomFilter(Entry<K, V> entry) {
-        try (bufferPool) {
-            ByteBuffer bb = bufferPool.allocate();
-            keySerializer.writeTo(entry.key, bb);
-            bb.flip();
-            bloomFilter.add(bb);
-        }
-    }
-
-    private void onBlockWrite(long position, Block block) {
-        addToMidpoints(position, block);
-    }
-
-    private void addToMidpoints(long position, Block block) {
-        Entry<K, V> first = entrySerializer.fromBytes(block.first());
-        Entry<K, V> last = entrySerializer.fromBytes(block.last());
-
-        Midpoint<K> start = new Midpoint<>(first.key, position);
-        Midpoint<K> end = new Midpoint<>(last.key, position);
-
-        midpoints.add(start, end);
+        this.index = new Index<>(delegate.footerReader(), delegate.readOnly(), bufferPool, keySerializer, maxAge, bloomFPProb);
     }
 
     private void writeFooter(FooterWriter writer) {
-        midpoints.writeTo(writer, codec, bufferPool, keySerializer);
-        bloomFilter.writeTo(writer, codec, bufferPool);
+        index.writeTo(writer);
     }
 
     @Override
     public long append(Entry<K, V> data) {
         requireNonNull(data, "Entry must be provided");
         requireNonNull(data.key, "Entry Key must be provided");
-        addToBloomFilter(data);
-        return delegate.append(data);
+        long position = delegate.append(data);
+
+        long pos = data.deletion() ? -(position) : position;
+        index.add(data.key, pos, data.timestamp);
+        return position;
     }
 
     @Override
@@ -163,21 +122,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         if (!readOnly()) {
             throw new IllegalStateException("Cannot read from a open segment");
         }
-        try (bufferPool) {
-            ByteBuffer bb = bufferPool.allocate();
-            keySerializer.writeTo(key, bb);
-            bb.flip();
-            if (!bloomFilter.contains(bb)) {
-                metrics.update("bloom.filtered");
-                return null;
-            }
-        }
-        Midpoint<K> midpoint = midpoints.getMidpointFor(key);
-        if (midpoint == null) {
-            return null;
-        }
 
-        Entry<K, V> found = readFromBlock(key, midpoint);
+        Entry<K, V> found = readFromBlock(key);
         if (found == null) {
             metrics.update("bloom.falsePositives");
         }
@@ -185,150 +131,62 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     public K firstKey() {
-        return midpoints.first().key;
+        return index.firstKey();
     }
 
     public K lastKey() {
-        return midpoints.last().key;
+        return index.lastKey();
     }
 
     public Entry<K, V> first() {
-        return getAt(midpoints.first(), true);
+        IndexEntry<K> first = index.first();
+        return readFromBlock(first.key);
     }
 
     public Entry<K, V> last() {
-        return getAt(midpoints.last(), false);
+        IndexEntry<K> last = index.last();
+        return readFromBlock(last.key);
     }
 
-    //firstLast is a hacky way of getting either the first or last block element
-    //true if first block element
-    //false if last block element
-    private Entry<K, V> getAt(Midpoint<K> midpoint, boolean firstLast) {
-        Block block = readBlock(midpoint);
-        ByteBuffer lastEntry = firstLast ? block.first() : block.last();
-        return entrySerializer.fromBytes(lastEntry);
+    private Block readBlock(long position) {
+        metrics.update("block.read");
+        return delegate.getBlock(position);
     }
 
     @Override
     public Entry<K, V> floor(K key) {
-        if (midpoints.isEmpty()) {
+        IndexEntry<K> ientry = index.floor(key);
+        if(ientry == null) {
             return null;
         }
-        if (key.compareTo(midpoints.first().key) < 0) {
-            return null;
-        }
-
-        int idx = midpoints.binarySearch(key);
-        if (idx < 0 && Math.abs(idx) < 0) {
-            return null;
-        }
-        idx = idx < 0 ? Math.abs(idx) - 2 : idx;
-        if (idx < 0) {
-            return null;
-        }
-
-        while (idx < midpoints.size()) {
-            Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
-            Block block = readBlock(midpoint);
-            int entryIdx = binarySearch(block, key);
-            entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 2 : entryIdx;
-            Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.BACKWARD);
-            if (found != null) {
-                return found;
-            }
-        }
-        return null;
-    }
-
-    private Block readBlock(Midpoint<K> midpoint) {
-        metrics.update("block.read");
-        return delegate.getBlock(midpoint.position);
+        return readEntry(ientry);
     }
 
     @Override
     public Entry<K, V> lower(K key) {
-        if (midpoints.isEmpty()) {
+        IndexEntry<K> ientry = index.lower(key);
+        if(ientry == null) {
             return null;
         }
-        if (key.compareTo(midpoints.first().key) <= 0) {
-            return null;
-        }
-
-        int idx = midpoints.binarySearch(key);
-        if (idx < 0 && Math.abs(idx) < 0) {
-            return null;
-        }
-        idx = idx < 0 ? Math.abs(idx) - 2 : idx - 1;
-        idx = Math.min(midpoints.size() - 1, idx);
-        if (idx < 0) {
-            return null;
-        }
-        while (idx < midpoints.size()) {
-            Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
-            Block block = readBlock(midpoint);
-            int entryIdx = binarySearch(block, key);
-            entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 2 : entryIdx - 1;
-            Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.BACKWARD);
-            if (found != null) {
-                return found;
-            }
-        }
-        return null;
+        return readEntry(ientry);
     }
 
     @Override
     public Entry<K, V> ceiling(K key) {
-        if (midpoints.isEmpty()) {
+        IndexEntry<K> ientry = index.ceiling(key);
+        if(ientry == null) {
             return null;
         }
-        if (key.compareTo(midpoints.last().key) > 0) {
-            return null;
-        }
-        int idx = midpoints.binarySearch(key);
-        idx = idx < 0 ? Math.abs(idx) - 2 : idx;
-        idx = Math.max(0, idx);
-        if (idx >= midpoints.size()) {
-            return null;
-        }
-        while (idx < midpoints.size()) {
-            Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
-            Block block = readBlock(midpoint);
-            int entryIdx = binarySearch(block, key);
-            entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 1 : entryIdx;
-            Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.FORWARD);
-            if (found != null) {
-                return found;
-            }
-        }
-        return null;
+        return readEntry(ientry);
     }
 
     @Override
     public Entry<K, V> higher(K key) {
-        if (midpoints.isEmpty()) {
+        IndexEntry<K> ientry = index.higher(key);
+        if(ientry == null) {
             return null;
         }
-        if (key.compareTo(midpoints.last().key) >= 0) {
-            return null;
-        }
-
-        int idx = midpoints.binarySearch(key);
-        idx = idx < 0 ? Math.abs(idx) - 2 : idx;
-        idx = Math.max(0, idx);
-        if (idx >= midpoints.size()) {
-            return null;
-        }
-        while (idx < midpoints.size()) {
-            Midpoint<K> midpoint = midpoints.getMidpoint(idx++);
-            Block block = readBlock(midpoint);
-            int entryIdx = binarySearch(block, key);
-            entryIdx = entryIdx < 0 ? Math.abs(entryIdx) - 1 : entryIdx + 1;
-            Entry<K, V> found = readNextNonExpired(block, entryIdx, Direction.FORWARD);
-            if (found != null) {
-                return found;
-            }
-        }
-        return null;
+        return readEntry(ientry);
     }
 
     private int binarySearch(Block block, K key) {
@@ -372,21 +230,33 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         return entry.readable(maxAge) ? entry : null;
     }
 
-    private Entry<K, V> readFromBlock(K key, Midpoint<K> midpoint) {
-        String cacheKey = cacheKey(midpoint.position);
+    private Entry<K, V> readFromBlock(K key) {
+        IndexEntry<K> indexEntry = index.get(key);
+        if (indexEntry == null) {
+            return null;
+        }
+        return readEntry(indexEntry);
+    }
+
+    private Entry<K, V> readEntry(IndexEntry<K> indexEntry) {
+        String cacheKey = cacheKey(indexEntry.value);
         Block cached = blockCache.get(cacheKey);
         if (cached == null) {
             metrics.update("blockCache.miss");
-            Block block = readBlock(midpoint);
+
+            Block block = readBlock(indexEntry.value);
             if (block == null) {
                 return null;
             }
-            blockCache.add(cacheKey, block);
-            return tryReadBlockEntry(key, block);
+            Entry<K, V> entry = tryReadBlockEntry(indexEntry.key, block);
+            if (entry != null) {
+                blockCache.add(cacheKey, block);
+            }
+            return entry;
         } else {
             metrics.update("blockCache.hit");
         }
-        return tryReadBlockEntry(key, cached);
+        return tryReadBlockEntry(indexEntry.key, cached);
     }
 
     private Entry<K, V> tryReadBlockEntry(K key, Block block) {
@@ -399,18 +269,9 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         return entry.readable(maxAge) ? entry : null;
     }
 
-    private long startPos(Direction direction, Range<K> range) {
-        if (Direction.FORWARD.equals(direction)) {
-            Midpoint<K> mStart = range.start() == null ? midpoints.first() : midpoints.getMidpointFor(range.start());
-            return mStart == null ? midpoints.first().position : mStart.position;
-        }
-        Midpoint<K> mEnd = range.end() == null ? midpoints.last() : midpoints.getMidpointFor(range.end());
-        return mEnd == null ? midpoints.last().position : mEnd.position;
-
-    }
 
     private String cacheKey(long position) {
-        return name() + position;
+        return name() + "_" + position;
     }
 
     @Override
@@ -432,11 +293,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         if (!readOnly()) {
             throw new IllegalStateException("Cannot read from a open segment");
         }
-        if (!range.intersects(midpoints.first().key, midpoints.last().key)) {
+        if (!range.intersects(index.firstKey(), index.lastKey())) {
             return SegmentIterator.empty();
         }
 
-        long startPos = startPos(direction, range);
+        long startPos = index.startPos(direction, range);
         SegmentIterator<Entry<K, V>> iterator = delegate.iterator(startPos, direction);
         return new RangeIterator<>(maxAge, iterator, range, direction);
     }
@@ -549,9 +410,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     @Override
     public Metrics metrics() {
         Metrics metrics = Metrics.merge(this.metrics, delegate.metrics());
-        metrics.set("bloom.size", bloomFilter.size());
-        metrics.set("midpoint.entries", midpoints.size());
-        return metrics;
+        return Metrics.merge(metrics, index.metrics());
     }
 
     static class SSTableFactory<K extends Comparable<K>, V> implements SegmentFactory<Entry<K, V>> {
@@ -559,7 +418,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         private final Serializer<V> valueSerializer;
         private final BlockFactory blockFactory;
         private final Codec codec;
-        private final long bloomNItems;
         private final double bloomFPProb;
         private final int blockSize;
         private final long maxAge;
@@ -569,7 +427,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                        Serializer<V> valueSerializer,
                        BlockFactory blockFactory,
                        Codec codec,
-                       long bloomNItems,
                        double bloomFPProb,
                        int blockSize,
                        long maxAge,
@@ -579,7 +436,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             this.valueSerializer = valueSerializer;
             this.blockFactory = blockFactory;
             this.codec = codec;
-            this.bloomNItems = bloomNItems;
             this.bloomFPProb = bloomFPProb;
             this.blockSize = blockSize;
             this.maxAge = maxAge;
@@ -600,33 +456,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                     maxAge,
                     codec,
                     blockCache,
-                    bloomNItems,
-                    bloomFPProb,
-                    blockSize,
-                    checksumProb,
-                    readPageSize);
-        }
-
-        @Override
-        public Log<Entry<K, V>> mergeOut(File file, StorageMode storageMode, long dataLength, long entries, Serializer<Entry<K, V>> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
-            return new SSTable<>(
-                    file,
-                    storageMode,
-                    dataLength,
-                    keySerializer,
-                    valueSerializer,
-                    bufferPool,
-                    writeMode,
-                    blockFactory,
-                    maxAge,
-                    codec,
-                    blockCache,
-                    entries,
                     bloomFPProb,
                     blockSize,
                     checksumProb,
                     readPageSize);
         }
     }
-
 }

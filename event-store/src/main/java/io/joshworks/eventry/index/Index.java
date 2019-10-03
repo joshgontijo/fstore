@@ -7,13 +7,12 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
-import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.lsmtree.sstable.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
-import io.joshworks.fstore.lsmtree.sstable.Expression;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
 import io.joshworks.fstore.serializer.Serializers;
 
@@ -53,7 +52,6 @@ public class Index implements Closeable {
                 new IndexCompactor(metadataSupplier, this::version),
                 SSTables.NO_MAX_AGE,
                 new LZ4Codec(),
-                flushThreshold * 2,
                 0.01,
                 Size.KB.ofInt(4),
                 Cache.lruCache(100, -1));
@@ -96,7 +94,7 @@ public class Index implements Closeable {
             return cached;
         }
         IndexKey maxStreamVersion = IndexKey.allOf(stream).end();
-        Entry<IndexKey, Long> found = sstables.find(maxStreamVersion, Expression.FLOOR, entry -> matchStream(stream, entry));
+        Entry<IndexKey, Long> found = null;//sstables.find(maxStreamVersion, Expression.FLOOR, entry -> matchStream(stream, entry));
         if (found != null) {
             int fetched = found.key.version;
             versionCache.add(stream, fetched);
