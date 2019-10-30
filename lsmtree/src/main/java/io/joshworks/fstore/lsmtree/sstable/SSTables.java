@@ -46,7 +46,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     public static final long NO_MAX_AGE = -1;
 
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final BlockingQueue<FlushTask> flushQueue = new ArrayBlockingQueue<>(3, false);
+    private final BlockingQueue<FlushTask> flushQueue = new ArrayBlockingQueue<>(1);
 
     private final Metrics metrics = new Metrics();
     private final String metricsKey;
@@ -81,13 +81,14 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)
                 .parallelCompaction()
-                .compactionThreshold(10)
+                .compactionThreshold(3)
                 .flushMode(flushMode)
                 .directBufferPool()
                 .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, blockFactory, codec, bloomFPProb, blockSize, maxAgeSeconds, blockCache));
 
         this.metricsKey = MetricRegistry.register(Map.of("type", "sstables", "name", name), () -> {
             metrics.set("blockCacheSize", blockCache.size());
+            metrics.set("flushQueueSize", flushQueue.size());
             Metrics metrics = appender.metrics();
             return Metrics.merge(metrics, this.metrics);
         });
@@ -114,7 +115,9 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
             try {
                 CompletableFuture<Void> completion = new CompletableFuture<>();
-                flushQueue.put(new FlushTask(completion, memTable));
+                while (!flushQueue.offer(new FlushTask(completion, memTable))) {
+                    Thread.sleep(100);
+                }
                 memTable = new MemTable<>();
                 return completion;
 
@@ -128,27 +131,32 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     private Runnable flushTask() {
         return () -> {
             while (!closed.get()) {
-                FlushTask task = flushQueue.peek();
-                if (task == null) {
-                    Threads.sleep(500);
-                    continue;
-                }
-
                 try {
-                    long start = System.currentTimeMillis();
+                    FlushTask task = flushQueue.peek();
+                    if (task == null) {
+                        Threads.sleep(500);
+                        continue;
+                    }
 
-                    long inserted = task.memTable.writeTo(appender, maxAge);
-                    flushQueue.poll();
+                    try {
+                        long start = System.currentTimeMillis();
 
-                    long end = System.currentTimeMillis();
-                    metrics.set("lastFlushTime", (end - start));
-                    metrics.update("flushTime", (end - start));
-                    metrics.update("flushed");
-                    metrics.update("lastFlush", start);
-                    metrics.update("flushedItems", inserted);
-                } finally {
-                    task.completionListener.complete(null);
+                        long inserted = task.memTable.writeTo(appender, maxAge);
+                        flushQueue.poll();
+
+                        long end = System.currentTimeMillis();
+                        metrics.set("lastFlushTime", (end - start));
+                        metrics.update("flushTime", (end - start));
+                        metrics.update("flushed");
+                        metrics.update("lastFlush", start);
+                        metrics.update("flushedItems", inserted);
+                    } finally {
+                        task.completionListener.complete(null);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to flush Memtable");
                 }
+
             }
         };
     }

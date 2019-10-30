@@ -80,7 +80,7 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return Direction.FORWARD.equals(direction) ? Iterators.of(table) : Iterators.wrap(table.descendingIterator());
     }
 
-    long writeTo(LogAppender<Entry<K, V>> sstables, long maxAge) {
+    long writeTo(LogAppender<Entry<K, V>> sstablesLog, long maxAge) {
         if (isEmpty()) {
             return 0;
         }
@@ -90,15 +90,14 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
             if (entry.expired(maxAge) && !entry.deletion()) {
                 continue;
             }
-            long entryPos = sstables.append(entry);
+            long entryPos = sstablesLog.append(entry);
             if (entryPos == Storage.EOF) {
-//                sstables.roll();
-                //not really that important, added exception just ebcause LogAppender#append should handle the segment rolling
-                throw new IllegalStateException("Memtable must fit single segment");
+                sstablesLog.roll();
+                sstablesLog.append(entry);
             }
             inserted++;
         }
-        sstables.roll();
+        sstablesLog.roll();
         return inserted;
     }
 

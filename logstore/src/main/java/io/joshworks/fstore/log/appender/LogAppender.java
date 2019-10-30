@@ -424,6 +424,11 @@ public class LogAppender<T> implements Closeable {
         return levels.apply(Direction.FORWARD, segments -> segments.stream().mapToLong(Log::physicalSize).sum());
     }
 
+    public void applyToHead(Consumer<Log<T>> consumer) {
+        levels.lock(() -> {
+            consumer.accept(levels.current());
+        });
+    }
 
     public long physicalSize(int level) {
         if (level < 0) {

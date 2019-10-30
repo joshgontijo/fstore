@@ -26,10 +26,10 @@ import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 public class EStore {
 
     private static final String STREAM_PREFIX = "stream-";
-    private static final int ITEMS = 15000000;
+    private static final int ITEMS = 50000000;
     private static final int STREAMS = 100000;
     private static final int THREADS = 1;
-    public static final int FLUSH_THRESHOLD = 100000;
+    public static final int FLUSH_THRESHOLD = 500000;
     private static LsmTree<IndexKey, EventRecord> store;
 
     private static final Metrics metrics = new Metrics();
@@ -122,9 +122,15 @@ public class EStore {
             }
             version++;
         } while (record != null);
+
+        if (records.size() != (ITEMS / STREAMS)) {
+            throw new IllegalStateException("Expected " + (ITEMS / STREAMS) + ", got: " + records.size());
+        }
+
         metrics.update("readStream");
         metrics.update("readStreamPerSec");
         metrics.update("totalEvents", records.size());
+        metrics.update("eventsPerSec", records.size());
         return records;
     }
 
@@ -144,20 +150,26 @@ public class EStore {
 
     private static void monitor() {
         while (true) {
-            Long writes = metrics.remove("writes");
-            Long reads = metrics.remove("reads");
+            long writes = orZero(metrics.remove("writes"));
+            long reads = orZero(metrics.remove("reads"));
             Long totalWrites = metrics.get("totalWrites");
             Long totalReads = metrics.get("totalReads");
             Long writeTime = metrics.get("writeTime");
 
             Long streamReads = metrics.get("readStream");
             Long totalEvents = metrics.get("totalEvents");
-            Long readStreamPerSec = metrics.remove("readStreamPerSec");
+
+            long eventsPerSec = orZero(metrics.remove("eventsPerSec"));
+            long readStreamPerSec = orZero(metrics.remove("readStreamPerSec"));
 
             long avgWriteTime = totalWrites == null ? 0 : writeTime / totalWrites;
-            System.out.println("WRITE: " + writes + "/s - TOTAL WRITE: " + totalWrites + " - AVG_WRITE_TIME: " + avgWriteTime + " READ: " + reads + "/s - TOTAL READ: " + totalReads + " STREAM_READ: " + streamReads + " TOTAL_EVENTS: " + totalEvents + " STREAM_READ_PER_SEC:" + readStreamPerSec);
+            System.out.println("WRITE: " + writes + "/s - TOTAL WRITE: " + totalWrites + " - AVG_WRITE_TIME: " + avgWriteTime + " READ: " + reads + "/s - TOTAL READ: " + totalReads + " STREAM_READ: " + streamReads + " TOTAL_EVENTS: " + totalEvents + " STREAM_READ_PER_SEC:" + readStreamPerSec + " EV/s: " + eventsPerSec);
             Threads.sleep(1000);
         }
+    }
+
+    private static long orZero(Long val) {
+        return val == null ? 0 : val;
     }
 
 }

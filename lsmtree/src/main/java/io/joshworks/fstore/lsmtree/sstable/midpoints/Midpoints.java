@@ -14,10 +14,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 public class Midpoints<K extends Comparable<K>> {
-
-    private static final String BLOCK_PREFIX = "MIDPOINT_";
 
     private final List<Midpoint<K>> entries = new ArrayList<>();
 
@@ -129,7 +129,7 @@ public class Midpoints<K extends Comparable<K>> {
         return entries.get(entries.size() - 1);
     }
 
-    public void writeTo(FooterWriter writer, Codec codec, BufferPool bufferPool, Serializer<K> keySerializer) {
+    public void writeTo(BiConsumer<Block, BlockSerializer> writer, Codec codec, BufferPool bufferPool, Serializer<K> keySerializer) {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
         int blockSize = Math.min(bufferPool.bufferSize(), Size.MB.ofInt(1));
@@ -141,7 +141,7 @@ public class Midpoints<K extends Comparable<K>> {
         entries.sort(Comparator.comparing(o -> o.key));
         for (Midpoint<K> midpoint : entries) {
             if (!block.add(midpoint, serializer, bufferPool)) {
-                writer.write(BLOCK_PREFIX + blockIdx, block, blockSerializer);
+                writer.accept(block, blockSerializer);
                 block.clear();
                 block.add(midpoint, serializer, bufferPool);
                 blockIdx++;
@@ -149,11 +149,11 @@ public class Midpoints<K extends Comparable<K>> {
         }
 
         if (!block.isEmpty()) {
-            writer.write(BLOCK_PREFIX + blockIdx, block, blockSerializer);
+            writer.accept(block, blockSerializer);
         }
     }
 
-    public static <K extends Comparable<K>> Midpoints<K> load(FooterReader reader, Codec codec, Serializer<K> keySerializer) {
+    public static <K extends Comparable<K>> Midpoints<K> load(Supplier<> reader, Codec codec, Serializer<K> keySerializer) {
         Midpoints<K> midpoints = new Midpoints<>();
         if (!midpoints.isEmpty()) {
             throw new IllegalStateException("Midpoints is not empty");

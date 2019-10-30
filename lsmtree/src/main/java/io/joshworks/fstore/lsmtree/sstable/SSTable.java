@@ -50,6 +50,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
     private final Cache<String, Block> blockCache;
 
+    private final MemTable<K, V> memTable = new MemTable<>();
+
 
     public SSTable(File file,
                    StorageMode storageMode,

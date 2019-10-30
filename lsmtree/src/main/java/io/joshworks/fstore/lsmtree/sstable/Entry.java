@@ -52,7 +52,7 @@ public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>
         return System.currentTimeMillis() / 1000;
     }
 
-    public boolean readable(long maxAge) {
+    boolean readable(long maxAge) {
         return !deletion() && !expired(maxAge);
     }
 

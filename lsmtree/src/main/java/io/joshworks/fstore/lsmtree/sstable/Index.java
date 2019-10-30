@@ -7,31 +7,30 @@ import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.lsmtree.sstable.filter.BloomFilter;
-import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoint;
-import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoints;
 import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.extra.DataFile;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
+import io.joshworks.fstore.lsmtree.sstable.filter.BloomFilter;
+import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoint;
+import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoints;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 
-class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
+class Index<K extends Comparable<K>> {
 
-    private final FooterReader reader;
+    private final DataFile<Block> data;
+
     private final BufferPool bufferPool;
     private final Serializer<IndexEntry<K>> entrySerializer;
     private final Serializer<K> keySerializer;
 
-    private BloomFilter bloomFilter;
-    private Midpoints<K> midpoints = new Midpoints<>();
-    private List<IndexEntry<K>> items = new ArrayList<>();
+    private final BloomFilter bloomFilter;
+    private final Midpoints<K> midpoints;
     private final Codec codec = new LZ4Codec();
     private boolean readOnly;
     private final long maxAge;
@@ -41,10 +40,11 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
     private final BlockFactory blockFactory;
     private final BlockSerializer blockSerializer;
 
-    private final Cache<Long, Block> indexBlockCache = Cache.softCache();
+    private final Cache<Long, Block> indexBlockCache = Cache.noCache();
+    private Block block;
+    private final int blockSize;
 
-    public Index(FooterReader reader, boolean readOnly, BufferPool bufferPool, Serializer<K> keySerializer, long maxAge, double bloomFilterFP) {
-        this.reader = reader;
+    public Index(boolean readOnly, BufferPool bufferPool, Serializer<K> keySerializer, long maxAge, int bloomFilterSize, double bloomFilterFP) {
         this.bufferPool = bufferPool;
         this.maxAge = maxAge;
         this.bloomFilterFP = bloomFilterFP;
@@ -52,6 +52,8 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
 
         this.blockFactory = Block.vlenBlock();
         this.blockSerializer = new BlockSerializer(codec, blockFactory);
+        this.blockSize = Math.min(bufferPool.bufferSize(), Size.KB.ofInt(4));
+        this.block = blockFactory.create(blockSize);
 
         this.entrySerializer = new IndexEntrySerializer<>(keySerializer);
         this.keySerializer = keySerializer;
@@ -59,11 +61,40 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
         if (readOnly) {
             this.midpoints = Midpoints.load(reader, codec, keySerializer);
             this.bloomFilter = BloomFilter.load(reader, codec, bufferPool);
+        } else {
+            this.bloomFilter = BloomFilter.create(bloomFilterSize, bloomFilterFP);
+            this.midpoints = new Midpoints<>();
         }
     }
 
+    ----------------------------------
+    THE IDEA HERE IS TO FLUSH THE MEM TABLE INTO THE SSTABLE DIRECTLY
+    WITHOUT THE COST OF THE CREATING MANY INDEXENTRY INSTANCES
+
+    // THE PROBLEM HAPPENS WHEN DOING MERGES, IT WILL CREATE TOO MANY ENTRIES IN MEMORY
+
     void add(K key, long dataBlockPos, long timestamp) {
-        items.add(new IndexEntry<>(timestamp, key, dataBlockPos));
+        IndexEntry<K> ie = new IndexEntry<>(timestamp, key, dataBlockPos);
+
+
+        if (!block.add(ie, entrySerializer, bufferPool)) {
+            writeDataBlock(block);
+            block = blockFactory.create(blockSize);
+        }
+        addToBloomFilter(ie.key);
+        long blockPos = writer.write(block, blockSerializer);
+        addToMidpoints(blockPos, block);
+        block.clear();
+        block.add(ie, entrySerializer, bufferPool);
+
+        if (!block.isEmpty()) {
+            blockPos = writer.write(block, blockSerializer);
+            addToMidpoints(blockPos, block);
+        }
+    }
+
+    private void writeDataBlock(Block block) {
+        data.add(block);
     }
 
     private void addToBloomFilter(K key) {
@@ -75,7 +106,6 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
         }
     }
 
-    @Override
     public IndexEntry<K> get(K key) {
         if (!readOnly) {
             throw new IllegalStateException("Cannot read from a open segment");
@@ -114,7 +144,7 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
 
     private Block readBlock(long position) {
         Block block = indexBlockCache.get(position);
-        if(block == null) {
+        if (block == null) {
             block = reader.read(position, blockSerializer);
             indexBlockCache.add(position, block);
         }
@@ -150,30 +180,7 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
         return metrics;
     }
 
-    void writeTo(FooterWriter writer) {
-        //write index blocks
-        int blockSize = Math.min(bufferPool.bufferSize(), Size.KB.ofInt(4));
-
-        Block block = blockFactory.create(blockSize);
-
-        this.bloomFilter = BloomFilter.create(items.size(), bloomFilterFP);
-
-        for (IndexEntry<K> kv : items) {
-            addToBloomFilter(kv.key);
-            if (!block.add(kv, entrySerializer, bufferPool)) {
-                long blockPos = writer.write(block, blockSerializer);
-                addToMidpoints(blockPos, block);
-                block.clear();
-                block.add(kv, entrySerializer, bufferPool);
-            }
-        }
-
-        if (!block.isEmpty()) {
-            long blockPos = writer.write(block, blockSerializer);
-            addToMidpoints(blockPos, block);
-        }
-        items = null;
-
+    void flush() {
         midpoints.writeTo(writer, codec, bufferPool, keySerializer);
         bloomFilter.writeTo(writer, codec, bufferPool);
         readOnly = true;
@@ -233,7 +240,6 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
         return midpoint == null ? null : midpoint.position;
     }
 
-    @Override
     public IndexEntry<K> floor(K key) {
         if (midpoints.isEmpty()) {
             return null;
@@ -264,7 +270,6 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
         return null;
     }
 
-    @Override
     public IndexEntry<K> ceiling(K key) {
         if (midpoints.isEmpty()) {
             return null;
@@ -291,7 +296,6 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
         return null;
     }
 
-    @Override
     public IndexEntry<K> higher(K key) {
         if (midpoints.isEmpty()) {
             return null;
@@ -319,7 +323,6 @@ class Index<K extends Comparable<K>> implements TreeFunctions<K, Long>{
         return null;
     }
 
-    @Override
     public IndexEntry<K> lower(K key) {
         if (midpoints.isEmpty()) {
             return null;
