@@ -4,17 +4,18 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.MemStorage;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.extra.DataFile;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
-import io.joshworks.fstore.log.segment.footer.FooterReader;
-import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.BitSet;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Objects;
 
 /**
@@ -26,9 +27,6 @@ import java.util.Objects;
  */
 public class BloomFilter {
 
-    private static final String BLOCK_PREFIX = "BLOOM_FILTER_";
-    public static final String BLOOM_HEADER = "BLOOM_HEADER";
-
     private static final int HEADER_SIZE = Integer.BYTES * 3;
 
     BitSet hashes;
@@ -38,8 +36,8 @@ public class BloomFilter {
     private int k; // Number of hash functions
 
     /**
-     * @param n The expected number of elements in the filter
-     * @param p The acceptable false positive rate
+     * @param n     The expected number of elements in the filter
+     * @param p     The acceptable false positive rate
      */
     private BloomFilter(long n, double p) {
         this.m = getNumberOfBits(p, n);
@@ -137,7 +135,7 @@ public class BloomFilter {
     }
 
 
-    public void writeTo(FooterWriter writer, Codec codec, BufferPool bufferPool) {
+    public void write(DataFile<Block> dataFile, Codec codec, BufferPool bufferPool) {
         long[] items = hashes.toLongArray();
         int dataLength = items.length * Long.BYTES;
         long totalSize = dataLength + HEADER_SIZE;
@@ -146,30 +144,29 @@ public class BloomFilter {
             throw new IllegalStateException("Bloom filter too big");
         }
 
-        writeHeader(writer, codec, bufferPool, dataLength);
-
         int blockSize = Math.min(bufferPool.bufferSize() - RecordHeader.HEADER_OVERHEAD, Size.MB.ofInt(1));
         BlockFactory blockFactory = dataBlockFactory();
         BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
         Block block = blockFactory.create(blockSize);
 
-        int blockIdx = 0;
+        writeHeader(dataFile, bufferPool, items.length, dataLength);
+
         for (long item : items) {
             if (!block.add(item, Serializers.LONG, bufferPool)) {
-                writer.write(BLOCK_PREFIX + blockIdx, block, blockSerializer);
+                dataFile.add(block);
                 block.clear();
-                blockIdx++;
                 block.add(item, Serializers.LONG, bufferPool);
             }
         }
         if (!block.isEmpty()) {
-            writer.write(BLOCK_PREFIX + blockIdx, block, blockSerializer);
+            dataFile.add(block);
         }
     }
 
-    private void writeHeader(FooterWriter writer, Codec codec, BufferPool bufferPool, int dataLength) {
+    private void writeHeader(DataFile<Block> dataFile, BufferPool bufferPool, int entries, int dataLength) {
         //Format
-        //Length -> 4bytes
+        //Data length -> 4bytes
+        //entries -> 4bytes
         //Number of bits (m) -> 4bytes
         //Number of hashes (k) -> 4bytes
         //Data -> long[]
@@ -177,28 +174,24 @@ public class BloomFilter {
         Block headerBlock = blockFactory.create(128);
         try (bufferPool) {
             headerBlock.add(dataLength, Serializers.INTEGER, bufferPool);
+            headerBlock.add(entries, Serializers.INTEGER, bufferPool);
             headerBlock.add(this.m, Serializers.INTEGER, bufferPool);
             headerBlock.add(this.k, Serializers.INTEGER, bufferPool);
         }
-        BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
-        writer.write(BLOOM_HEADER, headerBlock, blockSerializer);
+        dataFile.add(headerBlock);
     }
 
-    public static BloomFilter create(long n, double p) {
-        return new BloomFilter(n, p);
-    }
-
-    public static BloomFilter load(FooterReader reader, Codec codec, BufferPool bufferPool) {
-
-        Block headerBlock = readHeader(reader, codec);
-        if (headerBlock == null) {
+    public static BloomFilter load(Iterator<Block> dataIt) {
+        if (!dataIt.hasNext()) {
             throw new IllegalStateException("Could not find Bloom filter header block");
         }
+        Block headerBlock = dataIt.next();
 
         int size = headerBlock.get(0).getInt();
-        int m = headerBlock.get(1).getInt();
-        int k = headerBlock.get(2).getInt();
-        long[] longs = readEntries(reader, codec, bufferPool);
+        int entries = headerBlock.get(1).getInt();
+        int m = headerBlock.get(2).getInt();
+        int k = headerBlock.get(3).getInt();
+        long[] longs = readEntries(dataIt, entries);
 
         BitSet bitSet = new BitSet(m);
         bitSet.or(BitSet.valueOf(longs));
@@ -206,19 +199,11 @@ public class BloomFilter {
         return new BloomFilter(bitSet, m, k, size);
     }
 
-    private static long[] readEntries(FooterReader reader, Codec codec, BufferPool bufferPool) {
-        BlockFactory blockFactory = dataBlockFactory();
-        List<Block> blocks = reader.findAll(BLOCK_PREFIX, new BlockSerializer(codec, blockFactory));
-
-        if (blocks.isEmpty()) {
-            throw new IllegalStateException("Could not find any BloomFilter data block");
-        }
-
-        int numEntries = blocks.stream().mapToInt(Block::entryCount).sum();
-
+    private static long[] readEntries(Iterator<Block> dataIt, int numEntries) {
         long[] longs = new long[numEntries];
         int i = 0;
-        for (Block block : blocks) {
+        while (dataIt.hasNext()) {
+            Block block = dataIt.next();
             for (ByteBuffer entry : block) {
                 longs[i++] = entry.getLong();
             }
@@ -234,9 +219,8 @@ public class BloomFilter {
         return Block.flenBlock(Integer.BYTES);
     }
 
-    private static Block readHeader(FooterReader reader, Codec codec) {
-        BlockFactory blockFactory = headerBlockFactory();
-        return reader.read(BLOOM_HEADER, new BlockSerializer(codec, blockFactory));
+    private static Block readHeader(DataFile<Block> data) {
+        return data.get(0);
     }
 
     public long size() {

@@ -12,14 +12,15 @@ import io.joshworks.fstore.log.extra.DataFile;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
-import io.joshworks.fstore.log.segment.footer.FooterReader;
-import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.lsmtree.sstable.filter.BloomFilter;
 import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoint;
 import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoints;
 import io.joshworks.fstore.serializer.Serializers;
 
+import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.file.Paths;
+import java.util.Iterator;
 
 class Index<K extends Comparable<K>> {
 
@@ -36,6 +37,7 @@ class Index<K extends Comparable<K>> {
     private final long maxAge;
     private final double bloomFilterFP;
 
+
     private final Metrics metrics = new Metrics();
     private final BlockFactory blockFactory;
     private final BlockSerializer blockSerializer;
@@ -44,11 +46,15 @@ class Index<K extends Comparable<K>> {
     private Block block;
     private final int blockSize;
 
-    public Index(boolean readOnly, BufferPool bufferPool, Serializer<K> keySerializer, long maxAge, int bloomFilterSize, double bloomFilterFP) {
+    public Index(File dataFile, int size, BufferPool bufferPool, Serializer<K> keySerializer, long maxAge, int bloomFilterSize, double bloomFilterFP) {
+        File folder = Paths.get(dataFile.toURI()).getParent().toFile();
+        String name = dataFile.getName().split("\\.")[0];
+
+        File indexFile = new File(folder, name + ".idx");
+
         this.bufferPool = bufferPool;
         this.maxAge = maxAge;
         this.bloomFilterFP = bloomFilterFP;
-        this.readOnly = readOnly;
 
         this.blockFactory = Block.vlenBlock();
         this.blockSerializer = new BlockSerializer(codec, blockFactory);
@@ -58,20 +64,32 @@ class Index<K extends Comparable<K>> {
         this.entrySerializer = new IndexEntrySerializer<>(keySerializer);
         this.keySerializer = keySerializer;
         //try read first block to detect whether the index exists
-        if (readOnly) {
-            this.midpoints = Midpoints.load(reader, codec, keySerializer);
-            this.bloomFilter = BloomFilter.load(reader, codec, bufferPool);
-        } else {
-            this.bloomFilter = BloomFilter.create(bloomFilterSize, bloomFilterFP);
-            this.midpoints = new Midpoints<>();
+        this.data = DataFile.of(blockSerializer)
+                .initialSize(size) //approximation
+                .maxEntrySize(blockSize)
+                .open(file);
+
+        Block block = data.get(0);
+        this.readOnly = block != null;
+        if(readOnly) {
+            long midpointStartPos = block.get(0).getLong();
+            long midpointsLen = block.get(1).getLong();
+            long bloomStartPos = block.get(0).getLong();
+            long bloomLen = block.get(1).getLong();
+
+            Iterator<Block> midpointIt = data.iterator(Direction.FORWARD, midpointStartPos, midpointsLen);
+            Iterator<Block> bloomIt = data.iterator(Direction.FORWARD, bloomStartPos, bloomLen);
+
+            this.midpoints = Midpoints.load(midpointIt, codec, keySerializer);
+            this.bloomFilter = BloomFilter.load(bloomIt);
         }
+
+        this.midpoints = Midpoints.open(midpointsFile, codec, keySerializer);
+        this.bloomFilter = BloomFilter.open(bloomFile, codec, bloomFilterSize, bloomFilterFP);
+
+
+
     }
-
-    ----------------------------------
-    THE IDEA HERE IS TO FLUSH THE MEM TABLE INTO THE SSTABLE DIRECTLY
-    WITHOUT THE COST OF THE CREATING MANY INDEXENTRY INSTANCES
-
-    // THE PROBLEM HAPPENS WHEN DOING MERGES, IT WILL CREATE TOO MANY ENTRIES IN MEMORY
 
     void add(K key, long dataBlockPos, long timestamp) {
         IndexEntry<K> ie = new IndexEntry<>(timestamp, key, dataBlockPos);
@@ -82,13 +100,13 @@ class Index<K extends Comparable<K>> {
             block = blockFactory.create(blockSize);
         }
         addToBloomFilter(ie.key);
-        long blockPos = writer.write(block, blockSerializer);
+        long blockPos = data.add(block);
         addToMidpoints(blockPos, block);
         block.clear();
         block.add(ie, entrySerializer, bufferPool);
 
         if (!block.isEmpty()) {
-            blockPos = writer.write(block, blockSerializer);
+            blockPos = data.add(block);
             addToMidpoints(blockPos, block);
         }
     }
@@ -145,7 +163,7 @@ class Index<K extends Comparable<K>> {
     private Block readBlock(long position) {
         Block block = indexBlockCache.get(position);
         if (block == null) {
-            block = reader.read(position, blockSerializer);
+            block = data.get(position);
             indexBlockCache.add(position, block);
         }
         return block;
@@ -181,8 +199,8 @@ class Index<K extends Comparable<K>> {
     }
 
     void flush() {
-        midpoints.writeTo(writer, codec, bufferPool, keySerializer);
-        bloomFilter.writeTo(writer, codec, bufferPool);
+        midpoints.write(bufferPool);
+        bloomFilter.write(bufferPool);
         readOnly = true;
     }
 
@@ -216,7 +234,7 @@ class Index<K extends Comparable<K>> {
     //true if first block element
     //false if last block element
     private IndexEntry<K> getAt(Midpoint<K> midpoint, boolean firstLast) {
-        Block block = reader.read(midpoint.position, blockSerializer);
+        Block block = data.get(midpoint.position);
         ByteBuffer lastEntry = firstLast ? block.first() : block.last();
         return entrySerializer.fromBytes(lastEntry);
     }

@@ -19,6 +19,8 @@ import io.joshworks.fstore.log.segment.header.Type;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static java.util.Objects.requireNonNull;
 
@@ -94,7 +96,9 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
                 },
                 this::writeFooter);
 
-        this.index = new Index<>(delegate.footerReader(), delegate.readOnly(), bufferPool, keySerializer, maxAge, bloomFPProb);
+
+
+        this.index = new Index<>(file, delegate.readOnly(), bufferPool, keySerializer, maxAge, bloomFPProb);
     }
 
     private void writeFooter(FooterWriter writer) {

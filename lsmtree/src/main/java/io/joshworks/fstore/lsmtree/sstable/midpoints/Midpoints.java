@@ -4,18 +4,17 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.extra.DataFile;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
-import io.joshworks.fstore.log.segment.footer.FooterReader;
-import io.joshworks.fstore.log.segment.footer.FooterWriter;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 public class Midpoints<K extends Comparable<K>> {
 
@@ -129,31 +128,28 @@ public class Midpoints<K extends Comparable<K>> {
         return entries.get(entries.size() - 1);
     }
 
-    public void writeTo(BiConsumer<Block, BlockSerializer> writer, Codec codec, BufferPool bufferPool, Serializer<K> keySerializer) {
+    public synchronized void write(DataFile<Block> data, BufferPool bufferPool, Serializer<K> keySerializer) {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
         int blockSize = Math.min(bufferPool.bufferSize(), Size.MB.ofInt(1));
         BlockFactory blockFactory = Block.vlenBlock();
-        BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
         Block block = blockFactory.create(blockSize);
 
-        int blockIdx = 0;
         entries.sort(Comparator.comparing(o -> o.key));
         for (Midpoint<K> midpoint : entries) {
             if (!block.add(midpoint, serializer, bufferPool)) {
-                writer.accept(block, blockSerializer);
+                data.add(block);
                 block.clear();
                 block.add(midpoint, serializer, bufferPool);
-                blockIdx++;
             }
         }
 
         if (!block.isEmpty()) {
-            writer.accept(block, blockSerializer);
+            data.add(block);
         }
     }
 
-    public static <K extends Comparable<K>> Midpoints<K> load(Supplier<> reader, Codec codec, Serializer<K> keySerializer) {
+    public static <K extends Comparable<K>> Midpoints<K> load(Iterator<Block> dataIt, Codec codec, Serializer<K> keySerializer) {
         Midpoints<K> midpoints = new Midpoints<>();
         if (!midpoints.isEmpty()) {
             throw new IllegalStateException("Midpoints is not empty");
@@ -162,9 +158,13 @@ public class Midpoints<K extends Comparable<K>> {
         BlockFactory blockFactory = Block.vlenBlock();
         BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
         Serializer<Midpoint<K>> midpointSerializer = new MidpointSerializer<>(keySerializer);
-        List<Block> blocks = reader.findAll(BLOCK_PREFIX, blockSerializer);
 
-        for (Block block : blocks) {
+        if (!dataIt.hasNext()) {
+            throw new IllegalStateException("Could not find Bloom filter header block");
+        }
+
+        while (dataIt.hasNext()) {
+            Block block = dataIt.next();
             List<Midpoint<K>> entries = block.deserialize(midpointSerializer);
             midpoints.entries.addAll(entries);
         }

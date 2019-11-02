@@ -20,6 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
 
+
 public class DataFile<T> implements Flushable, Closeable {
 
     //safe integer value
@@ -46,7 +47,7 @@ public class DataFile<T> implements Flushable, Closeable {
     public synchronized long add(T record) {
         long pos = stream.write(record, serializer);
         if (Storage.EOF == pos) {
-            throw new RuntimeException("Not space left in the data file");
+            throw new RuntimeException("Not space left");
         }
         return pos;
     }
@@ -65,8 +66,12 @@ public class DataFile<T> implements Flushable, Closeable {
     }
 
     public Iterator<T> iterator(Direction direction, long position) {
-        position = position > stream.position() ? stream.position() : position;
-        return new DataFileIterator<>(stream, serializer, direction, position);
+        return iterator(direction, position, Long.MAX_VALUE);
+    }
+
+    public Iterator<T> iterator(Direction direction, long startPosInclusive, long length) {
+        startPosInclusive = Math.min(startPosInclusive, stream.position());
+        return new DataFileIterator<>(stream, serializer, direction, startPosInclusive, length);
     }
 
     @Override
@@ -94,16 +99,22 @@ public class DataFile<T> implements Flushable, Closeable {
         private final Queue<RecordEntry<T>> entries = new ArrayDeque<>();
         private final Direction direction;
         private long position;
+        private final long startPos;
+        private final long length;
 
-        private DataFileIterator(DataStream stream, Serializer<T> serializer, Direction direction, long position) {
+
+        private DataFileIterator(DataStream stream, Serializer<T> serializer, Direction direction, long position, long length) {
             this.stream = stream;
             this.serializer = serializer;
             this.direction = direction;
             this.position = position;
+            this.startPos = position;
+            this.length = length;
         }
 
         private void fetchEntries() {
-            if (position >= stream.position()) {
+            long bytesRead = Direction.FORWARD.equals(direction) ? position - startPos : startPos - position;
+            if (position >= stream.position() || (bytesRead >= length)) {
                 return;
             }
             List<RecordEntry<T>> read = stream.bulkRead(direction, position, serializer);
