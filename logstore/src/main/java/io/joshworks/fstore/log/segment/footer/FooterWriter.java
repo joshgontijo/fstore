@@ -17,10 +17,6 @@ public class FooterWriter {
         map.write(name, stream, entry, serializer);
     }
 
-    public <T> long write(T entry, Serializer<T> serializer) {
-        return stream.write(entry, serializer);
-    }
-
     public long position() {
         return stream.position();
     }

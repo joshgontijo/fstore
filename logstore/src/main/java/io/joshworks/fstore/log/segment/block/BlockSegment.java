@@ -169,7 +169,7 @@ public class BlockSegment<T> implements Log<T> {
         return delegate.iterator(position, direction);
     }
 
-    //actual entries present in all blocks
+    //actual entries present in all blovks
     public long totalEntries() {
         return info.entries();
     }

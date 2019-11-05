@@ -45,6 +45,7 @@ public class SSTablesMaxAgeTest {
                 new SSTableCompactor<>(MAX_AGE_SECONDS),
                 MAX_AGE_SECONDS,
                 new SnappyCodec(),
+                1000000,
                 0.01,
                 Memory.PAGE_SIZE,
                 Cache.softCache());

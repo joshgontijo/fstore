@@ -2,7 +2,7 @@ package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.FileUtils;
-import io.joshworks.fstore.lsmtree.sstable.Range;
+import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -21,7 +21,7 @@ public class LsmTreeIT {
 
     private LsmTree<Integer, String> lsmtree;
     private File testDirectory;
-    private static final int FLUSH_THRESHOLD = 500000;
+    private static final int FLUSH_THRESHOLD = 100000;
 
 
     @Before
@@ -45,19 +45,27 @@ public class LsmTreeIT {
     }
 
     @Test
-    public void insert_scan() {
-        int items = FLUSH_THRESHOLD * 15;
+    public void scan_10M() {
+        int items = 10000000;
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
         }
-        performGets(items);
-        performScans(items);
+
+        sequentialKeyScan(Direction.FORWARD, lsmtree.iterator(Direction.FORWARD));
+        sequentialKeyScan(Direction.BACKWARD, lsmtree.iterator(Direction.BACKWARD));
+
+        sequentialKeyScan(Direction.FORWARD, lsmtree.iterator(Direction.FORWARD, Range.of(0, items)));
+        sequentialKeyScan(Direction.FORWARD, lsmtree.iterator(Direction.FORWARD, Range.of(10, 50)));
+        sequentialKeyScan(Direction.FORWARD, lsmtree.iterator(Direction.FORWARD, Range.of(items - 100, items)));
+
+        sequentialKeyScan(Direction.BACKWARD, lsmtree.iterator(Direction.BACKWARD, Range.of(0, items)));
+        sequentialKeyScan(Direction.BACKWARD, lsmtree.iterator(Direction.BACKWARD, Range.of(10, 50)));
+        sequentialKeyScan(Direction.BACKWARD, lsmtree.iterator(Direction.BACKWARD, Range.of(items - 100, items)));
     }
 
-
     @Test
-    public void scan_duplicate_keys() {
-        int items = FLUSH_THRESHOLD * 15;
+    public void scan_duplicate_keys_10M() {
+        int items = 10000000;
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
         }
@@ -68,33 +76,19 @@ public class LsmTreeIT {
             lsmtree.put(id, "updated-value");
         }
 
-        performScans(items);
+        sequentialKeyScan(Direction.FORWARD, lsmtree.iterator(Direction.FORWARD));
+        sequentialKeyScan(Direction.BACKWARD, lsmtree.iterator(Direction.BACKWARD));
+
+        sequentialKeyScan(Direction.FORWARD, lsmtree.iterator(Direction.FORWARD, Range.of(0, items)));
+        sequentialKeyScan(Direction.FORWARD, lsmtree.iterator(Direction.FORWARD, Range.of(10, 50)));
+        sequentialKeyScan(Direction.FORWARD, lsmtree.iterator(Direction.FORWARD, Range.of(items - 100, items)));
+
+        sequentialKeyScan(Direction.BACKWARD, lsmtree.iterator(Direction.BACKWARD, Range.of(0, items)));
+        sequentialKeyScan(Direction.BACKWARD, lsmtree.iterator(Direction.BACKWARD, Range.of(10, 50)));
+        sequentialKeyScan(Direction.BACKWARD, lsmtree.iterator(Direction.BACKWARD, Range.of(items - 100, items)));
     }
 
-    private void performScans(int items) {
-        sequentialKeyScan(Direction.FORWARD, items, lsmtree.iterator(Direction.FORWARD));
-        sequentialKeyScan(Direction.BACKWARD, items, lsmtree.iterator(Direction.BACKWARD));
-
-        sequentialKeyScan(Direction.FORWARD, items, lsmtree.iterator(Direction.FORWARD, Range.of(0, items)));
-        sequentialKeyScan(Direction.FORWARD, 40, lsmtree.iterator(Direction.FORWARD, Range.of(10, 50)));
-        sequentialKeyScan(Direction.FORWARD, 100, lsmtree.iterator(Direction.FORWARD, Range.of(items - 100, items)));
-
-        sequentialKeyScan(Direction.BACKWARD, items, lsmtree.iterator(Direction.BACKWARD, Range.of(0, items)));
-        sequentialKeyScan(Direction.BACKWARD, 40, lsmtree.iterator(Direction.BACKWARD, Range.of(10, 50)));
-        sequentialKeyScan(Direction.BACKWARD, 100, lsmtree.iterator(Direction.BACKWARD, Range.of(items - 100, items)));
-    }
-
-    private void performGets(int items) {
-        for (int i = 0; i < items; i++) {
-            if(i == 382) {
-                System.out.println();
-            }
-            String val = lsmtree.get(i);
-            assertEquals(String.valueOf(i), val);
-        }
-    }
-
-    private void sequentialKeyScan(Direction direction, int expectedItems, CloseableIterator<Entry<Integer, String>> iterator) {
+    private void sequentialKeyScan(Direction direction, CloseableIterator<Entry<Integer, String>> iterator) {
         try (iterator) {
             long start = System.currentTimeMillis();
 
@@ -109,9 +103,8 @@ public class LsmTreeIT {
                 }
                 assertEquals(expectedKey, entry.key);
                 expectedKey = Direction.FORWARD.equals(direction) ? entry.key + 1 : entry.key - 1;
+                scanned++;
             }
-
-            assertEquals(expectedItems, scanned);
 
             System.out.println("SCAN: SCANNED: " + scanned + " in " + (System.currentTimeMillis() - start));
         }

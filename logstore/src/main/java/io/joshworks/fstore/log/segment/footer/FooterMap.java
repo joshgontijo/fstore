@@ -53,8 +53,4 @@ public class FooterMap {
         return items.getOrDefault(name, NONE);
     }
 
-    public int size() {
-        return items.size();
-    }
-
 }

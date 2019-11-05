@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.compaction.combiner.DiscardCombiner;
 import io.joshworks.fstore.lsmtree.EntryType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +32,7 @@ public class TransactionLog<K extends Comparable<K>, V> {
         //not persisted to disk yet
         String logName = name + "-log";
         this.appender = LogAppender.builder(new File(root, "log"), new LogRecordSerializer<>(keySerializer, valueSerializer))
+                .compactionStrategy(new DiscardCombiner<>())
                 .name(logName)
                 .storageMode(mode)
                 .open();
@@ -40,14 +42,6 @@ public class TransactionLog<K extends Comparable<K>, V> {
 
     public synchronized long append(LogRecord record) {
         return appender.append(record);
-    }
-
-    public V get(long position) {
-        LogRecord record = appender.get(position);
-        if (record == null) {
-            return null;
-        }
-        return ((EntryAdded<K, V>) record).value;
     }
 
     public synchronized String markFlushing() {
@@ -87,7 +81,6 @@ public class TransactionLog<K extends Comparable<K>, V> {
         try (LogIterator<LogRecord> iterator = appender.iterator(Direction.BACKWARD)) {
             while (iterator.hasNext()) {
                 LogRecord record = iterator.next();
-                long pos = iterator.position();
 
                 if (EntryType.MEM_FLUSHED.equals(record.type)) {
                     //ignore
@@ -126,16 +119,6 @@ public class TransactionLog<K extends Comparable<K>, V> {
         appender.close();
     }
 
-    private static class EntryPos {
-        private final LogRecord record;
-        private final long pos;
-
-        private EntryPos(LogRecord record, long pos) {
-            this.record = record;
-            this.pos = pos;
-        }
-    }
-
     static class FlushTask {
         final String token;
         final long timestamp;
@@ -146,5 +129,6 @@ public class TransactionLog<K extends Comparable<K>, V> {
             this.timestamp = timestamp;
             this.position = position;
         }
+
     }
 }

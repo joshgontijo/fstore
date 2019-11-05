@@ -1,4 +1,4 @@
-package io.joshworks.fstore.lsmtree.sstable;
+package io.joshworks.fstore.index;
 
 public class Range<K extends Comparable<K>> {
 
