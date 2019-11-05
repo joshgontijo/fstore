@@ -2,7 +2,7 @@ package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.FileUtils;
-import io.joshworks.fstore.lsmtree.sstable.Range;
+import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -34,12 +34,6 @@ public class LsmTreeTest {
         lsmtree = open(testDirectory);
     }
 
-    @After
-    public void tearDown() {
-        lsmtree.close();
-        FileUtils.tryDelete(testDirectory);
-    }
-
     private LsmTree<Integer, String> open(File dir) {
         return LsmTree.builder(dir, Serializers.INTEGER, Serializers.STRING)
                 .flushThreshold(FLUSH_THRESHOLD)
@@ -48,6 +42,11 @@ public class LsmTreeTest {
                 .open();
     }
 
+    @After
+    public void tearDown() {
+        lsmtree.close();
+        FileUtils.tryDelete(testDirectory);
+    }
 
     @Test(expected = NullPointerException.class)
     public void key_must_be_provided_when_adding_an_entry() {
@@ -80,7 +79,6 @@ public class LsmTreeTest {
         assertEquals("c", lsmtree.get(3));
     }
 
-
     @Test
     public void restart() {
         lsmtree.put(1, "a");
@@ -91,9 +89,9 @@ public class LsmTreeTest {
 
         lsmtree = open(testDirectory);
 
-        assertEquals("a", lsmtree.get(1));
-        assertNotNull("b", lsmtree.get(2));
-        assertNotNull("c", lsmtree.get(3));
+        assertNotNull(lsmtree.get(1));
+        assertNotNull(lsmtree.get(2));
+        assertNotNull(lsmtree.get(3));
 
     }
 
@@ -190,7 +188,7 @@ public class LsmTreeTest {
     }
 
     @Test
-    public void can_iterate_over_entries_after_reopening() {
+    public void can_iterator_over_entries_after_reopening() {
         int items = (int) (FLUSH_THRESHOLD * 2.5);
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
@@ -219,41 +217,6 @@ public class LsmTreeTest {
                 System.out.println(entry);
             }
         }
-    }
-
-    @Test
-    public void value_is_returned_after_being_deleted_and_updated_in_memory() {
-        lsmtree.put(0, "a");
-        lsmtree.remove(0);
-        lsmtree.put(0, "b");
-
-        assertEquals("b", lsmtree.get(0));
-    }
-
-    @Test
-    public void value_is_returned_after_being_deleted_and_updated_on_disk() {
-        lsmtree.put(0, "a");
-        lsmtree.flushSync();
-
-        lsmtree.remove(0);
-        lsmtree.flushSync();
-
-        lsmtree.put(0, "b");
-        lsmtree.flushSync();
-
-        assertEquals("b", lsmtree.get(0));
-    }
-
-    @Test
-    public void value_is_returned_after_being_deleted_and_updated_on_disk2() {
-        lsmtree.put(0, "a");
-        lsmtree.flushSync();
-
-        lsmtree.remove(0);
-        lsmtree.put(0, "b");
-        lsmtree.flushSync();
-
-        assertEquals("b", lsmtree.get(0));
     }
 
 }

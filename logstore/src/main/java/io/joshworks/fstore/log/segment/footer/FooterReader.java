@@ -18,10 +18,6 @@ public class FooterReader {
         this.map = map;
     }
 
-    public <T> T read(long position, Serializer<T> serializer) {
-        return readInternal(position, serializer);
-    }
-
     public <T> T read(String name, Serializer<T> serializer) {
         long position = map.get(name);
         if (FooterMap.NONE == position) {
@@ -41,10 +37,6 @@ public class FooterReader {
 
     public long length() {
         return stream.length();
-    }
-
-    public int entries() {
-        return map.size();
     }
 
     private <T> T readInternal(long position, Serializer<T> serializer) {

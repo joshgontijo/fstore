@@ -1,13 +1,14 @@
-package io.joshworks.fstore.lsmtree.sstable.midpoints;
+package io.joshworks.fstore.index;
+
 
 import java.util.Objects;
 
-public class Midpoint<K extends Comparable<K>> implements Comparable<K> {
+public class IndexEntry<K extends Comparable<K>> implements Comparable<K> {
 
     public final K key;
     public final long position;
 
-    public Midpoint(K key, long position) {
+    IndexEntry(K key, long position) {
         this.key = key;
         this.position = position;
     }
@@ -17,25 +18,21 @@ public class Midpoint<K extends Comparable<K>> implements Comparable<K> {
         return key.compareTo(o);
     }
 
+    static <K extends Comparable<K>> IndexEntry<K> identity(K key) {
+        return new IndexEntry<>(key, -1);
+    }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Midpoint midpoint = (Midpoint) o;
-        return position == midpoint.position &&
-                Objects.equals(key, midpoint.key);
+        IndexEntry indexEntry = (IndexEntry) o;
+        return position == indexEntry.position &&
+                Objects.equals(key, indexEntry.key);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(key, position);
-    }
-
-    @Override
-    public String toString() {
-        return "{" + "key=" + key +
-                ", position=" + position +
-                '}';
     }
 }

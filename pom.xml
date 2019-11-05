@@ -19,6 +19,7 @@
         <module>lsmtree</module>
 <!--        <module>es-projection</module>-->
         <module>networking</module>
+        <module>index</module>
         <module>es-client</module>
         <module>es-shared</module>
         <module>cli</module>
@@ -37,6 +38,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>index</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

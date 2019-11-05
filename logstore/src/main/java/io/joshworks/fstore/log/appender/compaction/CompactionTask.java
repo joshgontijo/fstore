@@ -64,15 +64,13 @@ public class CompactionTask<T> implements Runnable {
 
             long start = System.currentTimeMillis();
 
-            output = segmentFactory.createOrOpen(segmentFile, storageMode, newSegmentLogSize, serializer, bufferPool, WriteMode.MERGE_OUT, checksumProbability, readPageSize);
+            output = segmentFactory.mergeOut(segmentFile, storageMode, newSegmentLogSize, totalEntries, serializer, bufferPool, WriteMode.MERGE_OUT, checksumProbability, readPageSize);
 
             combiner.merge(segments, output);
             output.flush();
 
-            long outputEntries = output.entries();
-
-            logger.info("Compaction completed in {}ms", (System.currentTimeMillis() - start));
-            logger.info("Result segment {}: physicalSize: {}, logicalSize: {}, entries: {}, removed: {}", output.name(), output.physicalSize(), output.logicalSize(), outputEntries, (totalEntries - outputEntries));
+            logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
+            logger.info("Result segment {}: physicalSize: {}, logicalSize: {}, entries: {}", output.name(), output.physicalSize(), output.logicalSize(), output.entries());
 
             onComplete.accept(CompactionResult.success(segments, output, level));
 

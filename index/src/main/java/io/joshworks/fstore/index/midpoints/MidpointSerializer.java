@@ -1,4 +1,4 @@
-package io.joshworks.fstore.lsmtree.sstable.midpoints;
+package io.joshworks.fstore.index.midpoints;
 
 import io.joshworks.fstore.core.Serializer;
 

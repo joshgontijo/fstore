@@ -1,6 +1,7 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.LogAppender;
@@ -91,12 +92,10 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 continue;
             }
             long entryPos = sstables.append(entry);
-            if (entryPos == Storage.EOF) {
-//                sstables.roll();
-                //not really that important, added exception just ebcause LogAppender#append should handle the segment rolling
-                throw new IllegalStateException("Memtable must fit single segment");
-            }
             inserted++;
+            if (entryPos == Storage.EOF) {
+                sstables.roll();
+            }
         }
         sstables.roll();
         return inserted;

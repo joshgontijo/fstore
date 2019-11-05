@@ -7,8 +7,6 @@ import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.serializer.Serializers;
@@ -24,7 +22,6 @@ import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 public class SSTableTest {
 
@@ -50,6 +47,7 @@ public class SSTableTest {
                 NO_MAX_AGE,
                 Codec.noCompression(),
                 Cache.noCache(),
+                10000,
                 0.01,
                 Memory.PAGE_SIZE,
                 1,
@@ -68,111 +66,79 @@ public class SSTableTest {
     }
 
     @Test
-    public void forward_iterator() {
-        int items = 100000;
-        for (int i = 0; i < items; i++) {
-            sstable.append(Entry.add(i, String.valueOf(i)));
-        }
-        sstable.roll(1, false);
-
-        SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(Direction.FORWARD);
-        for (int i = 0; i < items; i++) {
-            assertTrue(iterator.hasNext());
-            Entry<Integer, String> entry = iterator.next();
-            assertEquals(Integer.valueOf(i), entry.key);
-        }
-    }
-
-    @Test
-    public void backward_iterator() {
-        int items = 100000;
-        for (int i = 0; i < items; i++) {
-            sstable.append(Entry.add(i, String.valueOf(i)));
-        }
-        sstable.roll(1, false);
-
-        SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(Direction.BACKWARD);
-        for (int i = items - 1; i >= 0; i--) {
-            assertTrue(iterator.hasNext());
-            Entry<Integer, String> entry = iterator.next();
-            assertEquals(Integer.valueOf(i), entry.key);
-        }
-    }
-
-    @Test
     public void lower_step_2() {
-        lowerWithStep(100000, 2);
+        lowerWithStep(1000000, 2);
     }
 
     @Test
     public void lower_step_5() {
-        lowerWithStep(100000, 5);
+        lowerWithStep(1000000, 5);
     }
 
     @Test
     public void lower_step_7() {
-        lowerWithStep(100000, 7);
+        lowerWithStep(1000000, 7);
     }
 
     @Test
     public void higher_step_1() {
-        higherWithStep(100000, 1);
+        higherWithStep(1000000, 1);
     }
 
     @Test
     public void higher_step_2() {
-        higherWithStep(100000, 2);
+        higherWithStep(1000000, 2);
     }
 
     @Test
     public void higher_step_5() {
-        higherWithStep(100000, 5);
+        higherWithStep(1000000, 5);
     }
 
     @Test
     public void higher_step_7() {
-        higherWithStep(100000, 7);
+        higherWithStep(1000000, 7);
     }
 
     @Test
     public void floor_step_1() {
-        floorWithStep(100000, 1);
+        floorWithStep(1000000, 1);
     }
 
     @Test
     public void floor_step_2() {
-        floorWithStep(100000, 2);
+        floorWithStep(1000000, 2);
     }
 
     @Test
     public void floor_step_5() {
-        floorWithStep(100000, 5);
+        floorWithStep(1000000, 5);
     }
 
     @Test
     public void floor_step_7() {
-        floorWithStep(100000, 7);
+        floorWithStep(1000000, 7);
     }
 
 
     @Test
     public void ceiling_step_1() {
-        ceilingWithStep(100000, 1);
+        ceilingWithStep(1000000, 1);
     }
 
     @Test
     public void ceiling_step_2() {
-        ceilingWithStep(100000, 2);
+        ceilingWithStep(1000000, 2);
     }
 
     @Test
     public void ceiling_step_5() {
-        ceilingWithStep(100000, 5);
+        ceilingWithStep(1000000, 5);
     }
 
     @Test
     public void ceiling_step_7() {
-        ceilingWithStep(100000, 7);
+        ceilingWithStep(1000000, 7);
     }
 
     @Test
@@ -325,8 +291,6 @@ public class SSTableTest {
         for (int i = 0; i < 10000; i += 2) {
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
-
-        sstable.roll(1, false);
 
         //equals last
         Entry<Integer, String> found = sstable.floor(sstable.lastKey());

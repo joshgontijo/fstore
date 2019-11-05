@@ -1,4 +1,4 @@
-package io.joshworks.fstore.lsmtree.sstable.midpoints;
+package io.joshworks.fstore.index.midpoints;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
@@ -143,7 +143,6 @@ public class Midpoints<K extends Comparable<K>> {
             if (!block.add(midpoint, serializer, bufferPool)) {
                 writer.write(BLOCK_PREFIX + blockIdx, block, blockSerializer);
                 block.clear();
-                block.add(midpoint, serializer, bufferPool);
                 blockIdx++;
             }
         }

@@ -1,7 +1,7 @@
 package io.joshworks.eventry.index;
 
 
-import io.joshworks.fstore.lsmtree.sstable.Range;
+import io.joshworks.fstore.index.Range;
 
 import java.util.Objects;
 

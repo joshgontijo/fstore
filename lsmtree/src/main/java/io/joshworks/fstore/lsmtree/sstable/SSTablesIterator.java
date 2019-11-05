@@ -11,12 +11,10 @@ import java.util.NoSuchElementException;
 
 class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
 
-    private final long maxAge;
     private final Direction direction;
     private final List<PeekingIterator<Entry<K, V>>> segmentsIterators;
 
-    SSTablesIterator(long maxAge, Direction direction, List<PeekingIterator<Entry<K, V>>> iterators) {
-        this.maxAge = maxAge;
+    SSTablesIterator(Direction direction, List<PeekingIterator<Entry<K, V>>> iterators) {
         this.direction = direction;
         this.segmentsIterators = iterators;
     }
@@ -26,7 +24,7 @@ class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<
         Entry<K, V> entry;
         do {
             entry = getNextEntry(direction, segmentsIterators);
-        } while (entry != null && !entry.readable(maxAge) && hasNext());
+        } while (entry != null && entry.deletion() && hasNext());
         if (entry == null) {
             throw new NoSuchElementException();
         }
