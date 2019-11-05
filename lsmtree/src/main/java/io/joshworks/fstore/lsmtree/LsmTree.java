@@ -8,7 +8,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.lsmtree.sstable.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -18,7 +18,6 @@ import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.lsmtree.log.EntryAdded;
 import io.joshworks.fstore.lsmtree.log.EntryDeleted;
 import io.joshworks.fstore.lsmtree.log.LogRecord;
-import io.joshworks.fstore.lsmtree.log.PersistentTransactionLog;
 import io.joshworks.fstore.lsmtree.log.TransactionLog;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
@@ -40,7 +39,7 @@ import static java.util.Objects.requireNonNull;
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     private final SSTables<K, V> sstables;
-    private final TransactionLog log;
+    private final TransactionLog<K, V> log;
 
     private final ExecutorService writer;
 
@@ -49,8 +48,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         this.log = createTransactionLog(builder);
         this.log.restore(this::restore);
         this.writer = new MonitoredThreadPool("lsm-write", new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, new LinkedBlockingDeque<>()));
-
-
+        this.sstables.flushSync();
     }
 
     public static <K extends Comparable<K>, V> Builder<K, V> builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
@@ -71,14 +69,13 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.sstableCompactor,
                 builder.maxAgeSeconds,
                 builder.codec,
-                builder.bloomNItems,
                 builder.bloomFPProb,
                 builder.blockSize,
                 builder.blockCache);
     }
 
-    private TransactionLog createTransactionLog(Builder<K, V> builder) {
-        return new PersistentTransactionLog<>(
+    private TransactionLog<K, V> createTransactionLog(Builder<K, V> builder) {
+        return new TransactionLog<>(
                 builder.directory,
                 builder.keySerializer,
                 builder.valueSerializer,
@@ -94,7 +91,8 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         Entry<K, V> entry = Entry.add(key, value);
         CompletableFuture<Void> flushTask = sstables.add(entry);
         if (flushTask != null) {
-            flushTask.thenRun(() -> log.markFlushed(recPos));
+            String token = log.markFlushing();
+            flushTask.thenRun(() -> log.markFlushed(token));
         }
     }
 
@@ -136,7 +134,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
      * @param matcher    The matcher, used to filter entries that matches the expression
      * @return The first match, or null
      */
-    public Entry<K, V> find(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
+    public Entry<K, V> find(K key, Expression expression, Predicate<K> matcher) {
         return sstables.find(key, expression, matcher);
     }
 
@@ -172,6 +170,14 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
     }
 
+    public void flushSync() {
+        sstables.flushSync();
+    }
+
+    public CompletableFuture<Void> flush() {
+        return sstables.flush();
+    }
+
     public void compact() {
         sstables.compact();
     }
@@ -185,7 +191,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private final Serializer<K> keySerializer;
         private final Serializer<V> valueSerializer;
         private UniqueMergeCombiner<Entry<K, V>> sstableCompactor;
-        private long bloomNItems = DEFAULT_THRESHOLD;
         private double bloomFPProb = 0.05;
         private int blockSize = Memory.PAGE_SIZE;
         private int flushThreshold = DEFAULT_THRESHOLD;
@@ -223,7 +228,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 throw new IllegalArgumentException("Number of expected items in the bloom filter must be greater than zero");
             }
             this.bloomFPProb = bloomFPProb;
-            this.bloomNItems = bloomNItems;
             return this;
         }
 

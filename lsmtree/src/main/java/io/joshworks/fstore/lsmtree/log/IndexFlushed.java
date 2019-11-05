@@ -2,12 +2,28 @@ package io.joshworks.fstore.lsmtree.log;
 
 import io.joshworks.fstore.lsmtree.EntryType;
 
-public class IndexFlushed extends LogRecord {
+import java.util.Objects;
 
-    public final long position;
+class IndexFlushed extends LogRecord {
 
-    public IndexFlushed(long timestamp, long position) {
+    final String token;
+
+    IndexFlushed(long timestamp, String token) {
         super(EntryType.MEM_FLUSHED, timestamp);
-        this.position = position;
+        this.token = token;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        IndexFlushed that = (IndexFlushed) o;
+        return token.equals(that.token);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), token);
     }
 }

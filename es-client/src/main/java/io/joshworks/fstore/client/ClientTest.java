@@ -54,6 +54,7 @@ public class ClientTest {
 
         System.out.println("----------------- READ ALL ---------------");
         readAll(storeClient);
+//        get(storeClient);
 
         monitoring.set(false);
         storeClient.close();
@@ -94,7 +95,16 @@ public class ClientTest {
     private static void readAll(StoreClient client) {
         for (int i = 0; i < ITEMS; i++) {
             String stream = STREAM_PREFIX + (i % STREAMS);
-            List<EventRecord> records = client.readStream(stream, 0, 1);
+            List<EventRecord> records = client.readStream(stream, 0, 10);
+            metrics.update("readStream");
+            metrics.update("totalReadStream");
+        }
+    }
+
+    private static void get(StoreClient client) {
+        for (int i = 0; i < ITEMS; i++) {
+            String stream = STREAM_PREFIX + (i % STREAMS);
+            EventRecord records = client.get(stream, 0);
             metrics.update("readStream");
             metrics.update("totalReadStream");
         }
