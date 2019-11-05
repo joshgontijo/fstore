@@ -9,6 +9,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Logging;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.record.DataStream;
@@ -50,9 +51,6 @@ public final class Segment<T> implements Log<T> {
 
     private final Logger logger;
 
-    private static final Consumer<FooterWriter> NO_FOOTER_WRITER = f -> {
-    };
-
     private static final double FOOTER_EXTRA_LENGTH_PERCENT = 0.1;
 
     private final Serializer<T> serializer;
@@ -65,7 +63,6 @@ public final class Segment<T> implements Log<T> {
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
-    private final Consumer<FooterWriter> footerWriter;
     private final FooterMap footerMap = new FooterMap();
 
     final LogHeader header;
@@ -75,18 +72,6 @@ public final class Segment<T> implements Log<T> {
 
     private final Metrics metrics = new Metrics();
 
-    public Segment(
-            File file,
-            StorageMode storageMode,
-            long segmentDataSize,
-            Serializer<T> serializer,
-            BufferPool bufferPool,
-            WriteMode writeMode,
-            double checksumProb,
-            int readPageSize) {
-        this(file, storageMode, segmentDataSize, serializer, bufferPool, writeMode, checksumProb, readPageSize, Segment::processEntries, NO_FOOTER_WRITER);
-    }
-
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
     public Segment(
             File file,
@@ -95,12 +80,8 @@ public final class Segment<T> implements Log<T> {
             Serializer<T> serializer,
             BufferPool bufferPool,
             WriteMode writeMode,
-            double checksumProb,
-            int readPageSize,
-            Function<List<RecordEntry<T>>, Integer> onEntryLoaded,
-            Consumer<FooterWriter> footerWriter) {
+            double checksumProb) {
 
-        this.footerWriter = requireNonNull(footerWriter, "Footer writer must be provided");
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
 
         MetricStorage storage = null;
@@ -108,7 +89,7 @@ public final class Segment<T> implements Log<T> {
             long alignedSegmentDataSize = Storage.align(segmentDataSize);
             long fileLength = getTotalFileLength(alignedSegmentDataSize, bufferPool.bufferSize());
             this.storage = storage = new MetricStorage(Storage.createOrOpen(file, storageMode, fileLength));
-            this.stream = new DataStream(bufferPool, storage, checksumProb, readPageSize);
+            this.stream = new DataStream(bufferPool, storage, checksumProb, Memory.PAGE_SIZE);
             this.logger = Logging.namedLogger(storage.name(), "segment");
 
             if (storage.length() <= LogHeader.BYTES) {
@@ -128,7 +109,7 @@ public final class Segment<T> implements Log<T> {
                 this.entries.set(header.entries());
                 this.setPosition(header.logicalSize());
                 if (Type.LOG_HEAD.equals(header.type())) {
-                    SegmentState result = rebuildState(onEntryLoaded);
+                    SegmentState result = rebuildState();
                     this.setPosition(result.position);
                     this.entries.set(result.entries);
                 }
@@ -311,8 +292,7 @@ public final class Segment<T> implements Log<T> {
         }
     }
 
-    @Override
-    public void roll(int level, boolean trim) {
+    public void roll(int level, boolean trim, Consumer<FooterWriter> footerWriter) {
         if (readOnly()) {
             throw new IllegalStateException("Cannot roll read only segment: " + this.toString());
         }
@@ -334,6 +314,11 @@ public final class Segment<T> implements Log<T> {
             storage.truncate(footerEnd);
         }
         this.header.writeCompleted(entries.get(), level, actualDataSize, mapPosition, footerStart, footerLength, uncompressedSize, storage.length());
+    }
+
+    @Override
+    public void roll(int level, boolean trim) {
+        roll(level, trim, fw -> {});
     }
 
     @Override
@@ -390,7 +375,7 @@ public final class Segment<T> implements Log<T> {
         entries.incrementAndGet();
     }
 
-    private SegmentState rebuildState(Function<List<RecordEntry<T>>, Integer> processEntries) {
+    private SegmentState rebuildState() {
         this.setPosition(header.maxDataPosition());
         long position = START;
         int foundEntries = 0;
@@ -400,7 +385,7 @@ public final class Segment<T> implements Log<T> {
             int lastRead;
             do {
                 List<RecordEntry<T>> entries = stream.bulkRead(Direction.FORWARD, position, serializer);
-                foundEntries += processEntries.apply(entries);
+                foundEntries += entries.size();
                 lastRead = entries.stream().mapToInt(RecordEntry::recordSize).sum();
                 position += lastRead;
 
