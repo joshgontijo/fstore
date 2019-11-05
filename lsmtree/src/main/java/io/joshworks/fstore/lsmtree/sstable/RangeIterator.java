@@ -1,10 +1,7 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
-import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
-
-import java.io.IOException;
 
 public class RangeIterator<K extends Comparable<K>, V> extends SSTableIterator<K, V> {
 

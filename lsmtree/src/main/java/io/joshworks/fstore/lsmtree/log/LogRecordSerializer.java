@@ -2,6 +2,7 @@ package io.joshworks.fstore.lsmtree.log;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.lsmtree.EntryType;
+import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
 
@@ -29,9 +30,14 @@ public class LogRecordSerializer<K, V> implements Serializer<LogRecord> {
                 EntryDeleted<K> deleted = (EntryDeleted<K>) data;
                 keySerializer.writeTo(deleted.key, dst);
                 break;
+            case MEM_FLUSH_STARTED:
+                IndexFlushedStarted flushedStarted = (IndexFlushedStarted) data;
+                Serializers.VSTRING.writeTo(flushedStarted.token, dst);
+                dst.putLong(flushedStarted.position);
+                break;
             case MEM_FLUSHED:
                 IndexFlushed flushed = (IndexFlushed) data;
-                dst.putLong(flushed.position);
+                Serializers.VSTRING.writeTo(flushed.token, dst);
                 break;
             default:
                 throw new IllegalArgumentException("Invalid record type");
@@ -50,13 +56,15 @@ public class LogRecordSerializer<K, V> implements Serializer<LogRecord> {
             case DELETE:
                 K k1 = keySerializer.fromBytes(buffer);
                 return new EntryDeleted<>(timestamp, k1);
-            case MEM_FLUSHED:
+            case MEM_FLUSH_STARTED:
+                String token = Serializers.VSTRING.fromBytes(buffer);
                 long position = buffer.getLong();
-                return new IndexFlushed(timestamp, position);
+                return new IndexFlushedStarted(timestamp, position, token);
+            case MEM_FLUSHED:
+                String token1 = Serializers.VSTRING.fromBytes(buffer);
+                return new IndexFlushed(timestamp, token1);
             default:
                 throw new IllegalStateException("Unknown record type: " + code);
         }
     }
-
-
 }

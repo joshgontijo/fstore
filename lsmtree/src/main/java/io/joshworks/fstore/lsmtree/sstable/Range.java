@@ -1,4 +1,4 @@
-package io.joshworks.fstore.index;
+package io.joshworks.fstore.lsmtree.sstable;
 
 public class Range<K extends Comparable<K>> {
 
@@ -30,11 +30,21 @@ public class Range<K extends Comparable<K>> {
         return endExclusive;
     }
 
+    public boolean intersects(K lower, K upper) {
+        if(this.compareTo(upper) < 0) {
+            return false;
+        }
+        if(this.compareTo(lower) > 1) {
+            return false;
+        }
+        return this.compareTo(lower) <= 0 || this.compareTo(upper) >= 0;
+    }
+
     /**
      * Compare a given key with this range
      *
      * @return Negative number if this key is less than startInclusive, zero if the key greater or equals than
-     * start and less than end, or positive when the key is greater than end
+     * start and less than end, or positive when the key is greater than upper bound
      */
     public int compareTo(K value) {
         boolean greatOrEqualsThan = startInclusive == null || value.compareTo(startInclusive) >= 0;

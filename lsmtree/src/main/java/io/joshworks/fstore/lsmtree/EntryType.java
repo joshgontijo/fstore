@@ -1,9 +1,10 @@
 package io.joshworks.fstore.lsmtree;
 
 public enum EntryType {
-    MEM_FLUSHED((short) 0),
-    DELETE((short) 1),
-    ADD((short) 2);
+    MEM_FLUSH_STARTED((short) 0),
+    MEM_FLUSHED((short) 1),
+    DELETE((short) 2),
+    ADD((short) 3);
 
     public final short code;
 
