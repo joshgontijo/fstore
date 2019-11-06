@@ -14,7 +14,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
 import io.joshworks.fstore.log.segment.block.Block;
-import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.lsmtree.log.EntryAdded;
 import io.joshworks.fstore.lsmtree.log.EntryDeleted;
 import io.joshworks.fstore.lsmtree.log.LogRecord;
@@ -65,7 +64,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.flushThreshold,
                 builder.sstableStorageMode,
                 builder.ssTableFlushMode,
-                builder.sstableBlockFactory,
                 builder.sstableCompactor,
                 builder.maxAgeSeconds,
                 builder.codec,
@@ -192,7 +190,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private String name = "lsm-tree";
         private StorageMode sstableStorageMode = StorageMode.MMAP;
         private FlushMode ssTableFlushMode = FlushMode.ON_ROLL;
-        private BlockFactory sstableBlockFactory = Block.vlenBlock();
         private StorageMode tlogStorageMode = StorageMode.RAF;
         private long segmentSize = Size.MB.of(32);
 
@@ -247,11 +244,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 throw new IllegalArgumentException("Segment size must be greater than zero");
             }
             this.segmentSize = size;
-            return this;
-        }
-
-        public Builder<K, V> blockFactory(BlockFactory blockFactory) {
-            this.sstableBlockFactory = blockFactory;
             return this;
         }
 

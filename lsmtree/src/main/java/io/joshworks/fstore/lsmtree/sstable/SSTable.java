@@ -19,7 +19,6 @@ import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockIterator;
-import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
@@ -28,12 +27,13 @@ import io.joshworks.fstore.log.segment.header.Type;
 import java.io.File;
 import java.nio.ByteBuffer;
 
+import static io.joshworks.fstore.core.io.Storage.EOF;
 import static java.util.Objects.requireNonNull;
 
 /**
  * A clustered index, key and values are kept together in the data area.
  * Midpoints and Bloom filter are kep in the footer area.
- * This segment uses {@link BlockSegment} as the underlying storage. Therefore scan performed on a non readOnly is not permitted
+ * This segment uses {@link Segment} as the underlying storage. Therefore scan performed on a non readOnly is not permitted
  * block data that hasn't been persisted to disk, append will be buffered as it has to write to block first.
  * Any data that is not persisted will be lost when the store is closed or if the system crash.
  * This segment is intended to be used as persistent backend of an index, in which data is first stored in some sort
@@ -58,7 +58,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private final Metrics metrics = new Metrics();
 
     private final Cache<String, Block> blockCache;
-    private final Block block;
+
+    private Block block;
 
     public SSTable(File file,
                    StorageMode storageMode,
@@ -82,7 +83,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         this.entrySerializer = EntrySerializer.of(maxAge, keySerializer, valueSerializer);
 
         BlockFactory blockFactory = Block.vlenBlock();
-        this.block = blockFactory.create(blockSize);
 
         this.blockCache = blockCache;
         this.delegate = new Segment<>(
@@ -99,6 +99,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             this.midpoints = Midpoints.load(reader, codec, keySerializer);
             this.bloomFilter = BloomFilter.load(reader, codec, bufferPool);
         } else {
+            this.block = blockFactory.create(blockSize);
             this.bloomFilter = BloomFilter.create(bloomNItems, bloomFPProb);
             this.midpoints = new Midpoints<>();
         }
@@ -111,10 +112,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             bb.flip();
             bloomFilter.add(bb);
         }
-    }
-
-    private void onBlockWrite(long position, Block block) {
-        addToMidpoints(position, block);
     }
 
     private void addToMidpoints(long position, Block block) {
@@ -141,11 +138,20 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         //TODO add case when entry is greater than block size
         long pos = delegate.position();
         if (!block.add(data, entrySerializer, bufferPool)) {
-            pos = delegate.append(block);
-            addToMidpoints(pos, block);
+            pos = writeBlock();
             block.clear();
             block.add(data, entrySerializer, bufferPool);
         }
+        return pos;
+    }
+
+    private long writeBlock() {
+        long pos = delegate.append(block);
+        if (pos == EOF) {
+            //TODO ???? nothing to do with the block, will cause data loss
+            throw new RuntimeException("No space left in the sstable");
+        }
+        addToMidpoints(pos, block);
         return pos;
     }
 
@@ -394,6 +400,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         return entry.readable(maxAge) ? entry : null;
     }
 
+    FIXME - BACKWARD POS IS WRONG
     private long startPos(Direction direction, Range<K> range) {
         if (Direction.FORWARD.equals(direction)) {
             Midpoint<K> mStart = range.start() == null ? midpoints.first() : midpoints.getMidpointFor(range.start());
@@ -493,7 +500,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
     @Override
     public void roll(int level, boolean trim) {
+        if (!block.isEmpty()) {
+            writeBlock();
+        }
         delegate.roll(level, trim, this::writeFooter);
+        block = null;
     }
 
     @Override
@@ -584,7 +595,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         }
 
         @Override
-        public Log<Entry<K, V>> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<Entry<K, V>> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
+        public Log<Entry<K, V>> createOrOpen(File file, StorageMode storageMode, long dataLength, Serializer<Entry<K, V>> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb) {
             return new SSTable<>(
                     file,
                     storageMode,
@@ -603,7 +614,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         }
 
         @Override
-        public Log<Entry<K, V>> mergeOut(File file, StorageMode storageMode, long dataLength, long entries, Serializer<Entry<K, V>> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb, int readPageSize) {
+        public Log<Entry<K, V>> mergeOut(File file, StorageMode storageMode, long dataLength, long entries, Serializer<Entry<K, V>> serializer, BufferPool bufferPool, WriteMode writeMode, double checksumProb) {
             return new SSTable<>(
                     file,
                     storageMode,

@@ -106,7 +106,6 @@ public class Config<T> {
     }
 
     public Config<T> compactionStrategy(SegmentCombiner<T> combiner) {
-        requireNonNull(combiner, "SegmentCombiner must be provided");
         this.combiner = combiner;
         return this;
     }

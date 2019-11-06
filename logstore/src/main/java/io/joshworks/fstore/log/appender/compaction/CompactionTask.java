@@ -64,7 +64,7 @@ public class CompactionTask<T> implements Runnable {
 
             long start = System.currentTimeMillis();
 
-            output = segmentFactory.mergeOut(segmentFile, storageMode, newSegmentLogSize, totalEntries, serializer, bufferPool, WriteMode.MERGE_OUT, checksumProbability, readPageSize);
+            output = segmentFactory.mergeOut(segmentFile, storageMode, newSegmentLogSize, totalEntries, serializer, bufferPool, WriteMode.MERGE_OUT, checksumProbability);
 
             combiner.merge(segments, output);
             output.flush();

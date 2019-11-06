@@ -8,7 +8,6 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.appender.FlushMode;
-import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
 import org.junit.Before;
@@ -41,7 +40,6 @@ public class SSTablesMaxAgeTest {
                 FLUSH_THRESHOLD,
                 StorageMode.MMAP,
                 FlushMode.MANUAL,
-                Block.vlenBlock(),
                 new SSTableCompactor<>(MAX_AGE_SECONDS),
                 MAX_AGE_SECONDS,
                 new SnappyCodec(),

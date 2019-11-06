@@ -29,7 +29,6 @@ import static org.junit.Assert.assertEquals;
 public class UniqueMergeCombinerTest {
 
     private static final double CHECKSUM_PROB = 1;
-    private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
     private static final int SEGMENT_SIZE = Memory.PAGE_SIZE * 2;
     private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
     private final BufferPool bufferPool = new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false);
@@ -244,7 +243,7 @@ public class UniqueMergeCombinerTest {
     private Segment<String> segmentWith(String... values) {
         File file = FileUtils.testFile();
 
-        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB, READ_PAGE_SIZE);
+        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB);
         segments.add(segment);
 
         for (String value : values) {
@@ -257,7 +256,7 @@ public class UniqueMergeCombinerTest {
     private Segment<TestEntry> segmentWith(TestEntry... values) {
         File file = FileUtils.testFile();
 
-        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB, READ_PAGE_SIZE);
+        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB);
         segments.add(segment);
 
         for (TestEntry value : values) {
@@ -269,14 +268,14 @@ public class UniqueMergeCombinerTest {
 
     private Segment<String> outputSegment() {
         File file = FileUtils.testFile();
-        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB, READ_PAGE_SIZE);
+        Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB);
         segments.add(segment);
         return segment;
     }
 
     private Segment<TestEntry> testEntryOutputSegment() {
         File file = FileUtils.testFile();
-        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB, READ_PAGE_SIZE);
+        Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB);
         segments.add(segment);
         return segment;
     }

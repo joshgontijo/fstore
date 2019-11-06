@@ -1,6 +1,5 @@
 package io.joshworks.fstore.log.it;
 
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.FileUtils;
@@ -8,9 +7,6 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.appender.compaction.combiner.ConcatenateCombiner;
-import io.joshworks.fstore.log.record.RecordHeader;
-import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
 import org.junit.Before;
@@ -181,41 +177,4 @@ public abstract class PerformanceIT {
                     .open();
         }
     }
-
-    public static class MMap8KBBlockDirectBufferPoolIT extends PerformanceIT {
-
-        @Override
-        protected LogAppender<String> appender(File testDirectory) {
-            var blockSize = Size.KB.ofInt(8 + RecordHeader.HEADER_OVERHEAD);
-            return LogAppender.builder(testDirectory, Serializers.STRING)
-                    .segmentSize(SEGMENT_SIZE)
-                    .storageMode(StorageMode.MMAP)
-                    .compactionStorageMode(StorageMode.MMAP)
-                    .compactionThreshold(COMPACTION_THRESHOLD)
-                    .directBufferPool()
-                    .compactionStrategy(new ConcatenateCombiner<>())
-                    .maxEntrySize(MAX_ENTRY_SIZE)
-                    .readPageSize(blockSize)
-                    .open(BlockSegment.factory(new SnappyCodec(), blockSize));
-        }
-    }
-
-    public static class MMap16KBBlockDirectBufferPoolIT extends PerformanceIT {
-
-        @Override
-        protected LogAppender<String> appender(File testDirectory) {
-            var blockSize = Size.KB.ofInt(16 + RecordHeader.HEADER_OVERHEAD);
-            return LogAppender.builder(testDirectory, Serializers.STRING)
-                    .segmentSize(SEGMENT_SIZE)
-                    .storageMode(StorageMode.MMAP)
-                    .compactionStorageMode(StorageMode.MMAP)
-                    .compactionThreshold(COMPACTION_THRESHOLD)
-                    .directBufferPool()
-                    .compactionStrategy(new ConcatenateCombiner<>())
-                    .maxEntrySize(MAX_ENTRY_SIZE)
-                    .readPageSize(blockSize)
-                    .open(BlockSegment.factory(new SnappyCodec(), blockSize));
-        }
-    }
-
 }

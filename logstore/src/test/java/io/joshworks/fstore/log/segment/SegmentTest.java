@@ -5,7 +5,6 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -35,7 +34,6 @@ public abstract class SegmentTest {
 
     protected static final double CHECKSUM_PROB = 1;
     protected static final int SEGMENT_SIZE = Size.KB.ofInt(128);
-    private static final int READ_PAGE_SIZE = Memory.PAGE_SIZE;
     private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
 
     protected Segment<String> segment;
@@ -560,8 +558,7 @@ public abstract class SegmentTest {
                 Serializers.STRING,
                 new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
                 WriteMode.MERGE_OUT,
-                CHECKSUM_PROB,
-                READ_PAGE_SIZE);
+                CHECKSUM_PROB);
     }
 
     public static class CachedSegmentTest extends SegmentTest {
@@ -575,8 +572,7 @@ public abstract class SegmentTest {
                     Serializers.STRING,
                     new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
-                    CHECKSUM_PROB,
-                    READ_PAGE_SIZE);
+                    CHECKSUM_PROB);
         }
     }
 
@@ -591,8 +587,7 @@ public abstract class SegmentTest {
                     Serializers.STRING,
                     new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
-                    CHECKSUM_PROB,
-                    READ_PAGE_SIZE);
+                    CHECKSUM_PROB);
         }
     }
 
@@ -607,8 +602,7 @@ public abstract class SegmentTest {
                     Serializers.STRING,
                     new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
-                    CHECKSUM_PROB,
-                    READ_PAGE_SIZE);
+                    CHECKSUM_PROB);
         }
     }
 
