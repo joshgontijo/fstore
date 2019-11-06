@@ -8,7 +8,6 @@ import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.segment.WriteMode;
-import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
 import org.junit.Before;
@@ -25,6 +24,7 @@ import static org.junit.Assert.assertNull;
 
 public class SSTableTest {
 
+    public static final int ITEMS = 200000;
     private SSTable<Integer, String> sstable;
     private File testFile;
 
@@ -43,15 +43,13 @@ public class SSTableTest {
                 Serializers.VSTRING,
                 new ThreadLocalBufferPool("pool", Size.MB.ofInt(1), false),
                 WriteMode.LOG_HEAD,
-                Block.vlenBlock(),
                 NO_MAX_AGE,
                 Codec.noCompression(),
                 Cache.noCache(),
                 10000,
                 0.01,
                 Memory.PAGE_SIZE,
-                1,
-                Memory.PAGE_SIZE);
+                1);
     }
 
     @After
@@ -62,83 +60,83 @@ public class SSTableTest {
 
     @Test
     public void lower_step_1() {
-        lowerWithStep(1000000, 1);
+        lowerWithStep(100000, 1);
     }
 
     @Test
     public void lower_step_2() {
-        lowerWithStep(1000000, 2);
+        lowerWithStep(ITEMS, 2);
     }
 
     @Test
     public void lower_step_5() {
-        lowerWithStep(1000000, 5);
+        lowerWithStep(ITEMS, 5);
     }
 
     @Test
     public void lower_step_7() {
-        lowerWithStep(1000000, 7);
+        lowerWithStep(ITEMS, 7);
     }
 
     @Test
     public void higher_step_1() {
-        higherWithStep(1000000, 1);
+        higherWithStep(ITEMS, 1);
     }
 
     @Test
     public void higher_step_2() {
-        higherWithStep(1000000, 2);
+        higherWithStep(ITEMS, 2);
     }
 
     @Test
     public void higher_step_5() {
-        higherWithStep(1000000, 5);
+        higherWithStep(ITEMS, 5);
     }
 
     @Test
     public void higher_step_7() {
-        higherWithStep(1000000, 7);
+        higherWithStep(ITEMS, 7);
     }
 
     @Test
     public void floor_step_1() {
-        floorWithStep(1000000, 1);
+        floorWithStep(ITEMS, 1);
     }
 
     @Test
     public void floor_step_2() {
-        floorWithStep(1000000, 2);
+        floorWithStep(ITEMS, 2);
     }
 
     @Test
     public void floor_step_5() {
-        floorWithStep(1000000, 5);
+        floorWithStep(ITEMS, 5);
     }
 
     @Test
     public void floor_step_7() {
-        floorWithStep(1000000, 7);
+        floorWithStep(ITEMS, 7);
     }
 
 
     @Test
     public void ceiling_step_1() {
-        ceilingWithStep(1000000, 1);
+        ceilingWithStep(ITEMS, 1);
     }
 
     @Test
     public void ceiling_step_2() {
-        ceilingWithStep(1000000, 2);
+        ceilingWithStep(ITEMS, 2);
     }
 
     @Test
     public void ceiling_step_5() {
-        ceilingWithStep(1000000, 5);
+        ceilingWithStep(ITEMS, 5);
     }
 
     @Test
     public void ceiling_step_7() {
-        ceilingWithStep(1000000, 7);
+        ceilingWithStep(ITEMS, 7);
     }
 
     @Test

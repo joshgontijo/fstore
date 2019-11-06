@@ -15,8 +15,7 @@ public interface SegmentFactory<T> {
             Serializer<T> serializer,
             BufferPool bufferPool,
             WriteMode writeMode,
-            double checksumProb,
-            int readPageSize);
+            double checksumProb);
 
 
     //used specifically for merging adjacent segments, includes addition information about entries
@@ -27,10 +26,9 @@ public interface SegmentFactory<T> {
                      Serializer<T> serializer,
                      BufferPool bufferPool,
                      WriteMode writeMode,
-                     double checksumProb,
-                     int readPageSize) {
+                     double checksumProb) {
 
-        return createOrOpen(file, storageMode, dataLength, serializer, bufferPool, writeMode, checksumProb, readPageSize);
+        return createOrOpen(file, storageMode, dataLength, serializer, bufferPool, writeMode, checksumProb);
     }
 
 }

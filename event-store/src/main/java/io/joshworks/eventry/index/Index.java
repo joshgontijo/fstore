@@ -11,7 +11,6 @@ import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
-import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
@@ -49,7 +48,6 @@ public class Index implements Closeable {
                 flushThreshold,
                 StorageMode.MMAP,
                 FlushMode.MANUAL,
-                Block.flenBlock(INDEX_ENTRY_BYTES),
                 new IndexCompactor(metadataSupplier, this::version),
                 SSTables.NO_MAX_AGE,
                 new LZ4Codec(),
