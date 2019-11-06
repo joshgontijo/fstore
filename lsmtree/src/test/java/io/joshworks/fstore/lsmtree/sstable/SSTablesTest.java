@@ -515,15 +515,14 @@ public class SSTablesTest {
         int end = items / 2;
 
         int expectedKey = end - 1;
-        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.BACKWARD, Range.start(start))) {
+        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.BACKWARD, Range.of(start, end))) {
             while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
-                System.out.println(entry);
-//                assertEquals(Integer.valueOf(expectedKey), entry.key);
-//                expectedKey = entry.key - 1;
-//                if (entry.key % 2 == 0) {
-//                    assertEquals(updatedValue, entry.value);
-//                }
+                assertEquals(Integer.valueOf(expectedKey), entry.key);
+                expectedKey = entry.key - 1;
+                if (entry.key % 2 == 0) {
+                    assertEquals(updatedValue, entry.value);
+                }
             }
         }
     }
