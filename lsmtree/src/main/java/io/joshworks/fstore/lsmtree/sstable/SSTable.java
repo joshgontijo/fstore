@@ -400,14 +400,15 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         return entry.readable(maxAge) ? entry : null;
     }
 
-    FIXME - BACKWARD POS IS WRONG
     private long startPos(Direction direction, Range<K> range) {
         if (Direction.FORWARD.equals(direction)) {
             Midpoint<K> mStart = range.start() == null ? midpoints.first() : midpoints.getMidpointFor(range.start());
             return mStart == null ? midpoints.first().position : mStart.position;
         }
-        Midpoint<K> mEnd = range.end() == null ? midpoints.last() : midpoints.getMidpointFor(range.end());
-        return mEnd == null ? midpoints.last().position : mEnd.position;
+        //backwards scan needs the at the end of the block, so the start of the next block is used
+        int idx = midpoints.getMidpointIdx(range.end());
+        Midpoint<K> nextBlockPoint = midpoints.getMidpoint(idx + 1);
+        return nextBlockPoint == null ? midpoints.last().position : nextBlockPoint.position;
 
     }
 
@@ -438,7 +439,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         if (!readOnly()) {
             throw new IllegalStateException("Cannot read from a open segment");
         }
-        if (!range.intersects(midpoints.first().key, midpoints.last().key)) {
+
+        if (!intersect(range.start(), range.end(), midpoints.first().key, midpoints.last().key)) {
             return SegmentIterator.empty();
         }
 
@@ -447,6 +449,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         BlockIterator<Entry<K, V>> blockIterator = new BlockIterator<>(entrySerializer, iterator, direction);
         return new RangeIterator<>(maxAge, blockIterator, range, direction);
     }
+
 
     @Override
     public long position() {
@@ -563,6 +566,16 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         metrics.set("bloom.size", bloomFilter.size());
         metrics.set("midpoint.entries", midpoints.size());
         return metrics;
+    }
+
+    static <T extends Comparable<T>> boolean intersect(T x1, T x2, T y1, T y2) {
+        return between(x1, y1, y2) || between(x2, y1, y2)
+                ||
+                between(y1, x1, x2) || between(y2, x1, x2);
+    }
+
+    private static <T extends Comparable<T>> boolean between(T x, T p1, T p2) {
+        return x.compareTo(p1) >= 0 && x.compareTo(p2) <= 0;
     }
 
     static class SSTableFactory<K extends Comparable<K>, V> implements SegmentFactory<Entry<K, V>> {
