@@ -50,6 +50,7 @@ public class SSTablesTest {
                 "test",
                 Size.MB.ofInt(10),
                 FLUSH_THRESHOLD,
+                Size.KB.ofInt(8),
                 StorageMode.MMAP,
                 FlushMode.MANUAL,
                 new SSTableCompactor<>(NO_MAX_AGE),

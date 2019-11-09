@@ -37,7 +37,7 @@ import static java.util.Objects.requireNonNull;
 
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
-    private final SSTables<K, V> sstables;
+    final SSTables<K, V> sstables;
     private final TransactionLog<K, V> log;
 
     private final ExecutorService writer;
@@ -62,6 +62,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.name,
                 builder.segmentSize,
                 builder.flushThreshold,
+                builder.maxEntrySize,
                 builder.sstableStorageMode,
                 builder.ssTableFlushMode,
                 builder.sstableCompactor,
@@ -181,6 +182,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         private final File directory;
         private final Serializer<K> keySerializer;
         private final Serializer<V> valueSerializer;
+        private int maxEntrySize = Size.MB.ofInt(2);
         private UniqueMergeCombiner<Entry<K, V>> sstableCompactor;
         private long bloomNItems = DEFAULT_THRESHOLD;
         private double bloomFPProb = 0.05;
@@ -247,6 +249,14 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
+        public Builder<K, V> maxEntrySize(long maxEntrySize) {
+            if (maxEntrySize <= 0) {
+                throw new IllegalArgumentException("Segment size must be greater than zero");
+            }
+            this.segmentSize = maxEntrySize;
+            return this;
+        }
+
         public Builder<K, V> blockSize(int blockSize) {
             this.blockSize = blockSize;
             return this;
@@ -282,6 +292,12 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         }
 
         public LsmTree<K, V> open() {
+            if (maxEntrySize > segmentSize) {
+                throw new IllegalStateException("Segment size must be greater than max entry size");
+            }
+            if (blockSize > segmentSize) {
+                throw new IllegalStateException("Segment size must be greater than block size");
+            }
             this.sstableCompactor = this.sstableCompactor == null ? new SSTableCompactor<>(maxAgeSeconds) : sstableCompactor;
             return new LsmTree<>(this);
         }

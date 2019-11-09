@@ -60,6 +60,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                     String name,
                     long segmentSize,
                     int flushThreshold,
+                    int maxEntrySize,
                     StorageMode storageMode,
                     FlushMode flushMode,
                     UniqueMergeCombiner<Entry<K, V>> compactor,
@@ -75,15 +76,17 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         this.blockCache = blockCache;
         this.memTable = new MemTable<>();
         this.flushWorker.execute(flushTask());
+
         this.appender = LogAppender.builder(dir, EntrySerializer.of(maxAgeSeconds, keySerializer, valueSerializer))
                 .compactionStrategy(compactor)
                 .name(name + "-sstables")
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)
+                .maxEntrySize(maxEntrySize)
                 .parallelCompaction()
                 .flushMode(flushMode)
                 .directBufferPool()
-                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, codec, bloomNItems, bloomFPProb, blockSize, maxAgeSeconds, blockCache));
+                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, codec, bloomNItems, bloomFPProb, blockSize, maxEntrySize, maxAgeSeconds, blockCache));
 
         this.metricsKey = MetricRegistry.register(Map.of("type", "sstables", "name", name), () -> {
             metrics.set("blockCacheSize", blockCache.size());

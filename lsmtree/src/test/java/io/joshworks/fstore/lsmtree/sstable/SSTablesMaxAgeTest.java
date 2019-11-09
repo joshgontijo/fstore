@@ -38,6 +38,7 @@ public class SSTablesMaxAgeTest {
                 "test",
                 Size.MB.ofInt(5),
                 FLUSH_THRESHOLD,
+                Size.KB.ofInt(8),
                 StorageMode.MMAP,
                 FlushMode.MANUAL,
                 new SSTableCompactor<>(MAX_AGE_SECONDS),

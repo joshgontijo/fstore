@@ -100,8 +100,7 @@ public class Config<T> {
     }
 
     public Config<T> namingStrategy(NamingStrategy strategy) {
-        requireNonNull(strategy, "NamingStrategy must be provided");
-        this.namingStrategy = strategy;
+        this.namingStrategy = requireNonNull(strategy, "NamingStrategy must be provided");;
         return this;
     }
 
