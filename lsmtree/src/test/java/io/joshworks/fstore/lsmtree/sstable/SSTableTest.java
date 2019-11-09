@@ -7,6 +7,9 @@ import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
@@ -17,6 +20,7 @@ import java.io.File;
 import java.util.TreeSet;
 
 import static io.joshworks.fstore.core.io.Storage.EOF;
+import static io.joshworks.fstore.lsmtree.Utils.assertIterator;
 import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -45,6 +49,7 @@ public class SSTableTest {
                 WriteMode.LOG_HEAD,
                 NO_MAX_AGE,
                 Codec.noCompression(),
+                Size.MB.ofInt(1),
                 Cache.noCache(),
                 10000,
                 0.01,
@@ -141,7 +146,7 @@ public class SSTableTest {
 
     @Test
     public void floor_with_key_equals_last_entry_returns_last_entry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         //equals last
         Entry<Integer, String> found = sstable.floor(sstable.lastKey());
@@ -151,7 +156,7 @@ public class SSTableTest {
 
     @Test
     public void floor_with_key_greater_than_last_entry_returns_last_entry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         //greater than last
         Entry<Integer, String> found = sstable.floor(sstable.lastKey() + 1);
@@ -161,7 +166,7 @@ public class SSTableTest {
 
     @Test
     public void floor_with_key_less_than_first_entry_returns_null() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.floor(sstable.firstKey() - 1);
         assertNull(found);
@@ -169,7 +174,7 @@ public class SSTableTest {
 
     @Test
     public void floor_with_key_equals_first_entry_returns_first_entry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.floor(sstable.firstKey());
         assertNotNull(found);
@@ -178,7 +183,7 @@ public class SSTableTest {
 
     @Test
     public void ceiling_with_key_less_than_first_entry_returns_first_entry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.ceiling(sstable.firstKey() - 1);
         assertNotNull(found);
@@ -187,7 +192,7 @@ public class SSTableTest {
 
     @Test
     public void ceiling_with_key_equals_first_entry_returns_first_entry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.ceiling(sstable.firstKey());
         assertNotNull(found);
@@ -196,7 +201,7 @@ public class SSTableTest {
 
     @Test
     public void ceiling_with_key_greater_than_last_entry_returns_null() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.ceiling(sstable.lastKey() + 1);
         assertNull(found);
@@ -204,7 +209,7 @@ public class SSTableTest {
 
     @Test
     public void ceiling_with_key_equals_last_entry_returns_last_entry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.ceiling(sstable.lastKey());
         assertNotNull(found);
@@ -213,7 +218,7 @@ public class SSTableTest {
 
     @Test
     public void higher_with_key_greater_than_lastKey_returns_null() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.higher(sstable.lastKey() + 1);
         assertNull(found);
@@ -221,7 +226,7 @@ public class SSTableTest {
 
     @Test
     public void higher_with_key_equals_lastKey_returns_null() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.higher(sstable.lastKey());
         assertNull(found);
@@ -229,7 +234,7 @@ public class SSTableTest {
 
     @Test
     public void higher_with_key_less_than_firstKey_returns_firstEntry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.higher(sstable.firstKey() - 1);
         assertNotNull(found);
@@ -238,7 +243,7 @@ public class SSTableTest {
 
     @Test
     public void higher_with_key_lowest_key_returns_firstEntry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.higher(Integer.MIN_VALUE);
         assertNotNull(found);
@@ -247,7 +252,7 @@ public class SSTableTest {
 
     @Test
     public void lower_with_key_less_than_firstKey_returns_null() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.lower(sstable.firstKey() - 1);
         assertNull(found);
@@ -255,7 +260,7 @@ public class SSTableTest {
 
     @Test
     public void lower_with_key_equals_firstKey_returns_null() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.lower(sstable.firstKey());
         assertNull(found);
@@ -263,7 +268,7 @@ public class SSTableTest {
 
     @Test
     public void lower_with_key_greater_than_lastKey_returns_lastEntry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.lower(sstable.lastKey() + 1);
         assertNotNull(found);
@@ -272,7 +277,7 @@ public class SSTableTest {
 
     @Test
     public void lower_with_key_highest_key_returns_lastEntry() {
-        addSomeEntries();
+        addSomeEntries(10);
 
         Entry<Integer, String> found = sstable.lower(Integer.MAX_VALUE);
         assertNotNull(found);
@@ -296,12 +301,83 @@ public class SSTableTest {
         assertEquals(sstable.lastKey(), found.key);
     }
 
-    private void addSomeEntries() {
-        for (int i = 0; i < 10; i++) {
+    @Test
+    public void full_forward_scan() {
+        int entries = 10000;
+        Direction direction = Direction.FORWARD;
+        addSomeEntries(entries);
+
+        SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(direction);
+        assertIterator(direction, entries, iterator);
+    }
+
+    @Test
+    public void full_backward_scan() {
+        int entries = 10000;
+        Direction direction = Direction.BACKWARD;
+        addSomeEntries(entries);
+
+        SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(direction);
+        assertIterator(direction, entries, iterator);
+    }
+
+    @Test
+    public void full_range_forward_scan() {
+        int entries = 10000;
+        Direction direction = Direction.FORWARD;
+        addSomeEntries(entries);
+
+        SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(direction, Range.of(0, entries));
+        assertIterator(direction, entries, iterator);
+    }
+
+    @Test
+    public void full_range_backward_scan() {
+        int entries = 1000;
+        Direction direction = Direction.BACKWARD;
+        addSomeEntries(entries);
+
+        SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(direction, Range.of(0, entries));
+        assertIterator(direction, entries, iterator);
+    }
+
+    @Test
+    public void range_forward_scan() {
+        int entries = 10000;
+        Direction direction = Direction.FORWARD;
+        addSomeEntries(entries);
+
+        int half = entries / 2;
+        SegmentIterator<Entry<Integer, String>> firstHalf = sstable.iterator(direction, Range.of(0, half));
+        assertIterator(direction, half, firstHalf);
+
+        SegmentIterator<Entry<Integer, String>> secondHalf = sstable.iterator(direction, Range.of(half, entries));
+        assertIterator(direction, half, secondHalf);
+    }
+
+    @Test
+    public void range_backward_scan() {
+        int entries = 1000;
+        Direction direction = Direction.BACKWARD;
+        addSomeEntries(entries);
+
+        int half = entries / 2;
+        SegmentIterator<Entry<Integer, String>> firstHalf = sstable.iterator(direction, Range.of(0, half));
+        assertIterator(direction, half, firstHalf);
+
+        SegmentIterator<Entry<Integer, String>> secondHalf = sstable.iterator(direction, Range.of(half, entries));
+        assertIterator(direction, half, secondHalf);
+    }
+
+
+    private void addSomeEntries(int entries) {
+        for (int i = 0; i < entries; i++) {
             sstable.append(Entry.add(i, String.valueOf(i)));
         }
+
         sstable.roll(1, false);
     }
+
 
     private void floorWithStep(int items, int steps) {
         TreeSet<Integer> treeSet = new TreeSet<>();

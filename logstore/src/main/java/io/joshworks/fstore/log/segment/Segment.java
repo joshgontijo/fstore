@@ -268,10 +268,6 @@ public final class Segment<T> implements Log<T> {
         }
     }
 
-    public static <T> int processEntries(List<RecordEntry<T>> items) {
-        return items.size();
-    }
-
     @Override
     public void delete() {
         Lock lock = rwLock.writeLock();

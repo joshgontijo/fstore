@@ -80,7 +80,7 @@ public class LsmTreeTest {
     }
 
     @Test
-    public void restart() {
+    public void data_is_restored_in_memtable_after_restart() {
         lsmtree.put(1, "a");
         lsmtree.put(2, "b");
         lsmtree.put(3, "c");

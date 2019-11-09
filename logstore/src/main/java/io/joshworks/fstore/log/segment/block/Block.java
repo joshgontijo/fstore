@@ -66,8 +66,8 @@ public class Block implements Iterable<ByteBuffer> {
         }
         int entrySize = entry.remaining();
 
-        lengths.add(entrySize);
         data.putInt(entrySize);
+        lengths.add(entrySize);
         positions.add(data.position());
         data.put(entry);
         return true;
@@ -184,7 +184,7 @@ public class Block implements Iterable<ByteBuffer> {
         return lengths.isEmpty();
     }
 
-    protected int entryHeaderSize() {
+    public int entryHeaderSize() {
         return Integer.BYTES;
     }
 
