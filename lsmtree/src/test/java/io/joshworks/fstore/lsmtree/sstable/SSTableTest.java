@@ -19,7 +19,7 @@ import org.junit.Test;
 import java.io.File;
 import java.util.TreeSet;
 
-import static io.joshworks.fstore.lsmtree.Utils.assertIterator;
+import static io.joshworks.fstore.lsmtree.utils.Utils.assertIterator;
 import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;

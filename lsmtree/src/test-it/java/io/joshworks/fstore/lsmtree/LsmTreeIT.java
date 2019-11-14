@@ -13,7 +13,7 @@ import org.junit.Test;
 import java.io.File;
 import java.util.Random;
 
-import static io.joshworks.fstore.lsmtree.Utils.assertIterator;
+import static io.joshworks.fstore.lsmtree.utils.Utils.assertIterator;
 
 public class LsmTreeIT {
 
