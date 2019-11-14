@@ -6,6 +6,9 @@ public class Range<K extends Comparable<K>> {
     private final K endExclusive;
 
     private Range(K startInclusive, K endExclusive) {
+        if (startInclusive != null && endExclusive != null && startInclusive.compareTo(endExclusive) > 0) {
+            throw new IllegalArgumentException("Range end must greater or equals than Range start: [start=" + startInclusive + ", end=" + endExclusive + "]");
+        }
         this.startInclusive = startInclusive;
         this.endExclusive = endExclusive;
     }
@@ -31,10 +34,10 @@ public class Range<K extends Comparable<K>> {
     }
 
     public boolean intersects(K lower, K upper) {
-        if(this.compareTo(upper) < 0) {
+        if (this.compareTo(upper) < 0) {
             return false;
         }
-        if(this.compareTo(lower) > 1) {
+        if (this.compareTo(lower) > 1) {
             return false;
         }
         return this.compareTo(lower) <= 0 || this.compareTo(upper) >= 0;

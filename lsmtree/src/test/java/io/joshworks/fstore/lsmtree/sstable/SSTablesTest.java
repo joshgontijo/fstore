@@ -17,11 +17,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.List;
 import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
@@ -56,7 +58,10 @@ public class SSTablesTest {
                 new SSTableCompactor<>(NO_MAX_AGE),
                 NO_MAX_AGE,
                 new SnappyCodec(),
-                1000000,
+                1,
+                false,
+                3,
+                false,
                 0.01,
                 Memory.PAGE_SIZE,
                 Cache.softCache());
@@ -203,9 +208,6 @@ public class SSTablesTest {
         }
 
         for (int i = 0; i < items; i++) {
-            if (i == 2913) {
-                System.out.println();
-            }
             Entry<Integer, String> entry = sstables.get(i);
             assertNotNull("Failed on " + i, entry);
             assertEquals(Integer.valueOf(i), entry.key);
@@ -240,7 +242,7 @@ public class SSTablesTest {
 
     @Test
     public void iterator_with_range_returns_items_from_disk_and_memTable() {
-        int diskItems = FLUSH_THRESHOLD * 3;
+        int diskItems = (int) (FLUSH_THRESHOLD * 3.5);
         int memItems = FLUSH_THRESHOLD / 2;
         for (int i = 0; i < diskItems; i++) {
             sstables.add(Entry.add(i, String.valueOf(i)));
@@ -254,31 +256,7 @@ public class SSTablesTest {
         int startKey = 50;
         int endKey = diskItems / 2;
 
-        long count = Iterators.stream(sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey))).count();
-        assertEquals(endKey - startKey, count);
-
-        CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey));
-        int expected = startKey;
-        while (iterator.hasNext()) {
-            Entry<Integer, String> entry = iterator.next();
-            assertNotNull(entry);
-            assertEquals(Integer.valueOf(expected), entry.key);
-            assertEquals(String.valueOf(expected), entry.value);
-            expected++;
-        }
-    }
-
-    @Test
-    public void iterator_with_range_returns_items_from_disk_and_memTable2() {
-        int diskItems = (int) (FLUSH_THRESHOLD * 100.5);
-        for (int i = 0; i < diskItems; i++) {
-            sstables.add(Entry.add(i, String.valueOf(i)));
-        }
-
-        int startKey = 50;
-        int endKey = diskItems / 2;
-
-        long count = Iterators.stream(sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey))).count();
+        long count = Iterators.closeableStream(sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey))).count();
         assertEquals(endKey - startKey, count);
 
         CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD, Range.of(startKey, endKey));
@@ -420,13 +398,37 @@ public class SSTablesTest {
             sstables.add(Entry.delete(i));
         }
 
-        long count = Iterators.stream(sstables.iterator(Direction.FORWARD)).count();
+        long count = Iterators.closeableStream(sstables.iterator(Direction.FORWARD)).count();
         assertEquals(items / 2, count);
 
         try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD)) {
             while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
                 assertNotEquals(0, entry.key % 2);
+            }
+        }
+    }
+
+    @Test
+    public void deleted_entries_are_not_returned_when_after_compaction2() {
+        int items = (int) (FLUSH_THRESHOLD * 6.5);
+        for (int i = 0; i < items; i++) {
+            sstables.add(Entry.add(i, String.valueOf(i)));
+        }
+        for (int i = 0; i < items; i += 2) {
+            sstables.add(Entry.delete(i));
+        }
+
+        sstables.flushSync();
+
+        List<Entry<Integer, String>> values = Iterators.closeableStream(sstables.iterator(Direction.FORWARD)).collect(Collectors.toList());
+        assertEquals(items / 2, values.size());
+
+        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD)) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+//                System.out.println(entry);
+                assertNotEquals("Failed on " + entry, 0, entry.key % 2);
             }
         }
     }

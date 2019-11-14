@@ -85,7 +85,7 @@ public class EventStore implements IEventStore {
                 .name("event-log")
                 .flushMode(FlushMode.MANUAL)
                 .storageMode(StorageMode.MMAP)
-                .directBufferPool()
+                .useDirectBufferPool(true)
                 .checksumProbability(0.1)
                 .namingStrategy(new SequentialNaming(rootDir))
                 .open());

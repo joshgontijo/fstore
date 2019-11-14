@@ -46,8 +46,9 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private final Segment<Block> delegate;
     private final Serializer<Entry<K, V>> entrySerializer;
     private final Serializer<K> keySerializer;
+    private final long maxEntrySize;
     private final Codec codec;
-    private int blockSize;
+    private final int blockSize;
     private final BufferPool bufferPool;
 
     private final BloomFilter bloomFilter;
@@ -82,10 +83,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         this.bufferPool = bufferPool;
         this.maxAge = maxAge;
         this.keySerializer = keySerializer;
+        this.maxEntrySize = maxEntrySize;
         this.codec = codec;
         this.blockSize = blockSize;
         this.entrySerializer = EntrySerializer.of(maxAge, keySerializer, valueSerializer);
-        this.block = Block.vlenBlock().create(maxEntrySize);
+        this.block = Block.resizableVlenBlock().create(blockSize);
 
         this.blockCache = blockCache;
         this.delegate = new Segment<>(
@@ -129,8 +131,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private void writeFooter(FooterWriter writer) {
-        midpoints.writeTo(writer, codec, bufferPool, keySerializer);
-        bloomFilter.writeTo(writer, codec, bufferPool);
+        midpoints.writeTo(writer, codec, blockSize, bufferPool, keySerializer);
+        bloomFilter.writeTo(writer, codec, blockSize, bufferPool);
 
         metadata.midpoints = midpoints.size();
         metadata.blocks = delegate.entries();
@@ -138,55 +140,58 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     @Override
-    public long append(Entry<K, V> data) {
-        requireNonNull(data, "Entry must be provided");
-        requireNonNull(data.key, "Entry Key must be provided");
-        addToBloomFilter(data);
+    public long append(Entry<K, V> entry) {
+        requireNonNull(entry, "Entry must be provided");
+        requireNonNull(entry.key, "Entry Key must be provided");
+        addToBloomFilter(entry);
 
-        long pos = delegate.position();
+        //block won't fit this segment, its state must be empty, otherwise data loss would occur
+        if (delegate.remaining() < block.capacity()) {
+            if (!block.isEmpty()) {
+                throw new IllegalStateException("Segment has no available space for non empty block");
+            }
+            return EOF;
+        }
 
         try (bufferPool) {
-            ByteBuffer buffer = serialize(bufferPool, data);
+            ByteBuffer data = serialize(bufferPool, entry);
 
-            int entrySizeInTheBLock = buffer.remaining() + block.entryHeaderSize();
+            if (data.remaining() > maxEntrySize) {
+                throw new IllegalStateException("Entry of size " + data.remaining() + " cannot be greater than maxEntrySize: " + maxEntrySize);
+            }
 
-            //After adding the entry, block won't fit in the segment, so don't add the entry to the block
-            if (delegate.remaining() < entrySizeInTheBLock + block.uncompressedSize()) {
+            //entry will not fit the segment, needs to roll without adding to block, it can be inserted in the next segment.
+            //or it will exceed the limit that Segment can write at once, therefore throwing an exception
+            if (!willFitSegment(data)) {
                 return EOF;
             }
 
-            if (!addToBLock(block, buffer)) {
-                if (block.uncompressedSize() > delegate.remaining()) {
-                    return EOF;
-                }
-                //free buffer so it can be used to write block to the segment
+            if (exceedsMaxEntrySize(data) && !block.isEmpty()) {
                 bufferPool.free();
-                pos = writeBlock();
-                if (pos == EOF) {
-                    throw new IllegalStateException("Could not persist block on segment: Unexpected EOF");
-                }
-
-                //serialize again, because buffer was released
-                buffer = serialize(bufferPool, data);
-                //try add entry to the clean block
-                if (!addToBLock(block, buffer)) {
-                    throw new IllegalArgumentException("Entry of size " + entrySizeInTheBLock + " (with header) is bigger than block size: " + block.uncompressedSize());
-                }
+                writeBlock();
+                return append(entry);
             }
+
+            //entry has to fit in the block
+            if (!block.add(data)) {
+                throw new IllegalStateException("Could not add entry to block");
+            }
+        }
+        //block size full or expanded beyond blockSize
+        if (block.position() > blockSize) {
+            writeBlock();
         }
 
         metadata.entries++;
-        return pos;
+        return delegate.position();
     }
 
-    private boolean addToBLock(Block block, ByteBuffer data) {
-        if (data.remaining() + block.uncompressedSize() > blockSize) {
-            return false;
-        }
-        if (!block.add(data)) {
-            throw new IllegalStateException("Entry was not added to block");
-        }
-        return true;
+    private boolean willFitSegment(ByteBuffer data) {
+        return delegate.remaining() > block.remaining() + data.remaining() + block.entryHeaderSize();
+    }
+
+    private boolean exceedsMaxEntrySize(ByteBuffer data) {
+        return block.position() + data.remaining() + block.entryHeaderSize() > maxEntrySize;
     }
 
     private ByteBuffer serialize(BufferPool bufferPool, Entry<K, V> data) {
@@ -199,7 +204,6 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private long writeBlock() {
         long pos = delegate.append(block);
         if (pos == EOF) {
-            //TODO ???? nothing to do with the block, will cause data loss
             throw new RuntimeException("No space left in the sstable");
         }
         addToMidpoints(pos, block);
@@ -464,15 +468,13 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     @Override
     public SegmentIterator<Entry<K, V>> iterator(long position, Direction direction) {
         SegmentIterator<Block> iterator = delegate.iterator(position, direction);
-        BlockIterator<Entry<K, V>> blockIterator = new BlockIterator<>(entrySerializer, iterator, direction);
-        return new SSTableIterator<>(maxAge, blockIterator);
+        return new BlockIterator<>(entrySerializer, iterator, direction);
     }
 
     @Override
     public SegmentIterator<Entry<K, V>> iterator(Direction direction) {
         SegmentIterator<Block> iterator = delegate.iterator(direction);
-        BlockIterator<Entry<K, V>> blockIterator = new BlockIterator<>(entrySerializer, iterator, direction);
-        return new SSTableIterator<>(maxAge, blockIterator);
+        return new BlockIterator<>(entrySerializer, iterator, direction);
     }
 
     public SegmentIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
@@ -487,7 +489,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         long startPos = startPos(direction, range);
         SegmentIterator<Block> iterator = delegate.iterator(startPos, direction);
         BlockIterator<Entry<K, V>> blockIterator = new BlockIterator<>(entrySerializer, iterator, direction);
-        return new RangeIterator<>(maxAge, blockIterator, range, direction);
+        return new RangeIterator<>(blockIterator, range, direction);
     }
 
     private long startPos(Direction direction, Range<K> range) {

@@ -46,13 +46,14 @@ import static java.util.Objects.requireNonNull;
  * Segment is not thread safe for append method. But it does guarantee concurrent access of multiple readers at same time.
  * Multiple readers can also read (iterator and get) while a record is being appended
  */
-public final class Segment<T> implements Log<T> {
+public class Segment<T> implements Log<T> {
 
     private final Logger logger;
 
     private static final double FOOTER_EXTRA_LENGTH_PERCENT = 0.1;
 
     private final Serializer<T> serializer;
+    private final BufferPool bufferPool;
     private final MetricStorage storage;
     private final DataStream stream;
 
@@ -82,6 +83,7 @@ public final class Segment<T> implements Log<T> {
             double checksumProb) {
 
         this.serializer = requireNonNull(serializer, "Serializer must be provided");
+        this.bufferPool = bufferPool;
 
         MetricStorage storage = null;
         try {
@@ -302,7 +304,7 @@ public final class Segment<T> implements Log<T> {
         long footerStart = stream.position();
         footerWriter.accept(footer);
 
-        long mapPosition = footerMap.writeTo(stream);
+        long mapPosition = footerMap.writeTo(stream, bufferPool);
         long footerEnd = stream.position();
         long footerLength = footerEnd - footerStart;
         if (trim) {

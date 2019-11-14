@@ -54,7 +54,7 @@ public class PartitionedLog {
                 .name(partitionName)
                 .flushMode(FlushMode.MANUAL)
                 .storageMode(StorageMode.RAF)
-                .directBufferPool()
+                .useDirectBufferPool()
                 .checksumProbability(1)
                 .namingStrategy(new SequentialNaming(partitionRoot))
                 .open();

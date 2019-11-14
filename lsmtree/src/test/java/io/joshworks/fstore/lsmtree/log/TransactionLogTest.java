@@ -2,6 +2,7 @@ package io.joshworks.fstore.lsmtree.log;
 
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
 import org.junit.Before;
@@ -21,7 +22,7 @@ public class TransactionLogTest {
     @Before
     public void setUp() {
         testDir = FileUtils.testFolder();
-        log = new TransactionLog<>(testDir, Serializers.VSTRING, Serializers.INTEGER, "txlog", StorageMode.RAF);
+        log = new TransactionLog<>(testDir, Serializers.VSTRING, Serializers.INTEGER, Size.MB.ofInt(50), 3, "txlog", StorageMode.RAF);
     }
 
     @After

@@ -54,6 +54,11 @@ public class FixedSizeEntryBlock extends Block {
     }
 
     @Override
+    public int blockHeaderSize() {
+        return super.blockHeaderSize() + Integer.BYTES;
+    }
+
+    @Override
     protected ByteBuffer unpack(Codec codec, ByteBuffer compressed) {
 
         //header

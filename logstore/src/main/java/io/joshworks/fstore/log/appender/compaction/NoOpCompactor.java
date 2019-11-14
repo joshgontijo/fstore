@@ -5,7 +5,7 @@ import java.io.IOException;
 public class NoOpCompactor implements ICompactor {
 
     @Override
-    public void compact() {
+    public void compact(boolean force) {
         //do nothing
     }
 

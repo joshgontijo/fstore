@@ -12,7 +12,7 @@ import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
+import io.joshworks.fstore.log.appender.compaction.combiner.MergeCombiner;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.log.segment.Log;
@@ -31,6 +31,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
 
 import static java.util.Objects.requireNonNull;
@@ -43,16 +46,14 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     private final long maxAge;
     private final Cache<String, Block> blockCache; //propagated to sstables
 
-    public static final long NO_MAX_AGE = -1;
-
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final BlockingQueue<FlushTask> flushQueue = new ArrayBlockingQueue<>(3, false);
+    private final BlockingQueue<FlushTask> flushQueue;
 
     private final Metrics metrics = new Metrics();
     private final String metricsKey;
     private final ExecutorService flushWorker = Executors.newSingleThreadExecutor();
 
-    private final Object FLUSH_LOCK = new Object();
+    private final ReadWriteLock flushLock = new ReentrantReadWriteLock();
 
     public SSTables(File dir,
                     Serializer<K> keySerializer,
@@ -63,10 +64,13 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                     int maxEntrySize,
                     StorageMode storageMode,
                     FlushMode flushMode,
-                    UniqueMergeCombiner<Entry<K, V>> compactor,
+                    MergeCombiner<Entry<K, V>> compactor,
                     long maxAgeSeconds,
                     Codec codec,
-                    long bloomNItems,
+                    int flushQueueSize,
+                    boolean parallelCompaction,
+                    int compactionThreshold,
+                    boolean useDirectBufferPool,
                     double bloomFPProb,
                     int blockSize,
                     Cache<String, Block> blockCache) {
@@ -75,7 +79,10 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         this.maxAge = maxAgeSeconds;
         this.blockCache = blockCache;
         this.memTable = new MemTable<>();
+        this.flushQueue = new ArrayBlockingQueue<>(flushQueueSize, false);
         this.flushWorker.execute(flushTask());
+
+        maxEntrySize = Math.max(maxEntrySize, blockSize);
 
         this.appender = LogAppender.builder(dir, EntrySerializer.of(maxAgeSeconds, keySerializer, valueSerializer))
                 .compactionStrategy(compactor)
@@ -83,10 +90,11 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 .storageMode(storageMode)
                 .segmentSize(segmentSize)
                 .maxEntrySize(maxEntrySize)
-                .parallelCompaction()
+                .parallelCompaction(parallelCompaction)
                 .flushMode(flushMode)
-                .directBufferPool()
-                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, codec, bloomNItems, bloomFPProb, blockSize, maxEntrySize, maxAgeSeconds, blockCache));
+                .compactionThreshold(compactionThreshold)
+                .useDirectBufferPool(useDirectBufferPool)
+                .open(new SSTable.SSTableFactory<>(keySerializer, valueSerializer, codec, flushThreshold, bloomFPProb, blockSize, maxEntrySize, maxAgeSeconds, blockCache));
 
         this.metricsKey = MetricRegistry.register(Map.of("type", "sstables", "name", name), () -> {
             metrics.set("blockCacheSize", blockCache.size());
@@ -105,7 +113,9 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     }
 
     private CompletableFuture<Void> scheduleFlush(boolean force) {
-        synchronized (FLUSH_LOCK) {
+        Lock lock = flushLock.writeLock();
+        lock.lock();
+        try {
             int size = memTable.size();
             if (!force && size < flushThreshold) {
                 return null;
@@ -124,6 +134,8 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 Thread.currentThread().interrupt();
                 throw new RuntimeException("Failed to queue flush task", e);
             }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -338,7 +350,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
     public void flushSync() {
         try {
-            CompletableFuture<Void> completion = scheduleFlush(true);
+            CompletableFuture<Void> completion = flush();
             if (completion != null) {
                 completion.get();
             }
@@ -368,7 +380,9 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
-        synchronized (FLUSH_LOCK) {
+        Lock lock = flushLock.readLock();
+        lock.lock();
+        try {
             List<PeekingIterator<Entry<K, V>>> iterators = new ArrayList<>();
 
             //OLDEST -> NEWEST
@@ -387,12 +401,15 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
             });
 
             return new SSTablesIterator<>(maxAge, direction, iterators);
+        } finally {
+            lock.unlock();
         }
     }
 
     public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
-
-        synchronized (FLUSH_LOCK) {
+        Lock lock = flushLock.readLock();
+        lock.lock();
+        try {
             List<PeekingIterator<Entry<K, V>>> iterators = new ArrayList<>();
 
             //OLDEST -> NEWEST
@@ -411,6 +428,8 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
             });
 
             return new SSTablesIterator<>(maxAge, direction, iterators);
+        } finally {
+            lock.unlock();
         }
     }
 

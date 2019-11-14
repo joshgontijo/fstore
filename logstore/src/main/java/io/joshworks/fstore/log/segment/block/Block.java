@@ -27,17 +27,18 @@ import java.util.NoSuchElementException;
  */
 public class Block implements Iterable<ByteBuffer> {
 
-    protected final ByteBuffer data;
+    protected ByteBuffer data;
     protected final List<Integer> lengths = new ArrayList<>();
     protected final List<Integer> positions = new ArrayList<>();
     protected final boolean readOnly;
 
     //returns the uncompressed size
     public Block(int blockSize) {
-        if (blockSize <= 0) {
-            throw new IllegalArgumentException("maxSize must be greater than zero");
+        int blockHeaderSize = blockHeaderSize();
+        if (blockSize <= blockHeaderSize) {
+            throw new IllegalArgumentException("blockSize must be greater than " + blockHeaderSize);
         }
-        this.data = createBuffer(blockSize);
+        this.data = createBuffer(blockSize - blockHeaderSize);
         this.readOnly = false;
     }
 
@@ -73,27 +74,21 @@ public class Block implements Iterable<ByteBuffer> {
         return true;
     }
 
-    protected boolean checkConstraints(ByteBuffer entry) {
+    boolean checkConstraints(ByteBuffer entry) {
         if (readOnly) {
             throw new IllegalStateException("Block is read only");
         }
-        int entrySize = entry.remaining();
-        validateEntry(entry);
-        return entrySize + entryHeaderSize() <= data.remaining();
+        if (entry.remaining() == 0) {
+            throw new IllegalArgumentException("Empty data is not allowed");
+        }
+        int entryWithHeaderSize = entry.remaining() + entryHeaderSize();
+        if (entryWithHeaderSize > data.capacity()) {
+            throw new IllegalArgumentException("Record [data=" + entry.remaining() + ", entryHeader=" + entryHeaderSize() + "] cannot be greater than (" + data.capacity() + ")");
+        }
+        return entryWithHeaderSize <= data.remaining();
     }
 
-    private void validateEntry(ByteBuffer entry) {
-        int entrySize = entry.remaining();
-        int maxEntrySize = data.capacity() - entryHeaderSize();
-        if (entrySize > maxEntrySize) { //data - entryCount - 1 entrySize
-            throw new IllegalArgumentException("Record size (" + entrySize + ") cannot be greater than (" + maxEntrySize + ")");
-        }
-        if (entrySize == 0) {
-            throw new IllegalArgumentException("Empty buffer is not allowed");
-        }
-    }
-
-    public void pack(Codec codec, ByteBuffer dst) {
+    void pack(Codec codec, ByteBuffer dst) {
         if (readOnly()) {
             throw new IllegalStateException("Block is read only");
         }
@@ -109,7 +104,7 @@ public class Block implements Iterable<ByteBuffer> {
         writeBlockContent(codec, dst);
     }
 
-    protected void writeBlockContent(Codec codec, ByteBuffer dst) {
+    private void writeBlockContent(Codec codec, ByteBuffer dst) {
         codec.compress(data, dst);
     }
 
@@ -188,6 +183,10 @@ public class Block implements Iterable<ByteBuffer> {
         return Integer.BYTES;
     }
 
+    public int blockHeaderSize() {
+        return Integer.BYTES * 2; //entries + uncompressedSize
+    }
+
     public int uncompressedSize() {
         return data.position();
     }
@@ -208,6 +207,14 @@ public class Block implements Iterable<ByteBuffer> {
 
     public int remaining() {
         return data.remaining();
+    }
+
+    public int capacity() {
+        return data.capacity();
+    }
+
+    public int position() {
+        return data.position();
     }
 
     private static final class BlockEntryIterator implements Iterator<ByteBuffer> {
@@ -235,6 +242,10 @@ public class Block implements Iterable<ByteBuffer> {
 
     public static BlockFactory vlenBlock() {
         return new VLenBlockFactory();
+    }
+
+    public static BlockFactory resizableVlenBlock() {
+        return new ResizableVLenBlockFactory();
     }
 
     public static BlockFactory flenBlock(int entrySize) {
@@ -268,6 +279,17 @@ public class Block implements Iterable<ByteBuffer> {
 
         public Block load(Codec codec, ByteBuffer data) {
             return new Block(codec, data);
+        }
+    }
+
+    private static class ResizableVLenBlockFactory implements BlockFactory {
+
+        public Block create(int maxBlockSize) {
+            return new ResizableBlock(maxBlockSize);
+        }
+
+        public Block load(Codec codec, ByteBuffer data) {
+            return new Block(codec, data); //doesnt have to be ResizableBlock instance
         }
     }
 

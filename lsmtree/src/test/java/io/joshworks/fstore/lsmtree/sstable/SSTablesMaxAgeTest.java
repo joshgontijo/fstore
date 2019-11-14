@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 public class SSTablesMaxAgeTest {
 
     private static final int FLUSH_THRESHOLD = 1000;
+    private static final int COMPACTION_THRESHOLD = 3;
     private SSTables<Integer, String> sstables;
     private File testDirectory;
     private final long MAX_AGE_SECONDS = 1;
@@ -44,7 +45,10 @@ public class SSTablesMaxAgeTest {
                 new SSTableCompactor<>(MAX_AGE_SECONDS),
                 MAX_AGE_SECONDS,
                 new SnappyCodec(),
-                1000000,
+                3,
+                false,
+                COMPACTION_THRESHOLD,
+                false,
                 0.01,
                 Memory.PAGE_SIZE,
                 Cache.softCache());

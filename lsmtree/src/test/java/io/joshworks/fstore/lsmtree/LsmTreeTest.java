@@ -169,7 +169,6 @@ public class LsmTreeTest {
         try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.FORWARD)) {
             while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
-                System.out.println(entry);
             }
         }
     }
@@ -214,7 +213,6 @@ public class LsmTreeTest {
         try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.BACKWARD, Range.start(9990))) {
             while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
-                System.out.println(entry);
             }
         }
     }

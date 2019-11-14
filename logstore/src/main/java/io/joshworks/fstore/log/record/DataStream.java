@@ -117,6 +117,10 @@ public class DataStream {
         return storage.length();
     }
 
+    public int maxEntrySize() {
+        return bufferPool.bufferSize();
+    }
+
     private void checkWrittenBytes(long expected, long written) {
         if (written != expected) {
             throw new IllegalStateException("Expected write of size: " + expected + " actual bytes written: " + written);

@@ -5,7 +5,6 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.appender.compaction.combiner.DiscardCombiner;
 import io.joshworks.fstore.lsmtree.EntryType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,13 +26,13 @@ public class TransactionLog<K extends Comparable<K>, V> {
     private final Map<String, FlushTask> flushItems = new ConcurrentHashMap<>();
     private final Logger logger;
 
-    public TransactionLog(File root, Serializer<K> keySerializer, Serializer<V> valueSerializer, String name, StorageMode mode) {
-        //TODO when segment rolls, then sstable must be flushed, otherwise the log compactor might delete entries that are
-        //not persisted to disk yet
+    public TransactionLog(File root, Serializer<K> keySerializer, Serializer<V> valueSerializer, long size, int compactionThreshold, String name, StorageMode mode) {
         String logName = name + "-log";
         this.appender = LogAppender.builder(new File(root, "log"), new LogRecordSerializer<>(keySerializer, valueSerializer))
-                .compactionStrategy(new DiscardCombiner<>())
+                .compactionStrategy(new LastFlushDiscardCombiner(lastCompletedFlush))
                 .name(logName)
+                .segmentSize(size)
+                .compactionThreshold(compactionThreshold)
                 .storageMode(mode)
                 .open();
 

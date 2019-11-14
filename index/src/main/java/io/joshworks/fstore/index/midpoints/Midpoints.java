@@ -3,7 +3,7 @@ package io.joshworks.fstore.index.midpoints;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
@@ -129,13 +129,12 @@ public class Midpoints<K extends Comparable<K>> {
         return entries.get(entries.size() - 1);
     }
 
-    public void writeTo(FooterWriter writer, Codec codec, BufferPool bufferPool, Serializer<K> keySerializer) {
+    public void writeTo(FooterWriter writer, Codec codec, int blockSize, BufferPool bufferPool, Serializer<K> keySerializer) {
         Serializer<Midpoint<K>> serializer = new MidpointSerializer<>(keySerializer);
 
-        int blockSize = Math.min(bufferPool.bufferSize(), Size.MB.ofInt(1));
         BlockFactory blockFactory = Block.vlenBlock();
         BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
-        Block block = blockFactory.create(blockSize);
+        Block block = blockFactory.create(blockSize - RecordHeader.HEADER_OVERHEAD);
 
         int blockIdx = 0;
         entries.sort(Comparator.comparing(o -> o.key));

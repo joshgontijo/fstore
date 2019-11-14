@@ -5,13 +5,12 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
+import io.joshworks.fstore.log.appender.compaction.combiner.MergeCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.lsmtree.log.EntryAdded;
@@ -27,26 +26,20 @@ import java.io.Closeable;
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static java.util.Objects.requireNonNull;
 
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
-    final SSTables<K, V> sstables;
+    private final SSTables<K, V> sstables;
     private final TransactionLog<K, V> log;
-
-    private final ExecutorService writer;
 
     private LsmTree(Builder<K, V> builder) {
         this.sstables = createSSTable(builder);
         this.log = createTransactionLog(builder);
         this.log.restore(this::restore);
-        this.writer = new MonitoredThreadPool("lsm-write", new ThreadPoolExecutor(1, 1, 1, TimeUnit.DAYS, new LinkedBlockingDeque<>()));
         this.sstables.flushSync();
     }
 
@@ -68,7 +61,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.sstableCompactor,
                 builder.maxAgeSeconds,
                 builder.codec,
-                builder.bloomNItems,
+                builder.flushQueueSize,
+                builder.parallelCompaction,
+                builder.tlogCompactionThreshold,
+                builder.directBufferPool,
                 builder.bloomFPProb,
                 builder.blockSize,
                 builder.blockCache);
@@ -79,6 +75,8 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.directory,
                 builder.keySerializer,
                 builder.valueSerializer,
+                builder.tlogSize,
+                builder.tlogCompactionThreshold,
                 builder.name,
                 builder.tlogStorageMode);
     }
@@ -86,7 +84,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     public void put(K key, V value) {
         requireNonNull(key, "Key must be provided");
         requireNonNull(value, "Value must be provided");
-        final long recPos = log.append(LogRecord.add(key, value));
+        log.append(LogRecord.add(key, value));
 
         Entry<K, V> entry = Entry.add(key, value);
         CompletableFuture<Void> flushTask = sstables.add(entry);
@@ -176,24 +174,28 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     public static class Builder<K extends Comparable<K>, V> {
 
-        private static final int DEFAULT_THRESHOLD = 1000000;
-        private static final int NO_MAX_AGE = -1;
 
         private final File directory;
         private final Serializer<K> keySerializer;
         private final Serializer<V> valueSerializer;
-        private int maxEntrySize = Size.MB.ofInt(2);
-        private UniqueMergeCombiner<Entry<K, V>> sstableCompactor;
-        private long bloomNItems = DEFAULT_THRESHOLD;
-        private double bloomFPProb = 0.05;
-        private int blockSize = Memory.PAGE_SIZE;
-        private int flushThreshold = DEFAULT_THRESHOLD;
+        private MergeCombiner<Entry<K, V>> sstableCompactor;
+        private int flushThreshold = 1000000;
         private Codec codec = new SnappyCodec();
         private String name = "lsm-tree";
         private StorageMode sstableStorageMode = StorageMode.MMAP;
         private FlushMode ssTableFlushMode = FlushMode.ON_ROLL;
         private StorageMode tlogStorageMode = StorageMode.RAF;
-        private long segmentSize = Size.MB.of(32);
+
+        private long tlogSize = Size.MB.of(256);
+        private int tlogCompactionThreshold = 3;
+        private int sstableCompactionThreshold = 3;
+        private int blockSize = Size.KB.ofInt(4);
+        private long segmentSize = Size.MB.of(12);
+        private int maxEntrySize = Size.MB.ofInt(2);
+        private double bloomFPProb = 0.05;
+        private int flushQueueSize = 3;
+        private boolean parallelCompaction;
+        private boolean directBufferPool;
 
         private Cache<String, Block> blockCache = Cache.lruCache(1000, -1);
         private long maxAgeSeconds = NO_MAX_AGE;
@@ -213,15 +215,29 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
-        public Builder<K, V> bloomFilter(double bloomFPProb, long bloomNItems) {
+        public Builder<K, V> parallelCompaction(boolean parallelCompaction) {
+            this.parallelCompaction = parallelCompaction;
+            return this;
+        }
+
+        public Builder<K, V> useDirectBufferPool(boolean directBufferPool) {
+            this.directBufferPool = directBufferPool;
+            return this;
+        }
+
+        public Builder<K, V> flushQueueSize(int flushQueueSize) {
+            if (flushQueueSize < 1) {
+                throw new IllegalArgumentException("Flush threshold must greater than zero");
+            }
+            this.flushQueueSize = flushQueueSize;
+            return this;
+        }
+
+        public Builder<K, V> bloomFilterFalsePositiveProbability(double bloomFPProb) {
             if (bloomFPProb <= 0) {
                 throw new IllegalArgumentException("Bloom filter false positive probability must greater than zero");
             }
-            if (bloomNItems <= 0) {
-                throw new IllegalArgumentException("Number of expected items in the bloom filter must be greater than zero");
-            }
             this.bloomFPProb = bloomFPProb;
-            this.bloomNItems = bloomNItems;
             return this;
         }
 
@@ -249,11 +265,11 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
-        public Builder<K, V> maxEntrySize(long maxEntrySize) {
+        public Builder<K, V> maxEntrySize(int maxEntrySize) {
             if (maxEntrySize <= 0) {
                 throw new IllegalArgumentException("Segment size must be greater than zero");
             }
-            this.segmentSize = maxEntrySize;
+            this.maxEntrySize = maxEntrySize;
             return this;
         }
 
@@ -280,9 +296,24 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
             return this;
         }
 
-        public Builder<K, V> transacationLogStorageMode(StorageMode mode) {
+        public Builder<K, V> transactionLogStorageMode(StorageMode mode) {
             requireNonNull(mode);
             this.tlogStorageMode = mode;
+            return this;
+        }
+
+        public Builder<K, V> transactionLogSize(long tlogSize) {
+            this.tlogSize = tlogSize;
+            return this;
+        }
+
+        public Builder<K, V> transactionLogCompactionThreshold(int compactionThreshold) {
+            this.tlogCompactionThreshold = compactionThreshold;
+            return this;
+        }
+
+        public Builder<K, V> sstableCompactionThreshold(int compactionThreshold) {
+            this.sstableCompactionThreshold = compactionThreshold;
             return this;
         }
 

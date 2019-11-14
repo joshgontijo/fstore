@@ -3,7 +3,6 @@ package io.joshworks.fstore.index.filter;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.MemStorage;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.log.segment.block.BlockFactory;
@@ -137,7 +136,7 @@ public class BloomFilter {
     }
 
 
-    public void writeTo(FooterWriter writer, Codec codec, BufferPool bufferPool) {
+    public void writeTo(FooterWriter writer, Codec codec, int blockSize, BufferPool bufferPool) {
         long[] items = hashes.toLongArray();
         int dataLength = items.length * Long.BYTES;
         long totalSize = dataLength + HEADER_SIZE;
@@ -148,10 +147,9 @@ public class BloomFilter {
 
         writeHeader(writer, codec, bufferPool, dataLength);
 
-        int blockSize = Math.min(bufferPool.bufferSize() - RecordHeader.HEADER_OVERHEAD, Size.MB.ofInt(1));
         BlockFactory blockFactory = dataBlockFactory();
         BlockSerializer blockSerializer = new BlockSerializer(codec, blockFactory);
-        Block block = blockFactory.create(blockSize);
+        Block block = blockFactory.create(blockSize - RecordHeader.HEADER_OVERHEAD);
 
         int blockIdx = 0;
         for (long item : items) {
@@ -198,7 +196,7 @@ public class BloomFilter {
         int size = headerBlock.get(0).getInt();
         int m = headerBlock.get(1).getInt();
         int k = headerBlock.get(2).getInt();
-        long[] longs = readEntries(reader, codec, bufferPool);
+        long[] longs = readEntries(reader, codec);
 
         BitSet bitSet = new BitSet(m);
         bitSet.or(BitSet.valueOf(longs));
@@ -206,7 +204,7 @@ public class BloomFilter {
         return new BloomFilter(bitSet, m, k, size);
     }
 
-    private static long[] readEntries(FooterReader reader, Codec codec, BufferPool bufferPool) {
+    private static long[] readEntries(FooterReader reader, Codec codec) {
         BlockFactory blockFactory = dataBlockFactory();
         List<Block> blocks = reader.findAll(BLOCK_PREFIX, new BlockSerializer(codec, blockFactory));
 
@@ -227,7 +225,7 @@ public class BloomFilter {
     }
 
     private static BlockFactory dataBlockFactory() {
-        return Block.vlenBlock();
+        return Block.flenBlock(Long.BYTES);
     }
 
     private static BlockFactory headerBlockFactory() {

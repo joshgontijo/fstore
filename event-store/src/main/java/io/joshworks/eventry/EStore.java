@@ -7,6 +7,7 @@ import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.metrics.Metrics;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.es.shared.EventRecord;
@@ -19,6 +20,7 @@ import io.joshworks.fstore.lsmtree.sstable.Expression;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,34 +29,40 @@ import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
 public class EStore {
 
     private static final String STREAM_PREFIX = "stream-";
-    private static final int ITEMS = 10000000;
-    private static final int STREAMS = 50000;
+    private static final int EVENTS_PER_STREAM = 400;
+    private static final int STREAMS = 500000;
     private static final int THREADS = 1;
-    public static final int FLUSH_THRESHOLD = 500000;
+    public static final int FLUSH_THRESHOLD = 1000000;
     private static LsmTree<IndexKey, EventRecord> store;
 
     private static final Metrics metrics = new Metrics();
 
+    //FIXME (compaction) -> No entries were found in the result segment
+
     public static void main(String[] args) {
         File dir = new File("S:\\es-server-1");
 
-//        FileUtils.tryDelete(dir);
+        FileUtils.tryDelete(dir);
 
         store = LsmTree
                 .builder(dir, new IndexKeySerializer(), new EventSerializer())
                 .codec(new SnappyCodec())
                 .flushThreshold(FLUSH_THRESHOLD)
-                .bloomFilter(0.01, FLUSH_THRESHOLD)
-                .blockCache(Cache.lruCache(100, -1))
+                .bloomFilterFalsePositiveProbability(0.1)
+                .blockCache(Cache.noCache())
                 .sstableStorageMode(StorageMode.MMAP)
-                .transacationLogStorageMode(StorageMode.MMAP)
-                .blockSize(Size.KB.ofInt(2))
+                .transactionLogStorageMode(StorageMode.MMAP)
+                .maxEntrySize(Size.MB.ofInt(6))
+                .blockSize(Size.KB.ofInt(8))
+                .parallelCompaction(false)
+                .useDirectBufferPool(true)
+                .flushQueueSize(1)
                 .open();
 
         Thread monitor = new Thread(EStore::monitor);
         monitor.start();
 
-//        write();
+        write();
 
 //        CloseableIterator<Entry<IndexKey, EventRecord>> iterator = store.iterator(Direction.FORWARD);
 //        int i = 0;
@@ -66,12 +74,7 @@ public class EStore {
 //        System.out.println("RREEEEEAD " + (System.currentTimeMillis() - s) + " ---- " + i);
 
         for (int i = 0; i < STREAMS; i++) {
-            try {
-                List<EventRecord> events = events(STREAM_PREFIX + i);
-
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            List<EventRecord> events = events(STREAM_PREFIX + i);
         }
     }
 
@@ -92,70 +95,88 @@ public class EStore {
         return found != null ? found.key.version : NO_VERSION;
     }
 
-    //TODO broken
     private static List<EventRecord> events(String stream) {
-        long start = System.currentTimeMillis();
         List<EventRecord> records = Iterators.stream(store.iterator(Direction.FORWARD, IndexKey.allOf(StreamHasher.hash(stream))))
                 .map(kv -> kv.value)
                 .collect(Collectors.toList());
-        System.out.println("Completed in " + (System.currentTimeMillis() - start));
-        metrics.update("readStream");
-        metrics.update("readStreamPerSec");
-        metrics.update("totalEvents", records.size());
 
-        if (records.size() != ITEMS / STREAMS) {
+        updateReadMetrics(records.size());
+
+        if (records.size() != EVENTS_PER_STREAM) {
             throw new RuntimeException("Not expected: " + records.size());
         }
 
         return records;
     }
 
-//    private static List<EventRecord> events(String stream) {
-//        List<EventRecord> records = new ArrayList<>();
-//        long hash = StreamHasher.hash(stream);
-//        int version = 0;
-//        EventRecord record;
-//        do {
-//            record = store.get(IndexKey.event(hash, version));
-//            if (record != null) {
-//                records.add(record);
-//            }
-//            version++;
-//        } while (record != null);
-//        metrics.update("readStream");
-//        metrics.update("readStreamPerSec");
-//        metrics.update("totalEvents", records.size());
-//        return records;
-//    }
+    private static void updateReadMetrics(int recordSize) {
+        metrics.update("readStream");
+        metrics.update("readStreamPerSec");
+        metrics.update("readEventsPerSec", recordSize);
+        metrics.update("totalEvents", recordSize);
+    }
+
+    private static List<EventRecord> events1(String stream) {
+        List<EventRecord> records = new ArrayList<>();
+        long hash = StreamHasher.hash(stream);
+        int version = 0;
+        EventRecord record;
+        do {
+            record = store.get(IndexKey.event(hash, version));
+            if (record != null) {
+                records.add(record);
+            }
+            version++;
+        } while (record != null);
+
+        updateReadMetrics(records.size());
+
+        if (records.size() != EVENTS_PER_STREAM) {
+            throw new RuntimeException("Not expected: " + records.size());
+        }
+
+        return records;
+    }
 
     private static void write() {
         long s = System.currentTimeMillis();
-        for (int i = 0; i < ITEMS; i++) {
-            String stream = STREAM_PREFIX + (i % STREAMS);
-
-            long start = System.currentTimeMillis();
-            add(stream, new UserCreated("josh", i));
-            metrics.update("writeTime", (System.currentTimeMillis() - start));
-            metrics.update("writes");
-            metrics.update("totalWrites");
+        for (int stream = 0; stream < STREAMS; stream++) {
+            for (int version = 0; version < EVENTS_PER_STREAM; version++) {
+                String streamName = STREAM_PREFIX + (stream % STREAMS);
+                long start = System.currentTimeMillis();
+                add(streamName, new UserCreated("josh", version));
+                metrics.update("writeTime", (System.currentTimeMillis() - start));
+                metrics.update("writes");
+                metrics.update("totalWrites");
+            }
         }
-        System.out.println("WRITES: " + ITEMS + " IN " + (System.currentTimeMillis() - s));
+        System.out.println("WRITES: " + (STREAMS * EVENTS_PER_STREAM) + " IN " + (System.currentTimeMillis() - s));
     }
 
     private static void monitor() {
         while (true) {
-            Long writes = metrics.remove("writes");
-            Long reads = metrics.remove("reads");
-            Long totalWrites = metrics.get("totalWrites");
-            Long totalReads = metrics.get("totalReads");
-            Long writeTime = metrics.get("writeTime");
+            long writes = metrics.remove("writes");
+            long reads = metrics.remove("reads");
+            long totalWrites = metrics.get("totalWrites");
+            long totalReads = metrics.get("totalReads");
+            long writeTime = metrics.get("writeTime");
 
-            Long streamReads = metrics.get("readStream");
-            Long totalEvents = metrics.get("totalEvents");
-            Long readStreamPerSec = metrics.remove("readStreamPerSec");
+            long streamReads = metrics.get("readStream");
+            long totalEvents = metrics.get("totalEvents");
+            long readStreamPerSec = metrics.remove("readStreamPerSec");
+            long readEventsPerSec = metrics.remove("readEventsPerSec");
 
-            long avgWriteTime = totalWrites == null ? 0 : writeTime / totalWrites;
-            System.out.println("WRITE: " + writes + "/s - TOTAL WRITE: " + totalWrites + " - AVG_WRITE_TIME: " + avgWriteTime + " READ: " + reads + "/s - TOTAL READ: " + totalReads + " STREAM_READ: " + streamReads + " TOTAL_EVENTS: " + totalEvents + " STREAM_READ_PER_SEC:" + readStreamPerSec);
+            long avgWriteTime = writeTime == 0 ? 0 : writeTime / totalWrites;
+            System.out.println(
+                    "WRITE: " + writes + "/s - " +
+                            "TOTAL WRITE: " + totalWrites +
+                            " AVG_WRITE_TIME: " + avgWriteTime +
+                            " READ: " + reads + "/s " +
+                            " TOTAL READ: " + totalReads +
+                            " STREAM_READ: " + streamReads +
+                            " TOTAL_EVENTS: " + totalEvents +
+                            " STREAM_READ_PER_SEC:" + readStreamPerSec +
+                            " EVENTS_READ_PER_SEC:" + readEventsPerSec);
             Threads.sleep(1000);
         }
     }

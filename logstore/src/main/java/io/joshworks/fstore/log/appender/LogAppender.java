@@ -18,6 +18,7 @@ import io.joshworks.fstore.log.appender.compaction.NoOpCompactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.iterators.Iterators;
+import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentFactory;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -94,7 +95,9 @@ public class LogAppender<T> implements Closeable {
         this.namingStrategy = config.namingStrategy;
         this.checksumProbability = config.checksumProbability;
         this.readPageSize = config.readPageSize;
-        this.bufferPool = new ThreadLocalBufferPool(config.name + "-pool", config.maxEntrySize, config.directBufferPool);
+
+        int actualMaxEntrySize = config.maxEntrySize + RecordHeader.HEADER_OVERHEAD;
+        this.bufferPool = new ThreadLocalBufferPool(config.name + "-pool", actualMaxEntrySize, config.directBufferPool);
         this.logger = Logging.namedLogger(config.name, "appender");
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
@@ -125,7 +128,7 @@ public class LogAppender<T> implements Closeable {
         this.compactor = createCompactor(config);
 
         logger.info(config.toString());
-        compactor.compact();
+        compactor.compact(false);
     }
 
     public Metrics metrics() {
@@ -138,7 +141,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     private ICompactor createCompactor(Config<T> config) {
-        if (config.combiner == null) {
+        if (config.compactionThreshold <= 0) {
             return new NoOpCompactor();
         }
         return new DefaultCompactor<>(
@@ -216,8 +219,9 @@ public class LogAppender<T> implements Closeable {
                     return;
                 }
 
+                long start = System.currentTimeMillis();
                 current.roll(1, false);
-                logger.info("Rolled segment: {}", current);
+                logger.info("Rolled segment: {} in {}ms", current, System.currentTimeMillis() - start);
                 metrics.update("rolled");
 
                 Log<T> newSegment = createCurrentSegment();
@@ -225,7 +229,7 @@ public class LogAppender<T> implements Closeable {
 
                 notifyPollers(newSegment);
 
-                compactor.compact();
+                compactor.compact(false);
 
             } catch (Exception e) {
                 throw new RuntimeIOException("Could not roll segment file", e);
@@ -467,6 +471,6 @@ public class LogAppender<T> implements Closeable {
     }
 
     public void compact() {
-        compactor.compact();
+        compactor.compact(true);
     }
 }
