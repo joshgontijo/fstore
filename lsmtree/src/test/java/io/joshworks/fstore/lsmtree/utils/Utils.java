@@ -1,4 +1,4 @@
-package io.joshworks.fstore.lsmtree;
+package io.joshworks.fstore.lsmtree.utils;
 
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
