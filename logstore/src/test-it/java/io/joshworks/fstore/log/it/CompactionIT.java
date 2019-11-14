@@ -123,7 +123,7 @@ public abstract class CompactionIT {
                     .compactionStorageMode(StorageMode.MMAP)
                     .compactionThreshold(COMPACTION_THRESHOLD)
                     .compactionStrategy(new ConcatenateCombiner<>())
-                    .parallelCompaction()
+                    .parallelCompaction(false)
                     .open();
         }
     }
@@ -137,7 +137,7 @@ public abstract class CompactionIT {
                     .storageMode(StorageMode.RAF)
                     .compactionThreshold(COMPACTION_THRESHOLD)
                     .compactionStrategy(new ConcatenateCombiner<>())
-                    .parallelCompaction()
+                    .parallelCompaction(false)
                     .open();
         }
     }

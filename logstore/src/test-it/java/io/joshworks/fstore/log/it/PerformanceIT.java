@@ -157,7 +157,7 @@ public abstract class PerformanceIT {
                     .segmentSize(SEGMENT_SIZE)
                     .storageMode(StorageMode.RAF_CACHED)
                     .compactionThreshold(COMPACTION_THRESHOLD)
-                    .directBufferPool()
+                    .useDirectBufferPool(true)
                     .maxEntrySize(MAX_ENTRY_SIZE)
                     .open();
         }
@@ -172,7 +172,7 @@ public abstract class PerformanceIT {
                     .storageMode(StorageMode.MMAP)
                     .compactionStorageMode(StorageMode.MMAP)
                     .compactionThreshold(COMPACTION_THRESHOLD)
-                    .directBufferPool()
+                    .useDirectBufferPool(true)
                     .maxEntrySize(MAX_ENTRY_SIZE)
                     .open();
         }

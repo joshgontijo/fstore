@@ -167,6 +167,14 @@ public abstract class BlockTest {
     }
 
     @Test
+    public void remaining_considers_the_header_size() {
+        Block block = factory.create(BLOCK_SIZE);
+        int remaining = block.remaining();
+        block.entryHeaderSize();
+        assertEquals(BLOCK_SIZE - block.blockHeaderSize(), remaining);
+    }
+
+    @Test
     public void iterator_after_unpacking_returns_all_entries() {
         Block block = factory.create(BLOCK_SIZE);
         block.add(write("a"));

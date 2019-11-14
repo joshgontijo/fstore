@@ -49,8 +49,6 @@ public class LsmTreeIT {
             lsmtree.put(i, String.valueOf(i));
         }
 
-        lsmtree.sstables.flushSync();
-
         performScans(items);
     }
 

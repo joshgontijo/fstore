@@ -65,7 +65,7 @@ public class BloomFilterTest {
         assertFalse(filter.contains(toBytes(2L)));
 
         ByteBuffer data = ByteBuffer.allocate(4096);
-        filter.writeTo(writer, codec, bufferPool);
+        filter.writeTo(writer, codec, 4096, bufferPool);
 
         data.flip();
 

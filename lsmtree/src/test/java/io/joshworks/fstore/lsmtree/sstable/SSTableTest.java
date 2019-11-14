@@ -19,7 +19,6 @@ import org.junit.Test;
 import java.io.File;
 import java.util.TreeSet;
 
-import static io.joshworks.fstore.core.io.Storage.EOF;
 import static io.joshworks.fstore.lsmtree.Utils.assertIterator;
 import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
@@ -369,6 +368,45 @@ public class SSTableTest {
         assertIterator(direction, half, secondHalf);
     }
 
+    @Test
+    public void forward_iterator_also_returns_deleted_entries() {
+        int entries = 10;
+        Direction direction = Direction.FORWARD;
+        for (int i = 0; i < entries; i++) {
+            sstable.append(Entry.delete(i));
+        }
+        sstable.roll(1, false);
+
+        SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(direction);
+        assertIterator(direction, entries, iterator);
+    }
+
+    @Test
+    public void backward_iterator_also_returns_deleted_entries() {
+        int entries = 10;
+        Direction direction = Direction.BACKWARD;
+        for (int i = 0; i < entries; i++) {
+            sstable.append(Entry.delete(i));
+        }
+        sstable.roll(1, false);
+
+        SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(direction);
+        assertIterator(direction, entries, iterator);
+    }
+
+    @Test
+    public void forward_range_iterator_also_returns_deleted_entries() {
+        int entries = 10;
+        Direction direction = Direction.FORWARD;
+        int endExclusive = entries / 2;
+        for (int i = 0; i < entries; i++) {
+            sstable.append(Entry.delete(i));
+        }
+        sstable.roll(1, false);
+
+        SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(direction, Range.of(0, endExclusive));
+        assertIterator(direction, endExclusive, iterator);
+    }
 
     private void addSomeEntries(int entries) {
         for (int i = 0; i < entries; i++) {
@@ -388,9 +426,6 @@ public class SSTableTest {
         sstable.roll(1, false);
 
         for (int i = 0; i < items; i += 1) {
-            if (i == 806707) {
-                System.out.println();
-            }
             Integer expected = treeSet.floor(i);
             Entry<Integer, String> floor = sstable.floor(i);
             assertNotNull("Failed on " + i, floor);
@@ -405,22 +440,13 @@ public class SSTableTest {
     private void ceilingWithStep(int items, int steps) {
         TreeSet<Integer> treeSet = new TreeSet<>();
         for (int i = 0; i < items; i += steps) {
-            if (i == 806707) {
-                System.out.println();
-            }
             treeSet.add(i);
-            long append = sstable.append(Entry.add(i, String.valueOf(i)));
-            if (append == EOF) {
-                System.out.println();
-            }
+            sstable.append(Entry.add(i, String.valueOf(i)));
         }
         sstable.roll(1, false);
 
 
         for (int i = 0; i < items - steps; i += 1) {
-            if (i == 806707) {
-                System.out.println();
-            }
             Integer expected = treeSet.ceiling(i);
             Entry<Integer, String> ceiling = sstable.ceiling(i);
             assertNotNull("Failed on " + i, ceiling);

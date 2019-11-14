@@ -85,24 +85,24 @@ public class DefaultCompactor<T> implements ICompactor {
     }
 
     @Override
-    public void compact() {
-        scheduleCompaction(1);
+    public void compact(boolean force) {
+        scheduleCompaction(1, force);
     }
 
-    private void scheduleCompaction(int level) {
+    private void scheduleCompaction(int level, boolean force) {
         if (closed.get()) {
             logger.info("Close requested, ignoring compaction request");
             return;
         }
-        coordinator.execute(() -> processCompaction(level));
+        coordinator.execute(() -> processCompaction(level, force));
     }
 
-    private void processCompaction(int level) {
+    private void processCompaction(int level, boolean force) {
         if (closed.get()) {
             logger.info("Close requested, ignoring compaction");
             return;
         }
-        List<Log<T>> segmentsForCompaction = segmentsForCompaction(level);
+        List<Log<T>> segmentsForCompaction = segmentsForCompaction(level, force);
         if (segmentsForCompaction.isEmpty()) {
             return;
         }
@@ -165,15 +165,16 @@ public class DefaultCompactor<T> implements ICompactor {
 
                 compacting.removeAll(sources);
 
-                scheduleCompaction(level);
-                scheduleCompaction(level + 1);
+                //force does not propagate to upper level
+                scheduleCompaction(level, false);
+                scheduleCompaction(level + 1, false);
                 deleteAll(sources);
             });
         });
     }
 
     //returns either the segments to be compacted or empty if not enough segments
-    private List<Log<T>> segmentsForCompaction(int level) {
+    private List<Log<T>> segmentsForCompaction(int level, boolean force) {
         if (level <= 0) {
             throw new IllegalArgumentException("Level must be greater than zero");
         }
@@ -187,9 +188,15 @@ public class DefaultCompactor<T> implements ICompactor {
                     break;
                 }
             }
-            if (toBeCompacted.size() < compactionThreshold) {
+            if (force) {
+                if (toBeCompacted.size() <= 1) {
+                    //no segment regardless
+                    return List.of();
+                }
+            } else if (toBeCompacted.size() < compactionThreshold) {
                 return List.of();
             }
+
             compacting.addAll(toBeCompacted);
             return toBeCompacted;
         });

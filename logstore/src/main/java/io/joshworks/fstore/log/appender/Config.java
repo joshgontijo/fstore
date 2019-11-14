@@ -31,7 +31,7 @@ public class Config<T> {
     int compactionThreshold = 3;
     boolean parallelCompaction;
     int readPageSize = Memory.PAGE_SIZE;
-    boolean directBufferPool = false;
+    boolean directBufferPool;
     StorageMode compactionStorage;
     int maxEntrySize = Size.MB.ofInt(2);
 
@@ -71,8 +71,8 @@ public class Config<T> {
         return this;
     }
 
-    public Config<T> directBufferPool() {
-        this.directBufferPool = true;
+    public Config<T> useDirectBufferPool(boolean directBufferPool) {
+        this.directBufferPool = directBufferPool;
         return this;
     }
 
@@ -87,15 +87,12 @@ public class Config<T> {
     }
 
     public Config<T> compactionThreshold(int compactionThreshold) {
-        if (compactionThreshold <= 0) {
-            throw new IllegalArgumentException("compactionThreshold must be greater than zero");
-        }
         this.compactionThreshold = compactionThreshold;
         return this;
     }
 
-    public Config<T> parallelCompaction() {
-        this.parallelCompaction = true;
+    public Config<T> parallelCompaction(boolean parallelCompaction) {
+        this.parallelCompaction = parallelCompaction;
         return this;
     }
 
@@ -105,7 +102,7 @@ public class Config<T> {
     }
 
     public Config<T> compactionStrategy(SegmentCombiner<T> combiner) {
-        this.combiner = combiner;
+        this.combiner = requireNonNull(combiner, "SegmentCombiner must be provided");
         return this;
     }
 

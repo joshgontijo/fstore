@@ -33,12 +33,13 @@ public class Metrics {
         items.clear();
     }
 
-    public Long remove(String key) {
-        return items.remove(key);
+    public long remove(String key) {
+        Long item = items.remove(key);
+        return item == null ? 0 : item;
     }
 
-    public Long get(String key) {
-        return items.get(key);
+    public long get(String key) {
+        return items.getOrDefault(key, 0L);
     }
 
     public static Metrics merge(Metrics... items) {

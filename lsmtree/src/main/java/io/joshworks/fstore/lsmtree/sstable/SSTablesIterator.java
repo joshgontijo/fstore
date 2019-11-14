@@ -14,6 +14,7 @@ class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<
     private final long maxAge;
     private final Direction direction;
     private final List<PeekingIterator<Entry<K, V>>> segmentsIterators;
+    private Entry<K, V> cached;
 
     SSTablesIterator(long maxAge, Direction direction, List<PeekingIterator<Entry<K, V>>> iterators) {
         this.maxAge = maxAge;
@@ -23,14 +24,26 @@ class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<
 
     @Override
     public Entry<K, V> next() {
-        Entry<K, V> entry;
-        do {
-            entry = getNextEntry(direction, segmentsIterators);
-        } while (entry != null && !entry.readable(maxAge) && hasNext());
+        //require for hasNext to work
+        if (cached != null) {
+            Entry<K, V> tmp = cached;
+            cached = null;
+            return tmp;
+        }
+        Entry<K, V> entry = nextReadableEntry();
         if (entry == null) {
             throw new NoSuchElementException();
         }
         return entry;
+    }
+
+    private Entry<K, V> nextReadableEntry() {
+        Entry<K, V> entry;
+        do {
+            entry = getNextEntry(direction, segmentsIterators);
+        } while (entry != null && !entry.readable(maxAge) && delegateHasNext());
+
+        return entry != null && entry.readable(maxAge) ? entry : null;
     }
 
     @Override
@@ -42,6 +55,14 @@ class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<
 
     @Override
     public boolean hasNext() {
+        if (cached != null) {
+            return true;
+        }
+        cached = nextReadableEntry();
+        return cached != null;
+    }
+
+    private boolean delegateHasNext() {
         for (PeekingIterator<Entry<K, V>> segment : segmentsIterators) {
             if (segment.hasNext()) {
                 return true;
@@ -52,7 +73,7 @@ class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<
 
     private Entry<K, V> getNextEntry(Direction direction, List<PeekingIterator<Entry<K, V>>> segmentIterators) {
         if (!segmentIterators.isEmpty()) {
-            PeekingIterator<Entry<K, V>> prev = null;
+            PeekingIterator<Entry<K, V>> smaller = null;
             Iterator<PeekingIterator<Entry<K, V>>> itit = segmentIterators.iterator();
             while (itit.hasNext()) {
                 PeekingIterator<Entry<K, V>> curr = itit.next();
@@ -61,25 +82,25 @@ class SSTablesIterator<K extends Comparable<K>, V> implements CloseableIterator<
                     IOUtils.closeQuietly(curr);
                     continue;
                 }
-                if (prev == null) {
-                    prev = curr;
+                if (smaller == null) {
+                    smaller = curr;
                     continue;
                 }
-                Entry<K, V> prevItem = prev.peek();
+                Entry<K, V> smallerEntry = smaller.peek();
                 Entry<K, V> currItem = curr.peek();
-                int c = prevItem.compareTo(currItem);
+                int c = smallerEntry.compareTo(currItem);
                 if (c == 0) { //duplicate remove from oldest entry
-                    prev.next();
+                    smaller.next();
                     if (Direction.BACKWARD.equals(direction)) {
-                        prev = curr;
+                        smaller = curr;
                     }
                 }
                 if ((Direction.FORWARD.equals(direction)) && c >= 0 || (Direction.BACKWARD.equals(direction) && c < 0)) {
-                    prev = curr;
+                    smaller = curr;
                 }
             }
-            if (prev != null) {
-                return prev.next();
+            if (smaller != null) {
+                return smaller.next();
             }
         }
         return null;
