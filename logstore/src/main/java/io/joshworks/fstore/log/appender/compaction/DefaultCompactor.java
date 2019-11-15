@@ -232,7 +232,7 @@ public class DefaultCompactor<T> implements ICompactor {
     }
 
     private static ExecutorService levelExecutor(String name) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1,
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1,
                 TimeUnit.MINUTES,
                 new ArrayBlockingQueue<>(5),
                 Threads.namedThreadFactory(name),
@@ -241,8 +241,8 @@ public class DefaultCompactor<T> implements ICompactor {
     }
 
     private static ExecutorService singleThreadExecutor(String name) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1,
-                TimeUnit.HOURS,
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1,
+                TimeUnit.MINUTES,
                 new LinkedBlockingDeque<>(),
                 Threads.namedThreadFactory(name),
                 new ThreadPoolExecutor.DiscardPolicy());

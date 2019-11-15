@@ -37,8 +37,6 @@ public class EStore {
 
     private static final Metrics metrics = new Metrics();
 
-    //FIXME (compaction) -> No entries were found in the result segment
-
     public static void main(String[] args) {
         File dir = new File("S:\\es-server-1");
 
@@ -56,7 +54,7 @@ public class EStore {
                 .blockSize(Size.KB.ofInt(8))
                 .parallelCompaction(false)
                 .useDirectBufferPool(true)
-                .flushQueueSize(1)
+                .flushQueueSize(3)
                 .open();
 
         Thread monitor = new Thread(EStore::monitor);
