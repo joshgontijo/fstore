@@ -1,25 +1,15 @@
 package io.joshworks.fstore.lsmtree;
 
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
-import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.cache.Cache;
-import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.appender.FlushMode;
-import io.joshworks.fstore.log.appender.compaction.combiner.MergeCombiner;
-import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
-import io.joshworks.fstore.log.segment.block.Block;
 import io.joshworks.fstore.lsmtree.log.EntryAdded;
 import io.joshworks.fstore.lsmtree.log.EntryDeleted;
 import io.joshworks.fstore.lsmtree.log.LogRecord;
 import io.joshworks.fstore.lsmtree.log.TransactionLog;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
-import io.joshworks.fstore.lsmtree.sstable.SSTableCompactor;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
 
 import java.io.Closeable;
@@ -28,7 +18,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 
-import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static java.util.Objects.requireNonNull;
 
 public class LsmTree<K extends Comparable<K>, V> implements Closeable {
@@ -36,7 +25,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
     private final SSTables<K, V> sstables;
     private final TransactionLog<K, V> log;
 
-    private LsmTree(Builder<K, V> builder) {
+    LsmTree(Builder<K, V> builder) {
         this.sstables = createSSTable(builder);
         this.log = createTransactionLog(builder);
         this.log.restore(this::restore);
@@ -63,7 +52,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
                 builder.codec,
                 builder.flushQueueSize,
                 builder.parallelCompaction,
-                builder.tlogCompactionThreshold,
+                builder.sstableCompactionThreshold,
                 builder.directBufferPool,
                 builder.bloomFPProb,
                 builder.blockSize,
@@ -170,168 +159,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
 
     public void compact() {
         sstables.compact();
-    }
-
-    public static class Builder<K extends Comparable<K>, V> {
-
-
-        private final File directory;
-        private final Serializer<K> keySerializer;
-        private final Serializer<V> valueSerializer;
-        private MergeCombiner<Entry<K, V>> sstableCompactor;
-        private int flushThreshold = 1000000;
-        private Codec codec = new SnappyCodec();
-        private String name = "lsm-tree";
-        private StorageMode sstableStorageMode = StorageMode.MMAP;
-        private FlushMode ssTableFlushMode = FlushMode.ON_ROLL;
-        private StorageMode tlogStorageMode = StorageMode.RAF;
-
-        private long tlogSize = Size.MB.of(256);
-        private int tlogCompactionThreshold = 3;
-        private int sstableCompactionThreshold = 3;
-        private int blockSize = Size.KB.ofInt(4);
-        private long segmentSize = Size.MB.of(12);
-        private int maxEntrySize = Size.MB.ofInt(2);
-        private double bloomFPProb = 0.05;
-        private int flushQueueSize = 3;
-        private boolean parallelCompaction;
-        private boolean directBufferPool;
-
-        private Cache<String, Block> blockCache = Cache.lruCache(1000, -1);
-        private long maxAgeSeconds = NO_MAX_AGE;
-
-
-        private Builder(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-            this.directory = directory;
-            this.keySerializer = keySerializer;
-            this.valueSerializer = valueSerializer;
-        }
-
-        public Builder<K, V> flushThreshold(int flushThreshold) {
-            if (flushThreshold <= 0) {
-                throw new IllegalArgumentException("Flush threshold must greater than zero");
-            }
-            this.flushThreshold = flushThreshold;
-            return this;
-        }
-
-        public Builder<K, V> parallelCompaction(boolean parallelCompaction) {
-            this.parallelCompaction = parallelCompaction;
-            return this;
-        }
-
-        public Builder<K, V> useDirectBufferPool(boolean directBufferPool) {
-            this.directBufferPool = directBufferPool;
-            return this;
-        }
-
-        public Builder<K, V> flushQueueSize(int flushQueueSize) {
-            if (flushQueueSize < 1) {
-                throw new IllegalArgumentException("Flush threshold must greater than zero");
-            }
-            this.flushQueueSize = flushQueueSize;
-            return this;
-        }
-
-        public Builder<K, V> bloomFilterFalsePositiveProbability(double bloomFPProb) {
-            if (bloomFPProb <= 0) {
-                throw new IllegalArgumentException("Bloom filter false positive probability must greater than zero");
-            }
-            this.bloomFPProb = bloomFPProb;
-            return this;
-        }
-
-        public Builder<K, V> codec(Codec codec) {
-            requireNonNull(codec, "Codec cannot be null");
-            this.codec = codec;
-            return this;
-        }
-
-        public Builder<K, V> maxAge(long maxAgeSeconds) {
-            this.maxAgeSeconds = maxAgeSeconds;
-            return this;
-        }
-
-        public Builder<K, V> sstableCompactor(UniqueMergeCombiner<Entry<K, V>> sstableCompactor) {
-            this.sstableCompactor = sstableCompactor;
-            return this;
-        }
-
-        public Builder<K, V> segmentSize(long size) {
-            if (size <= 0) {
-                throw new IllegalArgumentException("Segment size must be greater than zero");
-            }
-            this.segmentSize = size;
-            return this;
-        }
-
-        public Builder<K, V> maxEntrySize(int maxEntrySize) {
-            if (maxEntrySize <= 0) {
-                throw new IllegalArgumentException("Segment size must be greater than zero");
-            }
-            this.maxEntrySize = maxEntrySize;
-            return this;
-        }
-
-        public Builder<K, V> blockSize(int blockSize) {
-            this.blockSize = blockSize;
-            return this;
-        }
-
-        public Builder<K, V> blockCache(Cache<String, Block> blockCache) {
-            this.blockCache = requireNonNull(blockCache, "Cache must be provided");
-            return this;
-        }
-
-        public Builder<K, V> sstableStorageMode(StorageMode mode) {
-            requireNonNull(mode, "StorageMode cannot be null");
-            requireNonNull(mode);
-            this.sstableStorageMode = mode;
-            return this;
-        }
-
-        public Builder<K, V> ssTableFlushMode(FlushMode mode) {
-            requireNonNull(mode);
-            this.ssTableFlushMode = mode;
-            return this;
-        }
-
-        public Builder<K, V> transactionLogStorageMode(StorageMode mode) {
-            requireNonNull(mode);
-            this.tlogStorageMode = mode;
-            return this;
-        }
-
-        public Builder<K, V> transactionLogSize(long tlogSize) {
-            this.tlogSize = tlogSize;
-            return this;
-        }
-
-        public Builder<K, V> transactionLogCompactionThreshold(int compactionThreshold) {
-            this.tlogCompactionThreshold = compactionThreshold;
-            return this;
-        }
-
-        public Builder<K, V> sstableCompactionThreshold(int compactionThreshold) {
-            this.sstableCompactionThreshold = compactionThreshold;
-            return this;
-        }
-
-        public Builder<K, V> name(String name) {
-            this.name = name;
-            return this;
-        }
-
-        public LsmTree<K, V> open() {
-            if (maxEntrySize > segmentSize) {
-                throw new IllegalStateException("Segment size must be greater than max entry size");
-            }
-            if (blockSize > segmentSize) {
-                throw new IllegalStateException("Segment size must be greater than block size");
-            }
-            this.sstableCompactor = this.sstableCompactor == null ? new SSTableCompactor<>(maxAgeSeconds) : sstableCompactor;
-            return new LsmTree<>(this);
-        }
     }
 
 }
