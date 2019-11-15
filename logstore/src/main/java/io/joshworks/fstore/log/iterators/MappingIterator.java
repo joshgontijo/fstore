@@ -1,23 +1,17 @@
 package io.joshworks.fstore.log.iterators;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.CloseableIterator;
 
-import java.io.IOException;
 import java.util.function.Function;
 
-class MappingIterator<R, T> implements LogIterator<R> {
+class MappingIterator<R, T> implements CloseableIterator<R> {
 
-    private final LogIterator<T> delegate;
+    private final CloseableIterator<T> delegate;
     private Function<T, R> mapper;
 
-    MappingIterator(LogIterator<T> delegate, Function<T, R> mapper) {
+    MappingIterator(CloseableIterator<T> delegate, Function<T, R> mapper) {
         this.delegate = delegate;
         this.mapper = mapper;
-    }
-
-    @Override
-    public long position() {
-        return delegate.position();
     }
 
     @Override

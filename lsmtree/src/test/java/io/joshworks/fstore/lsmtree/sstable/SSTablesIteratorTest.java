@@ -9,7 +9,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
@@ -23,7 +22,7 @@ public class SSTablesIteratorTest {
         List<Entry<String, Integer>> segment2 = List.of(Entry.add("3", 3), Entry.add("4", 4));
 
 
-        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(NO_MAX_AGE, Direction.FORWARD, toIt(segment1, segment2));
+        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(Direction.FORWARD, toIt(segment1, segment2));
         assertExactSequence(iterator, 1, 2, 3, 4);
     }
 
@@ -34,18 +33,8 @@ public class SSTablesIteratorTest {
         List<Entry<String, Integer>> segment2 = List.of(Entry.add("1", 1), Entry.add("2", 2));
 
 
-        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(NO_MAX_AGE, Direction.FORWARD, toIt(segment1, segment2));
+        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(Direction.FORWARD, toIt(segment1, segment2));
         assertExactSequence(iterator, 1, 2, 3, 4);
-    }
-
-    @Test
-    public void deletion() {
-
-        List<Entry<String, Integer>> segment1 = List.of(Entry.add("1", 1), Entry.add("2", 2));
-        List<Entry<String, Integer>> segment2 = List.of(Entry.delete("1"), Entry.delete("2"));
-
-        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(NO_MAX_AGE, Direction.FORWARD, toIt(segment1, segment2));
-        assertExactSequence(iterator);
     }
 
     @Test
@@ -54,19 +43,8 @@ public class SSTablesIteratorTest {
         List<Entry<String, Integer>> segment1 = List.of(Entry.add("1", 1), Entry.add("2", 2));
         List<Entry<String, Integer>> segment2 = List.of(Entry.add("1", 111111), Entry.add("2", 22222));
 
-        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(NO_MAX_AGE, Direction.FORWARD, toIt(segment1, segment2));
+        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(Direction.FORWARD, toIt(segment1, segment2));
         assertExactSequence(iterator, 111111, 22222);
-    }
-
-    @Test
-    public void replace_delete() {
-
-        List<Entry<String, Integer>> segment1 = List.of(Entry.add("1", 1), Entry.add("2", 2));
-        List<Entry<String, Integer>> segment2 = List.of(Entry.add("1", 111111), Entry.add("2", 22222));
-        List<Entry<String, Integer>> segment3 = List.of(Entry.delete("1"), Entry.delete("2"));
-
-        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(NO_MAX_AGE, Direction.FORWARD, toIt(segment1, segment2, segment3));
-        assertExactSequence(iterator);
     }
 
     @Test
@@ -75,10 +53,9 @@ public class SSTablesIteratorTest {
         List<Entry<String, Integer>> segment1 = List.of(Entry.add("3", 3), Entry.add("4", 4));
         List<Entry<String, Integer>> segment2 = List.of(Entry.add("1", 1), Entry.add("2", 2));
 
-        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(NO_MAX_AGE, Direction.FORWARD, toIt(segment1, segment2));
+        SSTablesIterator<String, Integer> iterator = new SSTablesIterator<>(Direction.FORWARD, toIt(segment1, segment2));
         assertExactSequence(iterator, 1, 2, 3, 4);
     }
-
 
     private static void assertExactSequence(SSTablesIterator<String, Integer> iterator, Integer... items) {
         for (Integer expected : items) {

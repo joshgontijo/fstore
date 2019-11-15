@@ -1,25 +1,19 @@
 package io.joshworks.fstore.log.iterators;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.CloseableIterator;
 
-import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.function.Predicate;
 
-class FilteringIterator<T> implements LogIterator<T> {
+class FilteringIterator<T> implements CloseableIterator<T> {
 
-    private final LogIterator<T> delegate;
+    private final CloseableIterator<T> delegate;
     private Predicate<? super T> predicate;
     private T entry;
 
-    FilteringIterator(LogIterator<T> delegate, Predicate<? super T> predicate) {
+    FilteringIterator(CloseableIterator<T> delegate, Predicate<? super T> predicate) {
         this.delegate = delegate;
         this.predicate = predicate;
-    }
-
-    @Override
-    public long position() {
-        return delegate.position();
     }
 
     @Override

@@ -1,26 +1,20 @@
 package io.joshworks.fstore.log.iterators;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.CloseableIterator;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-class BatchingIterator<T> implements LogIterator<List<T>> {
+class BatchingIterator<T> implements CloseableIterator<List<T>> {
 
-    private final LogIterator<T> delegate;
+    private final CloseableIterator<T> delegate;
     private final int bufferSize;
     private List<T> buffer = new ArrayList<>();
 
-    BatchingIterator(LogIterator<T> delegate, int bufferSize) {
+    BatchingIterator(CloseableIterator<T> delegate, int bufferSize) {
         this.delegate = delegate;
         this.bufferSize = bufferSize;
-    }
-
-    @Override
-    public long position() {
-        return delegate.position();
     }
 
     @Override
