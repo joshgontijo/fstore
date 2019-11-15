@@ -1,20 +1,15 @@
 package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
-import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.core.cache.Cache;
-import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
-import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.Closeable;
 import java.io.File;
@@ -39,25 +34,26 @@ public class Index implements Closeable {
     public Index(File rootDir, int flushThreshold, Cache<Long, Integer> versionCache, Function<Long, StreamMetadata> metadataSupplier) {
         this.versionCache = versionCache;
         this.metadataSupplier = metadataSupplier;
-        this.sstables = new SSTables<>(
-                new File(rootDir, NAME),
-                new IndexKeySerializer(),
-                Serializers.LONG,
-                NAME,
-                INDEX_ENTRY_BYTES * flushThreshold,
-                flushThreshold,
-                Size.MB.ofInt(2),
-                StorageMode.MMAP,
-                FlushMode.MANUAL,
-                new IndexCompactor(metadataSupplier, this::version),
-                Entry.NO_MAX_AGE,
-                new LZ4Codec(),
-                3,
-                false,
-                false,
-                0.01,
-                Size.KB.ofInt(4),
-                Cache.lruCache(100, -1));
+//        this.sstables = new SSTables<>(
+//                new File(rootDir, NAME),
+//                new IndexKeySerializer(),
+//                Serializers.LONG,
+//                NAME,
+//                INDEX_ENTRY_BYTES * flushThreshold,
+//                flushThreshold,
+//                Size.MB.ofInt(2),
+//                StorageMode.MMAP,
+//                FlushMode.MANUAL,
+//                new IndexCompactor(metadataSupplier, this::version),
+//                Entry.NO_MAX_AGE,
+//                new LZ4Codec(),
+//                3,
+//                false,
+//                false,
+//                0.01,
+//                Size.KB.ofInt(4),
+//                Cache.lruCache(100, -1));
+        throw new UnsupportedOperationException("COMMENTED OUT");
     }
 
     @Override
