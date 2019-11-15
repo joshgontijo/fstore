@@ -143,7 +143,6 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         log.close();
     }
 
-
     private void restore(LogRecord record) {
         switch (record.type) {
             case ADD:
