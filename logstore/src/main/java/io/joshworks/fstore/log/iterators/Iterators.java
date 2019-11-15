@@ -23,13 +23,6 @@ public class Iterators {
 
     }
 
-    public static <T> T await(LogIterator<T> it, long pollMs) {
-        while(!it.hasNext()) {
-            Threads.sleep(pollMs);
-        }
-        return it.next();
-    }
-
     public static boolean await(CloseableIterator<?> it, long pollMs, long maxTime) {
         pollMs = Math.min(pollMs, maxTime);
         long start = System.currentTimeMillis();
@@ -62,23 +55,23 @@ public class Iterators {
         return new IteratorIterator<>(original);
     }
 
-    public static <T> CloseableIterator<T> concat(LogIterator<T>... originals) {
+    public static <T> CloseableIterator<T> concat(CloseableIterator<T>... originals) {
         return new IteratorIterator<>(Arrays.asList(originals));
     }
 
-    public static <T, R> LogIterator<R> mapping(LogIterator<T> iterator, Function<T, R> mapper) {
+    public static <T, R> CloseableIterator<R> mapping(CloseableIterator<T> iterator, Function<T, R> mapper) {
         return new MappingIterator<>(iterator, mapper);
     }
 
-    public static <T> LogIterator<T> filtering(LogIterator<T> iterator, Predicate<? super T> predicate) {
+    public static <T> CloseableIterator<T> filtering(CloseableIterator<T> iterator, Predicate<? super T> predicate) {
         return new FilteringIterator<>(iterator, predicate);
     }
 
-    public static <T> LogIterator<T> buffering(LogIterator<T> iterator, int bufferSize) {
+    public static <T> CloseableIterator<T> buffering(CloseableIterator<T> iterator, int bufferSize) {
         return new BufferingIterator<>(iterator, bufferSize);
     }
 
-    public static <T> LogIterator<List<T>> batching(LogIterator<T> iterator, int batchSize) {
+    public static <T> CloseableIterator<List<T>> batching(LogIterator<T> iterator, int batchSize) {
         return new BatchingIterator<>(iterator, batchSize);
     }
 

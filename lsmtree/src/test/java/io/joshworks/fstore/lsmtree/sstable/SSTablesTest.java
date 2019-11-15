@@ -427,7 +427,6 @@ public class SSTablesTest {
         try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD)) {
             while (iterator.hasNext()) {
                 Entry<Integer, String> entry = iterator.next();
-//                System.out.println(entry);
                 assertNotEquals("Failed on " + entry, 0, entry.key % 2);
             }
         }

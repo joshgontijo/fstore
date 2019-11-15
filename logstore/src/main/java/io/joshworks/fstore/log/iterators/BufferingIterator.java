@@ -1,26 +1,20 @@
 package io.joshworks.fstore.log.iterators;
 
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.CloseableIterator;
 
-import java.io.IOException;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 
-class BufferingIterator<T> implements LogIterator<T> {
+class BufferingIterator<T> implements CloseableIterator<T> {
 
-    private final LogIterator<T> delegate;
+    private final CloseableIterator<T> delegate;
     private final int bufferSize;
     private final Queue<T> buffer = new LinkedList<>();
 
-    BufferingIterator(LogIterator<T> delegate, int bufferSize) {
+    BufferingIterator(CloseableIterator<T> delegate, int bufferSize) {
         this.delegate = delegate;
         this.bufferSize = bufferSize;
-    }
-
-    @Override
-    public long position() {
-        return delegate.position();
     }
 
     @Override

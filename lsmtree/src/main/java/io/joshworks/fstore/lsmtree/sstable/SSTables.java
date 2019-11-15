@@ -400,7 +400,8 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 iterators.add(Iterators.peekingIterator(memTable.iterator(direction)));
             });
 
-            return new SSTablesIterator<>(maxAge, direction, iterators);
+            SSTablesIterator<K, V> ssTablesIterator = new SSTablesIterator<>(direction, iterators);
+            return Iterators.filtering(ssTablesIterator, e -> e.readable(maxAge));
         } finally {
             lock.unlock();
         }
@@ -427,7 +428,8 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
                 iterators.add(Iterators.peekingIterator(memTable.iterator(direction, range)));
             });
 
-            return new SSTablesIterator<>(maxAge, direction, iterators);
+            SSTablesIterator<K, V> ssTablesIterator = new SSTablesIterator<>(direction, iterators);
+            return Iterators.filtering(ssTablesIterator, e -> e.readable(maxAge));
         } finally {
             lock.unlock();
         }
