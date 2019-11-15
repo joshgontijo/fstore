@@ -5,7 +5,6 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.lsmtree.EntryType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -1,7 +1,5 @@
 package io.joshworks.fstore.lsmtree.log;
 
-import io.joshworks.fstore.lsmtree.EntryType;
-
 import java.util.Objects;
 
 public class EntryDeleted<K> extends LogRecord {

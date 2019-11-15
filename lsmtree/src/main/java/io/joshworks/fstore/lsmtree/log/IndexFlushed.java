@@ -1,7 +1,5 @@
 package io.joshworks.fstore.lsmtree.log;
 
-import io.joshworks.fstore.lsmtree.EntryType;
-
 import java.util.Objects;
 
 class IndexFlushed extends LogRecord {
