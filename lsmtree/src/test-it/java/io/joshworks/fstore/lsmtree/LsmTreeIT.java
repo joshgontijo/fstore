@@ -55,7 +55,6 @@ public class LsmTreeIT {
     @Test
     public void scan_x50() {
         int items = FLUSH_THRESHOLD * 50;
-        long start = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
             lsmtree.put(i, String.valueOf(i));
         }
@@ -80,16 +79,16 @@ public class LsmTreeIT {
     }
 
     private void performScans(int items) {
-//        assertIterator(Direction.FORWARD, items, lsmtree.iterator(Direction.FORWARD));
-//        assertIterator(Direction.BACKWARD, items, lsmtree.iterator(Direction.BACKWARD));
-//
-//        assertIterator(Direction.FORWARD, items, lsmtree.iterator(Direction.FORWARD, Range.of(0, items)));
-//        assertIterator(Direction.FORWARD, 40, lsmtree.iterator(Direction.FORWARD, Range.of(10, 50)));
-//        assertIterator(Direction.FORWARD, 100, lsmtree.iterator(Direction.FORWARD, Range.of(items - 100, items)));
+        assertIterator(Direction.FORWARD, items, lsmtree.iterator(Direction.FORWARD));
+        assertIterator(Direction.BACKWARD, items, lsmtree.iterator(Direction.BACKWARD));
+
+        assertIterator(Direction.FORWARD, items, lsmtree.iterator(Direction.FORWARD, Range.of(0, items)));
+        assertIterator(Direction.FORWARD, 40, lsmtree.iterator(Direction.FORWARD, Range.of(10, 50)));
+        assertIterator(Direction.FORWARD, 100, lsmtree.iterator(Direction.FORWARD, Range.of(items - 100, items)));
 
         assertIterator(Direction.BACKWARD, items, lsmtree.iterator(Direction.BACKWARD, Range.of(0, items)));
-//        assertIterator(Direction.BACKWARD, 40, lsmtree.iterator(Direction.BACKWARD, Range.of(10, 50)));
-//        assertIterator(Direction.BACKWARD, 100, lsmtree.iterator(Direction.BACKWARD, Range.of(items - 100, items)));
+        assertIterator(Direction.BACKWARD, 40, lsmtree.iterator(Direction.BACKWARD, Range.of(10, 50)));
+        assertIterator(Direction.BACKWARD, 100, lsmtree.iterator(Direction.BACKWARD, Range.of(items - 100, items)));
     }
 
 }
