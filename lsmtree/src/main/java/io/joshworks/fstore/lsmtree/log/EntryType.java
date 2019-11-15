@@ -1,4 +1,4 @@
-package io.joshworks.fstore.lsmtree;
+package io.joshworks.fstore.lsmtree.log;
 
 public enum EntryType {
     MEM_FLUSH_STARTED((short) 0),

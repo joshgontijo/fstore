@@ -1,7 +1,6 @@
 package io.joshworks.fstore.lsmtree.log;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.lsmtree.EntryType;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
