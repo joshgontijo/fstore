@@ -267,6 +267,7 @@ public class SSTables<K extends Comparable<K>, V> implements TreeFunctions<K, V>
     public List<Entry<K, V>> findAll(K key, Expression expression, Predicate<Entry<K, V>> matcher) {
         requireNonNull(key, "Key must be provided");
         metrics.update("findAll");
+
         List<Entry<K, V>> found = new ArrayList<>();
         Entry<K, V> memEntry = expression.apply(key, memTable);
         if (memEntry != null && matcher.test(memEntry)) {

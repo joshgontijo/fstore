@@ -432,18 +432,18 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private Entry<K, V> readFromBlock(K key, Midpoint<K> midpoint) {
         String cacheKey = cacheKey(midpoint.position);
         Block cached = blockCache.get(cacheKey);
-        if (cached == null) {
-            metrics.update("blockCache.miss");
-            Block block = readBlock(midpoint);
-            if (block == null) {
-                return null;
-            }
-            blockCache.add(cacheKey, block);
-            return tryReadBlockEntry(key, block);
-        } else {
+        if (cached != null) {
             metrics.update("blockCache.hit");
+            return tryReadBlockEntry(key, cached);
         }
-        return tryReadBlockEntry(key, cached);
+        metrics.update("blockCache.miss");
+        Block block = readBlock(midpoint);
+        if (block == null) {
+            return null;
+        }
+        blockCache.add(cacheKey, block);
+        return tryReadBlockEntry(key, block);
+
     }
 
     private Entry<K, V> tryReadBlockEntry(K key, Block block) {
