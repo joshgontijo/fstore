@@ -88,7 +88,7 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         return entry == null ? null : entry.value;
     }
 
-    public Entry<K, V> getEntry(K key) {
+    private Entry<K, V> getEntry(K key) {
         requireNonNull(key, "Key must be provided");
         return sstables.get(key);
     }
@@ -97,6 +97,10 @@ public class LsmTree<K extends Comparable<K>, V> implements Closeable {
         requireNonNull(key, "Key must be provided");
         log.append(LogRecord.delete(key));
         sstables.add(Entry.delete(key));
+    }
+
+    public void flush() {
+        sstables.flushSync();
     }
 
     /**
