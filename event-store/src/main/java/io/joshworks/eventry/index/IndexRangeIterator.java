@@ -3,7 +3,7 @@ package io.joshworks.eventry.index;
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.log.CloseableIterator;
-import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 
 class IndexRangeIterator implements IndexIterator {
 

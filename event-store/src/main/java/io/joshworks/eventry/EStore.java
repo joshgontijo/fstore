@@ -12,16 +12,18 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
+import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.lsmtree.LsmTree;
-import io.joshworks.fstore.lsmtree.sstable.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.joshworks.fstore.es.shared.EventId.NO_VERSION;
@@ -30,7 +32,7 @@ public class EStore {
 
     private static final String STREAM_PREFIX = "stream-";
     private static final int EVENTS_PER_STREAM = 400;
-    private static final int STREAMS = 100000;
+    private static final int STREAMS = 10000;
     private static final int THREADS = 1;
     public static final int FLUSH_THRESHOLD = 1000000;
     private static LsmTree<IndexKey, EventRecord> store;
@@ -39,10 +41,20 @@ public class EStore {
 
     public static void main(String[] args) {
         File dir = new File("S:\\es-server-1");
-
         FileUtils.tryDelete(dir);
 
         store = open(dir);
+
+        String stream = "stream-1";
+        long hash = StreamHasher.hash(stream);
+        ContinuousIterator<IndexKey, EventRecord> it = new ContinuousIterator<>(() -> store.iterator(Direction.FORWARD, IndexKey.allOf(hash)));
+
+        var next = it.next();
+        System.out.println(next);
+        add(stream, new UserCreated("josh", 0));
+        Threads.sleep(500);
+        next = it.next();
+        System.out.println(next);
 
         Thread monitor = new Thread(EStore::monitor);
         monitor.start();
@@ -54,7 +66,7 @@ public class EStore {
         store = open(dir);
 
         for (int i = 0; i < STREAMS; i++) {
-            List<EventRecord> events = events1(STREAM_PREFIX + i);
+            List<EventRecord> events = events(STREAM_PREFIX + i);
         }
     }
 
@@ -64,7 +76,7 @@ public class EStore {
                 .codec(new SnappyCodec())
                 .flushThreshold(FLUSH_THRESHOLD)
                 .bloomFilterFalsePositiveProbability(0.1)
-                .blockCache(Cache.lruCache(1000, -1))
+                .blockCache(Cache.noCache())
                 .sstableStorageMode(StorageMode.MMAP)
                 .transactionLogStorageMode(StorageMode.MMAP)
                 .maxEntrySize(Size.MB.ofInt(6))
@@ -175,6 +187,50 @@ public class EStore {
                             " STREAM_READ_PER_SEC:" + readStreamPerSec +
                             " EVENTS_READ_PER_SEC:" + readEventsPerSec);
             Threads.sleep(1000);
+        }
+    }
+
+    private static class ContinuousIterator<K extends Comparable<K>, V> implements CloseableIterator<Entry<K, V>> {
+
+        private final Supplier<CloseableIterator<Entry<K, V>>> supplier;
+        private CloseableIterator<Entry<K, V>> it;
+        private boolean closed;
+
+        private ContinuousIterator(Supplier<CloseableIterator<Entry<K, V>>> supplier) {
+            this.supplier = supplier;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (closed) {
+                throw new IllegalStateException("Iterator is closed");
+            }
+            if (it == null) {
+                it = supplier.get();
+            }
+            boolean hasNext = it.hasNext();
+            if (!it.hasNext()) {
+                it.close();
+                it = null;
+            }
+            return hasNext;
+        }
+
+        @Override
+        public Entry<K, V> next() {
+            if (closed) {
+                throw new IllegalStateException("Iterator is closed");
+            }
+            return hasNext() ? it.next() : null;
+        }
+
+        @Override
+        public void close() {
+            if (!closed) {
+                it.close();
+                it = null;
+                closed = true;
+            }
         }
     }
 
