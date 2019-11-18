@@ -242,19 +242,19 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         return found;
     }
 
-    public K firstKey() {
+    K firstKey() {
         return midpoints.first().key;
     }
 
-    public K lastKey() {
+    K lastKey() {
         return midpoints.last().key;
     }
 
-    public Entry<K, V> first() {
+    Entry<K, V> first() {
         return getAt(midpoints.first(), true);
     }
 
-    public Entry<K, V> last() {
+    Entry<K, V> last() {
         return getAt(midpoints.last(), false);
     }
 
