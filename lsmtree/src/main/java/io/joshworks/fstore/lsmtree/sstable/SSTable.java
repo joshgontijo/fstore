@@ -170,7 +170,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
 
             if (exceedsMaxEntrySize(data) && !block.isEmpty()) {
                 bufferPool.free();
-                writeBlock();
+                writeBlock(block);
                 return append(entry);
             }
 
@@ -181,7 +181,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         }
         //block size full or expanded beyond blockSize
         if (block.position() > blockSize) {
-            writeBlock();
+            writeBlock(block);
         }
 
         metadata.entries++;
@@ -203,14 +203,13 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         return buffer;
     }
 
-    private long writeBlock() {
+    private void writeBlock(Block block) {
         long pos = delegate.append(block);
         if (pos == EOF) {
             throw new RuntimeException("No space left in the sstable");
         }
         addToMidpoints(pos, block);
         block.clear();
-        return pos;
     }
 
     @Override
@@ -564,7 +563,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     @Override
     public void roll(int level, boolean trim) {
         if (!block.isEmpty()) {
-            writeBlock();
+            writeBlock(block);
         }
         delegate.roll(level, trim, this::writeFooter);
     }
@@ -607,7 +606,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     @Override
     public void flush() {
         if (!block.isEmpty()) {
-            writeBlock();
+            writeBlock(block);
         }
         delegate.flush();
     }
