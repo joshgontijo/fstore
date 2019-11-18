@@ -2,7 +2,7 @@ package io.joshworks.eventry.index;
 
 import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
-import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 
 import java.util.function.Function;
 

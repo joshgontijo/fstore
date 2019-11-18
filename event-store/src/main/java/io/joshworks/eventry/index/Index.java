@@ -7,7 +7,7 @@ import io.joshworks.fstore.es.shared.streams.StreamHasher;
 import io.joshworks.fstore.lsmtree.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
 
