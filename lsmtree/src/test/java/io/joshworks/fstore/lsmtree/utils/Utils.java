@@ -2,7 +2,7 @@ package io.joshworks.fstore.lsmtree.utils;
 
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 
 import static org.junit.Assert.assertEquals;
 

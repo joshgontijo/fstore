@@ -7,7 +7,7 @@ import io.joshworks.fstore.lsmtree.log.EntryAdded;
 import io.joshworks.fstore.lsmtree.log.EntryDeleted;
 import io.joshworks.fstore.lsmtree.log.LogRecord;
 import io.joshworks.fstore.lsmtree.log.TransactionLog;
-import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 import io.joshworks.fstore.lsmtree.sstable.Expression;
 import io.joshworks.fstore.lsmtree.sstable.SSTables;
 

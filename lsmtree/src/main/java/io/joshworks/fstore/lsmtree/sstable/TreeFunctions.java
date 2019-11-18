@@ -1,5 +1,7 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
+
 public interface TreeFunctions<K extends Comparable<K>, V> {
 
     /**

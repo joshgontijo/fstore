@@ -3,15 +3,16 @@ package io.joshworks.fstore.lsmtree.sstable;
 import io.joshworks.fstore.lsmtree.Range;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 
-public class RangeIterator<K extends Comparable<K>, V> implements SegmentIterator<Entry<K, V>> {
+class RangeIterator<K extends Comparable<K>, V> implements SegmentIterator<Entry<K, V>> {
 
     private final Range<K> range;
     private final Direction direction;
     private final SegmentIterator<Entry<K, V>> delegate;
     private Entry<K, V> next = null;
 
-    public RangeIterator(SegmentIterator<Entry<K, V>> delegate, Range<K> range, Direction direction) {
+    RangeIterator(SegmentIterator<Entry<K, V>> delegate, Range<K> range, Direction direction) {
         this.delegate = delegate;
         this.range = range;
         this.direction = direction;

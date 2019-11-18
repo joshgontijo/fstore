@@ -1,5 +1,7 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
+
 import java.util.TreeSet;
 
 public enum Expression {

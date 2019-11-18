@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 
 import java.util.Iterator;
 import java.util.List;

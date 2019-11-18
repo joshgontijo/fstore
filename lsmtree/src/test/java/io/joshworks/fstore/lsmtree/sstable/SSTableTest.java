@@ -8,6 +8,7 @@ import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.lsmtree.Range;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 import io.joshworks.fstore.lsmtree.sstable.filter.BloomFilter;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -21,7 +22,7 @@ import java.io.File;
 import java.util.TreeSet;
 
 import static io.joshworks.fstore.lsmtree.utils.Utils.assertIterator;
-import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
+import static io.joshworks.fstore.lsmtree.sstable.entry.Entry.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;

@@ -10,12 +10,12 @@ import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.log.appender.compaction.combiner.MergeCombiner;
 import io.joshworks.fstore.log.appender.compaction.combiner.UniqueMergeCombiner;
 import io.joshworks.fstore.log.segment.block.Block;
-import io.joshworks.fstore.lsmtree.sstable.Entry;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 import io.joshworks.fstore.lsmtree.sstable.SSTableCompactor;
 
 import java.io.File;
 
-import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
+import static io.joshworks.fstore.lsmtree.sstable.entry.Entry.NO_MAX_AGE;
 import static java.util.Objects.requireNonNull;
 
 public class Builder<K extends Comparable<K>, V> {

@@ -17,7 +17,6 @@ public class Midpoint<K extends Comparable<K>> implements Comparable<K> {
         return key.compareTo(o);
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

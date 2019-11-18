@@ -7,6 +7,8 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.lsmtree.Range;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
+import io.joshworks.fstore.lsmtree.sstable.entry.EntrySerializer;
 import io.joshworks.fstore.lsmtree.sstable.filter.BloomFilter;
 import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoint;
 import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoints;
