@@ -2,7 +2,6 @@ package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.FileUtils;
-import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
 import io.joshworks.fstore.serializer.Serializers;

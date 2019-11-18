@@ -1,12 +1,12 @@
-package io.joshworks.eventry.index;
+package io.joshworks.fstore.eventry.index;
 
 
 import io.joshworks.fstore.lsmtree.Range;
 
 import java.util.Objects;
 
-import static io.joshworks.fstore.es.shared.EventId.MAX_VERSION;
-import static io.joshworks.fstore.es.shared.EventId.START_VERSION;
+import static io.joshworks.fstore.eventry.EventId.MAX_VERSION;
+import static io.joshworks.fstore.eventry.EventId.START_VERSION;
 
 public class IndexKey implements Comparable<IndexKey> {
 

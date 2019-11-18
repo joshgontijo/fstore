@@ -7,7 +7,8 @@ import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.lsmtree.Range;
+import io.joshworks.fstore.lsmtree.sstable.filter.BloomFilter;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -406,6 +407,38 @@ public class SSTableTest {
 
         SegmentIterator<Entry<Integer, String>> iterator = sstable.iterator(direction, Range.of(0, endExclusive));
         assertIterator(direction, endExclusive, iterator);
+    }
+
+    @Test
+    public void all_midpoints_are_loaded_after_reopening_sstable() {
+        int items = 1000000;
+        for (int i = 0; i < items; i++) {
+            sstable.append(Entry.add(i, String.valueOf(i)));
+        }
+        sstable.roll(1, false);
+
+        int midpointsBeforeClose = sstable.midpoints();
+        sstable.close();
+
+        sstable = open(testFile);
+
+        assertEquals(midpointsBeforeClose, sstable.midpoints());
+    }
+
+    @Test
+    public void bloomFilter_is_loaded_after_reopening_sstable() {
+        int items = 1000000;
+        for (int i = 0; i < items; i++) {
+            sstable.append(Entry.add(i, String.valueOf(i)));
+        }
+        sstable.roll(1, false);
+
+        BloomFilter bloomFilterBefore = sstable.bloomFilter;
+        sstable.close();
+
+        sstable = open(testFile);
+
+        assertEquals(bloomFilterBefore, sstable.bloomFilter);
     }
 
     private void addSomeEntries(int entries) {

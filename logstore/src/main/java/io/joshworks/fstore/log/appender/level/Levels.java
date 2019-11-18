@@ -7,6 +7,7 @@ import io.joshworks.fstore.log.segment.header.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.Lock;
@@ -29,15 +30,7 @@ public class Levels<T> {
 
     private Levels(List<Log<T>> segments) {
         this.segments.addAll(segments);
-        this.segments.sort((o1, o2) -> {
-            int levelDiff = o2.level() - o1.level();
-            if (levelDiff == 0) {
-                int createdDiff = Long.compare(o1.created(), o2.created());
-                if (createdDiff != 0)
-                    return createdDiff;
-            }
-            return levelDiff;
-        });
+        this.segments.sort(compareSegments());
 
         if (this.segments.stream().noneMatch(seg -> seg.level() == 0)) {
             throw new IllegalStateException("Level zero must be present");
@@ -53,6 +46,17 @@ public class Levels<T> {
                 .orElseThrow(() -> new IllegalStateException("No " + Type.LOG_HEAD + " found"));
     }
 
+    private static <T> Comparator<Log<T>> compareSegments() {
+        return (o1, o2) -> {
+            int levelDiff = o2.level() - o1.level();
+            if (levelDiff == 0) {
+                int createdDiff = Long.compare(o1.created(), o2.created());
+                if (createdDiff != 0)
+                    return createdDiff;
+            }
+            return levelDiff;
+        };
+    }
 
     public <R> R apply(Direction direction, Function<List<Log<T>>, R> function) {
         Lock lock = this.rwLock.readLock();
@@ -194,42 +198,6 @@ public class Levels<T> {
             lock.unlock();
         }
     }
-
-//    public synchronized void merge(List<Log<T>> segments, Log<T> merged) {
-//        if (segments.isEmpty() || merged == null) {
-//            return;
-//        }
-//
-//        List<Log<T>> copy = new ArrayList<>(this.segments);
-//
-//        int latestIndex = -1;
-//        for (Log<T> seg : segments) {
-//            int i = copy.indexOf(seg);
-//            if (i < 0) {
-//                throw new IllegalStateException("Segment not found: " + seg.name());
-//            }
-//            if (latestIndex >= 0 && latestIndex + 1 != i) {
-//                throw new IllegalArgumentException("Segments to be deleted must be contiguous");
-//            }
-//            latestIndex = i;
-//        }
-//
-//        Log<T> first = segments.get(0);
-//        int level = first.level(); //safe to assume that there is a segment and all of them are the same level
-//        int nextLevel = level + 1;
-//        int firstIdx = copy.indexOf(first);
-//        copy.set(firstIdx, merged);
-//        for (int i = 1; i < segments.size(); i++) {
-//            copy.remove(firstIdx + 1);
-//        }
-//        //TODO if the program cash after here, then there could be multiple READ_ONLY segments with same data
-//        //ideally segments would have the source segments in their header to flag where they're were created from.
-//        //on startup read all the source segments from the header and if there's an existing segment, then delete, either the sources
-//        //or the target segment
-//        merged.roll(nextLevel);
-//        this.segments = copy;
-//
-//    }
 
     private void validateDeletion(List<Log<T>> segments) {
         int latestIndex = -1;

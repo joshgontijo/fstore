@@ -128,7 +128,6 @@ public class LogAppender<T> implements Closeable {
         this.compactor = createCompactor(config);
 
         logger.info(config.toString());
-        compactor.compact(false);
     }
 
     public Metrics metrics() {

@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.metrics.MetricRegistry;
 import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.lsmtree.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;

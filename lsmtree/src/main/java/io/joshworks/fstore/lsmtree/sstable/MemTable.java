@@ -1,7 +1,7 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.lsmtree.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.LogAppender;

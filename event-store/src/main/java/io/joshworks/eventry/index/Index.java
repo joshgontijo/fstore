@@ -4,7 +4,7 @@ import io.joshworks.eventry.stream.StreamMetadata;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.streams.StreamHasher;
-import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.lsmtree.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.sstable.Entry;

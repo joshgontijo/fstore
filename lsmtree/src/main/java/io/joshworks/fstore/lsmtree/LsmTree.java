@@ -1,7 +1,6 @@
 package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.lsmtree.log.EntryAdded;

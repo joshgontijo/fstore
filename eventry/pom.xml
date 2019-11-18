@@ -9,21 +9,16 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>lsmtree</artifactId>
+    <artifactId>eventry</artifactId>
+
     <dependencies>
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
-            <artifactId>logstore</artifactId>
+            <artifactId>lsmtree</artifactId>
         </dependency>
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
-            <artifactId>kryo-serializer</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
+            <artifactId>json-serializer</artifactId>
         </dependency>
     </dependencies>
 
