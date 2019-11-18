@@ -1,11 +1,11 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.lsmtree.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.iterators.Iterators;
+import io.joshworks.fstore.lsmtree.Range;
 import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 
 import java.util.NavigableSet;
@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 
-public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V> {
+class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V> {
 
     private final ConcurrentSkipListSet<Entry<K, V>> table = new ConcurrentSkipListSet<>();
     private final AtomicInteger size = new AtomicInteger();
@@ -23,7 +23,7 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
 
     }
 
-    public int add(Entry<K, V> entry) {
+    int add(Entry<K, V> entry) {
         requireNonNull(entry, "Entry must be provided");
         boolean added = table.add(entry);
         if (!added) {
@@ -64,7 +64,7 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return table.lower(Entry.key(key));
     }
 
-    public CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
+    CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
         NavigableSet<Entry<K, V>> subSet;
         if (range.start() != null && range.end() == null) {
             subSet = table.tailSet(Entry.key(range.start()), true);
@@ -78,7 +78,7 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return Direction.FORWARD.equals(direction) ? Iterators.of(subSet) : Iterators.wrap(subSet.descendingIterator());
     }
 
-    public CloseableIterator<Entry<K, V>> iterator(Direction direction) {
+    CloseableIterator<Entry<K, V>> iterator(Direction direction) {
         return Direction.FORWARD.equals(direction) ? Iterators.of(table) : Iterators.wrap(table.descendingIterator());
     }
 
@@ -102,11 +102,11 @@ public class MemTable<K extends Comparable<K>, V> implements TreeFunctions<K, V>
         return inserted;
     }
 
-    public int size() {
+    int size() {
         return table.size();
     }
 
-    public boolean isEmpty() {
+    boolean isEmpty() {
         return table.isEmpty();
     }
 
