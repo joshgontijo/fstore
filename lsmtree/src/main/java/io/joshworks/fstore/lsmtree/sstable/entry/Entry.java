@@ -1,4 +1,4 @@
-package io.joshworks.fstore.lsmtree.sstable;
+package io.joshworks.fstore.lsmtree.sstable.entry;
 
 import java.util.Objects;
 

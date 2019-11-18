@@ -1,4 +1,4 @@
-package io.joshworks.fstore.lsmtree.sstable;
+package io.joshworks.fstore.lsmtree.sstable.entry;
 
 import io.joshworks.fstore.core.Serializer;
 

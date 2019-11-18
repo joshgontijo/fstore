@@ -3,6 +3,7 @@ package io.joshworks.fstore.lsmtree.sstable;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 import org.junit.Test;
 
 import java.util.Arrays;

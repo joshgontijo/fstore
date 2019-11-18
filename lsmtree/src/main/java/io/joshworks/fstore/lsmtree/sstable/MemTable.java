@@ -6,6 +6,7 @@ import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.iterators.Iterators;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 
 import java.util.NavigableSet;
 import java.util.concurrent.ConcurrentSkipListSet;

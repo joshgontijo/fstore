@@ -17,6 +17,8 @@ import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.block.Block;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
+import io.joshworks.fstore.lsmtree.sstable.entry.EntrySerializer;
 
 import java.io.File;
 import java.util.ArrayList;

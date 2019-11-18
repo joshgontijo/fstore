@@ -2,6 +2,7 @@ package io.joshworks.fstore.lsmtree.sstable;
 
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 import io.joshworks.fstore.lsmtree.utils.InMemorySegment;
 import org.junit.Test;
 
@@ -9,7 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
+import static io.joshworks.fstore.lsmtree.sstable.entry.Entry.NO_MAX_AGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 

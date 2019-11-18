@@ -1,11 +1,11 @@
-package io.joshworks.fstore.lsmtree.sstable;
+package io.joshworks.fstore.lsmtree.sstable.entry;
 
 import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 
-import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_MAX_AGE;
-import static io.joshworks.fstore.lsmtree.sstable.Entry.NO_TIMESTAMP;
+import static io.joshworks.fstore.lsmtree.sstable.entry.Entry.NO_MAX_AGE;
+import static io.joshworks.fstore.lsmtree.sstable.entry.Entry.NO_TIMESTAMP;
 
 public class EntrySerializer<K extends Comparable<K>, V> implements Serializer<Entry<K, V>> {
 

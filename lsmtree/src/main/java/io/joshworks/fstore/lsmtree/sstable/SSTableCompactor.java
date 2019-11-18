@@ -9,6 +9,7 @@ import io.joshworks.fstore.log.appender.compaction.combiner.MergeCombiner;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.lsmtree.sstable.entry.Entry;
 
 import java.util.List;
 
