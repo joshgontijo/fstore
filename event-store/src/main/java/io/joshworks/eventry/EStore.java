@@ -30,7 +30,7 @@ public class EStore {
 
     private static final String STREAM_PREFIX = "stream-";
     private static final int EVENTS_PER_STREAM = 400;
-    private static final int STREAMS = 500000;
+    private static final int STREAMS = 100000;
     private static final int THREADS = 1;
     public static final int FLUSH_THRESHOLD = 1000000;
     private static LsmTree<IndexKey, EventRecord> store;
@@ -42,12 +42,29 @@ public class EStore {
 
         FileUtils.tryDelete(dir);
 
-        store = LsmTree
+        store = open(dir);
+
+        Thread monitor = new Thread(EStore::monitor);
+        monitor.start();
+
+        write();
+
+        store.close();
+
+        store = open(dir);
+
+        for (int i = 0; i < STREAMS; i++) {
+            List<EventRecord> events = events1(STREAM_PREFIX + i);
+        }
+    }
+
+    private static LsmTree<IndexKey, EventRecord> open(File dir) {
+        return LsmTree
                 .builder(dir, new IndexKeySerializer(), new EventSerializer())
                 .codec(new SnappyCodec())
                 .flushThreshold(FLUSH_THRESHOLD)
                 .bloomFilterFalsePositiveProbability(0.1)
-                .blockCache(Cache.noCache())
+                .blockCache(Cache.lruCache(1000, -1))
                 .sstableStorageMode(StorageMode.MMAP)
                 .transactionLogStorageMode(StorageMode.MMAP)
                 .maxEntrySize(Size.MB.ofInt(6))
@@ -56,24 +73,6 @@ public class EStore {
                 .useDirectBufferPool(true)
                 .flushQueueSize(3)
                 .open();
-
-        Thread monitor = new Thread(EStore::monitor);
-        monitor.start();
-
-        write();
-
-//        CloseableIterator<Entry<IndexKey, EventRecord>> iterator = store.iterator(Direction.FORWARD);
-//        int i = 0;
-//        long s = System.currentTimeMillis();
-//        while(iterator.hasNext()) {
-//            Entry<IndexKey, EventRecord> next = iterator.next();
-//            i++;
-//        }
-//        System.out.println("RREEEEEAD " + (System.currentTimeMillis() - s) + " ---- " + i);
-
-        for (int i = 0; i < STREAMS; i++) {
-            List<EventRecord> events = events(STREAM_PREFIX + i);
-        }
     }
 
     private static EventRecord add(String stream, Object data) {

@@ -6,10 +6,10 @@ import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.metrics.Metrics;
-import io.joshworks.fstore.index.Range;
-import io.joshworks.fstore.index.filter.BloomFilter;
-import io.joshworks.fstore.index.midpoints.Midpoint;
-import io.joshworks.fstore.index.midpoints.Midpoints;
+import io.joshworks.fstore.lsmtree.Range;
+import io.joshworks.fstore.lsmtree.sstable.filter.BloomFilter;
+import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoint;
+import io.joshworks.fstore.lsmtree.sstable.midpoints.Midpoints;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 import io.joshworks.fstore.log.segment.Log;
@@ -51,7 +51,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     private final int blockSize;
     private final BufferPool bufferPool;
 
-    private final BloomFilter bloomFilter;
+    final BloomFilter bloomFilter;
     private final Midpoints<K> midpoints;
 
     private final long maxAge;
@@ -298,8 +298,20 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private Block readBlock(Midpoint<K> midpoint) {
+        String cacheKey = cacheKey(midpoint.position);
+        Block cached = blockCache.get(cacheKey);
+        if (cached != null) {
+            metrics.update("blockCache.hit");
+            return cached;
+        }
+        metrics.update("blockCache.miss");
         metrics.update("block.read");
-        return delegate.get(midpoint.position);
+        Block block = delegate.get(midpoint.position);
+        if (block == null) {
+            throw new RuntimeException("Could not find block at position" + midpoint.position);
+        }
+        blockCache.add(cacheKey, block);
+        return block;
     }
 
     @Override
@@ -430,20 +442,8 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     private Entry<K, V> readFromBlock(K key, Midpoint<K> midpoint) {
-        String cacheKey = cacheKey(midpoint.position);
-        Block cached = blockCache.get(cacheKey);
-        if (cached != null) {
-            metrics.update("blockCache.hit");
-            return tryReadBlockEntry(key, cached);
-        }
-        metrics.update("blockCache.miss");
         Block block = readBlock(midpoint);
-        if (block == null) {
-            return null;
-        }
-        blockCache.add(cacheKey, block);
         return tryReadBlockEntry(key, block);
-
     }
 
     private Entry<K, V> tryReadBlockEntry(K key, Block block) {
@@ -482,7 +482,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
             throw new IllegalStateException("Cannot read from a open segment");
         }
 
-        if (!intersect(range.start(), range.end(), midpoints.first().key, midpoints.last().key)) {
+        if (!intersect(range, midpoints)) {
             return SegmentIterator.empty();
         }
 
@@ -496,6 +496,9 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         if (Direction.FORWARD.equals(direction)) {
             Midpoint<K> mStart = range.start() == null ? midpoints.first() : midpoints.getMidpointFor(range.start());
             return mStart == null ? midpoints.first().position : mStart.position;
+        }
+        if (range.end() == null) { //no start pos for backward scanner, start from the last block
+            return midpoints.last().position;
         }
         //backwards scan needs the at the end of the block, so the start of the next block is used
         int idx = midpoints.getMidpointIdx(range.end());
@@ -612,6 +615,10 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         delegate.close();
     }
 
+    public int midpoints() {
+        return midpoints.size();
+    }
+
     @Override
     public String toString() {
         return name();
@@ -625,14 +632,33 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         return metrics;
     }
 
-    static <T extends Comparable<T>> boolean intersect(T x1, T x2, T y1, T y2) {
+    static <T extends Comparable<T>> boolean intersect(Range<T> range, Midpoints<T> midpoints) {
+        T x1 = range.start();
+        T x2 = range.end();
+        T y1 = midpoints.first().key;
+        T y2 = midpoints.last().key;
         return between(x1, y1, y2) || between(x2, y1, y2)
                 ||
                 between(y1, x1, x2) || between(y2, x1, x2);
     }
 
+    /**
+     * Check whether x is between two values p1 and p2
+     * if x is null, then true is returned based on the assumption that {@link Range#start()} or  {@link Range#end()} ()} can be null
+     * if p1 is null, than the is assumed that there's no lower limit, therefore x must < p2
+     * if p2 is null, than the is assumed that there's no upper limit, therefore x must >= p1
+     */
     private static <T extends Comparable<T>> boolean between(T x, T p1, T p2) {
-        return x.compareTo(p1) >= 0 && x.compareTo(p2) <= 0;
+        if (x == null) {
+            return true;
+        }
+        if (p1 == null) {
+            return x.compareTo(p2) < 0;
+        }
+        if (p2 == null) {
+            return x.compareTo(p1) >= 0;
+        }
+        return x.compareTo(p1) >= 0 && x.compareTo(p2) < 0;
     }
 
     private static class Metadata {

@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.lsmtree.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -555,6 +555,49 @@ public class SSTablesTest {
                 }
             }
             assertEquals(end - 1, expectedKey - 1);
+        }
+    }
+
+    @Test
+    public void range_scan_forward_with_no_end_range() {
+        int items = (int) (FLUSH_THRESHOLD * 5.5);
+        for (int i = 0; i < items; i++) {
+            sstables.add(Entry.add(i, String.valueOf(i)));
+        }
+
+
+        int expectedKey = 0;
+        int read = 0;
+        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD, Range.start(0))) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                assertEquals(Integer.valueOf(expectedKey), entry.key);
+                expectedKey = entry.key + 1;
+                read++;
+            }
+            assertEquals(items, read);
+        }
+    }
+
+    @Test
+    public void range_scan_forward_with_no_start_range() {
+        int items = (int) (FLUSH_THRESHOLD * 5.5);
+        for (int i = 0; i < items; i++) {
+            sstables.add(Entry.add(i, String.valueOf(i)));
+        }
+
+        int end = 20;
+
+        int expectedKey = 0;
+        int read = 0;
+        try (CloseableIterator<Entry<Integer, String>> iterator = sstables.iterator(Direction.FORWARD, Range.end(end))) {
+            while (iterator.hasNext()) {
+                Entry<Integer, String> entry = iterator.next();
+                assertEquals(Integer.valueOf(expectedKey), entry.key);
+                expectedKey = entry.key + 1;
+                read++;
+            }
+            assertEquals(end, read);
         }
     }
 

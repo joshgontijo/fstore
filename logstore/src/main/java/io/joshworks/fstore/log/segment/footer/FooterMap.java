@@ -62,6 +62,7 @@ public class FooterMap {
         RecordEntry<Long> footerMapStarPos = stream.read(Direction.FORWARD, mapPosition, Serializers.LONG);
         RecordEntry<Integer> blockCount = stream.read(Direction.FORWARD, mapPosition + footerMapStarPos.recordSize(), Serializers.INTEGER);
 
+
         long pos = footerMapStarPos.entry();
         for (int i = 0; i < blockCount.entry(); i++) {
             RecordEntry<Block> footerMapBlock = stream.read(Direction.FORWARD, pos, blockSerializer);
@@ -70,9 +71,6 @@ public class FooterMap {
                 items.put(kv.getKey(), kv.getValue());
             }
             pos += footerMapBlock.recordSize();
-        }
-        if (items.isEmpty()) {
-            throw new IllegalStateException("Could not load footer map: Empty footer map");
         }
     }
 

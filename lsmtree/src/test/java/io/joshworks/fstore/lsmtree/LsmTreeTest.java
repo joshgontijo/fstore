@@ -2,7 +2,6 @@ package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.util.FileUtils;
-import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -216,5 +215,32 @@ public class LsmTreeTest {
             }
         }
     }
+
+    @Test
+    public void continuous_range_iterator() throws IOException {
+        int items = (int) (FLUSH_THRESHOLD * 5.5);
+        for (int i = 0; i < items; i++) {
+            lsmtree.put(i, String.valueOf(i));
+        }
+
+        long start = System.currentTimeMillis();
+
+//        for (int i = 0; i < Integer.MAX_VALUE; i++) {
+//            try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.BACKWARD, Range.of(0, items))) {
+//            }
+//        }
+//        System.out.println("1-TOOK " + (System.currentTimeMillis() - start) + "ms");
+
+        start = System.currentTimeMillis();
+
+        for (int i = 0; i < Integer.MAX_VALUE; i++) {
+            try (CloseableIterator<Entry<Integer, String>> iterator = lsmtree.iterator(Direction.BACKWARD, Range.start(items + 1))) {
+            }
+        }
+        System.out.println("2-TOOK " + (System.currentTimeMillis() - start) + "ms");
+
+
+    }
+
 
 }

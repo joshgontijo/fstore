@@ -1,6 +1,6 @@
 package io.joshworks.fstore.lsmtree.sstable;
 
-import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.lsmtree.Range;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
 
