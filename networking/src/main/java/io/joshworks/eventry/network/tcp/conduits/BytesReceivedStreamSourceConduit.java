@@ -26,7 +26,6 @@ public class BytesReceivedStreamSourceConduit extends AbstractStreamSourceCondui
 
     @Override
     public void suspendReads() {
-        System.out.println("SUSPEND READS");
         super.suspendReads();
     }
 
