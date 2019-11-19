@@ -1,9 +1,11 @@
 package io.joshworks.eventry.network.tcp;
 
 import io.joshworks.eventry.network.tcp.conduits.FramingMessageSourceConduit;
+import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 /**
  * Format accepted by {@link FramingMessageSourceConduit}
@@ -16,7 +18,11 @@ public class LengthPrefixCodec {
         }
         int pos = dst.position();
         dst.position(pos + Integer.BYTES);
-        KryoStoreSerializer.serialize(data, dst);
+//        KryoStoreSerializer.serialize(data, dst);
+        byte[] d = new byte[10];
+        Arrays.fill(d, (byte) 1);
+        dst.put(d);
+
         dst.putInt(pos, dst.position() - pos - Integer.BYTES); //does not include the length length itself
     }
 }

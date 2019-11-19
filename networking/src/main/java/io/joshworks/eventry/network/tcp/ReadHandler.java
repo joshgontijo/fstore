@@ -59,7 +59,8 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
 
     private Object parse(ByteBuffer buffer) {
         try {
-            return KryoStoreSerializer.deserialize(buffer);
+//            return KryoStoreSerializer.deserialize(buffer);
+            return null;
         } catch (Exception e) {
             throw new RuntimeException("Error while parsing data", e);
         }

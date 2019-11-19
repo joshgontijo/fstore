@@ -71,8 +71,8 @@ public class TcpMessageServer implements Closeable {
         this.onIdle = onIdle;
         this.handler = handler;
 
-        this.messagePool = new SimpleBufferPool("tcp-message-pool", maxBufferSize, true);
-        this.readPool = new SimpleBufferPool("tcp-read-pool", maxBufferSize, true);
+        this.messagePool = new SimpleBufferPool("tcp-message-pool", maxBufferSize, false);
+        this.readPool = new SimpleBufferPool("tcp-read-pool", maxBufferSize, false);
 
         registeredTypes.add(KeepAlive.class);
         this.serializer = KryoStoreSerializer.register(registeredTypes.toArray(Class[]::new));
@@ -80,14 +80,14 @@ public class TcpMessageServer implements Closeable {
         Acceptor acceptor = new Acceptor(idleTimeout, readPool, messagePool);
         try {
             this.worker = Xnio.getInstance().createWorker(options);
-            this.channel = connect(bindAddress, acceptor);
+            this.channel = connect(bindAddress, acceptor, options);
         } catch (Exception e) {
             throw new RuntimeException("Failed to start server", e);
         }
     }
 
-    private AcceptingChannel<StreamConnection> connect(InetSocketAddress bindAddress, Acceptor acceptor) throws IOException {
-        AcceptingChannel<StreamConnection> conn = worker.createStreamConnectionServer(bindAddress, acceptor, OptionMap.EMPTY); //OptionMap.EMPTY -> override
+    private AcceptingChannel<StreamConnection> connect(InetSocketAddress bindAddress, Acceptor acceptor, OptionMap options) throws IOException {
+        AcceptingChannel<StreamConnection> conn = worker.createStreamConnectionServer(bindAddress, acceptor, options);
         conn.resumeAccepts();
         return conn;
     }
