@@ -58,19 +58,46 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
         return kryo;
     }
 
-    public static <K, V> KryoStoreSerializer<Map<K, V>> mapOf(Class<K> keytype, Class<V> valueType) {
+    public static <T> KryoStoreSerializer<T> of(Class<T> mainType, Class... types) {
+        requireNonNull(mainType, "Class type must be provided");
+        Kryo kryo = localKryo.get();
+        if (types != null) {
+            for (Class type : types) {
+                kryo.register(type);
+            }
+        }
+        kryo.register(mainType);
+
+        return new KryoStoreSerializer<>(mainType);
+    }
+
+    public static Serializer<Object> untyped() {
+        return new KryoStoreSerializer<>(null);
+    }
+
+    public static KryoStoreSerializer register(Class<?>... types) {
+        if (types != null) {
+            Kryo kryo = localKryo.get();
+            for (Class type : types) {
+                kryo.register(type);
+            }
+        }
+        return new KryoStoreSerializer<>(null);
+    }
+
+    public static <K, V> Serializer<Map<K, V>> mapOf(Class<K> keytype, Class<V> valueType) {
         return (KryoStoreSerializer<Map<K, V>>) register(keytype, valueType);
     }
 
-    public static <T> KryoStoreSerializer<List<T>> listOf(Class<T> type) {
+    public static <T> Serializer<List<T>> listOf(Class<T> type) {
         return (KryoStoreSerializer<List<T>>) register(type);
     }
 
-    public static <T> KryoStoreSerializer<Set<T>> setOf(Class<T> type) {
+    public static <T> Serializer<Set<T>> setOf(Class<T> type) {
         return (KryoStoreSerializer<Set<T>>) register(type);
     }
 
-    public static <T> KryoStoreSerializer<Collection<T>> collectionOf(Class<T> type) {
+    public static <T> Serializer<Collection<T>> collectionOf(Class<T> type) {
         return (KryoStoreSerializer<Collection<T>>) register(type);
     }
 
@@ -133,33 +160,6 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
             }
             return (T) kryo.readClassAndObject(input);
         }
-    }
-
-    public static <T> KryoStoreSerializer<T> of(Class<T> mainType, Class... types) {
-        requireNonNull(mainType, "Class type must be provided");
-        Kryo kryo = localKryo.get();
-        if (types != null) {
-            for (Class type : types) {
-                kryo.register(type);
-            }
-        }
-        kryo.register(mainType);
-
-        return new KryoStoreSerializer<>(mainType);
-    }
-
-    public static KryoStoreSerializer untyped() {
-        return new KryoStoreSerializer<>(null);
-    }
-
-    public static KryoStoreSerializer register(Class<?>... types) {
-        if (types != null) {
-            Kryo kryo = localKryo.get();
-            for (Class type : types) {
-                kryo.register(type);
-            }
-        }
-        return new KryoStoreSerializer<>(null);
     }
 
     @Override

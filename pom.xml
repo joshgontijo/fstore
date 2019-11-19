@@ -23,6 +23,7 @@
         <module>cli</module>
         <module>metrics</module>
         <module>eventry</module>
+        <module>lsmtree-server</module>
     </modules>
 
     <properties>
