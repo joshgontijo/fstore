@@ -1,8 +1,8 @@
 package io.joshworks.lsm.server.client;
 
-import io.joshworks.eventry.network.tcp.TcpClientConnection;
-import io.joshworks.eventry.network.tcp.client.TcpEventClient;
-import io.joshworks.eventry.network.tcp.internal.Response;
+import io.joshworks.fstore.tcp.TcpClientConnection;
+import io.joshworks.fstore.tcp.client.TcpEventClient;
+import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.lsm.server.messages.Ack;

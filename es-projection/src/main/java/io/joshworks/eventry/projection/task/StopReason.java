@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projection.task;
+package io.joshworks.fstore.projection.task;
 
 public enum StopReason {
     COMPLETED, ABORTED, FAILED

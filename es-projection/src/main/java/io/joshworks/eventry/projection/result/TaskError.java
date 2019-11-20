@@ -1,6 +1,6 @@
-package io.joshworks.eventry.projection.result;
+package io.joshworks.fstore.projection.result;
 
-import io.joshworks.eventry.projection.JsonEvent;
+import io.joshworks.fstore.projection.JsonEvent;
 
 public class TaskError {
     public final String reason;

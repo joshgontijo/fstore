@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projection;
+package io.joshworks.fstore.projection;
 
 public class ProjectionException extends RuntimeException {
     ProjectionException(String message) {

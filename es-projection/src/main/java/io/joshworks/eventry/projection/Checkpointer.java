@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projection;
+package io.joshworks.fstore.projection;
 
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.lsmtree.LsmTree;

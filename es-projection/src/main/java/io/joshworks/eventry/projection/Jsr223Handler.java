@@ -1,8 +1,8 @@
-package io.joshworks.eventry.projection;
+package io.joshworks.fstore.projection;
 
-import io.joshworks.eventry.projection.result.ScriptExecutionResult;
-import io.joshworks.eventry.projection.task.ProjectionContext;
-import io.joshworks.eventry.projection.task.StopReason;
+import io.joshworks.fstore.projection.result.ScriptExecutionResult;
+import io.joshworks.fstore.projection.task.ProjectionContext;
+import io.joshworks.fstore.projection.task.StopReason;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.utils.StringUtils;

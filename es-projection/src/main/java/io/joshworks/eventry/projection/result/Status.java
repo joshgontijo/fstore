@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projection.result;
+package io.joshworks.fstore.projection.result;
 
 public enum Status {
     NOT_STARTED(1 << 0), //not yet started

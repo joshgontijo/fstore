@@ -27,11 +27,11 @@ public class DataFile<T> implements Flushable, Closeable {
     private final Storage storage;
     private final Serializer<T> serializer;
 
-    private DataFile(File handler, Serializer<T> serializer, boolean mmap, long initialSize, int maxEntrySize, double checksumProb) {
+    private DataFile(File handler, Serializer<T> serializer, boolean mmap, long initialSize, int maxEntrySize) {
         Storage storage = null;
         try {
             this.storage = storage = Storage.createOrOpen(handler, mmap ? StorageMode.MMAP : StorageMode.RAF, initialSize);
-            this.stream = new DataStream(new ThreadLocalBufferPool(handler.getName() + "-pool", maxEntrySize, false), storage, checksumProb, Memory.PAGE_SIZE * 4);
+            this.stream = new DataStream(new ThreadLocalBufferPool(handler.getName() + "-pool", maxEntrySize, false), storage, 1, Memory.PAGE_SIZE * 4);
             this.serializer = serializer;
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);
@@ -43,7 +43,7 @@ public class DataFile<T> implements Flushable, Closeable {
         return new Builder<>(serializer);
     }
 
-    public synchronized long add(T record) {
+    public long add(T record) {
         long pos = stream.write(record, serializer);
         if (Storage.EOF == pos) {
             throw new RuntimeException("Not space left in the data file");
@@ -65,7 +65,7 @@ public class DataFile<T> implements Flushable, Closeable {
     }
 
     public Iterator<T> iterator(Direction direction, long position) {
-        position = position > stream.position() ? stream.position() : position;
+        position = Math.min(position, stream.position());
         return new DataFileIterator<>(stream, serializer, direction, position);
     }
 
@@ -83,7 +83,7 @@ public class DataFile<T> implements Flushable, Closeable {
         IOUtils.closeQuietly(storage);
     }
 
-    public synchronized void delete() {
+    public void delete() {
         storage.delete();
     }
 
@@ -135,7 +135,6 @@ public class DataFile<T> implements Flushable, Closeable {
         private boolean mmap;
         private long size = Size.MB.of(50);
         private int maxEntrySize = Size.MB.ofInt(1);
-        private double checksumProb = 0.1;
 
         private Builder(Serializer<T> serializer) {
             this.serializer = serializer;
@@ -143,11 +142,6 @@ public class DataFile<T> implements Flushable, Closeable {
 
         public Builder<T> mmap() {
             this.mmap = true;
-            return this;
-        }
-
-        public Builder<T> checksumProbability(double checksumProb) {
-            this.checksumProb = checksumProb;
             return this;
         }
 
@@ -162,7 +156,7 @@ public class DataFile<T> implements Flushable, Closeable {
         }
 
         public DataFile<T> open(File file) {
-            return new DataFile<>(file, serializer, mmap, size, maxEntrySize, checksumProb);
+            return new DataFile<>(file, serializer, mmap, size, maxEntrySize);
         }
     }
 }

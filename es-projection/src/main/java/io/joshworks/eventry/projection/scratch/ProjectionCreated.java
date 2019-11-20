@@ -1,6 +1,6 @@
-package io.joshworks.eventry.projection.scratch;
+package io.joshworks.fstore.projection.scratch;
 
-import io.joshworks.eventry.projection.Projection;
+import io.joshworks.fstore.projection.Projection;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.streams.SystemStreams;

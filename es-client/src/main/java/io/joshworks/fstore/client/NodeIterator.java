@@ -1,7 +1,7 @@
 package io.joshworks.fstore.client;
 
-import io.joshworks.eventry.network.tcp.TcpClientConnection;
-import io.joshworks.eventry.network.tcp.internal.Response;
+import io.joshworks.fstore.tcp.TcpClientConnection;
+import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.messages.EventsData;
