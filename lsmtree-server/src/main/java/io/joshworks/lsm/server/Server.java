@@ -1,11 +1,8 @@
 package io.joshworks.lsm.server;
 
-import io.joshworks.eventry.network.Cluster;
-import io.joshworks.eventry.network.tcp.TcpMessageServer;
-import io.joshworks.fstore.core.io.StorageMode;
+import io.joshworks.fstore.network.Cluster;
+import io.joshworks.fstore.tcp.TcpMessageServer;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.lsmtree.LsmTree;
-import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.lsm.server.events.NodeJoined;
 import io.joshworks.lsm.server.events.NodeLeft;
 import io.joshworks.lsm.server.handler.TcpEventHandler;
@@ -15,30 +12,32 @@ import org.xnio.Options;
 
 import java.io.File;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Server implements AutoCloseable {
+
+    private static final String RING_LOCK = "RING_LOCK";
+    private static final String RING_KEY = "RING_ID";
 
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
 
     private final Cluster cluster;
     private final NodeDescriptor descriptor;
 
-    private final LsmCluster lsmTree;
+    private final LsmCluster clusterStore;
 
-    private final List<Node> nodes = new ArrayList<>();
+    private final List<Node> nodeInfos = new CopyOnWriteArrayList<>();
     private final TcpMessageServer tcpMessageServer;
 
     private Server(File rootDir, Cluster cluster, NodeDescriptor descriptor, int tcpPort) {
         this.cluster = cluster;
         this.descriptor = descriptor;
-        this.lsmTree = new LsmCluster(LsmTree.builder(rootDir, Serializers.VSTRING, Serializers.VLEN_BYTE_ARRAY)
-                .sstableStorageMode(StorageMode.MMAP)
-                .transactionLogStorageMode(StorageMode.MMAP)
-                .open());
-        this.tcpMessageServer = startTcpListener(lsmTree, tcpPort);
+        this.clusterStore = new LsmCluster(rootDir, nodeInfos);
+        this.tcpMessageServer = startTcpListener(clusterStore, tcpPort);
     }
+
+
 
     public static Server join(File rootDir, String clusterName, int tcpPort) {
         NodeDescriptor descriptor = loadDescriptor(rootDir, clusterName);
@@ -49,7 +48,6 @@ public class Server implements AutoCloseable {
         Server server = new Server(rootDir, cluster, descriptor, tcpPort);
 
         cluster.interceptor((msg, obj) -> logger.info("RECEIVED FROM {}: {}", msg.src(), obj));
-
         cluster.register(NodeJoined.class, server::nodeJoined);
         cluster.register(NodeLeft.class, server::nodeLeft);
 
@@ -87,17 +85,17 @@ public class Server implements AutoCloseable {
     }
 
     private void nodeJoined(NodeJoined nodeJoined) {
-        nodes.add(nodeJoined.node);
+        nodeInfos.add(new Node(nodeJoined.nodeInfo));
     }
 
     private void nodeLeft(NodeLeft nodeLeft) {
-        nodes.removeIf(node -> node.id.equals(nodeLeft.nodeId));
+        nodeInfos.removeIf(node -> node.id().equals(nodeLeft.nodeId));
     }
 
     @Override
     public void close() {
         cluster.close();
-        lsmTree.close();
+        clusterStore.close();
         tcpMessageServer.close();
     }
 }

@@ -1,8 +1,8 @@
-package io.joshworks.eventry.projection.query;
+package io.joshworks.fstore.projection.query;
 
-import io.joshworks.eventry.EventLogIterator;
-import io.joshworks.eventry.projection.JsonEvent;
-import io.joshworks.eventry.projection.State;
+import io.joshworks.fstore.EventLogIterator;
+import io.joshworks.fstore.projection.JsonEvent;
+import io.joshworks.fstore.projection.State;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;

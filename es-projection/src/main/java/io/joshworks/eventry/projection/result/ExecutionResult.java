@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projection.result;
+package io.joshworks.fstore.projection.result;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -1,9 +1,9 @@
 package io.joshworks.fstore.client;
 
-import io.joshworks.eventry.network.tcp.TcpClientConnection;
-import io.joshworks.eventry.network.tcp.client.TcpEventClient;
-import io.joshworks.eventry.network.tcp.internal.Response;
-import io.joshworks.eventry.network.tcp.internal.ResponseTable;
+import io.joshworks.fstore.tcp.TcpClientConnection;
+import io.joshworks.fstore.tcp.client.TcpEventClient;
+import io.joshworks.fstore.tcp.internal.Response;
+import io.joshworks.fstore.tcp.internal.ResponseTable;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.shared.EventId;

@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projection.task;
+package io.joshworks.fstore.projection.task;
 
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventRecord;

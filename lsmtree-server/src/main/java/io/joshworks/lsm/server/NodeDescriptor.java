@@ -51,7 +51,7 @@ public class NodeDescriptor implements Closeable {
             FileLock lock = channel.lock();
             try {
 
-                ByteBuffer bb = ByteBuffer.allocate(1024);
+                ByteBuffer bb = ByteBuffer.allocate(4096);
                 channel.read(bb);
                 bb.flip();
 
@@ -105,6 +105,10 @@ public class NodeDescriptor implements Closeable {
         }
     }
 
+    public void update(String key, String value) {
+        data.put(key, value);
+    }
+
     public String nodeId() {
         return data.get(NODE_ID);
     }
@@ -123,4 +127,11 @@ public class NodeDescriptor implements Closeable {
         IOUtils.closeQuietly(channel);
     }
 
+    public Integer getInt(String key) {
+        String val = get(key);
+        if (val == null) {
+            return null;
+        }
+        return Integer.parseInt(val);
+    }
 }

@@ -17,13 +17,14 @@
         <module>event-store</module>
         <module>es-server</module>
         <module>lsmtree</module>
-        <module>networking</module>
+        <module>tcp</module>
         <module>es-client</module>
         <module>es-shared</module>
         <module>cli</module>
         <module>metrics</module>
         <module>eventry</module>
         <module>lsmtree-server</module>
+        <module>cluster</module>
     </modules>
 
     <properties>
@@ -103,7 +104,7 @@
 
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>networking</artifactId>
+                <artifactId>tcp</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

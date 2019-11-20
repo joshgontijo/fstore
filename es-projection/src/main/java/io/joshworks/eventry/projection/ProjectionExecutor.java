@@ -1,15 +1,15 @@
-package io.joshworks.eventry.projection;
+package io.joshworks.fstore.projection;
 
-import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.data.ProjectionCompleted;
-import io.joshworks.eventry.data.ProjectionFailed;
-import io.joshworks.eventry.data.ProjectionStopped;
+import io.joshworks.fstore.api.IEventStore;
+import io.joshworks.fstore.data.ProjectionCompleted;
+import io.joshworks.fstore.data.ProjectionFailed;
+import io.joshworks.fstore.data.ProjectionStopped;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.eventry.projection.result.ExecutionResult;
-import io.joshworks.eventry.projection.result.Status;
-import io.joshworks.eventry.projection.result.TaskError;
-import io.joshworks.eventry.projection.result.TaskStatus;
-import io.joshworks.eventry.projection.task.ProjectionTask;
+import io.joshworks.fstore.projection.result.ExecutionResult;
+import io.joshworks.fstore.projection.result.Status;
+import io.joshworks.fstore.projection.result.TaskError;
+import io.joshworks.fstore.projection.result.TaskStatus;
+import io.joshworks.fstore.projection.task.ProjectionTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -1,8 +1,8 @@
-package io.joshworks.eventry.projection;
+package io.joshworks.fstore.projection;
 
 
-import io.joshworks.eventry.projection.result.Metrics;
-import io.joshworks.eventry.projection.result.TaskStatus;
+import io.joshworks.fstore.projection.result.Metrics;
+import io.joshworks.fstore.projection.result.TaskStatus;
 
 import java.util.Collection;
 import java.util.Map;

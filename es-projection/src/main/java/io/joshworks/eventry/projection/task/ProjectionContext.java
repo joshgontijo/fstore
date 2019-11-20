@@ -1,8 +1,8 @@
-package io.joshworks.eventry.projection.task;
+package io.joshworks.fstore.projection.task;
 
-import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.projection.State;
-import io.joshworks.eventry.projection.result.ScriptExecutionResult;
+import io.joshworks.fstore.api.IEventStore;
+import io.joshworks.fstore.projection.State;
+import io.joshworks.fstore.projection.result.ScriptExecutionResult;
 
 import java.util.HashMap;
 import java.util.List;

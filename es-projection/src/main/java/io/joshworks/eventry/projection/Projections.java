@@ -1,8 +1,8 @@
-package io.joshworks.eventry.projection;
+package io.joshworks.fstore.projection;
 
-import io.joshworks.eventry.api.IEventStore;
-import io.joshworks.eventry.projection.result.Metrics;
-import io.joshworks.eventry.projection.result.TaskStatus;
+import io.joshworks.fstore.api.IEventStore;
+import io.joshworks.fstore.projection.result.Metrics;
+import io.joshworks.fstore.projection.result.TaskStatus;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Logging;
 import io.joshworks.fstore.es.shared.utils.StringUtils;

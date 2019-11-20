@@ -1,4 +1,4 @@
-package io.joshworks.eventry.projection.scratch;
+package io.joshworks.fstore.projection.scratch;
 
 public class Scratch {
 
