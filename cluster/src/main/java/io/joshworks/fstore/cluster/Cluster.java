@@ -54,8 +54,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private final ExecutorService consumerPool = Executors.newFixedThreadPool(10);
     private final ExecutorService taskPool = Executors.newFixedThreadPool(1);
 
-    private final Map<Address, ClusterNode> nodesByAddress = new ConcurrentHashMap<>();
-    private final Map<String, ClusterNode> nodeById = new ConcurrentHashMap<>();
+    private final Nodes nodes = new Nodes();
     private final Map<Class, Function> handlers = new ConcurrentHashMap<>();
 
     private final List<BiConsumer<ClusterNode, NodeStatus>> nodeUpdatedListeners = new ArrayList<>();
@@ -149,7 +148,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     public ClusterNode node(String nodeId) {
-        return nodeById.get(nodeId);
+        return nodes.byId(nodeId);
     }
 
     public ClusterNode node() {
@@ -165,7 +164,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     }
 
     public List<ClusterNode> nodes() {
-        return new ArrayList<>(nodesByAddress.values());
+        return nodes.all();
     }
 
     public void lock(String name, Runnable runnable) {
@@ -310,19 +309,19 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             IpAddress ipAddr = (IpAddress) physicalAddress;
             InetAddress inetAddr = ipAddr.getIpAddress();
             node = new ClusterNode(address, new InetSocketAddress(inetAddr, ipAddr.getPort()));
-            nodesByAddress.put(address, node);
-            nodeById.put(address.toString(), node);
+            nodes.add(address, node);
+
+
 
         } else {
             node = new ClusterNode(address);
-            nodesByAddress.put(address, node);
-            nodeById.put(address.toString(), node);
+            nodes.add(address, node);
         }
         fireNodeUpdate(node, NodeStatus.UP);
     }
 
     private void updateNodeStatus(Address address, NodeStatus status) {
-        ClusterNode clusterNode = nodesByAddress.get(address);
+        ClusterNode clusterNode = nodes.byAddress(address);
         if (clusterNode == null) {
             throw new IllegalArgumentException("No such node for: " + address);
         }
