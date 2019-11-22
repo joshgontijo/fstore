@@ -1,8 +1,10 @@
 package io.joshworks.fstore.tcp;
 
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.tcp.internal.Ping;
+import io.joshworks.fstore.tcp.internal.Pong;
 import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 import org.xnio.StreamConnection;
 
 import java.nio.ByteBuffer;
@@ -17,6 +19,11 @@ public class TcpClientConnection extends TcpConnection {
     public TcpClientConnection(StreamConnection connection, BufferPool writePool, ResponseTable responseTable) {
         super(connection, writePool);
         this.responseTable = responseTable;
+    }
+
+    public long ping() {
+        Response<Pong> response = request(new Ping());
+        return response.get().timestamp;
     }
 
     public <T, R> Response<R> request(T data) {

@@ -1,6 +1,8 @@
-package io.joshworks.fstore.tcp;
+package io.joshworks.fstore.tcp.server;
 
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.tcp.TcpConnection;
+import io.joshworks.fstore.tcp.TcpMessageServer;
 import org.xnio.Option;
 import org.xnio.OptionMap;
 import org.xnio.Options;
@@ -12,22 +14,22 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-public class ServerConfig {
+import static java.util.Objects.requireNonNull;
 
-    private static final Consumer<TcpConnection> NO_OP = it -> {
-    };
+public class ServerConfig {
 
     private final OptionMap.Builder options = OptionMap.builder().set(Options.WORKER_NAME, "tcp-server");
 
-    private Consumer<TcpConnection> onOpen = NO_OP;
-    private Consumer<TcpConnection> onClose = NO_OP;
-    private Consumer<TcpConnection> onIdle = NO_OP;
-    private ServerEventHandler handler;
+    private Consumer<TcpConnection> onOpen = conn -> TcpConnection.logger.info("Connection {} opened", conn.peerAddress());
+    private Consumer<TcpConnection> onClose = conn -> TcpConnection.logger.info("Connection {} closed", conn.peerAddress());
+    private Consumer<TcpConnection> onIdle = conn -> TcpConnection.logger.info("Connection {} is idle", conn.peerAddress());
+    private ServerEventHandler handler = new DiscardEventHandler();
     private long timeout = -1;
     private int bufferSize = Size.MB.ofInt(1);
     private final Set<Class> registeredTypes = new HashSet<>();
+    private boolean async;
 
-    ServerConfig() {
+    public ServerConfig() {
 
     }
 
@@ -45,12 +47,12 @@ public class ServerConfig {
     }
 
     public ServerConfig onOpen(Consumer<TcpConnection> onOpen) {
-        this.onOpen = onOpen;
+        this.onOpen = requireNonNull(onOpen);
         return this;
     }
 
     public ServerConfig onClose(Consumer<TcpConnection> onClose) {
-        this.onClose = onClose;
+        this.onClose = requireNonNull(onClose);
         return this;
     }
 
@@ -60,12 +62,17 @@ public class ServerConfig {
     }
 
     public ServerConfig onIdle(Consumer<TcpConnection> onIdle) {
-        this.onIdle = onIdle;
+        this.onIdle = requireNonNull(onIdle);
         return this;
     }
 
     public ServerConfig onEvent(ServerEventHandler handler) {
         this.handler = handler;
+        return this;
+    }
+
+    public ServerConfig asyncHandler() {
+        this.async = true;
         return this;
     }
 
@@ -75,6 +82,6 @@ public class ServerConfig {
     }
 
     public TcpMessageServer start(InetSocketAddress bindAddress) {
-        return new TcpMessageServer(options.getMap(), bindAddress, registeredTypes, bufferSize, timeout, onOpen, onClose, onIdle, handler);
+        return new TcpMessageServer(options.getMap(), bindAddress, registeredTypes, bufferSize, timeout, onOpen, onClose, onIdle, async, handler);
     }
 }

@@ -5,13 +5,17 @@ import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.internal.Message;
 import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class InternalClientEventHandler implements EventHandler {
+public class ClientResponseHandler implements EventHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(ClientResponseHandler.class);
 
     private final EventHandler delegate;
     private final ResponseTable responseTable;
 
-    public InternalClientEventHandler(EventHandler delegate, ResponseTable responseTable) {
+    public ClientResponseHandler(EventHandler delegate, ResponseTable responseTable) {
         this.delegate = delegate;
         this.responseTable = responseTable;
     }
@@ -22,9 +26,8 @@ public class InternalClientEventHandler implements EventHandler {
             Message msg = (Message) data;
             Response response = responseTable.complete(msg.id);
             if (response == null) {
-                //TODO log and discard ?
-                System.err.println("Received null from the server");
-                throw new RuntimeException("No response correlated for request " + msg.id);
+                logger.warn("No response found for {}", msg.id);
+                return;
             }
             response.complete(msg.data);
             return;

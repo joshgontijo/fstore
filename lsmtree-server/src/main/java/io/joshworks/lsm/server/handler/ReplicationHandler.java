@@ -1,6 +1,6 @@
 package io.joshworks.lsm.server.handler;
 
-import io.joshworks.fstore.tcp.ServerEventHandler;
+import io.joshworks.fstore.tcp.server.ServerEventHandler;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.lsm.server.LsmCluster;
 

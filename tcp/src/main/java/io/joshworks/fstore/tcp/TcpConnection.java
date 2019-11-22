@@ -1,6 +1,8 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xnio.IoUtils;
 import org.xnio.StreamConnection;
 import org.xnio.XnioWorker;
@@ -13,6 +15,8 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class TcpConnection implements Closeable {
+
+    public static final Logger logger = LoggerFactory.getLogger(TcpConnection.class);
 
     private final StreamConnection connection;
     protected final BufferPool writePool;

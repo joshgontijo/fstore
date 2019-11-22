@@ -1,13 +1,22 @@
 package io.joshworks.fstore.tcp;
 
+import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
 import io.joshworks.fstore.tcp.conduits.IdleTimeoutConduit;
 import io.joshworks.fstore.tcp.internal.KeepAlive;
-import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
+import io.joshworks.fstore.tcp.internal.Message;
+import io.joshworks.fstore.tcp.internal.Ping;
+import io.joshworks.fstore.tcp.internal.Pong;
+import io.joshworks.fstore.tcp.server.AsyncEventHandler;
+import io.joshworks.fstore.tcp.server.KeepAliveHandler;
+import io.joshworks.fstore.tcp.server.PingHandler;
+import io.joshworks.fstore.tcp.server.RequestResponseHandler;
+import io.joshworks.fstore.tcp.server.ServerConfig;
+import io.joshworks.fstore.tcp.server.ServerEventHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.ChannelListener;
@@ -38,12 +47,11 @@ public class TcpMessageServer implements Closeable {
     private final XnioWorker worker;
     private final AcceptingChannel<StreamConnection> channel;
     private final long idleTimeout;
+    private final boolean async;
     private final Consumer<TcpConnection> onConnect;
     private final Consumer<TcpConnection> onClose;
     private final Consumer<TcpConnection> onIdle;
     private final ServerEventHandler handler;
-
-    private final KryoStoreSerializer serializer;
 
     private final SimpleBufferPool messagePool;
 //    private final ByteBufferSlicePool readPool;
@@ -63,19 +71,24 @@ public class TcpMessageServer implements Closeable {
             Consumer<TcpConnection> onOpen,
             Consumer<TcpConnection> onClose,
             Consumer<TcpConnection> onIdle,
+            boolean async,
             ServerEventHandler handler) {
 
         this.idleTimeout = idleTimeout;
         this.onConnect = onOpen;
         this.onClose = onClose;
         this.onIdle = onIdle;
+        this.async = async;
         this.handler = handler;
 
         this.messagePool = new SimpleBufferPool("tcp-message-pool", maxBufferSize, false);
         this.readPool = new SimpleBufferPool("tcp-read-pool", maxBufferSize, false);
 
+        registeredTypes.add(Message.class);
         registeredTypes.add(KeepAlive.class);
-        this.serializer = KryoStoreSerializer.register(registeredTypes.toArray(Class[]::new));
+        registeredTypes.add(Ping.class);
+        registeredTypes.add(Pong.class);
+        KryoStoreSerializer.register(registeredTypes.toArray(Class[]::new));
 
         Acceptor acceptor = new Acceptor(idleTimeout, readPool, messagePool);
         try {
@@ -201,8 +214,14 @@ public class TcpMessageServer implements Closeable {
                     pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
 
                     //---------- listeners
-                    InternalServerEventHandler serverHandler = new InternalServerEventHandler(handler);
-                    pipeline.readListener(new ReadHandler(tcpConnection, serverHandler));
+
+                    ServerEventHandler pingHandler = new PingHandler(handler);
+                    EventHandler reqRespHandler = new RequestResponseHandler(pingHandler);
+                    EventHandler keepAliveHandler = new KeepAliveHandler(reqRespHandler);
+                    EventHandler asyncHandler = async ? new AsyncEventHandler(conn.getWorker(), keepAliveHandler) : keepAliveHandler;
+                    ReadHandler readHandler = new ReadHandler(tcpConnection, asyncHandler);
+
+                    pipeline.readListener(readHandler);
                     pipeline.closeListener(sc -> {
                         polled.free();
                         TcpMessageServer.this.onClose(sc);
