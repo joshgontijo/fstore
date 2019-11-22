@@ -1,11 +1,12 @@
 package io.joshworks.fstore.network;
 
+import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.tcp.TcpClientConnection;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpMessageServer;
 import io.joshworks.fstore.tcp.client.TcpEventClient;
-import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.fstore.tcp.server.DiscardEventHandler;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
@@ -29,9 +30,6 @@ public class TcpTest {
     public static void main(String[] args) throws InterruptedException {
 
         TcpMessageServer server = TcpMessageServer.create()
-                .onOpen(conn -> System.out.println("SERVER: Connection opened"))
-                .onClose(conn -> System.out.println("SERVER: Connection closed"))
-                .onIdle(conn -> System.out.println("SERVER: Connection idle"))
 //                .idleTimeout(10, TimeUnit.SECONDS)
                 .bufferSize(Size.KB.ofInt(32))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(32))
@@ -39,9 +37,7 @@ public class TcpTest {
                 .option(Options.WORKER_IO_THREADS, 8)
                 .option(Options.WORKER_TASK_MAX_THREADS, 2)
                 .option(Options.TCP_NODELAY, true)
-                .onEvent((connection, data) -> {
-                    //do nothing
-                })
+                .onEvent(new DiscardEventHandler())
                 .start(new InetSocketAddress(HOST, PORT));
 
 
@@ -60,7 +56,11 @@ public class TcpTest {
             clientConnections.add(client);
             long start = System.currentTimeMillis();
             for (int i = 0; i < ITEMS; i++) {
-                client.send(new Payload(String.valueOf(i)));
+                try {
+                    client.send(new Payload(String.valueOf(i)));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
 //                Ack ack = response.get();
             }
             System.out.println("COMPLETED IN " + (System.currentTimeMillis() - start));

@@ -1,9 +1,9 @@
 package io.joshworks.fstore.tcp;
 
+import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 /**
  * Format accepted by {@link FramingMessageSourceConduit}
@@ -16,11 +16,7 @@ public class LengthPrefixCodec {
         }
         int pos = dst.position();
         dst.position(pos + Integer.BYTES);
-//        KryoStoreSerializer.serialize(data, dst);
-        byte[] d = new byte[10];
-        Arrays.fill(d, (byte) 1);
-        dst.put(d);
-
+        KryoStoreSerializer.serialize(data, dst);
         dst.putInt(pos, dst.position() - pos - Integer.BYTES); //does not include the length length itself
     }
 }

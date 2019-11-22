@@ -1,11 +1,12 @@
 package io.joshworks.fstore.network;
 
+import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.tcp.TcpClientConnection;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpMessageServer;
 import io.joshworks.fstore.tcp.client.TcpEventClient;
-import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.fstore.tcp.server.DiscardEventHandler;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
@@ -50,9 +51,8 @@ public class TcpTest2 {
                 .option(Options.WORKER_NAME, "server")
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
-                .onEvent((connection, data) -> {
-
-                })
+                .onEvent(new DiscardEventHandler())
+                .asyncHandler()
                 .start(new InetSocketAddress(HOST, PORT));
 
 

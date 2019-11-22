@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.GregorianCalendar;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,8 +36,10 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
 
     private static final ThreadLocal<Kryo> localKryo = ThreadLocal.withInitial(KryoStoreSerializer::newKryoInstance);
     private final Class<T> mainType;
+    private static final Set<Class<?>> registeredTypes = new HashSet<>();
 
     private KryoStoreSerializer(Class<T> mainType) {
+        registeredTypes.add(mainType);
         this.mainType = mainType;
     }
 
@@ -55,6 +58,13 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
         UnmodifiableCollectionsSerializer.registerSerializers(kryo);
         SynchronizedCollectionsSerializer.registerSerializers(kryo);
         Java9ImmutableMapSerializer.registerSerializers(kryo);
+
+        for (Class type : registeredTypes) {
+            if (type != null) {
+                kryo.register(type);
+            }
+        }
+
         return kryo;
     }
 
@@ -75,12 +85,13 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
         return new KryoStoreSerializer<>(null);
     }
 
+    public static void register(Class<?> clazz, int id) {
+        localKryo.get().register(clazz, id);
+    }
+
     public static KryoStoreSerializer register(Class<?>... types) {
         if (types != null) {
-            Kryo kryo = localKryo.get();
-            for (Class type : types) {
-                kryo.register(type);
-            }
+            registeredTypes.addAll(Arrays.asList(types));
         }
         return new KryoStoreSerializer<>(null);
     }
@@ -127,8 +138,9 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
         try (Output output = new Output(baos)) {
             if (type != null) {
                 kryo.writeObject(output, data);
+            } else {
+                kryo.writeClassAndObject(output, data);
             }
-            kryo.writeClassAndObject(output, data);
         }
     }
 

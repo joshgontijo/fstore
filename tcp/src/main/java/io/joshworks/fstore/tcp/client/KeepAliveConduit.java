@@ -26,12 +26,10 @@ import java.util.concurrent.TimeUnit;
 public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit {
 
     private static final Logger logger = LoggerFactory.getLogger(KeepAliveConduit.class);
-    private static final int DELTA = 100;
     private volatile XnioExecutor.Key handle;
     private StreamConnection connection;
     private volatile long interval;
     private volatile long lastActivity = System.nanoTime();
-    private volatile boolean timedOut = false;
 
     private final StreamSinkConduit sink;
     private final StreamSourceConduit source;

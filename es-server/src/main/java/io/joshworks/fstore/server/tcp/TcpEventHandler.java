@@ -1,6 +1,6 @@
 package io.joshworks.fstore.server.tcp;
 
-import io.joshworks.fstore.tcp.ServerEventHandler;
+import io.joshworks.fstore.tcp.server.ServerEventHandler;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.server.ClusterStore;
 import io.joshworks.fstore.server.subscription.polling.LocalPollingSubscription;

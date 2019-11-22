@@ -1,5 +1,6 @@
-package io.joshworks.fstore.tcp;
+package io.joshworks.fstore.tcp.server;
 
+import io.joshworks.fstore.tcp.TcpConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,24 +19,21 @@ public class TypedEventHandler implements ServerEventHandler {
     };
 
     @Override
-    public void onEvent(TcpConnection connection, Object data) {
-        handle(data, connection);
-    }
-
-    @Override
-    public Object onRequest(TcpConnection connection, Object data) {
+    public Object onEvent(TcpConnection connection, Object data) {
         return handle(data, connection);
     }
 
-    public <T> void on(Class<T> type, BiConsumer<TcpConnection, T> handler) {
+    public <T> TypedEventHandler on(Class<T> type, BiConsumer<TcpConnection, T> handler) {
         on(type, (tcpConnection, t) -> {
             handler.accept(tcpConnection, t);
             return null;
         });
+        return this;
     }
 
-    public <T> void on(Class<T> type, BiFunction<TcpConnection, T, Object> handler) {
+    public <T> TypedEventHandler on(Class<T> type, BiFunction<TcpConnection, T, Object> handler) {
         handlers.put(type, (BiFunction<TcpConnection, Object, Object>) handler);
+        return this;
     }
 
     private Object handle(Object msg, TcpConnection conn) {

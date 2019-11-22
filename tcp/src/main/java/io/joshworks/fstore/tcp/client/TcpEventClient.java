@@ -19,14 +19,16 @@ import java.util.function.Consumer;
 
 public class TcpEventClient {
 
-    private static final Consumer<TcpConnection> NO_OP = it -> {};
+    private static final Consumer<TcpConnection> NO_OP = conn -> {};
 
     private final OptionMap.Builder options = OptionMap.builder()
             .set(Options.WORKER_NAME, "tcp-client");
 
 
     private Consumer<TcpConnection> onClose = NO_OP;
-    private EventHandler handler;
+    private EventHandler handler = (connection, data) -> {
+        //NO_OP
+    };
     private final Set<Class> registeredTypes = new HashSet<>();
     private long keepAliveInterval = -1;
     private int bufferSize = Size.MB.ofInt(1);

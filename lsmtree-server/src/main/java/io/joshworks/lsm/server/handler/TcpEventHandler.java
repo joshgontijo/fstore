@@ -1,6 +1,6 @@
 package io.joshworks.lsm.server.handler;
 
-import io.joshworks.fstore.tcp.ServerEventHandler;
+import io.joshworks.fstore.tcp.server.ServerEventHandler;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.lsm.server.LsmCluster;
 import io.joshworks.lsm.server.messages.Ack;
@@ -8,13 +8,6 @@ import io.joshworks.lsm.server.messages.Delete;
 import io.joshworks.lsm.server.messages.Get;
 import io.joshworks.lsm.server.messages.Put;
 import io.joshworks.lsm.server.messages.Result;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 
 public class TcpEventHandler implements ServerEventHandler {
 
