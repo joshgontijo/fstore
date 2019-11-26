@@ -1,10 +1,10 @@
 package io.joshworks.lsm.server.client;
 
+import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.fstore.tcp.TcpClientConnection;
 import io.joshworks.fstore.tcp.client.TcpEventClient;
 import io.joshworks.fstore.tcp.internal.Response;
-import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.lsm.server.messages.Ack;
 import io.joshworks.lsm.server.messages.Delete;
 import io.joshworks.lsm.server.messages.Get;
@@ -12,10 +12,11 @@ import io.joshworks.lsm.server.messages.Put;
 import io.joshworks.lsm.server.messages.Result;
 import org.xnio.Options;
 
+import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 
-public class Client {
+public class Client implements Closeable {
 
     private final TcpClientConnection connection;
 
@@ -42,7 +43,8 @@ public class Client {
     }
 
     public void put(String key, Object value) {
-        Response<Ack> request = connection.request(new Put(key, JsonSerializer.toBytes(value)));
+        byte[] data = JsonSerializer.toBytes(value);
+        Response<Ack> request = connection.request(new Put(key, data));
         request.get();
     }
 
@@ -57,4 +59,8 @@ public class Client {
         request.get();
     }
 
+    @Override
+    public void close() {
+        connection.close();
+    }
 }

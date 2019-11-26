@@ -21,10 +21,6 @@
         </dependency>
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
-            <artifactId>kryo-serializer</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.joshworks.fstore</groupId>
             <artifactId>snappy-codec</artifactId>
         </dependency>
         <dependency>

@@ -57,14 +57,10 @@ public class TcpEventHandler implements ServerEventHandler {
         handlers.add(ReadStream.class, this::readStream);
     }
 
-    @Override
-    public Object onRequest(TcpConnection connection, Object data) {
-        return handlers.handle(data, connection);
-    }
 
     @Override
-    public void onEvent(TcpConnection connection, Object data) {
-        handlers.handle(data, connection);
+    public Object onEvent(TcpConnection connection, Object data) {
+        return handlers.handle(data, connection);
     }
 
     private static class Handlers {

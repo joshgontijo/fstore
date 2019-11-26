@@ -2,5 +2,9 @@ package io.joshworks.fstore.tcp.internal;
 
 public class Ping {
 
-    public long timestamp = System.currentTimeMillis();
+    public final long timestamp;
+
+    public Ping() {
+        this.timestamp = System.currentTimeMillis();
+    }
 }

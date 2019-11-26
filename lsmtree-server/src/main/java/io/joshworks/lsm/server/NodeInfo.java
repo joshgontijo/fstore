@@ -7,21 +7,21 @@ public class NodeInfo {
     public final String id;
     public final int ringId;
     public final String host;
-    public final int httpPort;
+    public final int replicationPort;
     public final int tcpPort;
     public Status status;
 
-    public NodeInfo(String id, int ringId, String host, int httpPort, int tcpPort, Status status) {
+    public NodeInfo(String id, int ringId, String host, int replicationPort, int tcpPort, Status status) {
         this.id = id;
         this.ringId = ringId;
         this.host = host;
-        this.httpPort = httpPort;
+        this.replicationPort = replicationPort;
         this.tcpPort = tcpPort;
         this.status = status;
     }
 
-    public InetSocketAddress http() {
-        return new InetSocketAddress(host, httpPort);
+    public InetSocketAddress replicationTcp() {
+        return new InetSocketAddress(host, replicationPort);
     }
 
     public InetSocketAddress tcp() {
@@ -30,9 +30,12 @@ public class NodeInfo {
 
     @Override
     public String toString() {
-        return "NodeInfo{" + "id='" + id + '\'' +
+        return "NodeInfo{" +
+                "id='" + id + '\'' +
+                ", ringId=" + ringId +
                 ", host='" + host + '\'' +
-                ", port=" + httpPort +
+                ", replicationPort=" + replicationPort +
+                ", tcpPort=" + tcpPort +
                 ", status=" + status +
                 '}';
     }

@@ -3,17 +3,12 @@ package io.joshworks.fstore.tcp;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import io.joshworks.fstore.tcp.client.ClientResponseHandler;
 import io.joshworks.fstore.tcp.client.KeepAliveConduit;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
-import io.joshworks.fstore.tcp.internal.KeepAlive;
-import io.joshworks.fstore.tcp.internal.Message;
-import io.joshworks.fstore.tcp.internal.Ping;
-import io.joshworks.fstore.tcp.internal.Pong;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
 import org.xnio.ChannelListener;
 import org.xnio.IoFuture;
@@ -54,12 +49,6 @@ public class TcpMessageClient {
         this.writePool = new ThreadLocalBufferPool("tcp-client-write-pool", bufferSize, true);
         this.readPool = new SimpleBufferPool("tcp-client-read-pool", bufferSize, true);
         this.responseTable = responseTable;
-
-        registeredTypes.add(Message.class);
-        registeredTypes.add(KeepAlive.class);
-        registeredTypes.add(Ping.class);
-        registeredTypes.add(Pong.class);
-        KryoStoreSerializer.register(registeredTypes.toArray(Class[]::new));
 
         try {
             final Xnio xnio = Xnio.getInstance();

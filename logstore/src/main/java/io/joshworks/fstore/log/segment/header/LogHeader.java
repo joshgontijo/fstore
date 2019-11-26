@@ -5,7 +5,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.WriteMode;
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 
 import java.util.Objects;
 
@@ -26,10 +25,10 @@ public class LogHeader {
     private DeletedSection deleted;
     private final DataStream stream;
 
-    private final Serializer<OpenSection> openSerializer = KryoStoreSerializer.of(OpenSection.class);
-    private final Serializer<CompletedSection> completedSerizalizer = KryoStoreSerializer.of(CompletedSection.class);
-    private final Serializer<DeletedSection> deletedSerializer = KryoStoreSerializer.of(DeletedSection.class);
-    private final Serializer<MergeSection> mergeSerializer = KryoStoreSerializer.of(MergeSection.class);
+    private final Serializer<OpenSection> openSerializer = OpenSection.serializer();
+    private final Serializer<CompletedSection> completedSerializer = CompletedSection.serializer();
+    private final Serializer<DeletedSection> deletedSerializer = DeletedSection.serializer();
+    private final Serializer<MergeSection> mergeSerializer = MergeSection.serializer();
 
     private LogHeader(DataStream stream) {
         this.stream = stream;
@@ -37,7 +36,7 @@ public class LogHeader {
             stream.position(BYTES);
         }
         this.open = stream.read(Direction.FORWARD, OPEN_SECTION_START, openSerializer).entry();
-        this.completed = stream.read(Direction.FORWARD, COMPLETED_SECTION_START, completedSerizalizer).entry();
+        this.completed = stream.read(Direction.FORWARD, COMPLETED_SECTION_START, completedSerializer).entry();
         this.deleted = stream.read(Direction.FORWARD, DELETED_SECTION_START, deletedSerializer).entry();
     }
 
@@ -153,7 +152,7 @@ public class LogHeader {
 
     public void writeCompleted(long entries, int level, long actualDataSize, long footerMapPosition, long footerStart, long footerLength, long uncompressedSize, long physical) {
         this.completed = new CompletedSection(level, entries, actualDataSize, footerMapPosition, footerStart, footerLength, System.currentTimeMillis(), uncompressedSize, physical);
-        stream.write(COMPLETED_SECTION_START, completed, completedSerizalizer);
+        stream.write(COMPLETED_SECTION_START, completed, completedSerializer);
         verifyWrite();
     }
 
