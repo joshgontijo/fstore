@@ -5,7 +5,7 @@ package io.joshworks.fstore.tcp.internal;
  */
 public class Message {
 
-    public long id;
+    public final long id;
     public final Object data;
 
     public Message(long id, Object data) {

@@ -23,7 +23,7 @@ public class Nodes {
     }
 
     public ClusterNode byId(String id) {
-        return nodesByAddress.get(id);
+        return nodeById.get(id);
     }
 
     public List<ClusterNode> all() {

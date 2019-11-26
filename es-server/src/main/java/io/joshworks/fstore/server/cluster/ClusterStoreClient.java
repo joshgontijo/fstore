@@ -4,8 +4,11 @@ import io.joshworks.fstore.LinkToPolicy;
 import io.joshworks.fstore.SystemEventPolicy;
 import io.joshworks.fstore.api.EventStoreIterator;
 import io.joshworks.fstore.api.IEventStore;
-import io.joshworks.fstore.network.ClusterNode;
-import io.joshworks.fstore.network.ClusterClient;
+import io.joshworks.fstore.cluster.ClusterClient;
+import io.joshworks.fstore.cluster.ClusterNode;
+import io.joshworks.fstore.es.shared.EventId;
+import io.joshworks.fstore.es.shared.EventMap;
+import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.server.cluster.messages.Append;
 import io.joshworks.fstore.server.cluster.messages.AppendResult;
 import io.joshworks.fstore.server.cluster.messages.CreateStream;
@@ -19,9 +22,6 @@ import io.joshworks.fstore.server.cluster.messages.IteratorCreated;
 import io.joshworks.fstore.server.cluster.messages.IteratorNext;
 import io.joshworks.fstore.stream.StreamInfo;
 import io.joshworks.fstore.stream.StreamMetadata;
-import io.joshworks.fstore.es.shared.EventId;
-import io.joshworks.fstore.es.shared.EventMap;
-import io.joshworks.fstore.es.shared.EventRecord;
 import org.jgroups.Address;
 
 import java.util.ArrayDeque;
@@ -33,11 +33,11 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 
+import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 import static io.joshworks.fstore.server.cluster.RemoteIterators.DEFAULT_BATCH_SIZE;
 import static io.joshworks.fstore.server.cluster.RemoteIterators.DEFAULT_TIMEOUT;
 import static io.joshworks.fstore.stream.StreamMetadata.NO_MAX_AGE;
 import static io.joshworks.fstore.stream.StreamMetadata.NO_MAX_COUNT;
-import static io.joshworks.fstore.es.shared.EventId.NO_EXPECTED_VERSION;
 
 //CLIENT
 public class ClusterStoreClient implements IEventStore {

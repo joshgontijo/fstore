@@ -5,12 +5,10 @@ import io.joshworks.lsm.server.NodeInfo;
 
 public class NodeJoined {
 
-    public NodeInfo nodeInfo;
+    public final NodeInfo nodeInfo;
 
     public NodeJoined(NodeInfo nodeInfo) {
         this.nodeInfo = nodeInfo;
     }
 
-    public NodeJoined() {
-    }
 }

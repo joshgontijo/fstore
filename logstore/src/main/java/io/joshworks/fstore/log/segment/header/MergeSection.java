@@ -1,5 +1,8 @@
 package io.joshworks.fstore.log.segment.header;
 
+import io.joshworks.fstore.core.Serializer;
+
+import java.nio.ByteBuffer;
 import java.util.Objects;
 
 public final class MergeSection {
@@ -7,6 +10,21 @@ public final class MergeSection {
 
     public MergeSection(long timestamp) {
         this.timestamp = timestamp;
+    }
+
+    static Serializer<MergeSection> serializer() {
+        return new Serializer<>() {
+            @Override
+            public void writeTo(MergeSection data, ByteBuffer dst) {
+                dst.putLong(data.timestamp);
+            }
+
+            @Override
+            public MergeSection fromBytes(ByteBuffer buffer) {
+                long timestamp = buffer.getLong();
+                return new MergeSection(timestamp);
+            }
+        };
     }
 
     @Override

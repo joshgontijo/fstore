@@ -311,8 +311,6 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             node = new ClusterNode(address, new InetSocketAddress(inetAddr, ipAddr.getPort()));
             nodes.add(address, node);
 
-
-
         } else {
             node = new ClusterNode(address);
             nodes.add(address, node);
@@ -327,5 +325,9 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
         }
         clusterNode.status = status;
         fireNodeUpdate(clusterNode, status);
+    }
+
+    public String name() {
+        return clusterName;
     }
 }

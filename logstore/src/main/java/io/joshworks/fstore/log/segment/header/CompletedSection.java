@@ -1,5 +1,8 @@
 package io.joshworks.fstore.log.segment.header;
 
+import io.joshworks.fstore.core.Serializer;
+
+import java.nio.ByteBuffer;
 import java.util.Objects;
 
 public final class CompletedSection {
@@ -23,6 +26,37 @@ public final class CompletedSection {
         this.footerMapPosition = footerMapPosition;
         this.footerLength = footerLength;
         this.physical = physical;
+    }
+
+    static Serializer<CompletedSection> serializer() {
+        return new Serializer<>() {
+            @Override
+            public void writeTo(CompletedSection data, ByteBuffer dst) {
+                dst.putInt(data.level);
+                dst.putLong(data.entries);
+                dst.putLong(data.footerStart);
+                dst.putLong(data.rolled);
+                dst.putLong(data.uncompressedSize);
+                dst.putLong(data.actualDataLength);
+                dst.putLong(data.footerMapPosition);
+                dst.putLong(data.footerLength);
+                dst.putLong(data.physical);
+            }
+
+            @Override
+            public CompletedSection fromBytes(ByteBuffer buffer) {
+                int level = buffer.getInt();
+                long entries = buffer.getLong();
+                long footerStart = buffer.getLong();
+                long rolled = buffer.getLong();
+                long uncompressedSize = buffer.getLong();
+                long actualDataLength = buffer.getLong();
+                long footerMapPosition = buffer.getLong();
+                long footerLength = buffer.getLong();
+                long physical = buffer.getLong();
+                return new CompletedSection(level, entries, actualDataLength, footerMapPosition, footerStart, footerLength, rolled, uncompressedSize, physical);
+            }
+        };
     }
 
     @Override

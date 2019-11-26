@@ -14,7 +14,7 @@ public class TypedEventHandler implements ServerEventHandler {
     private final Logger logger = LoggerFactory.getLogger(TypedEventHandler.class);
     private final Map<Class, BiFunction<TcpConnection, Object, Object>> handlers = new ConcurrentHashMap<>();
     private final BiFunction<TcpConnection, Object, Object> NO_OP = (conn, msg) -> {
-        logger.warn("No handler for {}", msg.getClass().getSimpleName());
+        logger.warn("No handler for event of type {}", msg.getClass().getSimpleName());
         return null;
     };
 
@@ -23,15 +23,15 @@ public class TypedEventHandler implements ServerEventHandler {
         return handle(data, connection);
     }
 
-    public <T> TypedEventHandler on(Class<T> type, BiConsumer<TcpConnection, T> handler) {
-        on(type, (tcpConnection, t) -> {
+    public <T> TypedEventHandler register(Class<T> type, BiConsumer<TcpConnection, T> handler) {
+        register(type, (tcpConnection, t) -> {
             handler.accept(tcpConnection, t);
             return null;
         });
         return this;
     }
 
-    public <T> TypedEventHandler on(Class<T> type, BiFunction<TcpConnection, T, Object> handler) {
+    public <T> TypedEventHandler register(Class<T> type, BiFunction<TcpConnection, T, Object> handler) {
         handlers.put(type, (BiFunction<TcpConnection, Object, Object>) handler);
         return this;
     }

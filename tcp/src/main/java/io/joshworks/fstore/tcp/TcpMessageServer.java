@@ -1,16 +1,11 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
 import io.joshworks.fstore.tcp.conduits.IdleTimeoutConduit;
-import io.joshworks.fstore.tcp.internal.KeepAlive;
-import io.joshworks.fstore.tcp.internal.Message;
-import io.joshworks.fstore.tcp.internal.Ping;
-import io.joshworks.fstore.tcp.internal.Pong;
 import io.joshworks.fstore.tcp.server.AsyncEventHandler;
 import io.joshworks.fstore.tcp.server.KeepAliveHandler;
 import io.joshworks.fstore.tcp.server.PingHandler;
@@ -83,12 +78,6 @@ public class TcpMessageServer implements Closeable {
 
         this.messagePool = new SimpleBufferPool("tcp-message-pool", maxBufferSize, false);
         this.readPool = new SimpleBufferPool("tcp-read-pool", maxBufferSize, false);
-
-        registeredTypes.add(Message.class);
-        registeredTypes.add(KeepAlive.class);
-        registeredTypes.add(Ping.class);
-        registeredTypes.add(Pong.class);
-        KryoStoreSerializer.register(registeredTypes.toArray(Class[]::new));
 
         Acceptor acceptor = new Acceptor(idleTimeout, readPool, messagePool);
         try {
