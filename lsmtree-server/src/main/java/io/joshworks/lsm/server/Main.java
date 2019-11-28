@@ -2,6 +2,7 @@ package io.joshworks.lsm.server;
 
 import io.joshworks.fstore.core.util.AppProperties;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 
@@ -19,8 +20,7 @@ public class Main {
         File rootDir = new File(storePath);
         FileUtils.tryDelete(rootDir);
 
-        Server server = Server.join(rootDir, clusterName, tcpPort, replicationPort);
-
+        Server<String> server = Server.join(rootDir, Serializers.VSTRING, clusterName, tcpPort, replicationPort);
 
 
 //        Client client = Client.connect(new InetSocketAddress("localhost", tcpPort));
@@ -48,7 +48,6 @@ public class Main {
 
 
     }
-
 
 
 }

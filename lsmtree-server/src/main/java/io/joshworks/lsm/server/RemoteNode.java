@@ -3,18 +3,23 @@ package io.joshworks.lsm.server;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.tcp.TcpClientConnection;
 import io.joshworks.fstore.tcp.client.TcpEventClient;
+import io.joshworks.lsm.server.messages.Delete;
+import io.joshworks.lsm.server.messages.Get;
+import io.joshworks.lsm.server.messages.Put;
+import io.joshworks.lsm.server.messages.Replicate;
+import io.joshworks.lsm.server.messages.Result;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 
-public class Node {
+public class RemoteNode implements StoreNode {
 
     private final TcpClientConnection nodeClient;
     private final TcpClientConnection replicationClient;
     private final NodeInfo nodeInfo;
 
-    public Node(NodeInfo nodeInfo) {
+    public RemoteNode(NodeInfo nodeInfo) {
         this.nodeInfo = nodeInfo;
         this.nodeClient = createClient(nodeInfo.tcp(), "tcp-client");
         this.replicationClient = createClient(nodeInfo.replicationTcp(), "replication-client");
@@ -35,20 +40,34 @@ public class Node {
                 .connect(address, 5, TimeUnit.SECONDS);
     }
 
+    @Override
+    public void put(Put msg) {
+
+    }
+
+    @Override
+    public void replicate(Replicate msg) {
+        replicationClient.send(msg);
+    }
+
+    @Override
+    public Result get(Get msg) {
+        return null;
+    }
+
+    @Override
+    public void delete(Delete msg) {
+
+    }
+
+    @Override
+    public void close() {
+        //do nothing
+    }
+
+    @Override
     public String id() {
         return nodeInfo.id;
-    }
-
-    public TcpClientConnection tcp() {
-        return nodeClient;
-    }
-
-    public TcpClientConnection replication() {
-        return replicationClient;
-    }
-
-    public NodeInfo info() {
-        return nodeInfo;
     }
 
 }

@@ -4,8 +4,8 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
+
+import static java.util.Objects.requireNonNull;
 
 public class VStringSerializer implements Serializer<String> {
 
@@ -29,46 +29,8 @@ public class VStringSerializer implements Serializer<String> {
         return value;
     }
 
-    public static int sizeOf(String value) {
-        if (value == null) {
-            return Integer.BYTES;
-        }
-        return value.length() + Integer.BYTES;
+    public static byte[] toBytes(String value) {
+        return requireNonNull(value).getBytes(StandardCharsets.UTF_8);
     }
-
-    //Iterates over a array of VSTRING, the array must containg only VSTRING ENTRIES
-    public static Iterator<String> iterator(ByteBuffer data) {
-        return new Iterator<>() {
-
-            private final Serializer<String> instance = new VStringSerializer();
-
-            @Override
-            public boolean hasNext() {
-                int pos = data.position();
-                int nextLength = data.getInt(pos);
-                int remaining = data.remaining();
-                return data.hasRemaining() && remaining > Integer.BYTES + nextLength;
-            }
-
-            @Override
-            public String next() {
-                if (hasNext()) {
-                    throw new NoSuchElementException();
-                }
-                return instance.fromBytes(data);
-            }
-        };
-    }
-
-
-//    @Override
-//    public String fromBytes(ByteBuffer buffer) {
-//        int length = buffer.getInt();
-//        int limit = buffer.limit();
-//        buffer.limit(buffer.position() + length);
-//        String data = StandardCharsets.UTF_8.decode(buffer).toString();
-//        buffer.limit(limit);
-//        return data;
-//    }
 
 }
