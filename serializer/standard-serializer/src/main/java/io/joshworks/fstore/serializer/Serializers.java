@@ -63,6 +63,10 @@ public class Serializers {
         return new ByteBufferTransfer(buffer);
     }
 
+    public static Serializer<ByteBuffer> copy() {
+        return new ByteBufferCopy();
+    }
+
     public static <K, V> Serializer<Map<K, V>> mapSerializer(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
         return mapSerializer(keySerializer, valueSerializer, HashMap::new);
     }

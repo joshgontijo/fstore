@@ -1,12 +1,20 @@
 package io.joshworks.lsm.server.messages;
 
+import java.util.Arrays;
+
 public class Put {
 
     public String namespace;
-    public String key;
+    public byte[] key;
     public byte[] value;
 
-    public Put(String key, byte[] value) {
+    //0 - NO ACK
+    //1 - LOCAL
+    //2 - QUORUM
+    //3 - ALL
+    public int replication;
+
+    public Put(byte[] key, byte[] value) {
         this.key = key;
         this.value = value;
     }
@@ -17,7 +25,7 @@ public class Put {
     @Override
     public String toString() {
         return "Put{" +
-                "key='" + key + '\'' +
+                "key='" + Arrays.toString(key) + '\'' +
                 '}';
     }
 }
