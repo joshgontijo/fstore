@@ -2,7 +2,7 @@ package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.ChannelListener;
@@ -56,7 +56,7 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
 
     private Object parse(ByteBuffer buffer) {
         try {
-            return KryoStoreSerializer.deserialize(buffer);
+            return KryoSerializer.deserialize(buffer);
         } catch (Exception e) {
             throw new RuntimeException("Error while parsing data", e);
         }

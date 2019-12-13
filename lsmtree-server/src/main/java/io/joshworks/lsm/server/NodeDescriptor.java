@@ -1,39 +1,33 @@
 package io.joshworks.lsm.server;
 
-import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.extra.DataFile;
+import io.joshworks.fstore.serializer.Serializers;
+import io.joshworks.fstore.serializer.collection.EntrySerializer;
 
 import java.io.Closeable;
 import java.io.File;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
 import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
+import java.util.AbstractMap;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
-/**
- * UUID (36 bytes)
- * [NUM_OF_OWNED_PARTITIONS]
- * [OWNED PARTITIONS] (4 byte each)
- */
+
 public class NodeDescriptor implements Closeable {
 
     private static final String CLUSTER_NAME = "CLUSTER_NAME";
     private static final String NODE_ID = "NODE_ID";
 
     private static final String FILE = ".node";
-    private final FileChannel channel;
-    private final FileLock lock;
 
     private final Map<String, String> data = new HashMap<>();
+    private final DataFile<Map.Entry<String, String>> dataFile;
 
-    private NodeDescriptor(Map<String, String> data, FileChannel channel, FileLock lock) {
-        this.data.putAll(data);
-        this.channel = channel;
-        this.lock = lock;
+    private NodeDescriptor(DataFile<Map.Entry<String, String>> dataFile) {
+        this.dataFile = dataFile;
     }
 
     public static synchronized NodeDescriptor read(File root) {
@@ -47,21 +41,16 @@ public class NodeDescriptor implements Closeable {
                 return null;
             }
 
-            FileChannel channel = FileChannel.open(pFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ);
-            FileLock lock = channel.lock();
-            try {
+            var dataFile = DataFile.of(new EntrySerializer<>(Serializers.VSTRING, Serializers.VSTRING)).open(new File(root, FILE));
+            NodeDescriptor descriptor = new NodeDescriptor(dataFile);
 
-                ByteBuffer bb = ByteBuffer.allocate(4096);
-                channel.read(bb);
-                bb.flip();
-
-                Map<String, String> data = KryoStoreSerializer.deserialize(bb);
-                return new NodeDescriptor(data, channel, lock);
-            } catch (Exception e) {
-                IOUtils.releaseLock(lock);
-                IOUtils.closeQuietly(channel);
-                throw new RuntimeException("Failed to read node descriptor", e);
+            Iterator<Map.Entry<String, String>> it = dataFile.iterator(Direction.FORWARD);
+            while (it.hasNext()) {
+                Map.Entry<String, String> entry = it.next();
+                descriptor.data.put(entry.getKey(), entry.getValue());
             }
+
+            return descriptor;
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to acquire partition descriptor file", e);
@@ -69,43 +58,22 @@ public class NodeDescriptor implements Closeable {
     }
 
     public static NodeDescriptor create(File root, String clusterName) {
-        return create(root, clusterName, new HashMap<>());
-    }
 
-    public static NodeDescriptor create(File root, String clusterName, Map<String, String> properties) {
-        File pFile = new File(root, FILE);
-        try {
-            Files.createDirectories(root.toPath());
-            Files.createFile(pFile.toPath());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to write node descriptor", e);
+        var dataFile = DataFile.of(new EntrySerializer<>(Serializers.VSTRING, Serializers.VSTRING)).open(new File(root, FILE));
+        NodeDescriptor descriptor = new NodeDescriptor(dataFile);
+
+        Map<String, String> data = new HashMap<>();
+        data.put(CLUSTER_NAME, clusterName);
+        data.put(NODE_ID, UUID.randomUUID().toString().substring(0, 8));
+
+        for (Map.Entry<String, String> kv : data.entrySet()) {
+            descriptor.update(kv.getKey(), kv.getValue());
         }
-
-        FileChannel channel = null;
-        FileLock lock = null;
-        try {
-            channel = FileChannel.open(pFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ);
-            lock = channel.lock();
-
-            Map<String, String> data = new HashMap<>();
-            data.put(CLUSTER_NAME, clusterName);
-            data.put(NODE_ID, UUID.randomUUID().toString().substring(0, 8));
-            data.putAll(properties);
-
-            byte[] bytes = KryoStoreSerializer.serialize(data);
-            NodeDescriptor descriptor = new NodeDescriptor(data, channel, lock);
-            channel.write(ByteBuffer.wrap(bytes));
-            channel.force(true);
-            return descriptor;
-
-        } catch (Exception e) {
-            IOUtils.releaseLock(lock);
-            IOUtils.closeQuietly(channel);
-            throw new RuntimeException("Failed to write node descriptor", e);
-        }
+        return descriptor;
     }
 
     public void update(String key, String value) {
+        dataFile.add(new AbstractMap.SimpleEntry<>(key, value));
         data.put(key, value);
     }
 
@@ -117,21 +85,21 @@ public class NodeDescriptor implements Closeable {
         return data.get(CLUSTER_NAME);
     }
 
-    public String get(String key) {
-        return data.get(key);
+    public Optional<String> get(String key) {
+        return Optional.ofNullable(data.get(key));
+    }
+
+    public Optional<Integer> asInt(String key) {
+        return get(key).map(Integer::parseInt);
+    }
+
+    public Optional<Long> asLong(String key) {
+        return get(key).map(Long::parseLong);
     }
 
     @Override
     public void close() {
-        IOUtils.releaseLock(lock);
-        IOUtils.closeQuietly(channel);
-    }
-
-    public Integer getInt(String key) {
-        String val = get(key);
-        if (val == null) {
-            return null;
-        }
-        return Integer.parseInt(val);
+        data.clear();
+        dataFile.close();
     }
 }

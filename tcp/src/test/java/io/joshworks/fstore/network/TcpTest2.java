@@ -22,7 +22,7 @@ public class TcpTest2 {
     private static final String HOST = "localhost";
     private static final int PORT = 9999;
 
-    private static final int ITEMS = 5000000;
+    private static final int ITEMS = 1000000;
     private static final int CLIENTS = 1;
 
     private static final List<TcpConnection> clientConnections = new ArrayList<>();
@@ -33,11 +33,9 @@ public class TcpTest2 {
                 .onOpen(conn -> {
                     System.out.println("SERVER: Connection opened");
                     new Thread(() -> {
-                        while (true) {
                             for (int i = 0; i < ITEMS; i++) {
                                 conn.send(new Payload(String.valueOf(i)));
                             }
-                        }
                     }).start();
                 })
                 .onClose(conn -> System.out.println("SERVER: Connection closed"))

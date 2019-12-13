@@ -1,7 +1,7 @@
 package io.joshworks.fstore.cluster;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 import org.jgroups.Address;
 import org.jgroups.Event;
 import org.jgroups.JChannel;
@@ -62,7 +62,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
     private final List<BiConsumer<Message, Object>> interceptors = new ArrayList<>();
     private final List<Runnable> connectionListeners = new ArrayList<>();
 
-    private static final Function<? extends Object, Object> NO_OP = msg -> {
+    private static final Function<?, Object> NO_OP = msg -> {
         logger.warn("No message handler for code {}", msg.getClass().getName());
         return null;
     };
@@ -141,6 +141,10 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
 
     public Address address() {
         return channel.getAddress();
+    }
+
+    public Address coordinator() {
+        return state.getCoord();
     }
 
     public String nodeId() {
@@ -236,7 +240,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                 intercept(msg, null);
                 return null;
             }
-            Object clusterMessage = KryoStoreSerializer.deserialize(msg.buffer());
+            Object clusterMessage = KryoSerializer.deserialize(msg.buffer());
 
             intercept(msg, clusterMessage);
 
@@ -246,7 +250,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                 logger.warn("NULL RESPONSE FROM HANDLER");
                 resp = new NullMessage();
             }
-            byte[] data = KryoStoreSerializer.serialize(resp);
+            byte[] data = KryoSerializer.serialize(resp);
             return new Message(msg.src(), data).setSrc(address());
         } catch (Exception e) {
             logger.error("Failed to receive message: " + msg, e);
@@ -265,7 +269,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
                     return;
                 }
 
-                Object clusterMessage = KryoStoreSerializer.deserialize(msg.buffer());
+                Object clusterMessage = KryoSerializer.deserialize(msg.buffer());
                 intercept(msg, clusterMessage);
 
                 Object resp = handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
@@ -283,7 +287,7 @@ public class Cluster implements MembershipListener, RequestHandler, Closeable {
             return;
         }
         replyMessage = Optional.ofNullable(replyMessage).orElse(new NullMessage());
-        byte[] data = KryoStoreSerializer.serialize(replyMessage);
+        byte[] data = KryoSerializer.serialize(replyMessage);
         //This is required to get JGroups to work with Message
         ByteArrayDataOutputStream out = new ByteArrayDataOutputStream(data.length + Integer.BYTES, true);
         Util.objectToStream(data, out);

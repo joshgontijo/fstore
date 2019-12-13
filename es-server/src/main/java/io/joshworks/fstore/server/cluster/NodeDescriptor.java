@@ -1,7 +1,7 @@
 package io.joshworks.fstore.server.cluster;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 
 import java.io.Closeable;
 import java.io.File;
@@ -50,7 +50,7 @@ public class NodeDescriptor implements Closeable {
                 channel.read(bb);
                 bb.flip();
 
-                Data data = KryoStoreSerializer.deserialize(bb, Data.class);
+                Data data = KryoSerializer.deserialize(bb, Data.class);
                 return new NodeDescriptor(data, channel, lock);
             } catch (Exception e) {
                 IOUtils.releaseLock(lock);
@@ -80,7 +80,7 @@ public class NodeDescriptor implements Closeable {
 
             String uuid = UUID.randomUUID().toString().substring(0, 8);
             Data data = new Data(uuid, clusterName);
-            byte[] bytes = KryoStoreSerializer.serialize(data, Data.class);
+            byte[] bytes = KryoSerializer.serialize(data, Data.class);
             NodeDescriptor descriptor = new NodeDescriptor(data, channel, lock);
             channel.write(ByteBuffer.wrap(bytes));
             channel.force(true);

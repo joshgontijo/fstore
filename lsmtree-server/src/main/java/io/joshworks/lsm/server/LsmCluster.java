@@ -39,7 +39,7 @@ public class LsmCluster<K extends Comparable<K>> implements Closeable {
     public void put(Put msg) {
         StoreNode node = select(msg.key);
         node.put(msg);
-        if (isLocal(node)) { //Partition owner is responsible for coordinating he replication
+        if (isLocal(node)) { //Partition owner is responsible for coordinating the replication
             replicate(msg);
         }
     }
@@ -52,14 +52,16 @@ public class LsmCluster<K extends Comparable<K>> implements Closeable {
     public void delete(Delete msg) {
         StoreNode node = select(msg.key);
         node.delete(msg);
-        if (isLocal(node)) { //Partition owner is responsible for coordinating he replication
+        if (isLocal(node)) { //Partition owner is responsible for coordinating the replication
             replicate(msg);
         }
     }
 
     private void replicate(Object msg) {
         for (StoreNode node : nodes) {
-            node.replicate(new Replicate(nodeInfo.id, msg));
+            if (!isLocal(node)) { //TODO change logic
+                node.replicate(new Replicate(nodeInfo.id, msg));
+            }
         }
     }
 
