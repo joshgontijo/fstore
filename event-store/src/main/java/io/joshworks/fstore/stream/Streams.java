@@ -10,7 +10,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.lsmtree.LsmTree;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 
 import java.io.Closeable;
 import java.io.File;
@@ -40,7 +40,7 @@ public class Streams implements Closeable {
 
     public Streams(File root, int flushThreshold, Cache<Long, StreamMetadata> cache) {
         this.cache = cache;
-        this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, KryoStoreSerializer.of(StreamMetadata.class))
+        this.store = LsmTree.builder(new File(root, STORE_NAME), Serializers.LONG, KryoSerializer.of(StreamMetadata.class))
                 .name(STORE_NAME)
                 .flushThreshold(flushThreshold)
                 .bloomFilterFalsePositiveProbability(0.01)

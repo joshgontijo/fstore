@@ -23,6 +23,7 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.Lock;
 
 public class Server<K extends Comparable<K>> implements AutoCloseable {
 
@@ -68,20 +69,18 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
         Partitioner partitioner = new HashPartitioner();
 
+        int ringId = descriptor.asInt(RING_KEY).orElseGet(() -> acquireRingId(cluster));
 
-        int ringId = 123456;
         ClusterNode cNode = cluster.node();
         //FIXME concurrency issue when connecting
         NodeInfo thisNode = new NodeInfo(cNode.id, ringId, cNode.hostAddress(), replicationTcpPort, tcpPort, Status.ACTIVE);
+        cluster.node().attach(NODE_INFO_KEY, thisNode);
 
         Server<K> server = new Server<>(rootDir, cluster, descriptor, partitioner, serializer, thisNode);
 
         cluster.interceptor((msg, obj) -> logger.info("RECEIVED FROM {}: {}", msg.src(), obj));
         cluster.register(NodeJoined.class, server::nodeJoined);
         cluster.register(NodeLeft.class, server::nodeLeft);
-
-        //FIXME concurrency issue when connecting
-        cluster.node().attach(NODE_INFO_KEY, thisNode);
 
         List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode));
         for (MulticastResponse response : responses) {
@@ -91,6 +90,18 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
         }
 
         return server;
+    }
+
+    private static int acquireRingId(Cluster cluster) {
+        Lock lock = cluster.client().lock(RING_LOCK);
+        lock.lock();
+        try {
+
+        } finally {
+            lock.unlock();
+        }
+
+        throw new UnsupportedOperationException();
     }
 
     private static TcpMessageServer startListener(ServerEventHandler handler, int port) {

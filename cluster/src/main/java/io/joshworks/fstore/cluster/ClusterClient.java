@@ -1,6 +1,6 @@
 package io.joshworks.fstore.cluster;
 
-import io.joshworks.fstore.serializer.kryo.KryoStoreSerializer;
+import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 import org.jgroups.Address;
 import org.jgroups.blocks.MessageDispatcher;
 import org.jgroups.blocks.RequestOptions;
@@ -48,7 +48,7 @@ public class ClusterClient {
             return null;
         }
 
-        Object cMessage = KryoStoreSerializer.deserialize(response);
+        Object cMessage = KryoSerializer.deserialize(response);
         if (cMessage instanceof MessageError) {
             throw new RuntimeException("TODO " + cMessage);
         }
@@ -84,7 +84,7 @@ public class ClusterClient {
             requireNonNull(response, "Response cannot be null");
             byte[] respMsg = response.getValue();
             if (respMsg != null) {
-                Object cm = KryoStoreSerializer.deserialize(respMsg);
+                Object cm = KryoSerializer.deserialize(respMsg);
                 nodeResponses.add(new MulticastResponse(null, cm));
             }
 
@@ -108,7 +108,7 @@ public class ClusterClient {
 
     private byte[] send(Address address, Object message, RequestOptions options) {
         try {
-            byte[] data = KryoStoreSerializer.serialize(message);
+            byte[] data = KryoSerializer.serialize(message);
             Object o = dispatcher.sendMessage(address, new Buffer(data), options);
             return (byte[]) o;
         } catch (Exception e) {
@@ -118,7 +118,7 @@ public class ClusterClient {
 
     private RspList<byte[]> cast(Collection<Address> addresses, Object message, RequestOptions options) {
         try {
-            byte[] data = KryoStoreSerializer.serialize(message);
+            byte[] data = KryoSerializer.serialize(message);
             return dispatcher.castMessage(addresses, new Buffer(data), options);
         } catch (Exception e) {
             throw new ClusterClientException("Failed sending message to " + Arrays.toString(addresses.toArray()) + ": ", e);

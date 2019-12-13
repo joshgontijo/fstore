@@ -20,9 +20,9 @@ import java.util.concurrent.TimeUnit;
 public class TcpTest {
 
     private static final String HOST = "localhost";
-    private static final int PORT = 12345;
+    private static final int PORT = 12344;
 
-    private static final int ITEMS = 5000000;
+    private static final int ITEMS = 1000000;
     private static final int CLIENTS = 1;
 
     private static final List<TcpConnection> clientConnections = new ArrayList<>();
@@ -57,7 +57,7 @@ public class TcpTest {
             long start = System.currentTimeMillis();
             for (int i = 0; i < ITEMS; i++) {
                 try {
-                    client.send(new Payload(String.valueOf(i)));
+                    client.request(new Payload(String.valueOf(i))).get();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
