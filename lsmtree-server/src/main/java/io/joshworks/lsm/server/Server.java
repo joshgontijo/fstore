@@ -1,7 +1,7 @@
 package io.joshworks.lsm.server;
 
-import io.joshworks.fstore.cluster.Cluster;
 import io.joshworks.fstore.cluster.ClusterNode;
+import io.joshworks.fstore.cluster.NodeInfo;
 import io.joshworks.fstore.cluster.MulticastResponse;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.util.AttributeKey;
@@ -30,11 +30,11 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
     private static final String RING_LOCK = "RING_LOCK";
     private static final String RING_KEY = "RING_ID";
 
-    private static final AttributeKey<NodeInfo> NODE_INFO_KEY = AttributeKey.create(NodeInfo.class);
+    private static final AttributeKey<io.joshworks.lsm.server.NodeInfo> NODE_INFO_KEY = AttributeKey.create(io.joshworks.lsm.server.NodeInfo.class);
 
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
 
-    private final Cluster cluster;
+    private final ClusterNode clusterNode;
     private final Replicas replicas;
     private final NodeDescriptor descriptor;
 
@@ -46,12 +46,12 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
     private Server(
             File rootDir,
-            Cluster cluster,
+            ClusterNode clusterNode,
             NodeDescriptor descriptor,
             Partitioner partitioner,
             Serializer<K> keySerializer,
-            NodeInfo nodeInfo) {
-        this.cluster = cluster;
+            io.joshworks.lsm.server.NodeInfo nodeInfo) {
+        this.clusterNode = clusterNode;
         this.descriptor = descriptor;
         this.clusterStore = new LsmCluster<>(rootDir, keySerializer, remoteNodes, partitioner, nodeInfo);
         this.replicas = new Replicas(rootDir);
@@ -62,38 +62,38 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
     public static <K extends Comparable<K>> Server<K> join(File rootDir, Serializer<K> serializer, String clusterName, int tcpPort, int replicationTcpPort) {
         NodeDescriptor descriptor = loadDescriptor(rootDir, clusterName);
-        Cluster cluster = new Cluster(clusterName, descriptor.nodeId());
-        logger.info("Joining cluster {}", cluster.name());
-        cluster.join();
-        logger.info("Joined cluster {}", cluster.name());
+        ClusterNode clusterNode = new ClusterNode(clusterName, descriptor.nodeId());
+        logger.info("Joining cluster {}", clusterNode.name());
+        clusterNode.join();
+        logger.info("Joined cluster {}", clusterNode.name());
 
         Partitioner partitioner = new HashPartitioner();
 
-        int ringId = descriptor.asInt(RING_KEY).orElseGet(() -> acquireRingId(cluster));
+        int ringId = descriptor.asInt(RING_KEY).orElseGet(() -> acquireRingId(clusterNode));
 
-        ClusterNode cNode = cluster.node();
+        NodeInfo cNode = clusterNode.node();
         //FIXME concurrency issue when connecting
-        NodeInfo thisNode = new NodeInfo(cNode.id, ringId, cNode.hostAddress(), replicationTcpPort, tcpPort, Status.ACTIVE);
-        cluster.node().attach(NODE_INFO_KEY, thisNode);
+        io.joshworks.lsm.server.NodeInfo thisNode = new io.joshworks.lsm.server.NodeInfo(cNode.id, ringId, cNode.hostAddress(), replicationTcpPort, tcpPort, Status.ACTIVE);
+        clusterNode.node().attach(NODE_INFO_KEY, thisNode);
 
-        Server<K> server = new Server<>(rootDir, cluster, descriptor, partitioner, serializer, thisNode);
+        Server<K> server = new Server<>(rootDir, clusterNode, descriptor, partitioner, serializer, thisNode);
 
-        cluster.interceptor((msg, obj) -> logger.info("RECEIVED FROM {}: {}", msg.src(), obj));
-        cluster.register(NodeJoined.class, server::nodeJoined);
-        cluster.register(NodeLeft.class, server::nodeLeft);
+        clusterNode.interceptor((msg, obj) -> logger.info("RECEIVED FROM {}: {}", msg.src(), obj));
+        clusterNode.register(NodeJoined.class, server::nodeJoined);
+        clusterNode.register(NodeLeft.class, server::nodeLeft);
 
-        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode));
+        List<MulticastResponse> responses = clusterNode.client().cast(new NodeJoined(thisNode));
         for (MulticastResponse response : responses) {
-            NodeInfo clusterNodeInfo = response.message();
-            logger.info("Received node info: {}", clusterNodeInfo);
-            server.onNewNode(clusterNodeInfo);
+            io.joshworks.lsm.server.NodeInfo nodeInfoInfo = response.message();
+            logger.info("Received node info: {}", nodeInfoInfo);
+            server.onNewNode(nodeInfoInfo);
         }
 
         return server;
     }
 
-    private static int acquireRingId(Cluster cluster) {
-        Lock lock = cluster.client().lock(RING_LOCK);
+    private static int acquireRingId(ClusterNode clusterNode) {
+        Lock lock = clusterNode.client().lock(RING_LOCK);
         lock.lock();
         try {
 
@@ -134,12 +134,12 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
         return descriptor;
     }
 
-    private NodeInfo nodeJoined(NodeJoined nodeJoined) {
+    private io.joshworks.lsm.server.NodeInfo nodeJoined(NodeJoined nodeJoined) {
         onNewNode(nodeJoined.nodeInfo);
-        return cluster.node().get(NODE_INFO_KEY);
+        return clusterNode.node().get(NODE_INFO_KEY);
     }
 
-    private void onNewNode(NodeInfo nodeInfo) {
+    private void onNewNode(io.joshworks.lsm.server.NodeInfo nodeInfo) {
         remoteNodes.add(new RemoteNode(nodeInfo));
         logger.info("Node connected {}", nodeInfo);
         replicas.initialize(nodeInfo.id);
@@ -151,7 +151,7 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
     @Override
     public void close() {
-        cluster.close();
+        clusterNode.close();
         clusterStore.close();
         clientListener.close();
         replicationListener.close();

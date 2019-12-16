@@ -2,13 +2,12 @@ package io.joshworks.fstore.server;
 
 import io.joshworks.fstore.EventStore;
 import io.joshworks.fstore.api.EventStoreIterator;
-import io.joshworks.fstore.cluster.Cluster;
 import io.joshworks.fstore.cluster.ClusterNode;
+import io.joshworks.fstore.cluster.NodeInfo;
 import io.joshworks.fstore.cluster.MulticastResponse;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
-import io.joshworks.fstore.es.shared.Node;
 import io.joshworks.fstore.es.shared.Status;
 import io.joshworks.fstore.es.shared.routing.HashRouter;
 import io.joshworks.fstore.es.shared.routing.Router;
@@ -16,7 +15,6 @@ import io.joshworks.fstore.es.shared.streams.StreamPattern;
 import io.joshworks.fstore.es.shared.utils.StringUtils;
 import io.joshworks.fstore.log.iterators.PeekingIterator;
 import io.joshworks.fstore.server.cluster.NodeDescriptor;
-import io.joshworks.fstore.server.cluster.events.NodeInfo;
 import io.joshworks.fstore.server.cluster.events.NodeInfoRequest;
 import io.joshworks.fstore.server.cluster.events.NodeJoined;
 import io.joshworks.fstore.server.cluster.events.NodeLeft;
@@ -51,19 +49,19 @@ public class ClusterStore extends EventStore {
     private final NodeDescriptor descriptor;
     private final ClusterState clusterState;
     private final NodeLog nodeLog;
-    private final Cluster cluster;
+    private final ClusterNode clusterNode;
 
     private final Router router = new HashRouter();
 
-    private ClusterStore(File root, Cluster cluster, NodeDescriptor descriptor) {
+    private ClusterStore(File root, ClusterNode clusterNode, NodeDescriptor descriptor) {
         super(new File(root, LOCAL_STORE_LOCATION));
         this.descriptor = requireNonNull(descriptor, "Descriptor must be provided");
         this.nodeLog = new NodeLog(root);
-        this.cluster = cluster;
+        this.clusterNode = clusterNode;
 
         this.clusterState = new ClusterState(descriptor.nodeId());
 
-        registerHandlers(cluster);
+        registerHandlers(clusterNode);
     }
 
     public static ClusterStore connect(File rootDir, String clusterName, int httpPort, int tcpPort) {
@@ -76,38 +74,38 @@ public class ClusterStore extends EventStore {
             throw new IllegalArgumentException("Cannot connect store from cluster " + descriptor.clusterName() + " to another cluster: " + clusterName);
         }
 
-        Cluster cluster = new Cluster(clusterName, descriptor.nodeId());
-        ClusterStore store = new ClusterStore(rootDir, cluster, descriptor);
+        ClusterNode clusterNode = new ClusterNode(clusterName, descriptor.nodeId());
+        ClusterStore store = new ClusterStore(rootDir, clusterNode, descriptor);
 
-        cluster.join();
+        clusterNode.join();
 
-        ClusterNode cNode = cluster.node();
-        Node thisNode = new Node(cNode.id, cNode.hostAddress(), httpPort, tcpPort, Status.ACTIVE);
+        NodeInfo cNode = clusterNode.node();
+        io.joshworks.fstore.es.shared.Node thisNode = new io.joshworks.fstore.es.shared.Node(cNode.id, cNode.hostAddress(), httpPort, tcpPort, Status.ACTIVE);
         store.clusterState.update(thisNode);
         store.nodeLog.append(new NodeStartedEvent(cNode.id, cNode.hostAddress(), httpPort, tcpPort));
-        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode));
+        List<MulticastResponse> responses = clusterNode.client().cast(new NodeJoined(thisNode));
         for (MulticastResponse response : responses) {
-            NodeInfo clusterNodeInfo = response.message();
-            logger.info("Received node info: {}", clusterNodeInfo);
+            io.joshworks.fstore.server.cluster.events.NodeInfo nodeInfoInfo = response.message();
+            logger.info("Received node info: {}", nodeInfoInfo);
 
-            store.clusterState.update(clusterNodeInfo.node);
-            store.nodeLog.append(new NodeInfoReceivedEvent(clusterNodeInfo.node));
+            store.clusterState.update(nodeInfoInfo.node);
+            store.nodeLog.append(new NodeInfoReceivedEvent(nodeInfoInfo.node));
         }
 
         return store;
     }
 
-    private void registerHandlers(Cluster cluster) {
-        cluster.register(NodeInfoRequest.class, this::onNodeInfoRequested);
-        cluster.register(NodeJoined.class, this::onNodeJoined);
-        cluster.register(NodeLeft.class, this::onNodeLeft);
+    private void registerHandlers(ClusterNode clusterNode) {
+        clusterNode.register(NodeInfoRequest.class, this::onNodeInfoRequested);
+        clusterNode.register(NodeJoined.class, this::onNodeJoined);
+        clusterNode.register(NodeLeft.class, this::onNodeLeft);
     }
 
-    private NodeInfo onNodeJoined(NodeJoined nodeJoined) {
+    private io.joshworks.fstore.server.cluster.events.NodeInfo onNodeJoined(NodeJoined nodeJoined) {
         logger.info("Node joined: {}", nodeJoined);
         nodeLog.append(new NodeJoinedEvent(nodeJoined.node));
         clusterState.update(nodeJoined.node);
-        return new NodeInfo(clusterState.thisNode());
+        return new io.joshworks.fstore.server.cluster.events.NodeInfo(clusterState.thisNode());
     }
 
     private void onNodeLeft(NodeLeft nodeLeft) {
@@ -116,17 +114,17 @@ public class ClusterStore extends EventStore {
         clusterState.update(nodeLeft.nodeId, Status.UNAVAILABLE);
     }
 
-    private NodeInfo onNodeInfoRequested(NodeInfoRequest nodeInfoRequest) {
+    private io.joshworks.fstore.server.cluster.events.NodeInfo onNodeInfoRequested(NodeInfoRequest nodeInfoRequest) {
         logger.info("Node info requested from {}", nodeInfoRequest.nodeId);
-        return new NodeInfo(clusterState.thisNode());
+        return new io.joshworks.fstore.server.cluster.events.NodeInfo(clusterState.thisNode());
     }
 
-    public Node thisNode() {
+    public io.joshworks.fstore.es.shared.Node thisNode() {
         return clusterState.getNode(descriptor.nodeId());
     }
 
-    public List<Node> nodesInfo() {
-        return clusterState.all().stream().map(n -> new Node(n.id, n.host, n.httpPort, n.tcpPort, n.status)).collect(Collectors.toList());
+    public List<io.joshworks.fstore.es.shared.Node> nodesInfo() {
+        return clusterState.all().stream().map(n -> new io.joshworks.fstore.es.shared.Node(n.id, n.host, n.httpPort, n.tcpPort, n.status)).collect(Collectors.toList());
     }
 
     public NodeLog nodeLog() {
@@ -169,7 +167,7 @@ public class ClusterStore extends EventStore {
         Set<String> thisNodePatterns = new HashSet<>(wildcard);
 
         for (String pattern : nonWildcard) {
-            Node node = HashRouter.select(clusterState.all(), pattern);
+            io.joshworks.fstore.es.shared.Node node = HashRouter.select(clusterState.all(), pattern);
             if (node.equals(thisNode())) {
                 thisNodePatterns.add(pattern);
             }
@@ -185,7 +183,7 @@ public class ClusterStore extends EventStore {
     @Override
     public void close() {
         //TODO improve
-        nodeLog.append(new NodeShutdownEvent(cluster.nodeId()));
+        nodeLog.append(new NodeShutdownEvent(clusterNode.nodeId()));
         clusterState.update(descriptor.nodeId(), Status.UNAVAILABLE);
         IOUtils.closeQuietly(descriptor);
         IOUtils.closeQuietly(nodeLog);
