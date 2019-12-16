@@ -9,20 +9,20 @@ public class JGroupsTest {
 
     public static void main(String[] args) {
 
-        Cluster node1 = new Cluster("test", "1");
-        Cluster node2 = new Cluster("test", "2");
+        ClusterNode clusterNode1 = new ClusterNode("test", "1");
+        ClusterNode clusterNode2 = new ClusterNode("test", "2");
 
-        node1.register(Message.class, msg -> {
+        clusterNode1.register(Message.class, msg -> {
             counter.incrementAndGet();
         });
 
-        node1.join();
-        node2.join();
+        clusterNode1.join();
+        clusterNode2.join();
 
         long s1 = System.currentTimeMillis();
         long start = System.currentTimeMillis();
         for (int i = 0; i < 1000000; i++) {
-            node2.client().send(node1.address(), new Message(123, UUID.randomUUID().toString()));
+            clusterNode2.client().send(clusterNode1.address(), new Message(123, UUID.randomUUID().toString()));
             if (i % 10000 == 0) {
                 long now = System.currentTimeMillis();
                 System.out.println(i + " -> " + (now - start));
@@ -31,8 +31,8 @@ public class JGroupsTest {
         }
 
         System.out.println("TOOK: " + (System.currentTimeMillis() - s1));
-        node1.close();
-        node2.close();
+        clusterNode1.close();
+        clusterNode2.close();
     }
 
     public static class Message {

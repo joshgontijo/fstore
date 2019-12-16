@@ -22,7 +22,6 @@ import java.util.Queue;
 
 public class DataFile<T> implements Flushable, Closeable {
 
-    //safe integer value
     private final DataStream stream;
     private final Storage storage;
     private final Serializer<T> serializer;

@@ -5,7 +5,7 @@ import io.joshworks.fstore.SystemEventPolicy;
 import io.joshworks.fstore.api.EventStoreIterator;
 import io.joshworks.fstore.api.IEventStore;
 import io.joshworks.fstore.cluster.ClusterClient;
-import io.joshworks.fstore.cluster.ClusterNode;
+import io.joshworks.fstore.cluster.NodeInfo;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
@@ -44,9 +44,9 @@ public class ClusterStoreClient implements IEventStore {
 
     private final ClusterClient client;
     private final String partitionId;
-    private final ClusterNode node;
+    private final NodeInfo node;
 
-    public ClusterStoreClient(ClusterNode node, String partitionId, ClusterClient client) {
+    public ClusterStoreClient(NodeInfo node, String partitionId, ClusterClient client) {
         this.client = client;
         this.node = node;
         this.partitionId = partitionId;

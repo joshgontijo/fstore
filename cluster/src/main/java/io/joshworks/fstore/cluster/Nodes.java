@@ -9,24 +9,24 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Nodes {
 
-    private final Map<Address, ClusterNode> nodesByAddress = new ConcurrentHashMap<>();
-    private final Map<String, ClusterNode> nodeById = new ConcurrentHashMap<>();
+    private final Map<Address, NodeInfo> nodesByAddress = new ConcurrentHashMap<>();
+    private final Map<String, NodeInfo> nodeById = new ConcurrentHashMap<>();
 
 
-    public void add(Address address, ClusterNode node) {
+    public void add(Address address, NodeInfo node) {
         nodesByAddress.put(address, node);
         nodeById.put(address.toString(), node);
     }
 
-    public ClusterNode byAddress(Address address) {
+    public NodeInfo byAddress(Address address) {
         return nodesByAddress.get(address);
     }
 
-    public ClusterNode byId(String id) {
+    public NodeInfo byId(String id) {
         return nodeById.get(id);
     }
 
-    public List<ClusterNode> all() {
+    public List<NodeInfo> all() {
         return new ArrayList<>(nodesByAddress.values());
     }
 }
