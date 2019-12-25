@@ -68,7 +68,7 @@ public class Segment<T> implements Log<T> {
     final LogHeader header;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
-    private final Set<SegmentIterator> readers = ConcurrentHashMap.newKeySet();
+    private final Set<SegmentIterator<T>> readers = ConcurrentHashMap.newKeySet();
 
     private final Metrics metrics = new Metrics();
 
@@ -353,7 +353,7 @@ public class Segment<T> implements Log<T> {
         return this.header.type();
     }
 
-    <R extends SegmentIterator> void releaseReader(R reader) {
+    <R extends SegmentIterator<T>> void releaseReader(R reader) {
         Lock lock = rwLock.writeLock();
         lock.lock();
         try {
@@ -417,7 +417,7 @@ public class Segment<T> implements Log<T> {
         }
     }
 
-    private <R extends SegmentIterator> R acquireReader(R reader) {
+    private <R extends SegmentIterator<T>> R acquireReader(R reader) {
         Lock lock = rwLock.readLock();
         lock.lock();
         try {
