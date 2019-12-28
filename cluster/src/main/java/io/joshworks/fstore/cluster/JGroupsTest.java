@@ -12,7 +12,7 @@ public class JGroupsTest {
         ClusterNode clusterNode1 = new ClusterNode("test", "1");
         ClusterNode clusterNode2 = new ClusterNode("test", "2");
 
-        clusterNode1.register(Message.class, msg -> {
+        clusterNode1.register(Message.class, (addr, msg) -> {
             counter.incrementAndGet();
         });
 
