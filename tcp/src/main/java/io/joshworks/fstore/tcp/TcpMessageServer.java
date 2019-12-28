@@ -27,7 +27,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -60,7 +59,6 @@ public class TcpMessageServer implements Closeable {
     public TcpMessageServer(
             OptionMap options,
             InetSocketAddress bindAddress,
-            Set<Class> registeredTypes,
             int maxBufferSize,
             long idleTimeout,
             Consumer<TcpConnection> onOpen,

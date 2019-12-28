@@ -8,9 +8,6 @@ import org.xnio.OptionMap;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -26,7 +23,6 @@ public class ServerConfig {
     private ServerEventHandler handler = new DiscardEventHandler();
     private long timeout = -1;
     private int bufferSize = Size.MB.ofInt(1);
-    private final Set<Class> registeredTypes = new HashSet<>();
     private boolean async;
 
     public ServerConfig() {
@@ -76,12 +72,7 @@ public class ServerConfig {
         return this;
     }
 
-    public ServerConfig registerTypes(Class<?>... types) {
-        registeredTypes.addAll(Arrays.asList(types));
-        return this;
-    }
-
     public TcpMessageServer start(InetSocketAddress bindAddress) {
-        return new TcpMessageServer(options.getMap(), bindAddress, registeredTypes, bufferSize, timeout, onOpen, onClose, onIdle, async, handler);
+        return new TcpMessageServer(options.getMap(), bindAddress, bufferSize, timeout, onOpen, onClose, onIdle, async, handler);
     }
 }
