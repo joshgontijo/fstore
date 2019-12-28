@@ -1,14 +1,14 @@
 package io.joshworks.lsm.server.events;
 
 
-import io.joshworks.lsm.server.NodeInfo;
+import io.joshworks.lsm.server.Node;
 
 public class NodeJoined {
 
-    public final NodeInfo nodeInfo;
+    public final Node node;
 
-    public NodeJoined(NodeInfo nodeInfo) {
-        this.nodeInfo = nodeInfo;
+    public NodeJoined(Node node) {
+        this.node = node;
     }
 
 }

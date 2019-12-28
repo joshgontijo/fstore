@@ -80,14 +80,14 @@ public class ClusterStoreClient implements IEventStore {
     @Override
     public EventRecord append(EventRecord event, int expectedVersion) {
         Append append = new Append(event, expectedVersion);
-        AppendResult response = client.send(node.address, append);
+        AppendResult response = client.send(node.clusterAddress, append);
         return new EventRecord(event.stream, event.type, response.version, response.timestamp, event.data, event.metadata);
     }
 
     @Override
     public EventStoreIterator fromStream(EventId stream) {
-        IteratorCreated it = client.send(node.address, new FromStream(stream.toString(), DEFAULT_TIMEOUT, DEFAULT_BATCH_SIZE));
-        return new RemoteStoreClientIterator(client, node.address, it.iteratorId);
+        IteratorCreated it = client.send(node.clusterAddress, new FromStream(stream.toString(), DEFAULT_TIMEOUT, DEFAULT_BATCH_SIZE));
+        return new RemoteStoreClientIterator(client, node.clusterAddress, it.iteratorId);
     }
 
     @Override
@@ -108,8 +108,8 @@ public class ClusterStoreClient implements IEventStore {
     @Override
     public EventStoreIterator fromAll(LinkToPolicy linkToPolicy, SystemEventPolicy systemEventPolicy, EventId lastEvent) {
         FromAll fromAll = new FromAll(DEFAULT_TIMEOUT, DEFAULT_BATCH_SIZE, partitionId, linkToPolicy, systemEventPolicy, lastEvent);
-        IteratorCreated it = client.send(node.address, fromAll);
-        return new RemoteStoreClientIterator(client, node.address, it.iteratorId);
+        IteratorCreated it = client.send(node.clusterAddress, fromAll);
+        return new RemoteStoreClientIterator(client, node.clusterAddress, it.iteratorId);
     }
 
     @Override
@@ -119,7 +119,7 @@ public class ClusterStoreClient implements IEventStore {
 
     @Override
     public StreamMetadata createStream(String stream, int maxCount, int maxAge, Map<String, Integer> acl, Map<String, String> metadata) {
-        StreamMetadata created = client.send(node.address, new CreateStream(stream, maxCount, maxAge, acl, metadata));
+        StreamMetadata created = client.send(node.clusterAddress, new CreateStream(stream, maxCount, maxAge, acl, metadata));
         return created;
     }
 
@@ -145,7 +145,7 @@ public class ClusterStoreClient implements IEventStore {
 
     @Override
     public EventRecord get(EventId eventId) {
-        EventData eventData = client.send(node.address, new Get(eventId));
+        EventData eventData = client.send(node.clusterAddress, new Get(eventId));
         return eventData.record;
     }
 

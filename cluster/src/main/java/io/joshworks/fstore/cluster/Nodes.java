@@ -12,7 +12,6 @@ public class Nodes {
     private final Map<Address, NodeInfo> nodesByAddress = new ConcurrentHashMap<>();
     private final Map<String, NodeInfo> nodeById = new ConcurrentHashMap<>();
 
-
     public void add(Address address, NodeInfo node) {
         nodesByAddress.put(address, node);
         nodeById.put(address.toString(), node);

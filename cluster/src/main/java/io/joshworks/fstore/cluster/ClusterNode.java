@@ -56,6 +56,7 @@ public class ClusterNode implements Closeable {
     private MessageDispatcher dispatcher;
     private ClusterClient client;
     private RpcClient rpcClient;
+    private Class<?> rpcProxyType;
     private ExecutionService executionService;
     private ExecutionRunner executionRunner;
 
@@ -65,6 +66,7 @@ public class ClusterNode implements Closeable {
 
     private final Nodes nodes = new Nodes();
     private final Map<Class<?>, BiFunction<Address, Object, Object>> handlers = new ConcurrentHashMap<>();
+    private final Map<Address, Object> rpcProxyClients = new ConcurrentHashMap<>();
 
     private final List<Consumer<NodeInfo>> nodeUpdatedListeners = new ArrayList<>();
 
@@ -129,6 +131,11 @@ public class ClusterNode implements Closeable {
         return rpcClient;
     }
 
+    public <T> T rpcProxy(Address address) {
+        Object proxy = rpcProxyClients.get(address);
+        return (T) proxy;
+    }
+
     public synchronized void interceptor(BiConsumer<Address, Object> interceptor) {
         interceptors.add(interceptor);
     }
@@ -158,6 +165,10 @@ public class ClusterNode implements Closeable {
             handler.accept(address, (T) bb);
             return null;
         });
+    }
+
+    public void registerRpcProxy(Class<?> proxyType) {
+        this.rpcProxyType = proxyType;
     }
 
     private void fireNodeUpdate(NodeInfo node) {
@@ -255,6 +266,9 @@ public class ClusterNode implements Closeable {
             node = new NodeInfo(address);
         }
         nodes.add(address, node);
+        if (rpcProxyType != null) {
+            rpcProxyClients.put(address, rpcClient.createProxy(rpcProxyType, address, 5000)); //TODO expose
+        }
         fireNodeUpdate(node);
     }
 

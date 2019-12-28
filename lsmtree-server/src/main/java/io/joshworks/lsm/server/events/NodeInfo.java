@@ -1,7 +1,9 @@
 package io.joshworks.lsm.server.events;
 
 
+import io.joshworks.lsm.server.Node;
+
 public class NodeInfo  {
 
-    public io.joshworks.lsm.server.NodeInfo nodeInfo;
+    public Node node;
 }

@@ -10,6 +10,8 @@ import io.joshworks.fstore.tcp.TcpMessageServer;
 import io.joshworks.fstore.tcp.server.ServerEventHandler;
 import io.joshworks.lsm.server.events.NodeJoined;
 import io.joshworks.lsm.server.events.NodeLeft;
+import io.joshworks.lsm.server.events.AssignRingId;
+import io.joshworks.lsm.server.events.RingId;
 import io.joshworks.lsm.server.handler.ReplicationHandler;
 import io.joshworks.lsm.server.handler.TcpEventHandler;
 import io.joshworks.lsm.server.partition.HashPartitioner;
@@ -30,7 +32,7 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
     private static final String RING_LOCK = "RING_LOCK";
     private static final String RING_KEY = "RING_ID";
 
-    private static final AttributeKey<io.joshworks.lsm.server.NodeInfo> NODE_INFO_KEY = AttributeKey.create(io.joshworks.lsm.server.NodeInfo.class);
+    private static final AttributeKey<Node> NODE_INFO_KEY = AttributeKey.create(Node.class);
 
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
 
@@ -50,13 +52,13 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
             NodeDescriptor descriptor,
             Partitioner partitioner,
             Serializer<K> keySerializer,
-            io.joshworks.lsm.server.NodeInfo nodeInfo) {
+            Node node) {
         this.clusterNode = clusterNode;
         this.descriptor = descriptor;
-        this.clusterStore = new LsmCluster<>(rootDir, keySerializer, remoteNodes, partitioner, nodeInfo);
+        this.clusterStore = new LsmCluster<>(rootDir, keySerializer, remoteNodes, partitioner, node);
         this.replicas = new Replicas(rootDir);
-        this.clientListener = startListener(new TcpEventHandler(clusterStore), nodeInfo.tcpPort);
-        this.replicationListener = startListener(new ReplicationHandler(replicas), nodeInfo.replicationPort);
+        this.clientListener = startListener(new TcpEventHandler(clusterStore), node.tcpPort);
+        this.replicationListener = startListener(new ReplicationHandler(replicas), node.replicationPort);
     }
 
 
@@ -73,7 +75,7 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
         NodeInfo cNode = clusterNode.node();
         //FIXME concurrency issue when connecting
-        io.joshworks.lsm.server.NodeInfo thisNode = new io.joshworks.lsm.server.NodeInfo(cNode.id, ringId, cNode.hostAddress(), replicationTcpPort, tcpPort, Status.ACTIVE);
+        Node thisNode = new Node(cNode.id, ringId, cNode.hostAddress(), replicationTcpPort, tcpPort, Status.ACTIVE);
         clusterNode.node().attach(NODE_INFO_KEY, thisNode);
 
         Server<K> server = new Server<>(rootDir, clusterNode, descriptor, partitioner, serializer, thisNode);
@@ -81,12 +83,13 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
         clusterNode.interceptor((msg, obj) -> logger.info("RECEIVED FROM {}: {}", msg.src(), obj));
         clusterNode.register(NodeJoined.class, server::nodeJoined);
         clusterNode.register(NodeLeft.class, server::nodeLeft);
+        clusterNode.register(AssignRingId.class, server::nodeLeft);
 
         List<MulticastResponse> responses = clusterNode.client().cast(new NodeJoined(thisNode));
         for (MulticastResponse response : responses) {
-            io.joshworks.lsm.server.NodeInfo nodeInfoInfo = response.message();
-            logger.info("Received node info: {}", nodeInfoInfo);
-            server.onNewNode(nodeInfoInfo);
+            Node nodeInfo = response.message();
+            logger.info("Received node info: {}", nodeInfo);
+            server.onNewNode(nodeInfo);
         }
 
         return server;
@@ -96,6 +99,7 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
         Lock lock = clusterNode.client().lock(RING_LOCK);
         lock.lock();
         try {
+            clusterNode.client().send(clusterNode.coordinator(), )
 
         } finally {
             lock.unlock();
@@ -134,19 +138,25 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
         return descriptor;
     }
 
-    private io.joshworks.lsm.server.NodeInfo nodeJoined(NodeJoined nodeJoined) {
-        onNewNode(nodeJoined.nodeInfo);
+    private Node nodeJoined(NodeJoined nodeJoined) {
+        onNewNode(nodeJoined.node);
         return clusterNode.node().get(NODE_INFO_KEY);
     }
 
-    private void onNewNode(io.joshworks.lsm.server.NodeInfo nodeInfo) {
-        remoteNodes.add(new RemoteNode(nodeInfo));
-        logger.info("Node connected {}", nodeInfo);
-        replicas.initialize(nodeInfo.id);
+    private void onNewNode(Node node) {
+        remoteNodes.add(new RemoteNode(node));
+        logger.info("Node connected {}", node);
+        replicas.initialize(node.id);
     }
 
     private void nodeLeft(NodeLeft nodeLeft) {
         remoteNodes.removeIf(node -> node.id().equals(nodeLeft.nodeId));
+    }
+
+    private synchronized RingId ringIdRequested(AssignRingId request) {
+
+
+
     }
 
     @Override

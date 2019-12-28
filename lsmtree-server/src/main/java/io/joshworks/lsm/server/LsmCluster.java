@@ -15,15 +15,15 @@ import java.util.List;
 public class LsmCluster<K extends Comparable<K>> implements Closeable {
 
     private final LocalNode<K> local;
-    private final NodeInfo nodeInfo;
+    private final Node node;
     private final List<StoreNode> nodes;
     private final Partitioner partitioner;
     private final int replicationFactor = 3;
 
-    public LsmCluster(File rootDir, Serializer<K> serializer, List<StoreNode> nodes, Partitioner partitioner, NodeInfo nodeInfo) {
+    public LsmCluster(File rootDir, Serializer<K> serializer, List<StoreNode> nodes, Partitioner partitioner, Node node) {
         this.nodes = nodes;
-        this.nodeInfo = nodeInfo;
-        this.local = new LocalNode<>(rootDir, serializer, nodeInfo);
+        this.node = node;
+        this.local = new LocalNode<>(rootDir, serializer, node);
         this.nodes.add(local);
         this.partitioner = partitioner;
     }
@@ -60,7 +60,7 @@ public class LsmCluster<K extends Comparable<K>> implements Closeable {
     private void replicate(Object msg) {
         for (StoreNode node : nodes) {
             if (!isLocal(node)) { //TODO change logic
-                node.replicate(new Replicate(nodeInfo.id, msg));
+                node.replicate(new Replicate(this.node.id, msg));
             }
         }
     }
