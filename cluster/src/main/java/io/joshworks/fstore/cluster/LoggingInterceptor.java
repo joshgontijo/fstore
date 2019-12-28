@@ -1,13 +1,13 @@
 package io.joshworks.fstore.cluster;
 
-import org.jgroups.Message;
+import org.jgroups.Address;
 
 import java.util.function.BiConsumer;
 
-public class LoggingInterceptor implements BiConsumer<Message, Object> {
+public class LoggingInterceptor implements BiConsumer<Address, Object> {
 
     @Override
-    public void accept(Message message, Object entity) {
-        System.err.println(String.format("<<<<<< %s => %s", message, entity));
+    public void accept(Address addr, Object entity) {
+        System.err.println(String.format("<<<<<< %s => %s", addr, entity));
     }
 }

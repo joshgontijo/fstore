@@ -29,4 +29,8 @@ public class Nodes {
     public List<NodeInfo> all() {
         return new ArrayList<>(nodesByAddress.values());
     }
+
+    public int size() {
+        return nodesByAddress.size();
+    }
 }

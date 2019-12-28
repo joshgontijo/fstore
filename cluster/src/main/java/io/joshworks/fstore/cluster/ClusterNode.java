@@ -1,5 +1,8 @@
 package io.joshworks.fstore.cluster;
 
+import io.joshworks.fstore.cluster.rpc.RpcClient;
+import io.joshworks.fstore.cluster.rpc.RpcMessage;
+import io.joshworks.fstore.cluster.rpc.RpcReceiver;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 import org.jgroups.Address;
@@ -32,8 +35,10 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -41,28 +46,32 @@ public class ClusterNode implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterNode.class);
 
+    private final AtomicBoolean closed = new AtomicBoolean();
+
     private final String clusterName;
     private final String nodeId;
 
     private JChannel channel;
-    private View state;
+    private volatile View state;
     private MessageDispatcher dispatcher;
     private ClusterClient client;
+    private RpcClient rpcClient;
     private ExecutionService executionService;
     private ExecutionRunner executionRunner;
 
     private final ExecutorService consumerPool = Executors.newFixedThreadPool(10);
     private final ExecutorService taskPool = Executors.newFixedThreadPool(1);
+    private final ExecutorService statePool = Executors.newSingleThreadExecutor();
 
     private final Nodes nodes = new Nodes();
-    private final Map<Class<?>, Function<Object, Object>> handlers = new ConcurrentHashMap<>();
+    private final Map<Class<?>, BiFunction<Address, Object, Object>> handlers = new ConcurrentHashMap<>();
 
-    private final List<BiConsumer<NodeInfo, NodeStatus>> nodeUpdatedListeners = new ArrayList<>();
+    private final List<Consumer<NodeInfo>> nodeUpdatedListeners = new ArrayList<>();
 
-    private final List<BiConsumer<Message, Object>> interceptors = new ArrayList<>();
+    private final List<BiConsumer<Address, Object>> interceptors = new ArrayList<>();
     private final List<Runnable> connectionListeners = new ArrayList<>();
 
-    private static final Function<Object, Object> NO_OP = msg -> {
+    private static final BiFunction<Address, Object, Object> NO_OP = (addr, msg) -> {
         logger.warn("No message handler for code {}", msg.getClass().getName());
         return null;
     };
@@ -75,6 +84,9 @@ public class ClusterNode implements Closeable {
     public synchronized void join() {
         if (channel != null) {
             throw new RuntimeException("Already joined cluster '" + clusterName + "'");
+        }
+        if (closed.get()) {
+            throw new IllegalStateException("Already left the cluster");
         }
         logger.info("Joining cluster '{}'", clusterName);
         try {
@@ -98,6 +110,7 @@ public class ClusterNode implements Closeable {
             }
 
             client = new ClusterClient(dispatcher, lockService, executionService);
+            rpcClient = new RpcClient(client);
 
             channel.connect(clusterName, null, 10000); //connect + getState
 
@@ -112,7 +125,11 @@ public class ClusterNode implements Closeable {
         return client;
     }
 
-    public synchronized void interceptor(BiConsumer<Message, Object> interceptor) {
+    public RpcClient rpcClient() {
+        return rpcClient;
+    }
+
+    public synchronized void interceptor(BiConsumer<Address, Object> interceptor) {
         interceptors.add(interceptor);
     }
 
@@ -120,24 +137,32 @@ public class ClusterNode implements Closeable {
         connectionListeners.add(runnable);
     }
 
-    public synchronized void onNodeUpdated(BiConsumer<NodeInfo, NodeStatus> handler) {
+    public synchronized void onNodeUpdated(Consumer<NodeInfo> handler) {
         nodeUpdatedListeners.add(handler);
     }
 
-    public synchronized <T> void register(Class<T> type, Function<T, Object> handler) {
-        handlers.put(type, (Function<Object, Object>) handler);
+    public synchronized void registerRpcHandler(Object handler) {
+        handlers.put(RpcMessage.class, RpcReceiver.create(handler));
     }
 
-    public synchronized <T> void register(Class<T> type, Consumer<T> handler) {
-        handlers.put(type, bb -> {
-            handler.accept((T) bb);
+    public synchronized <T> void register(Class<T> type, Function<T, Object> handler) {
+        handlers.put(type, (address, bb) -> handler.apply((T) bb));
+    }
+
+    public synchronized <T> void register(Class<T> type, BiFunction<Address, T, Object> handler) {
+        handlers.put(type, (BiFunction<Address, Object, Object>) handler);
+    }
+
+    public synchronized <T> void register(Class<T> type, BiConsumer<Address, T> handler) {
+        handlers.put(type, (address, bb) -> {
+            handler.accept(address, (T) bb);
             return null;
         });
     }
 
-    private void fireNodeUpdate(NodeInfo node, NodeStatus status) {
-        for (BiConsumer<NodeInfo, NodeStatus> listener : nodeUpdatedListeners) {
-            listener.accept(node, status);
+    private void fireNodeUpdate(NodeInfo node) {
+        for (Consumer<NodeInfo> listener : nodeUpdatedListeners) {
+            listener.accept(node);
         }
     }
 
@@ -147,6 +172,10 @@ public class ClusterNode implements Closeable {
 
     public Address coordinator() {
         return state.getCoord();
+    }
+
+    public boolean isCoordinator() {
+        return address().equals(coordinator());
     }
 
     public String nodeId() {
@@ -165,12 +194,12 @@ public class ClusterNode implements Closeable {
         return node;
     }
 
-    public synchronized void leave() {
-        IOUtils.closeQuietly(channel);
-    }
-
     public List<NodeInfo> nodes() {
         return nodes.all();
+    }
+
+    public int numNodes() {
+        return nodes.size();
     }
 
     public void lock(String name, Runnable runnable) {
@@ -188,9 +217,13 @@ public class ClusterNode implements Closeable {
 
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
         if (channel != null) {
             channel.disconnect();
+            channel = null;
         }
         IOUtils.closeQuietly(dispatcher);
         if (executionService != null) {
@@ -199,21 +232,8 @@ public class ClusterNode implements Closeable {
     }
 
 
-    private void sendResponse(Response response, Object replyMessage, Address dst) throws Exception {
-        if (response == null) {
-            return;
-        }
-        replyMessage = Optional.ofNullable(replyMessage).orElse(new NullMessage());
-        byte[] data = KryoSerializer.serialize(replyMessage);
-        //This is required to get JGroups to work with Message
-        ByteArrayDataOutputStream out = new ByteArrayDataOutputStream(data.length + Integer.BYTES, true);
-        Util.objectToStream(data, out);
-        Message rsp = new Message(dst, out.getBuffer());
-        response.send(rsp, false);
-    }
-
-    private void intercept(Message message, Object entity) {
-        for (BiConsumer<Message, Object> interceptor : interceptors) {
+    private void intercept(Address message, Object entity) {
+        for (BiConsumer<Address, Object> interceptor : interceptors) {
             try {
                 interceptor.accept(message, entity);
             } catch (Exception e) {
@@ -230,13 +250,12 @@ public class ClusterNode implements Closeable {
             IpAddress ipAddr = (IpAddress) physicalAddress;
             InetAddress inetAddr = ipAddr.getIpAddress();
             node = new NodeInfo(address, new InetSocketAddress(inetAddr, ipAddr.getPort()));
-            nodes.add(address, node);
 
         } else {
             node = new NodeInfo(address);
-            nodes.add(address, node);
         }
-        fireNodeUpdate(node, NodeStatus.UP);
+        nodes.add(address, node);
+        fireNodeUpdate(node);
     }
 
     private void updateNodeStatus(Address address, NodeStatus status) {
@@ -245,45 +264,48 @@ public class ClusterNode implements Closeable {
             throw new IllegalArgumentException("No such node for: " + address);
         }
         nodeInfo.status = status;
-        fireNodeUpdate(nodeInfo, status);
+        fireNodeUpdate(nodeInfo);
     }
 
     public String name() {
         return clusterName;
     }
 
-
     private class EventReceiver implements MembershipListener, RequestHandler {
 
         @Override
-        public synchronized void viewAccepted(View view) {
+        public void viewAccepted(View view) {
+            statePool.execute(() -> {
+                logger.info("View updated: {}", view);
+                View old = state;
+                state = view;
 
-            logger.info("View updated: {}", view);
-            if (state != null) {
-                for (Address address : view.getMembers()) {
-                    if (!state.containsMember(address)) {
-                        System.out.println("[" + address() + "] Node joined: " + address);
+                if (old != null) {
+                    for (Address address : view.getMembers()) {
+                        if (!old.containsMember(address)) {
+                            System.out.println("[" + address() + "] Node joined: " + address);
+                            addNode(address);
+                        }
+                    }
+                    for (Address address : old.getMembers()) {
+                        if (!view.containsMember(address)) {
+                            System.out.println("[" + address() + "] Node left: " + address);
+                            updateNodeStatus(address, NodeStatus.DOWN);
+                        }
+                    }
+
+                } else {
+                    for (Address address : view.getMembers()) {
                         addNode(address);
+                        if (!channel.getAddress().equals(address)) {
+                            System.out.println("[" + address() + "] Already connected node: " + address);
+                        } else {
+                            System.out.println("[" + address() + "] Current node view updated");
+                        }
                     }
                 }
-                for (Address address : state.getMembers()) {
-                    if (!view.containsMember(address)) {
-                        System.out.println("[" + address() + "] Node left: " + address);
-                        updateNodeStatus(address, NodeStatus.DOWN);
-                    }
-                }
+            });
 
-            } else {
-                for (Address address : view.getMembers()) {
-                    addNode(address);
-                    if (!channel.getAddress().equals(address)) {
-                        System.out.println("[" + address() + "] Already connected node: " + address);
-                    } else {
-                        System.out.println("[" + address() + "] Current node view updated");
-                    }
-                }
-            }
-            state = view;
         }
 
         @Override
@@ -294,17 +316,7 @@ public class ClusterNode implements Closeable {
         @Override
         public Object handle(Message msg) {
             try {
-                ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
-                if (!bb.hasRemaining()) {
-                    logger.warn("Empty message received from {}", msg.getSrc());
-                    intercept(msg, null);
-                    return null;
-                }
-                Object clusterMessage = KryoSerializer.deserialize(msg.buffer());
-
-                intercept(msg, clusterMessage);
-
-                Object resp = handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
+                Object resp = handleEvent(msg);
                 if (resp == null) {
                     //should never return null, otherwise client will block
                     logger.warn("NULL RESPONSE FROM HANDLER");
@@ -314,7 +326,7 @@ public class ClusterNode implements Closeable {
                 return new Message(msg.src(), data).setSrc(address());
             } catch (Exception e) {
                 logger.error("Failed to receive message: " + msg, e);
-                throw new RuntimeException(e);//TODO improve
+                return new ErrorMessage(e.getMessage());
             }
         }
 
@@ -322,24 +334,44 @@ public class ClusterNode implements Closeable {
         public void handle(Message msg, Response response) {
             consumerPool.execute(() -> {
                 try {
-                    ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
-                    if (!bb.hasRemaining()) {
-                        logger.warn("Empty message received from {}", msg.getSrc());
-                        intercept(msg, null);
-                        return;
-                    }
-
-                    Object clusterMessage = KryoSerializer.deserialize(msg.buffer());
-                    intercept(msg, clusterMessage);
-
-                    Object resp = handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(clusterMessage);
-
+                    Object resp = handleEvent(msg);
                     sendResponse(response, resp, msg.src());
                 } catch (Exception e) {
-                    logger.error("Failed to receive message: " + msg, e);
-                    throw new RuntimeException(e);//TODO improve
+                    logger.error("Failed handling message: " + msg, e);
+                    try {
+                        sendResponse(response, new ErrorMessage(e.getMessage()), msg.src());
+                    } catch (Exception ex) {
+                        logger.error("Failed sending error message back to caller", e);
+                    }
                 }
             });
+        }
+
+        private Object handleEvent(Message msg) {
+            ByteBuffer bb = ByteBuffer.wrap(msg.buffer());
+            if (!bb.hasRemaining()) {
+                logger.warn("Empty message received from {}", msg.getSrc());
+                intercept(msg.src(), null);
+                return null;
+            }
+
+            Object clusterMessage = KryoSerializer.deserialize(msg.buffer());
+            intercept(msg.src(), clusterMessage);
+
+            return handlers.getOrDefault(clusterMessage.getClass(), NO_OP).apply(msg.src(), clusterMessage);
+        }
+
+        private void sendResponse(Response response, Object replyMessage, Address dst) throws Exception {
+            if (response == null) {
+                return;
+            }
+            replyMessage = Optional.ofNullable(replyMessage).orElse(new NullMessage());
+            byte[] data = KryoSerializer.serialize(replyMessage);
+            //This is required to get JGroups to work with Message
+            ByteArrayDataOutputStream out = new ByteArrayDataOutputStream(data.length + Integer.BYTES, true);
+            Util.objectToStream(data, out);
+            Message rsp = new Message(dst, out.getBuffer());
+            response.send(rsp, false);
         }
 
     }

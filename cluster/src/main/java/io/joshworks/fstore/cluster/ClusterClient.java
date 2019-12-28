@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 
@@ -40,22 +42,30 @@ public class ClusterClient {
     }
 
     /**
-     * Sends a synchronous request and wait for a response
+     * Sends a synchronous request and return a completableFuture with the response promise
      */
-    public <T> T send(Address address, Object message) {
-        byte[] response = send(address, message, RequestOptions.SYNC());
+    public <T> CompletableFuture<T> sendWithFuture(Address address, Object message) {
+        CompletableFuture<byte[]> response = sendWithFuture(address, message, RequestOptions.SYNC());
         if (response == null) {
             return null;
         }
+        return response.thenApply(this::deserialize);
+    }
 
-        Object cMessage = KryoSerializer.deserialize(response);
-        if (cMessage instanceof MessageError) {
-            throw new RuntimeException("TODO " + cMessage);
+    /**
+     * Sends a synchronous request and wait for a response
+     */
+    public <T> T send(Address address, Object message) {
+        try {
+            return (T) sendWithFuture(address, message).get();
+        } catch (InterruptedException iex) {
+            throw new RuntimeException(iex);
+        } catch (ExecutionException ee) {
+            if (ee.getCause() instanceof ClusterClientException) {
+                throw (ClusterClientException) ee.getCause();
+            }
+            throw new RuntimeException(ee);
         }
-        if (cMessage instanceof NullMessage) {
-            return null;
-        }
-        return (T) cMessage;
     }
 
     /**
@@ -106,11 +116,32 @@ public class ClusterClient {
         cast(addresses, message, RequestOptions.ASYNC());
     }
 
+    private <T> T deserialize(byte[] response) {
+        T cMessage = KryoSerializer.deserialize(response);
+        if (cMessage instanceof ErrorMessage) {
+            ErrorMessage error = ((ErrorMessage) cMessage);
+            throw new ClusterClientException("Remote node threw an exception with message: " + error.message + ", code: " + error.code);
+        }
+        if (cMessage instanceof NullMessage) {
+            return null;
+        }
+        return cMessage;
+    }
+
     private byte[] send(Address address, Object message, RequestOptions options) {
         try {
             byte[] data = KryoSerializer.serialize(message);
             Object o = dispatcher.sendMessage(address, new Buffer(data), options);
             return (byte[]) o;
+        } catch (Exception e) {
+            throw new ClusterClientException("Failed sending message to " + address + ": ", e);
+        }
+    }
+
+    private CompletableFuture<byte[]> sendWithFuture(Address address, Object message, RequestOptions options) {
+        try {
+            byte[] data = KryoSerializer.serialize(message);
+            return dispatcher.sendMessageWithFuture(address, new Buffer(data), options);
         } catch (Exception e) {
             throw new ClusterClientException("Failed sending message to " + address + ": ", e);
         }
