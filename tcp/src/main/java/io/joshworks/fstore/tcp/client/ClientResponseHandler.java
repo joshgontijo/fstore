@@ -24,7 +24,7 @@ public class ClientResponseHandler implements EventHandler {
     public void onEvent(TcpConnection connection, Object data) {
         if (data instanceof Message) {
             Message msg = (Message) data;
-            Response response = responseTable.complete(msg.id);
+            Response<?> response = responseTable.remove(msg.id);
             if (response == null) {
                 logger.warn("No response found for {}", msg.id);
                 return;
@@ -34,6 +34,5 @@ public class ClientResponseHandler implements EventHandler {
         }
 
         delegate.onEvent(connection, data);
-
     }
 }

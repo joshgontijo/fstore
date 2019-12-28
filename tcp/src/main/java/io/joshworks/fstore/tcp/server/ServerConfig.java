@@ -21,6 +21,7 @@ public class ServerConfig {
     private Consumer<TcpConnection> onClose = conn -> TcpConnection.logger.info("Connection {} closed", conn.peerAddress());
     private Consumer<TcpConnection> onIdle = conn -> TcpConnection.logger.info("Connection {} is idle", conn.peerAddress());
     private ServerEventHandler handler = new DiscardEventHandler();
+    private Object rpcHandlerTarget;
     private long timeout = -1;
     private int bufferSize = Size.MB.ofInt(1);
     private boolean async;
@@ -67,12 +68,17 @@ public class ServerConfig {
         return this;
     }
 
+    public ServerConfig rpcHandler(Object rpcHandler) {
+        this.rpcHandlerTarget = rpcHandler;
+        return this;
+    }
+
     public ServerConfig asyncHandler() {
         this.async = true;
         return this;
     }
 
     public TcpMessageServer start(InetSocketAddress bindAddress) {
-        return new TcpMessageServer(options.getMap(), bindAddress, bufferSize, timeout, onOpen, onClose, onIdle, async, handler);
+        return new TcpMessageServer(options.getMap(), bindAddress, bufferSize, timeout, onOpen, onClose, onIdle, async, handler, rpcHandlerTarget);
     }
 }
