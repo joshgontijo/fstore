@@ -17,6 +17,7 @@ public class RpcReceiver {
                     paramTypes[i++] = param.getClass();
                 }
                 Method method = target.getClass().getDeclaredMethod(msg.methodName, paramTypes);
+                method.setAccessible(true);
                 return method.invoke(target, msg.params);
             } catch (Exception e) {
                 throw new RuntimeException("Error invoking " + target.getClass().getSimpleName() + "#" + msg.methodName, e);
