@@ -1,19 +1,16 @@
 package io.joshworks.fstore.tcp.client;
 
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.tcp.EventHandler;
 import io.joshworks.fstore.tcp.TcpClientConnection;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpMessageClient;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
-import io.joshworks.fstore.core.util.Size;
 import org.xnio.Option;
 import org.xnio.OptionMap;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -29,7 +26,6 @@ public class TcpEventClient {
     private EventHandler handler = (connection, data) -> {
         //NO_OP
     };
-    private final Set<Class> registeredTypes = new HashSet<>();
     private long keepAliveInterval = -1;
     private int bufferSize = Size.MB.ofInt(1);
     private ResponseTable responseTable = new ResponseTable();
@@ -75,13 +71,8 @@ public class TcpEventClient {
         return this;
     }
 
-    public TcpEventClient registerTypes(Class<?>... types) {
-        registeredTypes.addAll(Arrays.asList(types));
-        return this;
-    }
-
     public TcpClientConnection connect(InetSocketAddress bindAddress, long timeout, TimeUnit unit) {
-        TcpMessageClient client = new TcpMessageClient(options.getMap(), bindAddress, registeredTypes, bufferSize, keepAliveInterval, onClose, handler, responseTable);
+        TcpMessageClient client = new TcpMessageClient(options.getMap(), bindAddress, bufferSize, keepAliveInterval, onClose, handler, responseTable);
         return client.connect(timeout, unit);
     }
 }

@@ -19,7 +19,6 @@ import org.xnio.Xnio;
 import org.xnio.XnioWorker;
 
 import java.net.InetSocketAddress;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -41,7 +40,7 @@ public class TcpMessageClient {
 
     private final ResponseTable responseTable;
 
-    public TcpMessageClient(OptionMap options, InetSocketAddress bindAddress, Set<Class> registeredTypes, int bufferSize, long keepAliveInterval, Consumer<TcpConnection> onClose, EventHandler handler, ResponseTable responseTable) {
+    public TcpMessageClient(OptionMap options, InetSocketAddress bindAddress, int bufferSize, long keepAliveInterval, Consumer<TcpConnection> onClose, EventHandler handler, ResponseTable responseTable) {
         this.bindAddress = bindAddress;
         this.keepAliveInterval = keepAliveInterval;
         this.onClose = onClose;
