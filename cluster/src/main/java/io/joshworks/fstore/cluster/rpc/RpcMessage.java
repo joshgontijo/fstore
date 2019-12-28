@@ -9,7 +9,7 @@ public class RpcMessage {
 
     public RpcMessage(String methodName, Object[] params) {
         this.methodName = methodName;
-        this.params = params;
+        this.params = params == null ? new Object[0] : params;
     }
 
     @Override
