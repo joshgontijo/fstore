@@ -25,6 +25,7 @@
         <module>eventry</module>
         <module>lsmtree-server</module>
         <module>cluster</module>
+        <module>cluster-log-test</module>
     </modules>
 
     <properties>

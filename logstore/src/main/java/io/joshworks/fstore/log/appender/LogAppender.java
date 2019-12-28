@@ -38,6 +38,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -75,6 +76,8 @@ public class LogAppender<T> implements Closeable {
 
     final Levels<T> levels;
 
+    //Stores only READ_ONLY segment entries
+    private final AtomicLong entries = new AtomicLong();
     private AtomicBoolean closed = new AtomicBoolean();
 
     private final ScheduledExecutorService flushWorker;
@@ -127,6 +130,12 @@ public class LogAppender<T> implements Closeable {
         this.levels = loadSegments();
         this.compactor = createCompactor(config);
 
+        long computedEntries = levels.apply(Direction.FORWARD, logs -> logs.stream()
+                .filter(Log::readOnly)
+                .mapToLong(Log::entries)
+                .sum());
+
+        this.entries.set(computedEntries);
         logger.info(config.toString());
     }
 
@@ -439,7 +448,7 @@ public class LogAppender<T> implements Closeable {
     }
 
     public long entries() {
-        return levels.apply(Direction.FORWARD, logs -> logs.stream().mapToLong(Log::entries).sum());
+        return entries.get() + levels.current().entries();
     }
 
     public String currentSegment() {

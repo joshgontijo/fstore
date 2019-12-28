@@ -12,7 +12,6 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -61,6 +60,11 @@ public class TcpClientConnection extends TcpConnection {
         send(event);
     }
 
+    /**
+     * Creates a proxy instance that delegates calls to the remote node
+     *
+     * @param timeoutMillis request timeout, less than zero for no timeout
+     */
     public <T> T createRpcProxy(Class<T> type, int timeoutMillis) {
         return (T) Proxy.newProxyInstance(type.getClassLoader(),
                 new Class[]{type},
@@ -82,15 +86,15 @@ public class TcpClientConnection extends TcpConnection {
                 invokeAsync(methodName, args);
                 return null;
             }
-            if (Future.class.equals(method.getReturnType())) {
-                return TcpClientConnection.this.invoke(methodName, args);
+            Response<Object> invocation = TcpClientConnection.this.invoke(methodName, args);
+            if (method.getReturnType().isAssignableFrom(Future.class)) {
+                return invocation;
             }
-            if (CompletableFuture.class.equals(method.getReturnType())) {
-                return TcpClientConnection.this.invoke(methodName, args);
+            if (timeoutMillis < 0) {
+                return invocation.get();
             }
-            return TcpClientConnection.this.invoke(methodName, args).get(timeoutMillis, TimeUnit.MILLISECONDS);
+            return invocation.get(timeoutMillis, TimeUnit.MILLISECONDS);
         }
     }
-
 
 }

@@ -17,12 +17,12 @@ public class RemoteNode implements StoreNode {
 
     private final TcpClientConnection nodeClient;
     private final TcpClientConnection replicationClient;
-    private final NodeInfo nodeInfo;
+    private final Node node;
 
-    public RemoteNode(NodeInfo nodeInfo) {
-        this.nodeInfo = nodeInfo;
-        this.nodeClient = createClient(nodeInfo.tcp(), "tcp-client");
-        this.replicationClient = createClient(nodeInfo.replicationTcp(), "replication-client");
+    public RemoteNode(Node node) {
+        this.node = node;
+        this.nodeClient = createClient(node.tcp(), "tcp-client");
+        this.replicationClient = createClient(node.replicationTcp(), "replication-client");
     }
 
     private TcpClientConnection createClient(InetSocketAddress address, String name) {
@@ -67,7 +67,7 @@ public class RemoteNode implements StoreNode {
 
     @Override
     public String id() {
-        return nodeInfo.id;
+        return node.id;
     }
 
 }

@@ -17,12 +17,12 @@ public class LocalNode<K extends Comparable<K>> implements StoreNode {
 
     private final LsmTree<K, byte[]> local;
     private final Serializer<K> serializer;
-    private final NodeInfo nodeInfo;
+    private final Node node;
 
-    public LocalNode(File rootDir, Serializer<K> serializer, NodeInfo nodeInfo) {
+    public LocalNode(File rootDir, Serializer<K> serializer, Node node) {
         this.local = openStore(rootDir, serializer);
         this.serializer = serializer;
-        this.nodeInfo = nodeInfo;
+        this.node = node;
     }
 
     private static <K extends Comparable<K>> LsmTree<K, byte[]> openStore(File rootDir, Serializer<K> serializer) {
@@ -65,6 +65,6 @@ public class LocalNode<K extends Comparable<K>> implements StoreNode {
 
     @Override
     public String id() {
-        return nodeInfo.id;
+        return node.id;
     }
 }

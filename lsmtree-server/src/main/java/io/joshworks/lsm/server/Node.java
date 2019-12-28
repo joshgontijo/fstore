@@ -2,7 +2,7 @@ package io.joshworks.lsm.server;
 
 import java.net.InetSocketAddress;
 
-public class NodeInfo {
+public class Node {
 
     public final String id;
     public final int ringId;
@@ -11,7 +11,7 @@ public class NodeInfo {
     public final int tcpPort;
     public Status status;
 
-    public NodeInfo(String id, int ringId, String host, int replicationPort, int tcpPort, Status status) {
+    public Node(String id, int ringId, String host, int replicationPort, int tcpPort, Status status) {
         this.id = id;
         this.ringId = ringId;
         this.host = host;
@@ -30,7 +30,7 @@ public class NodeInfo {
 
     @Override
     public String toString() {
-        return "NodeInfo{" +
+        return "Node{" +
                 "id='" + id + '\'' +
                 ", ringId=" + ringId +
                 ", host='" + host + '\'' +
