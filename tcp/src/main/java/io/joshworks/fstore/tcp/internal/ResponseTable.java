@@ -9,10 +9,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class ResponseTable {
 
-    private final Map<Long, Response> table = new ConcurrentHashMap<>();
+    private final Map<Long, Response<?>> table = new ConcurrentHashMap<>();
     private final AtomicLong reqids = new AtomicLong();
 
-    //can cause build up heap usage if Response#get is not used
+    //can cause heap to build up if Response#get is not used
     public <T> Response<T> newRequest(Object data, ByteBuffer buffer) {
         long reqId = reqids.getAndIncrement();
         Message message = new Message(reqId, data);
@@ -23,7 +23,7 @@ public class ResponseTable {
 
     }
 
-    public Response complete(long id) {
+    public Response<?> remove(long id) {
         return table.remove(id);
     }
 

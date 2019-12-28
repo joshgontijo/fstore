@@ -6,6 +6,7 @@ import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
 import io.joshworks.fstore.tcp.conduits.IdleTimeoutConduit;
+import io.joshworks.fstore.tcp.server.RpcEventHandler;
 import io.joshworks.fstore.tcp.server.AsyncEventHandler;
 import io.joshworks.fstore.tcp.server.KeepAliveHandler;
 import io.joshworks.fstore.tcp.server.PingHandler;
@@ -51,6 +52,7 @@ public class TcpMessageServer implements Closeable {
 //    private final ByteBufferSlicePool readPool;
 
     private final SimpleBufferPool readPool;
+    private final Object rpcHandlerTarget;
 
     private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -65,7 +67,8 @@ public class TcpMessageServer implements Closeable {
             Consumer<TcpConnection> onClose,
             Consumer<TcpConnection> onIdle,
             boolean async,
-            ServerEventHandler handler) {
+            ServerEventHandler handler,
+            Object rpcHandlerTarget) {
 
         this.idleTimeout = idleTimeout;
         this.onConnect = onOpen;
@@ -76,6 +79,7 @@ public class TcpMessageServer implements Closeable {
 
         this.messagePool = new SimpleBufferPool("tcp-message-pool", maxBufferSize, false);
         this.readPool = new SimpleBufferPool("tcp-read-pool", maxBufferSize, false);
+        this.rpcHandlerTarget = rpcHandlerTarget;
 
         Acceptor acceptor = new Acceptor(idleTimeout, readPool, messagePool);
         try {
@@ -202,7 +206,8 @@ public class TcpMessageServer implements Closeable {
 
                     //---------- listeners
 
-                    ServerEventHandler pingHandler = new PingHandler(handler);
+                    ServerEventHandler rpcHandler = new RpcEventHandler(handler, rpcHandlerTarget);
+                    ServerEventHandler pingHandler = new PingHandler(rpcHandler);
                     EventHandler reqRespHandler = new RequestResponseHandler(pingHandler);
                     EventHandler keepAliveHandler = new KeepAliveHandler(reqRespHandler);
                     EventHandler asyncHandler = async ? new AsyncEventHandler(conn.getWorker(), keepAliveHandler) : keepAliveHandler;

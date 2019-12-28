@@ -2,11 +2,11 @@ package io.joshworks.fstore.tcp.internal;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-public class Response<T> implements Future<T> {
+public class Response<T> extends CompletableFuture<T> {
 
     private enum State {WAITING, DONE, CANCELLED}
 
@@ -24,12 +24,14 @@ public class Response<T> implements Future<T> {
     }
 
     //TODO make package private
-    public void complete(Object response) {
+    @Override
+    public boolean complete(Object response) {
         if (!queue.offer(response)) {
-            throw new IllegalStateException("Failed to add response to the queue");
+            return false;
         }
         state = State.DONE;
         end = System.nanoTime();
+        return true;
     }
 
     @Override
@@ -79,7 +81,7 @@ public class Response<T> implements Future<T> {
 
     private T getOrThrow(Object msg) {
         if (msg instanceof ErrorMessage) {
-            throw new RuntimeException(((ErrorMessage) msg).message);
+            throw new TcpClientException(((ErrorMessage) msg).message);
         }
         if (msg instanceof NullMessage) {
             return null;
