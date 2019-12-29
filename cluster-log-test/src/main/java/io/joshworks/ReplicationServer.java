@@ -15,16 +15,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ReplicationServer implements Closeable {
 
     private static final int BATCH_SIZE = 10;
 
     private static final Logger logger = LoggerFactory.getLogger(ReplicationServer.class);
+
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final Map<String, LogIterator<Record>> iterators = new ConcurrentHashMap<>();
     private final TcpMessageServer server;
     private final LogAppender<Record> log;
+
+    private final Map<String, LogIterator<Record>> iterators = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastReplicated = new ConcurrentHashMap<>();
+    private final AtomicLong commitIndex = new AtomicLong(-1);
+
 
     public ReplicationServer(InetSocketAddress address, LogAppender<Record> log) {
         this.log = log;
@@ -33,6 +39,8 @@ public class ReplicationServer implements Closeable {
                     //TODO if this node is not a master, then throws an exception
                     logger.info("Started replication server");
                 })
+//                .option(Options.WORKER_IO_THREADS, 1)
+//                .option(Options.WORKER_TASK_CORE_THREADS, numReplicas)
                 .rpcHandler(new ReplicationHandler())
                 .start(address);
 
@@ -46,22 +54,51 @@ public class ReplicationServer implements Closeable {
         server.close();
     }
 
+    public void waitForReplication(WriteLevel writeLevel, long sequence) {
+        if (WriteLevel.LOCAL.equals(writeLevel)) {
+            return;
+        }
+
+        //TODO implement quorum
+
+    }
+
     private class ReplicationHandler implements ReplicationRpc {
 
         @Override
-        public void createIterator(long position, String nodeId) {
-            position = Math.max(position, Log.START);
-            LogIterator<Record> iterator = log.iterator(Direction.FORWARD, position);
+        public void createIterator(String nodeId, long lastSequence) {
+            logger.info("Creating iterator for node {}, from sequence {}", nodeId, lastSequence);
+            long startPos = Log.START;
+            if (lastSequence >= 0) { //replica has some data, find the start point
+                try (LogIterator<Record> iterator = log.iterator(Direction.BACKWARD)) {
+                    while (iterator.hasNext()) {
+                        startPos = iterator.position();
+                        Record next = iterator.next();
+                        if (next.sequence == lastSequence) {
+                            break;
+                        }
+                    }
+                }
+            }
+            LogIterator<Record> iterator = log.iterator(Direction.FORWARD, startPos);
+
             iterators.put(nodeId, iterator);
+            lastReplicated.put(nodeId, lastSequence);
         }
 
         @Override
-        public List<Record> fetch(String nodeId) {
+        public List<Record> fetch(String nodeId, long lastSequence) {
             LogIterator<Record> iterator = iteratorFor(nodeId);
+
+            lastReplicated.put(nodeId, lastSequence);
 
             List<Record> entries = new ArrayList<>(BATCH_SIZE);
             while (entries.size() < BATCH_SIZE && iterator.hasNext()) {
-                entries.add(iterator.next());
+                Record next = iterator.next();
+                if (next.sequence < lastSequence) {
+                    throw new RuntimeException("Non sequential replication entry");
+                }
+                entries.add(next);
             }
             return entries;
         }

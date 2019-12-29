@@ -42,9 +42,9 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class ClusterNode implements Closeable {
+public class Cluster implements Closeable {
 
-    private static final Logger logger = LoggerFactory.getLogger(ClusterNode.class);
+    private static final Logger logger = LoggerFactory.getLogger(Cluster.class);
 
     private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -78,7 +78,7 @@ public class ClusterNode implements Closeable {
         return null;
     };
 
-    public ClusterNode(String clusterName, String nodeId) {
+    public Cluster(String clusterName, String nodeId) {
         this.clusterName = clusterName;
         this.nodeId = nodeId;
     }
