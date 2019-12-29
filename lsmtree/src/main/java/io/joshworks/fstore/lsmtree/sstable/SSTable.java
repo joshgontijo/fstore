@@ -213,10 +213,11 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     @Override
-    public Entry<K, V> read(long position) {
+    public Entry<K, V> get(long position) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Entry<K, V> get(K key) {
         if (!readOnly()) {
             throw new IllegalStateException("Cannot read from a open segment");
@@ -307,7 +308,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         }
         metrics.update("blockCache.miss");
         metrics.update("block.read");
-        Block block = delegate.read(midpoint.position);
+        Block block = delegate.get(midpoint.position);
         if (block == null) {
             throw new RuntimeException("Could not find block at position" + midpoint.position);
         }

@@ -1,6 +1,6 @@
 package io.joshworks.lsm.server;
 
-import io.joshworks.fstore.cluster.ClusterNode;
+import io.joshworks.fstore.cluster.Cluster;
 import io.joshworks.fstore.cluster.NodeInfo;
 import io.joshworks.fstore.cluster.MulticastResponse;
 import io.joshworks.fstore.core.Serializer;
@@ -36,7 +36,7 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
 
-    private final ClusterNode clusterNode;
+    private final Cluster cluster;
     private final Replicas replicas;
     private final NodeDescriptor descriptor;
 
@@ -48,12 +48,12 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
     private Server(
             File rootDir,
-            ClusterNode clusterNode,
+            Cluster cluster,
             NodeDescriptor descriptor,
             Partitioner partitioner,
             Serializer<K> keySerializer,
             Node node) {
-        this.clusterNode = clusterNode;
+        this.cluster = cluster;
         this.descriptor = descriptor;
         this.clusterStore = new LsmCluster<>(rootDir, keySerializer, remoteNodes, partitioner, node);
         this.replicas = new Replicas(rootDir);
@@ -64,28 +64,28 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
     public static <K extends Comparable<K>> Server<K> join(File rootDir, Serializer<K> serializer, String clusterName, int tcpPort, int replicationTcpPort) {
         NodeDescriptor descriptor = loadDescriptor(rootDir, clusterName);
-        ClusterNode clusterNode = new ClusterNode(clusterName, descriptor.nodeId());
-        logger.info("Joining cluster {}", clusterNode.name());
-        clusterNode.join();
-        logger.info("Joined cluster {}", clusterNode.name());
+        Cluster cluster = new Cluster(clusterName, descriptor.nodeId());
+        logger.info("Joining cluster {}", cluster.name());
+        cluster.join();
+        logger.info("Joined cluster {}", cluster.name());
 
         Partitioner partitioner = new HashPartitioner();
 
-        int ringId = descriptor.asInt(RING_KEY).orElseGet(() -> acquireRingId(clusterNode));
+        int ringId = descriptor.asInt(RING_KEY).orElseGet(() -> acquireRingId(cluster));
 
-        NodeInfo cNode = clusterNode.node();
+        NodeInfo cNode = cluster.node();
         //FIXME concurrency issue when connecting
         Node thisNode = new Node(cNode.id, ringId, cNode.hostAddress(), replicationTcpPort, tcpPort, Status.ACTIVE);
-        clusterNode.node().attach(NODE_INFO_KEY, thisNode);
+        cluster.node().attach(NODE_INFO_KEY, thisNode);
 
-        Server<K> server = new Server<>(rootDir, clusterNode, descriptor, partitioner, serializer, thisNode);
+        Server<K> server = new Server<>(rootDir, cluster, descriptor, partitioner, serializer, thisNode);
 
-        clusterNode.interceptor((msg, obj) -> logger.info("RECEIVED FROM {}: {}", msg.src(), obj));
-        clusterNode.register(NodeJoined.class, server::nodeJoined);
-        clusterNode.register(NodeLeft.class, server::nodeLeft);
-        clusterNode.register(AssignRingId.class, server::nodeLeft);
+        cluster.interceptor((msg, obj) -> logger.info("RECEIVED FROM {}: {}", msg.src(), obj));
+        cluster.register(NodeJoined.class, server::nodeJoined);
+        cluster.register(NodeLeft.class, server::nodeLeft);
+        cluster.register(AssignRingId.class, server::nodeLeft);
 
-        List<MulticastResponse> responses = clusterNode.client().cast(new NodeJoined(thisNode));
+        List<MulticastResponse> responses = cluster.client().cast(new NodeJoined(thisNode));
         for (MulticastResponse response : responses) {
             Node nodeInfo = response.message();
             logger.info("Received node info: {}", nodeInfo);
@@ -95,11 +95,11 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
         return server;
     }
 
-    private static int acquireRingId(ClusterNode clusterNode) {
-        Lock lock = clusterNode.client().lock(RING_LOCK);
+    private static int acquireRingId(Cluster cluster) {
+        Lock lock = cluster.client().lock(RING_LOCK);
         lock.lock();
         try {
-            clusterNode.client().send(clusterNode.coordinator(), )
+            cluster.client().send(cluster.coordinator(), )
 
         } finally {
             lock.unlock();
@@ -140,7 +140,7 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
     private Node nodeJoined(NodeJoined nodeJoined) {
         onNewNode(nodeJoined.node);
-        return clusterNode.node().get(NODE_INFO_KEY);
+        return cluster.node().get(NODE_INFO_KEY);
     }
 
     private void onNewNode(Node node) {
@@ -161,7 +161,7 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
 
     @Override
     public void close() {
-        clusterNode.close();
+        cluster.close();
         clusterStore.close();
         clientListener.close();
         replicationListener.close();

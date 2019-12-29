@@ -1,5 +1,7 @@
 package io.joshworks;
 
+import io.joshworks.fstore.cluster.Cluster;
+import io.joshworks.fstore.cluster.NodeInfo;
 import org.jgroups.Address;
 
 import java.util.Map;
@@ -17,4 +19,18 @@ public class Coordinator {
     }
 
 
+    public void electLeader(Cluster cluster, long lastSequence) {
+
+        for (NodeInfo node : cluster.nodes()) {
+            ClusterRpc proxy = cluster.rpcProxy(node.address);
+            long commitIndex = proxy.getCommitIndex();
+            commitIndexes.put(nodeInfo.id, new AtomicLong());
+            commitIndexes.get(nodeInfo.id).set(commitIndex);
+        }
+
+
+
+
+
+    }
 }

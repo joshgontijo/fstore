@@ -26,6 +26,7 @@
         <module>lsmtree-server</module>
         <module>cluster</module>
         <module>cluster-log-test</module>
+        <module>indexed-log</module>
     </modules>
 
     <properties>

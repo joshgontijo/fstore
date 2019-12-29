@@ -18,42 +18,42 @@ import java.util.stream.IntStream;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-public class ClusterNodeTest {
+public class ClusterTest {
 
     private String cluster = "test-cluster";
     private String node1Id = "node-1";
     private String node2Id = "node-2";
 
-    private ClusterNode clusterNode1;
-    private ClusterNode clusterNode2;
+    private Cluster cluster1;
+    private Cluster cluster2;
 
     @Before
     public void setUp() {
         System.setProperty("java.net.preferIPv4Stack", "true");
         System.setProperty("jgroups.bind_addr", "127.0.0.1");
 
-        clusterNode1 = new ClusterNode(cluster, node1Id);
-        clusterNode2 = new ClusterNode(cluster, node2Id);
-        clusterNode1.interceptor(new LoggingInterceptor());
-        clusterNode1.join();
-        clusterNode2.join();
+        cluster1 = new Cluster(cluster, node1Id);
+        cluster2 = new Cluster(cluster, node2Id);
+        cluster1.interceptor(new LoggingInterceptor());
+        cluster1.join();
+        cluster2.join();
     }
 
     @After
     public void tearDown() {
-        IOUtils.closeQuietly(clusterNode1);
-        IOUtils.closeQuietly(clusterNode2);
+        IOUtils.closeQuietly(cluster1);
+        IOUtils.closeQuietly(cluster2);
     }
 
     @Test
     public void send_returns_correct_payload() {
 
         final var pong = new PongMessage();
-        clusterNode1.register(PingMessage.class, (addr, ping) -> pong);
-        clusterNode2.register(PongMessage.class, (addr, ping) -> {
+        cluster1.register(PingMessage.class, (addr, ping) -> pong);
+        cluster2.register(PongMessage.class, (addr, ping) -> {
         });
 
-        Object resp = clusterNode2.client().send(clusterNode1.address(), new PingMessage());
+        Object resp = cluster2.client().send(cluster1.address(), new PingMessage());
         assertEquals(pong, resp);
     }
 
@@ -63,13 +63,13 @@ public class ClusterNodeTest {
         PingMessage ping = new PingMessage();
         AtomicReference<PingMessage> captured = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        clusterNode1.register(PingMessage.class, (addr, p) -> {
+        cluster1.register(PingMessage.class, (addr, p) -> {
             captured.set(p);
             latch.countDown();
             return null;
         });
 
-        clusterNode2.client().sendAsync(clusterNode1.address(), ping);
+        cluster2.client().sendAsync(cluster1.address(), ping);
         latch.await(10, TimeUnit.SECONDS);
         assertEquals(ping, captured.get());
     }
@@ -78,11 +78,11 @@ public class ClusterNodeTest {
     public void cast_returns_correct_payload() {
 
         final var pong = new PongMessage();
-        clusterNode1.register(PingMessage.class, (addr, p) -> pong);
-        clusterNode2.register(PongMessage.class, (addr, p) -> {
+        cluster1.register(PingMessage.class, (addr, p) -> pong);
+        cluster2.register(PongMessage.class, (addr, p) -> {
         });
 
-        List<MulticastResponse> responses = clusterNode2.client().cast(new PingMessage());
+        List<MulticastResponse> responses = cluster2.client().cast(new PingMessage());
         assertEquals(1, responses.size());
         assertEquals(pong, responses.get(0).message());
     }
@@ -93,13 +93,13 @@ public class ClusterNodeTest {
         PingMessage ping = new PingMessage();
         AtomicReference<PingMessage> captured = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        clusterNode1.register(PingMessage.class, (addr, p) -> {
+        cluster1.register(PingMessage.class, (addr, p) -> {
             captured.set(p);
             latch.countDown();
             return null;
         });
 
-        clusterNode2.client().castAsync(ping);
+        cluster2.client().castAsync(ping);
         latch.await(10, TimeUnit.SECONDS);
         assertEquals(ping, captured.get());
     }
@@ -108,9 +108,9 @@ public class ClusterNodeTest {
     public void send_returns_null() {
 
         PingMessage ping = new PingMessage();
-        clusterNode1.register(PingMessage.class, (addr, p) -> null);
+        cluster1.register(PingMessage.class, (addr, p) -> null);
 
-        Object result = clusterNode2.client().send(clusterNode1.address(), ping);
+        Object result = cluster2.client().send(cluster1.address(), ping);
         assertNull(result);
     }
 
@@ -118,9 +118,9 @@ public class ClusterNodeTest {
     public void cast_returns_null() {
 
         PingMessage ping = new PingMessage();
-        clusterNode1.register(PingMessage.class, p -> null);
+        cluster1.register(PingMessage.class, p -> null);
 
-        List<MulticastResponse> results = clusterNode2.client().cast(ping);
+        List<MulticastResponse> results = cluster2.client().cast(ping);
         assertEquals(1, results.size());
         assertNull(results.get(0).message());
     }
@@ -136,7 +136,7 @@ public class ClusterNodeTest {
             return UUID.randomUUID().toString();
         };
 
-        IntStream.range(0, 20).boxed().map(i -> clusterNode2.client().executor().submit(task))
+        IntStream.range(0, 20).boxed().map(i -> cluster2.client().executor().submit(task))
                 .map(v -> "RESULT: " + Threads.futureGet(v)).forEach(System.out::println);
 
         Threads.sleep(60000);

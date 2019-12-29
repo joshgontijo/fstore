@@ -4,9 +4,9 @@ import java.util.List;
 
 public interface ReplicationRpc {
 
-    void createIterator(long position, String nodeId);
+    void createIterator(String nodeId, long lastSequence);
 
-    List<Record> fetch(String nodeId);
+    List<Record> fetch(String nodeId, long lastSequence);
 
     long position(String nodeId);
 

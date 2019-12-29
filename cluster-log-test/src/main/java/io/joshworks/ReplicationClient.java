@@ -12,6 +12,7 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ReplicationClient implements Closeable {
 
@@ -26,7 +27,18 @@ public class ReplicationClient implements Closeable {
     private final ReplicationRpc proxy;
     private final int fetchInterval; //used for when no data is found
 
-    public ReplicationClient(String nodeId, InetSocketAddress address, int fetchInterval, int replicationTimeoutThreshold, LogAppender<Record> log) {
+    private final AtomicLong lastSequence = new AtomicLong(-1);
+
+
+    public ReplicationClient(
+            String nodeId,
+            InetSocketAddress address,
+            int fetchInterval,
+            int replicationTimeoutThreshold,
+            LogAppender<Record> log,
+            long lastSequence) {
+
+        this.lastSequence.set(lastSequence);
         this.fetchInterval = fetchInterval;
         this.nodeId = nodeId;
         this.replicationTimeoutThreshold = replicationTimeoutThreshold;
@@ -52,17 +64,22 @@ public class ReplicationClient implements Closeable {
     }
 
     private class Worker implements Runnable {
+
         @Override
         public void run() {
             while (!closed.get()) {
                 //TODO logstore should support bulk insert
                 long start = System.currentTimeMillis();
-                List<Record> records = proxy.fetch(nodeId);
+                List<Record> records = proxy.fetch(nodeId, lastSequence.get());
                 if (System.currentTimeMillis() - start > replicationTimeoutThreshold) {
                     logger.warn("Fetch request took more than " + replicationTimeoutThreshold);
                 }
                 for (Record record : records) {
                     log.append(record);
+                    long expectedSeq = record.sequence - 1;
+                    if (!lastSequence.compareAndSet(expectedSeq, record.sequence)) {
+                        throw new RuntimeException("Expected current sequence: " + expectedSeq + " actual " + lastSequence.get());
+                    }
                 }
                 if (records.isEmpty()) {
                     Threads.sleep(fetchInterval);

@@ -1,7 +1,7 @@
 package io.joshworks.fstore.cluster.rpc;
 
 import io.joshworks.fstore.cluster.ClusterClientException;
-import io.joshworks.fstore.cluster.ClusterNode;
+import io.joshworks.fstore.cluster.Cluster;
 import io.joshworks.fstore.cluster.LoggingInterceptor;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.junit.After;
@@ -19,57 +19,57 @@ public class RpcClientTest {
     private String node1Id = "node-1";
     private String node2Id = "node-2";
 
-    private ClusterNode clusterNode1;
-    private ClusterNode clusterNode2;
+    private Cluster cluster1;
+    private Cluster cluster2;
 
     @Before
     public void setUp() {
         System.setProperty("java.net.preferIPv4Stack", "true");
         System.setProperty("jgroups.bind_addr", "127.0.0.1");
 
-        clusterNode1 = new ClusterNode(cluster, node1Id);
-        clusterNode2 = new ClusterNode(cluster, node2Id);
+        cluster1 = new Cluster(cluster, node1Id);
+        cluster2 = new Cluster(cluster, node2Id);
 
-        clusterNode1.interceptor(new LoggingInterceptor());
-        clusterNode1.registerRpcHandler(new RpcTestReceiver());
+        cluster1.interceptor(new LoggingInterceptor());
+        cluster1.registerRpcHandler(new RpcTestReceiver());
 
 
-        clusterNode1.join();
-        clusterNode2.join();
+        cluster1.join();
+        cluster2.join();
     }
 
     @After
     public void tearDown() {
-        IOUtils.closeQuietly(clusterNode1);
-        IOUtils.closeQuietly(clusterNode2);
+        IOUtils.closeQuietly(cluster1);
+        IOUtils.closeQuietly(cluster2);
     }
 
     @Test
     public void invokeAsync() {
-        clusterNode2.rpcClient().invokeAsync(clusterNode1.address(), "doSomething");
+        cluster2.rpcClient().invokeAsync(cluster1.address(), "doSomething");
     }
 
     @Test
     public void invoke_null_response() {
-        Object resp = clusterNode2.rpcClient().invoke(clusterNode1.address(), "doSomething");
+        Object resp = cluster2.rpcClient().invoke(cluster1.address(), "doSomething");
         assertNull(resp);
     }
 
     @Test
     public void invoke_with_response() {
-        String resp = clusterNode2.rpcClient().invoke(clusterNode1.address(), "justReturn");
+        String resp = cluster2.rpcClient().invoke(cluster1.address(), "justReturn");
         assertEquals(SOME_VALUE, resp);
     }
 
     @Test
     public void invoke_with_echo_response() {
-        String resp = clusterNode2.rpcClient().invoke(clusterNode1.address(), "echo", new Object[]{SOME_VALUE});
+        String resp = cluster2.rpcClient().invoke(cluster1.address(), "echo", new Object[]{SOME_VALUE});
         assertEquals(SOME_VALUE, resp);
     }
 
     @Test(expected = ClusterClientException.class)
     public void exception() {
-        String resp = clusterNode2.rpcClient().invoke(clusterNode1.address(), "exception");
+        String resp = cluster2.rpcClient().invoke(cluster1.address(), "exception");
         System.out.println(resp);
     }
 
