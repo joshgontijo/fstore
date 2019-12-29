@@ -65,24 +65,26 @@ public class TcpClientConnection extends TcpConnection {
      *
      * @param timeoutMillis request timeout, less than zero for no timeout
      */
-    public <T> T createRpcProxy(Class<T> type, int timeoutMillis) {
+    public <T> T createRpcProxy(Class<T> type, int timeoutMillis, boolean invokeVoidAsync) {
         return (T) Proxy.newProxyInstance(type.getClassLoader(),
                 new Class[]{type},
-                new RpcProxyHandler(timeoutMillis));
+                new RpcProxyHandler(timeoutMillis, invokeVoidAsync));
     }
 
     private class RpcProxyHandler implements InvocationHandler {
 
         private final int timeoutMillis;
+        private final boolean invokeVoidAsync;
 
-        private RpcProxyHandler(int timeoutMillis) {
+        private RpcProxyHandler(int timeoutMillis, boolean invokeVoidAsync) {
             this.timeoutMillis = timeoutMillis;
+            this.invokeVoidAsync = invokeVoidAsync;
         }
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) {
             String methodName = method.getName();
-            if (Void.TYPE.equals(method.getReturnType())) {
+            if (Void.TYPE.equals(method.getReturnType()) && invokeVoidAsync) {
                 invokeAsync(methodName, args);
                 return null;
             }

@@ -1,9 +1,7 @@
 package io.joshworks;
 
 import io.joshworks.fstore.cluster.ClusterNode;
-import io.joshworks.fstore.cluster.MulticastResponse;
 import io.joshworks.fstore.cluster.NodeInfo;
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
@@ -12,18 +10,17 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class ReplicatedLog<T> implements Closeable {
+public class ReplicatedLog implements Closeable {
 
     private final static String CLUSTER_NAME = "MY-CLUSTER";
 
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final LogAppender<ByteBuffer> log;
+    private final LogAppender<Record> log;
     private final ClusterNode node;
     private final String nodeId;
     private final int clusterSize; //TODO update dynamically
@@ -34,28 +31,25 @@ public class ReplicatedLog<T> implements Closeable {
     //Only used by leader node
     private final Map<String, AtomicLong> commitIndexes = new ConcurrentHashMap<>();
 
-    private TcpReplication<T> replicationServer;
-    private Thread replicationClient;
+    private ReplicationServer replicationServer;
+    private ReplicationClient replicationClient;
 
 
-    public ReplicatedLog(File root, Serializer<T> serializer, String nodeId, int clusterSize) {
+    public ReplicatedLog(File root, String nodeId, int clusterSize) {
         this.nodeId = nodeId;
         this.clusterSize = clusterSize;
-        this.log = LogAppender.builder(new File(root, nodeId), new EntrySerializer<>(serializer)).open();
+        this.log = LogAppender.builder(new File(root, nodeId), new EntrySerializer()).open();
 
         commitIndexes.put(nodeId, new AtomicLong());
         commitIndexes.get(nodeId).set(log.entries());
 
         InetSocketAddress replPort = new InetSocketAddress("localhost", randomPort());
-        this.replicationServer = new TcpReplication<>(replPort, log);
+        this.replicationServer = new ReplicationServer(replPort, log);
 
         this.node = new ClusterNode(CLUSTER_NAME, nodeId);
         this.node.registerRpcProxy(ClusterRpc.class);
         this.node.onNodeUpdated(this::onNodeConnected);
         this.node.join();
-
-        //TODO start only for followers
-        this.replicationClient = new Thread(new ReplicationTask<>(, 100, log));
 
     }
 
@@ -82,7 +76,8 @@ public class ReplicatedLog<T> implements Closeable {
         return leader.get();
     }
 
-    public void append(T value) {
+    //basic implementation: return only when all nodes are in sync
+    public long append(ByteBuffer data) {
         if (!hasMajority()) {
             throw new RuntimeException("Write rejected: No quorum");
         }
@@ -91,13 +86,11 @@ public class ReplicatedLog<T> implements Closeable {
             throw new RuntimeException("Not a leader");
         }
 
-        System.out.println("[" + nodeId + "] Append " + value);
+        System.out.println("[" + nodeId + "] Append");
 
         long idx = log.entries();
-        log.append(new Entry<>(idx, value));
-        List<MulticastResponse> response = node.client().cast(value);
-//        Address[] replicas = response.stream().map(MulticastResponse::address).toArray(Address[]::new);
-        System.out.println("[" + nodeId + "] Replicated (" + value + ") to " + response.size() + " replicas");
+        long recordPos = log.append(new Record(idx, data));
+        commitIndexes.get(nodeId).set(idx);
     }
 
     private boolean hasMajority() {
@@ -132,13 +125,17 @@ public class ReplicatedLog<T> implements Closeable {
                 throw new RuntimeException("Already leader");
             }
             //become leader
+            ReplicatedLog.this.replicationClient.close();
         }
 
         @Override
-        public void becomeFollower(String nodeId) {
+        public void becomeFollower(String nodeId, int replPort) {
             if (!leader.compareAndSet(true, false)) {
                 throw new RuntimeException("Already follower");
             }
+            String host = node.node(nodeId).hostAddress();
+            InetSocketAddress replAddress = new InetSocketAddress(host, replPort);
+            ReplicatedLog.this.replicationClient = new ReplicationClient(nodeId, replAddress, 100, 500, log);
             //become follower
         }
 
@@ -149,7 +146,7 @@ public class ReplicatedLog<T> implements Closeable {
 
         @Override
         public long getCommitIndex() {
-            return 0;
+            return log.entries();
         }
     }
 
