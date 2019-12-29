@@ -213,7 +213,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
     }
 
     @Override
-    public Entry<K, V> get(long position) {
+    public Entry<K, V> read(long position) {
         throw new UnsupportedOperationException();
     }
 
@@ -307,7 +307,7 @@ public class SSTable<K extends Comparable<K>, V> implements Log<Entry<K, V>>, Tr
         }
         metrics.update("blockCache.miss");
         metrics.update("block.read");
-        Block block = delegate.get(midpoint.position);
+        Block block = delegate.read(midpoint.position);
         if (block == null) {
             throw new RuntimeException("Could not find block at position" + midpoint.position);
         }
