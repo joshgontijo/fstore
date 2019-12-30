@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
@@ -43,7 +43,7 @@ public class DataStreamTest {
 
     @Before
     public void setUp() {
-        file = FileUtils.testFile();
+        file = TestUtils.testFile();
         storage = Storage.create(file, StorageMode.RAF, FILE_SIZE);
         storage.position(Log.START);
         bufferPool = new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false);
@@ -53,7 +53,7 @@ public class DataStreamTest {
     @After
     public void tearDown() {
         IOUtils.closeQuietly(storage);
-        FileUtils.tryDelete(file);
+        TestUtils.deleteRecursively(file);
     }
 
     @Test

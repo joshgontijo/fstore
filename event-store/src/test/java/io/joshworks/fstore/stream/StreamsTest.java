@@ -1,7 +1,7 @@
 package io.joshworks.fstore.stream;
 
 import io.joshworks.fstore.core.cache.Cache;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,7 +22,7 @@ public class StreamsTest {
 
     @Before
     public void setUp() {
-        dummyFile = FileUtils.testFolder();
+        dummyFile = TestUtils.testFolder();
         streams = open();
     }
 
@@ -33,7 +33,7 @@ public class StreamsTest {
     @After
     public void tearDown() {
         streams.close();
-        FileUtils.tryDelete(dummyFile);
+        TestUtils.deleteRecursively(dummyFile);
     }
 
 

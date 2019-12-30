@@ -6,7 +6,7 @@ import io.joshworks.fstore.SystemEventPolicy;
 import io.joshworks.fstore.api.EventStoreIterator;
 import io.joshworks.fstore.api.IEventStore;
 import io.joshworks.fstore.stream.StreamMetadata;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
@@ -47,7 +47,7 @@ public class EventStoreIT {
 
     @Before
     public void setUp() {
-        directory = FileUtils.testFolder();
+        directory = TestUtils.testFolder();
         store = EventStore.open(directory);
     }
 

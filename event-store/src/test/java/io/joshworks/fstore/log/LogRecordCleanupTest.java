@@ -6,7 +6,7 @@ import io.joshworks.fstore.index.Index;
 import io.joshworks.fstore.stream.StreamMetadata;
 import io.joshworks.fstore.stream.Streams;
 import io.joshworks.fstore.core.cache.Cache;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.es.shared.LinkTo;
@@ -40,7 +40,7 @@ public class LogRecordCleanupTest {
 
     @Before
     public void setUp() {
-        dummyFolder = FileUtils.testFolder();
+        dummyFolder = TestUtils.testFolder();
         streams = new Streams(dummyFolder, STREAMS_FLUSH_THRESHOLD, Cache.noCache());
         index = new Index(dummyFolder, 10, Cache.noCache(), LogRecordCleanupTest::dummyMetadata);
         cleanup = new RecordCleanup(streams, index);
@@ -50,7 +50,7 @@ public class LogRecordCleanupTest {
     public void tearDown() {
         streams.close();
         index.close();
-        FileUtils.tryDelete(dummyFolder);
+        TestUtils.deleteRecursively(dummyFolder);
     }
 
     private static StreamMetadata dummyMetadata(long stream) {

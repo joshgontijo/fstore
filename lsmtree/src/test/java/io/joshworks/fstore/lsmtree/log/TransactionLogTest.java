@@ -1,7 +1,7 @@
 package io.joshworks.fstore.lsmtree.log;
 
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
@@ -21,14 +21,14 @@ public class TransactionLogTest {
 
     @Before
     public void setUp() {
-        testDir = FileUtils.testFolder();
+        testDir = TestUtils.testFolder();
         log = new TransactionLog<>(testDir, Serializers.VSTRING, Serializers.INTEGER, Size.MB.ofInt(50), 3, "txlog", StorageMode.RAF);
     }
 
     @After
     public void tearDown() throws Exception {
         log.close();
-        FileUtils.tryDelete(testDir);
+        TestUtils.deleteRecursively(testDir);
     }
 
     @Test

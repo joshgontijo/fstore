@@ -3,7 +3,7 @@ package io.joshworks.fstore.it;
 import io.joshworks.fstore.EventStore;
 import io.joshworks.fstore.api.EventStoreIterator;
 import io.joshworks.fstore.core.metrics.Metrics;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
@@ -30,7 +30,7 @@ public class StorePerf {
 
     public static void main(String[] args) throws Exception {
 
-        EventStore store = EventStore.open(FileUtils.testFolder());
+        EventStore store = EventStore.open(TestUtils.testFolder());
 
         System.out.println("----------------- WRITE ---------------");
         ExecutorService executor = Executors.newFixedThreadPool(THREADS);

@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,14 +22,14 @@ public class DataFileTest {
 
     @Before
     public void setUp() {
-        testFile = FileUtils.testFile("data-file.dat");
+        testFile = TestUtils.testFile("data-file.dat");
         dataFile = DataFile.of(Serializers.STRING).mmap().open(testFile);
     }
 
     @After
     public void cleanup() {
         IOUtils.closeQuietly(dataFile);
-        FileUtils.tryDelete(testFile);
+        TestUtils.deleteRecursively(testFile);
     }
 
     @Test

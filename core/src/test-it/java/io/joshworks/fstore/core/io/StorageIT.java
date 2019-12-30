@@ -2,7 +2,7 @@ package io.joshworks.fstore.core.io;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -32,14 +32,14 @@ public abstract class StorageIT {
 
     @Before
     public void setUp() {
-        testFile = FileUtils.testFile();
+        testFile = TestUtils.testFile();
         storage = store(testFile, STORAGE_SIZE);
     }
 
     @After
     public void cleanup() {
         IOUtils.closeQuietly(storage);
-        FileUtils.tryDelete(testFile);
+        TestUtils.deleteRecursively(testFile);
     }
 
     @Test

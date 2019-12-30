@@ -3,7 +3,7 @@ package io.joshworks.fstore.lsmtree.sstable;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.lsmtree.Range;
@@ -41,7 +41,7 @@ public class SSTablesTest {
 
     @Before
     public void setUp() {
-        testDirectory = FileUtils.testFolder();
+        testDirectory = TestUtils.testFolder();
         sstables = open(testDirectory);
     }
 
@@ -71,7 +71,7 @@ public class SSTablesTest {
     @After
     public void tearDown() {
         sstables.close();
-        FileUtils.tryDelete(testDirectory);
+        TestUtils.deleteRecursively(testDirectory);
     }
 
     @Test

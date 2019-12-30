@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.it;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -32,7 +32,7 @@ public abstract class PerformanceIT {
 
     @Before
     public void setUp() {
-        testDirectory = FileUtils.testFolder();
+        testDirectory = TestUtils.testFolder();
         testDirectory.deleteOnExit();
         appender = appender(testDirectory);
     }
@@ -40,7 +40,7 @@ public abstract class PerformanceIT {
     @After
     public void cleanup() {
         IOUtils.closeQuietly(appender);
-        FileUtils.tryDelete(testDirectory);
+        TestUtils.deleteRecursively(testDirectory);
     }
 
     @Test

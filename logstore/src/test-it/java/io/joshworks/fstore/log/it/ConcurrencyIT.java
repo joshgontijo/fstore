@@ -9,7 +9,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,7 +38,7 @@ public abstract class ConcurrencyIT {
 
     @Before
     public void setUp() {
-        testDirectory = FileUtils.testFolder();
+        testDirectory = TestUtils.testFolder();
         testDirectory.deleteOnExit();
         appender = appender(testDirectory);
     }
@@ -46,7 +46,7 @@ public abstract class ConcurrencyIT {
     @After
     public void cleanup() {
         IOUtils.closeQuietly(appender);
-        FileUtils.tryDelete(testDirectory);
+        TestUtils.deleteRecursively(testDirectory);
     }
 
     //TODO this might hang since hasNext will return null when not all entries are present in the logs

@@ -1,7 +1,7 @@
 package io.joshworks.lsm.server;
 
 import io.joshworks.fstore.core.util.AppProperties;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
@@ -18,7 +18,7 @@ public class Main {
         String storePath = properties.get("path").orElseThrow();
 
         File rootDir = new File(storePath);
-        FileUtils.tryDelete(rootDir);
+        TestUtils.deleteRecursively(rootDir);
 
         Server<String> server = Server.join(rootDir, Serializers.VSTRING, clusterName, tcpPort, replicationPort);
 

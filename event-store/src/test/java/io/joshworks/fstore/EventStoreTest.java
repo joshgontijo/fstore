@@ -5,7 +5,7 @@ import io.joshworks.fstore.api.IEventStore;
 import io.joshworks.fstore.stream.StreamException;
 import io.joshworks.fstore.stream.StreamInfo;
 import io.joshworks.fstore.stream.StreamMetadata;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.es.shared.EventRecord;
@@ -40,14 +40,14 @@ public class EventStoreTest {
 
     @Before
     public void setUp() {
-        directory = FileUtils.testFolder();
+        directory = TestUtils.testFolder();
         store = EventStore.open(directory);
     }
 
     @After
     public void tearDown() {
         store.close();
-        FileUtils.tryDelete(directory);
+        TestUtils.deleteRecursively(directory);
     }
 
     @Test

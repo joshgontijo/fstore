@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.segment;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
@@ -34,14 +34,14 @@ public abstract class SegmentReaderTest {
 
     @Before
     public void setUp() {
-        testFile = FileUtils.testFile();
+        testFile = TestUtils.testFile();
         segment = open(testFile);
     }
 
     @After
     public void cleanup() {
         IOUtils.closeQuietly(segment);
-        FileUtils.tryDelete(testFile);
+        TestUtils.deleteRecursively(testFile);
     }
 
     @Test

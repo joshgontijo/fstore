@@ -7,7 +7,7 @@ import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.metrics.Metrics;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.es.shared.EventRecord;
@@ -41,7 +41,7 @@ public class EStore {
 
     public static void main(String[] args) {
         File dir = new File("S:\\es-server-1");
-        FileUtils.tryDelete(dir);
+        TestUtils.deleteRecursively(dir);
 
         store = open(dir);
 
