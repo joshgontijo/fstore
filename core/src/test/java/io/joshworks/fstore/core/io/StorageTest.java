@@ -1,7 +1,7 @@
 package io.joshworks.fstore.core.io;
 
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,7 +29,7 @@ public abstract class StorageTest {
 
     @Before
     public void setUp() {
-        testFile = FileUtils.testFile();
+        testFile = TestUtils.testFile();
         testFile.deleteOnExit();
         storage = store(testFile, STORAGE_SIZE);
     }
@@ -37,7 +37,7 @@ public abstract class StorageTest {
     @After
     public void cleanup() {
         IOUtils.closeQuietly(storage);
-        FileUtils.tryDelete(testFile);
+        TestUtils.deleteRecursively(testFile);
     }
 
     @Test(expected = StorageException.class)
@@ -80,12 +80,12 @@ public abstract class StorageTest {
     @Test
     public void delete() throws Exception {
 
-        File temp = FileUtils.testFile();
+        File temp = TestUtils.testFile();
         try (Storage store = store(temp, STORAGE_SIZE)) {
             store.delete();
             assertFalse(Files.exists(temp.toPath()));
         } finally {
-            FileUtils.tryDelete(temp);
+            TestUtils.deleteRecursively(temp);
         }
     }
 

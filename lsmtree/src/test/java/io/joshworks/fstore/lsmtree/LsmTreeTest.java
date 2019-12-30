@@ -1,7 +1,7 @@
 package io.joshworks.fstore.lsmtree;
 
 import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.log.CloseableIterator;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.appender.FlushMode;
@@ -29,7 +29,7 @@ public class LsmTreeTest {
 
     @Before
     public void setUp() {
-        testDirectory = FileUtils.testFolder();
+        testDirectory = TestUtils.testFolder();
         lsmtree = open(testDirectory);
     }
 
@@ -44,7 +44,7 @@ public class LsmTreeTest {
     @After
     public void tearDown() {
         lsmtree.close();
-        FileUtils.tryDelete(testDirectory);
+        TestUtils.deleteRecursively(testDirectory);
     }
 
     @Test(expected = NullPointerException.class)

@@ -9,7 +9,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.record.RecordHeader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.serializer.StringSerializer;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -51,7 +51,7 @@ public abstract class LogAppenderTest {
 
     @Before
     public void setUp() {
-        testDirectory = FileUtils.testFolder();
+        testDirectory = TestUtils.testFolder();
         testDirectory.deleteOnExit();
         appender = appender();
     }
@@ -59,7 +59,7 @@ public abstract class LogAppenderTest {
     @After
     public void cleanup() {
         IOUtils.closeQuietly(appender);
-        FileUtils.tryDelete(testDirectory);
+        TestUtils.deleteRecursively(testDirectory);
     }
 
     @Test

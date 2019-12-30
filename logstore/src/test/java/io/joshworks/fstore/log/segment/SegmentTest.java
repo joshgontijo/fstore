@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
@@ -43,14 +43,14 @@ public abstract class SegmentTest {
 
     @Before
     public void setUp() {
-        testFile = FileUtils.testFile();
+        testFile = TestUtils.testFile();
         segment = open(testFile);
     }
 
     @After
     public void cleanup() {
         IOUtils.closeQuietly(segment);
-        FileUtils.tryDelete(testFile);
+        TestUtils.deleteRecursively(testFile);
     }
 
     @Test
@@ -183,7 +183,7 @@ public abstract class SegmentTest {
 
     @Test
     public void header_is_stored() throws IOException {
-        File file = FileUtils.testFile();
+        File file = TestUtils.testFile();
         Log<String> testSegment = null;
         try {
 
@@ -214,7 +214,7 @@ public abstract class SegmentTest {
             if (testSegment != null) {
                 testSegment.close();
             }
-            FileUtils.tryDelete(file);
+            TestUtils.deleteRecursively(file);
         }
     }
 
@@ -257,7 +257,7 @@ public abstract class SegmentTest {
 
     @Test
     public void segment_is_only_deleted_when_no_readers_are_active() {
-        File file = FileUtils.testFile();
+        File file = TestUtils.testFile();
         try (Log<String> testSegment = open(file)) {
 
             testSegment.append("a");
@@ -272,7 +272,7 @@ public abstract class SegmentTest {
             assertFalse(Files.exists(file.toPath()));
 
         } catch (Exception e) {
-            FileUtils.tryDelete(file);
+            TestUtils.deleteRecursively(file);
         }
     }
 

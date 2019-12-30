@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log.appender.naming;
 
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -17,13 +17,13 @@ public class SequentialNamingTest {
 
     @Before
     public void setUp() {
-        testDirectory = FileUtils.testFolder();
+        testDirectory = TestUtils.testFolder();
         testDirectory.deleteOnExit();
     }
 
     @After
     public void cleanup() {
-        FileUtils.tryDelete(testDirectory);
+        TestUtils.deleteRecursively(testDirectory);
     }
 
     @Test

@@ -11,7 +11,7 @@ import io.joshworks.fstore.log.segment.footer.FooterMap;
 import io.joshworks.fstore.log.segment.footer.FooterReader;
 import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,7 +35,7 @@ public class BloomFilterTest {
 
     @Before
     public void setUp() {
-        File testFile = FileUtils.testFile();
+        File testFile = TestUtils.testFile();
         filter = BloomFilter.create(10000000, 0.01);
 
         bufferPool = new ThreadLocalBufferPool("buffer", Size.MB.ofInt(2), false);

@@ -7,7 +7,7 @@ import io.joshworks.fstore.api.EventStoreIterator;
 import io.joshworks.fstore.es.shared.EventId;
 import io.joshworks.fstore.es.shared.EventRecord;
 import io.joshworks.fstore.core.seda.TimeWatch;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -39,7 +39,7 @@ public class ConcurrencyIT {
 
     @Before
     public void setUp() {
-        directory = FileUtils.testFolder();
+        directory = TestUtils.testFolder();
         store = EventStore.open(directory);
 //        store = new QueuedEventStore(EventStore.open(directory));
     }
@@ -47,7 +47,7 @@ public class ConcurrencyIT {
     @After
     public void tearDown() {
         store.close();
-        FileUtils.tryDelete(directory);
+        TestUtils.deleteRecursively(directory);
     }
 
     @Test

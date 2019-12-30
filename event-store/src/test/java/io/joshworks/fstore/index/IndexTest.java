@@ -2,7 +2,7 @@ package io.joshworks.fstore.index;
 
 import io.joshworks.fstore.stream.StreamMetadata;
 import io.joshworks.fstore.core.cache.Cache;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.es.shared.EventMap;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.iterators.Iterators;
@@ -29,7 +29,7 @@ public class IndexTest {
 
     @Before
     public void setUp() {
-        testDir = FileUtils.testFolder();
+        testDir = TestUtils.testFolder();
         index = new Index(testDir, FLUSH_THRESHOLD, Cache.softCache(), stream -> {
             return new StreamMetadata(String.valueOf(stream), stream, 0, NO_MAX_AGE, NO_MAX_COUNT, NO_TRUNCATE, new HashMap<>(), new HashMap<>(), StreamMetadata.STREAM_ACTIVE);
         });

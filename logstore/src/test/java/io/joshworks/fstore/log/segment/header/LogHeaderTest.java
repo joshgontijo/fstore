@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.record.DataStream;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -27,7 +27,7 @@ public abstract class LogHeaderTest {
 
     @Before
     public void setUp() {
-        testFile = FileUtils.testFile();
+        testFile = TestUtils.testFile();
         testFile.deleteOnExit();
         storage = Storage.create(testFile, store(), STORAGE_SIZE);
         stream = new DataStream(new ThreadLocalBufferPool("pool", STORAGE_SIZE, false), storage);
@@ -36,7 +36,7 @@ public abstract class LogHeaderTest {
     @After
     public void cleanup() {
         IOUtils.closeQuietly(storage);
-        FileUtils.tryDelete(testFile);
+        TestUtils.deleteRecursively(testFile);
     }
 
     @Test

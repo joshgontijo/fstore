@@ -12,7 +12,7 @@ import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.VStringSerializer;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Test;
 
@@ -241,7 +241,7 @@ public class UniqueMergeCombinerTest {
     }
 
     private Segment<String> segmentWith(String... values) {
-        File file = FileUtils.testFile();
+        File file = TestUtils.testFile();
 
         Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB);
         segments.add(segment);
@@ -254,7 +254,7 @@ public class UniqueMergeCombinerTest {
     }
 
     private Segment<TestEntry> segmentWith(TestEntry... values) {
-        File file = FileUtils.testFile();
+        File file = TestUtils.testFile();
 
         Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB);
         segments.add(segment);
@@ -267,14 +267,14 @@ public class UniqueMergeCombinerTest {
     }
 
     private Segment<String> outputSegment() {
-        File file = FileUtils.testFile();
+        File file = TestUtils.testFile();
         Segment<String> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, Serializers.VSTRING, bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB);
         segments.add(segment);
         return segment;
     }
 
     private Segment<TestEntry> testEntryOutputSegment() {
-        File file = FileUtils.testFile();
+        File file = TestUtils.testFile();
         Segment<TestEntry> segment = new Segment<>(file, StorageMode.RAF, SEGMENT_SIZE, new TestEntrySerializer(), bufferPool, WriteMode.LOG_HEAD, CHECKSUM_PROB);
         segments.add(segment);
         return segment;

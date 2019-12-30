@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.UUID;
 
-public class FileUtils {
+public class TestUtils {
 
     public static final String TEST_DIR = "test.dir";
     public static final String FSTORE_TEST = "fstore-test";

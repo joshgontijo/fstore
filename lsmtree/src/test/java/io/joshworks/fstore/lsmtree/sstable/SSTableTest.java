@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.cache.Cache;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.lsmtree.Range;
@@ -36,7 +36,7 @@ public class SSTableTest {
 
     @Before
     public void setUp() {
-        testFile = FileUtils.testFile();
+        testFile = TestUtils.testFile();
         sstable = open(testFile);
     }
 
@@ -61,7 +61,7 @@ public class SSTableTest {
     @After
     public void tearDown() {
         sstable.close();
-        FileUtils.tryDelete(testFile);
+        TestUtils.deleteRecursively(testFile);
     }
 
     @Test

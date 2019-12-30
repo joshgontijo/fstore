@@ -1,6 +1,6 @@
 package io.joshworks;
 
-import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.serializer.Serializers;
@@ -24,7 +24,7 @@ public class ReplicatedLogApp {
         System.setProperty("jgroups.bind_addr", "127.0.0.1");
 
         File root = new File("S:\\TEST");
-        FileUtils.tryDelete(root);
+        TestUtils.deleteRecursively(root);
 
         int clusterSize = 5;
 
