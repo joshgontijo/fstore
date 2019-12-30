@@ -1,81 +1,82 @@
 package io.joshworks.ilog;
 
-import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.StorageMode;
-import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.record.RecordEntry;
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.WriteMode;
-import io.joshworks.fstore.log.segment.footer.FooterWriter;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
-import java.util.function.Consumer;
+import java.nio.file.StandardOpenOption;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class IndexedSegment {
 
-    private final Storage storage;
+    private final File file;
+    private final FileChannel channel;
     private final SparseIndex<Long> offsetIndex;
     private final SparseIndex<Long> timestampIndex;
-    private long offset;
+
+    private final AtomicLong writePosition = new AtomicLong();
+    private final AtomicLong offset = new AtomicLong();
 
     private final static int INDEX_SPARSENESS = 4096;
     private long lastIndexWrite;
     private IndexEntry<Long> lastOffset;
     private IndexEntry<Long> lastTimestamp;
 
-    public IndexedSegment(File file, StorageMode storageMode, long segmentDataSize, int maxIndexSize) {
-        try {
-            boolean newFile = file.createNewFile();
-            String name = getFileName(file.getName());
-            File idxFile = new File(name + ".idx");
-            File tsFile = new File(name + ".tsi");
-
-            this.storage = Storage.create(file, storageMode);
-
-            try {
-                if (!newFile) {
-                    Files.deleteIfExists(idxFile.toPath());
-                    Files.deleteIfExists(tsFile.toPath());
-                    reindex();
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-
-            this.offsetIndex = new SparseIndex<>(idxFile, maxIndexSize, Long.BYTES, Serializers.LONG);
-            this.timestampIndex = new SparseIndex<>(tsFile, maxIndexSize, Long.BYTES, Serializers.LONG);
-        } catch (Exception e) {
-
+    public IndexedSegment(File file, int maxIndexSize, boolean readOnly) throws IOException {
+        this.file = file;
+        boolean newFile = FileUtils.createIfNotExists(file);
+        this.channel = openChannel(file, readOnly);
+        boolean headReopened = !newFile && !readOnly;
+        String name = getFileName(file);
+        File idxFile = new File(name + ".offset");
+        File tsFile = new File(name + ".timestamp");
+        if (headReopened) {
+            Files.deleteIfExists(idxFile.toPath());
+            Files.deleteIfExists(tsFile.toPath());
         }
+        this.offsetIndex = new SparseIndex<>(idxFile, maxIndexSize, Long.BYTES, Serializers.LONG);
+        this.timestampIndex = new SparseIndex<>(tsFile, maxIndexSize, Long.BYTES, Serializers.LONG);
 
+        if (headReopened) {
+            reindex();
+        }
+    }
 
+    private FileChannel openChannel(File file, boolean readOnly) throws IOException {
+        if (readOnly) {
+            return FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.READ);
+        }
+        return FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
     }
 
     //redundant
     private void reindex() {
-        try (SegmentIterator<LogEntry<T>> it = delegate.iterator(Direction.FORWARD)) {
-            while (it.hasNext()) {
-                long pos = it.position();
-                LogEntry<T> entry = it.next();
-                addToIndex(entry.offset, entry.timestamp, pos);
-                offset = entry.offset;
-            }
-        }
+//        try (SegmentIterator<Record<T>> it = delegate.iterator(Direction.FORWARD)) {
+//            while (it.hasNext()) {
+//                long pos = it.position();
+//                Record<T> entry = it.next();
+//                addToIndex(entry.offset, entry.timestamp, pos);
+//                offset = entry.offset;
+//            }
+//        }
     }
 
-    private String getFileName(String name) {
-        return name.split("\\.")[0];
+    private String getFileName(File file) {
+        return file.getName().split("\\.")[0];
     }
 
-    public long append(T data) {
-        long position = delegate.append(new LogEntry<>());
+    void append(Record record, ByteBuffer writeBuffer) {
+        int written = record.appendTo(channel, writeBuffer);
+        long position = writePosition.getAndAdd(written);
 
-        addToIndex(offset++, System.currentTimeMillis(), position);
-        return offset;
+        offsetIndex.write(record.offset, position);
+        timestampIndex.write(record.timestamp, position);
     }
 
     private void addToIndex(long offset, long timestamp, long position) {
@@ -86,31 +87,24 @@ public class IndexedSegment {
         }
     }
 
-    public LogEntry<T> readEntry(long offset) {
-        IndexEntry<Long> ie = offsetIndex.get(offset);
+    public RecordBatch read(long startOffset, long endOffset, int maxBytes) {
+        IndexEntry<Long> ie = offsetIndex.floor(startOffset);
         if (ie == null) {
             return null;
         }
 
-        for (RecordEntry<LogEntry<T>> entry : delegate.read(ie.value)) {
-            if (entry.entry().offset == offset) {
-                return entry.entry();
-            }
-        }
-        return null;
+       return null;
     }
 
 
-    @Override
     public void delete() {
-        delegate.delete();
-        offsetIndex.delete();
-        timestampIndex.delete();
+        try {
+            channel.close();
+            Files.deleteIfExists(file.toPath());
+            offsetIndex.delete();
+            timestampIndex.delete();
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to delete", e);
+        }
     }
-
-    public void roll(int level, boolean trim, Consumer<FooterWriter> footerWriter) {
-        delegate.roll(level, trim, footerWriter);
-    }
-
-
 }

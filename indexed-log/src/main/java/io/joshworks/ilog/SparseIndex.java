@@ -15,11 +15,10 @@ public class SparseIndex<K extends Comparable<K>> {
     private final Storage storage;
     private final Serializer<K> keySerializer;
     private final int maxEntries;
-    private long entries;
+    private int entries;
     private final ByteBuffer writeBuffer;
     private final int keySize;
     private IndexEntry<K> first;
-    private IndexEntry<K> last;
 
     protected SparseIndex(File file, long maxSize, int keySize, Serializer<K> keySerializer) {
         this.keySize = keySize;
@@ -40,8 +39,10 @@ public class SparseIndex<K extends Comparable<K>> {
                     throw new IllegalStateException("Invalid index file length: " + length);
                 }
                 this.maxEntries = (int) (length / entrySize());
-                this.first = readEntry(0);
-                this.last = readEntry(maxEntries - 1);
+                this.entries = (int) (length / entrySize());
+
+                var readBuffer = Buffers.allocate(entrySize(), false);
+                this.first = readEntry(0, readBuffer);
             }
 
         } catch (IOException ioex) {
@@ -61,15 +62,36 @@ public class SparseIndex<K extends Comparable<K>> {
         if (first == null) {
             first = ie;
         }
-        last = ie;
     }
 
-    public IndexEntry<K> get(K key) {
-        return binarySearch(key);
-    }
+    /**
+     * Returns the start slot position that the key is contained, null if the key is less than the first item
+     */
+    public IndexEntry<K> floor(K key) {
 
-    public IndexEntry<K> last() {
-        return last;
+        var readBuffer = Buffers.allocate(entrySize(), false);
+
+        int low = 0;
+        int high = entries - 1;
+
+        IndexEntry<K> ie;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            readBuffer.clear();
+            ie = readEntry(mid, readBuffer);
+            int cmp = ie.compareTo(key);
+            if (cmp < 0)
+                low = mid + 1;
+            else if (cmp > 0)
+                high = mid - 1;
+            else
+                return ie; // key found, exact match
+        }
+        int idx = -(low + 1);
+        int lower = Math.abs(idx) - 2;
+        readBuffer.clear();
+        return readEntry(lower, readBuffer);  // key not found, return the lower value (if possible)
     }
 
     public IndexEntry<K> first() {
@@ -84,38 +106,14 @@ public class SparseIndex<K extends Comparable<K>> {
         return entries;
     }
 
-    //returns the slot in which the key can be found, -1 if the key is out of range
-    private IndexEntry<K> binarySearch(K key) {
-        int low = 0;
-        int high = maxEntries;
-
-        IndexEntry<K> ie = null;
-
-        while (low <= high) {
-            int mid = (low + high) >>> 1;
-            ie = readEntry(mid);
-            int cmp = ie.compareTo(key);
-            if (cmp < 0)
-                low = mid + 1;
-            else if (cmp > 0)
-                high = mid - 1;
-            else
-                return ie; // key found, exact match
-        }
-        //key not found, return the lower value (if possible)
-        return ie;
-//        if(ie == null) {
-//            return null;
-//        }
-//        return -(low + 1);  // key not found, return the lower value (if possible)
-    }
-
     private int entrySize() {
         return keySize + Long.BYTES;
     }
 
-    private IndexEntry<K> readEntry(int idx) {
-        var readBuffer = Buffers.allocate(entrySize(), false);
+    private IndexEntry<K> readEntry(int idx, ByteBuffer readBuffer) {
+        if (idx >= entries) {
+            throw new IllegalStateException("Index cannot be greater than " + entries + ", got " + idx);
+        }
         storage.read(idx * entrySize(), readBuffer);
         readBuffer.flip();
         K key = keySerializer.fromBytes(readBuffer);
