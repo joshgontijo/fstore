@@ -50,6 +50,7 @@ public class Cluster implements Closeable {
 
     private final String clusterName;
     private final String nodeId;
+    private final boolean discardOwnMessages;
 
     private JChannel channel;
     private volatile View state;
@@ -79,8 +80,13 @@ public class Cluster implements Closeable {
     };
 
     public Cluster(String clusterName, String nodeId) {
+        this(clusterName, nodeId, true);
+    }
+
+    public Cluster(String clusterName, String nodeId, boolean discardOwnMessages) {
         this.clusterName = clusterName;
         this.nodeId = nodeId;
+        this.discardOwnMessages = discardOwnMessages;
     }
 
     public synchronized void join() {
@@ -94,7 +100,7 @@ public class Cluster implements Closeable {
         try {
             //event channel
             channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("jgroups-stack.xml"));
-            channel.setDiscardOwnMessages(false);
+            channel.setDiscardOwnMessages(discardOwnMessages);
             channel.setName(nodeId);
 
             EventReceiver receiver = new EventReceiver();
