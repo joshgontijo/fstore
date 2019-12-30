@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.metrics.Metrics;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.SegmentIterator;
+import io.joshworks.fstore.log.record.RecordEntry;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.WriteMode;
@@ -18,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.function.Consumer;
 
 public class IndexedSegment<T> implements Log<T> {
@@ -28,6 +30,11 @@ public class IndexedSegment<T> implements Log<T> {
     private final Serializer<T> serializer;
     private long offset;
 
+    private final static int INDEX_SPARSENESS = 4096;
+    private long lastIndexWrite;
+    private IndexEntry<Long> lastOffset;
+    private IndexEntry<Long> lastTimestamp;
+
     public IndexedSegment(
             File file,
             StorageMode storageMode,
@@ -36,15 +43,17 @@ public class IndexedSegment<T> implements Log<T> {
             BufferPool bufferPool,
             WriteMode writeMode,
             double checksumProb,
-            int maxIndexSize) {
+            int maxIndexSize,
+            long initialSequence) {
 
         this.serializer = serializer;
+        this.offset = initialSequence;
         String name = getFileName(file.getName());
         File idxFile = new File(name + ".idx");
         File tsFile = new File(name + ".tsi");
 
         boolean alreadyExists = Files.exists(file.toPath());
-        this.delegate = new Segment<>(file, storageMode, segmentDataSize, new LogEntrySerializer(), bufferPool, writeMode, checksumProb);
+        this.delegate = new Segment<>(file, storageMode, segmentDataSize, new LogEntrySerializer<>(serializer), bufferPool, writeMode, checksumProb);
 
         try {
             if (alreadyExists) {
@@ -60,6 +69,7 @@ public class IndexedSegment<T> implements Log<T> {
         this.timestampIndex = new SparseIndex<>(tsFile, maxIndexSize, Long.BYTES, Serializers.LONG);
     }
 
+    //redundant
     private void reindex() {
         try (SegmentIterator<LogEntry<T>> it = delegate.iterator(Direction.FORWARD)) {
             while (it.hasNext()) {
@@ -77,18 +87,37 @@ public class IndexedSegment<T> implements Log<T> {
 
     @Override
     public long append(T data) {
-        long position = delegate.append(data);
+        long position = delegate.append(new LogEntry<>());
+
         addToIndex(offset++, System.currentTimeMillis(), position);
+        return offset;
     }
 
     private void addToIndex(long offset, long timestamp, long position) {
-        offsetIndex.write(offset, position);
-        timestampIndex.write(timestamp, position);
+        if(position == Log.START || position - lastIndexWrite >= INDEX_SPARSENESS) {
+            offsetIndex.write(offset, position);
+            timestampIndex.write(timestamp, position);
+            lastIndexWrite = position;
+        }
+    }
+
+    public LogEntry<T> readEntry(long offset) {
+        IndexEntry<Long> ie = offsetIndex.get(offset);
+        if (ie == null) {
+            return null;
+        }
+
+        for (RecordEntry<LogEntry<T>> entry : delegate.read(ie.value)) {
+            if(entry.entry().offset == offset) {
+                return entry.entry();
+            }
+        }
+        return null;
     }
 
     @Override
     public T get(long position) {
-        return null;
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -245,15 +274,21 @@ public class IndexedSegment<T> implements Log<T> {
         delegate.close();
     }
 
-    private static class LogEntrySerializer implements Serializer<LogEntry> {
+    private static class LogEntrySerializer<T> implements Serializer<LogEntry<T>> {
+
+        private final Serializer<T> serializer;
+
+        private LogEntrySerializer(Serializer<T> serializer) {
+            this.serializer = serializer;
+        }
 
         @Override
-        public void writeTo(LogEntry data, ByteBuffer dst) {
+        public void writeTo(LogEntry<T> data, ByteBuffer dst) {
 
         }
 
         @Override
-        public LogEntry fromBytes(ByteBuffer buffer) {
+        public LogEntry<T> fromBytes(ByteBuffer buffer) {
             return null;
         }
     }
