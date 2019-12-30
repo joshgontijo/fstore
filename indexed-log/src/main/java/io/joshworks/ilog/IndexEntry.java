@@ -14,4 +14,12 @@ class IndexEntry<K extends Comparable<K>> implements Comparable<K> {
     public int compareTo(K o) {
         return key.compareTo(o);
     }
+
+    @Override
+    public String toString() {
+        return "IndexEntry{" +
+                "key=" + key +
+                ", value=" + value +
+                '}';
+    }
 }
