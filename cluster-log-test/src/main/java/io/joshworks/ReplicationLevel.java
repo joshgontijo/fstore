@@ -1,8 +1,9 @@
 package io.joshworks;
 
-public enum WriteLevel {
+public enum ReplicationLevel {
 
     LOCAL,
+    ONE,
     QUORUM,
     ALL
 

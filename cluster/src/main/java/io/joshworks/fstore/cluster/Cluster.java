@@ -94,7 +94,7 @@ public class Cluster implements Closeable {
         try {
             //event channel
             channel = new JChannel(Thread.currentThread().getContextClassLoader().getResourceAsStream("jgroups-stack.xml"));
-            channel.setDiscardOwnMessages(true);
+            channel.setDiscardOwnMessages(false);
             channel.setName(nodeId);
 
             EventReceiver receiver = new EventReceiver();
@@ -267,7 +267,7 @@ public class Cluster implements Closeable {
         }
         nodes.add(address, node);
         if (rpcProxyType != null) {
-            rpcProxyClients.put(address, rpcClient.createProxy(rpcProxyType, address, 5000)); //TODO expose
+            rpcProxyClients.put(address, rpcClient.createProxy(rpcProxyType, address, 60000)); //TODO expose
         }
         fireNodeUpdate(node);
     }

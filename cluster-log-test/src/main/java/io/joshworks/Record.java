@@ -1,5 +1,7 @@
 package io.joshworks;
 
+import io.joshworks.fstore.core.Serializer;
+
 import java.nio.ByteBuffer;
 
 public class Record {
@@ -10,4 +12,9 @@ public class Record {
         this.sequence = sequence;
         this.data = data;
     }
+
+    public <T> T read(Serializer<T> serializer) {
+        return serializer.fromBytes(data);
+    }
+
 }

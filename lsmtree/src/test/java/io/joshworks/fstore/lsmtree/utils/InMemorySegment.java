@@ -62,7 +62,7 @@ public class InMemorySegment<T> implements Log<T> {
     }
 
     @Override
-    public T read(long position) {
+    public T get(long position) {
         return records.get((int) position);
     }
 

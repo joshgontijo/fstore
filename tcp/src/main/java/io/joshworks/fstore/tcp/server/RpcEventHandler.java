@@ -42,7 +42,7 @@ public class RpcEventHandler implements ServerEventHandler {
             for (Object param : event.params) {
                 paramTypes[i++] = param.getClass();
             }
-            Method method = target.getClass().getDeclaredMethod(event.methodName, paramTypes);
+            Method method = target.getClass().getMethod(event.methodName, paramTypes);
             method.setAccessible(true);
             return method.invoke(target, event.params);
 

@@ -48,7 +48,7 @@ public class RpcTest {
         Response<String> response2 = client.invoke("echo", "Ola !");
         System.out.println(response2.get()); //ola
 
-        IRpcHandler rpcProxy = client.createRpcProxy(IRpcHandler.class, 3000);
+        IRpcHandler rpcProxy = client.createRpcProxy(IRpcHandler.class, 3000, false);
 
         String echo = rpcProxy.echo("Yolo !!!!");
         System.out.println(echo);
