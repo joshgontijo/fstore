@@ -3,11 +3,11 @@ package io.joshworks.ilog;
 class IndexEntry<K extends Comparable<K>> implements Comparable<K> {
 
     final K key;
-    final long value;
+    final long logPosition;
 
-    IndexEntry(K key, long value) {
+    IndexEntry(K key, long logPosition) {
         this.key = key;
-        this.value = value;
+        this.logPosition = logPosition;
     }
 
     @Override
@@ -19,7 +19,7 @@ class IndexEntry<K extends Comparable<K>> implements Comparable<K> {
     public String toString() {
         return "IndexEntry{" +
                 "key=" + key +
-                ", value=" + value +
+                ", logPosition=" + logPosition +
                 '}';
     }
 }

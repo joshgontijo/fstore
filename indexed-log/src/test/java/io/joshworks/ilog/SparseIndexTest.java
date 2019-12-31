@@ -17,10 +17,11 @@ public class SparseIndexTest {
 
     private SparseIndex<Integer> index;
     private File testFile = TestUtils.testFile();
+    private static int SPARENESS = 4096;
 
     @Before
     public void setUp() {
-        index = new SparseIndex<>(testFile, Size.MB.of(10), Integer.BYTES, Serializers.INTEGER);
+        index = new SparseIndex<>(testFile, Size.MB.of(10), Integer.BYTES, SPARENESS, Serializers.INTEGER);
     }
 
     @After
@@ -34,7 +35,7 @@ public class SparseIndexTest {
         int items = 100;
         TreeSet<Integer> set = new TreeSet<>();
         for (int i = 0; i < items; i += 5) {
-            index.write(i, i);
+            index.add(i, i);
             set.add(i);
         }
 
@@ -45,9 +46,5 @@ public class SparseIndexTest {
             assertNotNull(entry);
             assertEquals("Failed on " + i, lower, entry.key);
         }
-
-    }
-
-    public void search() {
     }
 }

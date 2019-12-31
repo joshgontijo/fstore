@@ -1,6 +1,6 @@
 package io.joshworks.ilog;
 
-public class IndexedLog<T>  {
+public class Log  {
 
 
 }

@@ -8,20 +8,30 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+
+import static java.util.Objects.requireNonNull;
 
 //File does not support reopening, must be created from scratch every time a segment is created
 public class SparseIndex<K extends Comparable<K>> {
 
     private final Storage storage;
+    private final int minSparseness;
     private final Serializer<K> keySerializer;
     private final int maxEntries;
     private int entries;
     private final ByteBuffer writeBuffer;
     private final int keySize;
     private IndexEntry<K> first;
+    private IndexEntry<K> last;
+    private long lastIndexWrite;
 
-    protected SparseIndex(File file, long maxSize, int keySize, Serializer<K> keySerializer) {
+    private final List<IndexEntry<K>> _entries = new ArrayList<>();
+
+    protected SparseIndex(File file, long maxSize, int keySize, int minSparseness, Serializer<K> keySerializer) {
         this.keySize = keySize;
+        this.minSparseness = minSparseness;
         this.keySerializer = keySerializer;
         try {
             boolean newFile = file.createNewFile();
@@ -43,6 +53,7 @@ public class SparseIndex<K extends Comparable<K>> {
 
                 var readBuffer = Buffers.allocate(entrySize(), false);
                 this.first = readEntry(0, readBuffer);
+                this.last = readEntry(entries - 1, readBuffer);
             }
 
         } catch (IOException ioex) {
@@ -50,17 +61,32 @@ public class SparseIndex<K extends Comparable<K>> {
         }
     }
 
-    public void write(K key, long position) {
-        keySerializer.writeTo(key, writeBuffer);
-        writeBuffer.putLong(position);
+    public void add(K key, long position) {
+        IndexEntry<K> entry = new IndexEntry<>(key, position);
+        if (first == null) {
+            first = entry;
+        }
+        last = entry;
+        if (position == 0 || (position - lastIndexWrite) >= minSparseness) {
+            write(entry);
+        }
+    }
+
+    private void write(IndexEntry<K> entry) {
+        keySerializer.writeTo(entry.key, writeBuffer);
+        writeBuffer.putLong(entry.logPosition);
         writeBuffer.flip();
         storage.write(writeBuffer);
         writeBuffer.clear();
         entries++;
+        lastIndexWrite = entry.logPosition;
+        _entries.add(entry);
+    }
 
-        IndexEntry<K> ie = new IndexEntry<>(key, position);
-        if (first == null) {
-            first = ie;
+    public void complete() {
+        //write only if it hasn't been written to disk
+        if (last.logPosition > lastIndexWrite) {
+            write(last);
         }
     }
 
@@ -68,7 +94,13 @@ public class SparseIndex<K extends Comparable<K>> {
      * Returns the start slot position that the key is contained, null if the key is less than the first item
      */
     public IndexEntry<K> floor(K key) {
-
+        requireNonNull(key, "Key must be provided");
+        if (entries == 0) {
+            return null;
+        }
+        if (key.compareTo(last.key) > 0) {
+            return null; //greater than last entry
+        }
         var readBuffer = Buffers.allocate(entrySize(), false);
 
         int low = 0;
@@ -92,10 +124,6 @@ public class SparseIndex<K extends Comparable<K>> {
         int lower = Math.abs(idx) - 2;
         readBuffer.clear();
         return readEntry(lower, readBuffer);  // key not found, return the lower value (if possible)
-    }
-
-    public IndexEntry<K> first() {
-        return first;
     }
 
     public boolean isFull() {
