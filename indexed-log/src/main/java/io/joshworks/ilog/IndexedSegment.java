@@ -74,7 +74,6 @@ public class IndexedSegment {
             tryAddToIndexes(record.offset, record.timestamp, position);
         }
         log.info("Restoring of {} completed in {}ms", file.getAbsolutePath(), System.currentTimeMillis() - start);
-
     }
 
     private String getFileName(File file) {

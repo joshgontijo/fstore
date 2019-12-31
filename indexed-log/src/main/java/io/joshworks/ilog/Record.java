@@ -13,16 +13,16 @@ import static io.joshworks.ilog.RecordHeader.HEADER_BYTES;
 
 public class Record {
 
-    public final int length;
+    public final int dataSize;
     public final long offset;
     public final long timestamp;
     public final int checksum;
     public final ByteBuffer data;
 
-    private Record(long offset, int checksum, int length, long timestamp, ByteBuffer data) {
+    private Record(long offset, int checksum, int dataSize, long timestamp, ByteBuffer data) {
         this.offset = offset;
         this.checksum = checksum;
-        this.length = length;
+        this.dataSize = dataSize;
         this.timestamp = timestamp;
         this.data = data;
     }
@@ -70,7 +70,7 @@ public class Record {
 
     public int appendTo(FileChannel channel, ByteBuffer writeBuffer) {
         try {
-            writeBuffer.putInt(length);
+            writeBuffer.putInt(dataSize);
             writeBuffer.putInt(checksum);
             writeBuffer.putLong(offset);
             writeBuffer.putLong(timestamp);
@@ -104,18 +104,19 @@ public class Record {
     }
 
     public long size() {
-        return HEADER_BYTES + length;
+        return HEADER_BYTES + dataSize;
     }
 
     public int dataSize() {
-        return data.capacity();
+        return dataSize;
     }
 
     @Override
     public String toString() {
         return "Record{" +
                 "offset=" + offset +
-                ", length=" + length +
+                ", dataSize=" + dataSize +
+                ", size=" + size() +
                 ", timestamp=" + timestamp +
                 ", checksum=" + checksum +
                 '}';
