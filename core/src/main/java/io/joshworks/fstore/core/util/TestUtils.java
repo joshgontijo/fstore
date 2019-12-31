@@ -14,7 +14,7 @@ public class TestUtils {
 
 
     //terrible work around for waiting the mapped data to release file lock
-    public static void tryDelete(File file) {
+    public static void deleteRecursively(File file) {
         int maxTries = 2;
         int counter = 0;
         while (counter++ < maxTries) {
@@ -25,7 +25,7 @@ public class TestUtils {
                         for (String f : list) {
                             File item = new File(file, f);
                             if (item.isDirectory()) {
-                                tryDelete(item);
+                                deleteRecursively(item);
                             }
                             System.out.println("Deleting " + item);
                             Files.deleteIfExists(item.toPath());
@@ -61,7 +61,9 @@ public class TestUtils {
     }
 
     public static File testFile() {
-        return testFile(UUID.randomUUID().toString().substring(0, 8));
+        File file = testFile(UUID.randomUUID().toString().substring(0, 8));
+        System.out.println("Created " + file.getAbsolutePath());
+        return file;
     }
 
     public static File testFile(String name) {
