@@ -13,15 +13,15 @@ import java.util.TreeSet;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-public class SparseIndexTest {
+public class IndexTest {
 
-    private SparseIndex<Integer> index;
+    private Index<Integer> index;
     private File testFile = TestUtils.testFile();
     private static int SPARENESS = 4096;
 
     @Before
     public void setUp() {
-        index = new SparseIndex<>(testFile, Size.MB.of(10), Integer.BYTES, SPARENESS, Serializers.INTEGER);
+        index = new Index<>(testFile, Size.MB.of(10), Integer.BYTES, SPARENESS, Serializers.INTEGER);
     }
 
     @After
@@ -35,7 +35,7 @@ public class SparseIndexTest {
         int items = 100;
         TreeSet<Integer> set = new TreeSet<>();
         for (int i = 0; i < items; i += 5) {
-            index.add(i, i);
+            index.write(i, i);
             set.add(i);
         }
 
