@@ -41,4 +41,16 @@ public class RecordHeader {
 
     }
 
+    public static RecordHeader parse(ByteBuffer buffer) {
+        if (buffer.remaining() < HEADER_BYTES) {
+            throw new RuntimeIOException("Invalid header length, expected " + HEADER_BYTES + ", got " + buffer.remaining());
+        }
+        int length = buffer.getInt();
+        int checksum = buffer.getInt();
+        long offset = buffer.getLong();
+        long timestamp = buffer.getLong();
+
+        return new RecordHeader(length, offset, timestamp, checksum);
+    }
+
 }

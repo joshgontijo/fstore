@@ -12,12 +12,12 @@ import static io.joshworks.ilog.RecordHeader.HEADER_BYTES;
 
 public class RecordIterator implements Iterator<Record> {
 
-    private final FileChannel channel;
-    private final long startOffset;
-    private final AtomicLong writePosition;
-    private final long startPos;
-    private final AtomicLong readPos = new AtomicLong();
-    private final AtomicLong lastOffset = new AtomicLong();
+    protected final FileChannel channel;
+    protected final long startOffset;
+    protected final AtomicLong writePosition;
+    protected final long startPos;
+    protected final AtomicLong readPos = new AtomicLong();
+    protected final AtomicLong lastOffset = new AtomicLong();
 
     private final ByteBuffer headerBuffer = Buffers.allocate(HEADER_BYTES, false);
 
@@ -44,6 +44,11 @@ public class RecordIterator implements Iterator<Record> {
         RecordHeader header = readHeader();
         Record record = Record.readFrom(channel, header, readPos.get());
         readPos.addAndGet(record.size());
+
+        return checkAndUpdateOffset(record);
+    }
+
+    protected Record checkAndUpdateOffset(Record record) {
         long actualOffset = record.offset;
         long expectedOffset = actualOffset - 1;
         if (!lastOffset.compareAndSet(expectedOffset, record.offset)) {

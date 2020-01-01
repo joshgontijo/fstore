@@ -21,8 +21,8 @@ public class IndexedSegment {
 
     private final File file;
     private final FileChannel channel;
-    private final SparseIndex<Long> offsetIndex;
-    private final SparseIndex<Long> timestampIndex;
+    private final Index<Long> offsetIndex;
+    private final Index<Long> timestampIndex;
 
     private final AtomicLong writePosition = new AtomicLong();
     private final AtomicBoolean readOnly = new AtomicBoolean();
@@ -49,8 +49,8 @@ public class IndexedSegment {
             Files.deleteIfExists(idxFile.toPath());
             Files.deleteIfExists(tsFile.toPath());
         }
-        this.offsetIndex = new SparseIndex<>(idxFile, maxIndexSize, Long.BYTES, INDEX_SPARSENESS, Serializers.LONG);
-        this.timestampIndex = new SparseIndex<>(tsFile, maxIndexSize, Long.BYTES, INDEX_SPARSENESS, Serializers.LONG);
+        this.offsetIndex = new Index<>(idxFile, maxIndexSize, Long.BYTES, INDEX_SPARSENESS, Serializers.LONG);
+        this.timestampIndex = new Index<>(tsFile, maxIndexSize, Long.BYTES, INDEX_SPARSENESS, Serializers.LONG);
 
         if (headReopened) {
             restore();
@@ -92,13 +92,22 @@ public class IndexedSegment {
     }
 
     private void tryAddToIndexes(long offset, long timestamp, long position) {
-        offsetIndex.add(offset, position);
-        timestampIndex.add(timestamp, position);
+        offsetIndex.write(offset, position);
+        timestampIndex.write(timestamp, position);
     }
 
     public Record read(long offset) {
         RecordIterator it = iterator(offset);
         return it.hasNext() ? it.next() : null;
+    }
+
+    public RecordBatchIterator batch(long startOffset, int batchSize) {
+        IndexEntry<Long> ie = offsetIndex.floor(startOffset);
+        if (ie == null) {
+            return null;
+        }
+        long startPos = ie.logPosition;
+        return new RecordBatchIterator(channel, startOffset, startPos, writePosition, batchSize);
     }
 
     public RecordIterator iterator(long startOffset) {

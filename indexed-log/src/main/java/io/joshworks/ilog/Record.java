@@ -35,30 +35,30 @@ public class Record {
     }
 
     public static Record from(ByteBuffer data, boolean copyBuffer) {
-        int length = data.getInt();
-        int checksum = data.getInt();
-        long offset = data.getLong();
-        long timestamp = data.getLong();
+        RecordHeader header = RecordHeader.parse(data);
+        return from(data, header, copyBuffer);
+    }
 
-        if (length > data.remaining()) {
-            throw new IllegalStateException("Invalid entry");
+    public static Record from(ByteBuffer data, RecordHeader header, boolean copyBuffer) {
+        if (header.length > data.remaining()) {
+            throw new RuntimeIOException("Failed to read record");
         }
 
         ByteBuffer copy;
         int limit = data.limit();
         if (copyBuffer) {
-            data.limit(data.position() + length);
-            copy = Buffers.allocate(length, data.isDirect());
+            data.limit(data.position() + header.length);
+            copy = Buffers.allocate(header.length, data.isDirect());
             copy.put(data);
             copy.flip();
         } else {
-            data.limit(data.position() + length);
+            data.limit(data.position() + header.length);
             copy = data.slice().asReadOnlyBuffer();
         }
         data.position(data.limit());
         data.limit(limit);
-        verifyChecksum(copy, checksum);
-        return new Record(offset, checksum, length, timestamp, copy);
+        verifyChecksum(copy, header.checksum);
+        return new Record(header.offset, header.checksum, header.length, header.timestamp, copy);
     }
 
     private static void verifyChecksum(ByteBuffer data, int checksum) {
