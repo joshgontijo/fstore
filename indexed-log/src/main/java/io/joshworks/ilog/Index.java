@@ -1,18 +1,18 @@
 package io.joshworks.ilog;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Objects.requireNonNull;
-
-//File does not support reopening, must be created from scratch every time a segment is created
 
 /**
  * A UNIQUE, ORDERED entry index
@@ -22,7 +22,7 @@ import static java.util.Objects.requireNonNull;
  * <p>
  * If opening from an existing file, the index is marked as read only.
  */
-public class Index<K extends Comparable<K>> {
+public class Index<K extends Comparable<K>> implements TreeFunctions<K>, Closeable {
 
     protected final Storage storage;
     protected final Serializer<K> keySerializer;
@@ -30,8 +30,8 @@ public class Index<K extends Comparable<K>> {
     protected int entries;
     protected final ByteBuffer writeBuffer;
     protected final int keySize;
-    protected IndexEntry<K> first;
-    protected IndexEntry<K> last;
+    IndexEntry<K> first;
+    IndexEntry<K> last;
     private final AtomicBoolean readOnly = new AtomicBoolean();
 
     protected Index(File file, long maxSize, int keySize, Serializer<K> keySerializer) {
@@ -70,20 +70,27 @@ public class Index<K extends Comparable<K>> {
         if (readOnly.get()) {
             throw new RuntimeException("Index is read only");
         }
-        requireNonNull(key, "Key must not be null");
-        int compare = last.key.compareTo(key);
-        if (compare > 0) {
-            throw new IllegalArgumentException("Index entries must be ordered. Entry " + key + " must be greater than previous entry " + last.key);
-        }
-        if (compare == 0) {
-            throw new IllegalArgumentException("Duplicate index entry " + key);
-        }
+        validateEntry(key);
         IndexEntry<K> entry = new IndexEntry<>(key, position);
         if (first == null) {
             first = entry;
         }
         last = entry;
         write(entry);
+    }
+
+    private void validateEntry(K key) {
+        requireNonNull(key, "Key must not be null");
+        if (last == null) {
+            return;
+        }
+        int compare = last.key.compareTo(key);
+        if (last.key.compareTo(key) > 0) {
+            throw new IllegalArgumentException("Index entries must be ordered. Entry " + key + " must be greater than previous entry " + last.key);
+        }
+        if (compare == 0) {
+            throw new IllegalArgumentException("Duplicate index entry " + key);
+        }
     }
 
     private void write(IndexEntry<K> entry) {
@@ -100,6 +107,7 @@ public class Index<K extends Comparable<K>> {
      */
     public void complete() {
         readOnly.set(true);
+        storage.truncate(storage.length());
     }
 
     public void flush() {
@@ -118,11 +126,83 @@ public class Index<K extends Comparable<K>> {
         if (entries == 0) {
             return null;
         }
-        if (key.compareTo(last.key) > 0) {
-            return null; //greater than last entry
+        if (key.compareTo(first.key) < 0) {
+            return null; //less than first entry
         }
         var readBuffer = Buffers.allocate(entrySize(), false);
 
+        int idx = binarySearch(key, readBuffer);
+        idx = idx >= 0 ? idx : Math.abs(idx) - 2;
+        readBuffer.clear();
+        return readEntry(idx, readBuffer);
+    }
+
+    @Override
+    public IndexEntry<K> ceiling(K key) {
+        requireNonNull(key, "Key must be provided");
+        if (entries == 0) {
+            return null;
+        }
+        if (key.compareTo(last.key) > 0) {
+            return null; //less or equals than first entry
+        }
+        var readBuffer = Buffers.allocate(entrySize(), false);
+
+        int idx = binarySearch(key, readBuffer);
+        idx = idx >= 0 ? idx : Math.abs(idx) - 1;
+        readBuffer.clear();
+        return readEntry(idx, readBuffer);
+    }
+
+    @Override
+    public IndexEntry<K> higher(K key) {
+        requireNonNull(key, "Key must be provided");
+        if (entries == 0) {
+            return null;
+        }
+        if (key.compareTo(last.key) >= 0) {
+            return null; //less or equals than first entry
+        }
+        var readBuffer = Buffers.allocate(entrySize(), false);
+
+        int idx = binarySearch(key, readBuffer);
+        idx = idx >= 0 ? idx + 1 : Math.abs(idx) - 1;
+        readBuffer.clear();
+        return readEntry(idx, readBuffer);
+    }
+
+    @Override
+    public IndexEntry<K> lower(K key) {
+        requireNonNull(key, "Key must be provided");
+        if (entries == 0) {
+            return null;
+        }
+        if (key.compareTo(first.key) <= 0) {
+            return null; //less or equals than first entry
+        }
+        var readBuffer = Buffers.allocate(entrySize(), false);
+
+        int idx = binarySearch(key, readBuffer);
+        idx = idx > 0 ? idx - 1 : Math.abs(idx) - 2;
+        readBuffer.clear();
+        return readEntry(idx, readBuffer);
+    }
+
+    @Override
+    public IndexEntry<K> get(K key) {
+        requireNonNull(key, "Key must be provided");
+        if (entries == 0) {
+            return null;
+        }
+        var readBuffer = Buffers.allocate(entrySize(), false);
+        int idx = binarySearch(key, readBuffer);
+        if (idx < 0) {
+            return null;
+        }
+        return readEntry(idx, readBuffer);
+    }
+
+    private int binarySearch(K key, ByteBuffer readBuffer) {
         int low = 0;
         int high = entries - 1;
 
@@ -138,12 +218,9 @@ public class Index<K extends Comparable<K>> {
             else if (cmp > 0)
                 high = mid - 1;
             else
-                return ie; // key found, exact match
+                return mid; // key found, exact match
         }
-        int idx = -(low + 1);
-        int lower = Math.abs(idx) - 2;
-        readBuffer.clear();
-        return readEntry(lower, readBuffer);  // key not found, return the lower value (if possible)
+        return -(low + 1);
     }
 
     public boolean isFull() {
@@ -159,8 +236,8 @@ public class Index<K extends Comparable<K>> {
     }
 
     private IndexEntry<K> readEntry(int idx, ByteBuffer readBuffer) {
-        if (idx >= entries) {
-            throw new IllegalStateException("Index cannot be greater than " + entries + ", got " + idx);
+        if (idx < 0 || idx >= entries) {
+            throw new IllegalStateException("Index must be between 0 and " + entries + ", got " + idx);
         }
         storage.read(idx * entrySize(), readBuffer);
         readBuffer.flip();
@@ -176,5 +253,14 @@ public class Index<K extends Comparable<K>> {
 
     public void delete() {
         storage.delete();
+    }
+
+    @Override
+    public void close() {
+        try {
+            storage.close();
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to close index", e);
+        }
     }
 }

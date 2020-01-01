@@ -49,8 +49,8 @@ public class IndexedSegment {
             Files.deleteIfExists(idxFile.toPath());
             Files.deleteIfExists(tsFile.toPath());
         }
-        this.offsetIndex = new Index<>(idxFile, maxIndexSize, Long.BYTES, INDEX_SPARSENESS, Serializers.LONG);
-        this.timestampIndex = new Index<>(tsFile, maxIndexSize, Long.BYTES, INDEX_SPARSENESS, Serializers.LONG);
+        this.offsetIndex = new Index<>(idxFile, maxIndexSize, Long.BYTES, Serializers.LONG);
+        this.timestampIndex = new Index<>(tsFile, maxIndexSize, Long.BYTES, Serializers.LONG);
 
         if (headReopened) {
             restore();
