@@ -111,7 +111,11 @@ public class Index<K extends Comparable<K>> implements TreeFunctions<K>, Closeab
     }
 
     public void flush() {
-
+        try {
+            storage.flush();
+        } catch (IOException e) {
+            throw new RuntimeIOException("Flush failed", e);
+        }
     }
 
     public IndexEntry<K> find(K key) {
