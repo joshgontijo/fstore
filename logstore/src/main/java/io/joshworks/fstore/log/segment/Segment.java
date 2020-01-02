@@ -1,6 +1,5 @@
 package io.joshworks.fstore.log.segment;
 
-import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.MetricStorage;
@@ -23,7 +22,6 @@ import io.joshworks.fstore.serializer.Serializers;
 import org.slf4j.Logger;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
@@ -263,11 +261,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void flush() {
-        try {
-            storage.flush();
-        } catch (IOException e) {
-            throw RuntimeIOException.of(e);
-        }
+        storage.flush(false);
     }
 
     @Override

@@ -205,7 +205,7 @@ public abstract class MemStorage implements Storage {
     }
 
     @Override
-    public void flush() {
+    public void flush(boolean metadata) {
         //do nothing
     }
 
@@ -235,7 +235,7 @@ public abstract class MemStorage implements Storage {
                 destroy(removed);
             }
             computeSize();
-            position.accumulateAndGet(newSize, (curr, newPos) -> curr > newPos ? newPos : curr);
+            position.accumulateAndGet(newSize, Math::min);
         } finally {
             lock.unlock();
         }

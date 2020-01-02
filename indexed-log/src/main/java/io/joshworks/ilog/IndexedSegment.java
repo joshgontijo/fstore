@@ -1,8 +1,10 @@
 package io.joshworks.ilog;
 
-import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.serializer.Serializers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,21 +12,17 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class IndexedSegment {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
     private final File file;
-    private final FileChannel channel;
+    private final Storage storage;
     private final Index<Long> offsetIndex;
 
-    private final AtomicLong writePosition = new AtomicLong();
     private final AtomicBoolean readOnly = new AtomicBoolean();
 
     private final static int INDEX_SPARSENESS = 4096;
@@ -39,9 +37,9 @@ public class IndexedSegment {
         if (newFile && readOnly) {
             throw new IllegalArgumentException("Read only segment must have a existing file");
         }
-        this.channel = openChannel(file, readOnly);
+        this.storage = newFile ? Storage.create(file, StorageMode.RAF, Size.MB.of(100)) : Storage.open(file, StorageMode.RAF);
         if (newFile) {
-            this.channel.force(true);
+            this.storage.flush(true);
         }
         boolean headReopened = !newFile && !readOnly;
         String name = getFileName(file);
@@ -59,17 +57,11 @@ public class IndexedSegment {
         }
     }
 
-    private FileChannel openChannel(File file, boolean readOnly) throws IOException {
-        if (readOnly) {
-            return FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.READ);
-        }
-        return FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
-    }
 
     private void restore() {
         log.info("Restoring segment {}", file.getAbsolutePath());
         long start = System.currentTimeMillis();
-        RecordIterator it = new RecordIterator(channel, 0, 0, writePosition);
+        RecordIterator it = new RecordIterator(storage, 0, 0, storage::position);
         while (it.hasNext()) {
             long position = it.position();
             Record record = it.next();
@@ -88,14 +80,13 @@ public class IndexedSegment {
             throw new IllegalStateException("Index is full");
         }
 
-        long logPos = writePosition.get();
-        int written = record.appendTo(channel, writeBuffer);
-        long position = writePosition.getAndAdd(written);
+        long position = storage.position();
+        record.appendTo(storage, writeBuffer);
 
         if (lastEntry == null) {
             addToIndex(record.offset, position);
             lastIndexWrite = position;
-        } else if (logPos - lastIndexWrite + record.size() > INDEX_SPARSENESS) {
+        } else if (position - lastIndexWrite + record.size() > INDEX_SPARSENESS) {
             addToIndex(lastEntry.key, lastEntry.logPosition);
             lastIndexWrite = position;
         }
@@ -113,24 +104,20 @@ public class IndexedSegment {
         if (entry == null) {
             return null;
         }
-        try {
-            var chunk = Buffers.allocate(INDEX_SPARSENESS, false);
-            channel.read(chunk, entry.logPosition);
-            chunk.flip();
-            while (chunk.remaining() > RecordHeader.HEADER_BYTES) {
-                RecordHeader header = RecordHeader.parse(chunk);
-                if (header.offset == offset) {
-                    if (chunk.remaining() >= header.length) {
-                        return Record.from(chunk, header, true);
-                    }
-                    return null;
+        var chunk = Buffers.allocate(INDEX_SPARSENESS, false);
+        storage.read(entry.logPosition, chunk);
+        chunk.flip();
+        while (chunk.remaining() > RecordHeader.HEADER_BYTES) {
+            RecordHeader header = RecordHeader.parse(chunk);
+            if (header.offset == offset) {
+                if (chunk.remaining() >= header.length) {
+                    return Record.from(chunk, header, true);
                 }
-                chunk.position(chunk.position() + header.length);
+                return null;
             }
-            return null;
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to sparse read", e);
+            chunk.position(chunk.position() + header.length);
         }
+        return null;
     }
 
     /**
@@ -148,13 +135,13 @@ public class IndexedSegment {
      */
     public Record read(long offset, int readSize) {
         IndexEntry<Long> entry = offsetIndex.get(offset);
-        return entry == null ? null : Record.from(channel, entry.logPosition, readSize);
+        return entry == null ? null : Record.from(storage, entry.logPosition, readSize);
     }
 
     private Record read(IndexEntry<Long> indexEntry) {
         var hb = Buffers.allocate(RecordHeader.HEADER_BYTES, false);
-        RecordHeader header = RecordHeader.readFrom(channel, hb, indexEntry.logPosition);
-        return Record.readFrom(channel, header, indexEntry.logPosition);
+        RecordHeader header = RecordHeader.readFrom(storage, hb, indexEntry.logPosition);
+        return Record.readFrom(storage, header, indexEntry.logPosition);
     }
 
     public RecordBatchIterator batch(long startOffset, int batchSize) {
@@ -163,7 +150,7 @@ public class IndexedSegment {
             return null;
         }
         long startPos = ie.logPosition;
-        return new RecordBatchIterator(channel, startOffset, startPos, writePosition, batchSize);
+        return new RecordBatchIterator(storage, startOffset, startPos, storage::position, batchSize);
     }
 
     public RecordIterator iterator(long startOffset) {
@@ -172,7 +159,7 @@ public class IndexedSegment {
             return null;
         }
         long startPos = ie.logPosition;
-        return new RecordIterator(channel, startOffset, startPos, writePosition);
+        return new RecordIterator(storage, startOffset, startPos, storage::position);
     }
 
     public boolean readOnly() {
@@ -187,23 +174,15 @@ public class IndexedSegment {
         if (!readOnly.compareAndSet(false, true)) {
             throw new IllegalStateException("Already read only");
         }
+        storage.truncate(storage.length());
     }
 
     public void flush() {
-        try {
-            channel.force(false);
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to flush", e);
-        }
+        storage.flush(false);
     }
 
     public void delete() {
-        try {
-            channel.close();
-            Files.deleteIfExists(file.toPath());
-            offsetIndex.delete();
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to delete", e);
-        }
+        storage.delete();
+        offsetIndex.delete();
     }
 }

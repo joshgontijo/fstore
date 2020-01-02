@@ -1,28 +1,29 @@
 package io.joshworks.ilog;
 
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static io.joshworks.ilog.RecordHeader.HEADER_BYTES;
 
 public class RecordIterator implements Iterator<Record> {
 
-    protected final FileChannel channel;
+    protected final Storage storage;
     protected final long startOffset;
-    protected final AtomicLong writePosition;
+    protected final Supplier<Long> writePosition;
     protected final long startPos;
     protected final AtomicLong readPos = new AtomicLong();
     protected final AtomicLong lastOffset = new AtomicLong();
 
     private final ByteBuffer headerBuffer = Buffers.allocate(HEADER_BYTES, false);
 
-    public RecordIterator(FileChannel channel, long startOffset, long startPos, AtomicLong writePosition) {
-        this.channel = channel;
+    public RecordIterator(Storage storage, long startOffset, long startPos, Supplier<Long> writePosition) {
+        this.storage = storage;
         this.startOffset = startOffset;
         this.writePosition = writePosition;
         this.lastOffset.set(startOffset - 1);
@@ -42,7 +43,7 @@ public class RecordIterator implements Iterator<Record> {
         }
 
         RecordHeader header = readHeader();
-        Record record = Record.readFrom(channel, header, readPos.get());
+        Record record = Record.readFrom(storage, header, readPos.get());
         readPos.addAndGet(record.size());
 
         return checkAndUpdateOffset(record);
@@ -61,7 +62,7 @@ public class RecordIterator implements Iterator<Record> {
         long recordStartPos = readPos.get();
         RecordHeader header;
         do {
-            header = RecordHeader.readFrom(channel, headerBuffer, recordStartPos);
+            header = RecordHeader.readFrom(storage, headerBuffer, recordStartPos);
             headerBuffer.clear();
 
             if (header.offset < startOffset) {

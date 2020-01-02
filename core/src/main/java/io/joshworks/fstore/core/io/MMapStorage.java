@@ -39,7 +39,7 @@ public class MMapStorage extends MemStorage {
     }
 
     @Override
-    public void flush() {
+    public void flush(boolean metadata) {
         if (isWindows) {
             //caused by https://bugs.openjdk.java.net/browse/JDK-6539707
             return;
