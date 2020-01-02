@@ -1,6 +1,7 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.serializer.Serializers;
 import org.slf4j.Logger;
@@ -22,7 +23,6 @@ public class IndexedSegment {
     private final File file;
     private final FileChannel channel;
     private final Index<Long> offsetIndex;
-    private final Index<Long> timestampIndex;
 
     private final AtomicLong writePosition = new AtomicLong();
     private final AtomicBoolean readOnly = new AtomicBoolean();
@@ -50,7 +50,6 @@ public class IndexedSegment {
             Files.deleteIfExists(tsFile.toPath());
         }
         this.offsetIndex = new Index<>(idxFile, maxIndexSize, Long.BYTES, Serializers.LONG);
-        this.timestampIndex = new Index<>(tsFile, maxIndexSize, Long.BYTES, Serializers.LONG);
 
         if (headReopened) {
             restore();
@@ -71,7 +70,7 @@ public class IndexedSegment {
         while (it.hasNext()) {
             long position = it.position();
             Record record = it.next();
-            tryAddToIndexes(record.offset, record.timestamp, position);
+            addToIndex(record.offset, record.timestamp, position);
         }
         log.info("Restoring of {} completed in {}ms", file.getAbsolutePath(), System.currentTimeMillis() - start);
     }
@@ -88,17 +87,27 @@ public class IndexedSegment {
         int written = record.appendTo(channel, writeBuffer);
         long position = writePosition.getAndAdd(written);
 
-        tryAddToIndexes(record.offset, record.timestamp, position);
+        addToIndex(record.offset, record.timestamp, position);
     }
 
-    private void tryAddToIndexes(long offset, long timestamp, long position) {
+    private void addToIndex(long offset, long timestamp, long position) {
         offsetIndex.write(offset, position);
-        timestampIndex.write(timestamp, position);
     }
 
     public Record read(long offset) {
-        RecordIterator it = iterator(offset);
-        return it.hasNext() ? it.next() : null;
+        IndexEntry<Long> entry = offsetIndex.get(offset);
+        return entry == null ? null : read(entry);
+    }
+
+    private Record read(IndexEntry<Long> indexEntry) {
+        var hb = Buffers.allocate(RecordHeader.HEADER_BYTES, false);
+        RecordHeader header = RecordHeader.readFrom(channel, hb, indexEntry.logPosition);
+        return Record.readFrom(channel, header, indexEntry.logPosition);
+    }
+
+    public Record read2(long offset) {
+        IndexEntry<Long> entry = offsetIndex.get(offset);
+        return entry == null ? null : Record.readSingle(channel, entry.logPosition, 4096);
     }
 
     public RecordBatchIterator batch(long startOffset, int batchSize) {
@@ -124,7 +133,7 @@ public class IndexedSegment {
     }
 
     public boolean isFull() {
-        return offsetIndex.isFull() || timestampIndex.isFull();
+        return offsetIndex.isFull();
     }
 
     public void roll() {
@@ -146,7 +155,6 @@ public class IndexedSegment {
             channel.close();
             Files.deleteIfExists(file.toPath());
             offsetIndex.delete();
-            timestampIndex.delete();
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to delete", e);
         }
