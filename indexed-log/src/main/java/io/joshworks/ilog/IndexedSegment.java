@@ -29,6 +29,9 @@ public class IndexedSegment {
 
     private final static int INDEX_SPARSENESS = 4096;
 
+    private IndexEntry<Long> lastEntry;
+    private long lastIndexWrite;
+
     public IndexedSegment(File file, int maxIndexSize, boolean readOnly) throws IOException {
         this.file = file;
         this.readOnly.set(readOnly);
@@ -70,7 +73,7 @@ public class IndexedSegment {
         while (it.hasNext()) {
             long position = it.position();
             Record record = it.next();
-            addToIndex(record.offset, record.timestamp, position);
+            addToIndex(record.offset, position);
         }
         log.info("Restoring of {} completed in {}ms", file.getAbsolutePath(), System.currentTimeMillis() - start);
     }
@@ -84,30 +87,74 @@ public class IndexedSegment {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
+
+        long logPos = writePosition.get();
         int written = record.appendTo(channel, writeBuffer);
         long position = writePosition.getAndAdd(written);
 
-        addToIndex(record.offset, record.timestamp, position);
+        if (lastEntry == null) {
+            addToIndex(record.offset, position);
+            lastIndexWrite = position;
+        } else if (logPos - lastIndexWrite + record.size() > INDEX_SPARSENESS) {
+            addToIndex(lastEntry.key, lastEntry.logPosition);
+            lastIndexWrite = position;
+        }
+        lastEntry = new IndexEntry<>(record.offset, position);
+
+
     }
 
-    private void addToIndex(long offset, long timestamp, long position) {
+    private void addToIndex(long offset, long position) {
         offsetIndex.write(offset, position);
     }
 
+    public Record readSparse(long offset) {
+        IndexEntry<Long> entry = offsetIndex.floor(offset);
+        if (entry == null) {
+            return null;
+        }
+        try {
+            var chunk = Buffers.allocate(INDEX_SPARSENESS, false);
+            channel.read(chunk, entry.logPosition);
+            chunk.flip();
+            while (chunk.remaining() > RecordHeader.HEADER_BYTES) {
+                RecordHeader header = RecordHeader.parse(chunk);
+                if (header.offset == offset) {
+                    if (chunk.remaining() >= header.length) {
+                        return Record.from(chunk, header, true);
+                    }
+                    return null;
+                }
+                chunk.position(chunk.position() + header.length);
+            }
+            return null;
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to sparse read", e);
+        }
+    }
+
+    /**
+     * Reads a single entry for the given offset, read is performed with a two IO calls
+     * first one to read the header, then the actual data is read in the second call
+     */
     public Record read(long offset) {
         IndexEntry<Long> entry = offsetIndex.get(offset);
         return entry == null ? null : read(entry);
+    }
+
+    /**
+     * Reads a single entry for the given offset, read is performed with a single IO call
+     * with a buffer of size specified by readSize. If the buffer is too small for the entry, then a new one is created and
+     */
+    public Record read(long offset, int readSize) {
+        IndexEntry<Long> entry = offsetIndex.get(offset);
+        return entry == null ? null : Record.from(channel, entry.logPosition, readSize);
     }
 
     private Record read(IndexEntry<Long> indexEntry) {
         var hb = Buffers.allocate(RecordHeader.HEADER_BYTES, false);
         RecordHeader header = RecordHeader.readFrom(channel, hb, indexEntry.logPosition);
         return Record.readFrom(channel, header, indexEntry.logPosition);
-    }
-
-    public Record read2(long offset) {
-        IndexEntry<Long> entry = offsetIndex.get(offset);
-        return entry == null ? null : Record.readSingle(channel, entry.logPosition, 4096);
     }
 
     public RecordBatchIterator batch(long startOffset, int batchSize) {

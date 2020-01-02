@@ -24,17 +24,17 @@ import static java.util.Objects.requireNonNull;
  */
 public class Index<K extends Comparable<K>> implements TreeFunctions<K>, Closeable {
 
-    protected final Storage storage;
-    protected final Serializer<K> keySerializer;
-    protected final int maxEntries;
-    protected int entries;
-    protected final ByteBuffer writeBuffer;
-    protected final int keySize;
+    private final Storage storage;
+    private final Serializer<K> keySerializer;
+    private final int maxEntries;
+    private int entries;
+    private final ByteBuffer writeBuffer;
+    private final int keySize;
     IndexEntry<K> first;
     IndexEntry<K> last;
     private final AtomicBoolean readOnly = new AtomicBoolean();
 
-    protected Index(File file, long maxSize, int keySize, Serializer<K> keySerializer) {
+    public Index(File file, long maxSize, int keySize, Serializer<K> keySerializer) {
         this.keySize = keySize;
         this.keySerializer = keySerializer;
         try {

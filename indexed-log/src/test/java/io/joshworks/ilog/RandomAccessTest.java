@@ -48,7 +48,8 @@ public class RandomAccessTest {
 
         long s = System.currentTimeMillis();
         for (int i = 0; i < ITEMS; i++) {
-            Record rec = segment.read2(offsets.get(i));
+            Record rec = segment.readSparse(offsets.get(i));
+//            System.out.println(rec);
         }
         System.out.println("READ: " + ITEMS + " IN " + (System.currentTimeMillis() - s));
     }
