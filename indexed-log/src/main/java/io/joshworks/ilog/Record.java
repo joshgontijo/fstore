@@ -1,9 +1,9 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.ChecksumException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.log.record.ByteBufferChecksum;
-import io.joshworks.fstore.log.record.ChecksumException;
+import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -81,6 +81,22 @@ public class Record {
 
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to write record offset " + offset, e);
+        }
+    }
+
+    //TODO remove
+    public static Record readSingle(FileChannel channel, long position, int bufferSize) {
+        if (bufferSize <= HEADER_BYTES) {
+            throw new RuntimeException("bufferSize must be greater than " + HEADER_BYTES);
+        }
+        try {
+            ByteBuffer buffer = Buffers.allocate(bufferSize, false);
+            int read = channel.read(buffer, position);
+            buffer.flip();
+            return from(buffer, false);
+
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to read record at position " + position, e);
         }
     }
 

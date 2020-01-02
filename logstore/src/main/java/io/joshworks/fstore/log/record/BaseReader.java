@@ -1,6 +1,8 @@
 package io.joshworks.fstore.log.record;
 
+import io.joshworks.fstore.core.io.ChecksumException;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;

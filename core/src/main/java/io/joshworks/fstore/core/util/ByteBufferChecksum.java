@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.record;
+package io.joshworks.fstore.core.util;
 
 import java.nio.ByteBuffer;
 import java.util.zip.Adler32;

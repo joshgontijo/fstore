@@ -3,6 +3,7 @@ package io.joshworks.fstore.log.record;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.Direction;
 
