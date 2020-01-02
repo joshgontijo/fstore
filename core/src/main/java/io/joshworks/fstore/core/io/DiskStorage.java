@@ -179,7 +179,7 @@ public class DiskStorage implements Storage {
         try {
             channel.truncate(newSize);
             size.set(newSize);
-            position.accumulateAndGet(newSize, (curr, newVal) -> curr > newVal ? newVal : curr);
+            position.accumulateAndGet(newSize, Math::min);
         } catch (Exception e) {
             throw new StorageException("Failed to truncate", e);
         }
