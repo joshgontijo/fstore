@@ -4,13 +4,12 @@ import io.joshworks.fstore.core.util.Memory;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.Flushable;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 
 import static java.util.Objects.requireNonNull;
 
-public interface Storage extends Flushable, Closeable {
+public interface Storage extends Closeable {
 
     int EOF = -1;
 
@@ -63,6 +62,11 @@ public interface Storage extends Flushable, Closeable {
      * The current underlying store length
      */
     long length();
+
+    /**
+     * The current underlying store length
+     */
+    void flush(boolean metadata);
 
     /**
      * Sets the current position for the store
@@ -134,20 +138,20 @@ public interface Storage extends Flushable, Closeable {
         return storage;
     }
 
-    private static Storage getStorage(File file, StorageMode mode, long alignedSize) {
+    private static Storage getStorage(File file, StorageMode mode, long size) {
         switch (mode) {
             case MMAP:
-                DiskStorage diskStorage1 = new DiskStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
+                DiskStorage diskStorage1 = new DiskStorage(file, size, IOUtils.randomAccessFile(file, size));
                 return new MMapStorage(diskStorage1);
             case RAF:
-                return new DiskStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
+                return new DiskStorage(file, size, IOUtils.randomAccessFile(file, size));
             case RAF_CACHED:
-                DiskStorage diskStorage2 = new DiskStorage(file, alignedSize, IOUtils.randomAccessFile(file, alignedSize));
+                DiskStorage diskStorage2 = new DiskStorage(file, size, IOUtils.randomAccessFile(file, size));
                 return new MMapCache(diskStorage2);
             case OFF_HEAP:
-                return new OffHeapStorage(file.getAbsolutePath(), alignedSize);
+                return new OffHeapStorage(file.getAbsolutePath(), size);
             case HEAP:
-                return new HeapStorage(file.getName(), alignedSize);
+                return new HeapStorage(file.getName(), size);
             default:
                 throw new IllegalArgumentException("Invalid storage mode: " + mode);
         }

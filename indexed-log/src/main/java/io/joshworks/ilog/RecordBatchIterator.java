@@ -1,15 +1,16 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.ArrayDeque;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static io.joshworks.ilog.RecordHeader.HEADER_BYTES;
 
@@ -19,8 +20,8 @@ public class RecordBatchIterator extends RecordIterator {
     private final Queue<Record> records = new ArrayDeque<>();
     private Record next;
 
-    public RecordBatchIterator(FileChannel channel, long startOffset, long startPos, AtomicLong writePosition, int batchSize) {
-        super(channel, startOffset, startPos, writePosition);
+    public RecordBatchIterator(Storage storage, long startOffset, long startPos, Supplier<Long> writePosition, int batchSize) {
+        super(storage, startOffset, startPos, writePosition);
         if (batchSize < HEADER_BYTES) {
             throw new IllegalArgumentException("Batch size must be greater than " + HEADER_BYTES);
         }
@@ -65,7 +66,7 @@ public class RecordBatchIterator extends RecordIterator {
         }
         try {
             int remainingBytes = readBuffer.position();
-            int read = channel.read(readBuffer, position + remainingBytes);
+            int read = storage.read(position + remainingBytes, readBuffer);
             if (read < HEADER_BYTES) {
                 throw new RuntimeIOException("Invalid entry at position " + position);
             }
@@ -99,7 +100,7 @@ public class RecordBatchIterator extends RecordIterator {
 
     private Record readLargerEntry(long position, RecordHeader header) throws IOException {
         ByteBuffer buffer = Buffers.allocate(header.length, false);
-        int read = channel.read(buffer, position);
+        int read = storage.read(position, buffer);
         if (read != header.length) {
             throw new RuntimeIOException("Invalid entry at position " + position);
         }

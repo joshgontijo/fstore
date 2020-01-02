@@ -14,7 +14,6 @@ import io.joshworks.fstore.log.record.RecordEntry;
 import java.io.Closeable;
 import java.io.File;
 import java.io.Flushable;
-import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Iterator;
 import java.util.List;
@@ -70,11 +69,7 @@ public class DataFile<T> implements Flushable, Closeable {
 
     @Override
     public void flush() {
-        try {
-            storage.flush();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        storage.flush(false);
     }
 
     @Override

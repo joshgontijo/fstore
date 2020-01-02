@@ -91,8 +91,8 @@ public class MetricStorage implements Storage {
     }
 
     @Override
-    public void flush() throws IOException {
-        delegate.flush();
+    public void flush(boolean metadata) {
+        delegate.flush(metadata);
     }
 
     public Metrics metrics() {

@@ -147,7 +147,7 @@ public class DiskStorage implements Storage {
 
     @Override
     public void close() {
-        flush();
+        flush(true);
         if (channel.isOpen()) {
             IOUtils.releaseLock(lock);
         }
@@ -156,10 +156,10 @@ public class DiskStorage implements Storage {
     }
 
     @Override
-    public void flush() {
+    public void flush(boolean metadata) {
         try {
             if (channel.isOpen()) {
-                channel.force(true);
+                channel.force(metadata);
             }
         } catch (Exception e) {
             throw new StorageException(e);
