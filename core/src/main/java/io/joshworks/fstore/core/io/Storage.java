@@ -5,6 +5,8 @@ import io.joshworks.fstore.core.util.Memory;
 import java.io.Closeable;
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 
 import static java.util.Objects.requireNonNull;
@@ -57,6 +59,10 @@ public interface Storage extends Closeable {
      * @return The read bytes
      */
     int read(long position, ByteBuffer dst);
+
+    long transferTo(long position, long count, WritableByteChannel target);
+
+    long transferFrom(ReadableByteChannel src, long position, long count);
 
     /**
      * The current underlying store length
