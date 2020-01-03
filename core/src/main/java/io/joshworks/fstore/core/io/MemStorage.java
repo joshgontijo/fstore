@@ -1,8 +1,12 @@
 package io.joshworks.fstore.core.io;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.BufferUtil;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -147,6 +151,80 @@ public abstract class MemStorage implements Storage {
             }
             int read = dst.position() - dstPos;
             return read == 0 && readPos >= writePosition ? EOF : read;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    //TODO TEST
+    public long transferTo(long position, long count, WritableByteChannel target) {
+        if (count == 0) {
+            return 0;
+        }
+        if (count < 0) {
+            throw new IllegalArgumentException("Count must be greater or equals zero");
+        }
+        if (position < 0) {
+            throw new IllegalArgumentException("Position must be positive");
+        }
+
+        Lock lock = readLock();
+        try {
+            checkClosed();
+
+            long transferred = 0;
+            long toBeTransferred = Math.min(length(), count);
+
+            do {
+                long startPos = position + transferred;
+                int idx = BufferUtil.bufferIdx(buffers, startPos);
+                int bufferAddress = BufferUtil.posOnBuffer(buffers, startPos);
+
+                ByteBuffer src = buffers.get(idx).asReadOnlyBuffer();
+                int limit = (int) Math.min(src.remaining(), toBeTransferred - transferred);
+
+                src.limit(limit).position(bufferAddress);
+                int remaining = src.remaining();
+                target.write(src);
+                transferred += remaining;
+            } while (transferred < toBeTransferred);
+
+            return transferred;
+
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to transfer data from " + name + " to " + target);
+        } finally {
+            lock.unlock();
+        }
+
+    }
+
+    //TODO TEST
+    public long transferFrom(ReadableByteChannel src, long position, long count) {
+
+        ensureCapacity(position, count);
+        Lock lock = writeLockInterruptibly();
+        try {
+            long bufferPos = position();
+            position(position);
+            int read;
+            long totalRead = 0;
+            do {
+                ByteBuffer dst = BufferUtil.getBuffer(buffers, position);
+                int pos = BufferUtil.posOnBuffer(buffers, position);
+                int toBeTransferred = (int) Math.min(count - totalRead, dst.remaining());
+                dst.limit(toBeTransferred).position(pos);
+                read = src.read(dst);
+                totalRead += read;
+            } while (read > 0 && totalRead < count);
+
+            if (bufferPos > position + totalRead) { //revert back to the original position
+                position(bufferPos);
+            }
+
+            return totalRead;
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to transfer data from " + src + " to " + name, e);
         } finally {
             lock.unlock();
         }

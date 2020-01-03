@@ -4,6 +4,8 @@ import io.joshworks.fstore.core.metrics.Metrics;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 
 public class MetricStorage implements Storage {
 
@@ -53,6 +55,26 @@ public class MetricStorage implements Storage {
         metrics.update("read");
         metrics.update("bytesRead", read);
         return read;
+    }
+
+    @Override
+    public long transferTo(long position, long count, WritableByteChannel target) {
+        long start = System.currentTimeMillis();
+        long read = delegate.transferTo(position, count, target);
+        metrics.update("transferToTime", (System.currentTimeMillis() - start));
+        metrics.update("transferTo");
+        metrics.update("bytesRead", read);
+        return read;
+    }
+
+    @Override
+    public long transferFrom(ReadableByteChannel src, long position, long count) {
+        long start = System.currentTimeMillis();
+        long written = delegate.transferFrom(src, position, count);
+        metrics.update("transferToTime", (System.currentTimeMillis() - start));
+        metrics.update("transferFrom");
+        metrics.update("bytesWritten", written);
+        return written;
     }
 
     @Override

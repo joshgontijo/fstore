@@ -8,6 +8,8 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -113,6 +115,24 @@ public class DiskStorage implements Storage {
             return totalRead;
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
+        }
+    }
+
+    @Override
+    public long transferTo(long position, long count, WritableByteChannel target) {
+        try {
+            return channel.transferTo(position, count, target);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to transfer data from " + name() + " to " + target, e);
+        }
+    }
+
+    @Override
+    public long transferFrom(ReadableByteChannel src, long position, long count) {
+        try {
+            return channel.transferFrom(src, position, count);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to transfer data from " + src + " to " + name(), e);
         }
     }
 

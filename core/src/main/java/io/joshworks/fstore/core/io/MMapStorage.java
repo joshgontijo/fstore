@@ -5,6 +5,8 @@ import io.joshworks.fstore.core.util.MappedByteBuffers;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.locks.Lock;
@@ -31,6 +33,16 @@ public class MMapStorage extends MemStorage {
         } catch (Exception e) {
             throw new StorageException("Failed to map buffer from: " + from + ", size: " + size, e);
         }
+    }
+
+    @Override
+    public long transferTo(long position, long count, WritableByteChannel target) {
+        return diskStorage.transferTo(position, count, target);
+    }
+
+    @Override
+    public long transferFrom(ReadableByteChannel src, long position, long count) {
+        return diskStorage.transferFrom(src, position, count);
     }
 
     @Override
