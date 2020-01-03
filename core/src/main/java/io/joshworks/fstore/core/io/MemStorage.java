@@ -157,6 +157,7 @@ public abstract class MemStorage implements Storage {
     }
 
     //TODO TEST
+    @Override
     public long transferTo(long position, long count, WritableByteChannel target) {
         if (count == 0) {
             return 0;
@@ -200,6 +201,7 @@ public abstract class MemStorage implements Storage {
     }
 
     //TODO TEST
+    @Override
     public long transferFrom(ReadableByteChannel src, long position, long count) {
 
         ensureCapacity(position, count);
