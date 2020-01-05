@@ -18,7 +18,7 @@ public class IndexedSegmentTest {
     private Index index;
 
     @Before
-    public void setUp() throws IOException {
+    public void setUp() {
         index = new LongIndex(TestUtils.testFile(), Size.MB.ofInt(500));
         segment = new IndexedSegment(TestUtils.testFile(), index);
     }
@@ -53,7 +53,6 @@ public class IndexedSegmentTest {
             assertEquals(Long.BYTES, keyLen);
             assertEquals(idx, key);
             idx++;
-//            System.out.println(record);
         }
         System.out.println("READ: " + idx + " IN " + (System.currentTimeMillis() - s));
     }
