@@ -1,43 +1,50 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayDeque;
+import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
-import static io.joshworks.ilog.RecordHeader.HEADER_BYTES;
+import static io.joshworks.ilog.Record.HEADER_BYTES;
 
-public class RecordBatchIterator extends RecordIterator {
+public class RecordBatchIterator implements Iterator<Record> {
 
+    protected final FileChannel channel;
+    protected final AtomicLong writePosition;
+    protected final long startPos;
+    protected final AtomicLong readPos = new AtomicLong();
     private final ByteBuffer readBuffer;
     private final Queue<Record> records = new ArrayDeque<>();
+    private long entriesRead;
     private Record next;
 
-    public RecordBatchIterator(Storage storage, long startOffset, long startPos, Supplier<Long> writePosition, int batchSize) {
-        super(storage, startOffset, startPos, writePosition);
+    public RecordBatchIterator(FileChannel channel, long startPos, AtomicLong writePosition, int batchSize) {
         if (batchSize < HEADER_BYTES) {
             throw new IllegalArgumentException("Batch size must be greater than " + HEADER_BYTES);
         }
-        this.lastOffset.set(startOffset - 1);
+        this.channel = channel;
+        this.writePosition = writePosition;
         this.readPos.set(startPos);
+        this.startPos = startPos;
         this.readBuffer = Buffers.allocate(batchSize, false);
     }
 
     @Override
     public boolean hasNext() {
-        if (records.isEmpty() && next == null) {
+        if (next != null) {
+            return true;
+        }
+        if (records.isEmpty()) {
             readBatch(readPos.get());
         }
-        if (next == null) {
-            next = takeWhile();
-        }
+        next = records.poll();
         return next != null;
     }
 
@@ -46,17 +53,10 @@ public class RecordBatchIterator extends RecordIterator {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
-        readPos.addAndGet(next.size());
-        Record r = next;
+        readPos.addAndGet(next.recordLength());
+        Record record = next;
         next = null;
-        return checkAndUpdateOffset(r);
-    }
-
-    private Record takeWhile() {
-        Record record;
-        while ((record = records.poll()) != null && record.offset < startOffset) {
-            readPos.addAndGet(record.size());
-        }
+        entriesRead++;
         return record;
     }
 
@@ -65,46 +65,53 @@ public class RecordBatchIterator extends RecordIterator {
             return;
         }
         try {
+            if (readBuffer.position() > 0) {
+                readBuffer.compact();
+            }
             int remainingBytes = readBuffer.position();
-            int read = storage.read(position + remainingBytes, readBuffer);
-            if (read < HEADER_BYTES) {
-                throw new RuntimeIOException("Invalid entry at position " + position);
+            int read = channel.read(readBuffer, position + remainingBytes);
+            if (read <= 0) { //EOF or no more data
+                return;
             }
             readBuffer.flip();
-            while (readBuffer.hasRemaining()) {
-                if (readBuffer.remaining() < HEADER_BYTES) {
-                    readBuffer.compact();
-                    return;
-                }
-                RecordHeader header = RecordHeader.parse(readBuffer);
-                if (header.length > readBuffer.remaining()) {
-                    if (header.length > readBuffer.capacity()) { //record will never fit, read with a one off buffer
-                        Record record = readLargerEntry(position, header);
-                        records.add(record);
-                    } else {
-                        //rewinds header position which was read and not used
-                        readBuffer.position(readBuffer.position() - HEADER_BYTES);
+            Record record;
+            do {
+                record = Record.from(readBuffer, false);
+                if (record != null) {
+                    records.add(record);
+                } else if (readBuffer.remaining() >= HEADER_BYTES) {
+                    int recordLength = Record.recordLength(readBuffer);
+                    if (recordLength > readBuffer.capacity()) {
+                        long recordPos = position + readBuffer.position();
+                        record = readLargerEntry(recordPos, recordLength);
                     }
-                    readBuffer.compact();
-                    return;
                 }
-                Record record = Record.from(readBuffer, header, true);
-                records.add(record);
-            }
-            readBuffer.compact();
+            } while (record != null);
+
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to read batch", e);
         }
     }
 
-
-    private Record readLargerEntry(long position, RecordHeader header) throws IOException {
-        ByteBuffer buffer = Buffers.allocate(header.length, false);
-        int read = storage.read(position, buffer);
-        if (read != header.length) {
+    private Record readLargerEntry(long position, int recordLength) throws IOException {
+        ByteBuffer buffer = Buffers.allocate(recordLength, false);
+        int read = channel.read(buffer, position);
+        if (read != recordLength) {
             throw new RuntimeIOException("Invalid entry at position " + position);
         }
-        return Record.from(buffer, header, false);
+        return Record.from(buffer, false);
+    }
 
+    public long entriesRead() {
+        return entriesRead;
+    }
+
+    public long bytesRead() {
+        return readPos.get() - startPos;
+    }
+
+    //internal
+    long position() {
+        return readPos.get();
     }
 }

@@ -1,16 +1,9 @@
 package io.joshworks.ilog;
 
-import io.joshworks.fstore.core.io.StorageMode;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
-import io.joshworks.fstore.log.Direction;
-import io.joshworks.fstore.log.SegmentIterator;
-import io.joshworks.fstore.log.segment.Segment;
-import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.serializer.VStringSerializer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,72 +11,60 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import static org.junit.Assert.assertEquals;
+
 public class IndexedSegmentTest {
 
-    private IndexedSegment segment;
-    private ByteBuffer writeBuffer = Buffers.allocate(4096, false);
+    public static final KeyParser<Integer> KEY_PARSER = KeyParser.INT;
+    private IndexedSegment<Integer> segment;
 
     @Before
     public void setUp() throws IOException {
-        segment = new IndexedSegment(TestUtils.testFile(), Size.GB.ofInt(1), false);
+        segment = new IndexedSegment<>(TestUtils.testFile(), Size.GB.ofInt(1), KeyParser.INT);
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws IOException {
         segment.delete();
     }
 
     @Test
-    public void write() {
+    public void write() throws IOException {
         long start = System.currentTimeMillis();
-        int offset = 0;
-        while (offset < 10000000) {
-            segment.append(create("value-" + offset, offset), writeBuffer);
-            writeBuffer.clear();
-            offset++;
+        int items = 20000000;
+        var bb = Buffers.allocate(64, false);
+        for (int i = 0; i < items; i++) {
+            Record record = create(i, "value-" + i, bb);
+            segment.append(record);
+            bb.clear();
         }
-        System.out.println("WRITE: " + offset + " IN " + (System.currentTimeMillis() - start));
+
+        System.out.println("WRITE: " + items + " IN " + (System.currentTimeMillis() - start));
 
         readAll();
     }
 
-    @Test
-    public void write2() {
-        Segment<String> seg = new Segment<>(TestUtils.testFile(), StorageMode.RAF, Size.GB.of(1), Serializers.VSTRING, new SimpleBufferPool("a", 4096, false), WriteMode.LOG_HEAD, 1);
-        long start = System.currentTimeMillis();
-        int offset = 0;
-        while (offset < 100000) {
-            seg.append("value-" + offset);
-            offset++;
-        }
-        System.out.println("WRITE: " + offset + " IN " + (System.currentTimeMillis() - start));
-
-        long s = System.currentTimeMillis();
-        int items = 0;
-        SegmentIterator<String> it = seg.iterator(Direction.FORWARD);
-        while (it.hasNext()) {
-            String next = it.next();
-            items++;
-        }
-        System.out.println("READ: " + items + " IN " + (System.currentTimeMillis() - s));
-
-//        readAll();
-    }
-
     private void readAll() {
         long s = System.currentTimeMillis();
-        RecordIterator recordIterator = segment.batch(0, 4096);
-        int items = 0;
+        RecordBatchIterator recordIterator = segment.batch(0, 4096);
+        int idx = 0;
         while (recordIterator.hasNext()) {
             Record record = recordIterator.next();
-            items++;
+            int keyLen = record.keyLength();
+            Integer key = KEY_PARSER.readFrom(record.key());
+            assertEquals(Integer.BYTES, keyLen);
+            assertEquals(Integer.valueOf(idx), key);
+            idx++;
 //            System.out.println(record);
         }
-        System.out.println("READ: " + items + " IN " + (System.currentTimeMillis() - s));
+        System.out.println("READ: " + idx + " IN " + (System.currentTimeMillis() - s));
     }
 
-    private static Record create(String value, long offset) {
-        var bb = ByteBuffer.wrap(VStringSerializer.toBytes(value));
-        return Record.create(bb, offset);
+    private static Record create(int key, String value) {
+        return Record.create(key, KEY_PARSER, value, Serializers.VSTRING, ByteBuffer.allocate(64));
+    }
+
+    private static Record create(int key, String value, ByteBuffer buffer) {
+        return Record.create2(key, KEY_PARSER, value, Serializers.VSTRING, buffer);
     }
 }
