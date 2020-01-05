@@ -12,7 +12,7 @@ public class LongIndex extends Index {
     @Override
     protected int compare(ByteBuffer k1, int idx) {
         long key1 = k1.getLong(k1.position());
-        long key2 = mf.getLong(idx);
+        long key2 = mf.buffer().getLong(idx);
         return Long.compare(key1, key2);
     }
 }

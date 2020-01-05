@@ -83,7 +83,7 @@ public class IndexedSegment {
 
         int keyLen = index.keySize();
         int recordKeyLen = record.keyLength();
-        if (recordKeyLen != keyLen) {
+        if (recordKeyLen != keyLen) { // validates the key BEFORE adding to log
             throw new IllegalArgumentException("Invalid key length: Expected " + keyLen + ", got " + recordKeyLen);
         }
 
@@ -205,7 +205,7 @@ public class IndexedSegment {
     @Override
     public String toString() {
         return "IndexedSegment{" +
-                " name=" + file.getName() +
+                "name=" + file.getName() +
                 ", writePosition=" + writePosition +
                 ", entries=" + entries() +
                 '}';

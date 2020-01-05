@@ -37,7 +37,7 @@ public abstract class Index implements TreeFunctions, Closeable {
             } else { //existing file
                 //empty buffer, no writes wil be allowed anyways
                 this.mf = MappedFile.open(file);
-                long fileSize = mf.capacity();
+                long fileSize = mf.buffer().capacity();
                 if (fileSize % entrySize() != 0) {
                     throw new IllegalStateException("Invalid index file length: " + fileSize);
                 }
@@ -62,8 +62,12 @@ public abstract class Index implements TreeFunctions, Closeable {
         if (readOnly.get()) {
             throw new RuntimeException("Index is read only");
         }
+        int keyLen = record.keyLength();
+        if (keyLen != keySize) {
+            throw new RuntimeException("Invalid key length, expected " + keySize + ", got " + keyLen);
+        }
         record.writeKey(mf);
-        mf.putLong(position);
+        mf.buffer().putLong(position);
         entries++;
     }
 
@@ -72,7 +76,7 @@ public abstract class Index implements TreeFunctions, Closeable {
      */
     public void complete() {
         mf.flush();
-        mf.truncate(mf.position());
+        mf.truncate(mf.buffer().position());
         readOnly.set(true);
     }
 
@@ -167,7 +171,7 @@ public abstract class Index implements TreeFunctions, Closeable {
     }
 
     public void truncate() {
-        mf.truncate(mf.position());
+        mf.truncate(mf.buffer().position());
     }
 
     @Override
@@ -189,7 +193,7 @@ public abstract class Index implements TreeFunctions, Closeable {
         }
         int startPos = idx * entrySize();
         int positionOffset = startPos + keySize;
-        return mf.getLong(positionOffset);
+        return mf.buffer().getLong(positionOffset);
     }
 
     private int compareTo(ByteBuffer key, int idx) {

@@ -53,23 +53,65 @@ public class MappedFile {
         }
     }
 
-    public long getLong(int idx) {
-        return mbb.getLong(idx);
+    public MappedByteBuffer buffer() {
+        return mbb;
     }
 
-    public void write(ByteBuffer buffer) {
-        mbb.put(buffer);
+    public void putLong(long l) {
+        mbb.putLong(l);
+    }
+
+    public void putInt(int i) {
+        mbb.putInt(i);
+    }
+
+    public void putShort(short s) {
+        mbb.putShort(s);
+    }
+
+    public void putDouble(double d) {
+        mbb.putDouble(d);
+    }
+
+    public void putFloat(float f) {
+        mbb.putFloat(f);
     }
 
     public void put(byte b) {
         mbb.put(b);
     }
 
-//    //TODO this might cause JVM crash since truncate can be called or any other function that destroys the buffer
-//    //INVESTIGATE HOW TO APPROACH THIS
-//    public BufferReader reader(int position) {
-//        return new BufferReader(mbb, position);
-//    }
+    public void put(ByteBuffer buffer) {
+        mbb.put(buffer);
+    }
+
+    public void put(byte[] bytes) {
+        mbb.put(bytes);
+    }
+
+    public long getLong(int idx) {
+        return mbb.getLong(idx);
+    }
+
+    public int getInt(int idx) {
+        return mbb.getInt(idx);
+    }
+
+    public double getDouble(int idx) {
+        return mbb.getDouble(idx);
+    }
+
+    public float getFloat(int idx) {
+        return mbb.getFloat(idx);
+    }
+
+    public short getShort(int idx) {
+        return mbb.getShort(idx);
+    }
+
+    public byte get(int idx) {
+        return mbb.get(idx);
+    }
 
     public long capacity() {
         return mbb.capacity();
@@ -77,6 +119,10 @@ public class MappedFile {
 
     public long position() {
         return mbb.position();
+    }
+
+    public long remaining() {
+        return mbb.remaining();
     }
 
     public void delete() throws IOException {
@@ -103,10 +149,6 @@ public class MappedFile {
         }
     }
 
-    public void putLong(long l) {
-        mbb.putLong(l);
-    }
-
     public String name() {
         return file.getName();
     }
@@ -125,4 +167,5 @@ public class MappedFile {
             throw new IllegalArgumentException("File size must be less than " + MAX_BUFFER_SIZE);
         }
     }
+
 }
