@@ -8,7 +8,6 @@ import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.WriteMode;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.serializer.VStringSerializer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,35 +19,33 @@ import java.util.List;
 
 public class RandomAccessTest {
 
-    private IndexedSegment segment;
+    private IndexedSegment<Integer> segment;
     private ByteBuffer writeBuffer = Buffers.allocate(4096, false);
 
-    private static int ITEMS = 5000000;
+    private static int ITEMS = 25000000;
 
     @Before
     public void setUp() throws IOException {
-        segment = new IndexedSegment(TestUtils.testFile(), Size.GB.ofInt(1), false);
+        segment = new IndexedSegment<>(TestUtils.testFile(), Size.GB.ofInt(1), KeyParser.INT);
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws IOException {
         segment.delete();
     }
 
     @Test
-    public void write() {
+    public void write() throws IOException {
         long start = System.currentTimeMillis();
-        List<Long> offsets = new ArrayList<>();
-        for (long i = 0; i < ITEMS; i++) {
-            segment.append(create("value-" + i, i), writeBuffer);
-            offsets.add(i);
+        for (int i = 0; i < ITEMS; i++) {
+            segment.append(create(i, "value-" + i));
             writeBuffer.clear();
         }
         System.out.println("WRITE: " + ITEMS + " IN " + (System.currentTimeMillis() - start));
 
         long s = System.currentTimeMillis();
         for (int i = 0; i < ITEMS; i++) {
-            Record rec = segment.readSparse(offsets.get(i));
+            Record rec = segment.read(i);
 //            System.out.println(rec);
         }
         System.out.println("READ: " + ITEMS + " IN " + (System.currentTimeMillis() - s));
@@ -72,8 +69,7 @@ public class RandomAccessTest {
         System.out.println("READ: " + ITEMS + " IN " + (System.currentTimeMillis() - s));
     }
 
-    private static Record create(String value, long offset) {
-        var bb = ByteBuffer.wrap(VStringSerializer.toBytes(value));
-        return Record.create(bb, offset);
+    private static Record create(int key, String value) {
+        return Record.create(key, KeyParser.INT, value, Serializers.VSTRING, ByteBuffer.allocate(1024));
     }
 }

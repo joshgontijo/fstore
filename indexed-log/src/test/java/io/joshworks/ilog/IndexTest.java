@@ -2,17 +2,16 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
-import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.TreeSet;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 public class IndexTest {
 
@@ -22,11 +21,11 @@ public class IndexTest {
 
     @Before
     public void setUp() {
-        index = new Index<>(testFile, Size.MB.of(10), Integer.BYTES, Serializers.INTEGER);
+        index = new Index<>(testFile, Size.GB.ofInt(1), KeyParser.INT);
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws IOException {
         index.delete();
     }
 
@@ -41,24 +40,20 @@ public class IndexTest {
         }
 
         for (int i = 0; i < items; i++) {
-            Integer lower = set.floor(i);
-            IndexEntry<Integer> entry = index.floor(i);
-
-            assertNotNull(entry);
-            assertEquals("Failed on " + i, lower, entry.key);
+            long lower = set.floor(i);
+            assertEquals("Failed on " + i, lower, index.floor(i));
         }
     }
 
     @Test
     public void get() {
-        for (int i = 0; i < 100; i++) {
+        int items = 100000;
+        for (int i = 0; i < items; i++) {
             index.write(i, i);
         }
 
-        for (int i = 0; i < 100; i++) {
-            IndexEntry<Integer> entry = index.get(i);
-            assertNotNull(entry);
-            assertEquals(Integer.valueOf(i), entry.key);
+        for (int i = 0; i < items; i++) {
+            assertEquals("Failed on " + i, i, index.get(i));
         }
     }
 
@@ -67,7 +62,7 @@ public class IndexTest {
         for (int i = 0; i < 100; i++) {
             index.write(i, i);
         }
-        assertNull(index.get(101));
+        assertEquals(Index.NONE, index.get(101));
     }
 
     @Test
@@ -156,9 +151,9 @@ public class IndexTest {
         addSomeEntries(10);
 
         //equals last
-        IndexEntry<Integer> found = index.floor(index.last.key);
-        assertNotNull(found);
-        assertEquals(index.last.key, found.key);
+        long found = index.floor(index.last());
+
+        assertEquals(index.get(index.last()), found);
     }
 
     @Test
@@ -166,129 +161,129 @@ public class IndexTest {
         addSomeEntries(10);
 
         //greater than last
-        IndexEntry<Integer> found = index.floor(index.last.key + 1);
-        assertNotNull(found);
-        assertEquals(index.last.key, found.key);
+        long found = index.floor(index.last() + 1);
+
+        assertEquals(index.get(index.last()), found);
     }
 
     @Test
     public void floor_with_key_less_than_first_entry_returns_null() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.floor(index.first.key - 1);
-        assertNull(found);
+        long found = index.floor(index.first() - 1);
+        assertEquals(Index.NONE, found);
     }
 
     @Test
     public void floor_with_key_equals_first_entry_returns_first_entry() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.floor(index.first.key);
-        assertNotNull(found);
-        assertEquals(index.first.key, found.key);
+        long found = index.floor(index.first());
+
+        assertEquals(index.get(index.first()), found);
     }
 
     @Test
     public void ceiling_with_key_less_than_first_entry_returns_first_entry() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.ceiling(index.first.key - 1);
-        assertNotNull(found);
-        assertEquals(index.first.key, found.key);
+        long found = index.ceiling(index.first() - 1);
+
+        assertEquals(index.get(index.first()), found);
     }
 
     @Test
     public void ceiling_with_key_equals_first_entry_returns_first_entry() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.ceiling(index.first.key);
-        assertNotNull(found);
-        assertEquals(index.first.key, found.key);
+        long found = index.ceiling(index.first());
+
+        assertEquals(index.get(index.first()), found);
     }
 
     @Test
     public void ceiling_with_key_greater_than_last_entry_returns_null() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.ceiling(index.last.key + 1);
-        assertNull(found);
+        long found = index.ceiling(index.last() + 1);
+        assertEquals(Index.NONE, found);
     }
 
     @Test
     public void ceiling_with_key_equals_last_entry_returns_last_entry() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.ceiling(index.last.key);
-        assertNotNull(found);
-        assertEquals(index.last.key, found.key);
+        long found = index.ceiling(index.last());
+
+        assertEquals(index.get(index.last()), found);
     }
 
     @Test
     public void higher_with_key_greater_than_lastKey_returns_null() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.higher(index.last.key + 1);
-        assertNull(found);
+        long found = index.higher(index.last() + 1);
+        assertEquals(Index.NONE, found);
     }
 
     @Test
     public void higher_with_key_equals_lastKey_returns_null() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.higher(index.last.key);
-        assertNull(found);
+        long found = index.higher(index.last());
+        assertEquals(Index.NONE, found);
     }
 
     @Test
     public void higher_with_key_less_than_firstKey_returns_firstEntry() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.higher(index.first.key - 1);
-        assertNotNull(found);
-        assertEquals(index.first.key, found.key);
+        long found = index.higher(index.first() - 1);
+
+        assertEquals(index.get(index.first()), found);
     }
 
     @Test
     public void higher_with_key_lowest_key_returns_firstEntry() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.higher(Integer.MIN_VALUE);
-        assertNotNull(found);
-        assertEquals(index.first.key, found.key);
+        long found = index.higher(Integer.MIN_VALUE);
+
+        assertEquals(index.get(index.first()), found);
     }
 
     @Test
     public void lower_with_key_less_than_firstKey_returns_null() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.lower(index.first.key - 1);
-        assertNull(found);
+        long found = index.lower(index.first() - 1);
+        assertEquals(Index.NONE, found);
     }
 
     @Test
     public void lower_with_key_equals_firstKey_returns_null() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.lower(index.first.key);
-        assertNull(found);
+        long found = index.lower(index.first());
+        assertEquals(Index.NONE, found);
     }
 
     @Test
     public void lower_with_key_greater_than_lastKey_returns_lastEntry() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.lower(index.last.key + 1);
-        assertNotNull(found);
-        assertEquals(index.last.key, found.key);
+        long found = index.lower(index.last() + 1);
+
+        assertEquals(index.get(index.last()), found);
     }
 
     @Test
     public void lower_with_key_highest_key_returns_lastEntry() {
         addSomeEntries(10);
 
-        IndexEntry<Integer> found = index.lower(Integer.MAX_VALUE);
-        assertNotNull(found);
-        assertEquals(index.last.key, found.key);
+        long found = index.lower(Integer.MAX_VALUE);
+
+        assertEquals(index.get(index.last()), found);
     }
 
 
@@ -300,18 +295,17 @@ public class IndexTest {
         }
 
         for (int i = 0; i < items - steps; i += 1) {
-            Integer expected = treeSet.ceiling(i);
-            IndexEntry<Integer> ceiling = index.ceiling(i);
-            assertNotNull("Failed on " + i, ceiling);
-            assertEquals("Failed on " + i, expected, ceiling.key);
+            long expected = treeSet.ceiling(i);
+            long ceiling = index.ceiling(i);
+            assertEquals("Failed on " + i, expected, ceiling);
         }
 
-        IndexEntry<Integer> ceiling = index.ceiling(0);
-        IndexEntry<Integer> first = index.first;
+        long ceiling = index.ceiling(0);
+        long first = index.first();
         assertEquals(first, ceiling);
 
         ceiling = index.ceiling(Integer.MIN_VALUE);
-        first = index.first;
+        first = index.first();
         assertEquals(first, ceiling);
     }
 
@@ -323,17 +317,17 @@ public class IndexTest {
         }
 
         for (int i = 1; i < items; i += 1) {
-            Integer expected = treeSet.lower(i);
-            IndexEntry<Integer> lower = index.lower(i);
+            long expected = treeSet.lower(i);
+            long lower = index.lower(i);
             assertNotNull("Failed on " + i, lower);
-            assertEquals("Failed on " + i, expected, lower.key);
+            assertEquals("Failed on " + i, expected, lower);
         }
 
-        IndexEntry<Integer> lower = index.lower(0);
-        assertNull(lower);
+        long lower = index.lower(0);
+        assertEquals(Index.NONE, lower);
 
-        IndexEntry<Integer> lowest = index.lower(Integer.MAX_VALUE);
-        assertEquals(index.last, lowest);
+        long lowest = index.lower(Integer.MAX_VALUE);
+        assertEquals(index.get(index.last()), lowest);
     }
 
     private void higherWithStep(int items, int steps) {
@@ -344,17 +338,17 @@ public class IndexTest {
         }
 
         for (int i = 0; i < items - steps; i += 1) {
-            Integer expected = treeSet.higher(i);
-            IndexEntry<Integer> higher = index.higher(i);
+            long expected = treeSet.higher(i);
+            long higher = index.higher(i);
             assertNotNull("Failed on " + i, higher);
-            assertEquals("Failed on " + i, expected, higher.key);
+            assertEquals("Failed on " + i, expected, higher);
         }
 
-        IndexEntry<Integer> higher = index.higher(index.last.key);
-        assertNull(higher);
+        long higher = index.higher(index.last());
+        assertEquals(Index.NONE, higher);
 
-        IndexEntry<Integer> highest = index.higher(Integer.MAX_VALUE);
-        assertNull(highest);
+        long highest = index.higher(Integer.MAX_VALUE);
+        assertEquals(Index.NONE, highest);
     }
 
     private void floorWithStep(int items, int steps) {
@@ -365,14 +359,13 @@ public class IndexTest {
         }
 
         for (int i = 0; i < items; i += 1) {
-            Integer expected = treeSet.floor(i);
-            IndexEntry<Integer> floor = index.floor(i);
-            assertNotNull("Failed on " + i, floor);
-            assertEquals("Failed on " + i, expected, floor.key);
+            long expected = treeSet.floor(i);
+            long floor = index.floor(i);
+            assertEquals("Failed on " + i, expected, floor);
         }
 
-        IndexEntry<Integer> floor = index.floor(Integer.MAX_VALUE);
-        IndexEntry<Integer> last = index.last;
+        long floor = index.floor(Integer.MAX_VALUE);
+        long last = index.last();
         assertEquals(last, floor);
     }
 

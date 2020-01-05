@@ -33,7 +33,8 @@ public class ByteBufferChecksum {
             buffer.reset();
             return checksum(impl, data, 0, data.length);
         }
-        return checksum(impl, buffer.array(), buffer.position(), buffer.remaining());
+        int offset = buffer.arrayOffset();
+        return checksum(impl, buffer.array(), offset + buffer.position(), buffer.remaining());
     }
 
     private static int checksum(Checksum impl, byte[] data, int offset, int length) {
