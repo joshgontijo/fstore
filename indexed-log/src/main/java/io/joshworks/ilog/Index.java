@@ -66,12 +66,9 @@ public abstract class Index implements TreeFunctions, Closeable {
      * Complete this index and mark it as read only.
      */
     public void complete() {
-        readOnly.set(true);
-//        mbb.truncate(mbb.length());
-    }
-
-    public void flush() {
         mf.flush();
+        mf.truncate(mf.position());
+        readOnly.set(true);
     }
 
     /**
