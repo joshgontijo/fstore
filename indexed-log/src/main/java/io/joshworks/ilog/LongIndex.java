@@ -10,9 +10,9 @@ public class LongIndex extends Index {
     }
 
     @Override
-    protected int compare(ByteBuffer k1, int idx) {
-        long key1 = k1.getLong(k1.position());
-        long key2 = mf.buffer().getLong(idx);
+    protected int compare(int idx, ByteBuffer key) {
+        long key1 = mf.buffer().getLong(idx);
+        long key2 = key.getLong(key.position());
         return Long.compare(key1, key2);
     }
 }

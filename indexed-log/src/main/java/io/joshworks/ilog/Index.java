@@ -56,7 +56,7 @@ public abstract class Index implements TreeFunctions, Closeable {
      * The function must read the key from the MappedByteBuffer without modifying its position
      * Therefore it must always use the ABSOLUTE getXXX methods from the buffer.
      */
-    protected abstract int compare(ByteBuffer k1, int idx);
+    protected abstract int compare(int idx, ByteBuffer key);
 
     public void write(Record record, long position) {
         if (readOnly.get()) {
@@ -205,7 +205,7 @@ public abstract class Index implements TreeFunctions, Closeable {
         //mark
         int pos = key.position();
         int limit = key.limit();
-        int cmp = compare(key, startPos);
+        int cmp = compare(startPos, key);
         //reset
         key.limit(limit).position(pos);
         return cmp;
@@ -220,4 +220,5 @@ public abstract class Index implements TreeFunctions, Closeable {
     public String name() {
         return mf.name();
     }
+
 }
