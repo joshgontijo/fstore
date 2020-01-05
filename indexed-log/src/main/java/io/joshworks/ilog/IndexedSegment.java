@@ -13,44 +13,47 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
 
-public class IndexedSegment<K extends Comparable<K>> {
+public class IndexedSegment {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
     private final File file;
     private final int indexSize;
-    private final KeyParser<K> parser;
+    private final BiFunction<File, Integer, Index> factory;
     private final FileChannel channel;
-    private Index<K> index;
+    private Index index;
 
     private final AtomicBoolean readOnly = new AtomicBoolean();
     private final AtomicLong writePosition = new AtomicLong();
 
-    public IndexedSegment(File file, int indexSize, KeyParser<K> parser) throws IOException {
+    public IndexedSegment(File file, int indexSize, BiFunction<File, Integer, Index> indexFactory) throws IOException {
         this.file = file;
         this.indexSize = indexSize;
-        this.parser = parser;
-        boolean newFile = FileUtils.createIfNotExists(file);
-        this.readOnly.set(!newFile);
+        this.factory = indexFactory;
+        boolean newSegment = FileUtils.createIfNotExists(file);
+        this.readOnly.set(!newSegment);
         this.channel = open(file, readOnly.get());
-        this.index = openIndex(file);
+
+        File idxFile = indexFile(file);
+        this.index = indexFactory.apply(idxFile, indexSize);
     }
 
-    private Index<K> openIndex(File segmentFile) {
+
+    private File indexFile(File segmentFile) {
         String name = segmentFile.getName().split("\\.")[0];
         File dir = segmentFile.toPath().getParent().toFile();
-        File idxFile = new File(dir, name + ".index");
-        return new Index<>(idxFile, indexSize, parser);
+        return new File(dir, name + ".index");
     }
 
     public void reindex() throws IOException {
-        log.info("Restoring segment {}", file.getAbsolutePath());
+        log.info("Reindexing {}", name());
 
         index.delete();
-        index = openIndex(file);
+        index = factory.apply(indexFile(file), indexSize);
 
         long start = System.currentTimeMillis();
         RecordBatchIterator it = new RecordBatchIterator(channel, 0, writePosition, 4096);
@@ -75,6 +78,9 @@ public class IndexedSegment<K extends Comparable<K>> {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
+        if (readOnly()) {
+            throw new IllegalStateException("Segment is read only");
+        }
 
         int keyLen = index.keySize();
         int recordKeyLen = record.keyLength();
@@ -92,7 +98,7 @@ public class IndexedSegment<K extends Comparable<K>> {
      * Reads a single entry for the given offset, read is performed with a two IO calls
      * first one to read the header, then the actual data is read in the second call
      */
-    public Record read(K key) throws IOException {
+    public Record read(ByteBuffer key) throws IOException {
         long position = index.get(key);
         if (position < 0) {
             return null;
@@ -116,7 +122,7 @@ public class IndexedSegment<K extends Comparable<K>> {
      * Reads a single entry for the given offset, read is performed with a single IO call
      * with a buffer of size specified by readSize. If the buffer is too small for the entry, then a new one is created and
      */
-    public Record read(K key, int readSize) throws IOException {
+    public Record read(ByteBuffer key, int readSize) throws IOException {
         long position = index.get(key);
         if (position < 0) {
             return null;
@@ -139,7 +145,7 @@ public class IndexedSegment<K extends Comparable<K>> {
         return Record.from(buffer, false);
     }
 
-    public RecordBatchIterator batch(K start, int batchSize) {
+    public RecordBatchIterator batch(ByteBuffer start, int batchSize) {
         long startPos = index.floor(start);
         if (startPos < 0) {
             return null; //TODO return empty iterator
@@ -163,22 +169,42 @@ public class IndexedSegment<K extends Comparable<K>> {
         if (!readOnly.compareAndSet(false, true)) {
             throw new IllegalStateException("Already read only");
         }
+        flush();
+        index.flush();
         long fileSize = size();
         channel.truncate(fileSize);
         writePosition.set(fileSize);
+        index.truncate();
     }
 
     public long size() throws IOException {
         return channel.size();
     }
 
-    public void flush(boolean metadata) throws IOException {
-        channel.force(metadata);
+    public void flush() throws IOException {
+        channel.force(false);
+    }
+
+    public String name() {
+        return file.getName();
+    }
+
+    public String index() {
+        return index.name();
     }
 
     public void delete() throws IOException {
         channel.close();
         Files.delete(file.toPath());
         index.delete();
+    }
+
+    @Override
+    public String toString() {
+        return "IndexedSegment{" +
+                ", name=" + file.getName() +
+                ", writePosition=" + writePosition +
+                ", entries=" + entries() +
+                '}';
     }
 }

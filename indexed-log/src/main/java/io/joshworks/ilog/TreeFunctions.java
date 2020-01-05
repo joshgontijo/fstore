@@ -1,7 +1,9 @@
 package io.joshworks.ilog;
 
 
-public interface TreeFunctions<K extends Comparable<K>> {
+import java.nio.ByteBuffer;
+
+public interface TreeFunctions {
 
     /**
      * Returns the greatest element in this set less than or equal to
@@ -11,7 +13,7 @@ public interface TreeFunctions<K extends Comparable<K>> {
      * @return the greatest element less than or equal to {@code key},
      * or {@code null} if there is no such element
      */
-    long floor(K key);
+    long floor(ByteBuffer key);
 
     /**
      * Returns the least element in this set greater than or equal to
@@ -21,7 +23,7 @@ public interface TreeFunctions<K extends Comparable<K>> {
      * @return the least element greater than or equal to {@code key},
      * or {@code null} if there is no such element
      */
-    long ceiling(K key);
+    long ceiling(ByteBuffer key);
 
 
     /**
@@ -32,7 +34,7 @@ public interface TreeFunctions<K extends Comparable<K>> {
      * @return the least element greater than {@code key},
      * or {@code null} if there is no such element
      */
-    long higher(K key);
+    long higher(ByteBuffer key);
 
 
     /**
@@ -43,7 +45,7 @@ public interface TreeFunctions<K extends Comparable<K>> {
      * @return the greatest element less than {@code key},
      * or {@code null} if there is no such element
      */
-    long lower(K key);
+    long lower(ByteBuffer key);
 
 
     /**
@@ -53,5 +55,5 @@ public interface TreeFunctions<K extends Comparable<K>> {
      * @return the element equal to {@code key},
      * or {@code null} if there is no such element
      */
-    long get(K key);
+    long get(ByteBuffer key);
 }

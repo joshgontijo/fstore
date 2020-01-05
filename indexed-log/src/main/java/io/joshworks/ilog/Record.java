@@ -84,36 +84,23 @@ public class Record {
         return buffer.duplicate().limit(keyStart + keyLen).position(keyStart);
     }
 
-    public <K extends Comparable<K>> K key(KeyParser<K> parser) {
-        int keyStart = HEADER_BYTES;
-        int keyLen = keyLength();
-        int prevPos = buffer.position();
-        int limit = buffer.limit();
-        ByteBuffer key = buffer.limit(keyStart + keyLen).position(keyStart);
-        K k = parser.readFrom(key);
-        buffer.limit(limit);
-        buffer.position(prevPos);
-        return k;
-    }
-
     public boolean hasAttribute(int attribute) {
         byte attr = buffer.get(ATTR_OFFSET);
         return (attr & (Byte.MAX_VALUE << attribute)) == 1;
     }
 
-    public static <K extends Comparable<K>, V> Record create(K key, KeyParser<K> parser, V value, Serializer<V> serializer, ByteBuffer writeBuffer) {
-        int headerKeySize = HEADER_BYTES + parser.keySize();
-        if (writeBuffer.remaining() <= headerKeySize) {
-            throw new IllegalArgumentException("Write buffer must be greater than " + headerKeySize);
+    public static <K extends Comparable<K>, V> Record create(K key, Serializer<K> ks, V value, Serializer<V> vs, ByteBuffer writeBuffer) {
+        if (writeBuffer.remaining() <= HEADER_BYTES) {
+            throw new IllegalArgumentException("Write buffer must be at least " + HEADER_BYTES);
         }
         try {
             int recordStart = writeBuffer.position();
             int originalLimit = writeBuffer.limit();
             writeBuffer.position(HEADER_BYTES);
             int keyStart = writeBuffer.position();
-            parser.writeTo(key, writeBuffer);
+            ks.writeTo(key, writeBuffer);
             int keyEnd = writeBuffer.position();
-            serializer.writeTo(value, writeBuffer);
+            vs.writeTo(value, writeBuffer);
             int dataEnd = writeBuffer.position();
 
             int keyLen = keyEnd - keyStart;
@@ -139,46 +126,6 @@ public class Record {
             writeBuffer.position(dataEnd);
 
             return new Record(recordBuffer);
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create record", e);
-        }
-    }
-
-    public static <K extends Comparable<K>, V> Record create2(K key, KeyParser<K> parser, V value, Serializer<V> serializer, ByteBuffer writeBuffer) {
-        int headerKeySize = HEADER_BYTES + parser.keySize();
-        if (writeBuffer.remaining() <= headerKeySize) {
-            throw new IllegalArgumentException("Write buffer must be greater than " + headerKeySize);
-        }
-        try {
-            int recordStart = writeBuffer.position();
-            int originalLimit = writeBuffer.limit();
-            writeBuffer.position(HEADER_BYTES);
-            int keyStart = writeBuffer.position();
-            parser.writeTo(key, writeBuffer);
-            int keyEnd = writeBuffer.position();
-            serializer.writeTo(value, writeBuffer);
-            int dataEnd = writeBuffer.position();
-
-            int keyLen = keyEnd - keyStart;
-            int dataLen = dataEnd - keyEnd;
-            ByteBuffer dataSlice = writeBuffer.limit(dataEnd).position(keyEnd);
-            int checksum = ByteBufferChecksum.crc32(dataSlice);
-            writeBuffer.position(recordStart);
-
-            writeBuffer.putInt(dataLen);
-            writeBuffer.putInt(checksum);
-            writeBuffer.putLong(System.currentTimeMillis());
-            writeBuffer.putInt(keyLen);
-            writeBuffer.put((byte) 0); //NO ATTRIBUTE TODO ?
-
-            writeBuffer.position(recordStart).limit(dataEnd);
-
-            writeBuffer.limit(originalLimit);
-            writeBuffer.position(dataEnd);
-            writeBuffer.flip();
-
-            return new Record(writeBuffer);
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to create record", e);

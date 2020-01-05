@@ -4,18 +4,21 @@ import io.joshworks.fstore.core.RuntimeIOException;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.function.BiFunction;
 
-public class Log<K extends Comparable<K>> {
+public class Log {
 
-    private final View<K> view;
+    private final View view;
     private final int maxEntrySize;
+    private final FlushMode flushMode;
 
-    public Log(File root, int maxEntrySize, int indexSize, KeyParser<K> parser) throws IOException {
+    public Log(File root, int maxEntrySize, int indexSize, FlushMode flushMode, BiFunction<File, Integer, Index> indexFactory) throws IOException {
         this.maxEntrySize = maxEntrySize;
+        this.flushMode = flushMode;
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
-        this.view = new View<>(root, indexSize, parser);
+        this.view = new View(root, indexSize, indexFactory);
     }
 
     public void append(Record record) {
@@ -24,14 +27,32 @@ public class Log<K extends Comparable<K>> {
             if (recordLength > maxEntrySize) {
                 throw new IllegalArgumentException("Record to large, max allowed size: " + maxEntrySize + ", record size: " + recordLength);
             }
-            IndexedSegment<K> head = view.head();
+            IndexedSegment head = view.head();
             if (head.isFull()) {
+                if (FlushMode.ON_ROLL.equals(flushMode)) {
+                    head.flush();
+                }
                 head = view.roll();
             }
             head.append(record);
+            if (FlushMode.ALWAYS.equals(flushMode)) {
+                head.flush();
+            }
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to append entry", e);
         }
     }
 
+    public void flush() {
+        IndexedSegment head = view.head();
+        try {
+            head.flush();
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed flushing " + head, e);
+        }
+    }
+
+    public void close() {
+
+    }
 }
