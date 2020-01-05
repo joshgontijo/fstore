@@ -48,9 +48,10 @@ public class Record {
     public void writeKey(MappedFile mf) {
         int keyStart = HEADER_BYTES;
         int keyLen = keyLength();
-        for (int i = 0; i < keyLen; i++) {
-            mf.put(buffer.get(keyStart + i));
-        }
+
+        var mbb = mf.buffer();
+        Buffers.copy(buffer, keyStart, keyLen, mbb);
+
     }
 
     public int dataLength() {
@@ -89,7 +90,7 @@ public class Record {
         return (attr & (Byte.MAX_VALUE << attribute)) == 1;
     }
 
-    public static <K extends Comparable<K>, V> Record create(K key, Serializer<K> ks, V value, Serializer<V> vs, ByteBuffer writeBuffer) {
+    public static <K, V> Record create(K key, Serializer<K> ks, V value, Serializer<V> vs, ByteBuffer writeBuffer) {
         if (writeBuffer.remaining() <= HEADER_BYTES) {
             throw new IllegalArgumentException("Write buffer must be at least " + HEADER_BYTES);
         }
