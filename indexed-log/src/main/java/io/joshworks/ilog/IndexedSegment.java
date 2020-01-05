@@ -1,5 +1,7 @@
 package io.joshworks.ilog;
 
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import org.slf4j.Logger;
@@ -13,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
 
@@ -22,38 +23,25 @@ public class IndexedSegment {
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
     private final File file;
-    private final int indexSize;
-    private final BiFunction<File, Integer, Index> factory;
     private final FileChannel channel;
     private Index index;
 
     private final AtomicBoolean readOnly = new AtomicBoolean();
     private final AtomicLong writePosition = new AtomicLong();
 
-    public IndexedSegment(File file, int indexSize, BiFunction<File, Integer, Index> indexFactory) throws IOException {
+    public IndexedSegment(File file, Index index) {
         this.file = file;
-        this.indexSize = indexSize;
-        this.factory = indexFactory;
+        this.index = index;
         boolean newSegment = FileUtils.createIfNotExists(file);
         this.readOnly.set(!newSegment);
         this.channel = open(file, readOnly.get());
-
-        File idxFile = indexFile(file);
-        this.index = indexFactory.apply(idxFile, indexSize);
     }
 
-
-    private File indexFile(File segmentFile) {
-        String name = segmentFile.getName().split("\\.")[0];
-        File dir = segmentFile.toPath().getParent().toFile();
-        return new File(dir, name + ".index");
-    }
-
-    public void reindex() throws IOException {
+    public void reindex(Index newIndex) throws IOException {
         log.info("Reindexing {}", name());
 
         index.delete();
-        index = factory.apply(indexFile(file), indexSize);
+        index = newIndex;
 
         long start = System.currentTimeMillis();
         RecordBatchIterator it = new RecordBatchIterator(channel, 0, writePosition, 4096);
@@ -65,13 +53,24 @@ public class IndexedSegment {
         log.info("Restoring of {} completed in {}ms", file.getAbsolutePath(), System.currentTimeMillis() - start);
     }
 
-    private FileChannel open(File file, boolean readOnly) throws IOException {
-        if (readOnly) {
-            return FileChannel.open(file.toPath(), StandardOpenOption.READ);
+    private FileChannel open(File file, boolean readOnly) {
+        FileChannel channel;
+        try {
+            if (readOnly) {
+                return FileChannel.open(file.toPath(), StandardOpenOption.READ);
+            }
+            channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to open segment", e);
         }
-        FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-        channel.force(true);
-        return channel;
+        try {
+            channel.force(true);
+            return channel;
+        } catch (Exception e) {
+            IOUtils.closeQuietly(channel);
+            throw new RuntimeIOException("Failed to open segment", e);
+        }
     }
 
     synchronized void append(Record record) throws IOException {

@@ -1,6 +1,7 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,11 +31,13 @@ public class View {
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final int indexSize;
+    private final BiFunction<File, Index, IndexedSegment> segmentFactory;
     private final BiFunction<File, Integer, Index> indexFactory;
 
-    View(File root, int indexSize, BiFunction<File, Integer, Index> indexFactory) throws IOException {
+    View(File root, int indexSize, BiFunction<File, Index, IndexedSegment> segmentFactory, BiFunction<File, Integer, Index> indexFactory) throws IOException {
         this.root = root;
         this.indexSize = indexSize;
+        this.segmentFactory = segmentFactory;
         this.indexFactory = indexFactory;
 
         List<File> segmentFiles = Files.list(root.toPath())
@@ -76,29 +79,36 @@ public class View {
         return entry == null ? null : entry.getValue();
     }
 
-    private IndexedSegment open(File file) {
+    private IndexedSegment open(File segmentFile) {
         try {
-            return new IndexedSegment(file, indexSize, indexFactory);
+            File indexFile = indexFile(segmentFile);
+            Index index = indexFactory.apply(indexFile, indexSize);
+            return segmentFactory.apply(segmentFile, index);
         } catch (Exception e) {
-            throw new RuntimeIOException("Failed to open segment " + file.getName(), e);
+            throw new RuntimeIOException("Failed to open segment " + segmentFile.getName(), e);
         }
     }
 
-    private IndexedSegment openHead(File file) {
+    private IndexedSegment openHead(File segmentFile) {
         try {
-            IndexedSegment segment = open(file);
-            segment.reindex();
+            IndexedSegment segment = open(segmentFile);
+            File indexFile = indexFile(segmentFile);
+            FileUtils.deleteIfExists(indexFile);
+            Index index = indexFactory.apply(indexFile, indexSize);
+            segment.reindex(index);
             segment.roll();
             return segment;
         } catch (Exception e) {
-            throw new RuntimeIOException("Failed to open segment " + file.getName(), e);
+            throw new RuntimeIOException("Failed to open segment " + segmentFile.getName(), e);
         }
     }
 
     private IndexedSegment create(long offset) {
         try {
             File segmentFile = segmentFile(offset);
-            return new IndexedSegment(segmentFile, indexSize, indexFactory);
+            File indexFile = indexFile(segmentFile);
+            Index index = indexFactory.apply(indexFile, indexSize);
+            return segmentFactory.apply(segmentFile, index);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create segment file");
         }
@@ -110,6 +120,11 @@ public class View {
         return new File(root, name);
     }
 
+    private File indexFile(File segmentFile) {
+        String name = segmentFile.getName().split("\\.")[0];
+        File dir = segmentFile.toPath().getParent().toFile();
+        return new File(dir, name + ".index");
+    }
 
     IndexedSegment roll() throws IOException {
         long start = System.currentTimeMillis();
