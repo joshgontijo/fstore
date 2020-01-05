@@ -43,6 +43,10 @@ public class Log {
         }
     }
 
+    public long entries() {
+        return view.entries();
+    }
+
     public void flush() {
         IndexedSegment head = view.head();
         try {
