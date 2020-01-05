@@ -53,17 +53,6 @@ public class MappedFile {
         }
     }
 
-    private static MappedByteBuffer map(FileChannel channel, FileChannel.MapMode mode) throws IOException {
-        long size = channel.size();
-        return channel.map(mode, 0, size);
-    }
-
-    private static void validateSize(long size) {
-        if (size > MAX_BUFFER_SIZE) {
-            throw new IllegalArgumentException("File size must be less than " + MAX_BUFFER_SIZE);
-        }
-    }
-
     public long getLong(int idx) {
         return mbb.getLong(idx);
     }
@@ -102,6 +91,9 @@ public class MappedFile {
 
     public void truncate(long newLength) {
         try {
+            if (newLength == mbb.capacity()) {
+                return;
+            }
             validateSize(newLength);
             MappedByteBuffers.unmap(mbb);
             channel.truncate(newLength);
@@ -121,5 +113,16 @@ public class MappedFile {
 
     public void flush() {
         mbb.force();
+    }
+
+    private static MappedByteBuffer map(FileChannel channel, FileChannel.MapMode mode) throws IOException {
+        long size = channel.size();
+        return channel.map(mode, 0, size);
+    }
+
+    private static void validateSize(long size) {
+        if (size > MAX_BUFFER_SIZE) {
+            throw new IllegalArgumentException("File size must be less than " + MAX_BUFFER_SIZE);
+        }
     }
 }

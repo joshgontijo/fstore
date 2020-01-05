@@ -170,11 +170,10 @@ public class IndexedSegment {
             throw new IllegalStateException("Already read only");
         }
         flush();
-        index.flush();
         long fileSize = size();
         channel.truncate(fileSize);
         writePosition.set(fileSize);
-        index.truncate();
+        index.complete();
     }
 
     public long size() throws IOException {
