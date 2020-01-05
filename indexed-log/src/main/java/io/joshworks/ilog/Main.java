@@ -12,7 +12,7 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
 
-        Log log = new Log(TestUtils.testFolder(), 4096, Size.MB.ofInt(10), FlushMode.ON_ROLL, LongIndex::new);
+        Log log = new Log(TestUtils.testFolder(), 4096, Size.MB.ofInt(10), FlushMode.ON_ROLL, IndexedSegment::new, LongIndex::new);
 
         ByteBuffer writeBuffer = Buffers.allocate(64, false);
         for (long i = 0; i < 10000000; i++) {

@@ -12,13 +12,19 @@ public class Log {
     private final int maxEntrySize;
     private final FlushMode flushMode;
 
-    public Log(File root, int maxEntrySize, int indexSize, FlushMode flushMode, BiFunction<File, Integer, Index> indexFactory) throws IOException {
+    public Log(File root,
+               int maxEntrySize,
+               int indexSize,
+               FlushMode flushMode,
+               BiFunction<File, Index, IndexedSegment> segmentFactory,
+               BiFunction<File, Integer, Index> indexFactory) throws IOException {
+
         this.maxEntrySize = maxEntrySize;
         this.flushMode = flushMode;
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
-        this.view = new View(root, indexSize, indexFactory);
+        this.view = new View(root, indexSize, segmentFactory, indexFactory);
     }
 
     public void append(Record record) {
