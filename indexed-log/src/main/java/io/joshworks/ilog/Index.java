@@ -51,7 +51,12 @@ public abstract class Index implements TreeFunctions, Closeable {
         }
     }
 
-    protected abstract int compare(ByteBuffer k1, int pos);
+    /**
+     * Function to compare a given key k1 to a value present in the index map at position pos
+     * The function must read the key from the MappedByteBuffer without modifying its position
+     * Therefore it must always use the ABSOLUTE getXXX methods from the buffer.
+     */
+    protected abstract int compare(ByteBuffer k1, int idx);
 
     public void write(Record record, long position) {
         if (readOnly.get()) {
@@ -192,7 +197,15 @@ public abstract class Index implements TreeFunctions, Closeable {
             throw new IllegalStateException("Index must be between 0 and " + entries + ", got " + idx);
         }
         int startPos = idx * entrySize();
-        return compare(key, startPos);
+
+        //mark
+        int pos = key.position();
+        int limit = key.limit();
+        int cmp = compare(key, startPos);
+        //reset
+        key.limit(limit).position(pos);
+        return cmp;
+
     }
 
     private int align(int size) {
