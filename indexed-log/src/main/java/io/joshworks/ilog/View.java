@@ -116,7 +116,7 @@ public class View {
         IndexedSegment head = head();
         log.info("Rolling segment {}", head);
         head.roll();
-        long entryCount = entries.addAndGet(head.entries());;
+        long entryCount = entries.addAndGet(head.entries());
         IndexedSegment newHead = create(entryCount);
         segments.put(entryCount, newHead);
         log.info("Segment {} rolled in {}ms", head, System.currentTimeMillis() - start);
@@ -128,4 +128,10 @@ public class View {
         return Long.parseLong(name);
     }
 
+    public void close() throws IOException {
+        for (IndexedSegment segment : segments.values()) {
+            log.info("Closing segment {}", segment);
+            segment.close();
+        }
+    }
 }

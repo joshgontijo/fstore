@@ -199,12 +199,18 @@ public class IndexedSegment {
         index.delete();
     }
 
+    public void close() throws IOException {
+        channel.close();
+        index.close();
+    }
+
     @Override
     public String toString() {
         return "IndexedSegment{" +
-                ", name=" + file.getName() +
+                " name=" + file.getName() +
                 ", writePosition=" + writePosition +
                 ", entries=" + entries() +
                 '}';
     }
+
 }

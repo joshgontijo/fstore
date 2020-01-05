@@ -53,6 +53,11 @@ public class Log {
     }
 
     public void close() {
-
+        try {
+            flush();
+            view.close();
+        } catch (Exception e) {
+            throw new RuntimeIOException("Error while closing segment", e);
+        }
     }
 }
