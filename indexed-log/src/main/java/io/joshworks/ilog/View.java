@@ -1,6 +1,8 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,25 +14,28 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 
-public class View<K extends Comparable<K>> {
+public class View {
+
+    private static final Logger log = LoggerFactory.getLogger(View.class);
 
     public static final String EXT = ".log";
-    private final ConcurrentSkipListMap<Long, IndexedSegment<K>> segments = new ConcurrentSkipListMap<>();
+    private final ConcurrentSkipListMap<Long, IndexedSegment> segments = new ConcurrentSkipListMap<>();
 
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final int indexSize;
-    private final KeyParser<K> parser;
+    private final BiFunction<File, Integer, Index> indexFactory;
 
-    View(File root, int indexSize, KeyParser<K> parser) throws IOException {
+    View(File root, int indexSize, BiFunction<File, Integer, Index> indexFactory) throws IOException {
         this.root = root;
         this.indexSize = indexSize;
-        this.parser = parser;
+        this.indexFactory = indexFactory;
 
         List<File> segmentFiles = Files.list(root.toPath())
                 .map(Path::toFile)
@@ -51,7 +56,7 @@ public class View<K extends Comparable<K>> {
         this.segments.put(currOffset, create(currOffset));
     }
 
-    IndexedSegment<K> head() {
+    IndexedSegment head() {
         return Optional.ofNullable(this.segments.lastEntry()).map(Map.Entry::getValue).orElse(null);
     }
 
@@ -59,29 +64,29 @@ public class View<K extends Comparable<K>> {
         return entries.get() + head().entries();
     }
 
-    private void reopen(File f, Function<File, IndexedSegment<K>> fun) {
+    private void reopen(File f, Function<File, IndexedSegment> fun) {
         long startOffset = parseLogName(f);
-        IndexedSegment<K> segment = fun.apply(f);
+        IndexedSegment segment = fun.apply(f);
         segments.put(startOffset, segment);
         entries.addAndGet(segment.entries());
     }
 
-    private IndexedSegment<K> get(long offset) {
-        Map.Entry<Long, IndexedSegment<K>> entry = segments.floorEntry(offset);
+    private IndexedSegment get(long offset) {
+        Map.Entry<Long, IndexedSegment> entry = segments.floorEntry(offset);
         return entry == null ? null : entry.getValue();
     }
 
-    private IndexedSegment<K> open(File file) {
+    private IndexedSegment open(File file) {
         try {
-            return new IndexedSegment<>(file, indexSize, parser);
+            return new IndexedSegment(file, indexSize, indexFactory);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment " + file.getName(), e);
         }
     }
 
-    private IndexedSegment<K> openHead(File file) {
+    private IndexedSegment openHead(File file) {
         try {
-            IndexedSegment<K> segment = open(file);
+            IndexedSegment segment = open(file);
             segment.reindex();
             segment.roll();
             return segment;
@@ -90,10 +95,10 @@ public class View<K extends Comparable<K>> {
         }
     }
 
-    private IndexedSegment<K> create(long offset) {
+    private IndexedSegment create(long offset) {
         try {
             File segmentFile = segmentFile(offset);
-            return new IndexedSegment<>(segmentFile, indexSize, parser);
+            return new IndexedSegment(segmentFile, indexSize, indexFactory);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create segment file");
         }
@@ -106,11 +111,15 @@ public class View<K extends Comparable<K>> {
     }
 
 
-    IndexedSegment<K> roll() throws IOException {
-        head().roll();
-        long entryCount = entries();
-        IndexedSegment<K> newHead = create(entryCount);
+    IndexedSegment roll() throws IOException {
+        long start = System.currentTimeMillis();
+        IndexedSegment head = head();
+        log.info("Rolling segment {}", head);
+        head.roll();
+        long entryCount = entries.addAndGet(head.entries());;
+        IndexedSegment newHead = create(entryCount);
         segments.put(entryCount, newHead);
+        log.info("Segment {} rolled in {}ms", head, System.currentTimeMillis() - start);
         return newHead;
     }
 

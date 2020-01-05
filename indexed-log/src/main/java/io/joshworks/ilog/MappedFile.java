@@ -18,32 +18,12 @@ public class MappedFile {
 
     private final File file;
     private final FileChannel channel;
-    private final MappedByteBuffer mbb;
+    private MappedByteBuffer mbb;
 
     public MappedFile(File file, FileChannel channel, MappedByteBuffer mbb) {
         this.file = file;
         this.channel = channel;
         this.mbb = mbb;
-    }
-
-    public static MappedFile open(File file) {
-        try {
-            var raf = new RandomAccessFile(file, "r");
-            long length = raf.length();
-            validateSize(length);
-            FileChannel channel = raf.getChannel();
-            var mbb = channel.map(FileChannel.MapMode.READ_ONLY, 0, length);
-            mbb.position((int) length);
-            return new MappedFile(file, channel, mbb);
-        } catch (Exception e) {
-            throw new RuntimeIOException("Could not open mapped file", e);
-        }
-    }
-
-    private static void validateSize(long size) {
-        if (size > MAX_BUFFER_SIZE) {
-            throw new IllegalArgumentException("File size must be less than " + MAX_BUFFER_SIZE);
-        }
     }
 
     public static MappedFile create(File file, int size) {
@@ -52,13 +32,41 @@ public class MappedFile {
             var raf = new RandomAccessFile(file, "rw");
             raf.setLength(size);
             FileChannel channel = raf.getChannel();
-            var mbb = channel.map(FileChannel.MapMode.READ_WRITE, 0, size);
+            var mbb = map(channel, FileChannel.MapMode.READ_WRITE);
             return new MappedFile(file, channel, mbb);
         } catch (Exception e) {
             throw new RuntimeIOException("Could not open mapped file", e);
         }
     }
 
+    public static MappedFile open(File file) {
+        try {
+            var raf = new RandomAccessFile(file, "r");
+            long length = raf.length();
+            validateSize(length);
+            FileChannel channel = raf.getChannel();
+            var mbb = map(channel, FileChannel.MapMode.READ_ONLY);
+            mbb.position((int) length);
+            return new MappedFile(file, channel, mbb);
+        } catch (Exception e) {
+            throw new RuntimeIOException("Could not open mapped file", e);
+        }
+    }
+
+    private static MappedByteBuffer map(FileChannel channel, FileChannel.MapMode mode) throws IOException {
+        long size = channel.size();
+        return channel.map(mode, 0, size);
+    }
+
+    private static void validateSize(long size) {
+        if (size > MAX_BUFFER_SIZE) {
+            throw new IllegalArgumentException("File size must be less than " + MAX_BUFFER_SIZE);
+        }
+    }
+
+    public long getLong(int idx) {
+        return mbb.getLong(idx);
+    }
 
     public void write(ByteBuffer buffer) {
         mbb.put(buffer);
@@ -68,18 +76,18 @@ public class MappedFile {
         mbb.put(b);
     }
 
-    public <T> T read(int position, KeyParser<T> parser) {
-        return parser.readFrom(reader(position));
-    }
+//    //TODO this might cause JVM crash since truncate can be called or any other function that destroys the buffer
+//    //INVESTIGATE HOW TO APPROACH THIS
+//    public BufferReader reader(int position) {
+//        return new BufferReader(mbb, position);
+//    }
 
-    //TODO this might cause JVM crash since truncate can be called or any other function that destroys the buffer
-    //INVESTIGATE HOW TO APPROACH THIS
-    public BufferReader reader(int position) {
-        return new BufferReader(mbb, position);
-    }
-
-    public long size() {
+    public long capacity() {
         return mbb.capacity();
+    }
+
+    public long position() {
+        return mbb.position();
     }
 
     public void delete() throws IOException {
@@ -95,8 +103,9 @@ public class MappedFile {
     public void truncate(long newLength) {
         try {
             validateSize(newLength);
-            close();
+            MappedByteBuffers.unmap(mbb);
             channel.truncate(newLength);
+            mbb = map(channel, FileChannel.MapMode.READ_WRITE);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to truncate " + file.getAbsoluteFile(), e);
         }
@@ -104,5 +113,13 @@ public class MappedFile {
 
     public void putLong(long l) {
         mbb.putLong(l);
+    }
+
+    public String name() {
+        return file.getName();
+    }
+
+    public void flush() {
+        mbb.force();
     }
 }
