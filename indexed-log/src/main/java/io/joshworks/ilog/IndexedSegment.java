@@ -17,6 +17,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
+import static io.joshworks.ilog.View.parseLevel;
+import static io.joshworks.ilog.View.parseSegmentId;
 
 public class IndexedSegment {
 
@@ -24,6 +26,8 @@ public class IndexedSegment {
 
     private final File file;
     private final FileChannel channel;
+    private final int level;
+    private final long segmentId;
     private Index index;
 
     private final AtomicBoolean readOnly = new AtomicBoolean();
@@ -31,6 +35,8 @@ public class IndexedSegment {
 
     public IndexedSegment(File file, Index index) {
         this.file = file;
+        this.level = parseLevel(file);
+        this.segmentId = parseSegmentId(file);
         this.index = index;
         boolean newSegment = FileUtils.createIfNotExists(file);
         this.readOnly.set(!newSegment);
@@ -189,6 +195,14 @@ public class IndexedSegment {
 
     public String index() {
         return index.name();
+    }
+
+    public int level() {
+        return level;
+    }
+
+    public long segmentId() {
+        return segmentId;
     }
 
     public void delete() throws IOException {
