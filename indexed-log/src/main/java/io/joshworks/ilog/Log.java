@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.function.BiFunction;
 
 public class Log {

@@ -11,9 +11,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -24,10 +23,11 @@ import static java.lang.String.format;
 public class View {
 
     private static final Logger log = LoggerFactory.getLogger(View.class);
+    private static final String EXTENSION_PATTERN = "[0-9.]+$";
 
-    public static final String EXT = ".log";
-    private final ConcurrentSkipListMap<Long, IndexedSegment> segments = new ConcurrentSkipListMap<>();
+    private final List<IndexedSegment> segments = new CopyOnWriteArrayList<>();
 
+    private final AtomicLong nextSegmentIdx = new AtomicLong();
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final int indexSize;
@@ -42,8 +42,8 @@ public class View {
 
         List<File> segmentFiles = Files.list(root.toPath())
                 .map(Path::toFile)
-                .filter(f -> f.getName().endsWith(EXT))
-                .sorted(Comparator.comparingLong(View::parseLogName))
+                .filter(f -> f.getName().matches(EXTENSION_PATTERN))
+                .sorted(Comparator.comparingLong(View::parseSegmentId))
                 .collect(Collectors.toList());
 
         for (int i = 0; i < segmentFiles.size() - 1; i++) {
@@ -54,13 +54,17 @@ public class View {
         if (!segmentFiles.isEmpty()) {
             File segFile = segmentFiles.get(segmentFiles.size() - 1);
             reopen(segFile, this::openHead);
+            nextSegmentIdx.set(parseSegmentId(segFile) + 1);
         }
-        long currOffset = entries.get();
-        this.segments.put(currOffset, create(currOffset));
+        this.segments.add(createHead());
     }
 
     IndexedSegment head() {
-        return Optional.ofNullable(this.segments.lastEntry()).map(Map.Entry::getValue).orElse(null);
+        int size = segments.size();
+        if (size == 0) {
+            return null;
+        }
+        return Optional.ofNullable(segments.get(size - 1)).orElse(null);
     }
 
     public long entries() {
@@ -68,15 +72,9 @@ public class View {
     }
 
     private void reopen(File f, Function<File, IndexedSegment> fun) {
-        long startOffset = parseLogName(f);
         IndexedSegment segment = fun.apply(f);
-        segments.put(startOffset, segment);
+        segments.add(segment);
         entries.addAndGet(segment.entries());
-    }
-
-    private IndexedSegment get(long offset) {
-        Map.Entry<Long, IndexedSegment> entry = segments.floorEntry(offset);
-        return entry == null ? null : entry.getValue();
     }
 
     private IndexedSegment open(File segmentFile) {
@@ -103,9 +101,10 @@ public class View {
         }
     }
 
-    private IndexedSegment create(long offset) {
+    private IndexedSegment createHead() {
         try {
-            File segmentFile = segmentFile(offset);
+            long nextSegIdx = nextSegmentIdx.getAndIncrement();
+            File segmentFile = segmentFile(nextSegIdx, 0);
             File indexFile = indexFile(segmentFile);
             Index index = indexFactory.apply(indexFile, indexSize);
             return segmentFactory.apply(segmentFile, index);
@@ -114,9 +113,9 @@ public class View {
         }
     }
 
-    private File segmentFile(long offset) {
+    private File segmentFile(long segmentIdx, int level) {
         int digits = (int) (Math.log10(Long.MAX_VALUE) + 1);
-        String name = format("%0" + digits + "d", offset) + EXT;
+        String name = format("%0" + digits + "d", segmentIdx) + "." + format("%03d", level);
         return new File(root, name);
     }
 
@@ -131,20 +130,24 @@ public class View {
         IndexedSegment head = head();
         log.info("Rolling segment {}", head);
         head.roll();
-        long entryCount = entries.addAndGet(head.entries());
-        IndexedSegment newHead = create(entryCount);
-        segments.put(entryCount, newHead);
+        entries.addAndGet(head.entries());
+        IndexedSegment newHead = createHead();
+        segments.add(newHead);
         log.info("Segment {} rolled in {}ms", head, System.currentTimeMillis() - start);
         return newHead;
     }
 
-    private static long parseLogName(File file) {
+    public static long parseSegmentId(File file) {
         String name = file.getName().split("\\.")[0];
         return Long.parseLong(name);
     }
 
+    public static int parseLevel(File file) {
+        return Integer.parseInt(file.getName().split("\\.")[1]);
+    }
+
     public void close() throws IOException {
-        for (IndexedSegment segment : segments.values()) {
+        for (IndexedSegment segment : segments) {
             log.info("Closing segment {}", segment);
             segment.close();
         }
