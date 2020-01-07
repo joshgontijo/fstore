@@ -18,7 +18,7 @@ public class Main {
         Log log = new Log(folder, 4096, Size.MB.ofInt(10), FlushMode.ON_ROLL, IndexedSegment::new, LongIndex::new);
 
         ByteBuffer writeBuffer = Buffers.allocate(64, false);
-        for (long i = 0; i < 10000; i++) {
+        for (long i = 0; i < 5000000; i++) {
             Record record = Record.create(i, Serializers.LONG, "value-" + i, Serializers.VSTRING, writeBuffer);
             log.append(record);
             writeBuffer.clear();
