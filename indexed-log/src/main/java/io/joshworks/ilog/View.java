@@ -111,18 +111,24 @@ public class View {
         return new File(root, name);
     }
 
-    public static long segmentIdx(String name) {
+    public static long segmentIdx(String fileName) {
+        String name = nameWithoutExt(fileName);
         return Long.parseLong(name.split("-")[0]);
     }
 
-    public static int levelOf(String name) {
+    public static int levelOf(String fileName) {
+        String name = nameWithoutExt(fileName);
         return Integer.parseInt(name.split("-")[1]);
     }
 
     static File indexFile(File segmentFile) {
-        String name = segmentFile.getName().split("\\.")[0];
+        String name = nameWithoutExt(segmentFile.getName());
         File dir = segmentFile.toPath().getParent().toFile();
         return new File(dir, name + ".index");
+    }
+
+    private static String nameWithoutExt(String fileName) {
+        return fileName.split("\\.")[0];
     }
 
     IndexedSegment roll() throws IOException {
@@ -135,11 +141,6 @@ public class View {
         segments.add(newHead);
         log.info("Segment {} rolled in {}ms", head, System.currentTimeMillis() - start);
         return newHead;
-    }
-
-    public static long parseSegmentId(File file) {
-        String name = file.getName().split("\\.")[0];
-        return Long.parseLong(name);
     }
 
     public void close() throws IOException {

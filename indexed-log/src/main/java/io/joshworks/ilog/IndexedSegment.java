@@ -36,7 +36,7 @@ public class IndexedSegment {
         this.readOnly.set(!newSegment);
         this.channel = openChannel(file);
         if (!newSegment) {
-            endOfLogPosition();
+            seekEndOfLog();
         }
     }
 
@@ -57,7 +57,7 @@ public class IndexedSegment {
             index.write(record, position);
             processed++;
         }
-        log.info("Restored {}: {} entries in {}ms", file.getAbsolutePath(), processed, System.currentTimeMillis() - start);
+        log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
     }
 
     private FileChannel openChannel(File file) {
@@ -68,7 +68,7 @@ public class IndexedSegment {
         }
     }
 
-    private void endOfLogPosition() {
+    private void seekEndOfLog() {
         try {
             writePosition.set(channel.size());
         } catch (Exception e) {
