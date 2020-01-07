@@ -1,7 +1,6 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.serializer.Serializers;
@@ -9,16 +8,17 @@ import io.joshworks.fstore.serializer.Serializers;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 
 public class Main {
 
     public static void main(String[] args) throws IOException {
 
-        Log log = new Log(TestUtils.testFolder(), 4096, Size.MB.ofInt(10), FlushMode.ON_ROLL, IndexedSegment::new, LongIndex::new);
+        File folder = TestUtils.testFolder();
+
+        Log log = new Log(folder, 4096, Size.MB.ofInt(10), FlushMode.ON_ROLL, IndexedSegment::new, LongIndex::new);
 
         ByteBuffer writeBuffer = Buffers.allocate(64, false);
-        for (long i = 0; i < 10000000; i++) {
+        for (long i = 0; i < 10000; i++) {
             Record record = Record.create(i, Serializers.LONG, "value-" + i, Serializers.VSTRING, writeBuffer);
             log.append(record);
             writeBuffer.clear();
@@ -27,6 +27,9 @@ public class Main {
             }
         }
 
+        log.close();
+
+        log = new Log(folder, 4096, Size.MB.ofInt(10), FlushMode.ON_ROLL, IndexedSegment::new, LongIndex::new);
         log.close();
 
     }

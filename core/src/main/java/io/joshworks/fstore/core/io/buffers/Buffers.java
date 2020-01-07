@@ -2,7 +2,6 @@ package io.joshworks.fstore.core.io.buffers;
 
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 
 import static io.joshworks.fstore.core.io.MemStorage.MAX_BUFFER_SIZE;
 
@@ -59,11 +58,5 @@ public class Buffers {
 
     public static void offsetPosition(ByteBuffer data, int offset) {
         data.position(data.position() + offset);
-    }
-
-    public static void copy(ByteBuffer src, int srcPos, int count, ByteBuffer dst) {
-        for (int i = 0; i < count; i++) {
-            dst.put(src.get(srcPos + i));
-        }
     }
 }
