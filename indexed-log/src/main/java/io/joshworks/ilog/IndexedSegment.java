@@ -1,7 +1,6 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import org.slf4j.Logger;
@@ -15,10 +14,9 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
-import static io.joshworks.ilog.View.parseLevel;
-import static io.joshworks.ilog.View.parseSegmentId;
 
 public class IndexedSegment {
 
@@ -26,8 +24,6 @@ public class IndexedSegment {
 
     private final File file;
     private final FileChannel channel;
-    private final int level;
-    private final long segmentId;
     private Index index;
 
     private final AtomicBoolean readOnly = new AtomicBoolean();
@@ -35,47 +31,48 @@ public class IndexedSegment {
 
     public IndexedSegment(File file, Index index) {
         this.file = file;
-        this.level = parseLevel(file);
-        this.segmentId = parseSegmentId(file);
         this.index = index;
         boolean newSegment = FileUtils.createIfNotExists(file);
         this.readOnly.set(!newSegment);
-        this.channel = open(file, readOnly.get());
+        this.channel = openChannel(file);
+        if (!newSegment) {
+            endOfLogPosition();
+        }
     }
 
-    public void reindex(Index newIndex) throws IOException {
+    public void reindex(BiFunction<File, Integer, Index> indexFactory) throws IOException {
         log.info("Reindexing {}", name());
 
+        int indexSize = index.size();
         index.delete();
-        index = newIndex;
+        File indexFile = View.indexFile(file);
+        this.index = indexFactory.apply(indexFile, indexSize);
 
         long start = System.currentTimeMillis();
         RecordBatchIterator it = new RecordBatchIterator(channel, 0, writePosition, 4096);
+        int processed = 0;
         while (it.hasNext()) {
             long position = it.position();
             Record record = it.next();
             index.write(record, position);
+            processed++;
         }
-        log.info("Restoring of {} completed in {}ms", file.getAbsolutePath(), System.currentTimeMillis() - start);
+        log.info("Restored {}: {} entries in {}ms", file.getAbsolutePath(), processed, System.currentTimeMillis() - start);
     }
 
-    private FileChannel open(File file, boolean readOnly) {
-        FileChannel channel;
+    private FileChannel openChannel(File file) {
         try {
-            if (readOnly) {
-                return FileChannel.open(file.toPath(), StandardOpenOption.READ);
-            }
-            channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-
+            return FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment", e);
         }
+    }
+
+    private void endOfLogPosition() {
         try {
-            channel.force(true);
-            return channel;
+            writePosition.set(channel.size());
         } catch (Exception e) {
-            IOUtils.closeQuietly(channel);
-            throw new RuntimeIOException("Failed to open segment", e);
+            throw new RuntimeIOException("Failed to set position at the of the log");
         }
     }
 
@@ -170,15 +167,19 @@ public class IndexedSegment {
         return index.entries();
     }
 
-    public void roll() throws IOException {
-        if (!readOnly.compareAndSet(false, true)) {
-            throw new IllegalStateException("Already read only");
-        }
+    public void forceRoll() throws IOException {
         flush();
         long fileSize = size();
         channel.truncate(fileSize);
         writePosition.set(fileSize);
         index.complete();
+    }
+
+    public void roll() throws IOException {
+        if (!readOnly.compareAndSet(false, true)) {
+            throw new IllegalStateException("Already read only");
+        }
+        forceRoll();
     }
 
     public long size() throws IOException {
@@ -193,16 +194,20 @@ public class IndexedSegment {
         return file.getName();
     }
 
+    public File file() {
+        return file;
+    }
+
     public String index() {
         return index.name();
     }
 
     public int level() {
-        return level;
+        return View.levelOf(name());
     }
 
     public long segmentId() {
-        return segmentId;
+        return View.segmentIdx(name());
     }
 
     public void delete() throws IOException {

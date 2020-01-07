@@ -221,4 +221,7 @@ public abstract class Index implements TreeFunctions, Closeable {
         return mf.name();
     }
 
+    public int size() {
+        return mf.capacity();
+    }
 }

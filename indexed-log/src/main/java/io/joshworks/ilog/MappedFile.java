@@ -113,7 +113,7 @@ public class MappedFile {
         return mbb.get(idx);
     }
 
-    public long capacity() {
+    public int capacity() {
         return mbb.capacity();
     }
 
@@ -132,6 +132,7 @@ public class MappedFile {
 
     public void close() {
         MappedByteBuffers.unmap(mbb);
+        mbb = null;
         IOUtils.closeQuietly(channel);
     }
 
