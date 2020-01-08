@@ -7,14 +7,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayDeque;
-import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
 
-public class RecordBatchIterator implements Iterator<Record> {
+public class RecordBatchIterator implements SegmentIterator {
 
     protected final FileChannel channel;
     protected final AtomicLong writePosition;
@@ -113,5 +112,10 @@ public class RecordBatchIterator implements Iterator<Record> {
     //internal
     long position() {
         return readPos.get();
+    }
+
+    @Override
+    public void close() {
+        //TODO implement
     }
 }

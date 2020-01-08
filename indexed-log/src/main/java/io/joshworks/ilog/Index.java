@@ -19,12 +19,14 @@ import static java.util.Objects.requireNonNull;
 public abstract class Index implements TreeFunctions, Closeable {
 
     protected final MappedFile mf;
-    private final int maxEntries;
     private final int keySize;
     private int entries;
     private final AtomicBoolean readOnly = new AtomicBoolean();
 
     public static final int NONE = -1;
+
+    public static int MAX_SIZE = Integer.MAX_VALUE - 8;
+
 
     public Index(File file, int size, int keySize) {
         this.keySize = keySize;
@@ -32,16 +34,14 @@ public abstract class Index implements TreeFunctions, Closeable {
             boolean newFile = file.createNewFile();
             if (newFile) {
                 int alignedSize = align(size);
-                this.maxEntries = alignedSize / entrySize();
                 this.mf = MappedFile.create(file, alignedSize);
             } else { //existing file
                 //empty buffer, no writes wil be allowed anyways
                 this.mf = MappedFile.open(file);
-                long fileSize = mf.buffer().capacity();
+                long fileSize = mf.capacity();
                 if (fileSize % entrySize() != 0) {
                     throw new IllegalStateException("Invalid index file length: " + fileSize);
                 }
-                this.maxEntries = (int) (fileSize / entrySize());
                 this.entries = (int) (fileSize / entrySize());
                 readOnly.set(true);
             }
@@ -76,7 +76,7 @@ public abstract class Index implements TreeFunctions, Closeable {
      */
     public void complete() {
         mf.flush();
-        mf.truncate(mf.buffer().position());
+        truncate();
         readOnly.set(true);
     }
 
@@ -159,7 +159,7 @@ public abstract class Index implements TreeFunctions, Closeable {
     }
 
     public boolean isFull() {
-        return entries >= maxEntries;
+        return mf.position() >= mf.capacity();
     }
 
     public long entries() {
@@ -171,7 +171,7 @@ public abstract class Index implements TreeFunctions, Closeable {
     }
 
     public void truncate() {
-        mf.truncate(mf.buffer().position());
+        mf.truncate(mf.position());
     }
 
     @Override

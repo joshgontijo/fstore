@@ -11,14 +11,14 @@ import java.nio.ByteBuffer;
 
 public class Main {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
 
         File folder = TestUtils.testFolder();
 
         Log log = new Log(folder, 4096, Size.MB.ofInt(10), FlushMode.ON_ROLL, IndexedSegment::new, LongIndex::new);
 
         ByteBuffer writeBuffer = Buffers.allocate(64, false);
-        for (long i = 0; i < 5000000; i++) {
+        for (long i = 0; i < 25000000; i++) {
             Record record = Record.create(i, Serializers.LONG, "value-" + i, Serializers.VSTRING, writeBuffer);
             log.append(record);
             writeBuffer.clear();
@@ -27,10 +27,7 @@ public class Main {
             }
         }
 
-        log.close();
-
-        log = new Log(folder, 4096, Size.MB.ofInt(10), FlushMode.ON_ROLL, IndexedSegment::new, LongIndex::new);
-        log.close();
+       Thread.sleep(30000000);
 
     }
 }

@@ -22,6 +22,8 @@ public class IndexedSegment {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
+    public static long START = 0;
+
     private final File file;
     private final FileChannel channel;
     private Index index;
@@ -49,7 +51,7 @@ public class IndexedSegment {
         this.index = indexFactory.apply(indexFile, indexSize);
 
         long start = System.currentTimeMillis();
-        RecordBatchIterator it = new RecordBatchIterator(channel, 0, writePosition, 4096);
+        RecordBatchIterator it = new RecordBatchIterator(channel, START, writePosition, 4096);
         int processed = 0;
         while (it.hasNext()) {
             long position = it.position();
@@ -76,7 +78,7 @@ public class IndexedSegment {
         }
     }
 
-    synchronized void append(Record record) throws IOException {
+    public void append(Record record) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
@@ -90,9 +92,13 @@ public class IndexedSegment {
             throw new IllegalArgumentException("Invalid key length: Expected " + keyLen + ", got " + recordKeyLen);
         }
 
-        int written = record.appendTo(channel);
-        long position = writePosition.getAndAdd(written);
-        index.write(record, position);
+        try {
+            int written = record.appendTo(channel);
+            long position = writePosition.getAndAdd(written);
+            index.write(record, position);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to append record", e);
+        }
     }
 
 
@@ -102,7 +108,7 @@ public class IndexedSegment {
      */
     public Record read(ByteBuffer key) throws IOException {
         long position = index.get(key);
-        if (position < 0) {
+        if (position < START) {
             return null;
         }
 
@@ -126,7 +132,7 @@ public class IndexedSegment {
      */
     public Record read(ByteBuffer key, int readSize) throws IOException {
         long position = index.get(key);
-        if (position < 0) {
+        if (position < START) {
             return null;
         }
 
@@ -147,12 +153,16 @@ public class IndexedSegment {
         return Record.from(buffer, false);
     }
 
-    public RecordBatchIterator batch(ByteBuffer start, int batchSize) {
+    public RecordBatchIterator iterator(ByteBuffer start, int batchSize) {
         long startPos = index.floor(start);
-        if (startPos < 0) {
+        if (startPos < START) {
             return null; //TODO return empty iterator
         }
         return new RecordBatchIterator(channel, startPos, writePosition, batchSize);
+    }
+
+    public RecordBatchIterator iterator(int batchSize) {
+        return new RecordBatchIterator(channel, START, writePosition, batchSize);
     }
 
     public boolean readOnly() {
@@ -161,6 +171,10 @@ public class IndexedSegment {
 
     public boolean isFull() {
         return index.isFull();
+    }
+
+    public int indexSize() {
+        return index.size();
     }
 
     public long entries() {
@@ -177,13 +191,17 @@ public class IndexedSegment {
 
     public void roll() throws IOException {
         if (!readOnly.compareAndSet(false, true)) {
-            throw new IllegalStateException("Already read only");
+            throw new IllegalStateException("Already read only: " + name());
         }
         forceRoll();
     }
 
-    public long size() throws IOException {
-        return channel.size();
+    public long size() {
+        try {
+            return channel.size();
+        } catch (IOException e) {
+            throw new RuntimeIOException(e);
+        }
     }
 
     public void flush() throws IOException {
@@ -210,10 +228,14 @@ public class IndexedSegment {
         return View.segmentIdx(name());
     }
 
-    public void delete() throws IOException {
-        channel.close();
-        Files.delete(file.toPath());
-        index.delete();
+    public void delete() {
+        try {
+            channel.close();
+            Files.delete(file.toPath());
+            index.delete();
+        } catch (IOException e) {
+            throw new RuntimeIOException(e);
+        }
     }
 
     public void close() throws IOException {
@@ -227,6 +249,7 @@ public class IndexedSegment {
                 "name=" + file.getName() +
                 ", writePosition=" + writePosition +
                 ", entries=" + entries() +
+                ", indexSize=" + indexSize() +
                 '}';
     }
 

@@ -4,9 +4,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.TreeMap;
 
 public class RuntimeIOException extends RuntimeException {
+
+    public RuntimeIOException(Throwable cause) {
+        super(cause);
+    }
 
     public RuntimeIOException(String message) {
         super(message);
