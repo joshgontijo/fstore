@@ -44,7 +44,7 @@ public class IndexedSegmentTest {
 
     private void readAll() {
         long s = System.currentTimeMillis();
-        RecordBatchIterator recordIterator = segment.batch(bufferOf(0), 4096);
+        RecordBatchIterator recordIterator = segment.iterator(bufferOf(0), 4096);
         long idx = 0;
         while (recordIterator.hasNext()) {
             Record record = recordIterator.next();
