@@ -7,6 +7,7 @@ import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpMessageServer;
 import io.joshworks.fstore.tcp.client.TcpEventClient;
 import io.joshworks.fstore.tcp.server.DiscardEventHandler;
+import io.joshworks.fstore.tcp.server.TypedEventHandler;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
@@ -19,8 +20,8 @@ import java.util.concurrent.TimeUnit;
 
 public class TcpTest {
 
-    private static final String HOST = "localhost";
-    private static final int PORT = 12344;
+    public static final String HOST = "localhost";
+    public static final int PORT = 12344;
 
     private static final int ITEMS = 1000000;
     private static final int CLIENTS = 1;
@@ -35,10 +36,10 @@ public class TcpTest {
                 .maxEntrySize(Size.KB.ofInt(32))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(32))
                 .option(Options.WORKER_NAME, "server")
-                .option(Options.WORKER_IO_THREADS, 8)
-                .option(Options.WORKER_TASK_MAX_THREADS, 2)
+                .option(Options.WORKER_IO_THREADS, 1)
+                .option(Options.WORKER_TASK_CORE_THREADS, 3)
                 .option(Options.TCP_NODELAY, true)
-                .onEvent(new DiscardEventHandler())
+                .onEvent(new TypedEventHandler())
                 .start(new InetSocketAddress(HOST, PORT));
 
 

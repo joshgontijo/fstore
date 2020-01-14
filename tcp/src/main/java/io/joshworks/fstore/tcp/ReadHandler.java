@@ -34,7 +34,11 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
                 buffer = appPool.allocate();
                 read = channel.read(buffer);
                 buffer.flip();
-                dispatch(tcpConnection, buffer);
+                if (buffer.hasRemaining()) {
+                    dispatch(tcpConnection, buffer);
+                } else {
+                    appPool.free(buffer);
+                }
             } while (read > 0);
 
             if (read == -1) {
