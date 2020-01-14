@@ -27,6 +27,7 @@
         <module>cluster</module>
         <module>cluster-log-test</module>
         <module>indexed-log</module>
+        <module>netty-test</module>
     </modules>
 
     <properties>

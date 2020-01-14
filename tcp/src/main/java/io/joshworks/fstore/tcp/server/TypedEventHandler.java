@@ -52,7 +52,6 @@ public class TypedEventHandler implements EventHandler {
             ErrorMessage error = new ErrorMessage(e.getMessage());
             connection.send(error);
         }
-        return;
     }
 
     public <T> TypedEventHandler register(Class<T> type, BiConsumer<TcpConnection, T> handler) {

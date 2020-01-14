@@ -5,29 +5,21 @@ import com.esotericsoftware.kryo.io.ByteBufferInputStream;
 import com.esotericsoftware.kryo.io.ByteBufferOutputStream;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import com.esotericsoftware.kryo.serializers.DefaultSerializers;
-import de.javakaffee.kryoserializers.ArraysAsListSerializer;
-import de.javakaffee.kryoserializers.GregorianCalendarSerializer;
-import de.javakaffee.kryoserializers.JdkProxySerializer;
-import de.javakaffee.kryoserializers.SynchronizedCollectionsSerializer;
-import de.javakaffee.kryoserializers.UnmodifiableCollectionsSerializer;
-import org.objenesis.strategy.StdInstantiatorStrategy;
+import io.joshworks.fstore.core.Serializer;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.InvocationHandler;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.GregorianCalendar;
-
-import static java.util.Objects.requireNonNull;
 
 public class KryoSerializer  {
 
     private static final ThreadLocal<Kryo> localKryo = ThreadLocal.withInitial(DefaultInstance::newKryoInstance);
+
+    public static <T> Serializer<T> serializerOf(Class<T> type) {
+        return new StaticSerializer<>();
+    }
 
     public static byte[] serialize(Object data) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -88,6 +80,19 @@ public class KryoSerializer  {
                 return kryo.readObject(input, type);
             }
             return (T) kryo.readClassAndObject(input);
+        }
+    }
+
+    private static class StaticSerializer<T> implements Serializer<T> {
+
+        @Override
+        public void writeTo(T data, ByteBuffer dst) {
+            KryoSerializer.serialize(data, dst);
+        }
+
+        @Override
+        public T fromBytes(ByteBuffer buffer) {
+            return KryoSerializer.deserialize(buffer);
         }
     }
 

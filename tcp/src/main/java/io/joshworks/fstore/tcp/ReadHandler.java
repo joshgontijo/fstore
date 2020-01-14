@@ -14,34 +14,38 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
     private static final Logger logger = LoggerFactory.getLogger(ReadHandler.class);
 
     private final TcpConnection tcpConnection;
-    private final StupidPool pool = new StupidPool(100, 4096);
+    private final StupidPool appPool;
     private final EventHandler handler;
     private final boolean async;
 
-    public ReadHandler(TcpConnection tcpConnection, EventHandler handler, boolean async) {
+    ReadHandler(TcpConnection tcpConnection, EventHandler handler, boolean async, StupidPool appPool) {
         this.tcpConnection = tcpConnection;
         this.handler = handler;
         this.async = async;
+        this.appPool = appPool;
     }
 
     @Override
     public void handleEvent(ConduitStreamSourceChannel channel) {
-        ByteBuffer buffer = pool.allocate();
+        ByteBuffer buffer = null;
         try {
             int read;
-            while ((read = channel.read(buffer)) > 0) {
+            do {
+                buffer = appPool.allocate();
+                read = channel.read(buffer);
                 buffer.flip();
                 dispatch(tcpConnection, buffer);
-            }
+            } while (read > 0);
+
             if (read == -1) {
                 IoUtils.safeClose(channel);
-                pool.free(buffer);
+                appPool.free(buffer);
             }
 
         } catch (Exception e) {
             logger.warn("Error while reading message", e);
             IoUtils.safeClose(channel);
-            pool.free(buffer);
+            appPool.free(buffer);
         }
     }
 
@@ -62,7 +66,7 @@ public class ReadHandler implements ChannelListener<ConduitStreamSourceChannel> 
             tcpConnection.incrementMessageReceived();
             handler.onEvent(tcpConnection, buffer);
         } finally {
-            pool.free(buffer);
+            appPool.free(buffer);
         }
     }
 }
