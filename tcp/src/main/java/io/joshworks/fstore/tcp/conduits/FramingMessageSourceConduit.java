@@ -18,8 +18,8 @@
 
 package io.joshworks.fstore.tcp.conduits;
 
-import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
-import org.xnio.Buffers;
+import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.io.buffers.StupidPool;
 import org.xnio.conduits.AbstractSourceConduit;
 import org.xnio.conduits.MessageSourceConduit;
 import org.xnio.conduits.StreamSourceConduit;
@@ -31,18 +31,21 @@ import java.util.concurrent.TimeUnit;
 
 public final class FramingMessageSourceConduit extends AbstractSourceConduit<StreamSourceConduit> implements MessageSourceConduit {
     public static final int LENGTH_LENGTH = Integer.BYTES;
-    private final SimpleBufferPool.BufferRef receiveBuffer;
+    private final int maxMessageSize;
+    private final StupidPool pool;
+    private ByteBuffer frameBuffer;
     private boolean ready;
 
     /**
      * Construct a new instance.
      *
-     * @param next          the delegate conduit to set
-     * @param receiveBuffer the transmit buffer to use
+     * @param next the delegate conduit to set
+     * @param pool the transmit buffer to use
      */
-    public FramingMessageSourceConduit(final StreamSourceConduit next, final SimpleBufferPool.BufferRef receiveBuffer) {
+    public FramingMessageSourceConduit(final StreamSourceConduit next, int maxMessageSize, final StupidPool pool) {
         super(next);
-        this.receiveBuffer = receiveBuffer;
+        this.maxMessageSize = maxMessageSize;
+        this.pool = pool;
     }
 
     @Override
@@ -62,62 +65,76 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
     }
 
     public void terminateReads() throws IOException {
-        receiveBuffer.free();
+        releaseBuffer();
         next.terminateReads();
+    }
+
+    private void releaseBuffer() {
+        pool.free(frameBuffer);
+        frameBuffer = null;
     }
 
     @Override
     public int receive(final ByteBuffer dst) throws IOException {
-        final ByteBuffer receiveBuffer = this.receiveBuffer.buffer;
+        frameBuffer = frameBuffer == null ? pool.allocate() : frameBuffer;
         int res;
         do {
-            res = next.read(receiveBuffer);
+            res = next.read(frameBuffer);
         } while (res > 0);
-        if (receiveBuffer.position() < LENGTH_LENGTH) {
+        if (frameBuffer.position() < LENGTH_LENGTH) {
             if (res == -1) {
-                receiveBuffer.clear();
+                frameBuffer.clear();
             }
             ready = false;
             return res;
         }
 
-        receiveBuffer.flip();
+        frameBuffer.flip();
         try {
-            final int length = receiveBuffer.getInt();
-            if (length < 0 || length > receiveBuffer.capacity() - LENGTH_LENGTH) {
-                Buffers.unget(receiveBuffer, LENGTH_LENGTH);
+            final int length = frameBuffer.getInt();
+            if (length < 0 || length > frameBuffer.capacity() - LENGTH_LENGTH) {
+                Buffers.offsetPosition(frameBuffer, -LENGTH_LENGTH);
                 throw new IllegalStateException("Invalid message length: " + length);
             }
-            if (receiveBuffer.remaining() < length) {
+            if (length > maxMessageSize) {
+                throw new IllegalStateException("Message too large: " + length + ", max allowed: " + maxMessageSize);
+            }
+            if (frameBuffer.remaining() < length) {
                 if (res == -1) {
-                    receiveBuffer.clear();
+                    frameBuffer.clear();
                 } else {
-                    Buffers.unget(receiveBuffer, LENGTH_LENGTH);
+                    Buffers.offsetPosition(frameBuffer, -LENGTH_LENGTH);
                 }
                 ready = false;
                 // must be <= 0
                 return res;
             }
             if (dst.hasRemaining()) {
-                return Buffers.copy(length, dst, receiveBuffer);
+                int copied = Buffers.copy(frameBuffer, frameBuffer.position(), length, dst);
+                Buffers.offsetPosition(frameBuffer, copied);
+                return copied;
             } else {
-                Buffers.skip(receiveBuffer, length);
+                Buffers.offsetPosition(frameBuffer, length);
                 return 0;
             }
         } finally {
             if (res != -1) {
-                receiveBuffer.compact();
-                if (receiveBuffer.position() >= LENGTH_LENGTH && receiveBuffer.position() >= (LENGTH_LENGTH + receiveBuffer.getInt(0))) {
+                frameBuffer.compact();
+                if (frameBuffer.position() >= LENGTH_LENGTH && frameBuffer.position() >= (LENGTH_LENGTH + frameBuffer.getInt(0))) {
                     // there's another packet ready to go
                     ready = true;
                 }
+            }
+            //buffer has no data left, release it
+            if (frameBuffer.position() == 0) {
+                releaseBuffer();
             }
         }
     }
 
     @Override
     public long receive(final ByteBuffer[] dsts, final int offs, final int len) throws IOException {
-        final ByteBuffer receiveBuffer = this.receiveBuffer.buffer;
+        final ByteBuffer receiveBuffer = this.pool.allocate();
         int res;
         do {
             res = next.read(receiveBuffer);
@@ -133,26 +150,27 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
         try {
             final int length = receiveBuffer.getInt();
             if (length < 0 || length > receiveBuffer.capacity() - 4) {
-                Buffers.unget(receiveBuffer, 4);
+                Buffers.offsetPosition(receiveBuffer, -4);
                 throw new IllegalStateException("Invalid message length: " + length);
             }
             if (receiveBuffer.remaining() < length) {
                 if (res == -1) {
                     receiveBuffer.clear();
                 } else {
-                    Buffers.unget(receiveBuffer, 4);
+                    Buffers.offsetPosition(receiveBuffer, -4);
                 }
                 ready = false;
                 // must be <= 0
                 return res;
             }
             if (Buffers.hasRemaining(dsts, offs, len)) {
-                return Buffers.copy(length, dsts, offs, len, receiveBuffer);
+                return org.xnio.Buffers.copy(length, dsts, offs, len, receiveBuffer);
             } else {
-                Buffers.skip(receiveBuffer, length);
+                Buffers.offsetPosition(receiveBuffer, length);
                 return 0;
             }
         } finally {
+
             if (res != -1) {
                 receiveBuffer.compact();
                 if (receiveBuffer.position() >= 4 && receiveBuffer.position() >= 4 + receiveBuffer.getInt(0)) {

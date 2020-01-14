@@ -1,9 +1,6 @@
 package io.joshworks.lsm.server.client;
 
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.serializer.VStringSerializer;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.fstore.tcp.TcpClientConnection;
 import io.joshworks.fstore.tcp.client.TcpEventClient;

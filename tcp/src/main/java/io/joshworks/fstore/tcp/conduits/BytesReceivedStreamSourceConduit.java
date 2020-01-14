@@ -7,11 +7,11 @@ import org.xnio.conduits.StreamSourceConduit;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class BytesReceivedStreamSourceConduit extends AbstractStreamSourceConduit<StreamSourceConduit> {
 
-    private final Consumer<Long> callback;
+    private final LongConsumer callback;
 
     /**
      * Construct a new instance.
@@ -19,7 +19,7 @@ public class BytesReceivedStreamSourceConduit extends AbstractStreamSourceCondui
      * @param next the delegate conduit to set
      * @param callback
      */
-    public BytesReceivedStreamSourceConduit(StreamSourceConduit next, Consumer<Long> callback) {
+    public BytesReceivedStreamSourceConduit(StreamSourceConduit next, LongConsumer callback) {
         super(next);
         this.callback = callback;
     }
@@ -51,7 +51,7 @@ public class BytesReceivedStreamSourceConduit extends AbstractStreamSourceCondui
     public int read(ByteBuffer dst) throws IOException {
         int i = super.read(dst);
         if (i > 0) {
-            callback.accept((long) i);
+            callback.accept(i);
         }
         return i;
     }

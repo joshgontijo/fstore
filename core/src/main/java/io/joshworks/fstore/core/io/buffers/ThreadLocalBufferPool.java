@@ -1,10 +1,6 @@
 package io.joshworks.fstore.core.io.buffers;
 
-import io.joshworks.fstore.core.metrics.MetricRegistry;
-import io.joshworks.fstore.core.metrics.Metrics;
-
 import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -18,17 +14,12 @@ public class ThreadLocalBufferPool implements BufferPool {
     private final int bufferSize;
     private final boolean direct;
 
-
     private final ThreadLocal<Holder> cache = ThreadLocal.withInitial(Holder::new);
 
-    private final Metrics metrics = new Metrics();
 
-    public ThreadLocalBufferPool(String name, int bufferSize, boolean direct) {
+    public ThreadLocalBufferPool(int bufferSize, boolean direct) {
         this.bufferSize = bufferSize;
         this.direct = direct;
-
-        this.metrics.set("bufferSize", bufferSize);
-        MetricRegistry.register(Map.of("type", "bufferPools", "impl", "ThreadLocalBufferPool", "name", name), () -> metrics);
     }
 
     //allocate current buffer with its total capacity
@@ -38,7 +29,6 @@ public class ThreadLocalBufferPool implements BufferPool {
         if (!holder.available.compareAndSet(true, false)) {
             throw new IllegalStateException("Buffer not released");
         }
-        metrics.update("allocated", 1);
         return holder.buffer;
     }
 
@@ -62,14 +52,12 @@ public class ThreadLocalBufferPool implements BufferPool {
         final AtomicBoolean available = new AtomicBoolean(true);
 
         public Holder() {
-            metrics.update("buffers");
         }
 
         void free() {
             if (available.compareAndSet(false, true)) {
                 buffer.clear();
                 available.set(true);
-                metrics.update("allocated", -1);
             }
         }
     }

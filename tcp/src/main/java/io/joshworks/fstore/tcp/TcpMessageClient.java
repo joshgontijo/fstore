@@ -1,13 +1,12 @@
 package io.joshworks.fstore.tcp;
 
-import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
-import io.joshworks.fstore.core.io.buffers.ThreadLocalBufferPool;
+import io.joshworks.fstore.core.io.buffers.StupidPool;
 import io.joshworks.fstore.tcp.client.ClientResponseHandler;
 import io.joshworks.fstore.tcp.client.KeepAliveConduit;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
+import io.joshworks.fstore.tcp.conduits.FramingMessageSinkConduit;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
 import org.xnio.ChannelListener;
@@ -27,27 +26,42 @@ import java.util.function.Consumer;
 public class TcpMessageClient {
 
     private final InetSocketAddress bindAddress;
+    private final int maxMessageSize;
     private final long keepAliveInterval;
     private final IoFuture<StreamConnection> connFuture;
     private final Consumer<TcpConnection> onClose;
     private final EventHandler eventHandler;
     private final XnioWorker worker;
 
-    private final BufferPool writePool;
-    private final SimpleBufferPool readPool;
+    private final StupidPool writePool;
+    private final StupidPool readPool;
     private transient TcpClientConnection tcpConnection;
     private final CountDownLatch connectLatch = new CountDownLatch(1);
 
     private final ResponseTable responseTable;
+    private final boolean async;
 
-    public TcpMessageClient(OptionMap options, InetSocketAddress bindAddress, int bufferSize, long keepAliveInterval, Consumer<TcpConnection> onClose, EventHandler handler, ResponseTable responseTable) {
+    public TcpMessageClient(OptionMap options,
+                            InetSocketAddress bindAddress,
+                            int readPoolSize,
+                            int writePoolSize,
+                            int maxMessageSize,
+                            long keepAliveInterval,
+                            Consumer<TcpConnection> onClose,
+                            EventHandler handler,
+                            ResponseTable responseTable,
+                            boolean async) {
+
         this.bindAddress = bindAddress;
+        this.maxMessageSize = maxMessageSize;
+        this.readPool = new StupidPool(readPoolSize, maxMessageSize);
+        this.writePool = new StupidPool(writePoolSize, maxMessageSize);
         this.keepAliveInterval = keepAliveInterval;
         this.onClose = onClose;
         this.eventHandler = handler;
-        this.writePool = new ThreadLocalBufferPool("tcp-client-write-pool", bufferSize, true);
-        this.readPool = new SimpleBufferPool("tcp-client-read-pool", bufferSize, true);
         this.responseTable = responseTable;
+        this.async = async;
+
 
         try {
             final Xnio xnio = Xnio.getInstance();
@@ -84,26 +98,22 @@ public class TcpMessageClient {
 
             channel.setCloseListener(conn -> onClose.accept(tcpConnection));
 
+            ConduitPipeline pipeline = new ConduitPipeline(channel);
+            pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, maxMessageSize, readPool));
+            pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
+
+            pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
+            pipeline.addStreamSink(FramingMessageSinkConduit::new);
+
             if (keepAliveInterval > 0) {
                 new KeepAliveConduit(channel, keepAliveInterval); //adds to source and sink
             }
 
-            SimpleBufferPool.BufferRef polled = readPool.allocateRef();
-
-            ConduitPipeline pipeline = new ConduitPipeline(channel);
-            pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, polled));
-            pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
-
-            pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
-
             ClientResponseHandler clientEventHandler = new ClientResponseHandler(eventHandler, responseTable);
-            ReadHandler readHandler = new ReadHandler(tcpConnection, clientEventHandler);
+            ReadHandler readHandler = new ReadHandler(tcpConnection, clientEventHandler, async);
             pipeline.readListener(readHandler);
 
-            channel.setCloseListener(conn -> {
-                responseTable.clear();
-                polled.free();
-            });
+            channel.setCloseListener(conn -> responseTable.clear());
 
             channel.getSourceChannel().resumeReads();
             channel.getSinkChannel().resumeWrites();

@@ -25,14 +25,14 @@ import org.xnio.conduits.StreamSinkConduit;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /**
  * @author Stuart Douglas
  */
 public class BytesSentStreamSinkConduit extends AbstractStreamSinkConduit<StreamSinkConduit> {
 
-    private final Consumer<Long> callback;
+    private final LongConsumer callback;
 
     /**
      * Construct a new instance.
@@ -40,7 +40,7 @@ public class BytesSentStreamSinkConduit extends AbstractStreamSinkConduit<Stream
      * @param next the delegate conduit to set
      * @param callback
      */
-    public BytesSentStreamSinkConduit(StreamSinkConduit next, Consumer<Long> callback) {
+    public BytesSentStreamSinkConduit(StreamSinkConduit next, LongConsumer callback) {
         super(next);
         this.callback = callback;
     }
@@ -67,7 +67,7 @@ public class BytesSentStreamSinkConduit extends AbstractStreamSinkConduit<Stream
     public int write(ByteBuffer src) throws IOException {
         int i = next.write(src);
         if (i > 0) {
-            callback.accept((long) i);
+            callback.accept(i);
         }
         return i;
     }
@@ -85,7 +85,7 @@ public class BytesSentStreamSinkConduit extends AbstractStreamSinkConduit<Stream
     public int writeFinal(ByteBuffer src) throws IOException {
         int i = next.writeFinal(src);
         if (i > 0) {
-            callback.accept((long) i);
+            callback.accept(i);
         }
         return i;
     }

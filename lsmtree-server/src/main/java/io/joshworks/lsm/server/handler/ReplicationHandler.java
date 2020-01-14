@@ -1,6 +1,7 @@
 package io.joshworks.lsm.server.handler;
 
 import io.joshworks.fstore.tcp.TcpConnection;
+import io.joshworks.fstore.tcp.internal.Pong;
 import io.joshworks.fstore.tcp.server.TypedEventHandler;
 import io.joshworks.lsm.server.messages.Ack;
 import io.joshworks.lsm.server.messages.AssignReplica;
@@ -21,7 +22,7 @@ public class ReplicationHandler extends TypedEventHandler {
     }
 
     @Override
-    public Object onEvent(TcpConnection connection, Object data) {
+    public Pong onEvent(TcpConnection connection, Object data) {
         System.out.println("REPLICATION: " + data);
         return super.onEvent(connection, data);
     }

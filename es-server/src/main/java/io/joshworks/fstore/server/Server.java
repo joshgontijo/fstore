@@ -62,7 +62,7 @@ public class Server {
                 .onClose(conn -> System.out.println("Connection closed"))
                 .onIdle(conn -> System.out.println("Connection idle"))
 //                .idleTimeout(10, TimeUnit.SECONDS)
-                .bufferSize(Size.KB.ofInt(16))
+                .maxEntrySize(Size.KB.ofInt(16))
                 .option(Options.REUSE_ADDRESSES, true)
                 .option(Options.TCP_NODELAY, true)
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))
