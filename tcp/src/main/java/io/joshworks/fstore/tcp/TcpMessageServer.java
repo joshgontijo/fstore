@@ -71,9 +71,10 @@ public class TcpMessageServer implements Closeable {
         this.handler = handler;
 
         StupidPool readPool = new StupidPool(readPoolSize, maxMessageSize);
+        StupidPool appPool = new StupidPool(readPoolSize, maxMessageSize);
         StupidPool writePool = new StupidPool(writePoolSize, maxMessageSize);
 
-        Acceptor acceptor = new Acceptor(idleTimeout, readPool, writePool);
+        Acceptor acceptor = new Acceptor(idleTimeout, readPool, writePool, appPool);
         try {
             this.worker = Xnio.getInstance().createWorker(options);
             this.channel = connect(bindAddress, acceptor, options);
@@ -163,11 +164,13 @@ public class TcpMessageServer implements Closeable {
         private final long timeout;
         private final StupidPool writePool;
         private final StupidPool readPool;
+        private final StupidPool appPool;
 
-        Acceptor(long timeout, StupidPool readPool, StupidPool writePool) {
+        Acceptor(long timeout, StupidPool readPool, StupidPool writePool, StupidPool appPool) {
             this.timeout = timeout;
             this.readPool = readPool;
             this.writePool = writePool;
+            this.appPool = appPool;
         }
 
         @Override
@@ -197,7 +200,7 @@ public class TcpMessageServer implements Closeable {
 
                     //---------- listeners
                     EventHandler keepAliveHandler = new KeepAliveHandler(handler);
-                    ReadHandler readHandler = new ReadHandler(tcpConnection, keepAliveHandler, async);
+                    ReadHandler readHandler = new ReadHandler(tcpConnection, keepAliveHandler, async, appPool);
 
                     pipeline.readListener(readHandler);
 

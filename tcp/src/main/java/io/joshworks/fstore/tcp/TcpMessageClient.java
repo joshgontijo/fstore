@@ -35,6 +35,7 @@ public class TcpMessageClient {
 
     private final StupidPool writePool;
     private final StupidPool readPool;
+    private final StupidPool appPool;
     private transient TcpClientConnection tcpConnection;
     private final CountDownLatch connectLatch = new CountDownLatch(1);
 
@@ -55,6 +56,7 @@ public class TcpMessageClient {
         this.bindAddress = bindAddress;
         this.maxMessageSize = maxMessageSize;
         this.readPool = new StupidPool(readPoolSize, maxMessageSize);
+        this.appPool = new StupidPool(readPoolSize, maxMessageSize);
         this.writePool = new StupidPool(writePoolSize, maxMessageSize);
         this.keepAliveInterval = keepAliveInterval;
         this.onClose = onClose;
@@ -110,7 +112,7 @@ public class TcpMessageClient {
             }
 
             ClientResponseHandler clientEventHandler = new ClientResponseHandler(eventHandler, responseTable);
-            ReadHandler readHandler = new ReadHandler(tcpConnection, clientEventHandler, async);
+            ReadHandler readHandler = new ReadHandler(tcpConnection, clientEventHandler, async, appPool);
             pipeline.readListener(readHandler);
 
             channel.setCloseListener(conn -> responseTable.clear());
