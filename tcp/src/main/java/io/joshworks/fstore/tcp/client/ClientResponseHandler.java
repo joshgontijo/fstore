@@ -22,17 +22,17 @@ public class ClientResponseHandler implements EventHandler {
 
     @Override
     public void onEvent(TcpConnection connection, Object data) {
-        if (data instanceof Message) {
-            Message msg = (Message) data;
-            Response<?> response = responseTable.remove(msg.id);
-            if (response == null) {
-                logger.warn("No response found for {}", msg.id);
-                return;
-            }
-            response.complete(msg.data);
+        if (!(data instanceof Message)) {
+            delegate.onEvent(connection, data);
             return;
         }
 
-        delegate.onEvent(connection, data);
+        Message msg = (Message) data;
+        Response<?> response = responseTable.remove(msg.id);
+        if (response == null) {
+            logger.warn("No response found for {}", msg.id);
+            return;
+        }
+        response.complete(msg.data);
     }
 }

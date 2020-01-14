@@ -2,25 +2,19 @@ package io.joshworks.fstore.network;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.tcp.TcpClientConnection;
+import io.joshworks.fstore.tcp.EventHandler;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpMessageServer;
-import io.joshworks.fstore.tcp.client.TcpEventClient;
-import io.joshworks.fstore.tcp.server.DiscardEventHandler;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class TcpTest {
 
-    private static final String HOST = "localhost";
-    private static final int PORT = 12344;
+    public static final String HOST = "localhost";
+    public static final int PORT = 12344;
 
     private static final int ITEMS = 1000000;
     private static final int CLIENTS = 1;
@@ -31,47 +25,32 @@ public class TcpTest {
 
         TcpMessageServer server = TcpMessageServer.create()
 //                .idleTimeout(10, TimeUnit.SECONDS)
-                .bufferSize(Size.KB.ofInt(32))
+                .maxEntrySize(Size.KB.ofInt(32))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(32))
                 .option(Options.WORKER_NAME, "server")
-                .option(Options.WORKER_IO_THREADS, 8)
-                .option(Options.WORKER_TASK_MAX_THREADS, 2)
+                .option(Options.WORKER_IO_THREADS, 1)
+                .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .option(Options.TCP_NODELAY, true)
-                .onEvent(new DiscardEventHandler())
+                .onEvent(new EventHandler() {
+                    long count = 0;
+                    @Override
+                    public void onEvent(TcpConnection connection, Object data) {
+                        if(count++ % 100000 == 0) {
+                            System.out.println(count - 1);
+                        }
+                    }
+                })
                 .start(new InetSocketAddress(HOST, PORT));
 
 
-        Runnable sendTask = () -> {
-            TcpClientConnection client = TcpEventClient.create()
-                    .option(Options.WORKER_NAME, "CLIENT-" + UUID.randomUUID().toString().substring(0, 3))
-                    .option(Options.WORKER_IO_THREADS, 1)
-                    .option(Options.TCP_NODELAY, true)
-                    .option(Options.SEND_BUFFER, Size.KB.ofInt(32))
-                    .bufferSize(Size.KB.ofInt(32))
-                    .onClose(conn -> System.out.println("CLIENT: closing connection " + conn))
-                    .onEvent((connection, data) -> {
-                        //do nothing
-                    })
-                    .connect(new InetSocketAddress(HOST, PORT), 5, TimeUnit.SECONDS);
-            clientConnections.add(client);
-            long start = System.currentTimeMillis();
-            for (int i = 0; i < ITEMS; i++) {
-                try {
-                    client.request(new Payload(String.valueOf(i))).get();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-//                Ack ack = response.get();
-            }
-            System.out.println("COMPLETED IN " + (System.currentTimeMillis() - start));
-            Threads.sleep(1000);
-            client.close();
-        };
-
-        ExecutorService executor = Executors.newFixedThreadPool(CLIENTS);
-        for (int i = 0; i < CLIENTS; i++) {
-            executor.submit(sendTask);
-        }
+//        Runnable sendTask = () -> {
+//
+//        };
+//
+//        ExecutorService executor = Executors.newFixedThreadPool(CLIENTS);
+//        for (int i = 0; i < CLIENTS; i++) {
+//            executor.submit(sendTask);
+//        }
 
 
         Thread monitor = new Thread(() -> {
@@ -100,9 +79,11 @@ public class TcpTest {
         });
 
 
-        monitor.start();
-        monitor.join();
-        executor.shutdown();
+//        monitor.start();
+//        monitor.join();
+//        executor.shutdown();
+
+        server.awaitTermination();
 
         System.out.println("CLOSING SERVER");
         server.close();

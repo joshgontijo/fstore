@@ -51,7 +51,7 @@ public class IdleTimeoutConduit implements StreamSinkConduit, StreamSourceCondui
             long current = System.currentTimeMillis();
             if (current < expireTime) {
                 //timeout has been bumped, re-schedule
-                handle = WorkerUtils.executeAfter(getWriteThread(), timeoutCommand, (expireTime - current) + DELTA, TimeUnit.MILLISECONDS);
+                handle = WorkerUtils.executeAfter(getWriteThread(), timeoutCommand, (expireTime - current) + DELTA, TimeUnit.MINUTES);
                 return;
             }
 

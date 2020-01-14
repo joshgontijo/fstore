@@ -24,9 +24,9 @@ public class TcpEventHandler extends TypedEventHandler {
     }
 
     @Override
-    public Object onEvent(TcpConnection connection, Object data) {
+    public void onEvent(TcpConnection connection, Object data) {
         System.out.println("RECEIVED: " + data);
-        return super.onEvent(connection, data);
+        super.onEvent(connection, data);
     }
 
     private Ack createNamespace(TcpConnection connection, CreateNamespace msg) {

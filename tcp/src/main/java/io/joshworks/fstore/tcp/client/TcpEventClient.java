@@ -29,6 +29,9 @@ public class TcpEventClient {
     private long keepAliveInterval = -1;
     private int bufferSize = Size.MB.ofInt(1);
     private ResponseTable responseTable = new ResponseTable();
+    private int readPoolSize = 50;
+    private int writePoolSize = 50;
+    private boolean async;
 
     private TcpEventClient() {
 
@@ -40,6 +43,16 @@ public class TcpEventClient {
 
     public <T> TcpEventClient option(Option<T> key, T value) {
         options.set(key, value);
+        return this;
+    }
+
+    public TcpEventClient readBufferPool(int readPoolSize) {
+        this.readPoolSize = readPoolSize;
+        return this;
+    }
+
+    public TcpEventClient writeBufferPool(int writePoolSize) {
+        this.writePoolSize = writePoolSize;
         return this;
     }
 
@@ -61,6 +74,11 @@ public class TcpEventClient {
         return this;
     }
 
+    public TcpEventClient async() {
+        this.async = true;
+        return this;
+    }
+
     public TcpEventClient responseTable(ResponseTable table) {
         this.responseTable = table;
         return this;
@@ -72,7 +90,17 @@ public class TcpEventClient {
     }
 
     public TcpClientConnection connect(InetSocketAddress bindAddress, long timeout, TimeUnit unit) {
-        TcpMessageClient client = new TcpMessageClient(options.getMap(), bindAddress, bufferSize, keepAliveInterval, onClose, handler, responseTable);
+        TcpMessageClient client = new TcpMessageClient(options.getMap(),
+                bindAddress,
+                readPoolSize,
+                writePoolSize,
+                bufferSize,
+                keepAliveInterval,
+                onClose,
+                handler,
+                responseTable,
+                async);
+
         return client.connect(timeout, unit);
     }
 }

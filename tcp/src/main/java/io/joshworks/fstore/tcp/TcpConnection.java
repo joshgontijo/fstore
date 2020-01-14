@@ -1,6 +1,8 @@
 package io.joshworks.fstore.tcp;
 
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.IoUtils;
@@ -12,71 +14,99 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicLong;
+
+import static java.util.Objects.requireNonNull;
 
 public class TcpConnection implements Closeable {
 
     public static final Logger logger = LoggerFactory.getLogger(TcpConnection.class);
 
     private final StreamConnection connection;
-    protected final BufferPool writePool;
+    protected final StupidPool writePool;
     private final long since = System.currentTimeMillis();
-    private final AtomicLong bytesSent = new AtomicLong(); //TODO long fieldupdater
-    private final AtomicLong bytesReceived = new AtomicLong(); //TODO long fieldupdater
-    private final AtomicLong messagesSent = new AtomicLong(); //TODO long fieldupdater
-    private final AtomicLong messagesReceived = new AtomicLong(); //TODO long fieldupdater
+    private long bytesSent;
+    private long bytesReceived;
+    private long messagesSent;
+    private long messagesReceived;
 
 
-    public TcpConnection(StreamConnection connection, BufferPool writePool) {
+    public TcpConnection(StreamConnection connection, StupidPool writePool) {
         this.connection = connection;
         this.writePool = writePool;
     }
 
-    public void send(Object data) {
-        if (data == null) {
-            return;
-        }
-        try (writePool) {
-            ByteBuffer buffer = writePool.allocate();
-            LengthPrefixCodec.serialize(data, buffer);
-            buffer.flip();
+    public void send(ByteBuffer buffer) {
+        requireNonNull(buffer, "Data must node be null");
+        try {
             write(buffer, false);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to write entry", e);
         }
+    }
+
+    public void send(byte[] bytes) {
+        writeBytes(bytes, false);
+    }
+
+    public void send(Object data) {
+        writeObject(data, false);
+    }
+
+    public void sendAndFlush(ByteBuffer buffer) {
+        requireNonNull(buffer, "Data must node be null");
+        try {
+            write(buffer, false);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to write entry", e);
+        }
+    }
+
+    public void sendAndFlush(byte[] bytes) {
+        writeBytes(bytes, true);
     }
 
     public void sendAndFlush(Object data) {
-        if (data == null) {
-            return;
-        }
-        try (writePool) {
-            ByteBuffer buffer = writePool.allocate();
-            LengthPrefixCodec.serialize(data, buffer);
+        writeObject(data, true);
+    }
+
+    private void writeObject(Object data, boolean flush) {
+        requireNonNull(data, "Data must node be null");
+        ByteBuffer buffer = writePool.allocate();
+        try {
+            KryoSerializer.serialize(data, buffer);
             buffer.flip();
-            if (!buffer.hasRemaining()) {
-                throw new RuntimeException("Empty buffer");
-            }
-            write(buffer, true);
+            write(buffer, flush);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to write " + data, e);
+        } finally {
+            writePool.free(buffer);
         }
     }
 
-    public long elapsed() {
-        return System.currentTimeMillis() - since;
+    private void writeBytes(byte[] bytes, boolean flush) {
+        requireNonNull(bytes, "Data must node be null");
+        ByteBuffer buffer = writePool.allocate();
+        try {
+            buffer.put(bytes);
+            buffer.flip();
+            write(buffer, flush);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to write data", e);
+        } finally {
+            writePool.free(buffer);
+        }
     }
 
-    protected void write(ByteBuffer buffer, boolean flush) {
+    protected void write(ByteBuffer buffer, boolean flush) throws IOException {
         var sink = connection.getSinkChannel();
         if (!sink.isOpen()) {
             throw new IllegalStateException("Closed channel");
         }
-        try {
-            Channels.writeBlocking(sink, buffer);
-            if (flush) {
-                Channels.flushBlocking(sink);
-            }
-            incrementMessageSent();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        Channels.writeBlocking(sink, buffer);
+        if (flush) {
+            Channels.flushBlocking(sink);
         }
+        incrementMessageSent();
     }
 
     @Override
@@ -95,40 +125,45 @@ public class TcpConnection implements Closeable {
         return connection.getPeerAddress(InetSocketAddress.class);
     }
 
-    public long bytesReceived() {
-        return bytesReceived.get();
-    }
-
-    public long bytesSent() {
-        return bytesSent.get();
-    }
 
     void updateBytesSent(long bytes) {
-        this.bytesSent.addAndGet(bytes);
+        this.bytesSent += bytes;
     }
 
     void updateBytesReceived(long bytes) {
-        this.bytesReceived.addAndGet(bytes);
+        this.bytesReceived += bytes;
     }
 
     XnioWorker worker() {
         return connection.getWorker();
     }
 
+    public long elapsed() {
+        return System.currentTimeMillis() - since;
+    }
+
     public void incrementMessageReceived() {
-        messagesReceived.incrementAndGet();
+        messagesReceived++;
     }
 
     public void incrementMessageSent() {
-        messagesSent.incrementAndGet();
+        messagesSent++;
     }
 
     public long messagesSent() {
-        return messagesSent.get();
+        return messagesSent;
     }
 
     public long messagesReceived() {
-        return messagesReceived.get();
+        return messagesReceived;
+    }
+
+    public long bytesReceived() {
+        return bytesReceived;
+    }
+
+    public long bytesSent() {
+        return bytesSent;
     }
 
     @Override

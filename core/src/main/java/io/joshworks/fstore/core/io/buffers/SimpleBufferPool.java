@@ -1,12 +1,8 @@
 package io.joshworks.fstore.core.io.buffers;
 
-import io.joshworks.fstore.core.metrics.MetricRegistry;
-import io.joshworks.fstore.core.metrics.Metrics;
-
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
-import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -18,14 +14,9 @@ public class SimpleBufferPool implements BufferPool {
     private final int bufferSize;
     private final boolean direct;
 
-    private final Metrics metrics = new Metrics();
-
-    public SimpleBufferPool(String name, int bufferSize, boolean direct) {
+    public SimpleBufferPool(int bufferSize, boolean direct) {
         this.bufferSize = bufferSize;
         this.direct = direct;
-
-        this.metrics.set("bufferSize", bufferSize);
-        MetricRegistry.register(Map.of("type", "bufferPools", "impl", "SimpleBufferPool", "name", name), () -> metrics);
     }
 
     //allocate current buffer with its total capacity
@@ -42,7 +33,6 @@ public class SimpleBufferPool implements BufferPool {
         }
         bufferRef.available.set(false);
         threadAllocations.get().add(bufferRef);
-        metrics.update("allocated", 1);
         return bufferRef;
     }
 
@@ -70,7 +60,6 @@ public class SimpleBufferPool implements BufferPool {
         final AtomicBoolean available = new AtomicBoolean(false);
 
         private BufferRef() {
-            metrics.update("buffers");
         }
 
         public void free() {
@@ -78,7 +67,6 @@ public class SimpleBufferPool implements BufferPool {
                 buffer.clear();
                 pool.add(this);
                 available.set(true);
-                metrics.update("allocated", -1);
             }
         }
 

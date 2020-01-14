@@ -1,6 +1,5 @@
 package io.joshworks.fstore.tcp.client;
 
-import io.joshworks.fstore.tcp.LengthPrefixCodec;
 import io.joshworks.fstore.tcp.WorkerUtils;
 import io.joshworks.fstore.tcp.internal.KeepAlive;
 import org.slf4j.Logger;
@@ -36,7 +35,7 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
 
     private volatile WriteReadyHandler writeReadyHandler;
     private volatile ReadReadyHandler readReadyHandler;
-    private final ByteBuffer keepAliveData;
+    private final ByteBuffer keepAliveData = ByteBuffer.wrap(KeepAlive.DATA);
 
     private final Runnable timeoutCommand = new Runnable() {
         @Override
@@ -56,6 +55,7 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
             if (System.nanoTime() - lastActivity < TimeUnit.MILLISECONDS.toNanos(interval)) {
                 return;
             }
+            logger.debug("Sending keep alive");
             sink.write(keepAliveData.slice());
 
         } catch (Exception e) {
@@ -74,9 +74,6 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
         setWriteReadyHandler(new WriteReadyHandler.ChannelListenerHandler<>(connection.getSinkChannel()));
         setReadReadyHandler(new ReadReadyHandler.ChannelListenerHandler<>(connection.getSourceChannel()));
         this.handle = WorkerUtils.executeAfter(getWriteThread(), timeoutCommand, interval, TimeUnit.MILLISECONDS);
-        ByteBuffer data = ByteBuffer.allocate(128);
-        LengthPrefixCodec.serialize(new KeepAlive(), data);
-        this.keepAliveData = data.flip().slice();
     }
 
     private void updateActivityTimestamp() {

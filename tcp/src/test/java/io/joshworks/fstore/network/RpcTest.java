@@ -5,6 +5,7 @@ import io.joshworks.fstore.tcp.TcpClientConnection;
 import io.joshworks.fstore.tcp.TcpMessageServer;
 import io.joshworks.fstore.tcp.client.TcpEventClient;
 import io.joshworks.fstore.tcp.internal.Response;
+import io.joshworks.fstore.tcp.server.TypedEventHandler;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
@@ -22,10 +23,10 @@ public class RpcTest {
                 .onOpen(conn -> System.out.println("SERVER: Connection opened"))
                 .onClose(conn -> System.out.println("SERVER: Connection closed"))
                 .onIdle(conn -> System.out.println("SERVER: Connection idle"))
-                .rpcHandler(new RpcHandler())
                 .idleTimeout(10, TimeUnit.SECONDS)
-                .bufferSize(Size.KB.ofInt(64))
+                .maxEntrySize(Size.KB.ofInt(64))
                 .asyncHandler()
+                .onEvent(TypedEventHandler.rpcHandler(new RpcHandler()))
                 .start(new InetSocketAddress(HOST, PORT));
 
 

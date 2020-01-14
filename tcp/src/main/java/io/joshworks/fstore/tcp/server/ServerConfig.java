@@ -1,6 +1,7 @@
 package io.joshworks.fstore.tcp.server;
 
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.tcp.EventHandler;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpMessageServer;
 import org.xnio.Option;
@@ -20,11 +21,13 @@ public class ServerConfig {
     private Consumer<TcpConnection> onOpen = conn -> TcpConnection.logger.info("Connection {} opened", conn.peerAddress());
     private Consumer<TcpConnection> onClose = conn -> TcpConnection.logger.info("Connection {} closed", conn.peerAddress());
     private Consumer<TcpConnection> onIdle = conn -> TcpConnection.logger.info("Connection {} is idle", conn.peerAddress());
-    private ServerEventHandler handler = new DiscardEventHandler();
-    private Object rpcHandlerTarget;
+    private EventHandler handler = new DiscardEventHandler();
     private long timeout = -1;
-    private int bufferSize = Size.MB.ofInt(1);
+    private int bufferSize = Size.KB.ofInt(256);
     private boolean async;
+    private int maxBuffers;
+    private int writePoolSize = 10;
+    private int readPoolSize = 10;
 
     public ServerConfig() {
 
@@ -35,10 +38,20 @@ public class ServerConfig {
         return this;
     }
 
+    public ServerConfig readBufferPool(int readPoolSize) {
+        this.readPoolSize = readPoolSize;
+        return this;
+    }
+
+    public ServerConfig writeBufferPool(int writePoolSize) {
+        this.writePoolSize = writePoolSize;
+        return this;
+    }
+
     /**
      * Maximum event size
      */
-    public ServerConfig bufferSize(int bufferSize) {
+    public ServerConfig maxEntrySize(int bufferSize) {
         this.bufferSize = bufferSize;
         return this;
     }
@@ -63,13 +76,8 @@ public class ServerConfig {
         return this;
     }
 
-    public ServerConfig onEvent(ServerEventHandler handler) {
+    public ServerConfig onEvent(EventHandler handler) {
         this.handler = handler;
-        return this;
-    }
-
-    public ServerConfig rpcHandler(Object rpcHandler) {
-        this.rpcHandlerTarget = rpcHandler;
         return this;
     }
 
@@ -79,6 +87,17 @@ public class ServerConfig {
     }
 
     public TcpMessageServer start(InetSocketAddress bindAddress) {
-        return new TcpMessageServer(options.getMap(), bindAddress, bufferSize, timeout, onOpen, onClose, onIdle, async, handler, rpcHandlerTarget);
+        return new TcpMessageServer(
+                options.getMap(),
+                bindAddress,
+                readPoolSize,
+                writePoolSize,
+                bufferSize,
+                timeout,
+                onOpen,
+                onClose,
+                onIdle,
+                async,
+                handler);
     }
 }

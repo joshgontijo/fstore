@@ -10,7 +10,9 @@ import io.joshworks.fstore.tcp.server.DiscardEventHandler;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -22,35 +24,42 @@ public class TcpTest2 {
     private static final String HOST = "localhost";
     private static final int PORT = 9999;
 
-    private static final int ITEMS = 1000000;
+    private static final int ITEMS = 1000000000;
     private static final int CLIENTS = 1;
 
     private static final List<TcpConnection> clientConnections = new ArrayList<>();
 
     public static void main(String[] args) throws InterruptedException {
 
+        Thread.sleep(10000);
+
         TcpMessageServer server = TcpMessageServer.create()
                 .onOpen(conn -> {
                     System.out.println("SERVER: Connection opened");
+                    byte[] data = new byte[256];
+                    Arrays.fill(data, (byte) 1);
+                    ByteBuffer buffer = ByteBuffer.wrap(data);
                     new Thread(() -> {
-                            for (int i = 0; i < ITEMS; i++) {
-                                conn.send(new Payload(String.valueOf(i)));
-                            }
+                        buffer.putInt(0, data.length - Integer.BYTES);
+                        for (int i = 0; i < ITEMS; i++) {
+                            conn.send(buffer);
+                            buffer.clear();
+                        }
                     }).start();
                 })
                 .onClose(conn -> System.out.println("SERVER: Connection closed"))
                 .onIdle(conn -> System.out.println("SERVER: Connection idle"))
                 .idleTimeout(10, TimeUnit.SECONDS)
-                .bufferSize(Size.KB.ofInt(64))
+                .maxEntrySize(Size.KB.ofInt(4))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(4))
                 .option(Options.SEND_BUFFER, Size.KB.ofInt(8))
                 .option(Options.TCP_NODELAY, true)
-                .option(Options.BACKLOG, 500)
+//                .option(Options.BACKLOG, 16)
                 .option(Options.WORKER_NAME, "server")
                 .option(Options.WORKER_IO_THREADS, 1)
-                .option(Options.WORKER_TASK_MAX_THREADS, 1)
+//                .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .onEvent(new DiscardEventHandler())
-                .asyncHandler()
+//                .asyncHandler()
                 .start(new InetSocketAddress(HOST, PORT));
 
 
@@ -59,8 +68,8 @@ public class TcpTest2 {
                     .option(Options.WORKER_NAME, "CLIENT-" + UUID.randomUUID().toString().substring(0, 3))
                     .option(Options.WORKER_IO_THREADS, 1)
                     .option(Options.TCP_NODELAY, true)
-                    .option(Options.SEND_BUFFER, Size.KB.ofInt(32))
-                    .bufferSize(Size.KB.ofInt(32))
+                    .option(Options.SEND_BUFFER, Size.KB.ofInt(4))
+                    .bufferSize(Size.KB.ofInt(4))
                     .onClose(conn -> System.out.println("CLIENT: closing connection " + conn))
                     .onEvent((connection, data) -> {
                         //do nothing

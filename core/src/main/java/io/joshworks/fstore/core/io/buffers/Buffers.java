@@ -1,5 +1,6 @@
 package io.joshworks.fstore.core.io.buffers;
 
+import java.nio.Buffer;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 
@@ -25,10 +26,7 @@ public class Buffers {
         return readableBytes;
     }
 
-    public static void copy(ByteBuffer src, int srcStart, int count, ByteBuffer dst) {
-        if (dst.remaining() < count) {
-            throw new BufferOverflowException();
-        }
+    public static int copy(ByteBuffer src, int srcStart, int count, ByteBuffer dst) {
 
         int i = 0;
         while ((count - i) >= Long.BYTES) {
@@ -47,6 +45,8 @@ public class Buffers {
             dst.put(src.get(srcStart + i));
             i += Byte.BYTES;
         }
+
+        return i;
     }
 
     public static void copy(ByteBuffer src, ByteBuffer dst) {
@@ -56,7 +56,24 @@ public class Buffers {
         copy(src, src.position(), src.remaining(), dst);
     }
 
-    public static void offsetPosition(ByteBuffer data, int offset) {
-        data.position(data.position() + offset);
+    public static void offsetPosition(ByteBuffer buffer, int offset) {
+        buffer.position(buffer.position() + (offset));
+    }
+
+    /**
+     * Determine whether any of the buffers has remaining data.
+     *
+     * @param buffers the buffers
+     * @param offs the offset into the buffers array
+     * @param len the number of buffers to check
+     * @return {@code true} if any of the selected buffers has remaining data
+     */
+    public static boolean hasRemaining(final Buffer[] buffers, final int offs, final int len) {
+        for (int i = 0; i < len; i ++) {
+            if (buffers[i + offs].hasRemaining()) {
+                return true;
+            }
+        }
+        return false;
     }
 }

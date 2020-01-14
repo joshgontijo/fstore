@@ -1,18 +1,14 @@
 package io.joshworks.fstore.tcp;
 
-import io.joshworks.fstore.core.io.buffers.SimpleBufferPool;
+import io.joshworks.fstore.core.io.buffers.StupidPool;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
+import io.joshworks.fstore.tcp.conduits.FramingMessageSinkConduit;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
 import io.joshworks.fstore.tcp.conduits.IdleTimeoutConduit;
-import io.joshworks.fstore.tcp.server.RpcEventHandler;
-import io.joshworks.fstore.tcp.server.AsyncEventHandler;
 import io.joshworks.fstore.tcp.server.KeepAliveHandler;
-import io.joshworks.fstore.tcp.server.PingHandler;
-import io.joshworks.fstore.tcp.server.RequestResponseHandler;
 import io.joshworks.fstore.tcp.server.ServerConfig;
-import io.joshworks.fstore.tcp.server.ServerEventHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.ChannelListener;
@@ -41,18 +37,13 @@ public class TcpMessageServer implements Closeable {
 
     private final XnioWorker worker;
     private final AcceptingChannel<StreamConnection> channel;
+    private final int maxMessageSize;
     private final long idleTimeout;
     private final boolean async;
     private final Consumer<TcpConnection> onConnect;
     private final Consumer<TcpConnection> onClose;
     private final Consumer<TcpConnection> onIdle;
-    private final ServerEventHandler handler;
-
-    private final SimpleBufferPool messagePool;
-//    private final ByteBufferSlicePool readPool;
-
-    private final SimpleBufferPool readPool;
-    private final Object rpcHandlerTarget;
+    private final EventHandler handler;
 
     private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -61,15 +52,17 @@ public class TcpMessageServer implements Closeable {
     public TcpMessageServer(
             OptionMap options,
             InetSocketAddress bindAddress,
-            int maxBufferSize,
+            int readPoolSize,
+            int writePoolSize,
+            int maxMessageSize,
             long idleTimeout,
             Consumer<TcpConnection> onOpen,
             Consumer<TcpConnection> onClose,
             Consumer<TcpConnection> onIdle,
             boolean async,
-            ServerEventHandler handler,
-            Object rpcHandlerTarget) {
+            EventHandler handler) {
 
+        this.maxMessageSize = maxMessageSize;
         this.idleTimeout = idleTimeout;
         this.onConnect = onOpen;
         this.onClose = onClose;
@@ -77,11 +70,10 @@ public class TcpMessageServer implements Closeable {
         this.async = async;
         this.handler = handler;
 
-        this.messagePool = new SimpleBufferPool("tcp-message-pool", maxBufferSize, false);
-        this.readPool = new SimpleBufferPool("tcp-read-pool", maxBufferSize, false);
-        this.rpcHandlerTarget = rpcHandlerTarget;
+        StupidPool readPool = new StupidPool(readPoolSize, maxMessageSize);
+        StupidPool writePool = new StupidPool(writePoolSize, maxMessageSize);
 
-        Acceptor acceptor = new Acceptor(idleTimeout, readPool, messagePool);
+        Acceptor acceptor = new Acceptor(idleTimeout, readPool, writePool);
         try {
             this.worker = Xnio.getInstance().createWorker(options);
             this.channel = connect(bindAddress, acceptor, options);
@@ -140,8 +132,12 @@ public class TcpMessageServer implements Closeable {
 
     public void broadcast(Object data) {
         for (TcpConnection tcpc : connections.values()) {
-            tcpc.send(data);
+            tcpc.send(data); //FIXME need to slice when ByteBuffer type
         }
+    }
+
+    public void awaitTermination() throws InterruptedException {
+        worker.awaitTermination();
     }
 
     public static ServerConfig create() {
@@ -165,13 +161,13 @@ public class TcpMessageServer implements Closeable {
     private class Acceptor implements ChannelListener<AcceptingChannel<StreamConnection>> {
 
         private final long timeout;
-        private final SimpleBufferPool messagePool;
-        private final SimpleBufferPool readPool;
+        private final StupidPool writePool;
+        private final StupidPool readPool;
 
-        Acceptor(long timeout, SimpleBufferPool readPool, SimpleBufferPool messagePool) {
+        Acceptor(long timeout, StupidPool readPool, StupidPool writePool) {
             this.timeout = timeout;
             this.readPool = readPool;
-            this.messagePool = messagePool;
+            this.writePool = writePool;
         }
 
         @Override
@@ -179,49 +175,36 @@ public class TcpMessageServer implements Closeable {
             StreamConnection conn = null;
             try {
                 while ((conn = channel.accept()) != null) {
-                    var tcpConnection = new TcpConnection(conn, messagePool);
+                    var tcpConnection = new TcpConnection(conn, writePool);
                     connections.put(conn, tcpConnection);
                     logger.info("Connection accepted: {}", tcpConnection.peerAddress());
 
-                    SimpleBufferPool.BufferRef polled = readPool.allocateRef();
-
-                    conn.setCloseListener(sc -> {
-                        polled.free();
-                        TcpMessageServer.this.onClose(sc);
-                    });
-
-                    //adds to both source and sink channels
                     if (timeout > 0) {
+                        //adds to both source and sink channels
                         var idleTimeoutConduit = new IdleTimeoutConduit(conn, TcpMessageServer.this::onIdle);
                         idleTimeoutConduit.setIdleTimeout(timeout);
                     }
 
                     ConduitPipeline pipeline = new ConduitPipeline(conn);
+                    pipeline.closeListener(TcpMessageServer.this::onClose);
                     //---------- source
-                    pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, polled));
+                    pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, maxMessageSize, readPool));
                     pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
 
                     //---------- sink
                     pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
+                    pipeline.addStreamSink(FramingMessageSinkConduit::new);
 
                     //---------- listeners
-
-                    ServerEventHandler rpcHandler = new RpcEventHandler(handler, rpcHandlerTarget);
-                    ServerEventHandler pingHandler = new PingHandler(rpcHandler);
-                    EventHandler reqRespHandler = new RequestResponseHandler(pingHandler);
-                    EventHandler keepAliveHandler = new KeepAliveHandler(reqRespHandler);
-                    EventHandler asyncHandler = async ? new AsyncEventHandler(conn.getWorker(), keepAliveHandler) : keepAliveHandler;
-                    ReadHandler readHandler = new ReadHandler(tcpConnection, asyncHandler);
+                    EventHandler keepAliveHandler = new KeepAliveHandler(handler);
+                    ReadHandler readHandler = new ReadHandler(tcpConnection, keepAliveHandler, async);
 
                     pipeline.readListener(readHandler);
-                    pipeline.closeListener(sc -> {
-                        polled.free();
-                        TcpMessageServer.this.onClose(sc);
-                    });
 
-                    onConnect(tcpConnection);
                     conn.getSourceChannel().resumeReads();
                     conn.getSinkChannel().resumeWrites();
+
+                    onConnect(tcpConnection);
                 }
             } catch (Exception e) {
                 logger.error("Failed to accept connection", e);
