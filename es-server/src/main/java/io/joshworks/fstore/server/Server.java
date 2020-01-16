@@ -1,6 +1,6 @@
 package io.joshworks.fstore.server;
 
-import io.joshworks.fstore.tcp.TcpMessageServer;
+import io.joshworks.fstore.tcp.TcpEventServer;
 import io.joshworks.fstore.server.subscription.Subscriptions;
 import io.joshworks.fstore.server.subscription.polling.LocalPollingSubscription;
 import io.joshworks.fstore.server.tcp.TcpEventHandler;
@@ -57,12 +57,12 @@ public class Server {
         var subscriptions = new Subscriptions(3, 3000, 5);
 
         var poolingSubscription = new LocalPollingSubscription(store);
-        TcpMessageServer tcpServer = TcpMessageServer.create()
+        TcpEventServer tcpServer = TcpEventServer.create()
                 .onOpen(conn -> System.out.println("Connection opened"))
                 .onClose(conn -> System.out.println("Connection closed"))
                 .onIdle(conn -> System.out.println("Connection idle"))
 //                .idleTimeout(10, TimeUnit.SECONDS)
-                .maxEntrySize(Size.KB.ofInt(16))
+                .maxEventSize(Size.KB.ofInt(16))
                 .option(Options.REUSE_ADDRESSES, true)
                 .option(Options.TCP_NODELAY, true)
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))

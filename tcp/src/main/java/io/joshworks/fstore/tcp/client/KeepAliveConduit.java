@@ -1,6 +1,6 @@
 package io.joshworks.fstore.tcp.client;
 
-import io.joshworks.fstore.tcp.WorkerUtils;
+import io.joshworks.fstore.tcp.internal.WorkerUtils;
 import io.joshworks.fstore.tcp.internal.KeepAlive;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

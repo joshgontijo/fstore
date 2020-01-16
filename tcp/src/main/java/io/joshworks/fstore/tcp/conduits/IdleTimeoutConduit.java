@@ -1,6 +1,6 @@
 package io.joshworks.fstore.tcp.conduits;
 
-import io.joshworks.fstore.tcp.WorkerUtils;
+import io.joshworks.fstore.tcp.internal.WorkerUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.Buffers;
