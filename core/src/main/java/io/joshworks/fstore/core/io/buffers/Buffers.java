@@ -64,6 +64,7 @@ public class Buffers {
         if (buffer.hasArray()) {
             return buffer.position() + buffer.arrayOffset();
         }
+
         return buffer.position();
     }
 
