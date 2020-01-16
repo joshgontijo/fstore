@@ -1,19 +1,24 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSinkConduit;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
 import io.joshworks.fstore.tcp.conduits.IdleTimeoutConduit;
+import io.joshworks.fstore.tcp.handlers.DiscardEventHandler;
+import io.joshworks.fstore.tcp.handlers.EventHandler;
+import io.joshworks.fstore.tcp.internal.ResponseTable;
 import io.joshworks.fstore.tcp.server.KeepAliveHandler;
-import io.joshworks.fstore.tcp.server.ServerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.ChannelListener;
 import org.xnio.IoUtils;
+import org.xnio.Option;
 import org.xnio.OptionMap;
+import org.xnio.Options;
 import org.xnio.StreamConnection;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
@@ -23,33 +28,35 @@ import org.xnio.channels.Channels;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * A Message server, it uses length prefixed message format to parse messages down to the pipeline
  */
-public class TcpMessageServer implements Closeable {
+public class TcpEventServer implements Closeable {
 
-    private static final Logger logger = LoggerFactory.getLogger(TcpMessageServer.class);
+    private static final Logger log = LoggerFactory.getLogger(TcpEventServer.class);
 
     private final XnioWorker worker;
     private final AcceptingChannel<StreamConnection> channel;
     private final int maxMessageSize;
     private final long idleTimeout;
-    private final boolean async;
     private final Consumer<TcpConnection> onConnect;
     private final Consumer<TcpConnection> onClose;
     private final Consumer<TcpConnection> onIdle;
     private final EventHandler handler;
-
+    private final ResponseTable responseTable = new ResponseTable();
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final Map<StreamConnection, TcpConnection> connections = new ConcurrentHashMap<>();
 
-    private Map<StreamConnection, TcpConnection> connections = new ConcurrentHashMap<>();
-
-    public TcpMessageServer(
+    public TcpEventServer(
             OptionMap options,
             InetSocketAddress bindAddress,
             int readPoolSize,
@@ -59,7 +66,6 @@ public class TcpMessageServer implements Closeable {
             Consumer<TcpConnection> onOpen,
             Consumer<TcpConnection> onClose,
             Consumer<TcpConnection> onIdle,
-            boolean async,
             EventHandler handler) {
 
         this.maxMessageSize = maxMessageSize;
@@ -67,7 +73,6 @@ public class TcpMessageServer implements Closeable {
         this.onConnect = onOpen;
         this.onClose = onClose;
         this.onIdle = onIdle;
-        this.async = async;
         this.handler = handler;
 
         StupidPool readPool = new StupidPool(readPoolSize, maxMessageSize);
@@ -75,10 +80,15 @@ public class TcpMessageServer implements Closeable {
         StupidPool writePool = new StupidPool(writePoolSize, maxMessageSize);
 
         Acceptor acceptor = new Acceptor(idleTimeout, readPool, writePool, appPool);
+
+        XnioWorker worker = null;
         try {
-            this.worker = Xnio.getInstance().createWorker(options);
+            this.worker = worker = Xnio.getInstance().createWorker(options);
             this.channel = connect(bindAddress, acceptor, options);
         } catch (Exception e) {
+            if (worker != null) {
+                worker.shutdownNow();
+            }
             throw new RuntimeException("Failed to start server", e);
         }
     }
@@ -95,18 +105,18 @@ public class TcpMessageServer implements Closeable {
             if (tcpConnection == null) {
                 return;
             }
-            logger.info("Connection closed: {}", tcpConnection.peerAddress());
+            log.info("Connection closed: {}", tcpConnection.peerAddress());
             onClose.accept(tcpConnection);
         } catch (Exception e) {
-            logger.warn("Failed to handle on onClose", e);
+            log.warn("Failed to handle on onClose", e);
         }
     }
 
     private void onIdle(StreamConnection connection) {
-        TcpConnection tcpc = connections.get(connection);
-        if (tcpc != null) {
-            logger.info("Closed idle connection to {} after {}ms of inactivity", tcpc.peerAddress(), idleTimeout);
-            onIdle.accept(tcpc);
+        TcpConnection conn = connections.get(connection);
+        if (conn != null) {
+            log.info("Closed idle connection to {} after {}ms of inactivity", conn.peerAddress(), idleTimeout);
+            onIdle.accept(conn);
         }
     }
 
@@ -114,7 +124,7 @@ public class TcpMessageServer implements Closeable {
         try {
             onConnect.accept(connection);
         } catch (Exception e) {
-            logger.error("Error while handling onConnect, connection will be closed", e);
+            log.error("Error while handling onConnect, connection will be closed", e);
             throw new IllegalStateException(e);
         }
     }
@@ -133,7 +143,13 @@ public class TcpMessageServer implements Closeable {
 
     public void broadcast(Object data) {
         for (TcpConnection tcpc : connections.values()) {
-            tcpc.send(data); //FIXME need to slice when ByteBuffer type
+            tcpc.send(data);
+        }
+    }
+
+    public void broadcast(ByteBuffer buffer) {
+        for (TcpConnection tcpc : connections.values()) {
+            tcpc.send(buffer.slice());
         }
     }
 
@@ -141,8 +157,8 @@ public class TcpMessageServer implements Closeable {
         worker.awaitTermination();
     }
 
-    public static ServerConfig create() {
-        return new ServerConfig();
+    public static Builder create() {
+        return new Builder();
     }
 
     @Override
@@ -178,18 +194,18 @@ public class TcpMessageServer implements Closeable {
             StreamConnection conn = null;
             try {
                 while ((conn = channel.accept()) != null) {
-                    var tcpConnection = new TcpConnection(conn, writePool);
+                    var tcpConnection = new TcpConnection(conn, writePool, responseTable);
                     connections.put(conn, tcpConnection);
-                    logger.info("Connection accepted: {}", tcpConnection.peerAddress());
+                    log.info("Connection accepted: {}", tcpConnection.peerAddress());
 
                     if (timeout > 0) {
                         //adds to both source and sink channels
-                        var idleTimeoutConduit = new IdleTimeoutConduit(conn, TcpMessageServer.this::onIdle);
+                        var idleTimeoutConduit = new IdleTimeoutConduit(conn, TcpEventServer.this::onIdle);
                         idleTimeoutConduit.setIdleTimeout(timeout);
                     }
 
                     ConduitPipeline pipeline = new ConduitPipeline(conn);
-                    pipeline.closeListener(TcpMessageServer.this::onClose);
+                    pipeline.closeListener(TcpEventServer.this::onClose);
                     //---------- source
                     pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, maxMessageSize, readPool));
                     pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
@@ -199,8 +215,9 @@ public class TcpMessageServer implements Closeable {
                     pipeline.addStreamSink(FramingMessageSinkConduit::new);
 
                     //---------- listeners
-                    EventHandler keepAliveHandler = new KeepAliveHandler(handler);
-                    ReadHandler readHandler = new ReadHandler(tcpConnection, keepAliveHandler, async, appPool);
+                    EventHandler responseHandler = new ResponseHandler(handler, responseTable);
+                    EventHandler keepAliveHandler = new KeepAliveHandler(responseHandler);
+                    ReadHandler readHandler = new ReadHandler(tcpConnection, keepAliveHandler, appPool);
 
                     pipeline.readListener(readHandler);
 
@@ -210,7 +227,7 @@ public class TcpMessageServer implements Closeable {
                     onConnect(tcpConnection);
                 }
             } catch (Exception e) {
-                logger.error("Failed to accept connection", e);
+                log.error("Failed to accept connection", e);
                 if (conn != null) {
                     try {
                         Channels.flushBlocking(conn.getSinkChannel());
@@ -220,6 +237,102 @@ public class TcpMessageServer implements Closeable {
                     connections.remove(conn);
                 }
             }
+        }
+    }
+
+    public static class Builder {
+
+        private final OptionMap.Builder options = OptionMap.builder()
+                .set(Options.WORKER_IO_THREADS, 1)
+                .set(Options.WORKER_TASK_CORE_THREADS, 5)
+                .set(Options.WORKER_TASK_MAX_THREADS, 5)
+                .set(Options.WORKER_NAME, "tcp-server");
+
+        private Consumer<TcpConnection> onOpen = conn -> log.info("Connection {} opened", conn.peerAddress());
+        private Consumer<TcpConnection> onClose = conn -> log.info("Connection {} closed", conn.peerAddress());
+        private Consumer<TcpConnection> onIdle = conn -> log.info("Connection {} is idle", conn.peerAddress());
+        private EventHandler handler = new DiscardEventHandler();
+        private long timeout = -1;
+        private int bufferSize = Size.KB.ofInt(64);
+        private int writePoolSize = 10;
+        private int readPoolSize = 10;
+
+        public Builder() {
+
+        }
+
+        public Builder name(String name) {
+            this.options.set(Options.WORKER_NAME, requireNonNull(name));
+            return this;
+        }
+
+        public <T> Builder option(Option<T> key, T value) {
+            options.set(key, value);
+            return this;
+        }
+
+        public Builder readBufferPoolCapacity(int readPoolSize) {
+            this.readPoolSize = readPoolSize;
+            return this;
+        }
+
+        public Builder writeBufferPoolCapacity(int writePoolSize) {
+            this.writePoolSize = writePoolSize;
+            return this;
+        }
+
+        /**
+         * Maximum event size
+         */
+        public Builder maxEventSize(int maxEventSize) {
+            if (bufferSize <= 0) {
+                throw new IllegalArgumentException("Buffer size must be greater than zero");
+            }
+            this.bufferSize = maxEventSize;
+            return this;
+        }
+
+        public Builder idleTimeout(long timeout, TimeUnit unit) {
+            timeout = unit.toMillis(timeout);
+            if (timeout <= 0) {
+                throw new IllegalArgumentException("Idle timeout bust be greater than zero");
+            }
+            this.timeout = timeout;
+            return this;
+        }
+
+        public Builder onOpen(Consumer<TcpConnection> onOpen) {
+            this.onOpen = requireNonNull(onOpen);
+            return this;
+        }
+
+        public Builder onClose(Consumer<TcpConnection> onClose) {
+            this.onClose = requireNonNull(onClose);
+            return this;
+        }
+
+        public Builder onIdle(Consumer<TcpConnection> onIdle) {
+            this.onIdle = requireNonNull(onIdle);
+            return this;
+        }
+
+        public Builder onEvent(EventHandler handler) {
+            this.handler = requireNonNull(handler);
+            return this;
+        }
+
+        public TcpEventServer start(InetSocketAddress bindAddress) {
+            return new TcpEventServer(
+                    options.getMap(),
+                    bindAddress,
+                    readPoolSize,
+                    writePoolSize,
+                    bufferSize,
+                    timeout,
+                    onOpen,
+                    onClose,
+                    onIdle,
+                    handler);
         }
     }
 

@@ -2,7 +2,7 @@ package io.joshworks.lsm.server;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.tcp.TcpClientConnection;
-import io.joshworks.fstore.tcp.client.TcpEventClient;
+import io.joshworks.fstore.tcp.TcpEventClient;
 import io.joshworks.lsm.server.messages.Delete;
 import io.joshworks.lsm.server.messages.Get;
 import io.joshworks.lsm.server.messages.Put;
@@ -31,7 +31,7 @@ public class RemoteNode implements StoreNode {
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.TCP_NODELAY, true)
                 .option(Options.SEND_BUFFER, Size.KB.ofInt(8))
-                .bufferSize(Size.KB.ofInt(32))
+                .maxEventSize(Size.KB.ofInt(32))
                 .onClose(conn -> System.out.println("CLIENT: closing connection " + conn))
                 .onEvent((connection, data) -> {
                     //do nothing
