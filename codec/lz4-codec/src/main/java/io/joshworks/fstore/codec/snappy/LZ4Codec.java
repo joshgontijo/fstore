@@ -3,7 +3,7 @@ package io.joshworks.fstore.codec.snappy;
 import io.joshworks.fstore.core.Codec;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 
 import java.nio.ByteBuffer;
 
@@ -28,7 +28,7 @@ public class LZ4Codec implements Codec {
 
     @Override
     public void decompress(ByteBuffer src, ByteBuffer dst) {
-        LZ4FastDecompressor decompressor = factory.fastDecompressor();
+        LZ4SafeDecompressor decompressor = factory.safeDecompressor();
         decompressor.decompress(src, dst);
     }
 }
