@@ -15,6 +15,15 @@ public class KryoTypedSerializer<T> implements Serializer<T> {
 
     private static final ThreadLocal<Kryo> local = ThreadLocal.withInitial(DefaultInstance::newKryoInstance);
 
+    private KryoTypedSerializer() {
+
+    }
+
+    public static <T> KryoTypedSerializer<T> of(Class<T> ignored) {
+        return new KryoTypedSerializer<>();
+    }
+
+
     @Override
     public void writeTo(T data, ByteBuffer dst) {
         Kryo kryo = local.get();

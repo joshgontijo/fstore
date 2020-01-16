@@ -254,7 +254,7 @@ public abstract class SegmentFooterTest {
         private final Segment<String> delegate;
 
         public FooterSegment(File file, StorageMode storageMode) {
-            this.delegate = new Segment<>(file, storageMode, Size.KB.ofInt(128), Serializers.VSTRING, new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false), WriteMode.LOG_HEAD, 1);
+            this.delegate = new Segment<>(file, storageMode, Size.KB.ofInt(128), Serializers.VSTRING, new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false), WriteMode.LOG_HEAD, 1);
         }
 
         public void writeFooter(FooterWriter footer) {

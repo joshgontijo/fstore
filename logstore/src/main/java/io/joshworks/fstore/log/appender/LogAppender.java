@@ -100,7 +100,7 @@ public class LogAppender<T> implements Closeable {
         this.readPageSize = config.readPageSize;
 
         int actualMaxEntrySize = config.maxEntrySize + RecordHeader.HEADER_OVERHEAD;
-        this.bufferPool = new ThreadLocalBufferPool(config.name + "-pool", actualMaxEntrySize, config.directBufferPool);
+        this.bufferPool = new ThreadLocalBufferPool(actualMaxEntrySize, config.directBufferPool);
         this.logger = Logging.namedLogger(config.name, "appender");
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);

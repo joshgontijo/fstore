@@ -46,7 +46,7 @@ public class DataStreamTest {
         file = TestUtils.testFile();
         storage = Storage.create(file, StorageMode.RAF, FILE_SIZE);
         storage.position(Log.START);
-        bufferPool = new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false);
+        bufferPool = new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false);
         stream = new DataStream(bufferPool, storage, CHCKSUM_PROB, Memory.PAGE_SIZE);
     }
 

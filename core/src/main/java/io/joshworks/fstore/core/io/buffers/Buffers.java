@@ -60,16 +60,29 @@ public class Buffers {
         buffer.position(buffer.position() + (offset));
     }
 
+    public static int positionArrayOffset(ByteBuffer buffer) {
+        if (buffer.hasArray()) {
+            return buffer.position() + buffer.arrayOffset();
+        }
+        return buffer.position();
+    }
+
+    public static byte[] copyArray(ByteBuffer bb) {
+        byte[] data = new byte[bb.remaining()];
+        bb.get(data);
+        return data;
+    }
+
     /**
      * Determine whether any of the buffers has remaining data.
      *
      * @param buffers the buffers
-     * @param offs the offset into the buffers array
-     * @param len the number of buffers to check
+     * @param offs    the offset into the buffers array
+     * @param len     the number of buffers to check
      * @return {@code true} if any of the selected buffers has remaining data
      */
     public static boolean hasRemaining(final Buffer[] buffers, final int offs, final int len) {
-        for (int i = 0; i < len; i ++) {
+        for (int i = 0; i < len; i++) {
             if (buffers[i + offs].hasRemaining()) {
                 return true;
             }
