@@ -1,7 +1,7 @@
 package io.joshworks.fstore.client;
 
 import io.joshworks.fstore.tcp.TcpClientConnection;
-import io.joshworks.fstore.tcp.client.TcpEventClient;
+import io.joshworks.fstore.tcp.TcpEventClient;
 import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
 import io.joshworks.fstore.core.io.IOUtils;
@@ -82,7 +82,7 @@ public class StoreClient implements Closeable {
                 .option(Options.WORKER_IO_THREADS, 10)
                 .option(Options.WORKER_TASK_CORE_THREADS, 10)
                 .option(Options.WORKER_TASK_MAX_THREADS, 10)
-                .bufferSize(Size.KB.ofInt(16))
+                .maxEventSize(Size.KB.ofInt(16))
                 .option(Options.SEND_BUFFER, Size.KB.ofInt(16))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))
                 .responseTable(responseTable)

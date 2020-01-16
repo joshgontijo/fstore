@@ -4,7 +4,7 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.tcp.TcpMessageServer;
+import io.joshworks.fstore.tcp.TcpEventServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.Options;
@@ -26,7 +26,7 @@ public class ReplicationServer implements Closeable {
     private static final Logger logger = LoggerFactory.getLogger(ReplicationServer.class);
 
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final TcpMessageServer server;
+    private final TcpEventServer server;
     private final int clusterSize;
     private final CommitTable commitTable;
     private final LogAppender<Record> log;
@@ -39,7 +39,7 @@ public class ReplicationServer implements Closeable {
         this.log = log;
         this.clusterSize = clusterSize;
         this.commitTable = commitTable;
-        this.server = TcpMessageServer.create()
+        this.server = TcpEventServer.create()
                 .onOpen(conn -> {
                     //TODO if this node is not a master, then throws an exception
                     logger.info("Started replication server");

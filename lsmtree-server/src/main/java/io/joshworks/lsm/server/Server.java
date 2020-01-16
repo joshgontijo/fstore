@@ -6,7 +6,7 @@ import io.joshworks.fstore.cluster.MulticastResponse;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.util.AttributeKey;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.tcp.TcpMessageServer;
+import io.joshworks.fstore.tcp.TcpEventServer;
 import io.joshworks.fstore.tcp.server.ServerEventHandler;
 import io.joshworks.lsm.server.events.NodeJoined;
 import io.joshworks.lsm.server.events.NodeLeft;
@@ -43,8 +43,8 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
     private final LsmCluster<K> clusterStore;
 
     private final List<StoreNode> remoteNodes = new CopyOnWriteArrayList<>();
-    private final TcpMessageServer clientListener;
-    private final TcpMessageServer replicationListener;
+    private final TcpEventServer clientListener;
+    private final TcpEventServer replicationListener;
 
     private Server(
             File rootDir,
@@ -108,13 +108,13 @@ public class Server<K extends Comparable<K>> implements AutoCloseable {
         throw new UnsupportedOperationException();
     }
 
-    private static TcpMessageServer startListener(ServerEventHandler handler, int port) {
-        return TcpMessageServer.create()
+    private static TcpEventServer startListener(ServerEventHandler handler, int port) {
+        return TcpEventServer.create()
                 .onOpen(conn -> System.out.println("Connection opened"))
                 .onClose(conn -> System.out.println("Connection closed"))
                 .onIdle(conn -> System.out.println("Connection idle"))
 //                .idleTimeout(10, TimeUnit.SECONDS)
-                .maxEntrySize(Size.KB.ofInt(4))
+                .maxEventSize(Size.KB.ofInt(4))
                 .option(Options.REUSE_ADDRESSES, true)
                 .option(Options.TCP_NODELAY, true)
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(4))

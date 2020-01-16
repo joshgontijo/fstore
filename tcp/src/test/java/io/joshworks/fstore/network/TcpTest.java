@@ -2,12 +2,10 @@ package io.joshworks.fstore.network;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.tcp.TcpClientConnection;
 import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.fstore.tcp.TcpMessageServer;
-import io.joshworks.fstore.tcp.client.TcpEventClient;
-import io.joshworks.fstore.tcp.server.DiscardEventHandler;
-import io.joshworks.fstore.tcp.server.TypedEventHandler;
+import io.joshworks.fstore.tcp.TcpEventServer;
+import io.joshworks.fstore.tcp.TcpEventClient;
+import io.joshworks.fstore.tcp.handlers.TypedEventHandler;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
@@ -30,26 +28,25 @@ public class TcpTest {
 
     public static void main(String[] args) throws InterruptedException {
 
-        TcpMessageServer server = TcpMessageServer.create()
+        TcpEventServer server = TcpEventServer.create()
                 .idleTimeout(10, TimeUnit.SECONDS)
-                .asyncHandler()
-                .maxEntrySize(Size.KB.ofInt(32))
+                .maxEventSize(Size.KB.ofInt(32))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(32))
                 .option(Options.WORKER_NAME, "server")
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_CORE_THREADS, 3)
                 .option(Options.TCP_NODELAY, true)
-                .onEvent(new TypedEventHandler())
+                .onEvent(TypedEventHandler.builder().build())
                 .start(new InetSocketAddress(HOST, PORT));
 
 
         Runnable sendTask = () -> {
-            TcpClientConnection client = TcpEventClient.create()
+            TcpConnection client = TcpEventClient.create()
                     .option(Options.WORKER_NAME, "CLIENT-" + UUID.randomUUID().toString().substring(0, 3))
                     .option(Options.WORKER_IO_THREADS, 1)
                     .option(Options.TCP_NODELAY, true)
                     .option(Options.SEND_BUFFER, Size.KB.ofInt(32))
-                    .bufferSize(Size.KB.ofInt(32))
+                    .maxEventSize(Size.KB.ofInt(32))
                     .onClose(conn -> System.out.println("CLIENT: closing connection " + conn))
                     .onEvent((connection, data) -> {
                         //do nothing

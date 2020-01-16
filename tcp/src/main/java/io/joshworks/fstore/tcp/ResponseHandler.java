@@ -1,21 +1,20 @@
-package io.joshworks.fstore.tcp.client;
+package io.joshworks.fstore.tcp;
 
-import io.joshworks.fstore.tcp.EventHandler;
-import io.joshworks.fstore.tcp.TcpConnection;
+import io.joshworks.fstore.tcp.handlers.EventHandler;
 import io.joshworks.fstore.tcp.internal.Message;
 import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ClientResponseHandler implements EventHandler {
+class ResponseHandler implements EventHandler {
 
-    private static final Logger logger = LoggerFactory.getLogger(ClientResponseHandler.class);
+    private static final Logger logger = LoggerFactory.getLogger(ResponseHandler.class);
 
     private final EventHandler delegate;
     private final ResponseTable responseTable;
 
-    public ClientResponseHandler(EventHandler delegate, ResponseTable responseTable) {
+    ResponseHandler(EventHandler delegate, ResponseTable responseTable) {
         this.delegate = delegate;
         this.responseTable = responseTable;
     }
