@@ -8,6 +8,7 @@ import java.util.function.Consumer;
 
 public class Response<T> extends CompletableFuture<T> {
 
+    private static final int TIMEOUT = 60;
     private enum State {WAITING, DONE, CANCELLED}
 
     private static final Object POISON_PILL = new Object();
@@ -57,7 +58,7 @@ public class Response<T> extends CompletableFuture<T> {
 
     @Override
     public T get() {
-        return get(20, TimeUnit.SECONDS);
+        return get(TIMEOUT, TimeUnit.SECONDS);
     }
 
     @Override
