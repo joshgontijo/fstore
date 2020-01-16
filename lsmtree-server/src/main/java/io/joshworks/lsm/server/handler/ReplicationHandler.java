@@ -2,7 +2,7 @@ package io.joshworks.lsm.server.handler;
 
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.internal.Pong;
-import io.joshworks.fstore.tcp.server.TypedEventHandler;
+import io.joshworks.fstore.tcp.handlers.TypedEventHandler;
 import io.joshworks.lsm.server.messages.Ack;
 import io.joshworks.lsm.server.messages.AssignReplica;
 import io.joshworks.lsm.server.messages.CreateNamespace;
@@ -16,9 +16,9 @@ public class ReplicationHandler extends TypedEventHandler {
     public ReplicationHandler(Replicas replicas) {
         this.replicas = replicas;
 
-        register(Replicate.class, this::replicate);
-        register(AssignReplica.class, this::initialize);
-        register(CreateNamespace.class, this::createNamespace);
+        on(Replicate.class, this::replicate);
+        on(AssignReplica.class, this::initialize);
+        on(CreateNamespace.class, this::createNamespace);
     }
 
     @Override

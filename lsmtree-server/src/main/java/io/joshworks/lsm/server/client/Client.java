@@ -3,7 +3,7 @@ package io.joshworks.lsm.server.client;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 import io.joshworks.fstore.tcp.TcpClientConnection;
-import io.joshworks.fstore.tcp.client.TcpEventClient;
+import io.joshworks.fstore.tcp.TcpEventClient;
 import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.lsm.server.messages.Ack;
 import io.joshworks.lsm.server.messages.Delete;
@@ -31,7 +31,7 @@ public class Client implements Closeable {
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_CORE_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
-                .bufferSize(Size.KB.ofInt(16))
+                .maxEventSize(Size.KB.ofInt(16))
                 .option(Options.SEND_BUFFER, Size.KB.ofInt(4))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(4))
                 .onEvent((connection, data) -> {

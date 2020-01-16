@@ -1,4 +1,4 @@
-package io.joshworks.fstore.tcp;
+package io.joshworks.fstore.tcp.internal;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

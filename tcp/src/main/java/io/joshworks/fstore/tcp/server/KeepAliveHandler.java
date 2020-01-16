@@ -1,6 +1,6 @@
 package io.joshworks.fstore.tcp.server;
 
-import io.joshworks.fstore.tcp.EventHandler;
+import io.joshworks.fstore.tcp.handlers.EventHandler;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.internal.KeepAlive;
 import org.slf4j.Logger;

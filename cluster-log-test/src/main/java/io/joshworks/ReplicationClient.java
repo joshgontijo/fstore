@@ -2,7 +2,7 @@ package io.joshworks;
 
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.tcp.TcpClientConnection;
-import io.joshworks.fstore.tcp.client.TcpEventClient;
+import io.joshworks.fstore.tcp.TcpEventClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

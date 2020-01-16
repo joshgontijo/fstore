@@ -2,8 +2,8 @@ package io.joshworks.fstore.network;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.tcp.TcpClientConnection;
-import io.joshworks.fstore.tcp.client.TcpEventClient;
+import io.joshworks.fstore.tcp.TcpConnection;
+import io.joshworks.fstore.tcp.TcpEventClient;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
@@ -19,13 +19,13 @@ public class Client {
 
     public static void main(String[] args) {
 
-        TcpClientConnection client = TcpEventClient.create()
+        TcpConnection client = TcpEventClient.create()
                 .option(Options.WORKER_NAME, "CLIENT-" + UUID.randomUUID().toString().substring(0, 3))
                 .option(Options.WORKER_IO_THREADS, 1)
                 .keepAlive(1, TimeUnit.SECONDS)
                 .option(Options.TCP_NODELAY, true)
                 .option(Options.SEND_BUFFER, Size.KB.ofInt(32))
-                .bufferSize(Size.KB.ofInt(32))
+                .maxEventSize(Size.KB.ofInt(32))
                 .onClose(conn -> System.out.println("CLIENT: closing connection " + conn))
                 .onEvent((connection, data) -> {
                     //do nothing

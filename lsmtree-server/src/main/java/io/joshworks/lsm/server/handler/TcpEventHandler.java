@@ -1,7 +1,7 @@
 package io.joshworks.lsm.server.handler;
 
 import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.fstore.tcp.server.TypedEventHandler;
+import io.joshworks.fstore.tcp.handlers.TypedEventHandler;
 import io.joshworks.lsm.server.LsmCluster;
 import io.joshworks.lsm.server.messages.Ack;
 import io.joshworks.lsm.server.messages.CreateNamespace;
@@ -17,10 +17,10 @@ public class TcpEventHandler extends TypedEventHandler {
     public TcpEventHandler(LsmCluster lsmtree) {
         this.lsmtree = lsmtree;
 
-        register(Put.class, this::put);
-        register(Get.class, this::get);
-        register(Delete.class, this::delete);
-        register(CreateNamespace.class, this::createNamespace);
+        on(Put.class, this::put);
+        on(Get.class, this::get);
+        on(Delete.class, this::delete);
+        on(CreateNamespace.class, this::createNamespace);
     }
 
     @Override
