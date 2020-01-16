@@ -46,7 +46,7 @@ public class SSTableTest {
                 Size.MB.of(100),
                 Serializers.INTEGER,
                 Serializers.VSTRING,
-                new ThreadLocalBufferPool("pool", Size.MB.ofInt(1), false),
+                new ThreadLocalBufferPool( Size.MB.ofInt(1), false),
                 WriteMode.LOG_HEAD,
                 NO_MAX_AGE,
                 Codec.noCompression(),

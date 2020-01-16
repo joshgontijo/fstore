@@ -12,20 +12,20 @@
     <modules>
         <module>core</module>
         <module>serializer</module>
-        <module>logstore</module>
+<!--        <module>logstore</module>-->
         <module>codec</module>
-        <module>event-store</module>
-        <module>es-server</module>
-        <module>lsmtree</module>
+<!--        <module>event-store</module>-->
+<!--        <module>es-server</module>-->
+<!--        <module>lsmtree</module>-->
         <module>tcp</module>
-        <module>es-client</module>
-        <module>es-shared</module>
-        <module>cli</module>
-        <module>metrics</module>
-        <module>eventry</module>
-        <module>lsmtree-server</module>
+<!--        <module>es-client</module>-->
+<!--        <module>es-shared</module>-->
+<!--        <module>cli</module>-->
+<!--        <module>metrics</module>-->
+<!--        <module>eventry</module>-->
+<!--        <module>lsmtree-server</module>-->
         <module>cluster</module>
-        <module>cluster-log-test</module>
+<!--        <module>cluster-log-test</module>-->
         <module>indexed-log</module>
         <module>netty-test</module>
     </modules>

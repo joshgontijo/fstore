@@ -29,7 +29,7 @@ public class DataFile<T> implements Flushable, Closeable {
         Storage storage = null;
         try {
             this.storage = storage = Storage.createOrOpen(handler, mmap ? StorageMode.MMAP : StorageMode.RAF, initialSize);
-            this.stream = new DataStream(new ThreadLocalBufferPool(handler.getName() + "-pool", maxEntrySize, false), storage, 1, Memory.PAGE_SIZE * 4);
+            this.stream = new DataStream(new ThreadLocalBufferPool(maxEntrySize, false), storage, 1, Memory.PAGE_SIZE * 4);
             this.serializer = serializer;
         } catch (Exception e) {
             IOUtils.closeQuietly(storage);

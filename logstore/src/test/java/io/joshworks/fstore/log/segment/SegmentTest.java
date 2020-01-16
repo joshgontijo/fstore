@@ -556,7 +556,7 @@ public abstract class SegmentTest {
                 StorageMode.MMAP,
                 SEGMENT_SIZE,
                 Serializers.STRING,
-                new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
+                new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
                 WriteMode.MERGE_OUT,
                 CHECKSUM_PROB);
     }
@@ -570,7 +570,7 @@ public abstract class SegmentTest {
                     StorageMode.RAF_CACHED,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
+                    new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB);
         }
@@ -585,7 +585,7 @@ public abstract class SegmentTest {
                     StorageMode.MMAP,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
+                    new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB);
         }
@@ -600,7 +600,7 @@ public abstract class SegmentTest {
                     StorageMode.RAF,
                     SEGMENT_SIZE,
                     Serializers.STRING,
-                    new ThreadLocalBufferPool("pool", MAX_ENTRY_SIZE, false),
+                    new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false),
                     WriteMode.LOG_HEAD,
                     CHECKSUM_PROB);
         }
