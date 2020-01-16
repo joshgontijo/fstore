@@ -1,6 +1,6 @@
 package io.joshworks.fstore.network;
 
-public interface IRpcHandler {
+public interface RpcProxy {
 
     void doSomething();
 
