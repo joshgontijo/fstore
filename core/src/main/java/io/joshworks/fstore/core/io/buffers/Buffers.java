@@ -56,6 +56,26 @@ public class Buffers {
         copy(src, src.position(), src.remaining(), dst);
     }
 
+    public static int copy(final ByteBuffer destination, final ByteBuffer[] sources, final int offset, final int length) {
+        int t = 0;
+        for (int i = 0; i < length; i ++) {
+            final ByteBuffer buffer = sources[i + offset];
+            final int rem = buffer.remaining();
+            if (rem == 0) {
+                continue;
+            } else if (rem > destination.remaining()) {
+                t += destination.remaining();
+                copy(buffer, buffer.position(), destination.remaining(), destination);
+//                destination.put(slice(buffer, destination.remaining()));
+                return t;
+            } else {
+                destination.put(buffer);
+                t += rem;
+            }
+        }
+        return t;
+    }
+
     public static void offsetPosition(ByteBuffer buffer, int offset) {
         buffer.position(buffer.position() + (offset));
     }

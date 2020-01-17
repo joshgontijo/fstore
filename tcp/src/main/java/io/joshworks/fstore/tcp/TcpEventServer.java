@@ -1,6 +1,5 @@
 package io.joshworks.fstore.tcp;
 
-import io.joshworks.fstore.core.io.buffers.StupidPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
@@ -14,11 +13,14 @@ import io.joshworks.fstore.tcp.internal.ResponseTable;
 import io.joshworks.fstore.tcp.server.KeepAliveHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xnio.BufferAllocator;
+import org.xnio.ByteBufferSlicePool;
 import org.xnio.ChannelListener;
 import org.xnio.IoUtils;
 import org.xnio.Option;
 import org.xnio.OptionMap;
 import org.xnio.Options;
+import org.xnio.Pool;
 import org.xnio.StreamConnection;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
@@ -46,7 +48,6 @@ public class TcpEventServer implements Closeable {
 
     private final XnioWorker worker;
     private final AcceptingChannel<StreamConnection> channel;
-    private final int maxMessageSize;
     private final long idleTimeout;
     private final Consumer<TcpConnection> onConnect;
     private final Consumer<TcpConnection> onClose;
@@ -59,8 +60,6 @@ public class TcpEventServer implements Closeable {
     public TcpEventServer(
             OptionMap options,
             InetSocketAddress bindAddress,
-            int readPoolSize,
-            int writePoolSize,
             int maxMessageSize,
             long idleTimeout,
             Consumer<TcpConnection> onOpen,
@@ -68,18 +67,16 @@ public class TcpEventServer implements Closeable {
             Consumer<TcpConnection> onIdle,
             EventHandler handler) {
 
-        this.maxMessageSize = maxMessageSize;
         this.idleTimeout = idleTimeout;
         this.onConnect = onOpen;
         this.onClose = onClose;
         this.onIdle = onIdle;
         this.handler = handler;
 
-        StupidPool readPool = new StupidPool(readPoolSize, maxMessageSize);
-        StupidPool appPool = new StupidPool(readPoolSize, maxMessageSize);
-        StupidPool writePool = new StupidPool(writePoolSize, maxMessageSize);
-
-        Acceptor acceptor = new Acceptor(idleTimeout, readPool, writePool, appPool);
+        int bufferPerRegion = 128;
+        int regionSize = maxMessageSize * bufferPerRegion;
+        Pool<ByteBuffer> messagePool = new ByteBufferSlicePool(BufferAllocator.BYTE_BUFFER_ALLOCATOR, maxMessageSize, regionSize);
+        Acceptor acceptor = new Acceptor(idleTimeout, messagePool);
 
         XnioWorker worker = null;
         try {
@@ -178,15 +175,11 @@ public class TcpEventServer implements Closeable {
     private class Acceptor implements ChannelListener<AcceptingChannel<StreamConnection>> {
 
         private final long timeout;
-        private final StupidPool writePool;
-        private final StupidPool readPool;
-        private final StupidPool appPool;
+        private final Pool<ByteBuffer> messagePool;
 
-        Acceptor(long timeout, StupidPool readPool, StupidPool writePool, StupidPool appPool) {
+        Acceptor(long timeout, Pool<ByteBuffer> messagePool) {
             this.timeout = timeout;
-            this.readPool = readPool;
-            this.writePool = writePool;
-            this.appPool = appPool;
+            this.messagePool = messagePool;
         }
 
         @Override
@@ -194,7 +187,7 @@ public class TcpEventServer implements Closeable {
             StreamConnection conn = null;
             try {
                 while ((conn = channel.accept()) != null) {
-                    var tcpConnection = new TcpConnection(conn, writePool, responseTable);
+                    var tcpConnection = new TcpConnection(conn, messagePool, responseTable);
                     connections.put(conn, tcpConnection);
                     log.info("Connection accepted: {}", tcpConnection.peerAddress());
 
@@ -207,19 +200,19 @@ public class TcpEventServer implements Closeable {
                     ConduitPipeline pipeline = new ConduitPipeline(conn);
                     pipeline.closeListener(TcpEventServer.this::onClose);
                     //---------- source
-                    pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, maxMessageSize, readPool));
+                    pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, messagePool.allocate()));
                     pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
 
                     //---------- sink
+                    pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, messagePool.allocate()));
                     pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
-                    pipeline.addStreamSink(FramingMessageSinkConduit::new);
 
                     //---------- listeners
                     EventHandler responseHandler = new ResponseHandler(handler, responseTable);
                     EventHandler keepAliveHandler = new KeepAliveHandler(responseHandler);
-                    ReadHandler readHandler = new ReadHandler(tcpConnection, keepAliveHandler, appPool);
+                    ReadListener readListener = new ReadListener(tcpConnection, keepAliveHandler, messagePool);
 
-                    pipeline.readListener(readHandler);
+                    pipeline.readListener(readListener);
 
                     conn.getSourceChannel().resumeReads();
                     conn.getSinkChannel().resumeWrites();
@@ -254,8 +247,6 @@ public class TcpEventServer implements Closeable {
         private EventHandler handler = new DiscardEventHandler();
         private long timeout = -1;
         private int bufferSize = Size.KB.ofInt(64);
-        private int writePoolSize = 10;
-        private int readPoolSize = 10;
 
         public Builder() {
 
@@ -271,20 +262,10 @@ public class TcpEventServer implements Closeable {
             return this;
         }
 
-        public Builder readBufferPoolCapacity(int readPoolSize) {
-            this.readPoolSize = readPoolSize;
-            return this;
-        }
-
-        public Builder writeBufferPoolCapacity(int writePoolSize) {
-            this.writePoolSize = writePoolSize;
-            return this;
-        }
-
         /**
          * Maximum event size
          */
-        public Builder maxEventSize(int maxEventSize) {
+        public Builder maxMessageSize(int maxEventSize) {
             if (bufferSize <= 0) {
                 throw new IllegalArgumentException("Buffer size must be greater than zero");
             }
@@ -325,8 +306,6 @@ public class TcpEventServer implements Closeable {
             return new TcpEventServer(
                     options.getMap(),
                     bindAddress,
-                    readPoolSize,
-                    writePoolSize,
                     bufferSize,
                     timeout,
                     onOpen,

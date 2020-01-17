@@ -1,15 +1,13 @@
-package io.joshworks.fstore.network;
+package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.fstore.tcp.TcpEventServer;
-import io.joshworks.fstore.tcp.TcpEventClient;
-import io.joshworks.fstore.tcp.handlers.TypedEventHandler;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
@@ -21,7 +19,7 @@ public class TcpTest {
     public static final String HOST = "localhost";
     public static final int PORT = 12344;
 
-    private static final int ITEMS = 1000000;
+    private static final int ITEMS = Integer.MAX_VALUE;
     private static final int CLIENTS = 1;
 
     private static final List<TcpConnection> clientConnections = new ArrayList<>();
@@ -30,13 +28,13 @@ public class TcpTest {
 
         TcpEventServer server = TcpEventServer.create()
                 .idleTimeout(10, TimeUnit.SECONDS)
-                .maxEventSize(Size.KB.ofInt(32))
+                .maxMessageSize(Size.KB.ofInt(32))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(32))
                 .option(Options.WORKER_NAME, "server")
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_CORE_THREADS, 3)
                 .option(Options.TCP_NODELAY, true)
-                .onEvent(TypedEventHandler.builder().build())
+//                .onEvent(TypedEventHandler.builder().build())
                 .start(new InetSocketAddress(HOST, PORT));
 
 
@@ -46,7 +44,7 @@ public class TcpTest {
                     .option(Options.WORKER_IO_THREADS, 1)
                     .option(Options.TCP_NODELAY, true)
                     .option(Options.SEND_BUFFER, Size.KB.ofInt(32))
-                    .maxEventSize(Size.KB.ofInt(32))
+                    .maxMessageSize(Size.KB.ofInt(32))
                     .onClose(conn -> System.out.println("CLIENT: closing connection " + conn))
                     .onEvent((connection, data) -> {
                         //do nothing
@@ -54,17 +52,16 @@ public class TcpTest {
                     .connect(new InetSocketAddress(HOST, PORT), 5, TimeUnit.SECONDS);
             clientConnections.add(client);
             long start = System.currentTimeMillis();
+            byte[] bytes = new byte[256];
+            Arrays.fill(bytes, (byte) 1);
+                ByteBuffer wrap = ByteBuffer.wrap(bytes);
             for (int i = 0; i < ITEMS; i++) {
-                try {
-                    client.request(new Payload(String.valueOf(i))).get();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-//                Ack ack = response.get();
+                client.sendAndFlush(wrap);
+                wrap.clear();
             }
             System.out.println("COMPLETED IN " + (System.currentTimeMillis() - start));
-            Threads.sleep(1000);
-            client.close();
+            Threads.sleep(100000);
+//            client.close();
         };
 
         ExecutorService executor = Executors.newFixedThreadPool(CLIENTS);
@@ -104,7 +101,7 @@ public class TcpTest {
         executor.shutdown();
 
         System.out.println("CLOSING SERVER");
-        server.close();
+//        server.close();
     }
 
 

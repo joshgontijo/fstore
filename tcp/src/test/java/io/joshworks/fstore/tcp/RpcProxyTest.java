@@ -1,8 +1,5 @@
-package io.joshworks.fstore.network;
+package io.joshworks.fstore.tcp;
 
-import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.fstore.tcp.TcpEventClient;
-import io.joshworks.fstore.tcp.TcpEventServer;
 import io.joshworks.fstore.tcp.handlers.TypedEventHandler;
 import io.joshworks.fstore.tcp.internal.Response;
 

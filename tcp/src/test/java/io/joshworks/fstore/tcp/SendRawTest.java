@@ -1,4 +1,4 @@
-package io.joshworks.fstore.network;
+package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.tcp.TcpConnection;
@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class PushRawTest {
+public class SendRawTest {
 
     private static final String HOST = "localhost";
     private static final int PORT = 9999;
@@ -27,21 +27,22 @@ public class PushRawTest {
     private TcpEventServer server;
     private TcpConnection client;
 
-    private static final String MESSAGE = "Hello push raw event!";
+    private static final String MESSAGE = "Hello event!";
     private CountDownLatch latch = new CountDownLatch(1);
     private AtomicReference<String> received = new AtomicReference<>();
 
     @Before
     public void setUp() {
-        server = TcpEventServer.create().start(new InetSocketAddress(HOST, PORT));
-        client = TcpEventClient.create()
+        server = TcpEventServer.create()
                 .onEvent((conn, data) -> {
                     ByteBuffer buff = (ByteBuffer) data;
                     CharBuffer charBuff = StandardCharsets.UTF_8.decode(buff);
                     received.set(charBuff.toString());
                     latch.countDown();
                 })
-                .connect(new InetSocketAddress(HOST, PORT), 5, TimeUnit.SECONDS);
+                .start(new InetSocketAddress(HOST, PORT));
+
+        client = TcpEventClient.create().connect(new InetSocketAddress(HOST, PORT), 5, TimeUnit.SECONDS);
 
     }
 
@@ -52,8 +53,8 @@ public class PushRawTest {
     }
 
     @Test
-    public void pushRaw() throws InterruptedException {
-        server.broadcast(ByteBuffer.wrap(MESSAGE.getBytes(StandardCharsets.UTF_8)));
+    public void sendRaw() throws InterruptedException {
+        client.send(ByteBuffer.wrap(MESSAGE.getBytes(StandardCharsets.UTF_8)));
 
         if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("Didnt receive message from the server");
