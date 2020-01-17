@@ -1,29 +1,32 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.StupidPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.tcp.client.KeepAliveConduit;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
-import io.joshworks.fstore.tcp.conduits.FramingMessageSinkConduit;
-import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
 import io.joshworks.fstore.tcp.handlers.DiscardEventHandler;
 import io.joshworks.fstore.tcp.handlers.EventHandler;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xnio.BufferAllocator;
+import org.xnio.ByteBufferSlicePool;
 import org.xnio.ChannelListener;
 import org.xnio.IoFuture;
 import org.xnio.Option;
 import org.xnio.OptionMap;
 import org.xnio.Options;
+import org.xnio.Pool;
 import org.xnio.StreamConnection;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
+import org.xnio.conduits.FramingMessageSinkConduit;
+import org.xnio.conduits.FramingMessageSourceConduit;
 
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -36,15 +39,12 @@ public class TcpEventClient {
     private static final Logger log = LoggerFactory.getLogger(TcpEventClient.class);
 
     private final InetSocketAddress bindAddress;
-    private final int maxMessageSize;
     private final long keepAliveInterval;
     private final Consumer<TcpConnection> onClose;
     private final EventHandler eventHandler;
     private final XnioWorker worker;
 
-    private final StupidPool writePool;
-    private final StupidPool readPool;
-    private final StupidPool appPool;
+    private final Pool<ByteBuffer> messagePool;
     private transient TcpConnection tcpConnection;
     private final CountDownLatch connectLatch = new CountDownLatch(1);
 
@@ -52,18 +52,16 @@ public class TcpEventClient {
 
     private TcpEventClient(OptionMap options,
                            InetSocketAddress bindAddress,
-                           int readPoolSize,
-                           int writePoolSize,
                            int maxMessageSize,
                            long keepAliveInterval,
                            Consumer<TcpConnection> onClose,
                            EventHandler handler) {
 
+        int bufferPerRegion = 128;
+        int regionSize = maxMessageSize * bufferPerRegion;
+        this.messagePool = new ByteBufferSlicePool(BufferAllocator.BYTE_BUFFER_ALLOCATOR, maxMessageSize, regionSize);
+
         this.bindAddress = bindAddress;
-        this.maxMessageSize = maxMessageSize;
-        this.readPool = new StupidPool(readPoolSize, maxMessageSize);
-        this.appPool = new StupidPool(readPoolSize, maxMessageSize);
-        this.writePool = new StupidPool(writePoolSize, maxMessageSize);
         this.keepAliveInterval = keepAliveInterval;
         this.onClose = onClose;
         this.eventHandler = handler;
@@ -107,24 +105,24 @@ public class TcpEventClient {
 
         @Override
         public void handleEvent(StreamConnection channel) {
-            tcpConnection = new TcpConnection(channel, writePool, responseTable);
+            tcpConnection = new TcpConnection(channel, messagePool, responseTable);
 
             channel.setCloseListener(conn -> onClose.accept(tcpConnection));
 
             ConduitPipeline pipeline = new ConduitPipeline(channel);
-            pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, maxMessageSize, readPool));
+            pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, messagePool.allocate()));
             pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
 
+            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, true, messagePool.allocate()));
             pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
-            pipeline.addStreamSink(FramingMessageSinkConduit::new);
 
             if (keepAliveInterval > 0) {
                 new KeepAliveConduit(channel, keepAliveInterval); //adds to source and sink
             }
 
             ResponseHandler responseHandler = new ResponseHandler(eventHandler, responseTable);
-            ReadHandler readHandler = new ReadHandler(tcpConnection, responseHandler, appPool);
-            pipeline.readListener(readHandler);
+            ReadListener readListener = new ReadListener(tcpConnection, responseHandler, messagePool);
+            pipeline.readListener(readListener);
 
             channel.setCloseListener(conn -> responseTable.clear());
 
@@ -147,8 +145,6 @@ public class TcpEventClient {
         private EventHandler handler = new DiscardEventHandler();
         private long keepAliveInterval = -1;
         private int bufferSize = Size.MB.ofInt(1);
-        private int readPoolSize = 50;
-        private int writePoolSize = 50;
 
         private Builder() {
 
@@ -156,16 +152,6 @@ public class TcpEventClient {
 
         public <T> Builder option(Option<T> key, T value) {
             options.set(key, value);
-            return this;
-        }
-
-        public Builder readBufferPoolCapacity(int readPoolSize) {
-            this.readPoolSize = readPoolSize;
-            return this;
-        }
-
-        public Builder writeBufferPoolCapacity(int writePoolSize) {
-            this.writePoolSize = writePoolSize;
             return this;
         }
 
@@ -177,7 +163,7 @@ public class TcpEventClient {
         /**
          * Maximum event size
          */
-        public Builder maxEventSize(int bufferSize) {
+        public Builder maxMessageSize(int bufferSize) {
             if (bufferSize <= 0) {
                 throw new IllegalArgumentException("Buffer size must be greater than zero");
             }
@@ -206,8 +192,6 @@ public class TcpEventClient {
         public TcpConnection connect(InetSocketAddress bindAddress, long timeout, TimeUnit unit) {
             TcpEventClient client = new TcpEventClient(options.getMap(),
                     bindAddress,
-                    readPoolSize,
-                    writePoolSize,
                     bufferSize,
                     keepAliveInterval,
                     onClose,

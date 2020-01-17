@@ -1,4 +1,4 @@
-package io.joshworks.fstore.network;
+package io.joshworks.fstore.tcp;
 
 public interface RpcProxy {
 

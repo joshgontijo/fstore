@@ -1,4 +1,4 @@
-package io.joshworks.fstore.network.old_io;
+package io.joshworks.fstore.tcp.old_io;
 
 import java.io.IOException;
 import java.io.OutputStream;

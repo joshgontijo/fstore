@@ -1,88 +1,110 @@
 package io.joshworks.fstore.tcp.conduits;
 
-import io.joshworks.fstore.core.io.buffers.StupidPool;
-import org.xnio.conduits.AbstractStreamSinkConduit;
+import org.xnio.Buffers;
+import org.xnio.Pooled;
+import org.xnio.conduits.AbstractSinkConduit;
+import org.xnio.conduits.Conduits;
+import org.xnio.conduits.MessageSinkConduit;
 import org.xnio.conduits.StreamSinkConduit;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-public class FramingMessageSinkConduit extends AbstractStreamSinkConduit<StreamSinkConduit> {
+import static org.xnio._private.Messages.msg;
 
-    private final StupidPool pool = new StupidPool(100, Integer.BYTES);
+public class FramingMessageSinkConduit extends AbstractSinkConduit<StreamSinkConduit> implements MessageSinkConduit {
 
-    public FramingMessageSinkConduit(StreamSinkConduit next) {
+    public static final int LENGTH_LENGTH = Integer.BYTES;
+    private final Pooled<ByteBuffer> transmitBuffer;
+
+    /**
+     * Construct a new instance.
+     *
+     * @param next           the delegate conduit to set
+     * @param transmitBuffer the transmit buffer to use
+     */
+    public FramingMessageSinkConduit(final StreamSinkConduit next, final Pooled<ByteBuffer> transmitBuffer) {
         super(next);
+        this.transmitBuffer = transmitBuffer;
+    }
+
+    public boolean send(final ByteBuffer src) throws IOException {
+        if (!src.hasRemaining()) {
+            // no zero messages
+            return false;
+        }
+        final ByteBuffer transmitBuffer = this.transmitBuffer.getResource();
+        final int remaining = src.remaining();
+        if (remaining > transmitBuffer.capacity() - LENGTH_LENGTH) {
+            throw msg.txMsgTooLarge();
+        }
+        if (transmitBuffer.remaining() < LENGTH_LENGTH + remaining && !writeBuffer()) {
+            return false;
+        }
+        transmitBuffer.putInt(remaining);
+        transmitBuffer.put(src);
+        writeBuffer();
+        return true;
+    }
+
+    public boolean send(final ByteBuffer[] srcs, final int offs, final int len) throws IOException {
+        if (len == 1) {
+            return send(srcs[offs]);
+        } else if (!Buffers.hasRemaining(srcs, offs, len)) {
+            return false;
+        }
+        final ByteBuffer transmitBuffer = this.transmitBuffer.getResource();
+        final long remaining = Buffers.remaining(srcs, offs, len);
+        if (remaining > transmitBuffer.capacity() - LENGTH_LENGTH) {
+            throw msg.txMsgTooLarge();
+        }
+        if (transmitBuffer.remaining() < LENGTH_LENGTH + remaining && !writeBuffer()) {
+            return false;
+        }
+        transmitBuffer.putInt((int) remaining);
+        io.joshworks.fstore.core.io.buffers.Buffers.copy(transmitBuffer, srcs, offs, len);
+        writeBuffer();
+        return true;
     }
 
     @Override
-    public int write(ByteBuffer src) throws IOException {
-        ByteBuffer lenBuffer = pool.allocate();
-        try {
-            ByteBuffer b = lenBuffer.putInt(src.remaining()).flip();
-            long written = super.write(new ByteBuffer[]{b, src}, 0, 2);
-            if (written > Integer.MAX_VALUE) {
-                throw new IllegalStateException("Written bytes was greater than " + Integer.MAX_VALUE);
-            }
-            return (int) written;
-        } finally {
-            pool.free(lenBuffer);
-        }
+    public boolean sendFinal(ByteBuffer src) throws IOException {
+        //TODO: non-naive implementation
+        return Conduits.sendFinalBasic(this, src);
     }
 
     @Override
-    public long write(ByteBuffer[] srcs, int offs, int len) throws IOException {
-        ByteBuffer lenBuffer = pool.allocate();
-        try {
-            ByteBuffer[] withLen = new ByteBuffer[len];
-            int j = 0;
-            int totalLen = 0;
-            withLen[j++] = lenBuffer;
-            for (int i = offs; i < len; i++, j++) {
-                ByteBuffer src = srcs[i];
-                totalLen += src.remaining();
-                withLen[j] = srcs[i];
-            }
-            withLen[0].putInt(totalLen).flip();
-            return super.write(withLen, 0, withLen.length);
+    public boolean sendFinal(ByteBuffer[] srcs, int offs, int len) throws IOException {
+        return Conduits.sendFinalBasic(this, srcs, offs, len);
+    }
 
+    private boolean writeBuffer() throws IOException {
+        final ByteBuffer buffer = transmitBuffer.getResource();
+        if (buffer.position() > 0) buffer.flip();
+        try {
+            while (buffer.hasRemaining()) {
+                final int res = next.write(buffer);
+                if (res == 0) {
+                    return false;
+                }
+            }
+            return true;
         } finally {
-            pool.free(lenBuffer);
+            buffer.compact();
         }
     }
 
-    @Override
-    public int writeFinal(ByteBuffer src) throws IOException {
-        ByteBuffer lenBuffer = pool.allocate();
-        try {
-            ByteBuffer b = lenBuffer.putInt(src.remaining()).flip();
-            long written = super.writeFinal(new ByteBuffer[]{b, src}, 0, 2);
-            if (written > Integer.MAX_VALUE) {
-                throw new IllegalStateException("Written bytes was greater than " + Integer.MAX_VALUE);
-            }
-            return (int) written;
-        } finally {
-            pool.free(lenBuffer);
-        }
+    public boolean flush() throws IOException {
+        return writeBuffer() && next.flush();
     }
 
-    @Override
-    public long writeFinal(ByteBuffer[] srcs, int offset, int len) throws IOException {
-        ByteBuffer lenBuffer = pool.allocate();
-        try {
-            ByteBuffer[] withLen = new ByteBuffer[len];
-            int j = 0;
-            int totalLen = 0;
-            withLen[j++] = lenBuffer;
-            for (int i = offset; i < len; i++, j++) {
-                ByteBuffer src = srcs[i];
-                totalLen += src.remaining();
-                withLen[j] = srcs[i];
-            }
-            withLen[0].putInt(totalLen).flip();
-            return super.write(withLen, 0, withLen.length);
-        } finally {
-            pool.free(lenBuffer);
-        }
+    public void terminateWrites() throws IOException {
+        transmitBuffer.free();
+        next.terminateWrites();
+    }
+
+    public void truncateWrites() throws IOException {
+        transmitBuffer.free();
+        next.truncateWrites();
     }
 }

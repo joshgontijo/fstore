@@ -1,7 +1,6 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.StupidPool;
 import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 import io.joshworks.fstore.tcp.internal.Message;
 import io.joshworks.fstore.tcp.internal.Response;
@@ -10,6 +9,8 @@ import io.joshworks.fstore.tcp.internal.RpcEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.IoUtils;
+import org.xnio.Pool;
+import org.xnio.Pooled;
 import org.xnio.StreamConnection;
 import org.xnio.XnioWorker;
 import org.xnio.channels.Channels;
@@ -24,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import static java.util.Objects.requireNonNull;
 
@@ -31,20 +33,25 @@ public class TcpConnection implements Closeable {
 
     public static final Logger log = LoggerFactory.getLogger(TcpConnection.class);
 
+    private static final AtomicLongFieldUpdater<TcpConnection> bytesSentUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "bytesSent");
+    private static final AtomicLongFieldUpdater<TcpConnection> bytesReceivedUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "bytesReceived");
+    private static final AtomicLongFieldUpdater<TcpConnection> messagesSentUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "messagesSent");
+    private static final AtomicLongFieldUpdater<TcpConnection> messagesReceivedUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "messagesReceived");
+
     private final StreamConnection connection;
-    private final StupidPool writePool;
     private final ResponseTable responseTable;
     private final AtomicLong reqids = new AtomicLong();
     private final long since = System.currentTimeMillis();
-    private long bytesSent;
-    private long bytesReceived;
-    private long messagesSent;
-    private long messagesReceived;
+    private volatile long bytesSent;
+    private volatile long bytesReceived;
+    private volatile long messagesSent;
+    private volatile long messagesReceived;
+    private final Pooled<ByteBuffer> pooled;
 
-    public TcpConnection(StreamConnection connection, StupidPool writePool, ResponseTable responseTable) {
+    public TcpConnection(StreamConnection connection, Pool<ByteBuffer> writePool, ResponseTable responseTable) {
         this.connection = connection;
-        this.writePool = writePool;
         this.responseTable = responseTable;
+        pooled = writePool.allocate();
     }
 
     public <T, R> Response<R> request(T data) {
@@ -57,6 +64,7 @@ public class TcpConnection implements Closeable {
     }
 
     //--------------------- RPC ------------
+
     /**
      * Expects a return from the server, calling void methods will return null
      */
@@ -122,29 +130,29 @@ public class TcpConnection implements Closeable {
 
     private void writeObject(Object data, boolean flush) {
         requireNonNull(data, "Data must node be null");
-        ByteBuffer buffer = writePool.allocate();
-        try {
-            KryoSerializer.serialize(data, buffer);
-            buffer.flip();
-            write(buffer, flush);
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to write " + data, e);
-        } finally {
-            writePool.free(buffer);
+        synchronized (this) {
+            ByteBuffer buffer = pooled.getResource().clear();
+            try {
+                KryoSerializer.serialize(data, buffer);
+                buffer.flip();
+                write(buffer, flush);
+            } catch (IOException e) {
+                throw new RuntimeIOException("Failed to write " + data, e);
+            }
         }
     }
 
     private void writeBytes(byte[] bytes, boolean flush) {
         requireNonNull(bytes, "Data must node be null");
-        ByteBuffer buffer = writePool.allocate();
-        try {
-            buffer.put(bytes);
-            buffer.flip();
-            write(buffer, flush);
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to write data", e);
-        } finally {
-            writePool.free(buffer);
+        synchronized (this) {
+            ByteBuffer buffer = pooled.getResource().clear();
+            try {
+                buffer.put(bytes);
+                buffer.flip();
+                write(buffer, flush);
+            } catch (IOException e) {
+                throw new RuntimeIOException("Failed to write data", e);
+            }
         }
     }
 
@@ -153,9 +161,11 @@ public class TcpConnection implements Closeable {
         if (!sink.isOpen()) {
             throw new IllegalStateException("Closed channel");
         }
-        Channels.writeBlocking(sink, buffer);
-        if (flush) {
-            Channels.flushBlocking(sink);
+        synchronized (this) {
+            Channels.writeBlocking(sink, buffer);
+            if (flush) {
+                Channels.flushBlocking(sink);
+            }
         }
         incrementMessageSent();
     }
@@ -179,11 +189,11 @@ public class TcpConnection implements Closeable {
 
 
     void updateBytesSent(long bytes) {
-        this.bytesSent += bytes;
+        bytesSentUpdater.addAndGet(this, bytes);
     }
 
     void updateBytesReceived(long bytes) {
-        this.bytesReceived += bytes;
+        bytesReceivedUpdater.addAndGet(this, bytes);
     }
 
     XnioWorker worker() {
@@ -195,11 +205,11 @@ public class TcpConnection implements Closeable {
     }
 
     public void incrementMessageReceived() {
-        messagesReceived++;
+        messagesReceivedUpdater.incrementAndGet(this);
     }
 
     public void incrementMessageSent() {
-        messagesSent++;
+        messagesSentUpdater.incrementAndGet(this);
     }
 
     public long messagesSent() {

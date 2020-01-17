@@ -1,10 +1,7 @@
-package io.joshworks.fstore.network;
+package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.fstore.tcp.TcpEventServer;
-import io.joshworks.fstore.tcp.TcpEventClient;
 import io.joshworks.fstore.tcp.handlers.DiscardEventHandler;
 import org.xnio.Options;
 
@@ -49,7 +46,7 @@ public class TcpTest2 {
                 .onClose(conn -> System.out.println("SERVER: Connection closed"))
                 .onIdle(conn -> System.out.println("SERVER: Connection idle"))
                 .idleTimeout(10, TimeUnit.SECONDS)
-                .maxEventSize(Size.KB.ofInt(4))
+                .maxMessageSize(Size.KB.ofInt(4))
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(4))
                 .option(Options.SEND_BUFFER, Size.KB.ofInt(8))
                 .option(Options.TCP_NODELAY, true)
@@ -68,7 +65,7 @@ public class TcpTest2 {
                     .option(Options.WORKER_IO_THREADS, 1)
                     .option(Options.TCP_NODELAY, true)
                     .option(Options.SEND_BUFFER, Size.KB.ofInt(4))
-                    .maxEventSize(Size.KB.ofInt(4))
+                    .maxMessageSize(Size.KB.ofInt(4))
                     .onClose(conn -> System.out.println("CLIENT: closing connection " + conn))
                     .onEvent((connection, data) -> {
                         //do nothing
