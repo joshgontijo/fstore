@@ -1,10 +1,10 @@
-package io.joshworks.fstore.tcp.handlers;
+package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.serializer.kryo.KryoSerializer;
-import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.internal.ErrorMessage;
 import io.joshworks.fstore.tcp.internal.Message;
 import io.joshworks.fstore.tcp.internal.NullMessage;
+import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.fstore.tcp.internal.RpcEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,10 +76,7 @@ public class TypedEventHandler {
             try {
                 data = deserialize((ByteBuffer) data);
                 if (data instanceof Message) { //request response
-                    Message msg = (Message) data;
-                    Object resp = handlers.getOrDefault(msg.data.getClass(), NO_OP).apply(connection, msg.data);
-                    Object res = resp == null ? new NullMessage() : resp;
-                    connection.send(new Message(msg.id, res));
+                    handleRequestResponseMessage(connection, (Message) data);
                     return;
                 }
                 Object resp = handlers.getOrDefault(data.getClass(), NO_OP).apply(connection, data);
@@ -89,8 +86,21 @@ public class TypedEventHandler {
             } catch (Exception e) {
                 logger.error("Error handling event " + data.getClass().getSimpleName(), e);
                 ErrorMessage error = new ErrorMessage(e.getMessage());
-                connection.send(error);
+                connection.send(error, false);
             }
+        }
+
+        private void handleRequestResponseMessage(TcpConnection connection, Message msg) {
+            Response<?> response = connection.responseTable.remove(msg.id);
+            if (response != null) {//is a response message complete and return
+                response.complete(msg.data);
+                return;
+            }
+
+            //request message, send a response
+            Object resp = handlers.getOrDefault(msg.data.getClass(), NO_OP).apply(connection, msg.data);
+            Object res = resp == null ? new NullMessage() : resp;
+            connection.send(new Message(msg.id, res), false);
         }
 
         private Object deserialize(ByteBuffer buffer) {

@@ -3,7 +3,7 @@ package io.joshworks.fstore.codec.test;
 import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.codec.std.DeflaterCodec;
-import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.util.Size;
 import org.junit.Before;
 import org.junit.Test;

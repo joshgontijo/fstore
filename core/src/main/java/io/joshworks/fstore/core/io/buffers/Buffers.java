@@ -27,6 +27,9 @@ public class Buffers {
     }
 
     public static int copy(ByteBuffer src, int srcStart, int count, ByteBuffer dst) {
+        if (count == 0) {
+            return 0;
+        }
 
         int i = 0;
         while ((count - i) >= Long.BYTES) {
@@ -49,16 +52,25 @@ public class Buffers {
         return i;
     }
 
-    public static void copy(ByteBuffer src, ByteBuffer dst) {
+    public static int copy(ByteBuffer src, ByteBuffer dst) {
         if (src.remaining() > dst.remaining()) {
             throw new BufferOverflowException();
         }
-        copy(src, src.position(), src.remaining(), dst);
+        return copy(src, src.position(), src.remaining(), dst);
     }
 
+    /**
+     * Copy as many bytes as possible from {@code sources} into {@code destination} in a "gather" fashion.
+     *
+     * @param destination the destination buffer
+     * @param sources     the source buffers
+     * @param offset      the offset into the source buffers array
+     * @param length      the number of buffers to read from
+     * @return the number of bytes put into the destination buffers
+     */
     public static int copy(final ByteBuffer destination, final ByteBuffer[] sources, final int offset, final int length) {
         int t = 0;
-        for (int i = 0; i < length; i ++) {
+        for (int i = 0; i < length; i++) {
             final ByteBuffer buffer = sources[i + offset];
             final int rem = buffer.remaining();
             if (rem == 0) {
@@ -71,6 +83,35 @@ public class Buffers {
             } else {
                 destination.put(buffer);
                 t += rem;
+            }
+        }
+        return t;
+    }
+
+    /**
+     * Copy as many bytes as possible from {@code sources} into {@code destinations} in a "scatter" fashion.
+     *
+     * @param destinations the destination buffers
+     * @param offset       the offset into the destination buffers array
+     * @param length       the number of buffers to update
+     * @param source       the source buffer
+     * @return the number of bytes put into the destination buffers
+     */
+    public static int copy(final ByteBuffer[] destinations, final int offset, final int length, final ByteBuffer source) {
+        int t = 0;
+        for (int i = 0; i < length; i++) {
+            final ByteBuffer dst = destinations[i + offset];
+            final int rem = dst.remaining();
+            if (rem == 0) {
+                continue;
+            } else if (rem < source.remaining()) {
+                copy(source, source.position(), dst.remaining(), dst);
+//                buffer.put(slice(source, rem));
+                t += rem;
+            } else {
+                t += source.remaining();
+                dst.put(source);
+                return t;
             }
         }
         return t;

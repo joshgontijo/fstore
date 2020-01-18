@@ -1,6 +1,6 @@
 package io.joshworks.fstore.codec.snappy;
 
-import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.codec.Codec;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4SafeDecompressor;

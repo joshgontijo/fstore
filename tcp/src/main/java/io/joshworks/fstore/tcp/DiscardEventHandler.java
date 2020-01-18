@@ -1,6 +1,4 @@
-package io.joshworks.fstore.tcp.handlers;
-
-import io.joshworks.fstore.tcp.TcpConnection;
+package io.joshworks.fstore.tcp;
 
 public class DiscardEventHandler implements EventHandler {
 

@@ -19,7 +19,7 @@
 package io.joshworks.fstore.tcp.conduits;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import org.xnio.Pooled;
+import io.joshworks.fstore.core.io.buffers.StupidPool;
 import org.xnio.conduits.AbstractSourceConduit;
 import org.xnio.conduits.MessageSourceConduit;
 import org.xnio.conduits.StreamSourceConduit;
@@ -32,40 +32,47 @@ import java.util.concurrent.TimeUnit;
 public final class FramingMessageSourceConduit extends AbstractSourceConduit<StreamSourceConduit> implements MessageSourceConduit {
 
     public static final int LENGTH_LENGTH = Integer.BYTES;
-    private final Pooled<ByteBuffer> receiveBuffer;
+    private final ByteBuffer frameBuffer;
+    private final StupidPool pool;
     private boolean ready;
 
     /**
      * Construct a new instance.
      *
      * @param next the delegate conduit to set
-     * @param receiveBuffer the transmit buffer to use
+     * @param pool the transmit buffer to use
      */
-    public FramingMessageSourceConduit(final StreamSourceConduit next, final Pooled<ByteBuffer> receiveBuffer) {
+    public FramingMessageSourceConduit(final StreamSourceConduit next, StupidPool pool) {
         super(next);
-        this.receiveBuffer = receiveBuffer;
-    }
-
-    public void resumeReads() {
-        if (ready) next.wakeupReads(); else next.resumeReads();
-    }
-
-    public void awaitReadable(final long time, final TimeUnit timeUnit) throws IOException {
-        if (! ready) next.awaitReadable(time, timeUnit);
-    }
-
-    public void awaitReadable() throws IOException {
-        if (! ready) next.awaitReadable();
-    }
-
-    public void terminateReads() throws IOException {
-        receiveBuffer.free();
-        next.terminateReads();
+        this.pool = pool;
+        this.frameBuffer = pool.allocate();
     }
 
     @Override
+    public void resumeReads() {
+        if (ready) next.wakeupReads();
+        else next.resumeReads();
+    }
+
+    @Override
+    public void awaitReadable(final long time, final TimeUnit timeUnit) throws IOException {
+        if (!ready) next.awaitReadable(time, timeUnit);
+    }
+
+    @Override
+    public void awaitReadable() throws IOException {
+        if (!ready) next.awaitReadable();
+    }
+
+    @Override
+    public void terminateReads() throws IOException {
+        pool.free(frameBuffer);
+        next.terminateReads();
+    }
+
+
+    @Override
     public int receive(final ByteBuffer dst) throws IOException {
-        final ByteBuffer frameBuffer = this.receiveBuffer.getResource();
         int res;
         do {
             res = next.read(frameBuffer);
@@ -106,7 +113,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
         } finally {
             if (res != -1) {
                 frameBuffer.compact();
-                if (frameBuffer.position() >= LENGTH_LENGTH && frameBuffer.position() >= LENGTH_LENGTH + frameBuffer.getInt(0)) {
+                if (frameBuffer.position() >= LENGTH_LENGTH && frameBuffer.position() >= (LENGTH_LENGTH + frameBuffer.getInt(0))) {
                     // there's another packet ready to go
                     ready = true;
                 }
@@ -116,45 +123,44 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
 
     @Override
     public long receive(final ByteBuffer[] dsts, final int offs, final int len) throws IOException {
-        final ByteBuffer receiveBuffer = this.receiveBuffer.getResource();
         int res;
         do {
-            res = next.read(receiveBuffer);
+            res = next.read(frameBuffer);
         } while (res > 0);
-        if (receiveBuffer.position() < LENGTH_LENGTH) {
+        if (frameBuffer.position() < LENGTH_LENGTH) {
             if (res == -1) {
-                receiveBuffer.clear();
+                frameBuffer.clear();
             }
             ready = false;
             return res;
         }
-        receiveBuffer.flip();
+        frameBuffer.flip();
         try {
-            final int length = receiveBuffer.getInt();
-            if (length < 0 || length > receiveBuffer.capacity() - LENGTH_LENGTH) {
-                Buffers.offsetPosition(receiveBuffer, -LENGTH_LENGTH);
+            final int length = frameBuffer.getInt();
+            if (length < 0 || length > frameBuffer.capacity() - LENGTH_LENGTH) {
+                Buffers.offsetPosition(frameBuffer, -LENGTH_LENGTH);
                 throw new IllegalStateException("Invalid message length: " + length);
             }
-            if (receiveBuffer.remaining() < length) {
+            if (frameBuffer.remaining() < length) {
                 if (res == -1) {
-                    receiveBuffer.clear();
+                    frameBuffer.clear();
                 } else {
-                    Buffers.offsetPosition(receiveBuffer, -LENGTH_LENGTH);
+                    Buffers.offsetPosition(frameBuffer, -LENGTH_LENGTH);
                 }
                 ready = false;
                 // must be <= 0
                 return res;
             }
             if (Buffers.hasRemaining(dsts, offs, len)) {
-                return org.xnio.Buffers.copy(length, dsts, offs, len, receiveBuffer);
+                return org.xnio.Buffers.copy(length, dsts, offs, len, frameBuffer);
             } else {
-                Buffers.offsetPosition(receiveBuffer, length);
+                Buffers.offsetPosition(frameBuffer, length);
                 return 0;
             }
         } finally {
             if (res != -1) {
-                receiveBuffer.compact();
-                if (receiveBuffer.position() >= LENGTH_LENGTH && receiveBuffer.position() >= LENGTH_LENGTH + receiveBuffer.getInt(0)) {
+                frameBuffer.compact();
+                if (frameBuffer.position() >= LENGTH_LENGTH && frameBuffer.position() >= LENGTH_LENGTH + frameBuffer.getInt(0)) {
                     // there's another packet ready to go
                     ready = true;
                 }

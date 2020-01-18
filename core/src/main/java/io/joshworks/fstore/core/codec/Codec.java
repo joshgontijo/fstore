@@ -1,4 +1,4 @@
-package io.joshworks.fstore.core;
+package io.joshworks.fstore.core.codec;
 
 import java.nio.ByteBuffer;
 
@@ -18,17 +18,7 @@ public interface Codec {
     void decompress(ByteBuffer src, ByteBuffer dst);
 
     static Codec noCompression() {
-        return new Codec() {
-            @Override
-            public void compress(ByteBuffer src, ByteBuffer dst) {
-                dst.put(src);
-            }
-
-            @Override
-            public void decompress(ByteBuffer src, ByteBuffer dst) {
-                dst.put(src);
-            }
-        };
+        return NoOp.INSTANCE;
     }
 
 }

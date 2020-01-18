@@ -1,7 +1,7 @@
 package io.joshworks.fstore.tcp.conduits;
 
+import io.joshworks.fstore.core.io.buffers.StupidPool;
 import org.xnio.Buffers;
-import org.xnio.Pooled;
 import org.xnio.conduits.AbstractSinkConduit;
 import org.xnio.conduits.Conduits;
 import org.xnio.conduits.MessageSinkConduit;
@@ -15,17 +15,14 @@ import static org.xnio._private.Messages.msg;
 public class FramingMessageSinkConduit extends AbstractSinkConduit<StreamSinkConduit> implements MessageSinkConduit {
 
     public static final int LENGTH_LENGTH = Integer.BYTES;
-    private final Pooled<ByteBuffer> transmitBuffer;
+    private final ByteBuffer transmitBuffer;
+    private final StupidPool pool;
 
-    /**
-     * Construct a new instance.
-     *
-     * @param next           the delegate conduit to set
-     * @param transmitBuffer the transmit buffer to use
-     */
-    public FramingMessageSinkConduit(final StreamSinkConduit next, final Pooled<ByteBuffer> transmitBuffer) {
+
+    public FramingMessageSinkConduit(final StreamSinkConduit next, StupidPool pool) {
         super(next);
-        this.transmitBuffer = transmitBuffer;
+        this.pool = pool;
+        this.transmitBuffer = pool.allocate();
     }
 
     public boolean send(final ByteBuffer src) throws IOException {
@@ -33,7 +30,6 @@ public class FramingMessageSinkConduit extends AbstractSinkConduit<StreamSinkCon
             // no zero messages
             return false;
         }
-        final ByteBuffer transmitBuffer = this.transmitBuffer.getResource();
         final int remaining = src.remaining();
         if (remaining > transmitBuffer.capacity() - LENGTH_LENGTH) {
             throw msg.txMsgTooLarge();
@@ -47,13 +43,13 @@ public class FramingMessageSinkConduit extends AbstractSinkConduit<StreamSinkCon
         return true;
     }
 
+    @Override
     public boolean send(final ByteBuffer[] srcs, final int offs, final int len) throws IOException {
         if (len == 1) {
             return send(srcs[offs]);
         } else if (!Buffers.hasRemaining(srcs, offs, len)) {
             return false;
         }
-        final ByteBuffer transmitBuffer = this.transmitBuffer.getResource();
         final long remaining = Buffers.remaining(srcs, offs, len);
         if (remaining > transmitBuffer.capacity() - LENGTH_LENGTH) {
             throw msg.txMsgTooLarge();
@@ -79,32 +75,40 @@ public class FramingMessageSinkConduit extends AbstractSinkConduit<StreamSinkCon
     }
 
     private boolean writeBuffer() throws IOException {
-        final ByteBuffer buffer = transmitBuffer.getResource();
-        if (buffer.position() > 0) buffer.flip();
+        if (transmitBuffer.position() > 0) {
+            transmitBuffer.flip();
+        }
         try {
-            while (buffer.hasRemaining()) {
-                final int res = next.write(buffer);
+            while (transmitBuffer.hasRemaining()) {
+                final int res = next.write(transmitBuffer);
                 if (res == 0) {
                     return false;
                 }
             }
             return true;
         } finally {
-            buffer.compact();
+            transmitBuffer.compact();
         }
     }
 
+    @Override
     public boolean flush() throws IOException {
-        return writeBuffer() && next.flush();
+        //ONLY FLUSH IF THERE'S DATA TO BE FLUSHED, OTHERWISE WE WILL FLUSH GARBAGE
+        if (transmitBuffer.position() > 0) {
+            writeBuffer();
+        }
+        return next.flush();
     }
 
+    @Override
     public void terminateWrites() throws IOException {
-        transmitBuffer.free();
+        pool.free(transmitBuffer);
         next.terminateWrites();
     }
 
+    @Override
     public void truncateWrites() throws IOException {
-        transmitBuffer.free();
+        pool.free(transmitBuffer);
         next.truncateWrites();
     }
 }

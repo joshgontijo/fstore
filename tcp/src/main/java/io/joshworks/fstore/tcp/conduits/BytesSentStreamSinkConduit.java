@@ -27,19 +27,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.function.LongConsumer;
 
-/**
- * @author Stuart Douglas
- */
 public class BytesSentStreamSinkConduit extends AbstractStreamSinkConduit<StreamSinkConduit> {
 
     private final LongConsumer callback;
 
-    /**
-     * Construct a new instance.
-     *
-     * @param next the delegate conduit to set
-     * @param callback
-     */
     public BytesSentStreamSinkConduit(StreamSinkConduit next, LongConsumer callback) {
         super(next);
         this.callback = callback;

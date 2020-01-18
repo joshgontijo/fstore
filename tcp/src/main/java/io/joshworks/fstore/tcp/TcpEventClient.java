@@ -1,32 +1,29 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.buffers.StupidPool;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.tcp.client.KeepAliveConduit;
+import io.joshworks.fstore.tcp.codec.Compression;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
+import io.joshworks.fstore.tcp.conduits.CodecConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
-import io.joshworks.fstore.tcp.handlers.DiscardEventHandler;
-import io.joshworks.fstore.tcp.handlers.EventHandler;
+import io.joshworks.fstore.tcp.conduits.FramingMessageSinkConduit;
+import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
+import io.joshworks.fstore.tcp.conduits.KeepAliveConduit;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xnio.BufferAllocator;
-import org.xnio.ByteBufferSlicePool;
 import org.xnio.ChannelListener;
 import org.xnio.IoFuture;
 import org.xnio.Option;
 import org.xnio.OptionMap;
 import org.xnio.Options;
-import org.xnio.Pool;
 import org.xnio.StreamConnection;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
-import org.xnio.conduits.FramingMessageSinkConduit;
-import org.xnio.conduits.FramingMessageSourceConduit;
 
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -44,22 +41,23 @@ public class TcpEventClient {
     private final EventHandler eventHandler;
     private final XnioWorker worker;
 
-    private final Pool<ByteBuffer> messagePool;
+    private final StupidPool messagePool;
     private transient TcpConnection tcpConnection;
     private final CountDownLatch connectLatch = new CountDownLatch(1);
 
     private final ResponseTable responseTable = new ResponseTable();
+    private final Compression compression;
 
     private TcpEventClient(OptionMap options,
                            InetSocketAddress bindAddress,
                            int maxMessageSize,
                            long keepAliveInterval,
+                           Compression compression,
                            Consumer<TcpConnection> onClose,
                            EventHandler handler) {
+        this.compression = compression;
 
-        int bufferPerRegion = 128;
-        int regionSize = maxMessageSize * bufferPerRegion;
-        this.messagePool = new ByteBufferSlicePool(BufferAllocator.BYTE_BUFFER_ALLOCATOR, maxMessageSize, regionSize);
+        this.messagePool = new StupidPool(256, maxMessageSize);
 
         this.bindAddress = bindAddress;
         this.keepAliveInterval = keepAliveInterval;
@@ -105,23 +103,26 @@ public class TcpEventClient {
 
         @Override
         public void handleEvent(StreamConnection channel) {
-            tcpConnection = new TcpConnection(channel, messagePool, responseTable);
+            tcpConnection = new TcpConnection(channel, messagePool, responseTable, compression);
 
             channel.setCloseListener(conn -> onClose.accept(tcpConnection));
 
             ConduitPipeline pipeline = new ConduitPipeline(channel);
-            pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, messagePool.allocate()));
             pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
+//            pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, messagePool));
+            pipeline.addMessageSource(conduit -> {
+                var framing = new FramingMessageSourceConduit(conduit, messagePool);
+                return new CodecConduit(framing, messagePool);
+            });
 
-            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, true, messagePool.allocate()));
+            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, messagePool));
             pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
 
             if (keepAliveInterval > 0) {
                 new KeepAliveConduit(channel, keepAliveInterval); //adds to source and sink
             }
 
-            ResponseHandler responseHandler = new ResponseHandler(eventHandler, responseTable);
-            ReadListener readListener = new ReadListener(tcpConnection, responseHandler, messagePool);
+            ReadListener readListener = new ReadListener(tcpConnection, eventHandler, messagePool);
             pipeline.readListener(readListener);
 
             channel.setCloseListener(conn -> responseTable.clear());
@@ -145,6 +146,7 @@ public class TcpEventClient {
         private EventHandler handler = new DiscardEventHandler();
         private long keepAliveInterval = -1;
         private int bufferSize = Size.MB.ofInt(1);
+        private Compression compression = Compression.NONE;
 
         private Builder() {
 
@@ -157,6 +159,11 @@ public class TcpEventClient {
 
         public Builder name(String name) {
             this.options.set(Options.WORKER_NAME, requireNonNull(name));
+            return this;
+        }
+
+        public Builder compression(Compression compression) {
+            this.compression = requireNonNull(compression);
             return this;
         }
 
@@ -194,6 +201,7 @@ public class TcpEventClient {
                     bindAddress,
                     bufferSize,
                     keepAliveInterval,
+                    compression,
                     onClose,
                     handler);
 
