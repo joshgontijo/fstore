@@ -197,7 +197,6 @@ public class TcpEventServer implements Closeable {
 
                     //---------- source
                     pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
-//                    pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, pool));
                     pipeline.addMessageSource(conduit -> {
                         var framing = new FramingMessageSourceConduit(conduit, pool);
                         return new CodecConduit(framing, pool);
