@@ -109,7 +109,6 @@ public class TcpEventClient {
 
             ConduitPipeline pipeline = new ConduitPipeline(channel);
             pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
-//            pipeline.addMessageSource(conduit -> new FramingMessageSourceConduit(conduit, messagePool));
             pipeline.addMessageSource(conduit -> {
                 var framing = new FramingMessageSourceConduit(conduit, messagePool);
                 return new CodecConduit(framing, messagePool);
