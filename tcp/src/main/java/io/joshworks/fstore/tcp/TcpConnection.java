@@ -11,8 +11,6 @@ import io.joshworks.fstore.tcp.internal.Message;
 import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
 import io.joshworks.fstore.tcp.internal.RpcEvent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.xnio.IoUtils;
 import org.xnio.StreamConnection;
 import org.xnio.XnioWorker;
@@ -33,8 +31,6 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import static java.util.Objects.requireNonNull;
 
 public class TcpConnection implements Closeable {
-
-    public static final Logger log = LoggerFactory.getLogger(TcpConnection.class);
 
     private static final AtomicLongFieldUpdater<TcpConnection> bytesSentUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "bytesSent");
     private static final AtomicLongFieldUpdater<TcpConnection> bytesReceivedUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "bytesReceived");
