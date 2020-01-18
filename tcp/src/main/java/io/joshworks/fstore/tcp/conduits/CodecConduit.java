@@ -60,7 +60,13 @@ public class CodecConduit extends AbstractSourceConduit<MessageSourceConduit> im
     public long receive(ByteBuffer[] dsts, int offs, int len) throws IOException {
         ByteBuffer compressed = pool.allocate();
         try {
-            int received = next.receive(compressed);
+            int recv = next.receive(compressed);
+            if (recv == 0) {
+                return 0;
+            }
+            if (recv == -1) {
+                return recv;
+            }
             compressed.flip();
 
             Compression compression = TcpHeader.compression(compressed);
