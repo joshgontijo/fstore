@@ -2,7 +2,6 @@ package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.tcp.handlers.DiscardEventHandler;
 import org.xnio.Options;
 
 import java.net.InetSocketAddress;
@@ -15,47 +14,27 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class TcpTest2 {
+public class TcpPerfIT {
 
-    private static final String HOST = "localhost";
-    private static final int PORT = 9999;
+    public static final String HOST = "localhost";
+    public static final int PORT = 12344;
 
-    private static final int ITEMS = 1000000000;
+    private static final int ITEMS = Integer.MAX_VALUE;
     private static final int CLIENTS = 1;
 
     private static final List<TcpConnection> clientConnections = new ArrayList<>();
 
     public static void main(String[] args) throws InterruptedException {
 
-        Thread.sleep(10000);
-
         TcpEventServer server = TcpEventServer.create()
-                .onOpen(conn -> {
-                    System.out.println("SERVER: Connection opened");
-                    byte[] data = new byte[256];
-                    Arrays.fill(data, (byte) 1);
-                    ByteBuffer buffer = ByteBuffer.wrap(data);
-                    new Thread(() -> {
-                        buffer.putInt(0, data.length - Integer.BYTES);
-                        for (int i = 0; i < ITEMS; i++) {
-                            conn.send(buffer);
-                            buffer.clear();
-                        }
-                    }).start();
-                })
-                .onClose(conn -> System.out.println("SERVER: Connection closed"))
-                .onIdle(conn -> System.out.println("SERVER: Connection idle"))
                 .idleTimeout(10, TimeUnit.SECONDS)
-                .maxMessageSize(Size.KB.ofInt(4))
-                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(4))
-                .option(Options.SEND_BUFFER, Size.KB.ofInt(8))
-                .option(Options.TCP_NODELAY, true)
-//                .option(Options.BACKLOG, 16)
+                .maxMessageSize(Size.KB.ofInt(32))
+                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(32))
                 .option(Options.WORKER_NAME, "server")
                 .option(Options.WORKER_IO_THREADS, 1)
-//                .option(Options.WORKER_TASK_MAX_THREADS, 1)
-                .onEvent(new DiscardEventHandler())
-//                .asyncHandler()
+                .option(Options.WORKER_TASK_CORE_THREADS, 3)
+                .option(Options.TCP_NODELAY, true)
+//                .onEvent(TypedEventHandler.builder().build())
                 .start(new InetSocketAddress(HOST, PORT));
 
 
@@ -64,22 +43,24 @@ public class TcpTest2 {
                     .option(Options.WORKER_NAME, "CLIENT-" + UUID.randomUUID().toString().substring(0, 3))
                     .option(Options.WORKER_IO_THREADS, 1)
                     .option(Options.TCP_NODELAY, true)
-                    .option(Options.SEND_BUFFER, Size.KB.ofInt(4))
-                    .maxMessageSize(Size.KB.ofInt(4))
+                    .option(Options.SEND_BUFFER, Size.KB.ofInt(32))
+                    .maxMessageSize(Size.KB.ofInt(32))
                     .onClose(conn -> System.out.println("CLIENT: closing connection " + conn))
                     .onEvent((connection, data) -> {
                         //do nothing
-//                        System.out.println(data);
                     })
                     .connect(new InetSocketAddress(HOST, PORT), 5, TimeUnit.SECONDS);
             clientConnections.add(client);
-//            long start = System.currentTimeMillis();
-//            for (int i = 0; i < ITEMS; i++) {
-//                client.send(new Payload(String.valueOf(i)));
-////                Ack ack = response.get();
-//            }
-//            System.out.println("COMPLETED IN " + (System.currentTimeMillis() - start));
-//            Threads.sleep(1000000);
+            long start = System.currentTimeMillis();
+            byte[] bytes = new byte[256];
+            Arrays.fill(bytes, (byte) 1);
+                ByteBuffer wrap = ByteBuffer.wrap(bytes);
+            for (int i = 0; i < ITEMS; i++) {
+                client.send(wrap, true);
+                wrap.clear();
+            }
+            System.out.println("COMPLETED IN " + (System.currentTimeMillis() - start));
+            Threads.sleep(100000);
 //            client.close();
         };
 
@@ -100,8 +81,8 @@ public class TcpTest2 {
                 long prevBytesSent = bytesSent;
                 long prevBytesReceived = bytesReceived;
 
-                messageReceived = clientConnections.stream().mapToLong(TcpConnection::messagesReceived).sum();
-                bytesReceived = clientConnections.stream().mapToLong(TcpConnection::bytesReceived).sum();
+                messageReceived = server.printConnections().values().stream().mapToLong(TcpConnection::messagesReceived).sum();
+                bytesReceived = server.printConnections().values().stream().mapToLong(TcpConnection::bytesReceived).sum();
 
                 messageSent = clientConnections.stream().mapToLong(TcpConnection::messagesSent).sum();
                 bytesSent = clientConnections.stream().mapToLong(TcpConnection::bytesSent).sum();
@@ -120,7 +101,7 @@ public class TcpTest2 {
         executor.shutdown();
 
         System.out.println("CLOSING SERVER");
-        server.close();
+//        server.close();
     }
 
 

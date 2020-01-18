@@ -1,176 +1,84 @@
 package io.joshworks.fstore.tcp.conduits;
 
-import org.xnio.StreamConnection;
-import org.xnio.XnioIoThread;
-import org.xnio.XnioWorker;
-import org.xnio.conduits.ConduitStreamSinkChannel;
-import org.xnio.conduits.ConduitStreamSourceChannel;
-import org.xnio.conduits.MessageSinkConduit;
+import io.joshworks.fstore.core.codec.Codec;
+import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.tcp.codec.CodecRegistry;
+import io.joshworks.fstore.tcp.codec.Compression;
+import io.joshworks.fstore.tcp.codec.TcpHeader;
+import org.xnio.conduits.AbstractSourceConduit;
 import org.xnio.conduits.MessageSourceConduit;
-import org.xnio.conduits.ReadReadyHandler;
-import org.xnio.conduits.WriteReadyHandler;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.TimeUnit;
-
-/**
- * NOT THREAD SAFE !
- * When using this class all channel writes must be synhronized}
- */
-public class CodecConduit implements MessageSinkConduit, MessageSourceConduit {
-
-    private final ConduitStreamSourceChannel source;
-    private final ConduitStreamSinkChannel sink;
 
 
-    protected CodecConduit(StreamConnection connection) {
-        this.source = connection.getSourceChannel();
-        this.sink = connection.getSinkChannel();
-    }
+public class CodecConduit extends AbstractSourceConduit<MessageSourceConduit> implements MessageSourceConduit {
 
-    @Override
-    public boolean send(ByteBuffer src) throws IOException {
-        return false;
-    }
+    private final StupidPool pool;
 
-    @Override
-    public boolean send(ByteBuffer[] srcs, int offs, int len) throws IOException {
-        return false;
-    }
-
-    @Override
-    public boolean sendFinal(ByteBuffer src) throws IOException {
-        return false;
-    }
-
-    @Override
-    public boolean sendFinal(ByteBuffer[] srcs, int offs, int len) throws IOException {
-        return false;
+    public CodecConduit(MessageSourceConduit source, StupidPool pool) {
+        super(source);
+        this.pool = pool;
     }
 
     @Override
     public int receive(ByteBuffer dst) throws IOException {
-        return 0;
+        ByteBuffer compressed = pool.allocate();
+        try {
+            int recv = next.receive(compressed);
+            if (recv == 0) {
+                return 0;
+            }
+            if (recv == -1) {
+                return recv;
+            }
+            compressed.flip();
+
+            int ucpLen = TcpHeader.uncompressedLength(compressed);
+            Compression compression = TcpHeader.compression(compressed);
+            Buffers.offsetPosition(compressed, TcpHeader.BYTES);
+
+            if (Compression.NONE.equals(compression)) {
+                return Buffers.copy(compressed, dst);
+            }
+
+            if (ucpLen > dst.remaining()) {
+                throw new IllegalStateException("Cannot decompress: Uncompressed length: " + ucpLen + ", target buffer: " + dst.remaining());
+            }
+
+            Codec codec = CodecRegistry.lookup(compression);
+            codec.decompress(compressed, dst);
+            return ucpLen;
+
+        } finally {
+            pool.free(compressed);
+        }
     }
 
     @Override
     public long receive(ByteBuffer[] dsts, int offs, int len) throws IOException {
-        return 0;
-    }
+        ByteBuffer compressed = pool.allocate();
+        try {
+            int received = next.receive(compressed);
+            compressed.flip();
 
-    @Override
-    public void terminateWrites() throws IOException {
+            Compression compression = TcpHeader.compression(compressed);
+            Codec codec = CodecRegistry.lookup(compression);
+            if (Compression.NONE.equals(compression)) {
+                return Buffers.copy(dsts, offs, len, compressed);
+            }
 
-    }
+            int ucpLen = TcpHeader.uncompressedLength(compressed);
+            ByteBuffer tmp = Buffers.allocate(ucpLen, compressed.isDirect());
 
-    @Override
-    public boolean isWriteShutdown() {
-        return false;
-    }
+            codec.decompress(compressed, tmp);
+            tmp.flip();
+            return Buffers.copy(dsts, offs, len, tmp);
+        } finally {
+            pool.free(compressed);
+        }
 
-    @Override
-    public void resumeWrites() {
 
-    }
-
-    @Override
-    public void suspendWrites() {
-
-    }
-
-    @Override
-    public void wakeupWrites() {
-
-    }
-
-    @Override
-    public boolean isWriteResumed() {
-        return false;
-    }
-
-    @Override
-    public void awaitWritable() throws IOException {
-
-    }
-
-    @Override
-    public void awaitWritable(long time, TimeUnit timeUnit) throws IOException {
-
-    }
-
-    @Override
-    public XnioIoThread getWriteThread() {
-        return null;
-    }
-
-    @Override
-    public void setWriteReadyHandler(WriteReadyHandler handler) {
-
-    }
-
-    @Override
-    public void truncateWrites() throws IOException {
-
-    }
-
-    @Override
-    public boolean flush() throws IOException {
-        return false;
-    }
-
-    @Override
-    public void terminateReads() throws IOException {
-
-    }
-
-    @Override
-    public boolean isReadShutdown() {
-        return false;
-    }
-
-    @Override
-    public void resumeReads() {
-
-    }
-
-    @Override
-    public void suspendReads() {
-
-    }
-
-    @Override
-    public void wakeupReads() {
-
-    }
-
-    @Override
-    public boolean isReadResumed() {
-        return false;
-    }
-
-    @Override
-    public void awaitReadable() throws IOException {
-
-    }
-
-    @Override
-    public void awaitReadable(long time, TimeUnit timeUnit) throws IOException {
-
-    }
-
-    @Override
-    public XnioIoThread getReadThread() {
-        return null;
-    }
-
-    @Override
-    public void setReadReadyHandler(ReadReadyHandler handler) {
-
-    }
-
-    @Override
-    public XnioWorker getWorker() {
-        return null;
     }
 }

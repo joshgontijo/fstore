@@ -1,10 +1,6 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.fstore.tcp.TcpEventClient;
-import io.joshworks.fstore.tcp.TcpEventServer;
-import io.joshworks.fstore.tcp.handlers.TypedEventHandler;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,7 +27,8 @@ public class ServerPushTest {
 
     @Before
     public void setUp() {
-        server = TcpEventServer.create().start(new InetSocketAddress(HOST, PORT));
+        server = TcpEventServer.create()
+                .start(new InetSocketAddress(HOST, PORT));
         client = TcpEventClient.create()
                 .onEvent(TypedEventHandler.builder().on(PushEvent.class, (conn, event) -> {
                     received.set(event.message);

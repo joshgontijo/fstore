@@ -1,6 +1,6 @@
 package io.joshworks.fstore.codec.snappy;
 
-import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.RuntimeIOException;
 import org.xerial.snappy.Snappy;
 

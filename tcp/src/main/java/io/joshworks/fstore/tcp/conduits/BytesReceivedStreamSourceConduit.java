@@ -13,12 +13,6 @@ public class BytesReceivedStreamSourceConduit extends AbstractStreamSourceCondui
 
     private final LongConsumer callback;
 
-    /**
-     * Construct a new instance.
-     *
-     * @param next the delegate conduit to set
-     * @param callback
-     */
     public BytesReceivedStreamSourceConduit(StreamSourceConduit next, LongConsumer callback) {
         super(next);
         this.callback = callback;

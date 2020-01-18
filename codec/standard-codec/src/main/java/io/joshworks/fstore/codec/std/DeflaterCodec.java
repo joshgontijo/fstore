@@ -1,6 +1,6 @@
 package io.joshworks.fstore.codec.std;
 
-import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.codec.Codec;
 
 import java.nio.ByteBuffer;
 import java.util.zip.Deflater;
