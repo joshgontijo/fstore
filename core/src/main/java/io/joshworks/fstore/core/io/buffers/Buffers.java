@@ -26,9 +26,26 @@ public class Buffers {
         return readableBytes;
     }
 
+    /**
+     * Copies from the source WITHOUT using the src position / limit pointers
+     * position of dst is updated with the inserted number of bytes,
+     * Does not modify source's position
+     *
+     * @throws BufferOverflowException if the count is greater than the dst {@link ByteBuffer#remaining()}
+     */
     public static int copy(ByteBuffer src, int srcStart, int count, ByteBuffer dst) {
         if (count == 0) {
             return 0;
+        }
+        if (srcStart < 0 || srcStart > src.capacity()) {
+            throw new IndexOutOfBoundsException(srcStart);
+        }
+        if (count > src.capacity() - srcStart) {
+            throw new IndexOutOfBoundsException("count bytes is more than available from srcStart position");
+        }
+
+        if (count > dst.remaining()) {
+            throw new BufferOverflowException();
         }
 
         int i = 0;
@@ -52,6 +69,12 @@ public class Buffers {
         return i;
     }
 
+    /**
+     * Copied remaining bytes from src to the dst
+     * Does not modify source's position
+     *
+     * @throws BufferOverflowException if the src remaining bytes is greater than dst remaining bytes
+     */
     public static int copy(ByteBuffer src, ByteBuffer dst) {
         if (src.remaining() > dst.remaining()) {
             throw new BufferOverflowException();
@@ -121,12 +144,27 @@ public class Buffers {
         buffer.position(buffer.position() + (offset));
     }
 
-    public static int positionArrayOffset(ByteBuffer buffer) {
+    /**
+     * The absolute position in the backing array, considering the array offset of the HeapByteBuffer,
+     * For OffHeapBuffers it simply return the {@link ByteBuffer#position()}
+     */
+    public static int absoluteArrayPosition(ByteBuffer buffer) {
+        return absoluteArrayPosition(buffer, buffer.position());
+    }
+
+    /**
+     * The absolute position in the backing array, considering the array offset of the HeapByteBuffer,
+     * For OffHeapBuffers it simply return the position
+     */
+    public static int absoluteArrayPosition(ByteBuffer buffer, int position) {
+        if (position < 0) {
+            throw new IndexOutOfBoundsException(position);
+        }
         if (buffer.hasArray()) {
-            return buffer.position() + buffer.arrayOffset();
+            return position + buffer.arrayOffset();
         }
 
-        return buffer.position();
+        return position;
     }
 
     public static byte[] copyArray(ByteBuffer bb) {

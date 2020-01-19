@@ -1,10 +1,15 @@
-package io.joshworks.ilog;
+package io.joshworks.ilog.index;
+
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.ilog.Record;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 
 import static java.util.Objects.requireNonNull;
 
@@ -16,20 +21,24 @@ import static java.util.Objects.requireNonNull;
  * <p>
  * If opening from an existing file, the index is marked as read only.
  */
-public abstract class Index implements TreeFunctions, Closeable {
+public class Index implements TreeFunctions, Closeable {
 
     protected final MappedFile mf;
-    private final int keySize;
+    private final KeyComparator comparator;
     private int entries;
     private final AtomicBoolean readOnly = new AtomicBoolean();
+    private final BufferPool pool;
 
     public static final int NONE = -1;
 
     public static int MAX_SIZE = Integer.MAX_VALUE - 8;
 
+    public static BiFunction<File, Integer, Index> LONG = (file, size) -> new Index(file, size, KeyComparator.LONG);
+    public static BiFunction<File, Integer, Index> INT = (file, size) -> new Index(file, size, KeyComparator.INT);
 
-    public Index(File file, int size, int keySize) {
-        this.keySize = keySize;
+    public Index(File file, int size, KeyComparator comparator) {
+        this.comparator = comparator;
+        this.pool = BufferPool.localCachePool(1, comparator.keySize(), false);
         try {
             boolean newFile = file.createNewFile();
             if (newFile) {
@@ -56,17 +65,35 @@ public abstract class Index implements TreeFunctions, Closeable {
      * The function must read the key from the MappedByteBuffer without modifying its position
      * Therefore it must always use the ABSOLUTE getXXX methods from the buffer.
      */
-    protected abstract int compare(int idx, ByteBuffer key);
+    private int compare(int idx, ByteBuffer key) {
+        ByteBuffer buffer = pool.allocate();
+        try {
+            Buffers.copy(mf.buffer(), idx, comparator.keySize(), buffer);
+            buffer.flip();
+
+            int prevPos = key.position();
+            int prevLimit = key.limit();
+
+            int compare = comparator.compare(buffer, key);
+
+            key.limit(prevLimit);
+            key.position(prevPos);
+
+            return compare;
+        } finally {
+            pool.free(buffer);
+        }
+    }
 
     public void write(Record record, long position) {
         if (readOnly.get()) {
             throw new RuntimeException("Index is read only");
         }
-        int keyLen = record.keyLength();
-        if (keyLen != keySize) {
-            throw new RuntimeException("Invalid key length, expected " + keySize + ", got " + keyLen);
+        int keyLen = record.keySize();
+        if (keyLen != comparator.keySize()) {
+            throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + keyLen);
         }
-        record.writeKey(mf);
+        record.readKey(mf.buffer());
         mf.buffer().putLong(position);
         entries++;
     }
@@ -131,6 +158,11 @@ public abstract class Index implements TreeFunctions, Closeable {
     @Override
     public long get(ByteBuffer key) {
         requireNonNull(key, "Key must be provided");
+        int remaining = key.remaining();
+        int kSize = keySize();
+        if (remaining != kSize) {
+            throw new IllegalArgumentException("Invalid key size: " + remaining + ", expected: " + kSize);
+        }
         if (entries == 0) {
             return NONE;
         }
@@ -180,11 +212,11 @@ public abstract class Index implements TreeFunctions, Closeable {
     }
 
     private int entrySize() {
-        return keySize + Long.BYTES;
+        return comparator.keySize() + Long.BYTES;
     }
 
     public int keySize() {
-        return keySize;
+        return comparator.keySize();
     }
 
     private long readPosition(int idx) {
@@ -192,7 +224,7 @@ public abstract class Index implements TreeFunctions, Closeable {
             return NONE;
         }
         int startPos = idx * entrySize();
-        int positionOffset = startPos + keySize;
+        int positionOffset = startPos + comparator.keySize();
         return mf.buffer().getLong(positionOffset);
     }
 

@@ -1,6 +1,6 @@
 package io.joshworks.fstore.tcp;
 
-import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.tcp.codec.Compression;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
@@ -61,6 +61,7 @@ public class TcpEventServer implements Closeable {
             int maxMessageSize,
             long idleTimeout,
             Compression compression,
+            int capacity,
             Consumer<TcpConnection> onOpen,
             Consumer<TcpConnection> onClose,
             Consumer<TcpConnection> onIdle,
@@ -73,7 +74,7 @@ public class TcpEventServer implements Closeable {
         this.onIdle = onIdle;
         this.handler = handler;
 
-        StupidPool pool = new StupidPool(256, maxMessageSize);
+        BufferPool pool = BufferPool.defaultPool(capacity, maxMessageSize, false);
         Acceptor acceptor = new Acceptor(idleTimeout, pool);
 
         XnioWorker worker = null;
@@ -171,9 +172,9 @@ public class TcpEventServer implements Closeable {
     private class Acceptor implements ChannelListener<AcceptingChannel<StreamConnection>> {
 
         private final long timeout;
-        private final StupidPool pool;
+        private final BufferPool pool;
 
-        Acceptor(long timeout, StupidPool pool) {
+        Acceptor(long timeout, BufferPool pool) {
             this.timeout = timeout;
             this.pool = pool;
         }
@@ -246,6 +247,7 @@ public class TcpEventServer implements Closeable {
         private long timeout = -1;
         private int bufferSize = Size.KB.ofInt(64);
         private Compression compression = Compression.NONE;
+        private int capacity = 256;
 
         public Builder() {
 
@@ -269,6 +271,14 @@ public class TcpEventServer implements Closeable {
                 throw new IllegalArgumentException("Buffer size must be greater than zero");
             }
             this.bufferSize = maxEventSize;
+            return this;
+        }
+
+        public Builder bufferPoolCapacity(int capacity) {
+            if (bufferSize <= 0) {
+                throw new IllegalArgumentException("Buffer size must be greater than zero");
+            }
+            this.capacity = capacity;
             return this;
         }
 
@@ -313,6 +323,7 @@ public class TcpEventServer implements Closeable {
                     bufferSize,
                     timeout,
                     compression,
+                    capacity,
                     onOpen,
                     onClose,
                     onIdle,

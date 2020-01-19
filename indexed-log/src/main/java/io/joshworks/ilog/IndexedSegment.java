@@ -1,8 +1,9 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.ilog.index.Index;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +43,7 @@ public class IndexedSegment {
         }
     }
 
-    public void reindex(BiFunction<File, Integer, Index> indexFactory) throws IOException {
+    void reindex(BufferPool pool, BiFunction<File, Integer, Index> indexFactory) throws IOException {
         log.info("Reindexing {}", name());
 
         int indexSize = index.size();
@@ -51,7 +52,7 @@ public class IndexedSegment {
         this.index = indexFactory.apply(indexFile, indexSize);
 
         long start = System.currentTimeMillis();
-        RecordBatchIterator it = new RecordBatchIterator(channel, START, writePosition, 4096);
+        RecordBatchIterator it = new RecordBatchIterator(this, START, pool);
         int processed = 0;
         while (it.hasNext()) {
             long position = it.position();
@@ -87,13 +88,16 @@ public class IndexedSegment {
         }
 
         int keyLen = index.keySize();
-        int recordKeyLen = record.keyLength();
+        int recordKeyLen = record.keySize();
         if (recordKeyLen != keyLen) { // validates the key BEFORE adding to log
             throw new IllegalArgumentException("Invalid key length: Expected " + keyLen + ", got " + recordKeyLen);
         }
 
         try {
-            int written = record.appendTo(channel);
+            int written = record.writeTo(channel);
+            if (written <= 0) {
+                throw new RuntimeIOException("Failed to write entry");
+            }
             long position = writePosition.getAndAdd(written);
             index.write(record, position);
         } catch (IOException e) {
@@ -101,69 +105,40 @@ public class IndexedSegment {
         }
     }
 
-
     /**
-     * Reads a single entry for the given offset, read is performed with a two IO calls
-     * first one to read the header, then the actual data is read in the second call
+     * Lookup for the entry position based on a key
      */
-    public Record read(ByteBuffer key) throws IOException {
-        long position = index.get(key);
-        if (position < START) {
-            return null;
-        }
-
-        var headerBuffer = Buffers.allocate(HEADER_BYTES, false);
-        channel.read(headerBuffer, position);
-        headerBuffer.flip();
-        if (headerBuffer.remaining() < HEADER_BYTES) {
-            return null;
-        }
-        int recordLen = Record.recordLength(headerBuffer);
-        var recordBuffer = Buffers.allocate(recordLen, false);
-        channel.read(recordBuffer, position);
-        recordBuffer.flip();
-        return Record.from(recordBuffer, false);
-
+    public long find(ByteBuffer key) {
+        return index.keySize();
     }
 
     /**
      * Reads a single entry for the given offset, read is performed with a single IO call
      * with a buffer of size specified by readSize. If the buffer is too small for the entry, then a new one is created and
      */
-    public Record read(ByteBuffer key, int readSize) throws IOException {
-        long position = index.get(key);
-        if (position < START) {
-            return null;
-        }
-
-        if (readSize <= HEADER_BYTES) {
+    public int read(long position, ByteBuffer dst) throws IOException {
+        int dstRemaining = dst.remaining();
+        if (dstRemaining <= HEADER_BYTES) {
             throw new RuntimeException("bufferSize must be greater than " + HEADER_BYTES);
         }
-        ByteBuffer buffer = Buffers.allocate(readSize, false);
-        channel.read(buffer, position);
-        buffer.flip();
-        if (buffer.remaining() < HEADER_BYTES) {
-            return null;
-        }
-        int recordLen = Record.recordLength(buffer);
-        if (recordLen > buffer.remaining()) {
-            //too big, re read with a bigger buffer
-            return read(key, recordLen);
-        }
-        return Record.from(buffer, false);
+        return channel.read(dst, position);
     }
 
-    public RecordBatchIterator iterator(ByteBuffer start, int batchSize) {
-        long startPos = index.floor(start);
-        if (startPos < START) {
-            return null; //TODO return empty iterator
-        }
-        return new RecordBatchIterator(channel, startPos, writePosition, batchSize);
-    }
-
-    public RecordBatchIterator iterator(int batchSize) {
-        return new RecordBatchIterator(channel, START, writePosition, batchSize);
-    }
+//    public RecordBatchIterator iterator(ByteBuffer start, int batchSize) {
+//        long startPos = index.floor(start);
+//        if (startPos < START) {
+//            return null; //TODO return empty iterator
+//        }
+//        return new RecordBatchIterator(channel, startPos, writePosition, batchSize);
+//    }
+//
+//    public RecordBatchIterator iterator() {
+//        return iterator(Memory.PAGE_SIZE);
+//    }
+//
+//    public RecordBatchIterator iterator(int batchSize) {
+//        return new RecordBatchIterator(channel, START, writePosition, batchSize);
+//    }
 
     public boolean readOnly() {
         return readOnly.get();

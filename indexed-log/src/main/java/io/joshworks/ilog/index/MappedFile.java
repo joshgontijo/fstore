@@ -1,4 +1,4 @@
-package io.joshworks.ilog;
+package io.joshworks.ilog.index;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.IOUtils;

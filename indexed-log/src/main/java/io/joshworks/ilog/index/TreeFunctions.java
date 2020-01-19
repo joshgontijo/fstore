@@ -1,4 +1,4 @@
-package io.joshworks.ilog;
+package io.joshworks.ilog.index;
 
 
 import java.nio.ByteBuffer;

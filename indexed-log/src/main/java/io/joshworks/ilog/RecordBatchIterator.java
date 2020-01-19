@@ -1,11 +1,11 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.Iterators;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.ArrayDeque;
 import java.util.NoSuchElementException;
 import java.util.Queue;
@@ -13,26 +13,27 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
 
-public class RecordBatchIterator implements SegmentIterator {
+public class RecordBatchIterator implements Iterators.CloseableIterator<Record> {
 
-    protected final FileChannel channel;
-    protected final AtomicLong writePosition;
-    protected final long startPos;
-    protected final AtomicLong readPos = new AtomicLong();
+    private final long startPos;
+    private final AtomicLong readPos = new AtomicLong();
     private final ByteBuffer readBuffer;
     private final Queue<Record> records = new ArrayDeque<>();
+    private final IndexedSegment segment;
+    private final BufferPool pool;
     private long entriesRead;
     private Record next;
 
-    public RecordBatchIterator(FileChannel channel, long startPos, AtomicLong writePosition, int batchSize) {
-        if (batchSize < HEADER_BYTES) {
-            throw new IllegalArgumentException("Batch size must be greater than " + HEADER_BYTES);
-        }
-        this.channel = channel;
-        this.writePosition = writePosition;
-        this.readPos.set(startPos);
+    public RecordBatchIterator(IndexedSegment segment, long startPos, BufferPool pool) {
+        this.pool = pool;
+        this.readBuffer = pool.allocate();
+        this.segment = segment;
         this.startPos = startPos;
-        this.readBuffer = Buffers.allocate(batchSize, false);
+        this.readPos.set(startPos);
+        if (readBuffer.capacity() < HEADER_BYTES) {
+            pool.free(readBuffer);
+            throw new IllegalArgumentException("Read buffer must be at least " + HEADER_BYTES);
+        }
     }
 
     @Override
@@ -41,7 +42,7 @@ public class RecordBatchIterator implements SegmentIterator {
             return true;
         }
         if (records.isEmpty()) {
-            readBatch(readPos.get());
+            readBatch();
         }
         next = records.poll();
         return next != null;
@@ -52,53 +53,31 @@ public class RecordBatchIterator implements SegmentIterator {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
-        readPos.addAndGet(next.recordLength());
+        readPos.addAndGet(next.size());
         Record record = next;
         next = null;
         entriesRead++;
         return record;
     }
 
-    private void readBatch(long position) {
-        if (writePosition.get() <= readPos.get() + HEADER_BYTES) {
-            return;
-        }
+    private void readBatch() {
         try {
             if (readBuffer.position() > 0) {
                 readBuffer.compact();
             }
-            int remainingBytes = readBuffer.position();
-            int read = channel.read(readBuffer, position + remainingBytes);
+            long rpos = readPos.get() + readBuffer.position();
+            int read = segment.read(rpos, readBuffer);
             if (read <= 0) { //EOF or no more data
                 return;
             }
             readBuffer.flip();
             Record record;
-            do {
-                record = Record.from(readBuffer, false);
-                if (record != null) {
-                    records.add(record);
-                } else if (readBuffer.remaining() >= HEADER_BYTES) {
-                    int recordLength = Record.recordLength(readBuffer);
-                    if (recordLength > readBuffer.capacity()) {
-                        long recordPos = position + readBuffer.position();
-                        record = readLargerEntry(recordPos, recordLength);
-                    }
-                }
-            } while (record != null);
-
+            while ((record = Record.from(readBuffer, false)) != null) {
+                records.add(record);
+            }
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to read batch", e);
         }
-    }
-
-    private Record readLargerEntry(long position, int recordLength) throws IOException {
-        ByteBuffer buffer = Buffers.allocate(recordLength, false);
-        int read = channel.read(buffer, position);
-        if (read != recordLength) {
-            throw new RuntimeIOException("Invalid entry at position " + position);
-        }
-        return Record.from(buffer, false);
     }
 
     public long entriesRead() {
@@ -116,6 +95,6 @@ public class RecordBatchIterator implements SegmentIterator {
 
     @Override
     public void close() {
-        //TODO implement
+        pool.free(readBuffer);
     }
 }

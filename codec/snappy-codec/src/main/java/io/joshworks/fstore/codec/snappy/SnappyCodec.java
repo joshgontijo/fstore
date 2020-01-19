@@ -7,7 +7,7 @@ import org.xerial.snappy.Snappy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import static io.joshworks.fstore.core.io.buffers.Buffers.positionArrayOffset;
+import static io.joshworks.fstore.core.io.buffers.Buffers.absoluteArrayPosition;
 import static io.joshworks.fstore.core.io.buffers.Buffers.copyArray;
 
 public class SnappyCodec implements Codec {
@@ -25,20 +25,20 @@ public class SnappyCodec implements Codec {
             }
             if (src.isDirect()) {
                 byte[] srcBytes = copyArray(src);
-                int compressedLen = Snappy.compress(srcBytes, 0, srcBytes.length, dst.array(), positionArrayOffset(dst));
+                int compressedLen = Snappy.compress(srcBytes, 0, srcBytes.length, dst.array(), absoluteArrayPosition(dst));
                 dst.position(dst.position() + compressedLen);
                 return;
             }
             if (dst.isDirect()) {
                 int maxCompressedLength = Snappy.maxCompressedLength(src.remaining());
                 byte[] dstBytes = new byte[maxCompressedLength];
-                int compressedBytes = Snappy.compress(src.array(), positionArrayOffset(src), src.remaining(), dstBytes, 0);
+                int compressedBytes = Snappy.compress(src.array(), absoluteArrayPosition(src), src.remaining(), dstBytes, 0);
                 dst.put(dstBytes, 0, compressedBytes);
                 src.position(src.position() + src.remaining());
                 return;
             }
 
-            int compressedLen = Snappy.compress(src.array(), positionArrayOffset(src), src.remaining(), dst.array(), positionArrayOffset(dst));
+            int compressedLen = Snappy.compress(src.array(), absoluteArrayPosition(src), src.remaining(), dst.array(), absoluteArrayPosition(dst));
             dst.position(dst.position() + compressedLen);
             src.position(src.position() + src.remaining());
         } catch (IOException e) {
@@ -60,20 +60,20 @@ public class SnappyCodec implements Codec {
             }
             if (src.isDirect()) {
                 byte[] srcBytes = copyArray(src);
-                int uncompressed = Snappy.uncompress(srcBytes, 0, srcBytes.length, dst.array(), positionArrayOffset(dst));
+                int uncompressed = Snappy.uncompress(srcBytes, 0, srcBytes.length, dst.array(), absoluteArrayPosition(dst));
                 dst.position(dst.position() + uncompressed);
                 return;
             }
             if (dst.isDirect()) {
                 int srcRemaining = src.remaining();
-                int uncompressedLen = Snappy.uncompressedLength(src.array(), positionArrayOffset(src), srcRemaining);
+                int uncompressedLen = Snappy.uncompressedLength(src.array(), absoluteArrayPosition(src), srcRemaining);
                 byte[] dstBytes = new byte[uncompressedLen];
-                int actualUncompressedSize = Snappy.uncompress(src.array(), positionArrayOffset(src), srcRemaining, dstBytes, 0);
+                int actualUncompressedSize = Snappy.uncompress(src.array(), absoluteArrayPosition(src), srcRemaining, dstBytes, 0);
                 dst.put(dstBytes, 0, actualUncompressedSize);
                 src.position(src.position() + srcRemaining);
                 return;
             }
-            int uncompressed = Snappy.uncompress(src.array(), positionArrayOffset(src), src.remaining(), dst.array(), positionArrayOffset(dst));
+            int uncompressed = Snappy.uncompress(src.array(), absoluteArrayPosition(src), src.remaining(), dst.array(), absoluteArrayPosition(dst));
             dst.position(dst.position() + uncompressed);
             src.position(src.position() + src.remaining());
         } catch (IOException e) {

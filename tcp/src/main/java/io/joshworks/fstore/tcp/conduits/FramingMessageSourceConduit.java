@@ -19,7 +19,7 @@
 package io.joshworks.fstore.tcp.conduits;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import org.xnio.conduits.AbstractSourceConduit;
 import org.xnio.conduits.MessageSourceConduit;
 import org.xnio.conduits.StreamSourceConduit;
@@ -33,7 +33,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
 
     public static final int LENGTH_LENGTH = Integer.BYTES;
     private final ByteBuffer frameBuffer;
-    private final StupidPool pool;
+    private final BufferPool pool;
     private boolean ready;
 
     /**
@@ -42,7 +42,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
      * @param next the delegate conduit to set
      * @param pool the transmit buffer to use
      */
-    public FramingMessageSourceConduit(final StreamSourceConduit next, StupidPool pool) {
+    public FramingMessageSourceConduit(final StreamSourceConduit next, BufferPool pool) {
         super(next);
         this.pool = pool;
         this.frameBuffer = pool.allocate();

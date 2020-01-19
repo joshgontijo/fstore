@@ -1,18 +1,16 @@
 package io.joshworks.ilog.compaction;
 
-import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.ilog.Record;
-import io.joshworks.ilog.SegmentIterator;
+import io.joshworks.ilog.RecordBatchIterator;
 
-import java.io.IOException;
+public class PeekingIterator implements Iterators.CloseableIterator<Record> {
 
-public class PeekingIterator implements SegmentIterator {
-
-    private final SegmentIterator iterator;
+    private final RecordBatchIterator iterator;
     private boolean hasPeeked;
     private Record peekedElement;
 
-    public PeekingIterator(SegmentIterator iterator) {
+    public PeekingIterator(RecordBatchIterator iterator) {
         this.iterator = iterator;
     }
 
@@ -50,10 +48,6 @@ public class PeekingIterator implements SegmentIterator {
 
     @Override
     public void close() {
-        try {
-            iterator.close();
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to close iterator", e);
-        }
+        iterator.close();
     }
 }

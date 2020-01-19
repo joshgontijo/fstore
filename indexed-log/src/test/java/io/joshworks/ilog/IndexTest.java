@@ -3,6 +3,8 @@ package io.joshworks.ilog;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.serializer.Serializers;
+import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.KeyComparator;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -22,7 +24,7 @@ public class IndexTest {
 
     @Before
     public void setUp() {
-        index = new LongIndex(testFile, Size.GB.ofInt(1));
+        index = new Index(testFile, Size.GB.ofInt(1), KeyComparator.LONG);
     }
 
     @After

@@ -1,6 +1,6 @@
 package io.joshworks.fstore.tcp;
 
-import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.ChannelListener;
@@ -14,10 +14,10 @@ class ReadListener implements ChannelListener<ConduitStreamSourceChannel> {
     private static final Logger logger = LoggerFactory.getLogger(ReadListener.class);
 
     private final TcpConnection tcpConnection;
-    private final StupidPool pool;
+    private final BufferPool pool;
     private final EventHandler handler;
 
-    ReadListener(TcpConnection tcpConnection, EventHandler handler, StupidPool pool) {
+    ReadListener(TcpConnection tcpConnection, EventHandler handler, BufferPool pool) {
         this.tcpConnection = tcpConnection;
         this.handler = handler;
         this.pool = pool;

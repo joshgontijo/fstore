@@ -2,12 +2,13 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.ChecksumException;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 
 /**
  * DATA_LEN (4 BYTES)
@@ -39,22 +40,13 @@ public class Record {
 
     private Record(ByteBuffer buffer) {
         this.buffer = buffer;
-        int recordLength = recordLength();
+        int recordLength = size();
         if (recordLength != buffer.limit()) {
             throw new IllegalStateException("Unexpected buffer size " + buffer.limit() + " record length: " + recordLength);
         }
     }
 
-    public void writeKey(MappedFile mf) {
-        int keyStart = HEADER_BYTES;
-        int keyLen = keyLength();
-
-        var mbb = mf.buffer();
-        Buffers.copy(buffer, keyStart, keyLen, mbb);
-
-    }
-
-    public int dataLength() {
+    public int valueSize() {
         return buffer.getInt(DATA_LENGTH_OFFSET);
     }
 
@@ -66,22 +58,17 @@ public class Record {
         return buffer.getLong(TIMESTAMP_OFFSET);
     }
 
-    public int keyLength() {
+    public int keySize() {
         return buffer.getInt(KEY_LENGTH_OFFSET);
     }
 
-    public int recordLength() {
-        return HEADER_BYTES + keyLength() + dataLength();
+    public int size() {
+        return HEADER_BYTES + keySize() + valueSize();
     }
 
-    public ByteBuffer data() {
-        int valueStart = HEADER_BYTES + keyLength();
-        return buffer.duplicate().position(valueStart);
-    }
-
-    public ByteBuffer key() {
+    ByteBuffer key() {
         int keyStart = HEADER_BYTES;
-        int keyLen = keyLength();
+        int keyLen = keySize();
         return buffer.duplicate().limit(keyStart + keyLen).position(keyStart);
     }
 
@@ -133,6 +120,13 @@ public class Record {
         }
     }
 
+    public Record copy() {
+        var copy = Buffers.allocate(buffer.remaining(), buffer.isDirect());
+        Buffers.copy(buffer, copy);
+        copy.flip();
+        return new Record(copy);
+    }
+
     /**
      * Read from a slice of data, if slice has less data than the required to build a record then null is returned
      */
@@ -143,16 +137,26 @@ public class Record {
                 return null;
             }
 
-            int recordLength = Record.recordLength(data);
+            int recordLength = Record.size(data);
             if (recordLength > remaining) {
                 return null;
             }
 
             Record record = readRecord(data, copy, recordLength);
 
-            ByteBuffer d = record.data();
+            int keySize = record.keySize();
+            int valueSize = record.valueSize();
+            if (keySize + valueSize + HEADER_BYTES != recordLength) {
+                throw new IllegalStateException("Invalid record");
+            }
+
             int checksum = record.checksum();
-            verifyChecksum(d, checksum);
+            int valueStart = record.valueStart();
+            int absoluteStart = Buffers.absoluteArrayPosition(record.buffer, valueStart);
+            int computedChecksum = ByteBufferChecksum.crc32(record.buffer, absoluteStart, valueSize);
+            if (computedChecksum != checksum) {
+                throw new ChecksumException();
+            }
 
             return record;
 
@@ -181,14 +185,8 @@ public class Record {
         return new Record(slice);
     }
 
-    private static void verifyChecksum(ByteBuffer data, int checksum) {
-        int computedChecksum = ByteBufferChecksum.crc32(data);
-        if (computedChecksum != checksum) {
-            throw new ChecksumException();
-        }
-    }
 
-    static int recordLength(ByteBuffer buffer) {
+    static int size(ByteBuffer buffer) {
         int relativePos = buffer.position();
         int recordLen = HEADER_BYTES + buffer.getInt(relativePos + KEY_LENGTH_OFFSET) + buffer.getInt(relativePos + DATA_LENGTH_OFFSET);
         if (recordLen <= HEADER_BYTES) {
@@ -197,18 +195,55 @@ public class Record {
         return recordLen;
     }
 
-    public int appendTo(FileChannel channel) throws IOException {
-        return channel.write(buffer);
+    public int writeTo(WritableByteChannel channel) throws IOException {
+        return IOUtils.writeFully(channel, buffer);
+    }
+
+    public void readKey(ByteBuffer dst) {
+        int keyLen = keySize();
+        Buffers.copy(buffer, HEADER_BYTES, keyLen, dst);
+    }
+
+    public void readValue(ByteBuffer dst) {
+        int valueStart = HEADER_BYTES + keySize();
+        int dataLen = buffer.limit() - valueStart;
+        Buffers.copy(buffer, valueStart, dataLen, dst);
+    }
+
+    private int valueStart() {
+        return HEADER_BYTES + keySize();
+    }
+
+    private ByteBuffer dataSlice() {
+        int valueStart = valueStart();
+        int dataLen = buffer.limit() - valueStart;
+        var bb = Buffers.allocate(dataLen, false);
+        readValue(bb);
+        return bb.flip();
     }
 
     @Override
     public String toString() {
         return "Record{" +
-                " recordLength=" + recordLength() +
-                ", keyLength=" + keyLength() +
-                ", dataLength=" + dataLength() +
+                " recordLength=" + size() +
+                ", checksum=" + checksum() +
+                ", keyLength=" + keySize() +
+                ", dataLength=" + valueSize() +
                 ", timestamp=" + timestamp() +
                 ", attributes=" + buffer.get(ATTR_OFFSET) +
+                '}';
+    }
+
+    public <K, V> String toString(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
+        return "Record{" +
+                " recordLength=" + size() +
+                ", checksum=" + checksum() +
+                ", keyLength=" + keySize() +
+                ", dataLength=" + valueSize() +
+                ", timestamp=" + timestamp() +
+                ", attributes=" + buffer.get(ATTR_OFFSET) +
+                ", key=" + keySerializer.fromBytes(key()) +
+                ", value=" + valueSerializer.fromBytes(dataSlice()) +
                 '}';
     }
 }

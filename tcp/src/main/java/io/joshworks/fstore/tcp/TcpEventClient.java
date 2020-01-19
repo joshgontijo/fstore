@@ -1,7 +1,7 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.tcp.codec.Compression;
 import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
@@ -41,7 +41,7 @@ public class TcpEventClient {
     private final EventHandler eventHandler;
     private final XnioWorker worker;
 
-    private final StupidPool messagePool;
+    private final BufferPool messagePool;
     private transient TcpConnection tcpConnection;
     private final CountDownLatch connectLatch = new CountDownLatch(1);
 
@@ -53,11 +53,12 @@ public class TcpEventClient {
                            int maxMessageSize,
                            long keepAliveInterval,
                            Compression compression,
+                           int capacity,
                            Consumer<TcpConnection> onClose,
                            EventHandler handler) {
         this.compression = compression;
 
-        this.messagePool = new StupidPool(256, maxMessageSize);
+        this.messagePool = BufferPool.defaultPool(capacity, maxMessageSize, false);
 
         this.bindAddress = bindAddress;
         this.keepAliveInterval = keepAliveInterval;
@@ -146,6 +147,7 @@ public class TcpEventClient {
         private long keepAliveInterval = -1;
         private int bufferSize = Size.MB.ofInt(1);
         private Compression compression = Compression.NONE;
+        private int capacity = 256;
 
         private Builder() {
 
@@ -177,6 +179,11 @@ public class TcpEventClient {
             return this;
         }
 
+        public Builder bufferPoolCapacity(int capacity) {
+            this.capacity = capacity;
+            return this;
+        }
+
         public Builder onClose(Consumer<TcpConnection> onClose) {
             this.onClose = onClose;
             return this;
@@ -201,6 +208,7 @@ public class TcpEventClient {
                     bufferSize,
                     keepAliveInterval,
                     compression,
+                    capacity,
                     onClose,
                     handler);
 

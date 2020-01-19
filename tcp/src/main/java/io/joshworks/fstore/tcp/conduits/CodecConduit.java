@@ -2,7 +2,7 @@ package io.joshworks.fstore.tcp.conduits;
 
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.tcp.codec.CodecRegistry;
 import io.joshworks.fstore.tcp.codec.Compression;
 import io.joshworks.fstore.tcp.codec.TcpHeader;
@@ -15,9 +15,9 @@ import java.nio.ByteBuffer;
 
 public class CodecConduit extends AbstractSourceConduit<MessageSourceConduit> implements MessageSourceConduit {
 
-    private final StupidPool pool;
+    private final BufferPool pool;
 
-    public CodecConduit(MessageSourceConduit source, StupidPool pool) {
+    public CodecConduit(MessageSourceConduit source, BufferPool pool) {
         super(source);
         this.pool = pool;
     }

@@ -21,12 +21,6 @@
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>standard-serializer</artifactId>
         </dependency>
-        <dependency>
-            <groupId>io.joshworks.fstore</groupId>
-            <artifactId>logstore</artifactId>
-            <scope>test</scope>
-        </dependency>
-
 
         <dependency>
             <groupId>junit</groupId>

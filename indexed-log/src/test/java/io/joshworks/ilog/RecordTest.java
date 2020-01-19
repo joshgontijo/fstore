@@ -17,20 +17,20 @@ public class RecordTest {
     @Test
     public void keyLength() {
         Record record = create(1, 123);
-        assertEquals(Integer.BYTES, record.keyLength());
+        assertEquals(Integer.BYTES, record.keySize());
 
     }
 
     @Test
     public void dataLength() {
         Record record = create(1, 123);
-        assertEquals(Integer.BYTES, record.dataLength());
+        assertEquals(Integer.BYTES, record.valueSize());
     }
 
     @Test
     public void recordLength() {
         Record record = create(1, 123);
-        assertEquals(Record.HEADER_BYTES + record.keyLength() + record.dataLength(), record.recordLength());
+        assertEquals(Record.HEADER_BYTES + record.keySize() + record.valueSize(), record.size());
     }
 
     @Test
@@ -43,8 +43,7 @@ public class RecordTest {
     @Test
     public void readValueBack() {
         Record record = create(1, 123);
-        Integer value = Serializers.INTEGER.fromBytes(record.data());
-        assertEquals(Integer.valueOf(123), value);
+        assertEquals(123, readData(record));
     }
 
     @Test
@@ -60,7 +59,9 @@ public class RecordTest {
     public void checksum() {
         Record record = create(1, 123);
         int checksum = record.checksum();
-        int expected = ByteBufferChecksum.crc32(record.data());
+
+        ByteBuffer bb = ByteBuffer.allocate(Integer.BYTES).putInt(readData(record)).flip();
+        int expected = ByteBufferChecksum.crc32(bb);
         assertEquals(expected, checksum);
     }
 
@@ -70,11 +71,11 @@ public class RecordTest {
 
         Record from = Record.from(record.buffer, true);
 
-        assertEquals(record.keyLength(), from.keyLength());
+        assertEquals(record.keySize(), from.keySize());
         assertEquals(record.checksum(), from.checksum());
-        assertEquals(record.dataLength(), from.dataLength());
+        assertEquals(record.valueSize(), from.valueSize());
         assertEquals(record.timestamp(), from.timestamp());
-        assertEquals(record.data(), from.data());
+        assertEquals(readData(record), readData(from));
         assertEquals(record.key(), from.key());
     }
 
@@ -107,11 +108,11 @@ public class RecordTest {
             assertNotNull(read);
             assertEquals(Integer.valueOf(i), Serializers.INTEGER.fromBytes(read.key()));
 
-            assertEquals(record.keyLength(), read.keyLength());
+            assertEquals(record.keySize(), read.keySize());
             assertEquals(record.checksum(), read.checksum());
-            assertEquals(record.dataLength(), read.dataLength());
+            assertEquals(record.valueSize(), read.valueSize());
             assertEquals(record.timestamp(), read.timestamp());
-            assertEquals(record.data(), read.data());
+            assertEquals(readData(record), readData(read));
             assertEquals(record.key(), read.key());
             assertEquals(Integer.valueOf(i), Serializers.INTEGER.fromBytes(read.key()));
         }
@@ -123,16 +124,22 @@ public class RecordTest {
 
         Record from = Record.from(record.buffer, false);
 
-        assertEquals(record.keyLength(), from.keyLength());
+        assertEquals(record.keySize(), from.keySize());
         assertEquals(record.checksum(), from.checksum());
-        assertEquals(record.dataLength(), from.dataLength());
+        assertEquals(record.valueSize(), from.valueSize());
         assertEquals(record.timestamp(), from.timestamp());
-        assertEquals(record.data(), from.data());
+        assertEquals(readData(record), readData(from));
         assertEquals(record.key(), from.key());
 
     }
 
     private Record create(int key, int val) {
         return Record.create(key, Serializers.INTEGER, val, Serializers.INTEGER, ByteBuffer.allocate(1024));
+    }
+
+    private static int readData(Record record) {
+        var buffer = ByteBuffer.allocate(Integer.BYTES);
+        record.readValue(buffer);
+        return buffer.flip().getInt();
     }
 }

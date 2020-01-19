@@ -1,5 +1,7 @@
 package io.joshworks.fstore.core.util;
 
+import io.joshworks.fstore.core.io.buffers.Buffers;
+
 import java.nio.ByteBuffer;
 import java.util.zip.Adler32;
 import java.util.zip.CRC32;
@@ -14,27 +16,38 @@ public class ByteBufferChecksum {
     }
 
     public static int crc32(ByteBuffer buffer) {
-        return checksum(buffer, new CRC32());
+        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), new CRC32());
+    }
+
+    public static int crc32(ByteBuffer buffer, int pos, int len) {
+        return checksum(buffer, pos, len, new CRC32());
     }
 
     public static int crc32c(ByteBuffer buffer) {
-        return checksum(buffer, new CRC32C());
+        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), new CRC32C());
+    }
+
+    public static int crc32c(ByteBuffer buffer, int pos, int len) {
+        return checksum(buffer, pos, len, new CRC32C());
     }
 
     public static int adler32(ByteBuffer buffer) {
-        return checksum(buffer, new Adler32());
+        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), new Adler32());
     }
 
-    private static int checksum(ByteBuffer buffer, Checksum impl) {
+    public static int adler32(ByteBuffer buffer, int pos, int len) {
+        return checksum(buffer, pos, len, new CRC32C());
+    }
+
+    private static int checksum(ByteBuffer buffer, int pos, int len, Checksum impl) {
         if (!buffer.hasArray()) {
-            byte[] data = new byte[buffer.remaining()];
-            buffer.mark();
+            byte[] data = new byte[len];
+            int ppos = buffer.position();
             buffer.get(data);
-            buffer.reset();
-            return checksum(impl, data, 0, data.length);
+            buffer.position(ppos);
+            return checksum(impl, data, pos, len);
         }
-        int offset = buffer.arrayOffset();
-        return checksum(impl, buffer.array(), offset + buffer.position(), buffer.remaining());
+        return checksum(impl, buffer.array(), pos, len);
     }
 
     private static int checksum(Checksum impl, byte[] data, int offset, int length) {

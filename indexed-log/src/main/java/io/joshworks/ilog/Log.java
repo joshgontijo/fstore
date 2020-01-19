@@ -1,8 +1,11 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.ilog.compaction.Compactor;
 import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
+import io.joshworks.ilog.index.Index;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,11 +18,12 @@ public class Log {
     private final FlushMode flushMode;
     private final Compactor compactor;
 
-
     public Log(File root,
                int maxEntrySize,
                int indexSize,
+               int compactionThreshold,
                FlushMode flushMode,
+               BufferPool pool,
                BiFunction<File, Index, IndexedSegment> segmentFactory,
                BiFunction<File, Integer, Index> indexFactory) throws IOException {
 
@@ -33,13 +37,14 @@ public class Log {
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
-        this.view = new View(root, indexSize, segmentFactory, indexFactory);
-        this.compactor = new Compactor(view, "someName", new ConcatenateCombiner(), true, 2);
+        var reindexPool = BufferPool.unpooled(Math.max(maxEntrySize, Memory.PAGE_SIZE), false);
+        this.view = new View(root, indexSize, reindexPool, segmentFactory, indexFactory);
+        this.compactor = new Compactor(view, "someName", new ConcatenateCombiner(pool), true, compactionThreshold);
     }
 
     public void append(Record record) {
         try {
-            int recordLength = record.recordLength();
+            int recordLength = record.size();
             if (recordLength > maxEntrySize) {
                 throw new IllegalArgumentException("Record to large, max allowed size: " + maxEntrySize + ", record size: " + recordLength);
             }
@@ -59,6 +64,18 @@ public class Log {
             throw new RuntimeIOException("Failed to append entry", e);
         }
     }
+
+//    /**
+//     * Reads a single entry for the given offset, read is performed with a single IO call
+//     * with a buffer of size specified by readSize. If the buffer is too small for the entry, then a new one is created and
+//     */
+//    public int read(ByteBuffer key, ByteBuffer dst) {
+//        int readSize = dst.remaining();
+//        if (readSize <= HEADER_BYTES) {
+//            throw new RuntimeException("bufferSize must be greater than " + HEADER_BYTES);
+//        }
+//        return channel.read(dst, position);
+//    }
 
     public long entries() {
         return view.entries();
@@ -80,5 +97,9 @@ public class Log {
         } catch (Exception e) {
             throw new RuntimeIOException("Error while closing segment", e);
         }
+    }
+
+    public void delete() {
+        view.delete();
     }
 }

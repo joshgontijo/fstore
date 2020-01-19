@@ -5,26 +5,16 @@ import java.nio.ByteBuffer;
 /**
  * Always allocate a new buffer, not a pool despite the name
  */
-public class DiscardBufferPool implements BufferPool {
+class Unpooled implements BufferPool {
 
     private final int bufferSize;
     private final boolean direct;
 
-    public DiscardBufferPool(int bufferSize, boolean direct) {
+    Unpooled(int bufferSize, boolean direct) {
         this.direct = direct;
         this.bufferSize = bufferSize;
     }
 
-
-    @Override
-    public int bufferSize() {
-        return 0;
-    }
-
-    @Override
-    public void free() {
-
-    }
 
     @Override
     public ByteBuffer allocate() {
@@ -32,8 +22,9 @@ public class DiscardBufferPool implements BufferPool {
     }
 
     @Override
-    public boolean direct() {
-        return direct;
+    public void free(ByteBuffer buffer) {
+        //do nothing
     }
+
 
 }

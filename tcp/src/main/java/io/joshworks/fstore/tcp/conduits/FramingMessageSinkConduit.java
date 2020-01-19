@@ -1,6 +1,6 @@
 package io.joshworks.fstore.tcp.conduits;
 
-import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import org.xnio.Buffers;
 import org.xnio.conduits.AbstractSinkConduit;
 import org.xnio.conduits.Conduits;
@@ -16,10 +16,10 @@ public class FramingMessageSinkConduit extends AbstractSinkConduit<StreamSinkCon
 
     public static final int LENGTH_LENGTH = Integer.BYTES;
     private final ByteBuffer transmitBuffer;
-    private final StupidPool pool;
+    private final BufferPool pool;
 
 
-    public FramingMessageSinkConduit(final StreamSinkConduit next, StupidPool pool) {
+    public FramingMessageSinkConduit(final StreamSinkConduit next, BufferPool pool) {
         super(next);
         this.pool = pool;
         this.transmitBuffer = pool.allocate();

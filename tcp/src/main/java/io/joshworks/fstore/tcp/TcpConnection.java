@@ -2,7 +2,7 @@ package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.io.buffers.StupidPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 import io.joshworks.fstore.tcp.codec.CodecRegistry;
 import io.joshworks.fstore.tcp.codec.Compression;
@@ -45,10 +45,10 @@ public class TcpConnection implements Closeable {
     private volatile long bytesReceived;
     private volatile long messagesSent;
     private volatile long messagesReceived;
-    private final StupidPool pool;
+    private final BufferPool pool;
     private final Compression compression;
 
-    public TcpConnection(StreamConnection connection, StupidPool pool, ResponseTable responseTable, Compression compression) {
+    public TcpConnection(StreamConnection connection, BufferPool pool, ResponseTable responseTable, Compression compression) {
         this.connection = connection;
         this.responseTable = responseTable;
         this.pool = pool;

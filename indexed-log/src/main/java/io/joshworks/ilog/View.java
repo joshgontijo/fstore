@@ -1,6 +1,8 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.ilog.index.Index;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +45,7 @@ public class View {
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
-    View(File root, int indexSize, BiFunction<File, Index, IndexedSegment> segmentFactory, BiFunction<File, Integer, Index> indexFactory) throws IOException {
+    View(File root, int indexSize, BufferPool pool, BiFunction<File, Index, IndexedSegment> segmentFactory, BiFunction<File, Integer, Index> indexFactory) throws IOException {
         this.root = root;
         this.indexSize = indexSize;
         this.segmentFactory = segmentFactory;
@@ -60,7 +62,7 @@ public class View {
 
         if (!segments.isEmpty()) {
             IndexedSegment head = segments.get(segments.size() - 1);
-            head.reindex(indexFactory);
+            head.reindex(pool, indexFactory);
             head.forceRoll();
 
             nextSegmentIdx.set(head.segmentId() + 1);
@@ -88,6 +90,15 @@ public class View {
 
     IndexedSegment head() {
         return head;
+    }
+
+    void delete() {
+        lock(() -> {
+            for (IndexedSegment segment : segments) {
+                segment.delete();
+            }
+            segments.clear();
+        });
     }
 
     public long entries() {

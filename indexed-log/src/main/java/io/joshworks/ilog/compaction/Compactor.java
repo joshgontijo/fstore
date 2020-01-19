@@ -2,7 +2,7 @@ package io.joshworks.ilog.compaction;
 
 import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.ilog.Index;
+import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.View;
 import io.joshworks.ilog.compaction.combiner.SegmentCombiner;

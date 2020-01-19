@@ -20,6 +20,7 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.channels.WritableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 
@@ -51,10 +52,13 @@ public final class IOUtils {
         } while (lastWrittenIdx < bytes.length);
     }
 
-    public static void writeFully(FileChannel channel, ByteBuffer buffer) throws IOException {
+    public static int writeFully(WritableByteChannel channel, ByteBuffer buffer) throws IOException {
+        int written = 0;
         do {
-            channel.write(buffer);
+            int write = channel.write(buffer);
+            written = write > 0 ? written + write : written;
         } while (buffer.hasRemaining());
+        return written;
     }
 
     public static int readFully(FileChannel from, ByteBuffer buffer) throws IOException {
