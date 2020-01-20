@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.ChecksumException;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
+import io.joshworks.ilog.index.KeyComparator;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -36,7 +37,7 @@ public class Record {
     public static final int KEY_LENGTH_OFFSET = TIMESTAMP_OFFSET + TIMESTAMP_LEN;
     public static final int ATTR_OFFSET = KEY_LENGTH_OFFSET + KEY_LEN_LEN;
 
-    final ByteBuffer buffer; //package private for testing
+    public final ByteBuffer buffer; //package private for testing
 
     private Record(ByteBuffer buffer) {
         this.buffer = buffer;
@@ -75,6 +76,17 @@ public class Record {
     public boolean hasAttribute(int attribute) {
         byte attr = buffer.get(ATTR_OFFSET);
         return (attr & (Byte.MAX_VALUE << attribute)) == 1;
+    }
+
+    public static int compareKey(ByteBuffer key, ByteBuffer record, ByteBuffer recordKeyHolder, KeyComparator comparator) {
+        int keyStart = Buffers.absoluteArrayPosition(record, HEADER_BYTES);
+        Buffers.copy(record, keyStart, comparator.keySize(), recordKeyHolder);
+        recordKeyHolder.flip();
+        return comparator.compare(key, recordKeyHolder);
+    }
+
+    public static void readKey(ByteBuffer record, ByteBuffer dst, int keySize) {
+        Buffers.copy(record, HEADER_BYTES, keySize, dst);
     }
 
     public static <K, V> Record create(K key, Serializer<K> ks, V value, Serializer<V> vs, ByteBuffer writeBuffer) {

@@ -55,7 +55,7 @@ public class IndexedSegmentTest {
     }
 
     private static Record create(long key, String value) {
-        return Record.create(key, Serializers.LONG, value, Serializers.VSTRING, ByteBuffer.allocate(64));
+        return Record.create(key, Serializers.LONG, value, Serializers.STRING, ByteBuffer.allocate(64));
     }
 
     private static ByteBuffer bufferOf(long value) {
