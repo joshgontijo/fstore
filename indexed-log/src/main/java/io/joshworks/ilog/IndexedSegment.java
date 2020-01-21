@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.KeyComparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
 
@@ -26,15 +26,21 @@ public class IndexedSegment {
     public static long START = 0;
 
     private final File file;
+    private final int indexSize;
+    private final KeyComparator comparator;
     private final FileChannel channel;
+    private final long id;
     private Index index;
 
     private final AtomicBoolean readOnly = new AtomicBoolean();
     private final AtomicLong writePosition = new AtomicLong();
 
-    public IndexedSegment(File file, Index index) {
+    public IndexedSegment(File file, int indexSize, KeyComparator comparator) {
         this.file = file;
-        this.index = index;
+        this.indexSize = indexSize;
+        this.comparator = comparator;
+        this.index = openIndex(file, indexSize, comparator);
+        this.id = View.segmentIdx(file.getName());
         boolean newSegment = FileUtils.createIfNotExists(file);
         this.readOnly.set(!newSegment);
         this.channel = openChannel(file);
@@ -43,13 +49,18 @@ public class IndexedSegment {
         }
     }
 
-    void reindex(BufferPool pool, BiFunction<File, Integer, Index> indexFactory) throws IOException {
+    private Index openIndex(File file, int indexSize, KeyComparator comparator) {
+        File indexFile = View.indexFile(file);
+        return new Index(indexFile, indexSize, comparator);
+    }
+
+    void reindex(BufferPool pool) throws IOException {
         log.info("Reindexing {}", name());
 
-        int indexSize = index.size();
         index.delete();
         File indexFile = View.indexFile(file);
-        this.index = indexFactory.apply(indexFile, indexSize);
+        FileUtils.deleteIfExists(indexFile);
+        this.index = openIndex(indexFile, indexSize, comparator);
 
         long start = System.currentTimeMillis();
         RecordBatchIterator it = new RecordBatchIterator(this, START, pool);
@@ -109,7 +120,7 @@ public class IndexedSegment {
      * Lookup for the entry position based on a key
      */
     public long find(ByteBuffer key) {
-        return index.keySize();
+        return index.get(key);
     }
 
     /**
@@ -200,7 +211,7 @@ public class IndexedSegment {
     }
 
     public long segmentId() {
-        return View.segmentIdx(name());
+        return id;
     }
 
     public void delete() {

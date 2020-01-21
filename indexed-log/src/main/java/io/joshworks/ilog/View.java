@@ -12,8 +12,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
@@ -24,32 +25,30 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.lang.String.format;
+import static io.joshworks.ilog.LogUtil.EXT;
+import static io.joshworks.ilog.LogUtil.compareSegments;
 
 public class View {
 
     private static final Logger log = LoggerFactory.getLogger(View.class);
-    private static final String EXT = ".log";
+
 
     private volatile List<IndexedSegment> segments = new CopyOnWriteArrayList<>();
     private volatile IndexedSegment head;
 
-    private final AtomicLong nextSegmentIdx = new AtomicLong();
+    private final Map<Integer, Long> levelSegments = new ConcurrentHashMap<>();
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final int indexSize;
     private final BiFunction<File, Index, IndexedSegment> segmentFactory;
-    private final BiFunction<File, Integer, Index> indexFactory;
-    public static final int LEVEL_DIGITS = 3;
-    public static final int SEG_IDX_DIGITS = (int) (Math.log10(Long.MAX_VALUE) + 1);
+
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
-    View(File root, int indexSize, BufferPool pool, BiFunction<File, Index, IndexedSegment> segmentFactory, BiFunction<File, Integer, Index> indexFactory) throws IOException {
+    View(File root, int indexSize, BufferPool pool, BiFunction<File, Index, IndexedSegment> segmentFactory) throws IOException {
         this.root = root;
         this.indexSize = indexSize;
         this.segmentFactory = segmentFactory;
-        this.indexFactory = indexFactory;
 
         List<IndexedSegment> segments = Files.list(root.toPath())
                 .map(Path::toFile)
@@ -62,7 +61,7 @@ public class View {
 
         if (!segments.isEmpty()) {
             IndexedSegment head = segments.get(segments.size() - 1);
-            head.reindex(pool, indexFactory);
+            head.reindex(pool);
             head.forceRoll();
 
             nextSegmentIdx.set(head.segmentId() + 1);
@@ -76,17 +75,7 @@ public class View {
         return newSegment(0, indexSize);
     }
 
-    private static Comparator<IndexedSegment> compareSegments() {
-        return (o1, o2) -> {
-            int levelDiff = o2.level() - o1.level();
-            if (levelDiff == 0) {
-                int createdDiff = Long.compare(o1.segmentId(), o2.segmentId());
-                if (createdDiff != 0)
-                    return createdDiff;
-            }
-            return levelDiff;
-        };
-    }
+
 
     IndexedSegment head() {
         return head;
@@ -126,30 +115,6 @@ public class View {
         }
     }
 
-    private File segmentFile(long segmentIdx, int level) {
-        String name = format("%0" + SEG_IDX_DIGITS + "d", segmentIdx) + "-" + format("%0" + LEVEL_DIGITS + "d", level) + EXT;
-        return new File(root, name);
-    }
-
-    public static long segmentIdx(String fileName) {
-        String name = nameWithoutExt(fileName);
-        return Long.parseLong(name.split("-")[0]);
-    }
-
-    public static int levelOf(String fileName) {
-        String name = nameWithoutExt(fileName);
-        return Integer.parseInt(name.split("-")[1]);
-    }
-
-    static File indexFile(File segmentFile) {
-        String name = nameWithoutExt(segmentFile.getName());
-        File dir = segmentFile.toPath().getParent().toFile();
-        return new File(dir, name + ".index");
-    }
-
-    private static String nameWithoutExt(String fileName) {
-        return fileName.split("\\.")[0];
-    }
 
     IndexedSegment roll() throws IOException {
         Lock lock = this.rwLock.writeLock();
@@ -178,10 +143,6 @@ public class View {
     }
 
     //----------------------------------
-
-    private void appendSegment(IndexedSegment newHead) {
-
-    }
 
     public <R> R apply(Direction direction, Function<List<IndexedSegment>, R> function) {
         Lock lock = this.rwLock.readLock();

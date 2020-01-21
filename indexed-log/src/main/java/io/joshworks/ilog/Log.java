@@ -9,13 +9,16 @@ import io.joshworks.ilog.index.Index;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
-public class Log {
+public class Log<T extends IndexedSegment> {
 
-    private final View view;
+    protected final View view;
     private final int maxEntrySize;
     private final FlushMode flushMode;
+    protected final BufferPool pool;
     private final Compactor compactor;
 
     public Log(File root,
@@ -24,11 +27,11 @@ public class Log {
                int compactionThreshold,
                FlushMode flushMode,
                BufferPool pool,
-               BiFunction<File, Index, IndexedSegment> segmentFactory,
-               BiFunction<File, Integer, Index> indexFactory) throws IOException {
+               SegmentFactory<T> segmentFactory) throws IOException {
 
         this.maxEntrySize = maxEntrySize;
         this.flushMode = flushMode;
+        this.pool = pool;
 
         if (indexSize > Index.MAX_SIZE) {
             throw new IllegalArgumentException("Index cannot be greater than " + Index.MAX_SIZE);
@@ -38,7 +41,7 @@ public class Log {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
         var reindexPool = BufferPool.unpooled(Math.max(maxEntrySize, Memory.PAGE_SIZE), false);
-        this.view = new View(root, indexSize, reindexPool, segmentFactory, indexFactory);
+        this.view = new View(root, indexSize, reindexPool, segmentFactory);
         this.compactor = new Compactor(view, "someName", new ConcatenateCombiner(pool), true, compactionThreshold);
     }
 
@@ -65,17 +68,9 @@ public class Log {
         }
     }
 
-//    /**
-//     * Reads a single entry for the given offset, read is performed with a single IO call
-//     * with a buffer of size specified by readSize. If the buffer is too small for the entry, then a new one is created and
-//     */
-//    public int read(ByteBuffer key, ByteBuffer dst) {
-//        int readSize = dst.remaining();
-//        if (readSize <= HEADER_BYTES) {
-//            throw new RuntimeException("bufferSize must be greater than " + HEADER_BYTES);
-//        }
-//        return channel.read(dst, position);
-//    }
+    public <R> R apply(Function<List<IndexedSegment>, R> func) {
+        return view.apply(Direction.FORWARD, func);
+    }
 
     public long entries() {
         return view.entries();

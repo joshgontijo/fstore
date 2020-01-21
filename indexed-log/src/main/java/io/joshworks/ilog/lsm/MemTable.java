@@ -6,84 +6,43 @@ import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 
 class MemTable {
 
-    private final ConcurrentSkipListSet<ByteBuffer> table;
+    private final ConcurrentSkipListMap<ByteBuffer, ByteBuffer> table;
     private final KeyComparator comparator;
     private final BufferPool keyPool;
     private final AtomicInteger size = new AtomicInteger();
 
     MemTable(KeyComparator comparator, BufferPool keyPool) {
-        this.table = new ConcurrentSkipListSet<>(bufferComparator(comparator));
+        this.table = new ConcurrentSkipListMap<>(comparator);
         this.comparator = comparator;
         this.keyPool = keyPool;
     }
 
-//    private Comparator<Record> recordComparator(KeyComparator comparator) {
-//        return (r1, r2) -> {
-//            ByteBuffer k1 = keyPool.allocate();
-//            ByteBuffer k2 = keyPool.allocate();
-//            try {
-//                r1.readKey(k1);
-//                k1.flip();
-//
-//                r2.readKey(k2);
-//                k2.flip();
-//
-//                return comparator.compare(k1, k2);
-//            } finally {
-//                keyPool.free(k1);
-//                keyPool.free(k2);
-//            }
-//        };
-//    }
-
-    private Comparator<ByteBuffer> bufferComparator(KeyComparator comparator) {
-        return (r1, r2) -> {
-            ByteBuffer k1 = null;
-            ByteBuffer k2 = null;
-            try {
-                k1 = keyOf(r1, keyPool, comparator);
-                k2 = keyOf(r2, keyPool, comparator);
-                return comparator.compare(k1, k2);
-            } finally {
-                k1.flip();
-                k2.flip();
-                if (k1 != r1) {
-                    keyPool.free(k1);
-                }
-                if (k2 != r2) {
-                    keyPool.free(k2);
-                }
-            }
-        };
-    }
-
-    private static ByteBuffer keyOf(ByteBuffer buffer, BufferPool pool, KeyComparator comparator) {
-        if (buffer.remaining() != comparator.keySize()) {
-            ByteBuffer recordKey = pool.allocate();
-            Record.readKey(buffer, recordKey, comparator.keySize());
-            return recordKey.flip();
-        }
-        return buffer;
-    }
-
     int add(Record record) {
         requireNonNull(record, "Record must be provided");
-        ByteBuffer buffer = record.buffer;
-        boolean added = table.add(buffer);
-        if (!added) {
-            table.remove(buffer);
-            table.add(buffer);
-            return size.get();
+        var keyBuffer = keyPool.allocate();
+        try {
+            var recordBuffer = record.buffer;
+            record.readKey(keyBuffer);
+            keyBuffer.flip();
+            validateKeySize(keyBuffer);
+            ByteBuffer existing = table.put(keyBuffer, recordBuffer);
+            if (existing != null) {
+                return size.get();
+            }
+            return size.incrementAndGet();
+
+        } catch (Exception e) {
+            keyPool.free(keyBuffer);
+            throw new RuntimeException("Failed to insert record", e);
         }
-        return size.incrementAndGet();
     }
 
     public static void main(String[] args) {
@@ -101,15 +60,24 @@ class MemTable {
 //        }
 
 
+//        for (int i = 0; i < 10; i++) {
+//            ByteBuffer key = ByteBuffer.allocate(Long.BYTES).putLong(i).flip();
+//            ByteBuffer floor = table.floor(key);
+//
+//            Record record = Record.from(floor, false);
+//            String toString = record.toString(Serializers.LONG, Serializers.STRING);
+//            System.out.println(toString);
+//        }
+
+        System.out.println("--------");
         for (int i = 0; i < 10; i++) {
             ByteBuffer key = ByteBuffer.allocate(Long.BYTES).putLong(i).flip();
-            ByteBuffer floor = table.floor(key);
+            ByteBuffer floor = table.get(key);
 
             Record record = Record.from(floor, false);
             String toString = record.toString(Serializers.LONG, Serializers.STRING);
             System.out.println(toString);
         }
-
 
     }
 
@@ -117,19 +85,40 @@ class MemTable {
         return Record.create(key, Serializers.LONG, value, Serializers.STRING, ByteBuffer.allocate(64));
     }
 
-    //    @Override
-//    public Record get(ByteBuffer key) {
-//        if (key.remaining() != comparator.keySize()) {
-//            throw new IllegalArgumentException("Invalid key size");
-//        }
-//        ByteBuffer floor = floor(key);
-//        return found.key.equals(key) ? found : null;
-//    }
+    public ByteBuffer get(ByteBuffer key) {
+        validateKeySize(key);
+        var floor = floor(key);
+        if (floor == null) {
+            return null;
+        }
+        return compareRecord(floor, key) == 0 ? floor : null;
+    }
 
     //    @Override
     public ByteBuffer floor(ByteBuffer key) {
-        return table.floor(key);
+        var entry = table.floorEntry(key);
+        return getValue(entry);
     }
+
+    private int compareRecord(ByteBuffer record, ByteBuffer key) {
+        var keyBuffer = keyPool.allocate();
+        try {
+            return Record.compareKey(key, record, keyBuffer, comparator);
+        } finally {
+            keyPool.free(keyBuffer);
+        }
+    }
+
+    private void validateKeySize(ByteBuffer key) {
+        if (key.remaining() != comparator.keySize()) {
+            throw new IllegalArgumentException("Invalid key size: " + key.remaining());
+        }
+    }
+
+    private static ByteBuffer getValue(Map.Entry<ByteBuffer, ByteBuffer> entry) {
+        return entry == null ? null : entry.getValue();
+    }
+
 //
 //    @Override
 //    public Entry<K, V> ceiling(K key) {
