@@ -5,11 +5,9 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.ilog.FlushMode;
-import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.Log;
-import io.joshworks.ilog.Record;
+import io.joshworks.ilog.*;
 import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.KeyComparator;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,12 +19,12 @@ import java.util.function.Function;
 
 public class SequenceLog {
 
-    private final Log log;
+    private final Log<IndexedSegment> log;
     private final BufferPool keyPool;
     private final AtomicLong sequence = new AtomicLong();
 
     public SequenceLog(File root, int maxEntrySize, int indexSize, int compactionThreshold, FlushMode flushMode, BufferPool pool) throws IOException {
-        log = new Log(root, maxEntrySize, indexSize, compactionThreshold, flushMode, pool, IndexedSegment::new, Index.LONG);
+        log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, flushMode, pool, (file, indexSize1) -> new IndexedSegment(file, indexSize1, KeyComparator.LONG));
         keyPool = BufferPool.localCachePool(256, Long.BYTES, false);
     }
 

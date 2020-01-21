@@ -25,65 +25,62 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.joshworks.ilog.LogUtil.EXT;
-import static io.joshworks.ilog.LogUtil.compareSegments;
+import static io.joshworks.ilog.LogUtil.*;
 
-public class View {
+public class View<T extends IndexedSegment> {
 
     private static final Logger log = LoggerFactory.getLogger(View.class);
 
 
-    private volatile List<IndexedSegment> segments = new CopyOnWriteArrayList<>();
-    private volatile IndexedSegment head;
+    private volatile List<T> segments = new CopyOnWriteArrayList<>();
+    private volatile T head;
 
-    private final Map<Integer, Long> levelSegments = new ConcurrentHashMap<>();
+    private final AtomicLong nextSegmentIdx = new AtomicLong();
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final int indexSize;
-    private final BiFunction<File, Index, IndexedSegment> segmentFactory;
-
+    private final SegmentFactory<T> segmentFactory;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
-    View(File root, int indexSize, BufferPool pool, BiFunction<File, Index, IndexedSegment> segmentFactory) throws IOException {
+    View(File root, int indexSize, BufferPool pool, SegmentFactory<T> segmentFactory) throws IOException {
         this.root = root;
         this.indexSize = indexSize;
         this.segmentFactory = segmentFactory;
 
-        List<IndexedSegment> segments = Files.list(root.toPath())
+        List<T> segments = Files.list(root.toPath())
                 .map(Path::toFile)
                 .filter(f -> f.getName().endsWith(EXT))
                 .map(this::open)
                 .sorted(compareSegments())
                 .collect(Collectors.toList());
 
-        entries.set(segments.stream().mapToLong(IndexedSegment::entries).sum());
+        entries.set(segments.stream().mapToLong(T::entries).sum());
 
         if (!segments.isEmpty()) {
-            IndexedSegment head = segments.get(segments.size() - 1);
+            T head = segments.get(segments.size() - 1);
             head.reindex(pool);
             head.forceRoll();
 
             nextSegmentIdx.set(head.segmentId() + 1);
         }
-        IndexedSegment head = createHead();
+        T head = createHead();
         this.head = head;
         this.segments.add(head);
     }
 
-    private IndexedSegment createHead() {
+    private T createHead() {
         return newSegment(0, indexSize);
     }
 
 
-
-    IndexedSegment head() {
+    T head() {
         return head;
     }
 
     void delete() {
         lock(() -> {
-            for (IndexedSegment segment : segments) {
+            for (T segment : segments) {
                 segment.delete();
             }
             segments.clear();
@@ -94,29 +91,26 @@ public class View {
         return entries.get() + head().entries();
     }
 
-    public IndexedSegment newSegment(int level, long indexSize) {
+    public T newSegment(int level, long indexSize) {
         if (indexSize > Index.MAX_SIZE) {
             throw new IllegalArgumentException("Index cannot be greater than " + Index.MAX_SIZE);
         }
         long nextSegIdx = nextSegmentIdx.getAndIncrement();
-        File segmentFile = segmentFile(nextSegIdx, level);
-        File indexFile = indexFile(segmentFile);
-        Index index = indexFactory.apply(indexFile, (int) indexSize);
-        return segmentFactory.apply(segmentFile, index);
+        File segmentFile = segmentFile(root, nextSegIdx, level);
+        return segmentFactory.create(segmentFile, (int) indexSize);
     }
 
-    private IndexedSegment open(File segmentFile) {
+    private T open(File segmentFile) {
         try {
             File indexFile = indexFile(segmentFile);
-            Index index = indexFactory.apply(indexFile, indexSize);
-            return segmentFactory.apply(segmentFile, index);
+            return segmentFactory.create(indexFile, indexSize);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment " + segmentFile.getName(), e);
         }
     }
 
 
-    IndexedSegment roll() throws IOException {
+    T roll() throws IOException {
         Lock lock = this.rwLock.writeLock();
         lock.lock();
         try {
@@ -124,7 +118,7 @@ public class View {
             log.info("Rolling segment {}", head);
             head.roll();
             entries.addAndGet(head.entries());
-            IndexedSegment newHead = createHead();
+            T newHead = createHead();
 
             segments.add(newHead);
             head = newHead;
@@ -136,7 +130,7 @@ public class View {
     }
 
     public void close() throws IOException {
-        for (IndexedSegment segment : segments) {
+        for (T segment : segments) {
             log.info("Closing segment {}", segment);
             segment.close();
         }
@@ -144,11 +138,11 @@ public class View {
 
     //----------------------------------
 
-    public <R> R apply(Direction direction, Function<List<IndexedSegment>, R> function) {
+    public <R> R apply(Direction direction, Function<List<T>, R> function) {
         Lock lock = this.rwLock.readLock();
         lock.lock();
         try {
-            List<IndexedSegment> segs = getSegments(direction);
+            List<T> segs = getSegments(direction);
             return function.apply(segs);
         } finally {
             lock.unlock();
@@ -165,47 +159,47 @@ public class View {
         }
     }
 
-    public void acquire(Direction direction, Consumer<List<IndexedSegment>> function) {
+    public void acquire(Direction direction, Consumer<List<T>> function) {
         Lock lock = this.rwLock.readLock();
         lock.lock();
         try {
-            List<IndexedSegment> segs = getSegments(direction);
+            List<T> segs = getSegments(direction);
             function.accept(segs);
         } finally {
             lock.unlock();
         }
     }
 
-    public <R> R apply(int level, Function<List<IndexedSegment>, R> function) {
+    public <R> R apply(int level, Function<List<T>, R> function) {
         Lock lock = this.rwLock.readLock();
         lock.lock();
         try {
-            List<IndexedSegment> segs = getSegments(level);
+            List<T> segs = getSegments(level);
             return function.apply(segs);
         } finally {
             lock.unlock();
         }
     }
 
-    List<IndexedSegment> getSegments(int level) {
+    List<T> getSegments(int level) {
         return segments.stream().filter(seg -> seg.level() == level).collect(Collectors.toList());
     }
 
-    List<IndexedSegment> getSegments(Direction direction) {
-        ArrayList<IndexedSegment> copy = new ArrayList<>(segments);
+    List<T> getSegments(Direction direction) {
+        ArrayList<T> copy = new ArrayList<>(segments);
         if (Direction.BACKWARD.equals(direction)) {
             Collections.reverse(copy);
         }
         return copy;
     }
 
-    public void remove(List<IndexedSegment> segments) {
+    public void remove(List<T> segments) {
         Lock lock = this.rwLock.writeLock();
         lock.lock();
         try {
             validateDeletion(segments);
-            List<IndexedSegment> copy = new ArrayList<>(this.segments);
-            for (IndexedSegment seg : segments) {
+            List<T> copy = new ArrayList<>(this.segments);
+            for (T seg : segments) {
                 copy.remove(seg);
             }
             this.segments = copy;
@@ -214,7 +208,7 @@ public class View {
         }
     }
 
-    public void merge(List<IndexedSegment> sources, IndexedSegment merged) {
+    public void merge(List<T> sources, T merged) {
         Lock lock = this.rwLock.writeLock();
         lock.lock();
         try {
@@ -222,10 +216,10 @@ public class View {
                 return;
             }
 
-            List<IndexedSegment> copy = new ArrayList<>(this.segments);
+            List<T> copy = new ArrayList<>(this.segments);
             validateDeletion(sources);
 
-            IndexedSegment first = sources.get(0);
+            T first = sources.get(0);
             int level = first.level(); //safe to assume that there is a segment and all of them are the same level
             int nextLevel = level + 1;
             int firstIdx = copy.indexOf(first);
@@ -246,9 +240,9 @@ public class View {
         }
     }
 
-    private void validateDeletion(List<IndexedSegment> segments) {
+    private void validateDeletion(List<T> segments) {
         int latestIndex = -1;
-        for (IndexedSegment seg : segments) {
+        for (T seg : segments) {
             int i = segments.indexOf(seg);
             if (i < 0) {
                 throw new IllegalStateException("Segment not found: " + seg.name());

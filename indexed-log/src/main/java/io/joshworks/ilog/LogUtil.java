@@ -7,23 +7,35 @@ import static java.lang.String.format;
 
 public class LogUtil {
 
-    static final int LEVEL_DIGITS = 3;
+    private static long BASE = 0x16345785D8A0000L;
     static final String EXT = ".log";
     static final int SEG_IDX_DIGITS = (int) (Math.log10(Long.MAX_VALUE) + 1);
 
-    static File segmentFile(long segmentIdx, int level) {
-        String name = format("%0" + SEG_IDX_DIGITS + "d", segmentIdx) + "-" + format("%0" + LEVEL_DIGITS + "d", level) + EXT;
+    static File segmentFile(File root, long segmentIdx, int level) {
+        long id = (level * BASE) + segmentIdx;
+        String name = format("%0" + SEG_IDX_DIGITS + "d", id) + EXT;
         return new File(root, name);
     }
 
-    static long segmentIdx(String fileName) {
+    static long segmentId(String fileName) {
         String name = nameWithoutExt(fileName);
-        return Long.parseLong(name.split("-")[0]);
+        return Long.parseLong(name);
+    }
+
+    static long segmentIdx(String fileName) {
+        return segmentIdx(segmentId(fileName));
+    }
+
+    static long segmentIdx(long segmentId) {
+        return segmentId - BASE;
     }
 
     static int levelOf(String fileName) {
-        String name = nameWithoutExt(fileName);
-        return Integer.parseInt(name.split("-")[1]);
+        return levelOf(segmentId(fileName));
+    }
+
+    static int levelOf(long segmentId) {
+        return (int) (segmentId / BASE);
     }
 
     static File indexFile(File segmentFile) {

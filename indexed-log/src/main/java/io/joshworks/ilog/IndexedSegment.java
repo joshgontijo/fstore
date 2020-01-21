@@ -40,7 +40,7 @@ public class IndexedSegment {
         this.indexSize = indexSize;
         this.comparator = comparator;
         this.index = openIndex(file, indexSize, comparator);
-        this.id = View.segmentIdx(file.getName());
+        this.id = LogUtil.segmentId(file.getName());
         boolean newSegment = FileUtils.createIfNotExists(file);
         this.readOnly.set(!newSegment);
         this.channel = openChannel(file);
@@ -50,7 +50,7 @@ public class IndexedSegment {
     }
 
     private Index openIndex(File file, int indexSize, KeyComparator comparator) {
-        File indexFile = View.indexFile(file);
+        File indexFile = LogUtil.indexFile(file);
         return new Index(indexFile, indexSize, comparator);
     }
 
@@ -58,7 +58,7 @@ public class IndexedSegment {
         log.info("Reindexing {}", name());
 
         index.delete();
-        File indexFile = View.indexFile(file);
+        File indexFile = LogUtil.indexFile(file);
         FileUtils.deleteIfExists(indexFile);
         this.index = openIndex(indexFile, indexSize, comparator);
 
@@ -207,11 +207,15 @@ public class IndexedSegment {
     }
 
     public int level() {
-        return View.levelOf(name());
+        return LogUtil.levelOf(id);
     }
 
     public long segmentId() {
         return id;
+    }
+
+    public long segmentIdx() {
+        return LogUtil.segmentIdx(id);
     }
 
     public void delete() {

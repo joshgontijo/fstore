@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.ilog.compaction.Compactor;
 import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.KeyComparator;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,7 +16,7 @@ import java.util.function.Function;
 
 public class Log<T extends IndexedSegment> {
 
-    protected final View view;
+    protected final View<T> view;
     private final int maxEntrySize;
     private final FlushMode flushMode;
     protected final BufferPool pool;
@@ -41,7 +42,7 @@ public class Log<T extends IndexedSegment> {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
         var reindexPool = BufferPool.unpooled(Math.max(maxEntrySize, Memory.PAGE_SIZE), false);
-        this.view = new View(root, indexSize, reindexPool, segmentFactory);
+        this.view = new View<>(root, indexSize, reindexPool, segmentFactory);
         this.compactor = new Compactor(view, "someName", new ConcatenateCombiner(pool), true, compactionThreshold);
     }
 
@@ -68,7 +69,7 @@ public class Log<T extends IndexedSegment> {
         }
     }
 
-    public <R> R apply(Function<List<IndexedSegment>, R> func) {
+    public <R> R apply(Function<List<T>, R> func) {
         return view.apply(Direction.FORWARD, func);
     }
 
