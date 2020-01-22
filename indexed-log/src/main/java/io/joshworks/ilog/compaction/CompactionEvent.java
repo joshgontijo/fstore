@@ -7,19 +7,19 @@ import io.joshworks.ilog.compaction.combiner.SegmentCombiner;
 import java.util.List;
 import java.util.function.Consumer;
 
-class CompactionEvent {
-    View view;
-    final List<IndexedSegment> segments;
+class CompactionEvent<T extends IndexedSegment> {
+    View<T> view;
+    final List<T> segments;
     final int level;
-    final Consumer<CompactionResult> onComplete;
+    final Consumer<CompactionResult<T>> onComplete;
     final SegmentCombiner combiner;
 
     CompactionEvent(
-            View view,
-            List<IndexedSegment> segments,
+            View<T> view,
+            List<T> segments,
             SegmentCombiner combiner,
             int level,
-            Consumer<CompactionResult> onComplete) {
+            Consumer<CompactionResult<T>> onComplete) {
 
         this.view = view;
         this.segments = segments;

@@ -30,7 +30,7 @@ public class IndexedSegment {
     private final KeyComparator comparator;
     private final FileChannel channel;
     private final long id;
-    private Index index;
+    protected Index index;
 
     private final AtomicBoolean readOnly = new AtomicBoolean();
     private final AtomicLong writePosition = new AtomicLong();
@@ -135,22 +135,6 @@ public class IndexedSegment {
         return channel.read(dst, position);
     }
 
-//    public RecordBatchIterator iterator(ByteBuffer start, int batchSize) {
-//        long startPos = index.floor(start);
-//        if (startPos < START) {
-//            return null; //TODO return empty iterator
-//        }
-//        return new RecordBatchIterator(channel, startPos, writePosition, batchSize);
-//    }
-//
-//    public RecordBatchIterator iterator() {
-//        return iterator(Memory.PAGE_SIZE);
-//    }
-//
-//    public RecordBatchIterator iterator(int batchSize) {
-//        return new RecordBatchIterator(channel, START, writePosition, batchSize);
-//    }
-
     public boolean readOnly() {
         return readOnly.get();
     }
@@ -192,6 +176,7 @@ public class IndexedSegment {
 
     public void flush() throws IOException {
         channel.force(false);
+        index.flush();
     }
 
     public String name() {

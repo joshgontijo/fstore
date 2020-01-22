@@ -6,12 +6,10 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.ilog.compaction.Compactor;
 import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.ilog.index.Index;
-import io.joshworks.ilog.index.KeyComparator;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class Log<T extends IndexedSegment> {
@@ -20,7 +18,7 @@ public class Log<T extends IndexedSegment> {
     private final int maxEntrySize;
     private final FlushMode flushMode;
     protected final BufferPool pool;
-    private final Compactor compactor;
+    private final Compactor<T> compactor;
 
     public Log(File root,
                int maxEntrySize,
@@ -43,7 +41,7 @@ public class Log<T extends IndexedSegment> {
         }
         var reindexPool = BufferPool.unpooled(Math.max(maxEntrySize, Memory.PAGE_SIZE), false);
         this.view = new View<>(root, indexSize, reindexPool, segmentFactory);
-        this.compactor = new Compactor(view, "someName", new ConcatenateCombiner(pool), true, compactionThreshold);
+        this.compactor = new Compactor<>(view, "someName", new ConcatenateCombiner(pool), true, compactionThreshold);
     }
 
     public void append(Record record) {

@@ -11,17 +11,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class CompactionTask implements Runnable {
+public class CompactionTask<T extends IndexedSegment> implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
 
     private final int level;
     private final SegmentCombiner combiner;
-    private final List<IndexedSegment> segments;
-    private final Consumer<CompactionResult> onComplete;
-    private final View view;
+    private final List<T> segments;
+    private final Consumer<CompactionResult<T>> onComplete;
+    private final View<T> view;
 
-    public CompactionTask(CompactionEvent event) {
+    public CompactionTask(CompactionEvent<T> event) {
         this.level = event.level;
         this.combiner = event.combiner;
         this.segments = new ArrayList<>(event.segments);
@@ -31,13 +31,13 @@ public class CompactionTask implements Runnable {
 
     @Override
     public void run() {
-        IndexedSegment output = null;
+        T output = null;
         try {
-            long newSegmentLogSize = segments.stream().mapToLong(IndexedSegment::size).sum();
-            long estimatedEntries = segments.stream().mapToLong(IndexedSegment::entries).sum();
-            long estimatedIndexSize = segments.stream().mapToLong(IndexedSegment::indexSize).sum();
+            long newSegmentLogSize = segments.stream().mapToLong(T::size).sum();
+            long estimatedEntries = segments.stream().mapToLong(T::entries).sum();
+            long estimatedIndexSize = segments.stream().mapToLong(T::indexSize).sum();
 
-            String names = Arrays.toString(segments.stream().map(IndexedSegment::name).toArray());
+            String names = Arrays.toString(segments.stream().map(T::name).toArray());
             logger.info("Compacting {} from level {} using {}, new segment computed size: {}, estimated entry count: {}, estimated index size: {}",
                     names,
                     level,
@@ -47,7 +47,7 @@ public class CompactionTask implements Runnable {
                     estimatedIndexSize);
 
             for (int i = 0; i < segments.size(); i++) {
-                IndexedSegment segment = segments.get(i);
+                T segment = segments.get(i);
                 logger.info("Segment[{}] {}", i, segment);
             }
 

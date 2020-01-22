@@ -10,7 +10,6 @@ import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatchIterator;
-import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.KeyComparator;
 import org.junit.After;
 import org.junit.Test;
@@ -276,8 +275,7 @@ public class UniqueMergeCombinerTest {
 
     private IndexedSegment createSegment() {
         File file = TestUtils.testFile();
-        File indexFile = TestUtils.testFile();
-        IndexedSegment segment = new IndexedSegment(file, new Index(indexFile, INDEX_LENGTH, comparator));
+        IndexedSegment segment = new IndexedSegment(file, INDEX_LENGTH, comparator);
         segments.add(segment);
         return segment;
     }

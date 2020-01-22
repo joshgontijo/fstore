@@ -23,23 +23,23 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class Compactor {
+public class Compactor<T extends IndexedSegment> {
 
     private static final Logger logger = LoggerFactory.getLogger(Compactor.class);
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final View view;
+    private final View<T> view;
     private final String name;
     private final SegmentCombiner segmentCombiner;
     private final boolean threadPerLevel;
     private final int compactionThreshold;
-    private final Set<IndexedSegment> compacting = new CopyOnWriteArraySet<>();
+    private final Set<T> compacting = new CopyOnWriteArraySet<>();
 
     private final Map<String, ExecutorService> levelCompaction = new ConcurrentHashMap<>();
 
     private final ExecutorService cleanupWorker;
     private final ExecutorService coordinator;
 
-    public Compactor(View view,
+    public Compactor(View<T> view,
                      String name,
                      SegmentCombiner segmentCombiner,
                      boolean threadPerLevel,
@@ -70,22 +70,22 @@ public class Compactor {
             logger.info("Close requested, ignoring compaction");
             return;
         }
-        List<IndexedSegment> segmentsForCompaction = segmentsForCompaction(level, force);
+        List<T> segmentsForCompaction = segmentsForCompaction(level, force);
         if (segmentsForCompaction.isEmpty()) {
             return;
         }
 
         logger.info("Compacting level {}", level);
 
-        var event = new CompactionEvent(view, segmentsForCompaction, segmentCombiner, level, this::cleanup);
+        var event = new CompactionEvent<>(view, segmentsForCompaction, segmentCombiner, level, this::cleanup);
         submitCompaction(event);
 
     }
 
-    private void submitCompaction(CompactionEvent event) {
+    private void submitCompaction(CompactionEvent<T> event) {
         executorFor(event.level).submit(() -> {
             if (!closed.get()) {
-                new CompactionTask(event).run();
+                new CompactionTask<>(event).run();
             }
         });
     }
@@ -94,11 +94,11 @@ public class Compactor {
         return threadPerLevel ? name + "-compaction-level-" + level : name + "-compaction";
     }
 
-    private void cleanup(CompactionResult result) {
+    private void cleanup(CompactionResult<T> result) {
         cleanupWorker.execute(() -> {
-            IndexedSegment target = result.target;
+            T target = result.target;
             int level = result.level;
-            List<IndexedSegment> sources = Collections.unmodifiableList(result.sources);
+            List<T> sources = Collections.unmodifiableList(result.sources);
 
             if (!result.successful()) {
                 //TODO
@@ -128,10 +128,10 @@ public class Compactor {
     }
 
     //returns either the segments to be compacted or empty if not enough segments
-    private List<IndexedSegment> segmentsForCompaction(int level, boolean force) {
+    private List<T> segmentsForCompaction(int level, boolean force) {
         return view.apply(level, segments -> {
-            List<IndexedSegment> toBeCompacted = new ArrayList<>();
-            for (IndexedSegment segment : segments) {
+            List<T> toBeCompacted = new ArrayList<>();
+            for (T segment : segments) {
                 if (!compacting.contains(segment) && segment.readOnly()) {
                     toBeCompacted.add(segment);
                 }
@@ -147,7 +147,7 @@ public class Compactor {
             } else if (toBeCompacted.size() < compactionThreshold) {
                 return List.of();
             }
-            long indexSize = toBeCompacted.stream().mapToLong(IndexedSegment::indexSize).sum();
+            long indexSize = toBeCompacted.stream().mapToLong(T::indexSize).sum();
             if (indexSize > Index.MAX_SIZE) {
                 logger.info("New index size will be greater than {}, not compacting", Index.MAX_SIZE);
                 return List.of();
@@ -159,8 +159,8 @@ public class Compactor {
     }
 
     //delete all source segments only if all of them are not being used
-    private void deleteAll(List<IndexedSegment> segments) {
-        for (IndexedSegment segment : segments) {
+    private void deleteAll(List<T> segments) {
+        for (T segment : segments) {
             String segmentName = segment.name();
             try {
                 segment.delete();

@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.KeyComparator;
 import org.junit.After;
 import org.junit.Before;
@@ -17,13 +16,11 @@ import static org.junit.Assert.assertEquals;
 public class IndexedSegmentTest {
 
     private IndexedSegment segment;
-    private Index index;
     private BufferPool pool = BufferPool.unpooled(4096, false);
 
     @Before
     public void setUp() {
-        index = new Index(TestUtils.testFile(), Size.MB.ofInt(500), KeyComparator.LONG);
-        segment = new IndexedSegment(TestUtils.testFile(), index);
+        segment = new IndexedSegment(TestUtils.testFile(), Size.MB.ofInt(500), KeyComparator.LONG);
     }
 
     @After

@@ -9,7 +9,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 
 import static java.util.Objects.requireNonNull;
 
@@ -32,9 +31,6 @@ public class Index implements TreeFunctions, Closeable {
     public static final int NONE = -1;
 
     public static int MAX_SIZE = Integer.MAX_VALUE - 8;
-
-    public static BiFunction<File, Integer, Index> LONG = (file, size) -> new Index(file, size, KeyComparator.LONG);
-    public static BiFunction<File, Integer, Index> INT = (file, size) -> new Index(file, size, KeyComparator.INT);
 
     public Index(File file, int size, KeyComparator comparator) {
         this.comparator = comparator;
@@ -60,31 +56,6 @@ public class Index implements TreeFunctions, Closeable {
         }
     }
 
-    /**
-     * Function to compare a given key k1 to a value present in the index map at position pos
-     * The function must read the key from the MappedByteBuffer without modifying its position
-     * Therefore it must always use the ABSOLUTE getXXX methods from the buffer.
-     */
-    private int compare(int idx, ByteBuffer key) {
-        ByteBuffer buffer = pool.allocate();
-        try {
-            Buffers.copy(mf.buffer(), idx, comparator.keySize(), buffer);
-            buffer.flip();
-
-            int prevPos = key.position();
-            int prevLimit = key.limit();
-
-            int compare = comparator.compare(buffer, key);
-
-            key.limit(prevLimit);
-            key.position(prevPos);
-
-            return compare;
-        } finally {
-            pool.free(buffer);
-        }
-    }
-
     public void write(Record record, long position) {
         if (readOnly.get()) {
             throw new RuntimeException("Index is read only");
@@ -102,9 +73,12 @@ public class Index implements TreeFunctions, Closeable {
      * Complete this index and mark it as read only.
      */
     public void complete() {
-        mf.flush();
         truncate();
         readOnly.set(true);
+    }
+
+    public void flush() {
+        mf.flush();
     }
 
     /**
@@ -228,6 +202,31 @@ public class Index implements TreeFunctions, Closeable {
         return mf.buffer().getLong(positionOffset);
     }
 
+    /**
+     * Function to compare a given key k1 to a value present in the index map at position pos
+     * The function must read the key from the MappedByteBuffer without modifying its position
+     * Therefore it must always use the ABSOLUTE getXXX methods from the buffer.
+     */
+    private int compare(int idx, ByteBuffer key) {
+        ByteBuffer buffer = pool.allocate();
+        try {
+            Buffers.copy(mf.buffer(), idx, comparator.keySize(), buffer);
+            buffer.flip();
+
+            int prevPos = key.position();
+            int prevLimit = key.limit();
+
+            int compare = comparator.compare(buffer, key);
+
+            key.limit(prevLimit);
+            key.position(prevPos);
+
+            return compare;
+        } finally {
+            pool.free(buffer);
+        }
+    }
+
     private int compareTo(ByteBuffer key, int idx) {
         if (idx < 0 || idx >= entries) {
             throw new IllegalStateException("Index must be between 0 and " + entries + ", got " + idx);
@@ -255,5 +254,15 @@ public class Index implements TreeFunctions, Closeable {
 
     public int size() {
         return mf.capacity();
+    }
+
+    public void first(ByteBuffer dst) {
+        if (entries == 0) {
+            return;
+        }
+        if (dst.remaining() != keySize()) {
+            throw new RuntimeException("Buffer key length mismatch");
+        }
+        Buffers.copy(mf.buffer(), 0, keySize(), dst);
     }
 }

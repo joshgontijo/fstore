@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.KeyComparator;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -23,7 +23,7 @@ public class LogTest {
     public void setUp() throws Exception {
         var root = TestUtils.testFolder();
         pool = BufferPool.unpooled(MAX_ENTRY_SIZE, false);
-        log = new Log(root, MAX_ENTRY_SIZE, INDEX_SIZE, 2, FlushMode.ON_ROLL, pool, IndexedSegment::new, Index.LONG);
+        log = new Log<>(root, MAX_ENTRY_SIZE, INDEX_SIZE, 2, FlushMode.ON_ROLL, pool, (f, is) -> new IndexedSegment(f, is, KeyComparator.LONG));
     }
 
     @After
