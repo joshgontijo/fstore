@@ -1,8 +1,8 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 import io.joshworks.fstore.tcp.codec.CodecRegistry;
 import io.joshworks.fstore.tcp.codec.Compression;
@@ -164,10 +164,9 @@ public class TcpConnection implements Closeable {
 
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to write data", e);
+        } finally {
+            pool.free(buffer);
         }
-//            finally {
-//                pool.free(buffer);
-//            }
     }
 
     public void flush() throws IOException {
