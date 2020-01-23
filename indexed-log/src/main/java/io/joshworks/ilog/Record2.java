@@ -6,7 +6,9 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.index.KeyComparator;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 
 /**
  * VALUE_LEN (4 BYTES)
@@ -35,30 +37,21 @@ public class Record2 {
     public static final int KEY_LENGTH_OFFSET = ATTR_OFFSET + ATTR_LEN;
     public static final int KEY_OFFSET = KEY_LENGTH_OFFSET + KEY_LEN_LEN;
 
-//    public final ByteBuffer buffer; //package private for testing
-//
-//    private Record2(ByteBuffer buffer) {
-//        this.buffer = buffer;
-//        int recordLength = size();
-//        if (recordLength != buffer.limit()) {
-//            throw new IllegalStateException("Unexpected buffer size " + buffer.limit() + " record length: " + recordLength);
-//        }
-//    }
 
     public static int valueSize(ByteBuffer buffer) {
-        return buffer.getInt(DATA_LENGTH_OFFSET);
+        return buffer.getInt(relativeFieldOffset(buffer, DATA_LENGTH_OFFSET));
     }
 
     public static int checksum(ByteBuffer buffer) {
-        return buffer.getInt(CHECKSUM_OFFSET);
+        return buffer.getInt(relativeFieldOffset(buffer, CHECKSUM_OFFSET));
     }
 
     public static long timestamp(ByteBuffer buffer) {
-        return buffer.getLong(TIMESTAMP_OFFSET);
+        return buffer.getLong(relativeFieldOffset(buffer, TIMESTAMP_OFFSET));
     }
 
     public static int keySize(ByteBuffer buffer) {
-        return buffer.getInt(KEY_LENGTH_OFFSET);
+        return buffer.getInt(relativeFieldOffset(buffer, KEY_LENGTH_OFFSET));
     }
 
     public static int size(ByteBuffer buffer) {
@@ -66,7 +59,7 @@ public class Record2 {
     }
 
     public static boolean hasAttribute(ByteBuffer buffer, int attribute) {
-        byte attr = buffer.get(ATTR_OFFSET);
+        byte attr = buffer.get(relativeFieldOffset(buffer, ATTR_OFFSET));
         return (attr & (Byte.MAX_VALUE << attribute)) == 1;
     }
 
@@ -75,13 +68,13 @@ public class Record2 {
         int r1p = r1.position();
         int r1l = r1.limit();
 
-        Buffers.offsetPosition(r1, KEY_OFFSET);
+        Buffers.offsetPosition(r1, relativeFieldOffset(r1, KEY_OFFSET));
         Buffers.offsetLimit(r1, keySize(r1));
 
         int r2p = r2.position();
         int r2l = r2.limit();
 
-        Buffers.offsetPosition(r2, KEY_OFFSET);
+        Buffers.offsetPosition(r2, relativeFieldOffset(r2, KEY_OFFSET));
         Buffers.offsetLimit(r2, keySize(r2));
 
         int compare = comparator.compare(r1, r2);
@@ -96,7 +89,7 @@ public class Record2 {
         int rp = record.position();
         int rl = record.limit();
 
-        Buffers.offsetPosition(record, KEY_OFFSET);
+        Buffers.offsetPosition(record, relativeFieldOffset(record, KEY_OFFSET));
         Buffers.offsetLimit(record, keySize(record));
 
         int k2p = key.position();
@@ -110,16 +103,18 @@ public class Record2 {
         return compare;
     }
 
-    public static int recordSize(ByteBuffer key, ByteBuffer value) {
+    public static int computedSize(ByteBuffer key, ByteBuffer value) {
         return HEADER_BYTES + key.remaining() + value.remaining();
     }
 
-    public static int recordSize(ByteBuffer record) {
-        return HEADER_BYTES + record.remaining();
+    public static int sizeOf(ByteBuffer record) {
+        int valSize = valueSize(record);
+        int key = keySize(record);
+        return HEADER_BYTES + valSize + key;
     }
 
     public static int writeKey(ByteBuffer record, ByteBuffer dst) {
-        return Buffers.copy(record, KEY_OFFSET, keySize(record), dst);
+        return Buffers.copy(record, relativeFieldOffset(record, KEY_OFFSET), keySize(record), dst);
     }
 
     public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst) {
@@ -158,14 +153,14 @@ public class Record2 {
         }
     }
 
-    public static int validateRecord(ByteBuffer record) {
+    public static int validate(ByteBuffer record) {
         int remaining = record.remaining();
         if (remaining < HEADER_BYTES) {
-            return 0;
+            throw new RuntimeException("Invalid record");
         }
-        int rsize = recordSize(record);
+        int rsize = sizeOf(record);
         if (rsize > remaining) {
-            return 0;
+            throw new RuntimeException("Invalid record");
         }
 
         int valSize = valueSize(record);
@@ -175,6 +170,18 @@ public class Record2 {
             throw new ChecksumException();
         }
         return rsize;
+    }
+
+    public static int writeTo(ByteBuffer record, WritableByteChannel channel) throws IOException {
+        int rsize = sizeOf(record);
+        if (record.remaining() < rsize) {
+            return 0;
+        }
+        int plimit = record.limit();
+        record.limit(record.position() + rsize);
+        int written = channel.write(record);
+        record.limit(plimit);
+        return written;
     }
 
     private static int valueStart(ByteBuffer buffer) {
@@ -192,6 +199,10 @@ public class Record2 {
         Buffers.copy(buffer, valueStart, dataLen, dst);
     }
 
+    private static int relativeFieldOffset(ByteBuffer buffer, int fieldOffset) {
+        return buffer.position() + fieldOffset;
+    }
+
     public static String toString(ByteBuffer buffer) {
         return "Record{" +
                 " recordLength=" + size(buffer) +
@@ -199,7 +210,7 @@ public class Record2 {
                 ", keyLength=" + keySize(buffer) +
                 ", dataLength=" + valueSize(buffer) +
                 ", timestamp=" + timestamp(buffer) +
-                ", attributes=" + buffer.get(ATTR_OFFSET) +
+                ", attributes=" + buffer.get(relativeFieldOffset(buffer, ATTR_OFFSET)) +
                 '}';
     }
 
@@ -218,7 +229,7 @@ public class Record2 {
                 ", keyLength=" + keySize(buffer) +
                 ", dataLength=" + valueSize(buffer) +
                 ", timestamp=" + timestamp(buffer) +
-                ", attributes=" + buffer.get(ATTR_OFFSET) +
+                ", attributes=" + buffer.get(relativeFieldOffset(buffer, ATTR_OFFSET)) +
                 ", key=" + k +
                 ", value=" + v +
                 '}';

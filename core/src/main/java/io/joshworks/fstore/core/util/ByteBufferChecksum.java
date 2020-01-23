@@ -12,31 +12,38 @@ public class ByteBufferChecksum {
 
     private static final byte[] SEED = ByteBuffer.allocate(4).putInt(456765723).array();
 
+    private static ThreadLocal<Checksums> localCache = ThreadLocal.withInitial(Checksums::new);
+
     private ByteBufferChecksum() {
     }
 
     public static int crc32(ByteBuffer buffer) {
-        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), new CRC32());
+        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), resetAndGet(localCache.get().crc32));
     }
 
     public static int crc32(ByteBuffer buffer, int pos, int len) {
-        return checksum(buffer, pos, len, new CRC32());
+        return checksum(buffer, pos, len, resetAndGet(localCache.get().crc32));
     }
 
     public static int crc32c(ByteBuffer buffer) {
-        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), new CRC32C());
+        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), resetAndGet(localCache.get().crc32c));
     }
 
     public static int crc32c(ByteBuffer buffer, int pos, int len) {
-        return checksum(buffer, pos, len, new CRC32C());
+        return checksum(buffer, pos, len, resetAndGet(localCache.get().crc32c));
     }
 
     public static int adler32(ByteBuffer buffer) {
-        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), new Adler32());
+        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), resetAndGet(localCache.get().adler32));
     }
 
     public static int adler32(ByteBuffer buffer, int pos, int len) {
-        return checksum(buffer, pos, len, new CRC32C());
+        return checksum(buffer, pos, len, resetAndGet(localCache.get().adler32));
+    }
+
+    private static Checksum resetAndGet(Checksum checksum) {
+        checksum.reset();
+        return checksum;
     }
 
     private static int checksum(ByteBuffer buffer, int pos, int len, Checksum impl) {
@@ -55,5 +62,12 @@ public class ByteBufferChecksum {
         impl.update(data, offset, length);
         return (int) impl.getValue();
     }
+
+    private static class Checksums {
+        private final Checksum crc32 = new CRC32();
+        private final Checksum crc32c = new CRC32C();
+        private final Checksum adler32 = new Adler32();
+    }
+
 
 }

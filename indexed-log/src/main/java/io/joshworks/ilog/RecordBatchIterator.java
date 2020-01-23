@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.util.Iterators;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.util.NoSuchElementException;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
@@ -45,6 +46,16 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
         return readBuffer;
     }
 
+    public long transferTo(WritableByteChannel channel) throws IOException {
+        long written = 0;
+        while (hasNext() && !endOfLog()) {
+            ByteBuffer buffer = next();
+            int w = Record2.writeTo(buffer, channel);
+            if (w > 0) written += w;
+        }
+        return written;
+    }
+
     private void readBatch() {
         try {
             int position = readBuffer.position();
@@ -53,6 +64,10 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
                 readBuffer.compact();
                 readPos += readBuffer.position();
             }
+            if (!hasReadableBytes()) {
+                return;
+            }
+
             int read = segment.read(readPos, readBuffer);
             if (read <= 0) { //EOF or no more data
                 return;
@@ -66,6 +81,18 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
     //internal
     long position() {
         return readPos;
+    }
+
+    public boolean endOfLog() {
+        return segment.readOnly() && !hasReadableBytes() && !hasNext();
+    }
+
+    public long readableBytes() {
+        return segment.writePosition() - readPos;
+    }
+
+    public boolean hasReadableBytes() {
+        return readableBytes() > 0;
     }
 
     @Override

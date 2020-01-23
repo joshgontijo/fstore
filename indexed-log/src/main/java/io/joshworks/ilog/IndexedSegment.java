@@ -207,6 +207,10 @@ public class IndexedSegment {
         return LogUtil.segmentIdx(id);
     }
 
+    public long writePosition() {
+        return writePosition.get();
+    }
+
     public void delete() {
         try {
             channel.close();

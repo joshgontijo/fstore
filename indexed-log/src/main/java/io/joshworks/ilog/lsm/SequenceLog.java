@@ -5,12 +5,9 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.ilog.FlushMode;
-import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.Log;
-import io.joshworks.ilog.Record;
-import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.*;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.io.Closeable;
@@ -18,6 +15,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -104,42 +102,75 @@ public class SequenceLog implements Closeable {
         return -(low + 1);  // key not found
     }
 
+    private static void watch(File file) throws IOException {
+        Path path = file.toPath();
+        WatchService watch = FileSystems.getDefault().newWatchService();
+
+        WatchKey watchKey = path.register(
+                watch,
+                StandardWatchEventKinds.ENTRY_CREATE,
+                StandardWatchEventKinds.ENTRY_DELETE,
+                StandardWatchEventKinds.ENTRY_MODIFY);
+
+        new Thread(() -> {
+            try {
+                WatchKey key;
+                while ((key = watch.take()) != null) {
+                    for (WatchEvent<?> event : key.pollEvents()) {
+                        System.out.println("Event kind:" + event.kind() + ". File affected: " + event.context() + ".");
+                    }
+                    key.reset();
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }).start();
+
+    }
 
     public static void main(String[] args) throws IOException {
 
-//        Threads.sleep(7000);
+        Threads.sleep(7000);
 
-        long items = 100000;
+        long items = 1000000000;
 
         BufferPool bufferPool = BufferPool.localCachePool(256, 1024, false);
-        SequenceLog log = new SequenceLog(TestUtils.testFolder(), 1024, Size.MB.ofInt(500), 2, FlushMode.ON_ROLL, bufferPool);
+        File root = TestUtils.testFolder();
+        watch(root);
+        SequenceLog log = new SequenceLog(root, 1024, Size.MB.ofInt(500), 2, FlushMode.ON_ROLL, bufferPool);
         byte[] uuid = UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8);
         var bb = ByteBuffer.wrap(uuid);
         for (int i = 0; i < items; i++) {
+            System.out.println("Appending");
             log.append(bb);
+            log.flush();
             bb.clear();
             if (i % 1000000 == 0) {
                 System.out.println("WRITTEN: " + i);
             }
+            Threads.sleep(2000);
         }
 
-        ByteBuffer buffer = Buffers.allocate(Long.BYTES, false);
+        var buffer = Buffers.allocate(1024, false);
+        var kb = Buffers.allocate(Long.BYTES, false);
         for (long i = 0; i < items; ) {
-            var rbuff = ByteBuffer.allocate(1024);
-            log.get(i, rbuff);
-            rbuff.flip();
+            buffer.clear();
+            log.get(i, buffer);
+            buffer.flip();
 
-            if (!rbuff.hasRemaining()) {
+            if (!buffer.hasRemaining()) {
                 System.err.println("No data for " + i);
             }
 
-            Record record;
-            while ((record = Record.from(rbuff, false)) != null) {
-                buffer.clear();
-                record.readKey(buffer);
-                buffer.flip();
+            while (RecordBatch.hasNext(buffer)) {
+                int size = Record2.validate(buffer);
+                kb.clear();
+                Record2.writeKey(buffer, kb);
+                kb.flip();
+                Buffers.offsetPosition(buffer, size);
+
 //                String toString = record.toString(Serializers.LONG, Serializers.STRING);
-                long l = buffer.getLong();
+                long l = kb.getLong();
 //                System.out.println(toString);
                 if (l != i) {
                     throw new RuntimeException("Not sequential");
@@ -151,6 +182,10 @@ public class SequenceLog implements Closeable {
             }
 
         }
+    }
+
+    private void flush() {
+        log.flush();
     }
 
     private static Record create(long key, String value) {
