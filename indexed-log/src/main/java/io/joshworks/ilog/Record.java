@@ -12,7 +12,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
 /**
- * DATA_LEN (4 BYTES)
+ * VALUE_LEN (4 BYTES)
  * CHECKSUM (4 BYTES)
  * TIMESTAMP (8 BYTES)
  * KEY_LEN (4 BYTES)

@@ -2,12 +2,13 @@ package io.joshworks.ilog.index;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.ilog.Record;
+import io.joshworks.ilog.Record2;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Objects.requireNonNull;
@@ -27,7 +28,6 @@ public class Index implements TreeFunctions, Closeable {
     private int entries;
     private final AtomicBoolean readOnly = new AtomicBoolean();
     private final BufferPool pool;
-
     public static final int NONE = -1;
 
     public static int MAX_SIZE = Integer.MAX_VALUE - 8;
@@ -56,16 +56,26 @@ public class Index implements TreeFunctions, Closeable {
         }
     }
 
-    public void write(Record record, long position) {
+    public void write(ByteBuffer record, long position) {
         if (readOnly.get()) {
             throw new RuntimeException("Index is read only");
         }
-        int keyLen = record.keySize();
-        if (keyLen != comparator.keySize()) {
-            throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + keyLen);
+
+        int keySize = Record2.keySize(record);
+        if (keySize != comparator.keySize()) {
+            throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + keySize);
         }
-        record.readKey(mf.buffer());
-        mf.buffer().putLong(position);
+
+        MappedByteBuffer dst = mf.buffer();
+        if (dst.remaining() < keySize) {
+            throw new IllegalStateException("Not enough index space");
+        }
+        int written = Record2.writeKey(record, dst);
+        if (written != keySize) {
+            Buffers.offsetPosition(dst, -written);
+            throw new IllegalStateException("Expected " + keySize + " bytes written to index, actual: " + written);
+        }
+        dst.putLong(position);
         entries++;
     }
 
@@ -89,9 +99,17 @@ public class Index implements TreeFunctions, Closeable {
         if (entries == 0) {
             return NONE;
         }
-        int idx = binarySearch(key);
-        idx = idx >= 0 ? idx : Math.abs(idx) - 2;
-        return readPosition(idx);
+
+        var bb = pool.allocate();
+        try {
+            int idx = binarySearch(key, bb);
+            idx = idx >= 0 ? idx : Math.abs(idx) - 2;
+            return readPosition(idx);
+        } finally {
+            pool.free(bb);
+        }
+
+
     }
 
     @Override
@@ -101,9 +119,15 @@ public class Index implements TreeFunctions, Closeable {
             return NONE;
         }
 
-        int idx = binarySearch(key);
-        idx = idx >= 0 ? idx : Math.abs(idx) - 1;
-        return readPosition(idx);
+        var bb = pool.allocate();
+        try {
+            int idx = binarySearch(key, bb);
+            idx = idx >= 0 ? idx : Math.abs(idx) - 1;
+            return readPosition(idx);
+        } finally {
+            pool.free(bb);
+        }
+
     }
 
     @Override
@@ -113,9 +137,15 @@ public class Index implements TreeFunctions, Closeable {
             return NONE;
         }
 
-        int idx = binarySearch(key);
-        idx = idx >= 0 ? idx + 1 : Math.abs(idx) - 1;
-        return readPosition(idx);
+        var bb = pool.allocate();
+        try {
+            int idx = binarySearch(key, bb);
+            idx = idx >= 0 ? idx + 1 : Math.abs(idx) - 1;
+            return readPosition(idx);
+
+        } finally {
+            pool.free(bb);
+        }
     }
 
     @Override
@@ -124,9 +154,14 @@ public class Index implements TreeFunctions, Closeable {
         if (entries == 0) {
             return NONE;
         }
-        int idx = binarySearch(key);
-        idx = idx > 0 ? idx - 1 : Math.abs(idx) - 2;
-        return readPosition(idx);
+        var bb = pool.allocate();
+        try {
+            int idx = binarySearch(key, bb);
+            idx = idx > 0 ? idx - 1 : Math.abs(idx) - 2;
+            return readPosition(idx);
+        } finally {
+            pool.free(bb);
+        }
     }
 
     @Override
@@ -140,20 +175,26 @@ public class Index implements TreeFunctions, Closeable {
         if (entries == 0) {
             return NONE;
         }
-        int idx = binarySearch(key);
-        if (idx < 0) {
-            return NONE;
+        var bb = pool.allocate();
+        try {
+            int idx = binarySearch(key, bb);
+            if (idx < 0) {
+                return NONE;
+            }
+            return readPosition(idx);
+        } finally {
+            pool.free(bb);
         }
-        return readPosition(idx);
+
     }
 
-    private int binarySearch(ByteBuffer key) {
+    private int binarySearch(ByteBuffer key, ByteBuffer read) {
         int low = 0;
         int high = entries - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            int cmp = compareTo(key, mid);
+            int cmp = compareTo(key, mid, read);
             if (cmp < 0)
                 low = mid + 1;
             else if (cmp > 0)
@@ -207,27 +248,23 @@ public class Index implements TreeFunctions, Closeable {
      * The function must read the key from the MappedByteBuffer without modifying its position
      * Therefore it must always use the ABSOLUTE getXXX methods from the buffer.
      */
-    private int compare(int idx, ByteBuffer key) {
-        ByteBuffer buffer = pool.allocate();
-        try {
-            Buffers.copy(mf.buffer(), idx, comparator.keySize(), buffer);
-            buffer.flip();
+    private int compare(int idx, ByteBuffer key, ByteBuffer read) {
+        Buffers.copy(mf.buffer(), idx, comparator.keySize(), read);
+        read.flip();
 
-            int prevPos = key.position();
-            int prevLimit = key.limit();
+        int prevPos = key.position();
+        int prevLimit = key.limit();
 
-            int compare = comparator.compare(buffer, key);
+        int compare = comparator.compare(read, key);
 
-            key.limit(prevLimit);
-            key.position(prevPos);
+        key.limit(prevLimit);
+        key.position(prevPos);
 
-            return compare;
-        } finally {
-            pool.free(buffer);
-        }
+        read.clear();
+        return compare;
     }
 
-    private int compareTo(ByteBuffer key, int idx) {
+    private int compareTo(ByteBuffer key, int idx, ByteBuffer read) {
         if (idx < 0 || idx >= entries) {
             throw new IllegalStateException("Index must be between 0 and " + entries + ", got " + idx);
         }
@@ -236,7 +273,7 @@ public class Index implements TreeFunctions, Closeable {
         //mark
         int pos = key.position();
         int limit = key.limit();
-        int cmp = compare(startPos, key);
+        int cmp = compare(startPos, key, read);
         //reset
         key.limit(limit).position(pos);
         return cmp;

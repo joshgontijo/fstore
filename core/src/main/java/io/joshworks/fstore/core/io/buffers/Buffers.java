@@ -144,6 +144,10 @@ public class Buffers {
         buffer.position(buffer.position() + (offset));
     }
 
+    public static void offsetLimit(ByteBuffer buffer, int offset) {
+        buffer.limit(buffer.limit() + (offset));
+    }
+
     /**
      * The absolute position in the backing array, considering the array offset of the HeapByteBuffer,
      * For OffHeapBuffers it simply return the {@link ByteBuffer#position()}

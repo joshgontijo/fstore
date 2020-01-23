@@ -5,40 +5,53 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
-import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.Record;
+import io.joshworks.ilog.Record2;
 import io.joshworks.ilog.index.KeyComparator;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
-public class SequenceLog {
+public class SequenceLog implements Closeable {
 
     private final Log<SequenceSegment> log;
     private final BufferPool keyPool;
     private final AtomicLong sequence = new AtomicLong();
+    private final ByteBuffer keyWriteBuffer;
+    private final ByteBuffer recordWriteBuffer;
+    private final BufferPool recordPool;
 
-    public SequenceLog(File root, int maxEntrySize, int indexSize, int compactionThreshold, FlushMode flushMode, BufferPool pool) throws IOException {
-        log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, flushMode, pool, SequenceSegment::new);
+    public SequenceLog(File root, int maxEntrySize, int indexSize, int compactionThreshold, FlushMode flushMode, BufferPool recordPool) throws IOException {
+        log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, flushMode, recordPool, SequenceSegment::new);
         keyPool = BufferPool.localCachePool(256, Long.BYTES, false);
+        keyWriteBuffer = keyPool.allocate();
+        this.recordPool = recordPool;
+        this.recordWriteBuffer = recordPool.allocate();
+
     }
 
-    ByteBuffer buffer = ByteBuffer.allocate(4096);
-    public void append(String data) {
+    public void append(ByteBuffer data) {
         try {
             long seq = sequence.getAndIncrement();
-            buffer.clear();
-            Record record = Record.create(seq, Serializers.LONG, data, Serializers.STRING, buffer);
-            log.append(record);
+            data.clear();
+            keyWriteBuffer.putLong(seq).flip();
+            recordWriteBuffer.clear();
+            Record2.create(keyWriteBuffer, data, recordWriteBuffer);
+            recordWriteBuffer.flip();
+            keyWriteBuffer.clear();
+            log.append(recordWriteBuffer);
         } catch (Exception e) {
             sequence.decrementAndGet();
             throw new RuntimeIOException(e);
@@ -91,16 +104,20 @@ public class SequenceLog {
         return -(low + 1);  // key not found
     }
 
+
     public static void main(String[] args) throws IOException {
 
-        Threads.sleep(7000);
+//        Threads.sleep(7000);
 
-        long items = 50000000;
+        long items = 100000;
 
         BufferPool bufferPool = BufferPool.localCachePool(256, 1024, false);
         SequenceLog log = new SequenceLog(TestUtils.testFolder(), 1024, Size.MB.ofInt(500), 2, FlushMode.ON_ROLL, bufferPool);
+        byte[] uuid = UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8);
+        var bb = ByteBuffer.wrap(uuid);
         for (int i = 0; i < items; i++) {
-            log.append(String.valueOf(i));
+            log.append(bb);
+            bb.clear();
             if (i % 1000000 == 0) {
                 System.out.println("WRITTEN: " + i);
             }
@@ -138,6 +155,12 @@ public class SequenceLog {
 
     private static Record create(long key, String value) {
         return Record.create(key, Serializers.LONG, value, Serializers.STRING, ByteBuffer.allocate(64));
+    }
+
+    @Override
+    public void close() {
+        keyPool.free(keyWriteBuffer);
+        log.close();
     }
 
     private class SequenceSegment extends IndexedSegment {

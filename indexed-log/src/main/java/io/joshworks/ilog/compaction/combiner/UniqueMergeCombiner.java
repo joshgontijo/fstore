@@ -3,9 +3,8 @@ package io.joshworks.ilog.compaction.combiner;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.Record;
+import io.joshworks.ilog.Record2;
 import io.joshworks.ilog.RecordBatchIterator;
-import io.joshworks.ilog.compaction.PeekingIterator;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.nio.ByteBuffer;
@@ -36,25 +35,25 @@ public class UniqueMergeCombiner implements SegmentCombiner {
 
     @Override
     public void merge(List<? extends IndexedSegment> segments, IndexedSegment output) {
-        List<PeekingIterator> iterators = segments.stream()
+        List<RecordBatchIterator> iterators = segments.stream()
                 .map(s -> new RecordBatchIterator(s, 0, pool))
-                .map(PeekingIterator::new)
+//                .map(PeekingIterator::new)
                 .collect(Collectors.toList());
 
         mergeItems(iterators, output);
     }
 
 
-    public void mergeItems(List<PeekingIterator> items, IndexedSegment output) {
+    public void mergeItems(List<RecordBatchIterator> items, IndexedSegment output) {
 
         //reversed guarantees that the most recent data is kept when duplicate keys are found
         Collections.reverse(items);
 
         while (!items.isEmpty()) {
-            List<PeekingIterator> segmentIterators = new ArrayList<>();
-            Iterator<PeekingIterator> itit = items.iterator();
+            List<RecordBatchIterator> segmentIterators = new ArrayList<>();
+            Iterator<RecordBatchIterator> itit = items.iterator();
             while (itit.hasNext()) {
-                PeekingIterator seg = itit.next();
+                RecordBatchIterator seg = itit.next();
                 if (!seg.hasNext()) {
                     itit.remove();
                     continue;
@@ -62,7 +61,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
                 segmentIterators.add(seg);
             }
 
-            Record nextEntry = getNextEntry(segmentIterators);
+            ByteBuffer nextEntry = getNextEntry(segmentIterators);
             if (nextEntry != null && filter(nextEntry)) {
                 if (output.isFull()) {
                     throw new IllegalStateException("Insufficient output segment (" + output.name() + ") data space: " + output.size());
@@ -72,18 +71,18 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         }
     }
 
-    private Record getNextEntry(List<PeekingIterator> segmentIterators) {
+    private ByteBuffer getNextEntry(List<RecordBatchIterator> segmentIterators) {
         if (segmentIterators.isEmpty()) {
             return null;
         }
-        PeekingIterator prev = null;
-        for (PeekingIterator curr : segmentIterators) {
+        RecordBatchIterator prev = null;
+        for (RecordBatchIterator curr : segmentIterators) {
             if (prev == null) {
                 prev = curr;
                 continue;
             }
-            Record prevItem = prev.peek();
-            Record currItem = curr.peek();
+            ByteBuffer prevItem = prev.next();
+            ByteBuffer currItem = curr.next();
             int c = compare(prevItem, currItem);
             if (c == 0) { //duplicate remove eldest entry
                 curr.next();
@@ -98,24 +97,14 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         return null;
     }
 
-    private int compare(Record r1, Record r2) {
-        r1.readKey(k1Buffer);
-        k1Buffer.flip();
-
-        r2.readKey(k2Buffer);
-        k2Buffer.flip();
-
-        int compare = comparator.compare(k1Buffer, k2Buffer);
-        k1Buffer.clear();
-        k2Buffer.clear();
-
-        return compare;
+    private int compare(ByteBuffer r1, ByteBuffer r2) {
+        return Record2.compareToKey(r1, r2, comparator);
     }
 
     /**
      * Returns true if this entry should be appended to the new segment, false otherwise
      */
-    public boolean filter(Record entry) {
+    public boolean filter(ByteBuffer entry) {
         return true;
     }
 }

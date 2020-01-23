@@ -2,6 +2,7 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.KeyComparator;
@@ -65,9 +66,10 @@ public class IndexedSegment {
         long start = System.currentTimeMillis();
         RecordBatchIterator it = new RecordBatchIterator(this, START, pool);
         int processed = 0;
+
         while (it.hasNext()) {
             long position = it.position();
-            Record record = it.next();
+            ByteBuffer record = it.next();
             index.write(record, position);
             processed++;
         }
@@ -90,7 +92,7 @@ public class IndexedSegment {
         }
     }
 
-    public void append(Record record) {
+    public void append(ByteBuffer record) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
@@ -98,19 +100,21 @@ public class IndexedSegment {
             throw new IllegalStateException("Segment is read only");
         }
 
-        int keyLen = index.keySize();
-        int recordKeyLen = record.keySize();
-        if (recordKeyLen != keyLen) { // validates the key BEFORE adding to log
-            throw new IllegalArgumentException("Invalid key length: Expected " + keyLen + ", got " + recordKeyLen);
+        int expectedKeySize = index.keySize();
+        int actualKeySize = Record2.keySize(record);
+        if (actualKeySize != expectedKeySize) { // validates the key BEFORE adding to log
+            throw new IllegalArgumentException("Invalid key size: Expected " + expectedKeySize + ", got " + actualKeySize);
         }
 
         try {
-            int written = record.writeTo(channel);
+            int written = channel.write(record);
+            Buffers.offsetPosition(record, -written);
             if (written <= 0) {
                 throw new RuntimeIOException("Failed to write entry");
             }
             long position = writePosition.getAndAdd(written);
             index.write(record, position);
+            Buffers.offsetPosition(record, written);
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to append record", e);
         }

@@ -9,6 +9,7 @@ import io.joshworks.ilog.index.Index;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.function.Function;
 
@@ -44,9 +45,9 @@ public class Log<T extends IndexedSegment> {
         this.compactor = new Compactor<>(view, "someName", new ConcatenateCombiner(pool), true, compactionThreshold);
     }
 
-    public void append(Record record) {
+    public void append(ByteBuffer record) {
         try {
-            int recordLength = record.size();
+            int recordLength = Record2.recordSize(record);
             if (recordLength > maxEntrySize) {
                 throw new IllegalArgumentException("Record to large, max allowed size: " + maxEntrySize + ", record size: " + recordLength);
             }
