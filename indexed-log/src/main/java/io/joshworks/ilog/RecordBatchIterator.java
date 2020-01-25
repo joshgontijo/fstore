@@ -17,12 +17,15 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
     private final IndexedSegment segment;
     private final BufferPool pool;
     private long readPos;
+    private int bufferPos;
+    private int bufferLimit;
 
     public RecordBatchIterator(IndexedSegment segment, long startPos, BufferPool pool) {
         this.pool = pool;
-        this.readBuffer = pool.allocate();
         this.segment = segment;
         this.readPos = startPos;
+        this.readBuffer = pool.allocate();
+        this.bufferLimit = readBuffer.limit();
         if (readBuffer.capacity() < HEADER_BYTES) {
             pool.free(readBuffer);
             throw new IllegalArgumentException("Read buffer must be at least " + HEADER_BYTES);
@@ -31,19 +34,38 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
 
     @Override
     public boolean hasNext() {
-        if (RecordBatch.hasNext(readBuffer)) {
+        readBuffer.limit(bufferLimit).position(bufferPos);
+        if (hasNext(readBuffer)) {
             return true;
         }
         readBatch();
-        return RecordBatch.hasNext(readBuffer);
+        return hasNext(readBuffer);
     }
 
     @Override
     public ByteBuffer next() {
+        readBuffer.limit(bufferLimit).position(bufferPos);
+        if (!hasNext(readBuffer)) {
+            throw new NoSuchElementException();
+        }
+        bufferPos += Record2.validate(readBuffer);
+        return readBuffer;
+    }
+
+    public ByteBuffer peek() {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
         return readBuffer;
+    }
+
+    private boolean hasNext(ByteBuffer record) {
+        int remaining = record.remaining();
+        if (remaining < Record2.HEADER_BYTES) {
+            return false;
+        }
+        int rsize = Record2.sizeOf(record);
+        return rsize <= remaining && rsize > Record2.HEADER_BYTES;
     }
 
     public long transferTo(WritableByteChannel channel) throws IOException {
@@ -58,21 +80,23 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
 
     private void readBatch() {
         try {
-            int position = readBuffer.position();
-            readPos += position;
-            if (position > 0) {
-                readBuffer.compact();
-                readPos += readBuffer.position();
-            }
-            if (!hasReadableBytes()) {
+            if (readPos + bufferPos >= segment.writePosition()) {
                 return;
+            }
+            readPos += bufferPos;
+            long rpos = readPos;
+            if (readBuffer.position() > 0) {
+                readBuffer.compact();
+                rpos += readBuffer.position();
             }
 
-            int read = segment.read(readPos, readBuffer);
+            int read = segment.read(rpos, readBuffer);
             if (read <= 0) { //EOF or no more data
-                return;
+                throw new IllegalStateException("Expected data to be read");
             }
             readBuffer.flip();
+            bufferPos = 0;
+            bufferLimit = readBuffer.limit();
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to read batch", e);
         }
@@ -87,12 +111,8 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
         return segment.readOnly() && !hasReadableBytes() && !hasNext();
     }
 
-    public long readableBytes() {
-        return segment.writePosition() - readPos;
-    }
-
-    public boolean hasReadableBytes() {
-        return readableBytes() > 0;
+    private boolean hasReadableBytes() {
+        return segment.writePosition() - readPos > 0;
     }
 
     @Override

@@ -12,9 +12,13 @@ public class LogUtil {
     static final int SEG_IDX_DIGITS = (int) (Math.log10(Long.MAX_VALUE) + 1);
 
     static File segmentFile(File root, long segmentIdx, int level) {
-        long id = (level * BASE) + segmentIdx;
-        String name = format("%0" + SEG_IDX_DIGITS + "d", id) + EXT;
+        String name = segmentFileName(segmentIdx, level);
         return new File(root, name);
+    }
+
+    public static String segmentFileName(long segmentIdx, int level) {
+        long id = (level * BASE) + segmentIdx;
+        return format("%0" + SEG_IDX_DIGITS + "d", id) + EXT;
     }
 
     static long segmentId(String fileName) {

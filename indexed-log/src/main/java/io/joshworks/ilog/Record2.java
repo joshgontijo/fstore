@@ -42,6 +42,10 @@ public class Record2 {
         return buffer.getInt(relativeFieldOffset(buffer, DATA_LENGTH_OFFSET));
     }
 
+    public static int valueOffset(ByteBuffer buffer) {
+        return relativeFieldOffset(buffer, KEY_OFFSET) + keySize(buffer);
+    }
+
     public static int checksum(ByteBuffer buffer) {
         return buffer.getInt(relativeFieldOffset(buffer, CHECKSUM_OFFSET));
     }
@@ -50,12 +54,12 @@ public class Record2 {
         return buffer.getLong(relativeFieldOffset(buffer, TIMESTAMP_OFFSET));
     }
 
-    public static int keySize(ByteBuffer buffer) {
-        return buffer.getInt(relativeFieldOffset(buffer, KEY_LENGTH_OFFSET));
+    public static int keyOffset(ByteBuffer buffer) {
+        return relativeFieldOffset(buffer, KEY_OFFSET);
     }
 
-    public static int size(ByteBuffer buffer) {
-        return HEADER_BYTES + keySize(buffer) + valueSize(buffer);
+    public static int keySize(ByteBuffer buffer) {
+        return buffer.getInt(relativeFieldOffset(buffer, KEY_LENGTH_OFFSET));
     }
 
     public static boolean hasAttribute(ByteBuffer buffer, int attribute) {
@@ -68,14 +72,16 @@ public class Record2 {
         int r1p = r1.position();
         int r1l = r1.limit();
 
-        Buffers.offsetPosition(r1, relativeFieldOffset(r1, KEY_OFFSET));
-        Buffers.offsetLimit(r1, keySize(r1));
+        int r1Offset = relativeFieldOffset(r1, KEY_OFFSET);
+        int k1Size = keySize(r1);
+        Buffers.view(r1, r1Offset, k1Size);
 
         int r2p = r2.position();
         int r2l = r2.limit();
 
-        Buffers.offsetPosition(r2, relativeFieldOffset(r2, KEY_OFFSET));
-        Buffers.offsetLimit(r2, keySize(r2));
+        int r2Offset = keyOffset(r2);
+        int k2Size = keySize(r2);
+        Buffers.view(r2, r2Offset, k2Size);
 
         int compare = comparator.compare(r1, r2);
 
@@ -89,8 +95,10 @@ public class Record2 {
         int rp = record.position();
         int rl = record.limit();
 
-        Buffers.offsetPosition(record, relativeFieldOffset(record, KEY_OFFSET));
-        Buffers.offsetLimit(record, keySize(record));
+
+        int offset = keyOffset(record);
+        int keySize = keySize(record);
+        Buffers.view(record, offset, keySize);
 
         int k2p = key.position();
         int k2l = key.limit();
@@ -103,18 +111,18 @@ public class Record2 {
         return compare;
     }
 
-    public static int computedSize(ByteBuffer key, ByteBuffer value) {
-        return HEADER_BYTES + key.remaining() + value.remaining();
-    }
-
     public static int sizeOf(ByteBuffer record) {
         int valSize = valueSize(record);
-        int key = keySize(record);
-        return HEADER_BYTES + valSize + key;
+        int keySize = keySize(record);
+        if (keySize == 0 && valSize == 0) {
+            return 0;
+        }
+        return HEADER_BYTES + valSize + keySize;
     }
 
     public static int writeKey(ByteBuffer record, ByteBuffer dst) {
-        return Buffers.copy(record, relativeFieldOffset(record, KEY_OFFSET), keySize(record), dst);
+        int absKeyPos = keyOffset(record);
+        return Buffers.copy(record, absKeyPos, keySize(record), dst);
     }
 
     public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst) {
@@ -162,9 +170,12 @@ public class Record2 {
         if (rsize > remaining) {
             throw new RuntimeException("Invalid record");
         }
+        if (rsize <= HEADER_BYTES) {
+            throw new RuntimeException("Invalid record");
+        }
 
         int valSize = valueSize(record);
-        int valStart = valueStart(record);
+        int valStart = valueOffset(record);
         int computedChecksum = ByteBufferChecksum.crc32(record, valStart, valSize);
         if (computedChecksum != checksum(record)) {
             throw new ChecksumException();
@@ -173,7 +184,7 @@ public class Record2 {
     }
 
     public static int writeTo(ByteBuffer record, WritableByteChannel channel) throws IOException {
-        int rsize = sizeOf(record);
+        int rsize = validate(record);
         if (record.remaining() < rsize) {
             return 0;
         }
@@ -182,10 +193,6 @@ public class Record2 {
         int written = channel.write(record);
         record.limit(plimit);
         return written;
-    }
-
-    private static int valueStart(ByteBuffer buffer) {
-        return HEADER_BYTES + keySize(buffer);
     }
 
     private static void readKey(ByteBuffer buffer, ByteBuffer dst) {
@@ -205,33 +212,45 @@ public class Record2 {
 
     public static String toString(ByteBuffer buffer) {
         return "Record{" +
-                " recordLength=" + size(buffer) +
+                " recordSize=" + sizeOf(buffer) +
                 ", checksum=" + checksum(buffer) +
-                ", keyLength=" + keySize(buffer) +
+                ", keySize=" + keySize(buffer) +
                 ", dataLength=" + valueSize(buffer) +
                 ", timestamp=" + timestamp(buffer) +
-                ", attributes=" + buffer.get(relativeFieldOffset(buffer, ATTR_OFFSET)) +
+                ", attributes=" + buffer.get(ATTR_OFFSET) +
                 '}';
     }
 
-    public static <K, V> String toString(ByteBuffer buffer, ByteBuffer dst, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        readKey(buffer, dst);
-        K k = keySerializer.fromBytes(dst.flip());
-
-        dst.clear();
-
-        readValue(buffer, dst);
-        V v = valueSerializer.fromBytes(dst.flip());
+    public static <K, V> String toString(ByteBuffer buffer, Serializer<K> ks, Serializer<V> vs) {
+        int rsize = Record2.validate(buffer);
+        ByteBuffer copy = Buffers.allocate(rsize, false);
+        Buffers.copy(buffer, buffer.position(), rsize, copy);
+        copy.flip();
+        K k = Record2.readKey(copy, ks);
+        V v = Record2.readValue(copy, vs);
 
         return "Record{" +
-                " recordLength=" + size(buffer) +
-                ", checksum=" + checksum(buffer) +
-                ", keyLength=" + keySize(buffer) +
-                ", dataLength=" + valueSize(buffer) +
-                ", timestamp=" + timestamp(buffer) +
-                ", attributes=" + buffer.get(relativeFieldOffset(buffer, ATTR_OFFSET)) +
+                " recordLength=" + Record2.sizeOf(buffer) +
+                ", checksum=" + Record2.checksum(buffer) +
+                ", keyLength=" + Record2.keySize(buffer) +
+                ", dataLength=" + Record2.valueSize(buffer) +
+                ", timestamp=" + Record2.timestamp(buffer) +
                 ", key=" + k +
                 ", value=" + v +
                 '}';
+    }
+
+    //Testing only
+    static <K> K readKey(ByteBuffer buffer, Serializer<K> ks) {
+        int kPos = buffer.position() + KEY_OFFSET;
+        int kSize = keySize(buffer);
+        return ks.fromBytes(buffer.duplicate().position(kPos).limit(kPos + kSize));
+    }
+
+    //Testing only
+    static <T> T readValue(ByteBuffer buffer, Serializer<T> ks) {
+        int vPos = valueOffset(buffer);
+        int vSize = valueSize(buffer);
+        return ks.fromBytes(buffer.duplicate().limit(vPos + vSize).position(vPos));
     }
 }

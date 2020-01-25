@@ -14,7 +14,7 @@ public class RecordBatch {
             return false;
         }
         int rsize = Record2.sizeOf(record);
-        return rsize <= remaining;
+        return rsize <= remaining && rsize > HEADER_BYTES;
     }
 
     public static void skip(ByteBuffer record) {
@@ -34,7 +34,7 @@ public class RecordBatch {
                 return entries;
             }
             int rsize = Record2.sizeOf(record);
-            if (rsize > remaining) {
+            if (rsize > remaining || rsize <= HEADER_BYTES) {
                 return entries;
             }
             entries++;

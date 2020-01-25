@@ -18,7 +18,7 @@ public class ByteBufferChecksum {
     }
 
     public static int crc32(ByteBuffer buffer) {
-        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), resetAndGet(localCache.get().crc32));
+        return checksum(buffer, buffer.position(), buffer.remaining(), resetAndGet(localCache.get().crc32));
     }
 
     public static int crc32(ByteBuffer buffer, int pos, int len) {
@@ -26,7 +26,7 @@ public class ByteBufferChecksum {
     }
 
     public static int crc32c(ByteBuffer buffer) {
-        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), resetAndGet(localCache.get().crc32c));
+        return checksum(buffer, buffer.position(), buffer.remaining(), resetAndGet(localCache.get().crc32c));
     }
 
     public static int crc32c(ByteBuffer buffer, int pos, int len) {
@@ -34,7 +34,7 @@ public class ByteBufferChecksum {
     }
 
     public static int adler32(ByteBuffer buffer) {
-        return checksum(buffer, Buffers.absoluteArrayPosition(buffer), buffer.remaining(), resetAndGet(localCache.get().adler32));
+        return checksum(buffer, buffer.position(), buffer.remaining(), resetAndGet(localCache.get().adler32));
     }
 
     public static int adler32(ByteBuffer buffer, int pos, int len) {
@@ -54,6 +54,7 @@ public class ByteBufferChecksum {
             buffer.position(ppos);
             return checksum(impl, data, pos, len);
         }
+        pos = Buffers.absoluteArrayPosition(buffer, pos);
         return checksum(impl, buffer.array(), pos, len);
     }
 

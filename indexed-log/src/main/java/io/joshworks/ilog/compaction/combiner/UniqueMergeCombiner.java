@@ -37,7 +37,6 @@ public class UniqueMergeCombiner implements SegmentCombiner {
     public void merge(List<? extends IndexedSegment> segments, IndexedSegment output) {
         List<RecordBatchIterator> iterators = segments.stream()
                 .map(s -> new RecordBatchIterator(s, 0, pool))
-//                .map(PeekingIterator::new)
                 .collect(Collectors.toList());
 
         mergeItems(iterators, output);
@@ -61,14 +60,28 @@ public class UniqueMergeCombiner implements SegmentCombiner {
                 segmentIterators.add(seg);
             }
 
-            ByteBuffer nextEntry = getNextEntry(segmentIterators);
-            if (nextEntry != null && filter(nextEntry)) {
-                if (output.isFull()) {
-                    throw new IllegalStateException("Insufficient output segment (" + output.name() + ") data space: " + output.size());
+            //single segment, drain it
+            if (segmentIterators.size() == 1) {
+                RecordBatchIterator it = segmentIterators.get(0);
+                while (it.hasNext()) {
+                    writeOut(output, it.next());
                 }
-                output.append(nextEntry);
+            } else {
+                ByteBuffer nextEntry = getNextEntry(segmentIterators);
+                writeOut(output, nextEntry);
             }
+
         }
+    }
+
+    private void writeOut(IndexedSegment output, ByteBuffer nextEntry) {
+        if (nextEntry == null || !filter(nextEntry)) {
+            return;
+        }
+        if (output.isFull()) {
+            throw new IllegalStateException("Insufficient output segment (" + output.name() + ") data space: " + output.size());
+        }
+        output.append(nextEntry);
     }
 
     private ByteBuffer getNextEntry(List<RecordBatchIterator> segmentIterators) {
@@ -81,8 +94,8 @@ public class UniqueMergeCombiner implements SegmentCombiner {
                 prev = curr;
                 continue;
             }
-            ByteBuffer prevItem = prev.next();
-            ByteBuffer currItem = curr.next();
+            ByteBuffer prevItem = prev.peek();
+            ByteBuffer currItem = curr.peek();
             int c = compare(prevItem, currItem);
             if (c == 0) { //duplicate remove eldest entry
                 curr.next();
@@ -98,7 +111,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
     }
 
     private int compare(ByteBuffer r1, ByteBuffer r2) {
-        return Record2.compareToKey(r1, r2, comparator);
+        return Record2.compareRecordKeys(r1, r2, comparator);
     }
 
     /**

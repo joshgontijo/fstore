@@ -70,7 +70,7 @@ public class Buffers {
     }
 
     /**
-     * Copied remaining bytes from src to the dst
+     * Copies remaining bytes from src to the dst
      * Does not modify source's position
      *
      * @throws BufferOverflowException if the src remaining bytes is greater than dst remaining bytes
@@ -81,6 +81,16 @@ public class Buffers {
         }
         return copy(src, src.position(), src.remaining(), dst);
     }
+
+    /**
+     * Copies remaining bytes from src to the dst withou throwing exception if src has more than dst remaining bytes
+     * Does not modify source's position
+     */
+    public static int fill(ByteBuffer src, ByteBuffer dst) {
+        int min = Math.min(src.remaining(), dst.remaining());
+        return copy(src, src.position(), min, dst);
+    }
+
 
     /**
      * Copy as many bytes as possible from {@code sources} into {@code destination} in a "gather" fashion.
@@ -140,12 +150,28 @@ public class Buffers {
         return t;
     }
 
+    /**
+     * Offset this buffer position in relation to the current position
+     */
     public static void offsetPosition(ByteBuffer buffer, int offset) {
         buffer.position(buffer.position() + (offset));
     }
 
+    /**
+     * Offset this buffer limit in relation to the current position
+     */
     public static void offsetLimit(ByteBuffer buffer, int offset) {
-        buffer.limit(buffer.limit() + (offset));
+        if (offset < 0) {
+            throw new IllegalArgumentException("Offset must be greater or equals to zero");
+        }
+        buffer.limit(buffer.position() + offset);
+    }
+
+    /**
+     * Updates this buffer to the given position and its limit to a relative position from the given position
+     */
+    public static void view(ByteBuffer buffer, int offset, int count) {
+        buffer.limit(offset + count).position(offset);
     }
 
     /**

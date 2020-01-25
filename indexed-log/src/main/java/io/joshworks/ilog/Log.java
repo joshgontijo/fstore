@@ -16,6 +16,7 @@ import java.util.function.Function;
 public class Log<T extends IndexedSegment> {
 
     protected final View<T> view;
+    private final File root;
     private final int maxEntrySize;
     private final FlushMode flushMode;
     protected final BufferPool pool;
@@ -28,7 +29,7 @@ public class Log<T extends IndexedSegment> {
                FlushMode flushMode,
                BufferPool pool,
                SegmentFactory<T> segmentFactory) throws IOException {
-
+        this.root = root;
         this.maxEntrySize = maxEntrySize;
         this.flushMode = flushMode;
         this.pool = pool;

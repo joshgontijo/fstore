@@ -107,7 +107,8 @@ public class IndexedSegment {
         }
 
         try {
-            int written = channel.write(record);
+            int rSize = Record2.validate(record);
+            int written = Record2.writeTo(record, channel);
             Buffers.offsetPosition(record, -written);
             if (written <= 0) {
                 throw new RuntimeIOException("Failed to write entry");
