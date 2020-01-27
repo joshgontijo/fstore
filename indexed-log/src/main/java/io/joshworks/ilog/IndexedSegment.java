@@ -18,7 +18,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static io.joshworks.ilog.Record.HEADER_BYTES;
+import static io.joshworks.ilog.Record2.HEADER_BYTES;
 
 public class IndexedSegment {
 

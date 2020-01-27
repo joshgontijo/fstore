@@ -73,6 +73,14 @@ public class Log<T extends IndexedSegment> {
         return view.apply(Direction.FORWARD, func);
     }
 
+    public void roll() {
+        try {
+            view.roll();
+        } catch (IOException e) {
+            throw new RuntimeIOException(e);
+        }
+    }
+
     public long entries() {
         return view.entries();
     }

@@ -2,11 +2,9 @@ package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
-import io.joshworks.ilog.Record;
 import io.joshworks.ilog.Record2;
 import io.joshworks.ilog.index.KeyComparator;
 
@@ -98,10 +96,6 @@ public class SequenceLog implements Closeable {
 
     private void flush() {
         log.flush();
-    }
-
-    private static Record create(long key, String value) {
-        return Record.create(key, Serializers.LONG, value, Serializers.STRING, ByteBuffer.allocate(64));
     }
 
     @Override
