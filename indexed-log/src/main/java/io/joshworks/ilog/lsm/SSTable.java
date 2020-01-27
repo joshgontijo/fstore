@@ -8,12 +8,14 @@ import java.nio.ByteBuffer;
 
 public class SSTable extends IndexedSegment {
 
+    private BloomFilter bf;
+
     public SSTable(File file, int indexSize, KeyComparator comparator) {
         super(file, indexSize, comparator);
     }
 
-    @Override
-    public long find(ByteBuffer key) {
-        return super.find(key);
+    public int get(ByteBuffer key, ByteBuffer dst) {
+
     }
+
 }

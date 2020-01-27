@@ -26,6 +26,7 @@ public class Buffers {
         return readableBytes;
     }
 
+
     /**
      * Copies from the source WITHOUT using the src position / limit pointers
      * position of dst is updated with the inserted number of bytes,
@@ -219,4 +220,10 @@ public class Buffers {
         }
         return false;
     }
+
+
+    public static int relativeOffset(ByteBuffer buffer, int fieldOffset) {
+        return buffer.position() + fieldOffset;
+    }
+
 }

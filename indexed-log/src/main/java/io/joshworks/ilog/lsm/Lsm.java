@@ -1,6 +1,7 @@
 package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.index.KeyComparator;
@@ -34,26 +35,27 @@ public class Lsm {
         this.ssTables = new Log<>(new File(root, "sstables"), maxEntrySize, sstableIndexSize, 2, FlushMode.ON_ROLL, recordPool, (file, idxSize) -> new SSTable(file, idxSize, keyComparator));
     }
 
-    public void put(ByteBuffer record) {
+    public void append(ByteBuffer record) {
         tlog.append(record);
         if (memTable.add(record) >= memTableSize) {
             flush();
         }
     }
 
-    public void delete(ByteBuffer key) {
-
-    }
-
-    public void read(ByteBuffer key, ByteBuffer dst) {
-        ssTables.apply(sst -> {
-            ByteBuffer buff = memTable.get(key);
-            if(buff)
-            for (SSTable ssTable : sst) {
-                if()
+    public int get(ByteBuffer key, ByteBuffer dst) {
+        return ssTables.apply(Direction.BACKWARD, sst -> {
+            int fromMem = memTable.get(key, dst);
+            if (fromMem > 0) {
+                return fromMem;
             }
-
-        })
+            for (SSTable ssTable : sst) {
+                int fromDisk = ssTable.get(key, dst);
+                if (fromDisk > 0) {
+                    return fromDisk;
+                }
+            }
+            return 0;
+        });
     }
 
     private void flush() {

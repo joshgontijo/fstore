@@ -69,8 +69,8 @@ public class Log<T extends IndexedSegment> {
         }
     }
 
-    public <R> R apply(Function<List<T>, R> func) {
-        return view.apply(Direction.FORWARD, func);
+    public <R> R apply(Direction direction, Function<List<T>, R> func) {
+        return view.apply(direction, func);
     }
 
     public void roll() {

@@ -2,6 +2,7 @@ package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
@@ -65,7 +66,7 @@ public class SequenceLog implements Closeable {
     }
 
     private SequenceSegment findSegment(long sequence) {
-        return log.apply(segs -> findSegment(segs, sequence));
+        return log.apply(Direction.FORWARD, segs -> findSegment(segs, sequence));
     }
 
     private static SequenceSegment findSegment(List<SequenceSegment> segments, long sequence) {

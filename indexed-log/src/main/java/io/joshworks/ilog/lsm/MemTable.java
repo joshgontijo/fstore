@@ -1,12 +1,11 @@
 package io.joshworks.ilog.lsm;
 
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.Record2;
 import io.joshworks.ilog.index.KeyComparator;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -44,6 +43,19 @@ class MemTable {
             keyPool.free(keyBuffer);
             throw new RuntimeException("Failed to insert record", e);
         }
+    }
+
+    public int get(ByteBuffer key, ByteBuffer dst) {
+        validateKeySize(key);
+        var floorRecord = floor(key);
+        if (floorRecord == null) {
+            return 0;
+        }
+        int compare = Record2.compareToKey(floorRecord, key, comparator);
+        if(compare != 0) {
+            return 0;
+        }
+        return Buffers.copy(floorRecord, dst);
     }
 
     public ByteBuffer get(ByteBuffer key) {
@@ -117,7 +129,7 @@ class MemTable {
 
         long inserted = 0;
         for (ByteBuffer entry : table.values()) {
-            if (entry.expired(maxAge) && !entry.deletion()) {
+            if (LsmRecord.expired(entry, maxAge) && !LsmRecord.deletion(entry)) {
                 continue;
             }
             sstables.append(entry);
