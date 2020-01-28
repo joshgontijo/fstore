@@ -6,7 +6,7 @@ import java.nio.ByteBuffer;
 
 public class LsmRecord {
 
-    private static final int DELETION_ATTR = 0;
+    public static final int DELETION_ATTR = 0;
     private static final int HAS_MAX_AGE = 1 << 1;
 
     public static boolean deletion(ByteBuffer record) {
@@ -18,8 +18,7 @@ public class LsmRecord {
         if (!hasMaxAge) {
             return false;
         }
-        int offset = Record2.valueOffset(record);
-        long timestamp = record.getLong(offset);
+        long timestamp = Record2.timestamp(record);
         long now = nowSeconds();
         return maxAgeSeconds > 0 && (now - timestamp > maxAgeSeconds);
     }

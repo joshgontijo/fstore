@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.joshworks.ilog.Record2.HEADER_BYTES;
+import static io.joshworks.ilog.index.Index.NONE;
 
 public class IndexedSegment {
 
@@ -121,24 +122,30 @@ public class IndexedSegment {
         }
     }
 
-    /**
-     * Lookup for the entry position based on a key
-     */
-    public long find(ByteBuffer key) {
-        return index.get(key);
+    public int get(ByteBuffer key, ByteBuffer dst) {
+        long pos = index.get(key);
+        if (pos == NONE) {
+            return 0;
+        }
+        return read(pos, dst);
     }
 
     /**
      * Reads a single entry for the given offset, read is performed with a single IO call
      * with a buffer of size specified by readSize. If the buffer is too small for the entry, then a new one is created and
      */
-    public int read(long position, ByteBuffer dst) throws IOException {
-        int dstRemaining = dst.remaining();
-        if (dstRemaining <= HEADER_BYTES) {
-            throw new RuntimeException("bufferSize must be greater than " + HEADER_BYTES);
+    public int read(long position, ByteBuffer dst) {
+        try {
+            int dstRemaining = dst.remaining();
+            if (dstRemaining <= HEADER_BYTES) {
+                throw new RuntimeException("bufferSize must be greater than " + HEADER_BYTES);
+            }
+            return channel.read(dst, position);
+        } catch (IOException e) {
+            throw new RuntimeIOException(e);
         }
-        return channel.read(dst, position);
     }
+
 
     public boolean readOnly() {
         return readOnly.get();

@@ -108,8 +108,6 @@ public class Index implements TreeFunctions, Closeable {
         } finally {
             pool.free(bb);
         }
-
-
     }
 
     @Override
@@ -127,7 +125,6 @@ public class Index implements TreeFunctions, Closeable {
         } finally {
             pool.free(bb);
         }
-
     }
 
     @Override
@@ -185,7 +182,6 @@ public class Index implements TreeFunctions, Closeable {
         } finally {
             pool.free(bb);
         }
-
     }
 
     private int binarySearch(ByteBuffer key, ByteBuffer read) {

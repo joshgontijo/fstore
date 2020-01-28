@@ -2,6 +2,7 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.ilog.compaction.Compactor;
 import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
@@ -29,6 +30,7 @@ public class Log<T extends IndexedSegment> {
                FlushMode flushMode,
                BufferPool pool,
                SegmentFactory<T> segmentFactory) throws IOException {
+        FileUtils.createDir(root);
         this.root = root;
         this.maxEntrySize = maxEntrySize;
         this.flushMode = flushMode;

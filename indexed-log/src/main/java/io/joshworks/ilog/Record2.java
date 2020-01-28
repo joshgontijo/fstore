@@ -66,7 +66,7 @@ public class Record2 {
 
     public static boolean hasAttribute(ByteBuffer buffer, int attribute) {
         byte attr = buffer.get(relativeOffset(buffer, ATTR_OFFSET));
-        return (attr & (Byte.MAX_VALUE << attribute)) == 1;
+        return (attr & (1 << attribute)) == 1;
     }
 
     public static int compareRecordKeys(ByteBuffer r1, ByteBuffer r2, KeyComparator comparator) {
@@ -127,7 +127,7 @@ public class Record2 {
         return Buffers.copy(record, absKeyPos, keySize(record), dst);
     }
 
-    public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst) {
+    public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attributes) {
         if (dst.remaining() <= HEADER_BYTES) {
             throw new IllegalArgumentException("Write buffer must be at least " + HEADER_BYTES);
         }
@@ -151,7 +151,7 @@ public class Record2 {
             dst.putInt(dataLen);
             dst.putInt(checksum);
             dst.putLong(System.currentTimeMillis());
-            dst.put((byte) 0); //NO ATTRIBUTE TODO ?
+            dst.put(attribute(attributes));
             dst.putInt(keyLen);
 
             dst.position(dataEnd).limit(originalLimit);
@@ -206,6 +206,14 @@ public class Record2 {
         int valueStart = HEADER_BYTES + keySize(buffer);
         int dataLen = buffer.limit() - valueStart;
         Buffers.copy(buffer, valueStart, dataLen, dst);
+    }
+
+    private static byte attribute(int... attributes) {
+        byte b = 0;
+        for (int attr : attributes) {
+            b = (byte) (b | 1 << attr);
+        }
+        return b;
     }
 
     public static String toString(ByteBuffer buffer) {

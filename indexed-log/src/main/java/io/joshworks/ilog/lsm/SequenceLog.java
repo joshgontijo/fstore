@@ -2,6 +2,7 @@ package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.IndexedSegment;
@@ -27,6 +28,7 @@ public class SequenceLog implements Closeable {
     private final ByteBuffer recordWriteBuffer;
 
     public SequenceLog(File root, int maxEntrySize, int indexSize, int compactionThreshold, FlushMode flushMode, BufferPool recordPool) throws IOException {
+        FileUtils.createDir(root);
         log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, flushMode, recordPool, SequenceSegment::new);
         keyPool = BufferPool.localCachePool(256, Long.BYTES, false);
         keyWriteBuffer = keyPool.allocate();
@@ -36,7 +38,6 @@ public class SequenceLog implements Closeable {
     public void append(ByteBuffer data) {
         try {
             long seq = sequence.getAndIncrement();
-            data.clear();
             keyWriteBuffer.putLong(seq).flip();
             recordWriteBuffer.clear();
             Record2.create(keyWriteBuffer, data, recordWriteBuffer);
@@ -53,13 +54,7 @@ public class SequenceLog implements Closeable {
         SequenceSegment segment = findSegment(sequence);
         ByteBuffer buffer = keyPool.allocate().putLong(sequence).flip();
         try {
-            long pos = segment.find(buffer);
-            if (pos < 0) {
-                return;
-            }
-            segment.read(pos, dst);
-        } catch (IOException e) {
-            throw new RuntimeIOException(e);
+            segment.get(buffer, dst);
         } finally {
             keyPool.free(buffer);
         }
@@ -103,6 +98,10 @@ public class SequenceLog implements Closeable {
     public void close() {
         keyPool.free(keyWriteBuffer);
         log.close();
+    }
+
+    public void delete() {
+        log.delete();
     }
 
     private class SequenceSegment extends IndexedSegment {

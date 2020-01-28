@@ -1,6 +1,5 @@
 package io.joshworks.ilog;
 
-import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Iterators;
 
@@ -9,7 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.NoSuchElementException;
 
-import static io.joshworks.ilog.Record.HEADER_BYTES;
+import static io.joshworks.ilog.Record2.HEADER_BYTES;
 
 public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuffer> {
 
@@ -61,11 +60,11 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
 
     private boolean hasNext(ByteBuffer record) {
         int remaining = record.remaining();
-        if (remaining < Record2.HEADER_BYTES) {
+        if (remaining < HEADER_BYTES) {
             return false;
         }
         int rsize = Record2.sizeOf(record);
-        return rsize <= remaining && rsize > Record2.HEADER_BYTES;
+        return rsize <= remaining && rsize > HEADER_BYTES;
     }
 
     public long transferTo(WritableByteChannel channel) throws IOException {
@@ -79,27 +78,23 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
     }
 
     private void readBatch() {
-        try {
-            if (readPos + bufferPos >= segment.writePosition()) {
-                return;
-            }
-            readPos += bufferPos;
-            long rpos = readPos;
-            if (readBuffer.position() > 0) {
-                readBuffer.compact();
-                rpos += readBuffer.position();
-            }
-
-            int read = segment.read(rpos, readBuffer);
-            if (read <= 0) { //EOF or no more data
-                throw new IllegalStateException("Expected data to be read");
-            }
-            readBuffer.flip();
-            bufferPos = 0;
-            bufferLimit = readBuffer.limit();
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to read batch", e);
+        if (readPos + bufferPos >= segment.writePosition()) {
+            return;
         }
+        readPos += bufferPos;
+        long rpos = readPos;
+        if (readBuffer.position() > 0) {
+            readBuffer.compact();
+            rpos += readBuffer.position();
+        }
+
+        int read = segment.read(rpos, readBuffer);
+        if (read <= 0) { //EOF or no more data
+            throw new IllegalStateException("Expected data to be read");
+        }
+        readBuffer.flip();
+        bufferPos = 0;
+        bufferLimit = readBuffer.limit();
     }
 
     //internal

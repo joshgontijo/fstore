@@ -52,7 +52,7 @@ class MemTable {
             return 0;
         }
         int compare = Record2.compareToKey(floorRecord, key, comparator);
-        if(compare != 0) {
+        if (compare != 0) {
             return 0;
         }
         return Buffers.copy(floorRecord, dst);
@@ -68,20 +68,9 @@ class MemTable {
         return compare == 0 ? floorRecord : null;
     }
 
-    //    @Override
     public ByteBuffer floor(ByteBuffer key) {
         var entry = table.floorEntry(key);
         return getValue(entry);
-    }
-
-    private void validateKeySize(ByteBuffer key) {
-        if (key.remaining() != comparator.keySize()) {
-            throw new IllegalArgumentException("Invalid key size: " + key.remaining());
-        }
-    }
-
-    private static ByteBuffer getValue(Map.Entry<ByteBuffer, ByteBuffer> entry) {
-        return entry == null ? null : entry.getValue();
     }
 
     public ByteBuffer ceiling(ByteBuffer key) {
@@ -103,25 +92,16 @@ class MemTable {
         return size.get();
     }
 
-//
-//    CloseableIterator<Entry<K, V>> iterator(Direction direction, Range<K> range) {
-//        NavigableSet<Entry<K, V>> subSet;
-//        if (range.start() != null && range.end() == null) {
-//            subSet = table.tailSet(Entry.key(range.start()), true);
-//        } else if (range.start() == null && range.end() != null) {
-//            subSet = table.headSet(Entry.key(range.end()), false);
-//        } else if (range.start() != null && range.end() != null) {
-//            subSet = table.subSet(Entry.key(range.start()), Entry.key(range.end()));
-//        } else {
-//            throw new IllegalArgumentException("Range start or end must be provided");
-//        }
-//        return Direction.FORWARD.equals(direction) ? Iterators.of(subSet) : Iterators.wrap(subSet.descendingIterator());
-//    }
-//
-//    CloseableIterator<Entry<K, V>> iterator(Direction direction) {
-//        return Direction.FORWARD.equals(direction) ? Iterators.of(table) : Iterators.wrap(table.descendingIterator());
-//    }
-//
+    private void validateKeySize(ByteBuffer key) {
+        if (key.remaining() != comparator.keySize()) {
+            throw new IllegalArgumentException("Invalid key size: " + key.remaining());
+        }
+    }
+
+    private static ByteBuffer getValue(Map.Entry<ByteBuffer, ByteBuffer> entry) {
+        return entry == null ? null : entry.getValue();
+    }
+
     long writeTo(Log<SSTable> sstables, long maxAge) {
         if (table.isEmpty()) {
             return 0;
@@ -135,15 +115,10 @@ class MemTable {
             sstables.append(entry);
         }
         sstables.roll();
+
+        size.set(0); // TODO remove
+        table.clear(); // TODO remove
         return inserted;
     }
-//
-//    int size() {
-//        return table.size();
-//    }
-//
-//    boolean isEmpty() {
-//        return table.isEmpty();
-//    }
 
 }

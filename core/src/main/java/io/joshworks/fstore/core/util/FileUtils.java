@@ -49,6 +49,21 @@ public class FileUtils {
     }
 
     /**
+     * returns true if the file was created, false otherwise
+     */
+    public static boolean createDir(File file) {
+        try {
+            if (!Files.exists(file.toPath())) {
+                Files.createDirectory(file.toPath());
+                return true;
+            }
+            return false;
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to create " + file, e);
+        }
+    }
+
+    /**
      * returns true if the file was deleted, false otherwise
      */
     public static boolean deleteIfExists(File file) {
