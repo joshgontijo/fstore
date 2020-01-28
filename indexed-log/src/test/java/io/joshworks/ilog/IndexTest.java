@@ -32,7 +32,6 @@ public class IndexTest {
         index.delete();
     }
 
-
     @Test
     public void get() {
         int items = 100000;
@@ -41,8 +40,21 @@ public class IndexTest {
         }
 
         for (int i = 0; i < items; i++) {
-            assertEquals("Failed on " + i, i, index.get(bufferOf(i)));
+            assertIndexPosition("Failed on " + i, i, index.get(bufferOf(i)));
         }
+    }
+
+    @Test
+    public void read_entry_size() {
+        long key = 111;
+        var record = RecordUtils.create(key, Serializers.LONG, "value-" + 123, Serializers.VSTRING);
+        int expectedSize = Record2.sizeOf(record);
+        index.write(record, 123);
+
+        int idx = index.get(bufferOf(key));
+        assertEquals(0, idx);
+        assertEquals(expectedSize, index.readEntrySize(idx));
+
     }
 
     @Test
@@ -50,7 +62,7 @@ public class IndexTest {
         for (int i = 0; i < 100; i++) {
             writeInt(i, i);
         }
-        assertEquals(Index.NONE, index.get(bufferOf(101)));
+        assertIndexPosition(Index.NONE, index.get(bufferOf(101)));
     }
 
     @Test
@@ -139,9 +151,9 @@ public class IndexTest {
         addSomeEntries(10);
 
         //equals last
-        long found = index.floor(bufferOf(10));
+        int found = index.floor(bufferOf(10));
 
-        assertEquals(index.get(bufferOf(9)), found);
+        assertIndexPosition(index.get(bufferOf(9)), found);
     }
 
     @Test
@@ -149,128 +161,138 @@ public class IndexTest {
         addSomeEntries(10);
 
         //greater than last
-        long found = index.floor(bufferOf(11));
+        int found = index.floor(bufferOf(11));
 
-        assertEquals(index.get(bufferOf(9)), found);
+        assertIndexPosition(index.get(bufferOf(9)), found);
     }
 
     @Test
     public void floor_with_key_less_than_first_entry_returns_null() {
         addSomeEntries(10);
 
-        long found = index.floor(bufferOf(-1));
-        assertEquals(Index.NONE, found);
+        int found = index.floor(bufferOf(-1));
+        assertIndexPosition(Index.NONE, found);
     }
 
     @Test
     public void floor_with_key_equals_first_entry_returns_first_entry() {
         addSomeEntries(10);
 
-        long found = index.floor(bufferOf(0));
+        int found = index.floor(bufferOf(0));
 
-        assertEquals(index.get(bufferOf(0)), found);
+        assertIndexPosition(index.get(bufferOf(0)), found);
     }
 
     @Test
     public void ceiling_with_key_less_than_first_entry_returns_first_entry() {
         addSomeEntries(10);
 
-        long found = index.ceiling(bufferOf(-1));
+        int found = index.ceiling(bufferOf(-1));
 
-        assertEquals(index.get(bufferOf(0)), found);
+        assertIndexPosition(index.get(bufferOf(0)), found);
     }
 
     @Test
     public void ceiling_with_key_equals_first_entry_returns_first_entry() {
         addSomeEntries(10);
 
-        long found = index.ceiling(bufferOf(0));
+        int found = index.ceiling(bufferOf(0));
 
-        assertEquals(index.get(bufferOf(0)), found);
+        assertIndexPosition(index.get(bufferOf(0)), found);
     }
 
     @Test
     public void ceiling_with_key_greater_than_last_entry_returns_null() {
         addSomeEntries(10);
 
-        long found = index.ceiling(bufferOf(11));
-        assertEquals(Index.NONE, found);
+        int found = index.ceiling(bufferOf(11));
+        assertIndexPosition(Index.NONE, found);
     }
 
     @Test
     public void ceiling_with_key_equals_last_entry_returns_last_entry() {
         addSomeEntries(10);
 
-        long found = index.ceiling(bufferOf(10));
+        int found = index.ceiling(bufferOf(10));
 
-        assertEquals(index.get(bufferOf(10)), found);
+        assertIndexPosition(index.get(bufferOf(10)), found);
     }
 
     @Test
     public void higher_with_key_greater_than_lastKey_returns_null() {
         addSomeEntries(10);
 
-        long found = index.higher(bufferOf(11));
-        assertEquals(Index.NONE, found);
+        int found = index.higher(bufferOf(11));
+        assertIndexPosition(Index.NONE, found);
     }
 
     @Test
     public void higher_with_key_equals_lastKey_returns_null() {
         addSomeEntries(10);
 
-        long found = index.higher(bufferOf(10));
-        assertEquals(Index.NONE, found);
+        int found = index.higher(bufferOf(10));
+        assertIndexPosition(Index.NONE, found);
     }
 
     @Test
     public void higher_with_key_less_than_firstKey_returns_firstEntry() {
         addSomeEntries(10);
 
-        long found = index.higher(bufferOf(-1));
+        int found = index.higher(bufferOf(-1));
 
-        assertEquals(index.get(bufferOf(0)), found);
+        assertIndexPosition(index.get(bufferOf(0)), found);
     }
 
     @Test
     public void higher_with_key_lowest_key_returns_firstEntry() {
         addSomeEntries(10);
 
-        long found = index.higher(bufferOf(Integer.MIN_VALUE));
+        int found = index.higher(bufferOf(Integer.MIN_VALUE));
 
-        assertEquals(index.get(bufferOf(0)), found);
+        assertIndexPosition(index.get(bufferOf(0)), found);
     }
 
     @Test
     public void lower_with_key_less_than_firstKey_returns_null() {
         addSomeEntries(10);
 
-        long found = index.lower(bufferOf(-1));
-        assertEquals(Index.NONE, found);
+        int found = index.lower(bufferOf(-1));
+        assertIndexPosition(Index.NONE, found);
     }
 
     @Test
     public void lower_with_key_equals_firstKey_returns_null() {
         addSomeEntries(10);
 
-        long found = index.lower(bufferOf(0));
-        assertEquals(Index.NONE, found);
+        int found = index.lower(bufferOf(0));
+        assertIndexPosition(Index.NONE, found);
     }
 
     @Test
     public void lower_with_key_greater_than_lastKey_returns_lastEntry() {
         addSomeEntries(10);
 
-        long found = index.lower(bufferOf(11));
+        int found = index.lower(bufferOf(11));
 
-        assertEquals(index.get(bufferOf(9)), found);
+        assertIndexPosition(index.get(bufferOf(9)), found);
     }
 
     @Test
     public void lower_with_key_highest_key_returns_lastEntry() {
         addSomeEntries(10);
 
-        long found = index.lower(bufferOf(Integer.MAX_VALUE));
-        assertEquals(index.get(bufferOf(9)), found);
+        int found = index.lower(bufferOf(Integer.MAX_VALUE));
+        assertIndexPosition(index.get(bufferOf(9)), found);
+    }
+
+    private void assertIndexPosition(String message, long expected, int idx) {
+        long val = index.readPosition(idx);
+        assertEquals(message, expected, val);
+    }
+
+    private void assertIndexPosition(long expected, int idx) {
+        long val = index.readPosition(idx);
+        assertEquals(expected, val);
     }
 
     private void ceilingWithStep(int items, int steps) {
@@ -282,8 +304,8 @@ public class IndexTest {
 
         for (int i = 0; i < items - steps; i += 1) {
             long expected = treeSet.ceiling(i);
-            long ceiling = index.ceiling(bufferOf(i));
-            assertEquals("Failed on " + i, expected, ceiling);
+            int ceiling = index.ceiling(bufferOf(i));
+            assertIndexPosition("Failed on " + i, expected, ceiling);
         }
     }
 
@@ -296,8 +318,8 @@ public class IndexTest {
 
         for (int i = 1; i < items; i += 1) {
             long expected = treeSet.lower(i);
-            long lower = index.lower(bufferOf(i));
-            assertEquals("Failed on " + i, expected, lower);
+            int lower = index.lower(bufferOf(i));
+            assertIndexPosition("Failed on " + i, expected, lower);
         }
 
     }
@@ -311,8 +333,8 @@ public class IndexTest {
 
         for (int i = 0; i < items - steps; i += 1) {
             long expected = treeSet.higher(i);
-            long higher = index.higher(bufferOf(i));
-            assertEquals("Failed on " + i, expected, higher);
+            int higher = index.higher(bufferOf(i));
+            assertIndexPosition("Failed on " + i, expected, higher);
         }
     }
 
@@ -325,8 +347,8 @@ public class IndexTest {
 
         for (int i = 0; i < items; i += 1) {
             long expected = treeSet.floor(i);
-            long floor = index.floor(bufferOf(i));
-            assertEquals("Failed on " + i, expected, floor);
+            int floor = index.floor(bufferOf(i));
+            assertIndexPosition("Failed on " + i, expected, floor);
         }
     }
 
