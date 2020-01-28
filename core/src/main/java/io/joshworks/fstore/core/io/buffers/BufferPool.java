@@ -36,6 +36,10 @@ public interface BufferPool {
         return new CachedBufferPool(poolSize, bufferSize, direct);
     }
 
+    static BufferPool localCache(int bufferSize, boolean direct) {
+        return new LocalCache(bufferSize, direct);
+    }
+
     static BufferPool unpooled(int bufferSize, boolean direct) {
         return new Unpooled(bufferSize, direct);
     }

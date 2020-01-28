@@ -14,16 +14,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Objects.requireNonNull;
 
 /**
- * A UNIQUE, ORDERED entry index
- * - All entries must have the same size
- * - Insertion must be in ORDERED fashion
+ * A NON-CLUSTERED, UNIQUE, ORDERED index
+ * - Index entries must be of a fixed size
+ * - Insertion must be ORDERED
  * - All entries must be unique
  * <p>
  * If opening from an existing file, the index is marked as read only.
+ * <p>
+ * FORMAT:
+ * KEY (N bytes)
+ * LOG_POS (8 bytes)
  */
-public class Index implements TreeFunctions, Closeable {
+public class Index implements Closeable {
 
-    protected final MappedFile mf;
+    private final MappedFile mf;
     private final KeyComparator comparator;
     private int entries;
     private final AtomicBoolean readOnly = new AtomicBoolean();
@@ -70,99 +74,22 @@ public class Index implements TreeFunctions, Closeable {
         if (dst.remaining() < keySize) {
             throw new IllegalStateException("Not enough index space");
         }
+        doWrite(keySize, position, record, dst);
+        entries++;
+    }
+
+    private void doWrite(int keySize, long position, ByteBuffer record, ByteBuffer dst) {
+        int rsize = Record2.sizeOf(record);
         int written = Record2.writeKey(record, dst);
         if (written != keySize) {
             Buffers.offsetPosition(dst, -written);
             throw new IllegalStateException("Expected " + keySize + " bytes written to index, actual: " + written);
         }
         dst.putLong(position);
-        entries++;
+        dst.putInt(rsize);
     }
 
-    /**
-     * Complete this index and mark it as read only.
-     */
-    public void complete() {
-        truncate();
-        readOnly.set(true);
-    }
-
-    public void flush() {
-        mf.flush();
-    }
-
-    /**
-     * Returns the start slot position that the key is contained, null if the key is less than the first item
-     */
-    public long floor(ByteBuffer key) {
-        requireNonNull(key, "Key must be provided");
-        if (entries == 0) {
-            return NONE;
-        }
-
-        var bb = pool.allocate();
-        try {
-            int idx = binarySearch(key, bb);
-            idx = idx >= 0 ? idx : Math.abs(idx) - 2;
-            return readPosition(idx);
-        } finally {
-            pool.free(bb);
-        }
-    }
-
-    @Override
-    public long ceiling(ByteBuffer key) {
-        requireNonNull(key, "Key must be provided");
-        if (entries == 0) {
-            return NONE;
-        }
-
-        var bb = pool.allocate();
-        try {
-            int idx = binarySearch(key, bb);
-            idx = idx >= 0 ? idx : Math.abs(idx) - 1;
-            return readPosition(idx);
-        } finally {
-            pool.free(bb);
-        }
-    }
-
-    @Override
-    public long higher(ByteBuffer key) {
-        requireNonNull(key, "Key must be provided");
-        if (entries == 0) {
-            return NONE;
-        }
-
-        var bb = pool.allocate();
-        try {
-            int idx = binarySearch(key, bb);
-            idx = idx >= 0 ? idx + 1 : Math.abs(idx) - 1;
-            return readPosition(idx);
-
-        } finally {
-            pool.free(bb);
-        }
-    }
-
-    @Override
-    public long lower(ByteBuffer key) {
-        requireNonNull(key, "Key must be provided");
-        if (entries == 0) {
-            return NONE;
-        }
-        var bb = pool.allocate();
-        try {
-            int idx = binarySearch(key, bb);
-            idx = idx > 0 ? idx - 1 : Math.abs(idx) - 2;
-            return readPosition(idx);
-        } finally {
-            pool.free(bb);
-        }
-    }
-
-    @Override
-    public long get(ByteBuffer key) {
+    public int get(ByteBuffer key) {
         requireNonNull(key, "Key must be provided");
         int remaining = key.remaining();
         int kSize = keySize();
@@ -175,13 +102,90 @@ public class Index implements TreeFunctions, Closeable {
         var bb = pool.allocate();
         try {
             int idx = binarySearch(key, bb);
-            if (idx < 0) {
-                return NONE;
-            }
-            return readPosition(idx);
+            return Math.max(idx, NONE);
         } finally {
             pool.free(bb);
         }
+    }
+
+    /**
+     * Returns the start slot position that the key is contained, null if the key is less than the first item
+     */
+    public int floor(ByteBuffer key) {
+        requireNonNull(key, "Key must be provided");
+        if (entries == 0) {
+            return NONE;
+        }
+
+        var bb = pool.allocate();
+        try {
+            int idx = binarySearch(key, bb);
+            return idx >= 0 ? idx : Math.abs(idx) - 2;
+        } finally {
+            pool.free(bb);
+        }
+    }
+
+    public int ceiling(ByteBuffer key) {
+        requireNonNull(key, "Key must be provided");
+        if (entries == 0) {
+            return NONE;
+        }
+
+        var bb = pool.allocate();
+        try {
+            int idx = binarySearch(key, bb);
+            return idx >= 0 ? idx : Math.abs(idx) - 1;
+        } finally {
+            pool.free(bb);
+        }
+    }
+
+    public int higher(ByteBuffer key) {
+        requireNonNull(key, "Key must be provided");
+        if (entries == 0) {
+            return NONE;
+        }
+
+        var bb = pool.allocate();
+        try {
+            int idx = binarySearch(key, bb);
+            return idx >= 0 ? idx + 1 : Math.abs(idx) - 1;
+        } finally {
+            pool.free(bb);
+        }
+    }
+
+    public int lower(ByteBuffer key) {
+        requireNonNull(key, "Key must be provided");
+        if (entries == 0) {
+            return NONE;
+        }
+        var bb = pool.allocate();
+        try {
+            int idx = binarySearch(key, bb);
+            return idx > 0 ? idx - 1 : Math.abs(idx) - 2;
+        } finally {
+            pool.free(bb);
+        }
+    }
+
+    public long readPosition(int idx) {
+        if (idx < 0 || idx >= entries) {
+            return NONE;
+        }
+        int startPos = idx * entrySize();
+        int positionOffset = startPos + comparator.keySize();
+        return mf.buffer().getLong(positionOffset);
+    }
+
+    public int readEntrySize(int idx) {
+        if (idx < 0 || idx >= entries) {
+            return NONE;
+        }
+        int startPos = idx * entrySize();
+        int positionOffset = startPos + comparator.keySize() + Long.BYTES;
+        return mf.buffer().getInt(positionOffset);
     }
 
     private int binarySearch(ByteBuffer key, ByteBuffer read) {
@@ -217,26 +221,29 @@ public class Index implements TreeFunctions, Closeable {
         mf.truncate(mf.position());
     }
 
+    /**
+     * Complete this index and mark it as read only.
+     */
+    public void complete() {
+        truncate();
+        readOnly.set(true);
+    }
+
+    public void flush() {
+        mf.flush();
+    }
+
     @Override
     public void close() {
         mf.close();
     }
 
-    private int entrySize() {
-        return comparator.keySize() + Long.BYTES;
+    protected int entrySize() {
+        return comparator.keySize() + Long.BYTES + Integer.BYTES;
     }
 
     public int keySize() {
         return comparator.keySize();
-    }
-
-    private long readPosition(int idx) {
-        if (idx < 0 || idx >= entries) {
-            return NONE;
-        }
-        int startPos = idx * entrySize();
-        int positionOffset = startPos + comparator.keySize();
-        return mf.buffer().getLong(positionOffset);
     }
 
     /**

@@ -123,11 +123,33 @@ public class IndexedSegment {
     }
 
     public int get(ByteBuffer key, ByteBuffer dst) {
-        long pos = index.get(key);
-        if (pos == NONE) {
+        int idx = index.get(key);
+        if (idx == NONE) {
             return 0;
         }
-        return read(pos, dst);
+
+        int plim = dst.limit();
+        int ppos = dst.position();
+        try {
+            long pos = index.readPosition(idx);
+            int len = index.readEntrySize(idx);
+
+            if (len > dst.remaining()) {
+                throw new IllegalStateException("Destination buffer remaining bytes is less than entry size");
+            }
+
+            Buffers.offsetLimit(dst, len);
+
+            int read = read(pos, dst);
+            if (read != len) {
+                throw new IllegalStateException("Expected read of " + len + " actual read: " + read);
+            }
+            dst.limit(plim);
+            return read;
+        } catch (Exception e) {
+            dst.limit(plim).position(ppos);
+            throw new RuntimeIOException(e);
+        }
     }
 
     /**
@@ -138,14 +160,13 @@ public class IndexedSegment {
         try {
             int dstRemaining = dst.remaining();
             if (dstRemaining <= HEADER_BYTES) {
-                throw new RuntimeException("bufferSize must be greater than " + HEADER_BYTES);
+                throw new RuntimeException("bufferSize must be greater than header size of " + HEADER_BYTES + ", got: " + dstRemaining);
             }
             return channel.read(dst, position);
         } catch (IOException e) {
             throw new RuntimeIOException(e);
         }
     }
-
 
     public boolean readOnly() {
         return readOnly.get();
