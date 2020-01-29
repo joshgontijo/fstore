@@ -176,7 +176,7 @@ public class Index implements Closeable {
         }
         int startPos = idx * entrySize();
         int positionOffset = startPos + comparator.keySize();
-        return mf.buffer().getLong(positionOffset);
+        return mf.getLong(positionOffset);
     }
 
     public int readEntrySize(int idx) {
@@ -185,7 +185,7 @@ public class Index implements Closeable {
         }
         int startPos = idx * entrySize();
         int positionOffset = startPos + comparator.keySize() + Long.BYTES;
-        return mf.buffer().getInt(positionOffset);
+        return mf.getInt(positionOffset);
     }
 
     private int binarySearch(ByteBuffer key, ByteBuffer read) {
@@ -252,7 +252,7 @@ public class Index implements Closeable {
      * Therefore it must always use the ABSOLUTE getXXX methods from the buffer.
      */
     private int compare(int idx, ByteBuffer key, ByteBuffer read) {
-        Buffers.copy(mf.buffer(), idx, comparator.keySize(), read);
+        mf.get(read, idx, comparator.keySize());
         read.flip();
 
         int prevPos = key.position();
@@ -303,6 +303,6 @@ public class Index implements Closeable {
         if (dst.remaining() != keySize()) {
             throw new RuntimeException("Buffer key length mismatch");
         }
-        Buffers.copy(mf.buffer(), 0, keySize(), dst);
+        mf.get(dst, 0, keySize());
     }
 }

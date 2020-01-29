@@ -2,19 +2,21 @@ package io.joshworks.ilog.index;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.MappedByteBuffers;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 
-public class MappedFile {
+import static io.joshworks.fstore.core.io.buffers.Buffers.MAX_CAPACITY;
 
-    public static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
+public class MappedFile {
 
     private final File file;
     private final FileChannel channel;
@@ -55,6 +57,18 @@ public class MappedFile {
 
     public MappedByteBuffer buffer() {
         return mbb;
+    }
+
+    /**
+     * Copy data from this MappedFile into the destination buffer
+     * @param dst The destination buffer
+     * @param idx the index of the source (this MappedFile)
+     * @param count The number of bytes to be copied
+     * @return the number of bytes copied
+     * @throws BufferOverflowException if the count is greater than the dst {@link ByteBuffer#remaining()}
+     */
+    public int get(ByteBuffer dst, int idx, int count) {
+        return Buffers.copy(mbb, idx, count, dst);
     }
 
     public void putLong(long l) {
@@ -164,8 +178,8 @@ public class MappedFile {
     }
 
     private static void validateSize(long size) {
-        if (size > MAX_BUFFER_SIZE) {
-            throw new IllegalArgumentException("File size must be less than " + MAX_BUFFER_SIZE);
+        if (size > MAX_CAPACITY) {
+            throw new IllegalArgumentException("File size must be less than " + MAX_CAPACITY);
         }
     }
 

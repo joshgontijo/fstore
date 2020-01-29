@@ -11,6 +11,11 @@
 
     <artifactId>indexed-log</artifactId>
 
+    <properties>
+        <maven.compiler.source>12</maven.compiler.source>
+        <maven.compiler.target>12</maven.compiler.target>
+    </properties>
+
     <dependencies>
 
         <dependency>
@@ -21,6 +26,15 @@
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>standard-serializer</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>snappy-codec</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>lz4-codec</artifactId>
+        </dependency>
+
 
         <dependency>
             <groupId>junit</groupId>

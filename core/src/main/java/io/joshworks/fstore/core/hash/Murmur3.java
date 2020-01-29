@@ -32,13 +32,19 @@ public class Murmur3 {
     }
 
     public static int hash32(ByteBuffer data, int seed) {
+        return hash32(data, data.position(), data.remaining(), seed);
+    }
+
+    public static int hash32(ByteBuffer data, int offset, int count) {
+        return hash32(data, offset, count, DEFAULT_SEED);
+    }
+
+    public static int hash32(ByteBuffer data, int offset, int count, int seed) {
         int hash = seed;
-        int length = data.remaining();
-        int off = data.position();
-        final int nblocks = length >> 2;
+        final int nblocks = count >> 2;
 
         // body
-        for (int i = off; i < nblocks; i++) {
+        for (int i = offset; i < nblocks; i++) {
             int i_4 = i << 2;
             int k = (data.get(i_4) & 0xff)
                     | ((data.get(i_4 + 1) & 0xff) << 8)
@@ -56,7 +62,7 @@ public class Murmur3 {
         // tail
         int idx = nblocks << 2;
         int k1 = 0;
-        switch (length - idx) {
+        switch (count - idx) {
             case 3:
                 k1 ^= data.get(idx + 2) << 16;
             case 2:
@@ -72,7 +78,7 @@ public class Murmur3 {
         }
 
         // finalization
-        hash ^= length;
+        hash ^= count;
         hash ^= (hash >>> 16);
         hash *= 0x85ebca6b;
         hash ^= (hash >>> 13);
@@ -192,10 +198,16 @@ public class Murmur3 {
     }
 
     public static long hash64(ByteBuffer data, int seed) {
+        return hash64(data, data.position(), data.remaining(), seed);
+    }
+
+    public static long hash64(ByteBuffer data, int offset, int count) {
+        return hash64(data, offset, count, DEFAULT_SEED);
+    }
+
+    public static long hash64(ByteBuffer data, int offset, int count, int seed) {
         long hash = seed;
-        int length = data.remaining();
-        int offset = data.position();
-        final int nblocks = length >> 3;
+        final int nblocks = count >> 3;
 
         // body
         for (int i = 0; i < nblocks; i++) {
@@ -220,7 +232,7 @@ public class Murmur3 {
         // tail
         long k1 = 0;
         int tailStart = nblocks << 3;
-        switch (length - tailStart) {
+        switch (count - tailStart) {
             case 7:
                 k1 ^= ((long) data.get(offset + tailStart + 6) & 0xff) << 48;
             case 6:
@@ -242,7 +254,7 @@ public class Murmur3 {
         }
 
         // finalization
-        hash ^= length;
+        hash ^= count;
         hash = fmix64(hash);
 
         return hash;

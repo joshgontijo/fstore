@@ -4,13 +4,13 @@ import java.nio.Buffer;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 
-import static io.joshworks.fstore.core.io.MemStorage.MAX_BUFFER_SIZE;
-
 public class Buffers {
 
+    public static final int MAX_CAPACITY = Integer.MAX_VALUE - 8;
+
     public static ByteBuffer allocate(int size, boolean direct) {
-        if (size >= MAX_BUFFER_SIZE) {
-            throw new IllegalArgumentException("Buffer too large: Max allowed size is: " + MAX_BUFFER_SIZE);
+        if (size >= MAX_CAPACITY) {
+            throw new IllegalArgumentException("Buffer too large: Max allowed size is: " + MAX_CAPACITY);
         }
         return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
     }

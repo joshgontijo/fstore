@@ -19,8 +19,23 @@ public class XXHash implements Hash {
     }
 
     @Override
+    public long hash64(ByteBuffer data) {
+        return hash64(data, data.position(), data.remaining());
+    }
+
+    @Override
+    public long hash64(ByteBuffer data, int offset, int count) {
+        return hash64.hash(data, offset, count, SEED);
+    }
+
+    @Override
     public int hash32(ByteBuffer data, int seed) {
-        return hash32.hash(data.asReadOnlyBuffer(), seed);
+        return hash32(data, data.position(), data.remaining());
+    }
+
+    @Override
+    public int hash32(ByteBuffer data, int offset, int count) {
+        return hash32.hash(data, offset, count, SEED);
     }
 
     @Override
@@ -30,7 +45,7 @@ public class XXHash implements Hash {
 
     @Override
     public long hash64(byte[] data) {
-        return hash64.hash(ByteBuffer.wrap(data), SEED);
+        return hash64.hash(data, 0, data.length, SEED);
     }
 
     @Override
