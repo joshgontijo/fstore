@@ -2,7 +2,7 @@ package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.codec.Codec;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.ilog.index.KeyComparator;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -10,56 +10,102 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
+
 /**
- * A variable length entry block. Format:
- * ---------- BLOCK HEADER -------------
- * |---- UNCOMPRESSED_SIZE (4bytes) ----|
- * |---- ENTRY_COUNT (4bytes) ----|
+ * -------- HEADER ---------
+ * UNCOMPRESSED_SIZE (4bytes)
+ * ENTRY_COUNT (4bytes)
+ * KEYS_REGION_OFFSET (4 bytes)
  * <p>
- * ---------- BODY -------------
- * |---- ENTRY_1_LEN (4bytes) ---|
- * |----- ENTRY_1 (NBytes) ----|
- * |---- ENTRY_2_LEN (4bytes) ---|
- * |----- ENTRY_2 (NBytes) ----|
+ * -------- BODY --------
+ * ENTRY_1 (N Bytes)
+ * ENTRY_2 (N Bytes)
  * ...
- * |---- ENTRY_N_LEN (4bytes) ---|
- * |----- ENTRY_N (NBytes) ----|
+ * ------- KEYS REGION -----
+ * KEY_1 (N bytes)
+ * ENTRY_1_OFFSET (4bytes)
+ * ENTRY_1_LEN (4bytes)
+ * KEY_2 (N bytes)
+ * ENTRY_2_OFFSET (4bytes)
+ * ENTRY_2_LEN (4bytes)
+ * ...
  */
-public class Block implements Iterable<ByteBuffer> {
+public class Block2 implements Iterable<ByteBuffer> {
 
-    protected ByteBuffer data;
-    protected final List<Integer> lengths = new ArrayList<>();
-    protected final List<Integer> positions = new ArrayList<>();
-    protected final boolean readOnly;
+    private static final int UNCOMPRESSED_SIZE_LEN = Integer.BYTES;
+    private static final int ENTRY_COUNT_LEN = Integer.BYTES;
+    private static final int KEYS_REGION_OFFSET_LEN = Integer.BYTES;
 
-    //returns the uncompressed size
-    public Block(int blockSize) {
-        int blockHeaderSize = blockHeaderSize();
-        if (blockSize <= blockHeaderSize) {
-            throw new IllegalArgumentException("blockSize must be greater than " + blockHeaderSize);
+    private static final int ENTRY_LEN_LEN = Integer.BYTES;
+    private static final int ENTRY_OFFSET_LEN = Integer.BYTES;
+
+    private static final int UNCOMPRESSED_SIZE_OFFSET = 0;
+    private static final int ENTRY_COUNT_OFFSET = UNCOMPRESSED_SIZE_OFFSET + UNCOMPRESSED_SIZE_LEN;
+    private static final int KEY_REGION_OFFSET = ENTRY_COUNT_OFFSET + ENTRY_COUNT_LEN;
+
+    private static final int HEADER_SIZE = UNCOMPRESSED_SIZE_LEN + ENTRY_COUNT_LEN + KEYS_REGION_OFFSET_LEN;
+
+
+    public static int add(ByteBuffer block, int keySize, ByteBuffer record) {
+        int entries = block.getInt(relativePosition(block, ENTRY_COUNT_OFFSET));
+        int keyEntryLen = keySize + ENTRY_LEN_LEN; //KEY_1 + ENTRY_1_LEN
+        int currentSize = HEADER_SIZE + (entries * keyEntryLen) +
+
+
+    }
+
+
+    private static int keysRegionSize(ByteBuffer block) {
+        int startPos = relativePosition(block, KEY_REGION_OFFSET);
+    }
+
+    public static int read(ByteBuffer block, int keyIdx, ByteBuffer dst) {
+        return 0;
+    }
+
+    public static void decompress(ByteBuffer compressed, Codec codec, ByteBuffer dst) {
+        //head header
+        int entryCount = compressed.getInt();
+        int uncompressedSize = compressed.getInt();
+
+        //LZ4 required destination buffer to have the exact number uncompressed bytes
+        codec.decompress(compressed, dst);
+        dst.flip();
+
+        for (int i = 0; i < entryCount; i++) {
+            int entryLen = dst.getInt();
+            lengths.add(entryLen);
+            positions.add(dst.position());
+            dst.position(dst.position() + entryLen);
         }
-        this.data = createBuffer(blockSize - blockHeaderSize);
-        this.readOnly = false;
+        if (lengths.size() != entryCount) {
+            throw new IllegalStateException("Expected block with " + entryCount + ", got " + lengths.size());
+        }
+        return dst;
     }
 
-    protected Block(Codec codec, ByteBuffer data) {
-        this.readOnly = true;
-        this.data = this.unpack(codec, data);
+    public static int binarySearch(ByteBuffer compressedBlock, ByteBuffer key, KeyComparator keyComparator) {
+        int entries = compressedBlock.getInt(relativePosition(compressedBlock, ENTRY_COUNT_OFFSET));
+        int keyRegionStart = compressedBlock.getInt(relativePosition(compressedBlock, KEY_REGION_OFFSET));
+        int keyRegionSize = entries * keyComparator.keySize();
+
+        return BufferBinarySearch.binarySearch(key, compressedBlock, keyRegionStart, keyRegionSize, keyComparator);
     }
+
+    public static boolean hasRemaining(ByteBuffer block, ByteBuffer entry, int keys, int keySize) {
+        int overheadPerKey = keySize + ENTRY_LEN_LEN + ENTRY_OFFSET_LEN;
+        return block.remaining() >= entry.remaining() + (keys * overheadPerKey);
+    }
+
+    public static int maxEntrySize(int blockSize, int keySize) {
+        int overheadPerKey = keySize + ENTRY_LEN_LEN + ENTRY_OFFSET_LEN;
+        return blockSize - overheadPerKey;
+    }
+
 
     protected ByteBuffer createBuffer(int size) {
         return ByteBuffer.allocate(size);
-    }
-
-    public <T> boolean add(T entry, Serializer<T> serializer, BufferPool bufferPool) {
-        ByteBuffer data = bufferPool.allocate();
-        try {
-            serializer.writeTo(entry, data);
-            data.flip();
-            return add(data);
-        } finally {
-            bufferPool.free(data);
-        }
     }
 
     //returns true if added, false otherwise
@@ -221,10 +267,10 @@ public class Block implements Iterable<ByteBuffer> {
 
     private static final class BlockEntryIterator implements Iterator<ByteBuffer> {
 
-        private final Block block;
+        private final Block2 block;
         private int idx;
 
-        private BlockEntryIterator(Block block) {
+        private BlockEntryIterator(Block2 block) {
             this.block = block;
         }
 

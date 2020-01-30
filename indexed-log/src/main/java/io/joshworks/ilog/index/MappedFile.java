@@ -55,6 +55,7 @@ public class MappedFile {
         }
     }
 
+    //TODO remove ?
     public MappedByteBuffer buffer() {
         return mbb;
     }
@@ -131,7 +132,7 @@ public class MappedFile {
         return mbb.capacity();
     }
 
-    public long position() {
+    public int position() {
         return mbb.position();
     }
 

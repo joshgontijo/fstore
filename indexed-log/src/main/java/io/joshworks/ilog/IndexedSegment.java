@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +30,7 @@ public class IndexedSegment {
 
     private final File file;
     private final int indexSize;
-    private final KeyComparator comparator;
+    protected final KeyComparator comparator;
     private final FileChannel channel;
     private final long id;
     protected Index index;
@@ -122,8 +123,8 @@ public class IndexedSegment {
         }
     }
 
-    public int get(ByteBuffer key, ByteBuffer dst) {
-        int idx = index.get(key);
+    public int apply(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
+        int idx = index.apply(key, func);
         if (idx == NONE) {
             return 0;
         }

@@ -1,10 +1,12 @@
 package io.joshworks.ilog.lsm;
 
+import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.Log;
+import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.io.File;
@@ -15,18 +17,30 @@ public class Lsm {
 
     public static final String LOG_DIR = "log";
     public static final String SSTABLES_DIR = "sstables";
+
     private final SequenceLog tlog;
     private final MemTable memTable;
     private final Log<SSTable> ssTables;
+    private final KeyComparator keyComparator;
+    private final Codec codec;
 
     private final BufferPool keyPool;
     private final BufferPool recordPool;
     private final BufferPool logRecordPool;
+
     private final int memTableSize;
     private final long maxAge;
+    private final int blockSize;
 
-    public Lsm(File root, KeyComparator keyComparator, int maxEntrySize, int memTableEntries, long maxAge) throws IOException {
+    private final ByteBuffer writeBlock;
+    private final BufferPool writeBlockPool;
+    private final BufferPool readBlockPool;
+
+
+    public Lsm(File root, KeyComparator keyComparator, int maxEntrySize, int memTableEntries, int blockSize, long maxAge) throws IOException {
+        this.keyComparator = keyComparator;
         FileUtils.createDir(root);
+        this.blockSize = blockSize;
         this.memTableSize = memTableEntries;
         this.maxAge = maxAge;
         this.keyPool = BufferPool.localCachePool(memTableEntries * 2, keyComparator.keySize(), false);
@@ -54,17 +68,47 @@ public class Lsm {
             if (fromMem > 0) {
                 return fromMem;
             }
-            for (SSTable ssTable : sst) {
-                if (!ssTable.readOnly()) {
-                    continue;
+
+            var blockBuffer = readBlockPool.allocate();
+            try {
+                for (SSTable ssTable : sst) {
+                    if (!ssTable.readOnly()) {
+                        continue;
+                    }
+                    int fromDisk = ssTable.apply(key, blockBuffer, IndexFunctions.FLOOR);
+                    if (fromDisk > 0) {
+                        int entrySize = readFromBlock(key, blockBuffer, dst);
+                        if (entrySize <= 0) {// not found in the block, continue
+                            continue;
+                        }
+                        return entrySize;
+                    }
                 }
-                int fromDisk = ssTable.get(key, dst);
-                if (fromDisk > 0) {
-                    return fromDisk;
-                }
+                return 0;
+            } finally {
+                readBlockPool.free(blockBuffer);
             }
-            return 0;
         });
+    }
+
+    private int readFromBlock(ByteBuffer key, ByteBuffer compressedBlock, ByteBuffer dst) {
+        compressedBlock.flip();
+        int keyIdx = Block2.binarySearch(compressedBlock, key, keyComparator);
+        if (keyIdx < 0) {
+            return 0;
+        }
+        return decompressAndRead(dst, compressedBlock, keyIdx);
+    }
+
+    private int decompressAndRead(ByteBuffer entryDst, ByteBuffer compressedBlock, int keyIdx) {
+        ByteBuffer blockBuffer = readBlockPool.allocate();
+        try {
+            Block2.decompress(compressedBlock, codec, blockBuffer);
+            blockBuffer.flip();
+            return Block2.read(compressedBlock, keyIdx, entryDst);
+        } finally {
+            readBlockPool.free(blockBuffer);
+        }
     }
 
     void flush() {

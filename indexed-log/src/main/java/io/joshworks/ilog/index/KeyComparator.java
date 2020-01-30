@@ -9,6 +9,8 @@ public interface KeyComparator extends Comparator<ByteBuffer> {
 
     KeyComparator INT = new IntKeyComparator();
 
+    int compare(ByteBuffer k1, int k1Idx, ByteBuffer k2, int k2Idx);
+
     int keySize();
 
 }

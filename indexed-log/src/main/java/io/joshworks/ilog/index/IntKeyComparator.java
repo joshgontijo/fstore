@@ -5,7 +5,12 @@ import java.nio.ByteBuffer;
 class IntKeyComparator implements KeyComparator {
     @Override
     public int compare(ByteBuffer k1, ByteBuffer k2) {
-        return Integer.compare(k1.getInt(k1.position()), k2.getInt(k2.position()));
+        return compare(k1, k1.position(), k2, k2.position());
+    }
+
+    @Override
+    public int compare(ByteBuffer k1, int k1Idx, ByteBuffer k2, int k2Idx) {
+        return Integer.compare(k1.getInt(k1Idx), k2.getInt(k2Idx));
     }
 
     @Override

@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import static io.joshworks.fstore.core.io.buffers.Buffers.relativeOffset;
+import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
 /**
  * VALUE_LEN (4 BYTES)
@@ -41,31 +41,31 @@ public class Record2 {
 
 
     public static int valueSize(ByteBuffer buffer) {
-        return buffer.getInt(relativeOffset(buffer, DATA_LENGTH_OFFSET));
+        return buffer.getInt(relativePosition(buffer, DATA_LENGTH_OFFSET));
     }
 
     public static int valueOffset(ByteBuffer buffer) {
-        return relativeOffset(buffer, KEY_OFFSET) + keySize(buffer);
+        return relativePosition(buffer, KEY_OFFSET) + keySize(buffer);
     }
 
     public static int checksum(ByteBuffer buffer) {
-        return buffer.getInt(relativeOffset(buffer, CHECKSUM_OFFSET));
+        return buffer.getInt(relativePosition(buffer, CHECKSUM_OFFSET));
     }
 
     public static long timestamp(ByteBuffer buffer) {
-        return buffer.getLong(relativeOffset(buffer, TIMESTAMP_OFFSET));
+        return buffer.getLong(relativePosition(buffer, TIMESTAMP_OFFSET));
     }
 
     public static int keyOffset(ByteBuffer buffer) {
-        return relativeOffset(buffer, KEY_OFFSET);
+        return relativePosition(buffer, KEY_OFFSET);
     }
 
     public static int keySize(ByteBuffer buffer) {
-        return buffer.getInt(relativeOffset(buffer, KEY_LENGTH_OFFSET));
+        return buffer.getInt(relativePosition(buffer, KEY_LENGTH_OFFSET));
     }
 
     public static boolean hasAttribute(ByteBuffer buffer, int attribute) {
-        byte attr = buffer.get(relativeOffset(buffer, ATTR_OFFSET));
+        byte attr = buffer.get(relativePosition(buffer, ATTR_OFFSET));
         return (attr & (1 << attribute)) == 1;
     }
 
@@ -74,7 +74,7 @@ public class Record2 {
         int r1p = r1.position();
         int r1l = r1.limit();
 
-        int r1Offset = relativeOffset(r1, KEY_OFFSET);
+        int r1Offset = relativePosition(r1, KEY_OFFSET);
         int k1Size = keySize(r1);
         Buffers.view(r1, r1Offset, k1Size);
 

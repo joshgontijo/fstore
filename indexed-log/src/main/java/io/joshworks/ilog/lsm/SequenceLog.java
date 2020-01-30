@@ -8,6 +8,7 @@ import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.io.Closeable;
@@ -51,10 +52,11 @@ public class SequenceLog implements Closeable {
     }
 
     public void get(long sequence, ByteBuffer dst) {
+        //TODO to apply all IndexFunctions, findSegment must also follow the same strategy
         SequenceSegment segment = findSegment(sequence);
         ByteBuffer buffer = keyPool.allocate().putLong(sequence).flip();
         try {
-            segment.get(buffer, dst);
+            segment.apply(buffer, dst, IndexFunctions.EQUALS);
         } finally {
             keyPool.free(buffer);
         }

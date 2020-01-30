@@ -4,6 +4,14 @@ import io.joshworks.ilog.Record2;
 
 import java.nio.ByteBuffer;
 
+import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
+
+/**
+ * KEY (N bytes)
+ * VAL_LEN (4 BYTES)
+ * TIMESTAMP (8 bytes)
+ * VAL (N Bytes)
+ */
 public class LsmRecord {
 
     public static final int DELETION_ATTR = 0;
@@ -11,6 +19,10 @@ public class LsmRecord {
 
     public static boolean deletion(ByteBuffer record) {
         return Record2.hasAttribute(record, DELETION_ATTR);
+    }
+
+    public static int valueSize(int keyLen, ByteBuffer record) {
+        return record.getInt(relativePosition(record, keyLen));
     }
 
     public static boolean expired(ByteBuffer record, long maxAgeSeconds) {

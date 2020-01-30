@@ -1,5 +1,6 @@
 package io.joshworks.ilog.lsm;
 
+import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Log;
@@ -7,6 +8,8 @@ import io.joshworks.ilog.Record2;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,16 +61,6 @@ class MemTable {
         return Buffers.copy(floorRecord, dst);
     }
 
-    public ByteBuffer get(ByteBuffer key) {
-        validateKeySize(key);
-        var floorRecord = floor(key);
-        if (floorRecord == null) {
-            return null;
-        }
-        int compare = Record2.compareToKey(floorRecord, key, comparator);
-        return compare == 0 ? floorRecord : null;
-    }
-
     public ByteBuffer floor(ByteBuffer key) {
         var entry = table.floorEntry(key);
         return getValue(entry);
@@ -102,16 +95,35 @@ class MemTable {
         return entry == null ? null : entry.getValue();
     }
 
-    long writeTo(Log<SSTable> sstables, long maxAge) {
+    long writeTo(Log<SSTable> sstables, long maxAge, ByteBuffer block) {
         if (table.isEmpty()) {
             return 0;
         }
 
+        List<ByteBuffer> keys = new ArrayList<>();
+        List<Integer> offsets = new ArrayList<>();
         long inserted = 0;
-        for (ByteBuffer entry : table.values()) {
+        for (Map.Entry<ByteBuffer, ByteBuffer> kv : table.entrySet()) {
+            ByteBuffer key = kv.getKey();
+            ByteBuffer entry = kv.getValue();
             if (LsmRecord.expired(entry, maxAge) && !LsmRecord.deletion(entry)) {
                 continue;
             }
+            if(!Block2.hasRemaining(block, entry, keys.size(), comparator.keySize())) {
+                ByteBuffer compressOut = ByteBuffer.allocate(0);//TODO
+                Buffers.offsetPosition(compressOut, BLOCK_HEADER);
+                Block2.compress(block, compressOut);
+                compressOut.addKeysAndAffsets -> // footer
+            }
+            int offset = Block2.add(block, comparator.keySize(), entry);
+            if (offset < 0) { //block full
+                Block2.decompress(block);
+                offset = Block2.add(block, comparator.keySize(), entry);
+            }
+            keys.add(key);
+            offsets.add(offset);
+
+
             sstables.append(entry);
         }
         sstables.roll();

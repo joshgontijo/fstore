@@ -222,8 +222,16 @@ public class Buffers {
     }
 
 
-    public static int relativeOffset(ByteBuffer buffer, int fieldOffset) {
-        return buffer.position() + fieldOffset;
+    public static int relativePosition(ByteBuffer buffer, int offset) {
+        return buffer.position() + offset;
+    }
+
+    public static int relativeRemaining(ByteBuffer buffer, int offset) {
+        return buffer.limit() - (buffer.position() + offset);
+    }
+
+    public static int remaining(ByteBuffer buffer, int absPos) {
+        return buffer.limit() - absPos;
     }
 
 }
