@@ -41,6 +41,9 @@ public class LsmRecord {
 
     //-------------------------------------------------------------------
 
+    public static int fromRecord(ByteBuffer record, ByteBuffer decompressedBlock, ByteBuffer dst, int keyIdx, int keySize) {
+
+    }
     public static int fromBlockRecord(ByteBuffer record, ByteBuffer decompressedBlock, ByteBuffer dst, int keyIdx, int keySize) {
         int valueOffset = Block2.entryOffset(record, keyIdx, keySize);
         Buffers.offsetPosition(decompressedBlock, valueOffset);

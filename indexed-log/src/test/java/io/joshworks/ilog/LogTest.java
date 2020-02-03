@@ -30,7 +30,7 @@ public class LogTest {
 
     @Test
     public void append() {
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 1000000000; i++) {
             log.append(RecordUtils.create(i, String.valueOf(i)));
         }
     }
