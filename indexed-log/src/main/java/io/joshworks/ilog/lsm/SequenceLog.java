@@ -28,9 +28,25 @@ public class SequenceLog implements Closeable {
     private final ByteBuffer keyWriteBuffer;
     private final ByteBuffer recordWriteBuffer;
 
-    public SequenceLog(File root, int maxEntrySize, int indexSize, int compactionThreshold, FlushMode flushMode, BufferPool recordPool) throws IOException {
+    //File root,
+    //               int maxEntrySize,
+    //               int indexSize,
+    //               int compactionThreshold,
+    //               int parallelCompaction,
+    //               FlushMode flushMode,
+    //               BufferPool pool,
+    //               SegmentFactory<T> segmentFactory
+
+    public SequenceLog(File root,
+                       int maxEntrySize,
+                       int indexSize,
+                       int compactionThreshold,
+                       int compactionThreads,
+                       FlushMode flushMode,
+                       BufferPool recordPool) throws IOException {
+
         FileUtils.createDir(root);
-        log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, flushMode, recordPool, SequenceSegment::new);
+        log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, compactionThreads, flushMode, recordPool, SequenceSegment::new);
         keyPool = BufferPool.localCachePool(256, Long.BYTES, false);
         keyWriteBuffer = keyPool.allocate();
         this.recordWriteBuffer = recordPool.allocate();
@@ -56,7 +72,7 @@ public class SequenceLog implements Closeable {
         SequenceSegment segment = findSegment(sequence);
         ByteBuffer buffer = keyPool.allocate().putLong(sequence).flip();
         try {
-            segment.apply(buffer, dst, IndexFunctions.EQUALS);
+            segment.find(buffer, dst, IndexFunctions.EQUALS);
         } finally {
             keyPool.free(buffer);
         }

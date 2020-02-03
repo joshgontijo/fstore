@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="json-serializer" />
+        <module name="standard-codec" />
+        <module name="kryo-serializer" />
+        <module name="standard-serializer" />
+        <module name="tcp" />
+        <module name="cluster" />
+        <module name="snappy-codec" />
+        <module name="core" />
+        <module name="lz4-codec" />
+        <module name="indexed-log" />
+        <module name="codec-test" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="cli" target="12" />
+      <module name="cluster" target="12" />
+      <module name="cluster-log-test" target="12" />
+      <module name="codec" target="12" />
+      <module name="codec-test" target="12" />
+      <module name="core" target="12" />
+      <module name="es-api" target="12" />
+      <module name="es-client" target="12" />
+      <module name="es-client-api" target="12" />
+      <module name="es-projection" target="12" />
+      <module name="es-rest-client" target="12" />
+      <module name="es-server" target="12" />
+      <module name="es-shared" target="12" />
+      <module name="event-store" target="12" />
+      <module name="event-store-it" target="10" />
+      <module name="eventry" target="12" />
+      <module name="fstore" target="12" />
+      <module name="index" target="12" />
+      <module name="indexed-log" target="12" />
+      <module name="integration-test" target="10" />
+      <module name="json-serializer" target="12" />
+      <module name="kryo-serializer" target="12" />
+      <module name="logstore" target="12" />
+      <module name="logstore-it" target="10" />
+      <module name="logstore-server" target="12" />
+      <module name="lsmtree" target="12" />
+      <module name="lsmtree-server" target="12" />
+      <module name="lz4-codec" target="12" />
+      <module name="metrics" target="12" />
+      <module name="netty-test" target="12" />
+      <module name="netty-test (1) (io.joshworks.fstore)" target="12" />
+      <module name="networking" target="12" />
+      <module name="serializer" target="12" />
+      <module name="snappy-codec" target="12" />
+      <module name="standard-codec" target="12" />
+      <module name="standard-serializer" target="12" />
+      <module name="std-codec" target="10" />
+      <module name="tcp" target="12" />
+      <module name="test-utils" target="11" />
+    </bytecodeTargetLevel>
+  </component>
+</project>

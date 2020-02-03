@@ -2,20 +2,18 @@ package io.joshworks.ilog.compaction;
 
 import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.View;
 import io.joshworks.ilog.compaction.combiner.SegmentCombiner;
+import io.joshworks.ilog.index.Index;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -34,23 +32,25 @@ public class Compactor<T extends IndexedSegment> {
     private final int compactionThreshold;
     private final Set<T> compacting = new CopyOnWriteArraySet<>();
 
-    private final Map<String, ExecutorService> levelCompaction = new ConcurrentHashMap<>();
 
     private final ExecutorService cleanupWorker;
     private final ExecutorService coordinator;
+    private final ExecutorService compactionWorker;
 
     public Compactor(View<T> view,
                      String name,
                      SegmentCombiner segmentCombiner,
                      boolean threadPerLevel,
-                     int compactionThreshold) {
+                     int compactionThreshold,
+                     int compactionThreads) {
         this.view = view;
         this.name = name;
         this.segmentCombiner = segmentCombiner;
         this.threadPerLevel = threadPerLevel;
         this.compactionThreshold = compactionThreshold;
-        this.cleanupWorker = singleThreadExecutor("compaction-cleanup");
-        this.coordinator = singleThreadExecutor("-compaction-coordinator");
+        this.compactionWorker = threadPool("compaction", compactionThreads);
+        this.cleanupWorker = threadPool("compaction-cleanup", 1);
+        this.coordinator = threadPool("-compaction-coordinator", 1);
     }
 
     public void compact(boolean force) {
@@ -78,17 +78,14 @@ public class Compactor<T extends IndexedSegment> {
         logger.info("Compacting level {}", level);
 
         var event = new CompactionEvent<>(view, segmentsForCompaction, segmentCombiner, level, this::cleanup);
-        submitCompaction(event);
-
-    }
-
-    private void submitCompaction(CompactionEvent<T> event) {
-        executorFor(event.level).submit(() -> {
+        compactionWorker.submit(() -> {
             if (!closed.get()) {
                 new CompactionTask<>(event).run();
             }
         });
+
     }
+
 
     private String executorName(int level) {
         return threadPerLevel ? name + "-compaction-level-" + level : name + "-compaction";
@@ -170,18 +167,13 @@ public class Compactor<T extends IndexedSegment> {
         }
     }
 
-    private ExecutorService executorFor(int level) {
-        String executorName = executorName(level);
-        return levelCompaction.compute(executorName, (k, v) -> v == null ? levelExecutor(executorName) : v);
-    }
-
 
     public synchronized void close() {
         if (closed.compareAndSet(false, true)) {
             logger.info("Closing compactor");
             //Order matters here
             coordinator.shutdown();
-            levelCompaction.values().forEach(exec -> Threads.awaitTerminationOf(exec, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction task")));
+            Threads.awaitTerminationOf(compactionWorker, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction task"));
             Threads.awaitTerminationOf(cleanupWorker, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction cleanup task"));
         }
     }
@@ -195,8 +187,8 @@ public class Compactor<T extends IndexedSegment> {
         return new MonitoredThreadPool(name, executor);
     }
 
-    private static ExecutorService singleThreadExecutor(String name) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1,
+    private static ExecutorService threadPool(String name, int poolSize) {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, poolSize, 1,
                 TimeUnit.MINUTES,
                 new LinkedBlockingDeque<>(),
                 Threads.namedThreadFactory(name),

@@ -27,6 +27,7 @@ public class Log<T extends IndexedSegment> {
                int maxEntrySize,
                int indexSize,
                int compactionThreshold,
+               int parallelCompaction,
                FlushMode flushMode,
                BufferPool pool,
                SegmentFactory<T> segmentFactory) throws IOException {
@@ -45,7 +46,7 @@ public class Log<T extends IndexedSegment> {
         }
         var reindexPool = BufferPool.unpooled(Math.max(maxEntrySize, Memory.PAGE_SIZE), false);
         this.view = new View<>(root, indexSize, reindexPool, segmentFactory);
-        this.compactor = new Compactor<>(view, "someName", new ConcatenateCombiner(pool), true, compactionThreshold);
+        this.compactor = new Compactor<>(view, "someName", new ConcatenateCombiner(pool), true, compactionThreshold, parallelCompaction);
     }
 
     public void append(ByteBuffer record) {

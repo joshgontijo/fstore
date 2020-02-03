@@ -56,6 +56,10 @@ public class Record2 {
         return buffer.getLong(relativePosition(buffer, TIMESTAMP_OFFSET));
     }
 
+    public static byte attributes(ByteBuffer buffer) {
+        return buffer.get(relativePosition(buffer, ATTR_OFFSET));
+    }
+
     public static int keyOffset(ByteBuffer buffer) {
         return relativePosition(buffer, KEY_OFFSET);
     }
@@ -125,6 +129,11 @@ public class Record2 {
     public static int writeKey(ByteBuffer record, ByteBuffer dst) {
         int absKeyPos = keyOffset(record);
         return Buffers.copy(record, absKeyPos, keySize(record), dst);
+    }
+
+    public static int writeValue(ByteBuffer record, ByteBuffer dst) {
+        int absValPos = valueOffset(record);
+        return Buffers.copy(record, absValPos, valueSize(record), dst);
     }
 
     public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attributes) {

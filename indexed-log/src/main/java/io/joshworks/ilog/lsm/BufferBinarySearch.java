@@ -6,23 +6,18 @@ import java.nio.ByteBuffer;
 
 public class BufferBinarySearch {
 
-
-    public static int binarySearch(ByteBuffer key, ByteBuffer data, int dataStart, int dataCount, KeyComparator comparator) {
-        int keySize = key.remaining();
-        if (comparator.keySize() != keySize) {
-            throw new IllegalArgumentException("Invalid key size");
+    public static int binarySearch(ByteBuffer key, ByteBuffer data, int dataStart, int dataCount, int entrySize, KeyComparator comparator) {
+        if (dataCount % entrySize != 0) {
+            throw new IllegalArgumentException("Read buffer must be multiple of " + entrySize);
         }
-        if (dataCount % keySize != 0) {
-            throw new IllegalArgumentException("Read buffer must be multiple of " + keySize);
-        }
-        int entries = dataCount / keySize;
+        int entries = dataCount / entrySize;
 
         int low = 0;
         int high = entries - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            int readPos = dataStart + (mid * comparator.keySize());
+            int readPos = dataStart + (mid * entrySize);
             if (readPos < dataStart || readPos > dataStart + dataCount) {
                 throw new IndexOutOfBoundsException("Index out of bounds: " + readPos);
             }
@@ -35,6 +30,10 @@ public class BufferBinarySearch {
                 return mid;
         }
         return -(low + 1);
+    }
+
+    public static int binarySearch(ByteBuffer key, ByteBuffer data, int dataStart, int dataCount, KeyComparator comparator) {
+        return binarySearch(key, data, dataStart, dataCount, comparator.keySize(), comparator);
     }
 
 }

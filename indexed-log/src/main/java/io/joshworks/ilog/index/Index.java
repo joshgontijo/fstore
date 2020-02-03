@@ -73,7 +73,7 @@ public class Index implements Closeable {
         doWrite(keySize, position, record, dst);
     }
 
-    public int apply(ByteBuffer key, IndexFunctions func) {
+    public int find(ByteBuffer key, IndexFunctions func) {
         requireNonNull(key, "Key must be provided");
         int remaining = key.remaining();
         int kSize = keySize();
@@ -99,7 +99,7 @@ public class Index implements Closeable {
     }
 
     private int binarySearch(ByteBuffer key) {
-        return BufferBinarySearch.binarySearch(key, mf.buffer(), 0, size(), comparator);
+        return BufferBinarySearch.binarySearch(key, mf.buffer(), 0, size(), entrySize(), comparator);
     }
 
     public long readPosition(int idx) {
@@ -126,7 +126,8 @@ public class Index implements Closeable {
 
     public int entries() {
         //there can be a partial write in the buffer, doing this makes sure it won't be considered
-        return (mf.position() / entrySize()) * entrySize();
+        int entrySize = entrySize();
+        return (mf.position() / entrySize);
     }
 
     public void delete() throws IOException {

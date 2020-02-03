@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/cluster/cluster.iml" filepath="$PROJECT_DIR$/cluster/cluster.iml" />
+      <module fileurl="file://$PROJECT_DIR$/codec/codec.iml" filepath="$PROJECT_DIR$/codec/codec.iml" />
+      <module fileurl="file://$PROJECT_DIR$/codec/codec-test/codec-test.iml" filepath="$PROJECT_DIR$/codec/codec-test/codec-test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/core/core.iml" filepath="$PROJECT_DIR$/core/core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/fstore.iml" filepath="$PROJECT_DIR$/fstore.iml" />
+      <module fileurl="file://$PROJECT_DIR$/indexed-log/indexed-log.iml" filepath="$PROJECT_DIR$/indexed-log/indexed-log.iml" />
+      <module fileurl="file://$PROJECT_DIR$/serializer/json-serializer/json-serializer.iml" filepath="$PROJECT_DIR$/serializer/json-serializer/json-serializer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/serializer/kryo-serializer/kryo-serializer.iml" filepath="$PROJECT_DIR$/serializer/kryo-serializer/kryo-serializer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/codec/lz4-codec/lz4-codec.iml" filepath="$PROJECT_DIR$/codec/lz4-codec/lz4-codec.iml" />
+      <module fileurl="file://$PROJECT_DIR$/serializer/serializer.iml" filepath="$PROJECT_DIR$/serializer/serializer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/codec/snappy-codec/snappy-codec.iml" filepath="$PROJECT_DIR$/codec/snappy-codec/snappy-codec.iml" />
+      <module fileurl="file://$PROJECT_DIR$/codec/standard-codec/standard-codec.iml" filepath="$PROJECT_DIR$/codec/standard-codec/standard-codec.iml" />
+      <module fileurl="file://$PROJECT_DIR$/serializer/standard-serializer/standard-serializer.iml" filepath="$PROJECT_DIR$/serializer/standard-serializer/standard-serializer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/tcp/tcp.iml" filepath="$PROJECT_DIR$/tcp/tcp.iml" />
+    </modules>
+  </component>
+</project>

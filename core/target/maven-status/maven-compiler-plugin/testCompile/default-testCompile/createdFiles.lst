@@ -1,0 +1,16 @@
+io\joshworks\fstore\core\io\StorageIT$MMapStorageTest.class
+io\joshworks\fstore\core\util\BufferUtilTest.class
+io\joshworks\fstore\core\io\StorageIT.class
+io\joshworks\fstore\core\io\StorageIT$MMapCacheTest.class
+io\joshworks\fstore\core\utils\MockFileChannel.class
+io\joshworks\fstore\core\io\StorageTest$MMapCacheTest.class
+io\joshworks\fstore\core\io\StorageIT$OffHeapStorageTest.class
+io\joshworks\fstore\core\io\StorageTest$MMapStorageTest.class
+io\joshworks\fstore\core\io\StorageTest.class
+io\joshworks\fstore\core\io\StorageIT$HeapStorageTest.class
+io\joshworks\fstore\core\io\StorageTest$DiskStorageTest.class
+io\joshworks\fstore\core\io\StorageTest$HeapStorageTest.class
+io\joshworks\fstore\core\io\StorageTest$OffHeapStorageTest.class
+io\joshworks\fstore\core\io\StorageIT$RafStorageTest.class
+io\joshworks\fstore\core\IOUtilsTest.class
+io\joshworks\fstore\core\utils\SingleByteMockFileChannel.class

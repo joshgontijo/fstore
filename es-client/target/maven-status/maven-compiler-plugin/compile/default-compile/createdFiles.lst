@@ -1,0 +1,8 @@
+io\joshworks\fstore\client\NodeIterator.class
+io\joshworks\fstore\client\StoreClient.class
+io\joshworks\fstore\client\Stream.class
+io\joshworks\fstore\client\ClientTest.class
+io\joshworks\fstore\client\ClientTest$UserCreated.class
+io\joshworks\fstore\client\NodeClientIterator.class
+io\joshworks\fstore\client\ClientStreamIterator.class
+io\joshworks\fstore\client\NodeStream.class

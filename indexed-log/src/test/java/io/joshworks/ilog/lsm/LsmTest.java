@@ -1,6 +1,7 @@
 package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.RecordUtils;
@@ -10,6 +11,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -17,12 +19,14 @@ import static org.junit.Assert.assertTrue;
 public class LsmTest {
 
     private Lsm lsm;
-    private int MEM_TABLE_SIZE;
+    private static final int MEM_TABLE_SIZE = 500;
 
     @Before
     public void setUp() throws Exception {
-        MEM_TABLE_SIZE = 500;
-        lsm = new Lsm(TestUtils.testFolder(), KeyComparator.LONG, 1024, MEM_TABLE_SIZE, -1);
+        lsm = Lsm.create(TestUtils.testFolder(), KeyComparator.LONG)
+                .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(500))
+                .open();
+
     }
 
     @After
@@ -58,7 +62,18 @@ public class LsmTest {
             int rsize = lsm.get(keyOf(i), dst);
             dst.flip();
             assertTrue(rsize > 0);
-            assertEquals(i, keyValue(dst));
+
+            short keySize = dst.getShort();
+            long key = dst.getLong();
+            int valLen = dst.getInt();
+            long timestamp = dst.getLong();
+            byte attr = dst.get();
+
+            var bval = Buffers.allocate(valLen, false);
+            bval.put(dst);
+            String val = StandardCharsets.UTF_8.decode(bval.flip()).toString();
+
+            assertEquals(i, key);
         }
     }
 

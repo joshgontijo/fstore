@@ -109,7 +109,7 @@ public class IndexedSegment {
         }
 
         try {
-            int rSize = Record2.validate(record);
+            Record2.validate(record);
             int written = Record2.writeTo(record, channel);
             Buffers.offsetPosition(record, -written);
             if (written <= 0) {
@@ -123,8 +123,8 @@ public class IndexedSegment {
         }
     }
 
-    public int apply(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
-        int idx = index.apply(key, func);
+    public int find(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
+        int idx = index.find(key, func);
         if (idx == NONE) {
             return 0;
         }

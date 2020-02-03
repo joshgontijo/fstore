@@ -62,8 +62,9 @@ public class MappedFile {
 
     /**
      * Copy data from this MappedFile into the destination buffer
-     * @param dst The destination buffer
-     * @param idx the index of the source (this MappedFile)
+     *
+     * @param dst   The destination buffer
+     * @param idx   the index of the source (this MappedFile)
      * @param count The number of bytes to be copied
      * @return the number of bytes copied
      * @throws BufferOverflowException if the count is greater than the dst {@link ByteBuffer#remaining()}
@@ -151,7 +152,7 @@ public class MappedFile {
         IOUtils.closeQuietly(channel);
     }
 
-    public void truncate(long newLength) {
+    public void truncate(int newLength) {
         try {
             if (newLength == mbb.capacity()) {
                 return;
@@ -160,6 +161,7 @@ public class MappedFile {
             MappedByteBuffers.unmap(mbb);
             channel.truncate(newLength);
             mbb = map(channel, FileChannel.MapMode.READ_WRITE);
+            mbb.position(newLength);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to truncate " + file.getAbsoluteFile(), e);
         }

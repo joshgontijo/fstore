@@ -20,7 +20,7 @@ public class LogTest {
     public void setUp() throws Exception {
         var root = TestUtils.testFolder();
         pool = BufferPool.unpooled(MAX_ENTRY_SIZE, false);
-        log = new Log<>(root, MAX_ENTRY_SIZE, INDEX_SIZE, 2, FlushMode.ON_ROLL, pool, (f, is) -> new IndexedSegment(f, is, KeyComparator.LONG));
+        log = new Log<>(root, MAX_ENTRY_SIZE, INDEX_SIZE, 2, 1, FlushMode.ON_ROLL, pool, (f, is) -> new IndexedSegment(f, is, KeyComparator.LONG));
     }
 
     @After
