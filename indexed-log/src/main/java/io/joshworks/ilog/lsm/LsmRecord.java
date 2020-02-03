@@ -55,7 +55,7 @@ public class LsmRecord {
         dst.putInt(entryLen);
         dst.putLong(Block2.Record.timestamp(decompressedBlock));
         dst.put(Block2.Record.attribute(decompressedBlock));
-        Buffers.copy(decompressedBlock, valueOffset, entryLen, dst);
+        Block2.Record.writeValue(decompressedBlock, valueOffset, entryLen, dst);
 
         //total lsmrecord len
         return keySize + Integer.BYTES + Long.BYTES + Byte.BYTES + entryLen;

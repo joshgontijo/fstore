@@ -70,7 +70,7 @@ public class Block2 {
         if (idx < 0 || idx >= entries) {
             throw new IndexOutOfBoundsException();
         }
-        return keyRegionStart + (idx * keySize);
+        return keyRegionStart + (idx * (keySize + Integer.BYTES));
     }
 
     public static void writeHeader(ByteBuffer block, int uncompressedSize, int entries) {
@@ -134,7 +134,6 @@ public class Block2 {
         return record.getInt(blockStart + ENTRY_COUNT_OFFSET);
     }
 
-
     /**
      * VALUE_LEN (4 BYTES)
      * TIMESTAMP (8 BYTES)
@@ -165,6 +164,11 @@ public class Block2 {
             blockRecords.put(Record2.attributes(record));
             Record2.writeValue(record, blockRecords);
         }
+
+        public static void writeValue(ByteBuffer decompressedBlock, int valueOffset, int entryLen, ByteBuffer dst) {
+            Buffers.copy(decompressedBlock, VALUE_REGION_ENTRY_OVERHEAD + valueOffset, entryLen, dst);
+        }
+
 
         public static int valueSize(ByteBuffer data) {
             return data.getInt(relativePosition(data, VALUE_LEN_OFFSET));
