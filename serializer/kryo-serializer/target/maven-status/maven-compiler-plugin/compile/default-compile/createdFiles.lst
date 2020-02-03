@@ -1,6 +1,0 @@
-io\joshworks\fstore\serializer\kryo\KryoTypedSerializer.class
-io\joshworks\fstore\serializer\kryo\Java9ImmutableSetSerializer.class
-io\joshworks\fstore\serializer\kryo\Java9ImmutableListSerializer.class
-io\joshworks\fstore\serializer\kryo\DefaultInstance.class
-io\joshworks\fstore\serializer\kryo\Java9ImmutableMapSerializer.class
-io\joshworks\fstore\serializer\kryo\KryoSerializer.class

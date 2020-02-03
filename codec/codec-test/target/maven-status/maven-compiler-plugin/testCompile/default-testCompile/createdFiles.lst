@@ -1,8 +1,0 @@
-io\joshworks\fstore\codec\test\CodecTest$LZ4HighTest.class
-io\joshworks\fstore\codec\test\CodecTest$DeflaterTest.class
-io\joshworks\fstore\codec\test\CodecTest$NoCodec.class
-io\joshworks\fstore\codec\test\CodecTest.class
-io\joshworks\fstore\codec\test\CodecTest$LZ4FastTest.class
-io\joshworks\fstore\codec\test\CodecTest$SnappyTest.class
-io\joshworks\fstore\codec\test\CodecTest$DeflaterWrapTest.class
-io\joshworks\fstore\codec\test\CodecTest$DeflaterBestCompressionTest.class
