@@ -15,8 +15,12 @@ public abstract class Pooled implements Closeable {
         this.data = Buffers.allocate(size, direct);
     }
 
+    public int size() {
+        return data.remaining();
+    }
+
     @Override
-    public void close()  {
+    public void close() {
         pool.release(this);
     }
 }

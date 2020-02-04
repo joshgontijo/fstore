@@ -1,5 +1,6 @@
 package io.joshworks.ilog.pooled;
 
+import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.nio.ByteBuffer;
@@ -58,8 +59,12 @@ public class Block extends Pooled {
         return comparator.compare(data, offset + entryIdx, key, key.position());
     }
 
-    public int size() {
+    public int keyRegionSize() {
         return entryCount() * (keySize + VALUE_OFFSET_LEN);
     }
 
+    public void decompress(Codec codec, BlockRecords dst) {
+        codec.decompress(data, dst.data);
+        dst.data.flip();
+    }
 }

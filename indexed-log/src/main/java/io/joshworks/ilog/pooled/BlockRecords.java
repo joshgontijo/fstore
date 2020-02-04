@@ -7,29 +7,35 @@ import java.nio.ByteBuffer;
 import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
 /**
+ * Array of decompressed records
+ *
  * VALUE_LEN (4 BYTES)
  * TIMESTAMP (8 BYTES)
  * ATTR (1 BYTES)
  * <p>
  * [VALUE] (N BYTES)
  */
-public class BlockRecord extends Pooled {
+public class BlockRecords extends Pooled {
 
     private static final int HEADER_SIZE = Integer.BYTES + Long.BYTES + Byte.BYTES;
 
-    final ByteBuffer decompressed;
-
-    BlockRecord(ObjectPool.Pool<? extends Pooled> pool, int size, boolean direct) {
+    BlockRecords(ObjectPool.Pool<? extends Pooled> pool, int size, boolean direct) {
         super(pool, size, direct);
-        this.decompressed = Buffers.allocate(size, direct);
     }
 
-    public ByteBuffer buffer() {
-        return data;
+    public int entries() {
+
     }
 
-    public int valueSize() {
+    public int valueSize(int idx) {
         return data.get(relativePosition(data, 0));
+    }
+
+    private int nPos(int idx) {
+        int pos = 0;
+        for (int i = 0; i < idx; i++) {
+            int valueSize = data.get(relativePosition(data, 0));
+        }
     }
 
 }

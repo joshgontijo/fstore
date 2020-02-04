@@ -1,5 +1,7 @@
 package io.joshworks.ilog.pooled;
 
+import io.joshworks.fstore.core.io.buffers.Buffers;
+
 import java.nio.ByteBuffer;
 
 import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
@@ -24,7 +26,6 @@ public class PooledRecord extends Pooled {
     private static final int ATTR_LEN = Byte.BYTES;
     private static final int KEY_LEN_LEN = Integer.BYTES;
 
-
     public static final int DATA_LENGTH_OFFSET = 0;
     public static final int CHECKSUM_OFFSET = DATA_LENGTH_OFFSET + DATA_LEN_LEN;
     public static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + CHECKSUM_LEN;
@@ -32,8 +33,11 @@ public class PooledRecord extends Pooled {
     public static final int KEY_LENGTH_OFFSET = ATTR_OFFSET + ATTR_LEN;
     public static final int KEY_OFFSET = KEY_LENGTH_OFFSET + KEY_LEN_LEN;
 
-    PooledRecord(ObjectPool.Pool<PooledRecord> pool, int keySize, int maxValue) {
-        super(pool, keySize + HEADER_SIZE + keySize + maxValue, false);
+    private final ByteBuffer key;
+
+    PooledRecord(ObjectPool.Pool<PooledRecord> pool, int keySize, int maxValue, boolean direct) {
+        super(pool, keySize + HEADER_SIZE + keySize + maxValue, direct);
+        this.key = data.position(KEY_OFFSET).limit(KEY_OFFSET + keySize).slice();
     }
 
     public ByteBuffer buffer() {
@@ -73,8 +77,12 @@ public class PooledRecord extends Pooled {
         return (attr & (1 << attribute)) == 1;
     }
 
-    @Override
-    public void close() {
+    public void copyKey(Key key) {
+        key.copyFrom(this, KEY_OFFSET, keySize());
+        key.data.flip();
+    }
 
+    public int writeKey(ByteBuffer dst) {
+        return Buffers.copy(data, KEY_OFFSET, keySize(), dst);
     }
 }

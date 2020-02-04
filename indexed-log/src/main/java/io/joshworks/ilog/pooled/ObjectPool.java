@@ -8,13 +8,13 @@ import java.util.function.Function;
 
 public class ObjectPool {
 
-    private static final Map<Class<? extends Pooled>, Pool<? extends Pooled>> pools = new ConcurrentHashMap<>();
+    private final Map<Class<? extends Pooled>, Pool<? extends Pooled>> pools = new ConcurrentHashMap<>();
 
-    public static <T extends Pooled> void create(Class<T> type, int maxItems, Function<Pool<T>, T> supplier) {
+    public <T extends Pooled> void create(Class<T> type, int maxItems, Function<Pool<T>, T> supplier) {
         pools.putIfAbsent(type, new Pool<>(maxItems, supplier));
     }
 
-    public static <T extends Pooled> T allocate(Class<T> type) {
+    public <T extends Pooled> T allocate(Class<T> type) {
         return (T) pools.get(type).allocate();
     }
 
