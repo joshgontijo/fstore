@@ -63,7 +63,7 @@ public class LsmTest {
             dst.flip();
             assertTrue(rsize > 0);
 
-            short keySize = dst.getShort();
+            int keySize = dst.getInt();
             long key = dst.getLong();
             int valLen = dst.getInt();
             long timestamp = dst.getLong();

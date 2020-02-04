@@ -40,36 +40,36 @@ public class PooledRecord extends Pooled {
         return data;
     }
 
-    public int valueSize(ByteBuffer buffer) {
-        return buffer.getInt(relativePosition(buffer, DATA_LENGTH_OFFSET));
+    public int valueSize() {
+        return data.getInt(relativePosition(data, DATA_LENGTH_OFFSET));
     }
 
-    public int valueOffset(ByteBuffer buffer) {
-        return relativePosition(buffer, KEY_OFFSET) + keySize(buffer);
+    public int valueOffset() {
+        return relativePosition(data, KEY_OFFSET) + keySize();
     }
 
-    public int checksum(ByteBuffer buffer) {
-        return buffer.getInt(relativePosition(buffer, CHECKSUM_OFFSET));
+    public int checksum() {
+        return data.getInt(relativePosition(data, CHECKSUM_OFFSET));
     }
 
-    public long timestamp(ByteBuffer buffer) {
-        return buffer.getLong(relativePosition(buffer, TIMESTAMP_OFFSET));
+    public long timestamp() {
+        return data.getLong(relativePosition(data, TIMESTAMP_OFFSET));
     }
 
-    public byte attributes(ByteBuffer buffer) {
-        return buffer.get(relativePosition(buffer, ATTR_OFFSET));
+    public byte attributes() {
+        return data.get(relativePosition(data, ATTR_OFFSET));
     }
 
-    public int keyOffset(ByteBuffer buffer) {
-        return relativePosition(buffer, KEY_OFFSET);
+    public int keyOffset() {
+        return relativePosition(data, KEY_OFFSET);
     }
 
-    public int keySize(ByteBuffer buffer) {
-        return buffer.getInt(relativePosition(buffer, KEY_LENGTH_OFFSET));
+    public int keySize() {
+        return data.getInt(relativePosition(data, KEY_LENGTH_OFFSET));
     }
 
-    public boolean hasAttribute(ByteBuffer buffer, int attribute) {
-        byte attr = buffer.get(relativePosition(buffer, ATTR_OFFSET));
+    public boolean hasAttribute(int attribute) {
+        byte attr = data.get(relativePosition(data, ATTR_OFFSET));
         return (attr & (1 << attribute)) == 1;
     }
 

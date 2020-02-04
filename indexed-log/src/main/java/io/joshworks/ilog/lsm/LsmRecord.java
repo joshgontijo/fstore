@@ -6,7 +6,7 @@ import io.joshworks.ilog.Record2;
 import java.nio.ByteBuffer;
 
 /**
- * KEY_LEN (2 bytes)
+ * KEY_LEN (4 bytes)
  * KEY (N bytes)
  * VAL_LEN (4 BYTES)
  * TIMESTAMP (8 bytes)
@@ -41,9 +41,19 @@ public class LsmRecord {
 
     //-------------------------------------------------------------------
 
-    public static int fromRecord(ByteBuffer record, ByteBuffer decompressedBlock, ByteBuffer dst, int keyIdx, int keySize) {
+    public static int fromRecord(ByteBuffer record, ByteBuffer dst) {
+        int spos = dst.position();
+        int keySize = Record2.keySize(record);
+        dst.putInt(keySize);
+        Record2.writeKey(record, dst);
+        dst.putInt(Record2.valueSize(record));
+        dst.putLong(Record2.timestamp(record));
+        dst.put(Record2.attributes(record));
+        Record2.writeValue(record, dst);
 
+        return dst.position() - spos;
     }
+
     public static int fromBlockRecord(ByteBuffer record, ByteBuffer decompressedBlock, ByteBuffer dst, int keyIdx, int keySize) {
         int valueOffset = Block2.entryOffset(record, keyIdx, keySize);
         Buffers.offsetPosition(decompressedBlock, valueOffset);
@@ -53,7 +63,7 @@ public class LsmRecord {
             throw new IllegalStateException("Invalid entry length");
         }
 
-        dst.putShort((short) keySize);
+        dst.putInt(keySize);
         Block2.writeKey(record, dst, keyIdx, keySize);
         dst.putInt(entryLen);
         dst.putLong(Block2.Record.timestamp(decompressedBlock));
@@ -63,7 +73,6 @@ public class LsmRecord {
         //total lsmrecord len
         return keySize + Integer.BYTES + Long.BYTES + Byte.BYTES + entryLen;
     }
-
 
 
 //

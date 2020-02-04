@@ -1,6 +1,10 @@
 package io.joshworks.ilog.pooled;
 
+import io.joshworks.ilog.index.KeyComparator;
+
 import java.nio.ByteBuffer;
+
+import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
 /**
  * -------- HEADER ---------
@@ -14,22 +18,20 @@ import java.nio.ByteBuffer;
  * ENTRY_2_OFFSET (4bytes)
  * ...
  * -------- COMPRESSED VALUES REGION --------
- * RECORD_1_COMPRESSED {@link Block2.Record}
- * RECORD_2_COMPRESSED {@link Block2.Record}
+ * RECORD_1_COMPRESSED {@link CompressedBlockData}
+ * RECORD_2_COMPRESSED {@link CompressedBlockData}
  * ...
  */
 public class Block extends Pooled {
 
-    private final int keySize;
+    private static final int KEYS_REGION_OFFSET = 8;
+    private static final int VALUE_OFFSET_LEN = Integer.BYTES;
 
-    private final CompressedBlockData compressedClockRef;
-    private final KeyRegion keysRef;
+    private final int keySize;
 
     Block(ObjectPool.Pool<? extends Pooled> pool, int blockSize, int keySize, boolean direct) {
         super(pool, blockSize, direct);
         this.keySize = keySize;
-        this.compressedClockRef = new CompressedBlockData();
-        this.keysRef = new KeyRegion(keySize);
     }
 
     public int uncompressedSize() {
@@ -44,15 +46,20 @@ public class Block extends Pooled {
         return data;
     }
 
-    public KeyRegion keyRegion() {
-        keysRef.backingBuffer = data;
-        keysRef.offset = 8;
-        keysRef.count = entryCount() * keySize
+    public int entryOffset(int idx) {
+        int offset = relativePosition(data, KEYS_REGION_OFFSET);
+        int entryIdx = idx * (keySize + VALUE_OFFSET_LEN);
+        return data.getInt(offset + entryIdx + keySize);
     }
 
-    public CompressedBlockData blockData() {
-        compressedClockRef.backingBuffer = data;
-        compressedClockRef.offset =
+    public int compareKey(ByteBuffer key, int idx, KeyComparator comparator) {
+        int offset = relativePosition(data, KEYS_REGION_OFFSET);
+        int entryIdx = idx * (keySize + VALUE_OFFSET_LEN);
+        return comparator.compare(data, offset + entryIdx, key, key.position());
+    }
+
+    public int size() {
+        return entryCount() * (keySize + VALUE_OFFSET_LEN);
     }
 
 }

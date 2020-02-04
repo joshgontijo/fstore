@@ -62,7 +62,7 @@ class MemTable {
         if (compare != 0) {
             return 0;
         }
-        return Buffers.copy(floorEntry.getValue(), dst);
+        return LsmRecord.fromRecord(floorEntry.getValue(), dst);
     }
 
     public ByteBuffer floor(ByteBuffer key) {
