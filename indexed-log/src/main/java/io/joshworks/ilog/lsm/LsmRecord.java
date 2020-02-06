@@ -30,7 +30,7 @@ public class LsmRecord {
         if (!hasMaxAge) {
             return false;
         }
-        long timestamp = Record2.timestamp(record);
+        long timestamp = Record2.TIMESTAMP.get(record);
         long now = nowSeconds();
         return maxAgeSeconds > 0 && (now - timestamp > maxAgeSeconds);
     }
@@ -43,13 +43,13 @@ public class LsmRecord {
 
     public static int fromRecord(ByteBuffer record, ByteBuffer dst) {
         int spos = dst.position();
-        int keySize = Record2.keySize(record);
-        dst.putInt(keySize);
-        Record2.writeKey(record, dst);
-        dst.putInt(Record2.valueSize(record));
-        dst.putLong(Record2.timestamp(record));
-        dst.put(Record2.attributes(record));
-        Record2.writeValue(record, dst);
+
+        Record2.KEY_LEN.copyTo(record, dst);
+        Record2.KEY.copyTo(record, dst);
+        Record2.VALUE_LEN.copyTo(record, dst);
+        Record2.TIMESTAMP.copyTo(record, dst);
+        Record2.ATTRIBUTE.copyTo(record, dst);
+        Record2.VALUE.copyTo(record, dst);
 
         return dst.position() - spos;
     }

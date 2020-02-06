@@ -63,7 +63,7 @@ public class Block2 {
 //    }
 
     private static int keyPos(ByteBuffer record, int idx, int keySize) {
-        int blockStart = Record2.valueOffset(record);
+        int blockStart = Record2.VALUE.offset(record);
 
         int entries = record.getInt(blockStart + ENTRY_COUNT_OFFSET);
         int keyRegionStart = blockStart + KEY_REGION_OFFSET;
@@ -83,7 +83,7 @@ public class Block2 {
     }
 
     public static void decompress(ByteBuffer record, ByteBuffer dst, Codec codec) {
-        int keySize = Record2.keySize(record);
+        int keySize = Record2.KEY.len(record);
         int compRegOffset = compressedRegionOffset(record, keySize);
         int compRegSize = uncompressedRegionSize(record);
 
@@ -108,18 +108,18 @@ public class Block2 {
     }
 
     private static int blockStart(ByteBuffer record) {
-        return Record2.valueOffset(record);
+        return Record2.VALUE.offset(record);
     }
 
     private static int uncompressedRegionSize(ByteBuffer record) {
-        int keySize = Record2.keySize(record);
+        int keySize = Record2.KEY.len(record);
         int entries = entries(record);
-        int totalBlockSize = Record2.valueSize(record);
+        int totalBlockSize = Record2.VALUE.len(record);
         return totalBlockSize - HEADER_SIZE - entries * keyOverhead(keySize);
     }
 
     private static int compressedRegionOffset(ByteBuffer record, int keySize) {
-        int blockStart = Record2.valueOffset(record);
+        int blockStart = Record2.VALUE.offset(record);
         int entries = record.getInt(blockStart + ENTRY_COUNT_OFFSET);
         return blockStart + HEADER_SIZE + (keyOverhead(keySize) * entries);
     }
@@ -130,7 +130,7 @@ public class Block2 {
     }
 
     public static int entries(ByteBuffer record) {
-        int blockStart = Record2.valueOffset(record);
+        int blockStart = Record2.VALUE.offset(record);
         return record.getInt(blockStart + ENTRY_COUNT_OFFSET);
     }
 
@@ -159,10 +159,10 @@ public class Block2 {
         }
 
         public static void fromRecord(ByteBuffer record, ByteBuffer blockRecords) {
-            blockRecords.putInt(Record2.valueSize(record));
-            blockRecords.putLong(Record2.timestamp(record));
-            blockRecords.put(Record2.attributes(record));
-            Record2.writeValue(record, blockRecords);
+            Record2.VALUE_LEN.copyTo(record, blockRecords);
+            Record2.TIMESTAMP.copyTo(record, blockRecords);
+            Record2.ATTRIBUTE.copyTo(record, blockRecords);
+            Record2.VALUE.copyTo(record, blockRecords);
         }
 
         public static void writeValue(ByteBuffer decompressedBlock, int valueOffset, int entryLen, ByteBuffer dst) {

@@ -12,13 +12,13 @@ import static java.util.Objects.requireNonNull;
 public class Builder {
     private final File root;
     private final KeyComparator comparator;
-    private int memTableEntries;
+    private int memTableEntries = 500000;
     private int blockSize = Size.KB.ofInt(4);
     private long maxAge = -1;
     private Codec codec = Codec.noCompression();
     private int compactionThreads = 1;
     private int compactionThreshold = 2;
-    private int maxSizeInBytes = Size.MB.ofInt(100);
+    private int memTableMaxSizeInBytes = Size.MB.ofInt(100);
 
     public Builder(File root, KeyComparator comparator) {
         this.root = root;
@@ -30,10 +30,10 @@ public class Builder {
             throw new IllegalArgumentException("memTableEntries must be a positive number");
         }
         long min = Size.MB.of(1);
-        if (maxSizeInBytes <= min) {
-            throw new IllegalArgumentException("maxSizeInBytes must be at least " + min);
-        }
-        this.maxSizeInBytes = maxSizeInBytes;
+//        if (maxSizeInBytes <= min) {
+//            throw new IllegalArgumentException("maxSizeInBytes must be at least " + min);
+//        }
+        this.memTableMaxSizeInBytes = maxSizeInBytes;
         this.memTableEntries = memTableEntries;
         return this;
     }

@@ -7,7 +7,6 @@ import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.Log;
-import io.joshworks.ilog.Record2;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 
@@ -52,7 +51,8 @@ public class Lsm {
         this.maxAge = maxAge;
         this.codec = codec;
 
-        int maxRecordSize = Record2.HEADER_BYTES + comparator.keySize() + blockSize;
+//        int maxRecordSize = Record2.HEADER_BYTES + comparator.keySize() + blockSize;
+        int maxRecordSize = 36 + comparator.keySize() + blockSize;
 
         this.writeBlock = Buffers.allocate(blockSize, false);
         this.blockRecordRegionBuffer = Buffers.allocate(blockSize, false);
@@ -64,13 +64,12 @@ public class Lsm {
 
         this.blockRecordsBufferPool = BufferPool.localCache(blockSize, false);
         this.recordPool = BufferPool.localCachePool(256, maxRecordSize, false);
-        BufferPool keyPool = BufferPool.defaultPool(memTableEntries * 2, keySize, false);
         BufferPool logRecordPool = BufferPool.localCachePool(256, maxRecordSize, false);
 
         int sstableIndexSize = memTableEntries * (keySize + Long.BYTES); //key + pos
         int tlogIndexSize = sstableIndexSize * 4;
 
-        this.memTable = new MemTable(comparator, keyPool);
+        this.memTable = new MemTable(comparator, memTableEntries, maxRecordSize);
 
         this.tlog = new SequenceLog(new File(root, LOG_DIR),
                 maxRecordSize,
@@ -96,14 +95,15 @@ public class Lsm {
 
     public void append(ByteBuffer lsmRecord) {
         tlog.append(lsmRecord);
-        if (memTable.add(lsmRecord) >= memTableSize) {
+        memTable.add(lsmRecord);
+        if (memTable.size() >= memTableSize) {
             flush();
         }
     }
 
     public int get(ByteBuffer key, ByteBuffer dst) {
         return ssTables.apply(Direction.BACKWARD, sst -> {
-            int fromMem = memTable.get(key, dst);
+            int fromMem = memTable.apply(key, dst, IndexFunctions.EQUALS);
             if (fromMem > 0) {
                 return fromMem;
             }

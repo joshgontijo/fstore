@@ -4,12 +4,14 @@ import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
 
 import static io.joshworks.ilog.lsm.Block2.keyOverhead;
@@ -17,72 +19,89 @@ import static java.util.Objects.requireNonNull;
 
 class MemTable {
 
-    final ConcurrentSkipListMap<ByteBuffer, ByteBuffer> table;
+    final List<ByteBuffer> table;
     private final KeyComparator comparator;
-    private final BufferPool keyPool;
+    private final BufferPool recordPool; //used to store records
     private final AtomicInteger entries = new AtomicInteger();
     private final AtomicInteger sizeInBytes = new AtomicInteger();
 
-    MemTable(KeyComparator comparator, BufferPool keyPool) {
-        this.table = new ConcurrentSkipListMap<>(comparator);
+    private final ByteBuffer tmpKey;
+
+    private final StampedLock lock = new StampedLock();
+
+    MemTable(KeyComparator comparator, int maxEntries, int maxRecordSize) {
+        this.table = new ArrayList<>(maxEntries);
+        this.recordPool = BufferPool.defaultPool(maxEntries, maxRecordSize, false);
         this.comparator = comparator;
-        this.keyPool = keyPool;
+        this.tmpKey = Buffers.allocate(comparator.keySize(), false);
     }
 
-    int add(ByteBuffer record) {
+    void add(ByteBuffer record) {
         requireNonNull(record, "Record must be provided");
-        var keyBuffer = keyPool.allocate();
-        try {
-            Record2.writeKey(record, keyBuffer);
-            keyBuffer.flip();
-            validateKeySize(keyBuffer);
-            ByteBuffer existing = table.put(keyBuffer, record);
-            sizeInBytes.addAndGet(record.remaining());
 
-            if (existing != null) {
-                sizeInBytes.addAndGet(-existing.remaining());
-                return entries.get();
-            }
-            return entries.incrementAndGet();
+        var memRec = recordPool.allocate();
+        try {
+            Buffers.copy(record, memRec);
+            memRec.flip();
+
+            int keyOffset = Record2.KEY.offset(memRec);
+            int recordSize = Record2.sizeOf(memRec);
+            int idx = binarySearch(memRec, keyOffset);
+
+            updateTable(memRec, recordSize, idx);
 
         } catch (Exception e) {
-            keyPool.free(keyBuffer);
             throw new RuntimeException("Failed to insert record", e);
         }
     }
 
-    public int get(ByteBuffer key, ByteBuffer dst) {
+    private void updateTable(ByteBuffer memRec, int recordSize, int idx) {
+        long stamp = lock.writeLock();
+        try {
+            if (idx >= 0) { //existing entry
+                ByteBuffer existing = table.get(idx);
+                int existingSize = Record2.sizeOf(existing);
+                table.set(idx, memRec);
+                int diff = recordSize - existingSize;
+                sizeInBytes.addAndGet(diff);
+            } else {
+                table.add(Math.abs(idx) - 1, memRec);
+                entries.incrementAndGet();
+            }
+        } finally {
+            lock.tryUnlockWrite();
+        }
+    }
+
+    public int apply(ByteBuffer key, ByteBuffer dst, IndexFunctions fn) {
         validateKeySize(key);
-        var floorEntry = table.floorEntry(key);
-        if (floorEntry == null) {
+
+        long stamp = lock.tryOptimisticRead();
+        int ppos = dst.position();
+        int read = tryRead(key, dst, fn);
+        if (lock.validate(stamp)) {
+            return read;
+        }
+
+        dst.position(ppos);//reset to previous position
+
+        stamp = lock.readLock();
+        try {
+            return tryRead(key, dst, fn);
+        } finally {
+            lock.unlockRead(stamp);
+        }
+    }
+
+    private int tryRead(ByteBuffer key, ByteBuffer dst, IndexFunctions fn) {
+        int idx = binarySearch(key, key.position());
+        idx = fn.apply(idx);
+        if (idx < 0) {
             return 0;
         }
 
-        int compare = comparator.compare(floorEntry.getKey(), key);
-        if (compare != 0) {
-            return 0;
-        }
-        return LsmRecord.fromRecord(floorEntry.getValue(), dst);
-    }
-
-    public ByteBuffer floor(ByteBuffer key) {
-        var entry = table.floorEntry(key);
-        return getValue(entry);
-    }
-
-    public ByteBuffer ceiling(ByteBuffer key) {
-        var entry = table.ceilingEntry(key);
-        return getValue(entry);
-    }
-
-    public ByteBuffer higher(ByteBuffer key) {
-        var entry = table.higherEntry(key);
-        return getValue(entry);
-    }
-
-    public ByteBuffer lower(ByteBuffer key) {
-        var entry = table.lowerEntry(key);
-        return getValue(entry);
+        ByteBuffer record = table.get(idx);
+        return LsmRecord.fromRecord(record, dst);
     }
 
     public int size() {
@@ -95,10 +114,6 @@ class MemTable {
         }
     }
 
-    private static ByteBuffer getValue(Map.Entry<ByteBuffer, ByteBuffer> entry) {
-        return entry == null ? null : entry.getValue();
-    }
-
     long writeTo(Consumer<ByteBuffer> writer, long maxAge, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst) {
         if (table.isEmpty()) {
             return 0;
@@ -106,28 +121,26 @@ class MemTable {
 
         long inserted = 0;
         int blockEntries = 0;
-        ByteBuffer firstBlockKey = null;
+        ByteBuffer first = null;
         int keyOverhead = keyOverhead(comparator.keySize());
 
         Buffers.offsetPosition(block, Block2.HEADER_SIZE);
-        for (Map.Entry<ByteBuffer, ByteBuffer> kv : table.entrySet()) {
-            ByteBuffer key = kv.getKey();
-            ByteBuffer record = kv.getValue();
+        for (ByteBuffer record : table) {
             if (LsmRecord.expired(record, maxAge) && !LsmRecord.deletion(record)) {
                 continue;
             }
 
             int valueRegionSize = blockRecords.position();
-            int valueSize = Record2.valueSize(record);
+            int valueSize = Record2.VALUE_LEN.get(record);
             int valueOverhead = Block2.Record.valueOverhead(valueSize);
 
             //not enough space in the block, compress and write
             if (block.remaining() < valueRegionSize + keyOverhead + valueOverhead) {
-                writeBlock(writer, codec, block, blockRecords, dst, blockEntries, firstBlockKey);
+                writeBlock(writer, codec, block, blockRecords, dst, blockEntries, first);
 
                 //reset state
                 blockEntries = 0;
-                firstBlockKey = null;
+                first = null;
 
                 //clear buffers
                 block.clear();
@@ -143,21 +156,28 @@ class MemTable {
             Block2.Record.fromRecord(record, blockRecords);
 
             //KEYS_REGION
-            Buffers.copy(key, block);
+            int keyOffset = Record2.KEY.offset(record);
+            int keySize = Record2.KEY.len(record);
+            Buffers.copy(record, keyOffset, keySize, block);
             block.putInt(offset);
 
-            firstBlockKey = firstBlockKey == null ? key : firstBlockKey;
+            first = first == null ? record : first;
             blockEntries++;
             inserted++;
         }
-        writeBlock(writer, codec, block, blockRecords, dst, blockEntries, firstBlockKey);
+        writeBlock(writer, codec, block, blockRecords, dst, blockEntries, first);
+
+        for (ByteBuffer buffer : table) {
+            recordPool.free(buffer);
+        }
+
 
         entries.set(0); // TODO remove
         table.clear(); // TODO remove
         return inserted;
     }
 
-    private void writeBlock(Consumer<ByteBuffer> writer, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst, int blockEntries, ByteBuffer firstBlockKey) {
+    private void writeBlock(Consumer<ByteBuffer> writer, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst, int blockEntries, ByteBuffer firstRecord) {
         blockRecords.flip();
         int uncompressedSize = blockRecords.remaining();
 
@@ -170,10 +190,35 @@ class MemTable {
 
         Block2.writeHeader(block, uncompressedSize, blockEntries);
 
-        Record2.create(firstBlockKey, block, dst);
+        tmpKey.clear();
+        Record2.KEY.copyTo(firstRecord, tmpKey);
+        tmpKey.flip();
+        Record2.create(tmpKey, block, dst);
+
+
         dst.flip();
 
         writer.accept(dst);
+    }
+
+    private int binarySearch(ByteBuffer key, int keyStart) {
+        int entries = table.size();
+
+        int low = 0;
+        int high = entries - 1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            ByteBuffer rec = table.get(mid);
+            int cmp = comparator.compare(rec, 0, key, keyStart);
+            if (cmp < 0)
+                low = mid + 1;
+            else if (cmp > 0)
+                high = mid - 1;
+            else
+                return mid;
+        }
+        return -(low + 1);
     }
 
 }

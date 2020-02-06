@@ -19,7 +19,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static io.joshworks.ilog.Record2.HEADER_BYTES;
 import static io.joshworks.ilog.index.Index.NONE;
 
 public class IndexedSegment {
@@ -103,7 +102,7 @@ public class IndexedSegment {
         }
 
         int expectedKeySize = index.keySize();
-        int actualKeySize = Record2.keySize(record);
+        int actualKeySize = Record2.KEY.len(record);
         if (actualKeySize != expectedKeySize) { // validates the key BEFORE adding to log
             throw new IllegalArgumentException("Invalid key size: Expected " + expectedKeySize + ", got " + actualKeySize);
         }
@@ -159,10 +158,6 @@ public class IndexedSegment {
      */
     public int read(long position, ByteBuffer dst) {
         try {
-            int dstRemaining = dst.remaining();
-            if (dstRemaining <= HEADER_BYTES) {
-                throw new RuntimeException("bufferSize must be greater than header size of " + HEADER_BYTES + ", got: " + dstRemaining);
-            }
             return channel.read(dst, position);
         } catch (IOException e) {
             throw new RuntimeIOException(e);

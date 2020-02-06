@@ -49,7 +49,7 @@ public class SequenceLogMain {
             while (RecordBatch.hasNext(buffer)) {
                 int size = Record2.validate(buffer);
                 kb.clear();
-                Record2.writeKey(buffer, kb);
+                Record2.KEY.copyTo(buffer, kb);
                 kb.flip();
                 Buffers.offsetPosition(buffer, size);
 

@@ -70,6 +70,42 @@ public class Buffers {
         return i;
     }
 
+    public static int copy(ByteBuffer src, int srcOffset, int srcCount, ByteBuffer dst, int dstOffset) {
+        if (srcCount == 0) {
+            return 0;
+        }
+        if (srcOffset < 0 || srcOffset > src.capacity()) {
+            throw new IndexOutOfBoundsException(srcOffset);
+        }
+        if (srcCount > src.capacity() - srcOffset) {
+            throw new IndexOutOfBoundsException("srcCount bytes is more than available from srcOffset position");
+        }
+
+        if (srcCount > dst.remaining()) {
+            throw new BufferOverflowException();
+        }
+
+        int i = 0;
+        while ((srcCount - i) >= Long.BYTES) {
+            dst.putLong(dstOffset + i, src.getLong(srcOffset + i));
+            i += Long.BYTES;
+        }
+        while ((srcCount - i) >= Integer.BYTES) {
+            dst.putInt(dstOffset + i, src.getInt(srcOffset + i));
+            i += Integer.BYTES;
+        }
+        while ((srcCount - i) >= Short.BYTES) {
+            dst.putShort(dstOffset + i, src.getShort(srcOffset + i));
+            i += Short.BYTES;
+        }
+        while ((srcCount - i) >= Byte.BYTES) {
+            dst.put(dstOffset + i, src.get(srcOffset + i));
+            i += Byte.BYTES;
+        }
+
+        return i;
+    }
+
     /**
      * Copies remaining bytes from src to the dst
      * Does not modify source's position

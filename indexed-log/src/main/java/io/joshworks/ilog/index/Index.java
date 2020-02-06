@@ -61,7 +61,7 @@ public class Index implements Closeable {
             throw new RuntimeException("Index is read only");
         }
 
-        int keySize = Record2.keySize(record);
+        int keySize = Record2.KEY.len(record);
         if (keySize != comparator.keySize()) {
             throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + keySize);
         }
@@ -89,7 +89,7 @@ public class Index implements Closeable {
 
     private void doWrite(int keySize, long position, ByteBuffer record, ByteBuffer dst) {
         int rsize = Record2.sizeOf(record);
-        int written = Record2.writeKey(record, dst);
+        int written = Record2.KEY.copyTo(record, dst);
         if (written != keySize) {
             Buffers.offsetPosition(dst, -written);
             throw new IllegalStateException("Expected " + keySize + " bytes written to index, actual: " + written);
