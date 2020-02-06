@@ -8,8 +8,6 @@ import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
@@ -19,7 +17,7 @@ import static java.util.Objects.requireNonNull;
 
 class MemTable {
 
-    final List<ByteBuffer> table;
+    final ByteBuffer[] table;
     private final KeyComparator comparator;
     private final BufferPool recordPool; //used to store records
     private final AtomicInteger entries = new AtomicInteger();
@@ -30,8 +28,8 @@ class MemTable {
     private final StampedLock lock = new StampedLock();
 
     MemTable(KeyComparator comparator, int maxEntries, int maxRecordSize) {
-        this.table = new ArrayList<>(maxEntries);
-        this.recordPool = BufferPool.defaultPool(maxEntries, maxRecordSize, false);
+        this.table = new ByteBuffer[maxEntries];
+        this.recordPool = BufferPool.defaultPool(maxEntries, maxRecordSize, true);
         this.comparator = comparator;
         this.tmpKey = Buffers.allocate(comparator.keySize(), false);
     }
@@ -46,6 +44,14 @@ class MemTable {
 
             int keyOffset = Record2.KEY.offset(memRec);
             int recordSize = Record2.sizeOf(memRec);
+            int entries = this.entries.get();
+            if (entries == 0 || compareLast(record, keyOffset) > 0) {
+                table[entries] = memRec;
+                this.entries.incrementAndGet();
+                sizeInBytes.addAndGet(recordSize);
+                return;
+            }
+
             int idx = binarySearch(memRec, keyOffset);
 
             updateTable(memRec, recordSize, idx);
@@ -55,21 +61,32 @@ class MemTable {
         }
     }
 
+    private int compareLast(ByteBuffer record, int keyOffset) {
+        ByteBuffer last = table[entries.get() - 1];
+        int kOffset = Record2.KEY.offset(last);
+        return comparator.compare(record, keyOffset, last, kOffset);
+    }
+
     private void updateTable(ByteBuffer memRec, int recordSize, int idx) {
         long stamp = lock.writeLock();
         try {
             if (idx >= 0) { //existing entry
-                ByteBuffer existing = table.get(idx);
+                ByteBuffer existing = table[idx];
                 int existingSize = Record2.sizeOf(existing);
-                table.set(idx, memRec);
+                table[idx] = memRec;
                 int diff = recordSize - existingSize;
                 sizeInBytes.addAndGet(diff);
             } else {
-                table.add(Math.abs(idx) - 1, memRec);
+                idx = Math.abs(idx) - 1;
+                System.arraycopy(table, idx,
+                        table, idx + 1,
+                        entries.get() - idx);
+                table[idx] = memRec;
                 entries.incrementAndGet();
+                sizeInBytes.addAndGet(recordSize);
             }
         } finally {
-            lock.tryUnlockWrite();
+            lock.unlockWrite(stamp);
         }
     }
 
@@ -100,7 +117,7 @@ class MemTable {
             return 0;
         }
 
-        ByteBuffer record = table.get(idx);
+        ByteBuffer record = table[idx];
         return LsmRecord.fromRecord(record, dst);
     }
 
@@ -115,7 +132,7 @@ class MemTable {
     }
 
     long writeTo(Consumer<ByteBuffer> writer, long maxAge, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst) {
-        if (table.isEmpty()) {
+        if (entries.get() == 0) {
             return 0;
         }
 
@@ -173,7 +190,7 @@ class MemTable {
 
 
         entries.set(0); // TODO remove
-        table.clear(); // TODO remove
+//        table.clear(); // TODO remove
         return inserted;
     }
 
@@ -202,14 +219,14 @@ class MemTable {
     }
 
     private int binarySearch(ByteBuffer key, int keyStart) {
-        int entries = table.size();
+        int entries = this.entries.get();
 
         int low = 0;
         int high = entries - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            ByteBuffer rec = table.get(mid);
+            ByteBuffer rec = table[mid];
             int cmp = comparator.compare(rec, 0, key, keyStart);
             if (cmp < 0)
                 low = mid + 1;

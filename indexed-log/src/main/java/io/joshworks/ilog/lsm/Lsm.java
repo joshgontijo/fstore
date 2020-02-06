@@ -94,11 +94,19 @@ public class Lsm {
     }
 
     public void append(ByteBuffer lsmRecord) {
-        tlog.append(lsmRecord);
-        memTable.add(lsmRecord);
+        appendToLog(lsmRecord);
+        addToMemTable(lsmRecord);
         if (memTable.size() >= memTableSize) {
             flush();
         }
+    }
+
+    private void addToMemTable(ByteBuffer lsmRecord) {
+        memTable.add(lsmRecord);
+    }
+
+    private void appendToLog(ByteBuffer lsmRecord) {
+        tlog.append(lsmRecord);
     }
 
     public int get(ByteBuffer key, ByteBuffer dst) {

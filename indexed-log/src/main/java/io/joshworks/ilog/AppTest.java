@@ -20,7 +20,6 @@ public class AppTest {
         ByteBuffer record = create(0, "value-123");
         ByteBuffer keyBuff = ByteBuffer.allocate(Long.BYTES);
         int limit = record.limit();
-
         long s = System.currentTimeMillis();
         for (int i = 0; i < 100000000; i++) {
             keyBuff.clear().putLong(i).flip();
