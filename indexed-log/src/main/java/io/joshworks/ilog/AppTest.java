@@ -21,13 +21,15 @@ public class AppTest {
         ByteBuffer keyBuff = ByteBuffer.allocate(Long.BYTES);
         int limit = record.limit();
 
+        long s = System.currentTimeMillis();
         for (int i = 0; i < 100000000; i++) {
             keyBuff.clear().putLong(i).flip();
             Record2.KEY.set(record, keyBuff);
             lsm.append(record);
             record.limit(limit).position(0);
             if (i % 1000000 == 0) {
-                System.out.println("-> " + i);
+                System.out.println("-> " + i + ": " + (System.currentTimeMillis() - s));
+                s = System.currentTimeMillis();
             }
         }
 
