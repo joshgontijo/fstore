@@ -1,28 +1,16 @@
 package io.joshworks.fstore.core.io.buffers;
 
+import io.joshworks.fstore.core.util.Pool;
+
 import java.nio.ByteBuffer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
-public interface BufferPool {
-
-    ByteBuffer allocate();
-
-    void free(ByteBuffer buffer);
+public interface BufferPool extends Pool<ByteBuffer> {
 
     default void withBuffer(Consumer<ByteBuffer> func) {
         ByteBuffer buffer = allocate();
         try {
             func.accept(buffer);
-        } finally {
-            free(buffer);
-        }
-    }
-
-    default <R> R withBuffer(Function<ByteBuffer, R> func) {
-        ByteBuffer buffer = allocate();
-        try {
-            return func.apply(buffer);
         } finally {
             free(buffer);
         }

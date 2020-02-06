@@ -28,9 +28,9 @@ class LocalCache implements BufferPool {
     }
 
     @Override
-    public void free(ByteBuffer buffer) {
+    public void free(ByteBuffer element) {
         Holder cacheHolder = cache.get();
-        if (buffer == cacheHolder.buffer) {
+        if (element == cacheHolder.buffer) {
             cacheHolder.free();
         } else {
             throw new IllegalArgumentException("Buffer being released is not the same as the allocated");

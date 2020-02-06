@@ -25,11 +25,11 @@ class BasicBufferPool implements BufferPool {
         return instance == null ? Buffers.allocate(bufferSize, direct) : instance;
     }
 
-    public void free(ByteBuffer buffer) {
-        if (buffer == null) {
+    public void free(ByteBuffer element) {
+        if (element == null) {
             return;
         }
-        pool.offer(buffer.clear());
+        pool.offer(element.clear());
     }
 
 }

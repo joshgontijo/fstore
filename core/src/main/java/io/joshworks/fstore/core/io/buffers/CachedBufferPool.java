@@ -25,12 +25,12 @@ class CachedBufferPool extends BasicBufferPool {
     }
 
     @Override
-    public void free(ByteBuffer buffer) {
+    public void free(ByteBuffer element) {
         Holder cacheHolder = this.cache.get();
-        if (buffer == cacheHolder.buffer) {
+        if (element == cacheHolder.buffer) {
             cacheHolder.free();
         } else {
-            super.free(buffer);
+            super.free(element);
         }
     }
 
