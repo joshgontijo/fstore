@@ -44,6 +44,9 @@ public class Builder {
     }
 
     public Builder compactionThreads(int compactionThreads) {
+        if (compactionThreads < 1) {
+            throw new IllegalArgumentException("Value must equals or greater than 1");
+        }
         this.compactionThreads = compactionThreads;
         return this;
     }
