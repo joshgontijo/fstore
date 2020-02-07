@@ -28,7 +28,6 @@ public class Lsm {
     private final BufferPool recordPool;
     private final BufferPool blockRecordsBufferPool;
 
-    private final int memTableSize;
     private final long maxAge;
 
     private final ByteBuffer writeBlock;
@@ -38,7 +37,9 @@ public class Lsm {
 
     Lsm(File root,
         KeyComparator comparator,
-        int memTableEntries,
+        int memTableMaxSizeInBytes,
+        int memTableMaxEntries,
+        boolean directMemTable,
         int blockSize,
         long maxAge,
         int compactionThreads,
@@ -47,7 +48,6 @@ public class Lsm {
 
         FileUtils.createDir(root);
         this.comparator = comparator;
-        this.memTableSize = memTableEntries;
         this.maxAge = maxAge;
         this.codec = codec;
 
@@ -66,15 +66,16 @@ public class Lsm {
         this.recordPool = BufferPool.localCachePool(256, maxRecordSize, false);
         BufferPool logRecordPool = BufferPool.localCachePool(256, maxRecordSize, false);
 
-        int sstableIndexSize = memTableEntries * (keySize + Long.BYTES); //key + pos
+//        int sstableIndexSize = memTableMaxEntries * (keySize + Long.BYTES); //key + pos
+        int sstableIndexSize = memTableMaxSizeInBytes; // FIXME this needs to be properly calculated
         int tlogIndexSize = sstableIndexSize * 4;
 
-        this.memTable = new MemTable(comparator, memTableEntries, maxRecordSize);
+        this.memTable = new MemTable(comparator, memTableMaxSizeInBytes, memTableMaxEntries, directMemTable);
 
         this.tlog = new SequenceLog(new File(root, LOG_DIR),
                 maxRecordSize,
                 tlogIndexSize,
-                1,
+                compactionThreshold,
                 1,
                 FlushMode.ON_ROLL,
                 logRecordPool);
@@ -93,11 +94,13 @@ public class Lsm {
         return new Builder(root, comparator);
     }
 
-    public void append(ByteBuffer lsmRecord) {
-        tlog.append(lsmRecord);
-        memTable.add(lsmRecord);
-        if (memTable.size() >= memTableSize) {
+    public void append(ByteBuffer record) {
+        tlog.append(record);
+        if (!memTable.add(record)) {
             flush();
+            if (!memTable.add(record)) {
+                throw new IllegalStateException("Failed to write to memtable");
+            }
         }
     }
 
@@ -155,7 +158,9 @@ public class Lsm {
         writeBlock.clear();
         blockRecordRegionBuffer.clear();
         recordBuffer.clear();
+        long now = System.currentTimeMillis();
         long entries = memTable.writeTo(ssTables::append, maxAge, codec, writeBlock, blockRecordRegionBuffer, recordBuffer);
+        System.out.println("MEMTABLE_WRITE_TO: " + (System.currentTimeMillis() - now));
         if (entries > 0) {
             ssTables.roll();
         }

@@ -166,7 +166,11 @@ public class Index implements Closeable {
 
     private int align(int size) {
         int entrySize = entrySize();
-        return entrySize * (size / entrySize);
+        int aligned = entrySize * (size / entrySize);
+        if (aligned <= 0) {
+            throw new IllegalArgumentException("Invalid index size: " + size);
+        }
+        return aligned;
     }
 
     public String name() {

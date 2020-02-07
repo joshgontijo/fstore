@@ -32,7 +32,6 @@ public class TcpPerfIT {
                 .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(32))
                 .option(Options.WORKER_NAME, "server")
                 .option(Options.WORKER_IO_THREADS, 1)
-                .option(Options.WORKER_TASK_CORE_THREADS, 3)
                 .option(Options.TCP_NODELAY, true)
 //                .onEvent(TypedEventHandler.builder().build())
                 .start(new InetSocketAddress(HOST, PORT));
@@ -54,7 +53,7 @@ public class TcpPerfIT {
             long start = System.currentTimeMillis();
             byte[] bytes = new byte[256];
             Arrays.fill(bytes, (byte) 1);
-                ByteBuffer wrap = ByteBuffer.wrap(bytes);
+            ByteBuffer wrap = ByteBuffer.wrap(bytes);
             for (int i = 0; i < ITEMS; i++) {
                 client.send(wrap, true);
                 wrap.clear();

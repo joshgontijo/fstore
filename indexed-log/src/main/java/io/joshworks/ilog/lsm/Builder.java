@@ -12,60 +12,64 @@ import static java.util.Objects.requireNonNull;
 public class Builder {
     private final File root;
     private final KeyComparator comparator;
-    private int memTableEntries = 500000;
     private int blockSize = Size.KB.ofInt(4);
     private long maxAge = -1;
     private Codec codec = Codec.noCompression();
+
     private int compactionThreads = 1;
     private int compactionThreshold = 2;
-    private int memTableMaxSizeInBytes = Size.MB.ofInt(100);
+
+    private int memTableMaxSizeInBytes = Size.MB.ofInt(5);
+    private int memTableMaxEntries = 500000;
+    private boolean memTableDirect;
 
     public Builder(File root, KeyComparator comparator) {
         this.root = root;
         this.comparator = comparator;
     }
 
-    public Builder memTable(int memTableEntries, int maxSizeInBytes) {
-        if (memTableEntries <= 0) {
-            throw new IllegalArgumentException("memTableEntries must be a positive number");
+    public Builder memTable(int maxEntries, int maxSize, boolean direct) {
+        if (maxEntries <= 0) {
+            throw new IllegalArgumentException("maxEntries must be a positive number");
         }
-        long min = Size.MB.of(1);
-//        if (maxSizeInBytes <= min) {
-//            throw new IllegalArgumentException("maxSizeInBytes must be at least " + min);
-//        }
-        this.memTableMaxSizeInBytes = maxSizeInBytes;
-        this.memTableEntries = memTableEntries;
+        this.memTableMaxSizeInBytes = maxSize;
+        this.memTableMaxEntries = maxEntries;
+        this.memTableDirect = direct;
         return this;
     }
 
-    public void compactionThreshold(int compactionThreshold) {
+    public Builder compactionThreshold(int compactionThreshold) {
         this.compactionThreshold = compactionThreshold;
+        return this;
     }
 
-    public void compactionThreads(int compactionThreads) {
-        if (compactionThreads <= 0) {
-            throw new IllegalArgumentException("Values must be greater than zero");
-        }
+    public Builder compactionThreads(int compactionThreads) {
         this.compactionThreads = compactionThreads;
+        return this;
     }
 
-    public void blockSize(int blockSize) {
+    public Builder blockSize(int blockSize) {
         this.blockSize = blockSize;
+        return this;
     }
 
-    public void maxAge(long maxAge) {
+    public Builder maxAge(long maxAge) {
         this.maxAge = maxAge;
+        return this;
     }
 
-    public void codec(Codec codec) {
+    public Builder codec(Codec codec) {
         this.codec = requireNonNull(codec);
+        return this;
     }
 
     public Lsm open() {
         try {
             return new Lsm(root,
                     comparator,
-                    memTableEntries,
+                    memTableMaxSizeInBytes,
+                    memTableMaxEntries,
+                    memTableDirect,
                     blockSize,
                     maxAge,
                     compactionThreads,

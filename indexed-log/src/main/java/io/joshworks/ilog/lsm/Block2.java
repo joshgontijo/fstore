@@ -134,6 +134,10 @@ public class Block2 {
         return record.getInt(blockStart + ENTRY_COUNT_OFFSET);
     }
 
+    public static int computeKeyOverhead(int keyLen) {
+        return keyLen + KEY_REGION_FIELDS_OVERHEAD;
+    }
+
     /**
      * VALUE_LEN (4 BYTES)
      * TIMESTAMP (8 BYTES)
@@ -143,9 +147,11 @@ public class Block2 {
      */
     public static class Record {
 
+
         private static final int VALUE_LEN_LEN = Integer.BYTES;
         private static final int TIMESTAMP_LEN = Long.BYTES;
         private static final int ATTRIBUTES_LEN = Byte.BYTES;
+
 
         private static final int VALUE_LEN_OFFSET = 0;
         private static final int TIMESTAMP_OFFSET = VALUE_LEN_OFFSET + VALUE_LEN_LEN;
@@ -165,10 +171,13 @@ public class Block2 {
             Record2.VALUE.copyTo(record, blockRecords);
         }
 
+        public static int computedSize(int valueLen) {
+            return VALUE_LEN_LEN + TIMESTAMP_LEN + ATTRIBUTES_LEN + valueLen;
+        }
+
         public static void writeValue(ByteBuffer decompressedBlock, int valueOffset, int entryLen, ByteBuffer dst) {
             Buffers.copy(decompressedBlock, VALUE_REGION_ENTRY_OVERHEAD + valueOffset, entryLen, dst);
         }
-
 
         public static int valueSize(ByteBuffer data) {
             return data.getInt(relativePosition(data, VALUE_LEN_OFFSET));

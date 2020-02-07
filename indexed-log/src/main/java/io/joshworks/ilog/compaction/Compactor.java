@@ -50,10 +50,21 @@ public class Compactor<T extends IndexedSegment> {
         this.compactionThreshold = compactionThreshold;
         this.compactionWorker = threadPool("compaction", compactionThreads);
         this.cleanupWorker = threadPool("compaction-cleanup", 1);
-        this.coordinator = threadPool("-compaction-coordinator", 1);
+        this.coordinator = threadPool("compaction-coordinator", 1);
+
+        if (compactionDisabled()) {
+            logger.info("Compaction is disabled");
+        }
+    }
+
+    private boolean compactionDisabled() {
+        return this.compactionThreshold <= 0;
     }
 
     public void compact(boolean force) {
+        if (compactionDisabled() && !force) {
+            return;
+        }
         scheduleCompaction(0, force);
     }
 
@@ -71,7 +82,7 @@ public class Compactor<T extends IndexedSegment> {
             return;
         }
         List<T> segmentsForCompaction = segmentsForCompaction(level, force);
-        if (segmentsForCompaction.isEmpty()) {
+        if (segmentsForCompaction.isEmpty() || segmentsForCompaction.size() < compactionThreshold) {
             return;
         }
 

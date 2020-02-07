@@ -1,7 +1,9 @@
 package io.joshworks.ilog;
 
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.serializer.Serializers;
@@ -13,15 +15,20 @@ import java.nio.ByteBuffer;
 public class AppTest {
     public static void main(String[] args) {
 
-        Threads.sleep(5000);
+        Threads.sleep(7000);
+        int items = 1000000000;
 
-        Lsm lsm = Lsm.create(TestUtils.testFolder(), KeyComparator.LONG).memTable(100000, 1).open();
+        final Lsm lsm = Lsm.create(TestUtils.testFolder(), KeyComparator.LONG)
+                .memTable(1000000, Size.MB.ofInt(50), true)
+                .codec(new SnappyCodec())
+                .compactionThreads(0)
+                .open();
 
         ByteBuffer record = create(0, "value-123");
         ByteBuffer keyBuff = ByteBuffer.allocate(Long.BYTES);
         int limit = record.limit();
         long s = System.currentTimeMillis();
-        for (int i = 0; i < 100000000; i++) {
+        for (int i = 0; i < items; i++) {
             keyBuff.clear().putLong(i).flip();
             Record2.KEY.set(record, keyBuff);
             lsm.append(record);
