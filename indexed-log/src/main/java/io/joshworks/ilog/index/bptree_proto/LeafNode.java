@@ -1,4 +1,4 @@
-package io.joshworks.ilog.index.bptree;
+package io.joshworks.ilog.index.bptree_proto;
 
 import java.util.ArrayList;
 import java.util.Collections;
