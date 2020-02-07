@@ -11,6 +11,9 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 
+/**
+ * An fixed size, {@link ByteBuffer} backed tree
+ */
 public class RedBlackBST implements Iterable<Node> {
     private static final boolean RED = true;
     private static final boolean BLACK = false;
@@ -211,6 +214,7 @@ public class RedBlackBST implements Iterable<Node> {
         return height(root);
     }
 
+    @Override
     public Iterator<Node> iterator() {
         return new BSTIterator(root);
     }
@@ -284,7 +288,6 @@ public class RedBlackBST implements Iterable<Node> {
         else if (t < k) return select(x.right, k - t - 1);
         else return x;
     }
-
 
     private Node allocateNode(ByteBuffer record, int offset) {
         Node node = nodePool.allocate();

@@ -43,7 +43,6 @@ class MemTable {
             int recordPos = record.position();
             int recordLen = Record2.sizeOf(record);
 
-
             long stamp = lock.writeLock();
             try {
                 int copied = Buffers.copy(record, data);

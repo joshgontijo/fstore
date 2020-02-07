@@ -75,7 +75,7 @@ public class Lsm {
         this.tlog = new SequenceLog(new File(root, LOG_DIR),
                 maxRecordSize,
                 tlogIndexSize,
-                compactionThreshold,
+                0,
                 1,
                 FlushMode.ON_ROLL,
                 logRecordPool);
@@ -158,13 +158,10 @@ public class Lsm {
         writeBlock.clear();
         blockRecordRegionBuffer.clear();
         recordBuffer.clear();
-        long now = System.currentTimeMillis();
         long entries = memTable.writeTo(ssTables::append, maxAge, codec, writeBlock, blockRecordRegionBuffer, recordBuffer);
-        System.out.println("MEMTABLE_WRITE_TO: " + (System.currentTimeMillis() - now));
         if (entries > 0) {
             ssTables.roll();
         }
-
     }
 
     public void delete() {

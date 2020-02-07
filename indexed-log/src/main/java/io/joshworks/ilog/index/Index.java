@@ -14,10 +14,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Objects.requireNonNull;
 
 /**
- * A NON-CLUSTERED, UNIQUE, ORDERED index
- * - Index entries must be of a fixed size
+ * A NON-CLUSTERED, UNIQUE, ORDERED index that uses binary search to read elements
+ * - Append only
+ * - Entries must be of a fixed size
  * - Insertion must be ORDERED
- * - All entries must be unique
+ * - Entries must be unique
  * <p>
  * If opening from an existing file, the index is marked as read only.
  * <p>

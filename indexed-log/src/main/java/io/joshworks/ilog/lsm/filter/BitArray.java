@@ -10,13 +10,13 @@ public class BitArray {
 
     private final ByteBuffer bits;
 
-    public BitArray(long size, boolean offHeap) {
+    public BitArray(long size, boolean direct) {
         if (size > MAX_VAL) {
             throw new IllegalArgumentException("Buffer size cannot be greater than " + Integer.MAX_VALUE + ": m is too big");
         }
 
         int bsize = (int) ((size % Byte.SIZE == 0) ? (size / Byte.SIZE) : (size / Byte.SIZE) + 1);
-        bits = Buffers.allocate(bsize, offHeap);
+        bits = Buffers.allocate(bsize, direct);
     }
 
 

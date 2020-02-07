@@ -14,8 +14,6 @@ import java.util.Objects;
  */
 public class BloomFilter {
 
-    private static final int HEADER_SIZE = Integer.BYTES + Long.BYTES;
-
     private final BitArray hashes;
     private final int k; // Number of hash functions
     private final long m; // The number of bits in the filter

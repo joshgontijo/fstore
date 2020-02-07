@@ -21,7 +21,8 @@ public class AppTest {
         final Lsm lsm = Lsm.create(TestUtils.testFolder(), KeyComparator.LONG)
                 .memTable(1000000, Size.MB.ofInt(50), true)
                 .codec(new SnappyCodec())
-                .compactionThreads(0)
+                .compactionThreads(1)
+                .compactionThreshold(5)
                 .open();
 
         ByteBuffer record = create(0, "value-123");
