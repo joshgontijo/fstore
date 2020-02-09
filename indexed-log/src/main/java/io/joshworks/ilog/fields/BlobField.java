@@ -20,12 +20,6 @@ public class BlobField extends Field {
         return new BlobField(b -> afterOf(field, b), offset);
     }
 
-    private static int afterOf(Field field, ByteBuffer b) {
-        int _offset = field.offset.apply(b);
-        int _len = field.len.apply(b);
-        return _offset + _len;
-    }
-
     public int set(ByteBuffer fieldBuffer, ByteBuffer value) {
         return super.copyFrom(fieldBuffer, value);
     }

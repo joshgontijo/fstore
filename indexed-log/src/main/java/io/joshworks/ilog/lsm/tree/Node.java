@@ -3,8 +3,8 @@ package io.joshworks.ilog.lsm.tree;
 import java.nio.ByteBuffer;
 
 public class Node {
-    public final ByteBuffer key;
-    public final int keyOffset;
+    final ByteBuffer key;
+    final int keyOffset;
     int value;
     int len;
 
@@ -22,12 +22,8 @@ public class Node {
         return value;
     }
 
-    public int len() {
+    public int recordLen() {
         return len;
-    }
-
-    public int keyLen() {
-        return key.remaining();
     }
 
 }

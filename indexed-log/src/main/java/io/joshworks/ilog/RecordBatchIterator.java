@@ -8,7 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.NoSuchElementException;
 
-import static io.joshworks.ilog.Record2.HEADER_BYTES;
+import static io.joshworks.ilog.Record.HEADER_BYTES;
 
 public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuffer> {
 
@@ -47,7 +47,7 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
         if (!hasNext(readBuffer)) {
             throw new NoSuchElementException();
         }
-        bufferPos += Record2.validate(readBuffer);
+        bufferPos += Record.validate(readBuffer);
         return readBuffer;
     }
 
@@ -63,7 +63,7 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
         if (remaining < HEADER_BYTES) {
             return false;
         }
-        int rsize = Record2.sizeOf(record);
+        int rsize = Record.sizeOf(record);
         return rsize <= remaining && rsize > HEADER_BYTES;
     }
 
@@ -71,7 +71,7 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
         long written = 0;
         while (hasNext() && !endOfLog()) {
             ByteBuffer buffer = next();
-            int w = Record2.writeTo(buffer, channel);
+            int w = Record.writeTo(buffer, channel);
             if (w > 0) written += w;
         }
         return written;

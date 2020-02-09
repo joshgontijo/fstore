@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.Log;
+import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 
@@ -57,10 +58,6 @@ public class Lsm {
         this.writeBlock = Buffers.allocate(blockSize, false);
         this.blockRecordRegionBuffer = Buffers.allocate(blockSize, false);
         this.recordBuffer = Buffers.allocate(maxRecordSize, false);
-
-        int keySize = comparator.keySize();
-        int maxEntrySize = Block2.maxEntrySize(blockSize, keySize);
-        //Record headers + compressedBlock -> Used only for underlying log
 
         this.blockRecordsBufferPool = BufferPool.localCache(blockSize, false);
         this.recordPool = BufferPool.localCachePool(256, maxRecordSize, false);
@@ -120,6 +117,7 @@ public class Lsm {
                     }
                     int read = ssTable.find(key, record, IndexFunctions.FLOOR);
                     if (read > 0) {
+                        record.flip();
                         int entrySize = readFromBlock(key, record, dst, IndexFunctions.EQUALS);
                         if (entrySize <= 0) {// not found in the block, continue
                             continue;
@@ -135,22 +133,14 @@ public class Lsm {
     }
 
     private int readFromBlock(ByteBuffer key, ByteBuffer record, ByteBuffer dst, IndexFunctions func) {
-        record.flip();
-        int keyIdx = Block2.binarySearch(record, key, func, comparator);
-        if (keyIdx < 0) {
-            return 0;
-        }
-        return decompressAndRead(record, dst, keyIdx);
-    }
-
-    private int decompressAndRead(ByteBuffer record, ByteBuffer dst, int keyIdx) {
-        ByteBuffer blockRecords = blockRecordsBufferPool.allocate();
+        ByteBuffer decompressedTmp = blockRecordsBufferPool.allocate();
         try {
-            Block2.decompress(record, blockRecords, codec);
-            blockRecords.flip();
-            return LsmRecord.fromBlockRecord(record, blockRecords, dst, keyIdx, comparator.keySize());
+            int blockStart = Record.VALUE.offset(record);
+            int blockSize = Record.VALUE.len(record);
+            Buffers.view(record, blockStart, blockSize); //view of block
+            return Block.read(record, key, decompressedTmp, dst, func, comparator, codec);
         } finally {
-            blockRecordsBufferPool.free(blockRecords);
+            blockRecordsBufferPool.free(decompressedTmp);
         }
     }
 

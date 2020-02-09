@@ -1,17 +1,14 @@
-package io.joshworks.ilog.lsm;
+package io.joshworks.ilog.lsm.tree;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.KeyComparator;
-import io.joshworks.ilog.lsm.tree.Node;
-import io.joshworks.ilog.lsm.tree.RedBlackBST;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -19,6 +16,23 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 public class RedBlackBSTTest {
+
+    @Test
+    public void iterator() {
+        int items = 1500000;
+        RedBlackBST tree = new RedBlackBST(KeyComparator.LONG, items, false);
+
+        for (int i = 0; i < items; i++) {
+            tree.put(create(i, "val-" + i), i);
+        }
+
+        int count = 0;
+        for (Node node : tree) {
+            count++;
+        }
+
+        assertEquals(items, count);
+    }
 
     @Test
     public void test() {
@@ -36,10 +50,8 @@ public class RedBlackBSTTest {
         }
 
 
-        Iterator<Node> it = tree.iterator();
-        while(it.hasNext()) {
-            Node next = it.next();
-            System.out.println(next.key.getLong(0));
+        for (Node node : tree) {
+            System.out.println(node.key.getLong(0));
         }
 
 
@@ -47,7 +59,7 @@ public class RedBlackBSTTest {
             Node node = tree.get(ByteBuffer.allocate(Long.BYTES).putLong(i).flip());
             assertNotNull(node);
             assertEquals("Failed on " + i, i, node.offset());
-            assertEquals("Failed on " + i, lengths.get(i), Integer.valueOf(node.len()));
+            assertEquals("Failed on " + i, lengths.get(i), Integer.valueOf(node.recordLen()));
         }
 
 //        tree.clear();
@@ -73,7 +85,7 @@ public class RedBlackBSTTest {
         vs.writeTo(value, vb);
         vb.flip();
 
-        Record2.create(kb, vb, dst);
+        Record.create(kb, vb, dst);
         dst.flip();
         return dst;
     }

@@ -23,7 +23,7 @@ import java.nio.channels.WritableByteChannel;
  * [KEY] (N BYTES)
  * [VALUE] (N BYTES)
  */
-public class Record2 {
+public class Record {
 
     public static final int HEADER_BYTES = (Integer.BYTES * 3) + Long.BYTES + Byte.BYTES;
 
@@ -61,7 +61,6 @@ public class Record2 {
         return HEADER_BYTES + valSize + keySize;
     }
 
-
     public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
         int keyLen = key.remaining();
         int valueLen = value.remaining();
@@ -80,6 +79,41 @@ public class Record2 {
         return recLen;
     }
 
+    public static int copyTo(ByteBuffer record, ByteBuffer dst) {
+        int recLen = 0;
+        recLen += KEY_LEN.copyTo(record, dst);
+        recLen += CHECKSUM.copyTo(record, dst);
+        recLen += VALUE_LEN.copyTo(record, dst);
+        recLen += ATTRIBUTE.copyTo(record, dst);
+        recLen += TIMESTAMP.copyTo(record, dst);
+        recLen += KEY.copyTo(record, dst);
+        recLen += VALUE.copyTo(record, dst);
+
+        return recLen;
+    }
+
+    public static boolean isValid(ByteBuffer record) {
+        int remaining = record.remaining();
+        if (remaining < HEADER_BYTES) {
+            return false;
+        }
+        int rsize = sizeOf(record);
+        if (rsize > remaining) {
+            return false;
+        }
+        if (rsize <= HEADER_BYTES) {
+            return false;
+        }
+
+        int valSize = VALUE_LEN.get(record);
+        int valOffset = VALUE.offset(record);
+        int checksum = CHECKSUM.get(record);
+
+        int absValPos = Buffers.relativePosition(record, valOffset);
+        int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
+        return computedChecksum == checksum;
+    }
+
     public static int validate(ByteBuffer record) {
         int remaining = record.remaining();
         if (remaining < HEADER_BYTES) {
@@ -96,7 +130,9 @@ public class Record2 {
         int valSize = VALUE_LEN.get(record);
         int valOffset = VALUE.offset(record);
         int checksum = CHECKSUM.get(record);
-        int computedChecksum = ByteBufferChecksum.crc32(record, valOffset, valSize);
+
+        int absValPos = Buffers.relativePosition(record, valOffset);
+        int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
         if (computedChecksum != checksum) {
             throw new ChecksumException();
         }

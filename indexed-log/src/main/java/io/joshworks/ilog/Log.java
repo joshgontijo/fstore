@@ -51,7 +51,7 @@ public class Log<T extends IndexedSegment> {
 
     public void append(ByteBuffer record) {
         try {
-            int recordLength = Record2.validate(record);
+            int recordLength = Record.validate(record);
             if (recordLength > maxEntrySize) {
                 throw new IllegalArgumentException("Record to large, max allowed size: " + maxEntrySize + ", record size: " + recordLength);
             }

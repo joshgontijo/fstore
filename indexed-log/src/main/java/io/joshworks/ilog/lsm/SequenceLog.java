@@ -7,7 +7,7 @@ import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
-import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 
@@ -57,7 +57,7 @@ public class SequenceLog implements Closeable {
             long seq = sequence.getAndIncrement();
             keyWriteBuffer.putLong(seq).flip();
             recordWriteBuffer.clear();
-            Record2.create(keyWriteBuffer, data, recordWriteBuffer);
+            Record.create(keyWriteBuffer, data, recordWriteBuffer);
             recordWriteBuffer.flip();
             keyWriteBuffer.clear();
             log.append(recordWriteBuffer);

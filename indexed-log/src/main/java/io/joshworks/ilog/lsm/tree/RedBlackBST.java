@@ -2,7 +2,7 @@ package io.joshworks.ilog.lsm.tree;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Pool;
-import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.nio.ByteBuffer;
@@ -72,7 +72,7 @@ public class RedBlackBST implements Iterable<Node> {
     }
 
     private int compareRecord(ByteBuffer record, Node node) {
-        int kOffset = Record2.KEY.offset(record);
+        int kOffset = Record.KEY.offset(record);
         return compareKeys(record, kOffset, node);
     }
 
@@ -102,7 +102,7 @@ public class RedBlackBST implements Iterable<Node> {
             h.right = put(h.right, record, offset);
         } else { //equals, replace
             h.value = offset;
-            h.len = Record2.sizeOf(record);
+            h.len = Record.sizeOf(record);
         }
 
         if (isRed(h.right) && !isRed(h.left)) h = rotateLeft(h);
@@ -224,9 +224,9 @@ public class RedBlackBST implements Iterable<Node> {
         return 1 + Math.max(height(x.left), height(x.right));
     }
 
-    public ByteBuffer min() {
+    public Node min() {
         if (isEmpty()) throw new NoSuchElementException("calls min() with empty symbol table");
-        return min(root).key;
+        return min(root);
     }
 
     private Node min(Node x) {
@@ -234,9 +234,9 @@ public class RedBlackBST implements Iterable<Node> {
         else return min(x.left);
     }
 
-    public ByteBuffer max() {
+    public Node max() {
         if (isEmpty()) throw new NoSuchElementException("calls max() with empty symbol table");
-        return max(root).key;
+        return max(root);
     }
 
     private Node max(Node x) {
@@ -291,10 +291,11 @@ public class RedBlackBST implements Iterable<Node> {
 
     private Node allocateNode(ByteBuffer record, int offset) {
         Node node = nodePool.allocate();
-        Record2.KEY.copyTo(record, node.key);
-        node.key.flip();
+        int ko = Record.KEY.offset(record);
+        int kl = Record.KEY.len(record);
+        Buffers.copy(record, ko, kl, node.key, node.keyOffset);
         node.value = offset;
-        node.len = Record2.sizeOf(record);
+        node.len = Record.sizeOf(record);
         return node;
     }
 
@@ -303,14 +304,17 @@ public class RedBlackBST implements Iterable<Node> {
     }
 
     private static class NodePool implements Pool<Node> {
+
+        private static final int EXTRA = 2;
+
         private final Queue<Node> pool;
         private final ByteBuffer backingBuffer;
         private final int keySize;
 
         private NodePool(int keySize, int maxEntries, boolean direct) {
             this.keySize = keySize;
-            this.pool = new ArrayDeque<>(maxEntries);
-            this.backingBuffer = Buffers.allocate(keySize * maxEntries, direct);
+            this.pool = new ArrayDeque<>(maxEntries + EXTRA);
+            this.backingBuffer = Buffers.allocate(keySize * (maxEntries + EXTRA), direct);
         }
 
         @Override
@@ -333,7 +337,6 @@ public class RedBlackBST implements Iterable<Node> {
         }
 
         private void clearNode(Node node) {
-            node.key.clear();
             node.value = -1;
             node.len = 0;
             node.left = null;

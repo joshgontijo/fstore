@@ -16,8 +16,18 @@ public class Field {
         this.len = len;
     }
 
+    protected static int afterOf(Field field, ByteBuffer b) {
+        int _offset = field.offset.apply(b);
+        int _len = field.len.apply(b);
+        return _offset + _len;
+    }
+
     public int offset(ByteBuffer b) {
         return offset.apply(b);
+    }
+
+    public int relativeOffset(ByteBuffer b) {
+        return b.position() + offset.apply(b);
     }
 
     public int len(ByteBuffer b) {
@@ -34,9 +44,9 @@ public class Field {
         return Buffers.copy(thisFieldBuffer, _offset, _len, value);
     }
 
-    public int copyTo(ByteBuffer thisFieldBuffer, ByteBuffer value, Field valueMapper) {
+    public int copyTo(ByteBuffer thisFieldBuffer, ByteBuffer value, Field targetField) {
         int thisLen = len.apply(thisFieldBuffer);
-        int valueLen = valueMapper.len.apply(value);
+        int valueLen = targetField.len.apply(value);
         if (thisLen != valueLen) {
             throw new IllegalArgumentException("Field length mismatch");
         }
@@ -44,7 +54,7 @@ public class Field {
         int thisBufferOffset = offset.apply(thisFieldBuffer);
         thisBufferOffset = relativePosition(thisFieldBuffer, thisBufferOffset);
 
-        int valueOffset = valueMapper.offset.apply(value);
+        int valueOffset = targetField.offset.apply(value);
         return Buffers.copy(thisFieldBuffer, thisBufferOffset, thisLen, value, valueOffset);
     }
 
@@ -59,9 +69,9 @@ public class Field {
         return Buffers.copy(value, value.position(), valueLen, thisFieldBuffer, _offset);
     }
 
-    public int copyFrom(ByteBuffer thisFieldBuffer, ByteBuffer value, Field valueMapper) {
+    public int copyFrom(ByteBuffer thisFieldBuffer, ByteBuffer value, Field srcField) {
         int thisLen = len.apply(thisFieldBuffer);
-        int valueLen = valueMapper.len.apply(value);
+        int valueLen = srcField.len.apply(value);
         if (thisLen != valueLen) {
             throw new IllegalArgumentException("Field length mismatch");
         }
@@ -69,7 +79,7 @@ public class Field {
         int thisBufferOffset = offset.apply(thisFieldBuffer);
         thisBufferOffset = relativePosition(thisFieldBuffer, thisBufferOffset);
 
-        int valueOffset = valueMapper.offset.apply(value);
+        int valueOffset = srcField.offset.apply(value);
         return Buffers.copy(value, valueOffset, valueLen, thisFieldBuffer, thisBufferOffset);
     }
 

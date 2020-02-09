@@ -2,7 +2,7 @@ package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.lsm.tree.Node;
@@ -12,7 +12,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
 
-import static io.joshworks.ilog.lsm.Block2.keyOverhead;
 import static java.util.Objects.requireNonNull;
 
 class MemTable {
@@ -20,8 +19,8 @@ class MemTable {
     private final RedBlackBST table;
     private final ByteBuffer data;
     private final KeyComparator comparator;
-
     private final ByteBuffer tmpKey;
+    private final int keySize;
 
     private final StampedLock lock = new StampedLock();
 
@@ -30,6 +29,7 @@ class MemTable {
         this.data = Buffers.allocate(memTableSizeInBytes, false);
         this.comparator = comparator;
         this.tmpKey = Buffers.allocate(comparator.keySize(), false);
+        this.keySize = comparator.keySize();
     }
 
     boolean add(ByteBuffer record) {
@@ -40,8 +40,8 @@ class MemTable {
             if (data.remaining() < record.remaining() || table.isFull()) {
                 return false;
             }
-            int recordPos = record.position();
-            int recordLen = Record2.sizeOf(record);
+            int recordPos = data.position();
+            int recordLen = Record.sizeOf(record);
 
             long stamp = lock.writeLock();
             try {
@@ -86,10 +86,7 @@ class MemTable {
         if (node == null) {
             return 0;
         }
-        return Buffers.copy(data, node.offset(), node.len(), dst);
-//        ByteBuffer record = table[idx];
-        //TODO ------ return LSMRECORD ------
-//        return LsmRecord.fromRecord(record, dst);
+        return Buffers.copy(data, node.offset(), node.recordLen(), dst);
     }
 
     public int size() {
@@ -107,87 +104,83 @@ class MemTable {
             return 0;
         }
 
-        long inserted = 0;
-        int blockEntries = 0;
-        ByteBuffer first = null;
-        int keyOverhead = keyOverhead(comparator.keySize());
+        int maxBlockDataSize = Block.maxCapacity(block);
 
-        Buffers.offsetPosition(block, Block2.HEADER_SIZE);
+        long inserted = 0;
+        ByteBuffer firstKey = null;
+        int computedSize = 0;
 
         for (Node node : table) {
             int recordOffset = node.offset();
-            int recordLen = node.len();
+            int recordLen = node.recordLen();
 
-            ByteBuffer record = data.limit(recordOffset + recordLen).position(recordOffset);
-
-            if (LsmRecord.expired(record, maxAge) && !LsmRecord.deletion(record)) {
+            Buffers.view(data, recordOffset, recordLen); //view of a Record
+            if (RecordFlags.expired(data, maxAge) && !RecordFlags.deletion(data)) {
                 continue;
             }
 
-            int valueRegionSize = blockRecords.position();
-            int valueSize = Record2.VALUE_LEN.get(record);
-            int valueOverhead = Block2.Record.valueOverhead(valueSize);
-
-            //not enough space in the block, compress and write
-            if (block.remaining() < valueRegionSize + keyOverhead + valueOverhead) {
-                writeBlock(writer, codec, block, blockRecords, dst, blockEntries, first);
-
-                //reset state
-                blockEntries = 0;
-                first = null;
-
-                //clear buffers
-                block.clear();
-                blockRecords.clear();
-                dst.clear();
-                Buffers.offsetPosition(block, Block2.HEADER_SIZE);
+            int keySize = Record.KEY_LEN.get(data);
+            if (keySize != this.keySize) {
+                throw new RuntimeException("Invalid key size");
             }
 
+            int validate = Record.validate(data);
 
-            int offset = blockRecords.position();
+            int entryOverhead = Block.blockEntryOverhead(keySize, recordLen);
+            if (computedSize + entryOverhead <= maxBlockDataSize) {
+                Buffers.copy(data, blockRecords);
+                firstKey = firstKey == null ? copyKey(data) : firstKey;
+                computedSize += entryOverhead;
+                continue;
+            }
 
-            //BLOCK DATA
-            Block2.Record.fromRecord(record, blockRecords);
+            blockRecords.flip();
+            computedSize = 0;
+            if (firstKey == null) {
+                //should never happen
+                throw new RuntimeException("Key must not be null");
+            }
 
-            //KEYS_REGION
-            int keyOffset = Record2.KEY.offset(record);
-            int keySize = Record2.KEY.len(record);
-            Buffers.copy(record, keyOffset, keySize, block);
-            block.putInt(offset);
+            //compress and write
+            inserted += write(writer, codec, block, blockRecords, dst, firstKey, keySize);
 
-            first = first == null ? record : first;
-            blockEntries++;
-            inserted++;
+            blockRecords.clear();
+            block.clear();
+            dst.clear();
+
+            //copy this item to the block
+            Buffers.copy(data, recordOffset, recordLen, blockRecords);
+            firstKey = copyKey(data);
+            computedSize += entryOverhead;
+
         }
-        writeBlock(writer, codec, block, blockRecords, dst, blockEntries, first);
+        //compress and write
+        if (blockRecords.position() > 0) {
+            blockRecords.flip();
+            inserted += write(writer, codec, block, blockRecords, dst, firstKey, keySize);
+        }
 
+        assert inserted == table.size();
 
-        table.clear(); // TODO remove
+        // TODO remove
+        table.clear();
         data.clear();
         return inserted;
     }
 
-    private void writeBlock(Consumer<ByteBuffer> writer, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst, int blockEntries, ByteBuffer firstRecord) {
-        blockRecords.flip();
-        int uncompressedSize = blockRecords.remaining();
-
-        if (block.remaining() < uncompressedSize) {
-            throw new IllegalStateException("Not enough space block space");
-        }
-
-        Block2.compress(blockRecords, block, codec);
-        block.flip();
-
-        Block2.writeHeader(block, uncompressedSize, blockEntries);
-
-        tmpKey.clear();
-        Record2.KEY.copyTo(firstRecord, tmpKey);
-        tmpKey.flip();
-        Record2.create(tmpKey, block, dst);
-
-
+    private int write(Consumer<ByteBuffer> writer, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst, ByteBuffer firstKey, int keySize2) {
+        int entries = Block.create(blockRecords, block, keySize2, codec);
+        Record.create(firstKey, block, dst);
         dst.flip();
-
         writer.accept(dst);
+        return entries;
     }
+
+    private ByteBuffer copyKey(ByteBuffer record) {
+        Record.KEY.copyTo(record, tmpKey);
+        tmpKey.flip();
+        return tmpKey;
+    }
+
+
 }

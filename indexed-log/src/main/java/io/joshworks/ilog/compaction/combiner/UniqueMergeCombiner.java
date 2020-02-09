@@ -3,7 +3,7 @@ package io.joshworks.ilog.compaction.combiner;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatchIterator;
 import io.joshworks.ilog.index.KeyComparator;
 
@@ -111,7 +111,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
     }
 
     private int compare(ByteBuffer r1, ByteBuffer r2) {
-        return Record2.compareRecordKeys(r1, r2, comparator);
+        return Record.compareRecordKeys(r1, r2, comparator);
     }
 
     /**

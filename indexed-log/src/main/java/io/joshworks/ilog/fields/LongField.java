@@ -4,10 +4,20 @@ import java.nio.ByteBuffer;
 
 import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
-public class LongField extends Field{
+public class LongField extends Field {
+
+    private static final Mapper LEN_MAPPER = b -> Long.BYTES;
 
     public LongField(int offset) {
-        super(b -> offset, b -> Long.BYTES);
+        super(b -> offset, LEN_MAPPER);
+    }
+
+    private LongField(Mapper offset, Mapper len) {
+        super(offset, len);
+    }
+
+    public static LongField after(Field field) {
+        return new LongField(b -> afterOf(field, b), LEN_MAPPER);
     }
 
     public int set(ByteBuffer b, long val) {

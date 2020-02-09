@@ -102,14 +102,14 @@ public class IndexedSegment {
         }
 
         int expectedKeySize = index.keySize();
-        int actualKeySize = Record2.KEY.len(record);
+        int actualKeySize = Record.KEY.len(record);
         if (actualKeySize != expectedKeySize) { // validates the key BEFORE adding to log
             throw new IllegalArgumentException("Invalid key size: Expected " + expectedKeySize + ", got " + actualKeySize);
         }
 
         try {
-            Record2.validate(record);
-            int written = Record2.writeTo(record, channel);
+            Record.validate(record);
+            int written = Record.writeTo(record, channel);
             Buffers.offsetPosition(record, -written);
             if (written <= 0) {
                 throw new RuntimeIOException("Failed to write entry");

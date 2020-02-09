@@ -31,7 +31,7 @@ public class AppTest {
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
             keyBuff.clear().putLong(i).flip();
-            Record2.KEY.set(record, keyBuff);
+            Record.KEY.set(record, keyBuff);
             lsm.append(record);
             record.limit(limit).position(0);
             if (i % 1000000 == 0) {
@@ -58,7 +58,7 @@ public class AppTest {
         vs.writeTo(value, vb);
         vb.flip();
 
-        Record2.create(kb, vb, dst);
+        Record.create(kb, vb, dst);
         dst.flip();
         return dst;
     }

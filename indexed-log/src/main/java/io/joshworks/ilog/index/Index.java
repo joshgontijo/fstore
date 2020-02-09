@@ -1,7 +1,7 @@
 package io.joshworks.ilog.index;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.Record;
 import io.joshworks.ilog.lsm.BufferBinarySearch;
 
 import java.io.Closeable;
@@ -62,7 +62,7 @@ public class Index implements Closeable {
             throw new RuntimeException("Index is read only");
         }
 
-        int keySize = Record2.KEY.len(record);
+        int keySize = Record.KEY.len(record);
         if (keySize != comparator.keySize()) {
             throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + keySize);
         }
@@ -89,8 +89,8 @@ public class Index implements Closeable {
     }
 
     private void doWrite(int keySize, long position, ByteBuffer record, ByteBuffer dst) {
-        int rsize = Record2.sizeOf(record);
-        int written = Record2.KEY.copyTo(record, dst);
+        int rsize = Record.sizeOf(record);
+        int written = Record.KEY.copyTo(record, dst);
         if (written != keySize) {
             Buffers.offsetPosition(dst, -written);
             throw new IllegalStateException("Expected " + keySize + " bytes written to index, actual: " + written);

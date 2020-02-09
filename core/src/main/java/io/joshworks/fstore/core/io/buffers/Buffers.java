@@ -70,6 +70,9 @@ public class Buffers {
         return i;
     }
 
+    /**
+     * Copies data from the src into the dst, without modifying any of the buffers positions
+     */
     public static int copy(ByteBuffer src, int srcOffset, int srcCount, ByteBuffer dst, int dstOffset) {
         if (srcCount == 0) {
             return 0;

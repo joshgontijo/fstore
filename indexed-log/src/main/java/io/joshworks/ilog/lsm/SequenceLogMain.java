@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.ilog.FlushMode;
-import io.joshworks.ilog.Record2;
+import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
 
 import java.io.File;
@@ -47,9 +47,9 @@ public class SequenceLogMain {
             }
 
             while (RecordBatch.hasNext(buffer)) {
-                int size = Record2.validate(buffer);
+                int size = Record.validate(buffer);
                 kb.clear();
-                Record2.KEY.copyTo(buffer, kb);
+                Record.KEY.copyTo(buffer, kb);
                 kb.flip();
                 Buffers.offsetPosition(buffer, size);
 
