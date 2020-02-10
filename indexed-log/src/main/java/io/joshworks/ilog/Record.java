@@ -67,11 +67,11 @@ public class Record {
         int checksum = ByteBufferChecksum.crc32(value);
 
         int recLen = 0;
-        recLen += KEY_LEN.set(dst, keyLen);
-        recLen += CHECKSUM.set(dst, checksum);
         recLen += VALUE_LEN.set(dst, valueLen);
-        recLen += ATTRIBUTE.set(dst, attribute(attr));
+        recLen += CHECKSUM.set(dst, checksum);
         recLen += TIMESTAMP.set(dst, System.currentTimeMillis());
+        recLen += ATTRIBUTE.set(dst, attribute(attr));
+        recLen += KEY_LEN.set(dst, keyLen);
         recLen += KEY.set(dst, key);
         recLen += VALUE.set(dst, value);
 
@@ -80,14 +80,25 @@ public class Record {
     }
 
     public static int copyTo(ByteBuffer record, ByteBuffer dst) {
+
+        assert Record.isValid(record);
+
+        int ppos = dst.position();
+
         int recLen = 0;
-        recLen += KEY_LEN.copyTo(record, dst);
-        recLen += CHECKSUM.copyTo(record, dst);
         recLen += VALUE_LEN.copyTo(record, dst);
-        recLen += ATTRIBUTE.copyTo(record, dst);
+        recLen += CHECKSUM.copyTo(record, dst);
         recLen += TIMESTAMP.copyTo(record, dst);
+        recLen += ATTRIBUTE.copyTo(record, dst);
+        recLen += KEY_LEN.copyTo(record, dst);
         recLen += KEY.copyTo(record, dst);
         recLen += VALUE.copyTo(record, dst);
+
+        int recordEnd = dst.position();
+
+        dst.position(ppos);
+        assert Record.isValid(dst);
+        dst.position(recordEnd);
 
         return recLen;
     }
