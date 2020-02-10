@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
+import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
+
 /**
  * VALUE_LEN (4 BYTES)
  * CHECKSUM (4 BYTES)
@@ -120,7 +122,7 @@ public class Record {
         int valOffset = VALUE.offset(record);
         int checksum = CHECKSUM.get(record);
 
-        int absValPos = Buffers.relativePosition(record, valOffset);
+        int absValPos = relativePosition(record, valOffset);
         int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
         return computedChecksum == checksum;
     }
@@ -142,7 +144,7 @@ public class Record {
         int valOffset = VALUE.offset(record);
         int checksum = CHECKSUM.get(record);
 
-        int absValPos = Buffers.relativePosition(record, valOffset);
+        int absValPos = relativePosition(record, valOffset);
         int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
         if (computedChecksum != checksum) {
             throw new ChecksumException();
@@ -171,10 +173,14 @@ public class Record {
     }
 
     public static String toString(ByteBuffer buffer) {
+        int keySize = KEY_LEN.get(buffer);
+        String key = keySize <= Long.BYTES ? "" + buffer.getLong(relativePosition(buffer, KEY.offset(buffer))) : "[BINARY]";
+
         return "Record{" +
                 " recordSize=" + sizeOf(buffer) +
+                " key=" + key +
                 ", checksum=" + CHECKSUM.get(buffer) +
-                ", keySize=" + KEY_LEN.get(buffer) +
+                ", keySize=" + keySize +
                 ", dataLength=" + VALUE_LEN.get(buffer) +
                 ", timestamp=" + TIMESTAMP.get(buffer) +
                 ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +

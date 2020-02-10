@@ -138,6 +138,9 @@ public class Lsm {
             int blockStart = Record.VALUE.offset(record);
             int blockSize = Record.VALUE.len(record);
             Buffers.view(record, blockStart, blockSize); //view of block
+
+            System.out.println(Block.printKeys(record));
+
             return Block.read(record, key, decompressedTmp, dst, func, comparator, codec);
         } finally {
             blockRecordsBufferPool.free(decompressedTmp);

@@ -124,7 +124,7 @@ class MemTable {
                 throw new RuntimeException("Invalid key size");
             }
 
-            int validate = Record.validate(data);
+            assert Record.isValid(data);
 
             int entryOverhead = Block.blockEntryOverhead(keySize, recordLen);
             if (computedSize + entryOverhead <= maxBlockDataSize) {
@@ -172,6 +172,9 @@ class MemTable {
         int entries = Block.create(blockRecords, block, keySize2, codec);
         Record.create(firstKey, block, dst);
         dst.flip();
+
+        assert Record.isValid(dst);
+
         writer.accept(dst);
         return entries;
     }

@@ -12,7 +12,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -63,19 +62,11 @@ public class LsmTest {
             var dst = Buffers.allocate(1024, false);
             int rsize = lsm.get(keyOf(i), dst);
             dst.flip();
-            assertTrue(rsize > 0);
+            assertTrue("Failed on " + i, rsize > 0);
+            assertTrue("Failed on " + i, Record.isValid(dst));
 
-            int keySize = dst.getInt();
-            long key = dst.getLong();
-            int valLen = dst.getInt();
-            long timestamp = dst.getLong();
-            byte attr = dst.get();
+            System.out.println(Record.toString(dst));
 
-            var bval = Buffers.allocate(valLen, false);
-            bval.put(dst);
-            String val = StandardCharsets.UTF_8.decode(bval.flip()).toString();
-
-            assertEquals(i, key);
         }
     }
 

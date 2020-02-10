@@ -8,7 +8,6 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class BlockTest {
 
@@ -26,7 +25,6 @@ public class BlockTest {
 
         blockRecords.flip();
         int entries = Block.create(blockRecords, block, Long.BYTES, codec);
-        assertTrue(Block.isValid(block));
 
         assertEquals(items, entries);
 
