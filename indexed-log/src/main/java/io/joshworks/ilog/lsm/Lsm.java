@@ -32,8 +32,10 @@ public class Lsm {
     private final long maxAge;
 
     private final ByteBuffer writeBlock;
-    private final ByteBuffer blockRecordRegionBuffer;
+    private final ByteBuffer blockRecords;
     private final ByteBuffer recordBuffer;
+
+    private final HeapBlock heapBlock;
 
 
     Lsm(File root,
@@ -52,11 +54,13 @@ public class Lsm {
         this.maxAge = maxAge;
         this.codec = codec;
 
+        this.heapBlock = new HeapBlock(comparator.keySize(), blockSize);
+
 //        int maxRecordSize = Record2.HEADER_BYTES + comparator.keySize() + blockSize;
         int maxRecordSize = 36 + comparator.keySize() + blockSize;
 
         this.writeBlock = Buffers.allocate(blockSize, false);
-        this.blockRecordRegionBuffer = Buffers.allocate(blockSize, false);
+        this.blockRecords = Buffers.allocate(blockSize, false);
         this.recordBuffer = Buffers.allocate(maxRecordSize, false);
 
         this.blockRecordsBufferPool = BufferPool.localCache(blockSize, false);
@@ -118,7 +122,7 @@ public class Lsm {
                     int read = ssTable.find(key, record, IndexFunctions.FLOOR);
                     if (read > 0) {
                         record.flip();
-                        int entrySize = readFromBlock(key, record, dst, IndexFunctions.EQUALS);
+                        int entrySize = readFromBlock(key, heapBlock, record, dst, IndexFunctions.EQUALS);
                         if (entrySize <= 0) {// not found in the block, continue
                             continue;
                         }
@@ -132,13 +136,24 @@ public class Lsm {
         });
     }
 
-    private int readFromBlock(ByteBuffer key, ByteBuffer record, ByteBuffer dst, IndexFunctions func) {
+    private int readFromBlock(ByteBuffer key, HeapBlock heapBlock, ByteBuffer record, ByteBuffer dst, IndexFunctions func) {
         ByteBuffer decompressedTmp = blockRecordsBufferPool.allocate();
         try {
             int blockStart = Record.VALUE.offset(record);
             int blockSize = Record.VALUE.len(record);
-            Buffers.view(record, blockStart, blockSize); //view of block
-            return Block.read(record, key, decompressedTmp, dst, func, comparator, codec);
+            heapBlock.readFrom(record, blockStart);
+
+            int offset = heapBlock.binarySearch(key, comparator, func);
+            if (offset < 0) {
+                return 0;
+            }
+            heapBlock.decompress(decompressedTmp, codec);
+            decompressedTmp.flip();
+
+            assert offset < decompressedTmp.remaining();
+
+            decompressedTmp.position(offset);
+            return Record.copyTo(decompressedTmp, dst);
         } finally {
             blockRecordsBufferPool.free(decompressedTmp);
         }
@@ -146,9 +161,9 @@ public class Lsm {
 
     synchronized void flush() {
         writeBlock.clear();
-        blockRecordRegionBuffer.clear();
+        blockRecords.clear();
         recordBuffer.clear();
-        long entries = memTable.writeTo(ssTables::append, maxAge, codec, writeBlock, blockRecordRegionBuffer, recordBuffer);
+        long entries = memTable.writeTo(ssTables::append, maxAge, codec,heapBlock, writeBlock, blockRecords, recordBuffer);
         if (entries > 0) {
             ssTables.roll();
         }

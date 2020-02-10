@@ -12,19 +12,19 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class LsmTest {
 
+    public static final KeyComparator COMPARATOR = KeyComparator.LONG;
     private Lsm lsm;
     private static final int MEM_TABLE_SIZE = 500;
 
     @Before
     public void setUp() {
-        lsm = Lsm.create(TestUtils.testFolder(), KeyComparator.LONG)
+        lsm = Lsm.create(TestUtils.testFolder(), COMPARATOR)
                 .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(10), false)
                 .codec(new SnappyCodec())
                 .open();
@@ -61,21 +61,15 @@ public class LsmTest {
 
         for (int i = 0; i < items; i++) {
             var dst = Buffers.allocate(1024, false);
-            int rsize = lsm.get(keyOf(i), dst);
+            ByteBuffer key = keyOf(i);
+            int rsize = lsm.get(key, dst);
             dst.flip();
-            assertTrue(rsize > 0);
+            assertTrue("Failed on " + i, rsize > 0);
 
-            int keySize = dst.getInt();
-            long key = dst.getLong();
-            int valLen = dst.getInt();
-            long timestamp = dst.getLong();
-            byte attr = dst.get();
+            assertTrue("Failed on " + i, Record.isValid(dst));
 
-            var bval = Buffers.allocate(valLen, false);
-            bval.put(dst);
-            String val = StandardCharsets.UTF_8.decode(bval.flip()).toString();
-
-            assertEquals(i, key);
+            int compare = Record.compareToKey(dst, key, COMPARATOR);
+            assertEquals("Keys are not equals", 0, compare);
         }
     }
 

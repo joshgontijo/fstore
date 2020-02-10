@@ -99,16 +99,12 @@ class MemTable {
         }
     }
 
-    long writeTo(Consumer<ByteBuffer> writer, long maxAge, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst) {
+    long writeTo(Consumer<ByteBuffer> writer, long maxAge, Codec codec, HeapBlock block, ByteBuffer blockBuffer, ByteBuffer blockRecords, ByteBuffer dst) {
         if (table.isEmpty()) {
             return 0;
         }
 
-        int maxBlockDataSize = Block.maxCapacity(block);
-
         long inserted = 0;
-        ByteBuffer firstKey = null;
-        int computedSize = 0;
 
         for (Node node : table) {
             int recordOffset = node.offset();
@@ -120,44 +116,31 @@ class MemTable {
             }
 
             int keySize = Record.KEY_LEN.get(data);
-            if (keySize != this.keySize) {
-                throw new RuntimeException("Invalid key size");
+
+            int sizeOfRecord = Record.sizeOf(data);
+
+            assert keySize == this.keySize;
+            assert recordLen == sizeOfRecord;
+
+            if (blockRecords.remaining() < sizeOfRecord) {
+                //writeBLock
+                blockRecords.flip();
+                inserted += write(writer, codec, block, blockBuffer, blockRecords, dst);
+
+                //clear buffers
+                blockRecords.clear();
+                blockBuffer.clear();
+                dst.clear();
             }
-
-            int validate = Record.validate(data);
-
-            int entryOverhead = Block.blockEntryOverhead(keySize, recordLen);
-            if (computedSize + entryOverhead <= maxBlockDataSize) {
-                Buffers.copy(data, blockRecords);
-                firstKey = firstKey == null ? copyKey(data) : firstKey;
-                computedSize += entryOverhead;
-                continue;
-            }
-
-            blockRecords.flip();
-            computedSize = 0;
-            if (firstKey == null) {
-                //should never happen
-                throw new RuntimeException("Key must not be null");
-            }
-
-            //compress and write
-            inserted += write(writer, codec, block, blockRecords, dst, firstKey, keySize);
-
-            blockRecords.clear();
-            block.clear();
-            dst.clear();
-
-            //copy this item to the block
-            Buffers.copy(data, recordOffset, recordLen, blockRecords);
-            firstKey = copyKey(data);
-            computedSize += entryOverhead;
-
+            assert Record.isValid(data);
+            int copied = Buffers.copy(data, recordOffset, recordLen, blockRecords);
+            assert copied == sizeOfRecord;
         }
         //compress and write
         if (blockRecords.position() > 0) {
+            //writeBLock
             blockRecords.flip();
-            inserted += write(writer, codec, block, blockRecords, dst, firstKey, keySize);
+            inserted += write(writer, codec, block, blockBuffer, blockRecords, dst);
         }
 
         assert inserted == table.size();
@@ -168,12 +151,16 @@ class MemTable {
         return inserted;
     }
 
-    private int write(Consumer<ByteBuffer> writer, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst, ByteBuffer firstKey, int keySize2) {
-        int entries = Block.create(blockRecords, block, keySize2, codec);
-        Record.create(firstKey, block, dst);
+    private int write(Consumer<ByteBuffer> writer, Codec codec, HeapBlock block, ByteBuffer blockBuffer, ByteBuffer blockRecords, ByteBuffer dst) {
+        HeapBlock.create(block, blockRecords, codec);
+        block.copyTo(blockBuffer);
+        blockBuffer.flip();
+
+        Record.create(block.first(), blockBuffer, dst);
         dst.flip();
+
         writer.accept(dst);
-        return entries;
+        return block.entries();
     }
 
     private ByteBuffer copyKey(ByteBuffer record) {
