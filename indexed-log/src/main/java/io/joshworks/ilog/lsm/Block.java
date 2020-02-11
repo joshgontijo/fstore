@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
+import io.joshworks.ilog.fields.ArrayField;
 import io.joshworks.ilog.fields.BlobField;
 import io.joshworks.ilog.fields.IntField;
 import io.joshworks.ilog.index.IndexFunctions;
@@ -16,12 +17,18 @@ import java.nio.ByteBuffer;
  * -------- HEADER ---------
  * UNCOMPRESSED_SIZE (4bytes)
  * COMPRESSED_SIZE (4bytes)
- * ENTRY_COUNT (4bytes)
- * KEY_SIZE (4bytes)
  * <p>
- * ------- KEYS REGION -----
- * KEY_ENTRY {@link Key}
- * KEY_ENTRY {@link Key}
+ * ------- OFFSETS REGION (ARRAY FIELD) -----
+ * ENTRY_COUNT (4bytes)
+ * ENTRY_SIZE (4bytes)
+ * OFFSET_1 (4 bytes)
+ * OFFSET_2 (4 bytes)
+ * ...
+ * ------- KEYS REGION (ARRAY FIELD) -----
+ * ENTRY_COUNT (4bytes)
+ * ENTRY_SIZE (4bytes)
+ * KEY_ENTRY (N bytes)
+ * KEY_ENTRY (N bytes)
  * ...
  * -------- COMPRESSED VALUES REGION --------
  * RECORD_1_COMPRESSED {@link BlockRecord}
@@ -35,8 +42,10 @@ public class Block {
     public static final IntField ENTRY_COUNT = IntField.after(COMPRESSED_SIZE);
     public static final IntField KEY_SIZE = IntField.after(ENTRY_COUNT);
 
-    public static final BlobField KEY_REGION = BlobField.after(KEY_SIZE, Block::keyRegionSize);
-    public static final BlobField COMPRESSED_REGION = BlobField.after(KEY_REGION, COMPRESSED_SIZE::get);
+    public static final ArrayField OFFSETS = ArrayField.after(KEY_SIZE, Integer.BYTES);
+    //    public static final ArrayField KEY_REGION = ArrayField.after(OFFSETS, Integer.BYTES);
+    public static final ArrayField KEYS = ArrayField.after(OFFSETS, Integer.BYTES);
+    public static final BlobField COMPRESSED_REGION = BlobField.after(KEYS, COMPRESSED_SIZE::get);
 
     public static final int HEADER_SIZE = Integer.BYTES * 5;
 
@@ -69,16 +78,14 @@ public class Block {
 
         int uncompressedSize = blockRecords.remaining();
 
-        int keyOffset = KEY_REGION.offset(block);
-        block.position(keyOffset);
-        int entries = writeKeys(block, blockRecords, keySize);
+        int offsets = writeOffsets(block, blockRecords);
+        int entries = writeKeys(block, blockRecords);
 
         if (block.remaining() < blockRecords.remaining()) {
             //this is just to guarantee that when using no compression, data will fit
             //most of the time when compressing data the compressed data size will be less than the block remaining bytes
             throw new IllegalStateException("Block records exceed remaining block size");
         }
-
 
         int compressedStart = block.position();
         codec.compress(blockRecords, block);
@@ -87,33 +94,34 @@ public class Block {
         block.flip();
         Block.UNCOMPRESSED_SIZE.set(block, uncompressedSize);
         Block.COMPRESSED_SIZE.set(block, compressedSize);
-        Block.ENTRY_COUNT.set(block, entries);
-        Block.KEY_SIZE.set(block, keySize);
 
         return entries;
     }
 
 
-    private static int writeKeys(ByteBuffer block, ByteBuffer blockRecords, int expectedKeySize) {
+    private static int writeKeys(ByteBuffer block, ByteBuffer blockRecords) {
+        int ppos = blockRecords.position();
+        int plim = blockRecords.limit();
+        int entries = 0;
+        int i = 0;
+        while (RecordBatch.hasNext(blockRecords)) {
+            KEYS.set(block, Record.KEY, blockRecords, i++);
+            RecordBatch.advance(blockRecords);
+            entries++;
+        }
+        blockRecords.limit(plim).position(ppos);
+        return entries;
+    }
+
+    private static int writeOffsets(ByteBuffer block, ByteBuffer blockRecords) {
         int ppos = blockRecords.position();
         int plim = blockRecords.limit();
 
-        int bppos = block.position();
-
         int entries = 0;
+        int i = 0;
         while (RecordBatch.hasNext(blockRecords)) {
-            int offset = blockRecords.position();
-            int koff = Record.KEY.relativeOffset(blockRecords);
-            int klen = Record.KEY.len(blockRecords);
-            if (klen != expectedKeySize) {
-                blockRecords.limit(plim).position(ppos);
-                block.position(bppos);
-                throw new IllegalStateException("Expected key of size " + expectedKeySize + ", got " + klen);
-            }
-
-            Buffers.copy(blockRecords, koff, klen, block); //key
-            block.putInt(offset); //offset
-
+//            OFFSETS.set(block, Record.KEY, blockRecords.position(), i++);
+            OFFSETS.set(block, Record.KEY, null, i++);
             RecordBatch.advance(blockRecords);
             entries++;
         }
@@ -152,13 +160,6 @@ public class Block {
 
         int recordOffset = Key.readOffset(block, keyIdx);
 
-        int uncompressedSize = Block.UNCOMPRESSED_SIZE.get(block);
-        int entries = Block.ENTRY_COUNT.get(block);
-        int offset = Block.COMPRESSED_REGION.offset(block);
-        int regionSize = Block.COMPRESSED_REGION.len(block);
-        int keyRegionOffset = Block.KEY_REGION.offset(block);
-        int keyRegionLen = Block.KEY_REGION.len(block);
-
         Block.decompress(block, decompressedTmp, codec);
         decompressedTmp.flip();
 
@@ -174,7 +175,7 @@ public class Block {
         int recordLen = Record.sizeOf(decompressedTmp);
         decompressedTmp.position(recordOffset).limit(recordOffset + recordLen);
 
-        if(!Record.isValid(decompressedTmp)) {
+        if (!Record.isValid(decompressedTmp)) {
             System.out.println();
         }
 
@@ -183,8 +184,8 @@ public class Block {
     }
 
     private static int binarySearch(ByteBuffer block, ByteBuffer key, IndexFunctions func, KeyComparator comparator) {
-        int keyRegionStart = KEY_REGION.relativeOffset(block);
-        int keyRegionSize = KEY_REGION.len(block);
+        int keyRegionStart = KEYS.relativeOffset(block);
+        int keyRegionSize = KEYS.len(block);
         int entryJump = Key.sizeOf(block);
 
         int idx = BufferBinarySearch.binarySearch(key, block, keyRegionStart, keyRegionSize, entryJump, comparator);
@@ -193,7 +194,7 @@ public class Block {
 
     public static String printKeys(ByteBuffer block) {
         int entries = ENTRY_COUNT.get(block);
-        int keyRegionStart = KEY_REGION.relativeOffset(block);
+        int keyRegionStart = KEYS.relativeOffset(block);
         int entryJump = Key.sizeOf(block);
         int keySize = Block.KEY_SIZE.get(block);
 
@@ -239,7 +240,7 @@ public class Block {
         }
 
         private static int readOffset(ByteBuffer block, int keyIdx) {
-            int baseOffset = Block.KEY_REGION.relativeOffset(block);
+            int baseOffset = Block.KEYS.relativeOffset(block);
             int keySize = Block.KEY_SIZE.get(block);
             int relativeKeyOffset = sizeOf(block) * keyIdx;
             return block.getInt(baseOffset + relativeKeyOffset + keySize);

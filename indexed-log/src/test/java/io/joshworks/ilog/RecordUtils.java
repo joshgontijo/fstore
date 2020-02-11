@@ -30,15 +30,15 @@ public class RecordUtils {
     }
 
     public static long readKey(ByteBuffer record) {
-        var dst = Buffers.allocate(Record.KEY_LEN.get(record), false);
-        Record.KEY_LEN.copyTo(record, dst);
+        var dst = Buffers.allocate(Record.KEY.valueLen(record), false);
+        Record.KEY.copyValueTo(record, dst);
         dst.flip();
         return dst.getLong();
     }
 
     public static String readValue(ByteBuffer record) {
-        var dst = Buffers.allocate(Record.VALUE_LEN.get(record), false);
-        Record.VALUE.copyTo(record, dst);
+        var dst = Buffers.allocate(Record.VALUE.valueLen(record), false);
+        Record.VALUE.copyValueTo(record, dst);
         dst.flip();
         return StandardCharsets.UTF_8.decode(dst).toString();
     }

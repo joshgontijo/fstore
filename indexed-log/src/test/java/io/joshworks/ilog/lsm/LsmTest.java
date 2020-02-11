@@ -18,12 +18,13 @@ import static org.junit.Assert.assertTrue;
 
 public class LsmTest {
 
+    public static final KeyComparator COMPARATOR = KeyComparator.LONG;
     private Lsm lsm;
     private static final int MEM_TABLE_SIZE = 500;
 
     @Before
     public void setUp() {
-        lsm = Lsm.create(TestUtils.testFolder(), KeyComparator.LONG)
+        lsm = Lsm.create(TestUtils.testFolder(), COMPARATOR)
                 .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(10), false)
                 .codec(new SnappyCodec())
                 .open();
@@ -60,10 +61,12 @@ public class LsmTest {
 
         for (int i = 0; i < items; i++) {
             var dst = Buffers.allocate(1024, false);
-            int rsize = lsm.get(keyOf(i), dst);
+            ByteBuffer key = keyOf(i);
+            int rsize = lsm.get(key, dst);
             dst.flip();
             assertTrue("Failed on " + i, rsize > 0);
             assertTrue("Failed on " + i, Record.isValid(dst));
+            assertEquals(0, Record.compareToKey(dst, key, COMPARATOR));
 
             System.out.println(Record.toString(dst));
 

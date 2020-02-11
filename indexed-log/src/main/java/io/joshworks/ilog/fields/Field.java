@@ -35,8 +35,7 @@ public class Field {
     }
 
     public int copyTo(ByteBuffer thisFieldBuffer, ByteBuffer value) {
-        int _offset = offset.apply(thisFieldBuffer);
-        _offset = relativePosition(thisFieldBuffer, _offset);
+        int _offset = pos(thisFieldBuffer);
         int _len = len.apply(thisFieldBuffer);
         if (value.remaining() < _len) {
             throw new IllegalStateException("Expected at lease " + _len + " from the value buffer");
@@ -50,17 +49,14 @@ public class Field {
         if (thisLen != valueLen) {
             throw new IllegalArgumentException("Field length mismatch");
         }
-
-        int thisBufferOffset = offset.apply(thisFieldBuffer);
-        thisBufferOffset = relativePosition(thisFieldBuffer, thisBufferOffset);
+        int thisBufferOffset = pos(thisFieldBuffer);
 
         int valueOffset = targetField.offset.apply(value);
         return Buffers.copy(thisFieldBuffer, thisBufferOffset, thisLen, value, valueOffset);
     }
 
     public int copyFrom(ByteBuffer thisFieldBuffer, ByteBuffer value) {
-        int _offset = offset.apply(thisFieldBuffer);
-        _offset = relativePosition(thisFieldBuffer, _offset);
+        int _offset = pos(thisFieldBuffer);
         int valueLen = value.remaining();
         if (thisFieldBuffer.limit() - _offset < valueLen) {
             throw new IllegalStateException("Expected at least " + valueLen + " from the value buffer");
@@ -76,11 +72,16 @@ public class Field {
             throw new IllegalArgumentException("Field length mismatch");
         }
 
-        int thisBufferOffset = offset.apply(thisFieldBuffer);
-        thisBufferOffset = relativePosition(thisFieldBuffer, thisBufferOffset);
+        int thisBufferOffset = pos(thisFieldBuffer);
 
         int valueOffset = srcField.offset.apply(value);
         return Buffers.copy(value, valueOffset, valueLen, thisFieldBuffer, thisBufferOffset);
+    }
+
+    protected int pos(ByteBuffer thisFieldBuffer) {
+        int _offset = offset.apply(thisFieldBuffer);
+        _offset = relativePosition(thisFieldBuffer, _offset);
+        return _offset;
     }
 
 }

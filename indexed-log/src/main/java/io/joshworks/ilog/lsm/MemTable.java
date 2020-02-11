@@ -119,7 +119,7 @@ class MemTable {
                 continue;
             }
 
-            int keySize = Record.KEY_LEN.get(data);
+            int keySize = Record.KEY.len(data);
             if (keySize != this.keySize) {
                 throw new RuntimeException("Invalid key size");
             }

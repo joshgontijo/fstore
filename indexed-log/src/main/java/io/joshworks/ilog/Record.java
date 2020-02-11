@@ -3,10 +3,10 @@ package io.joshworks.ilog;
 import io.joshworks.fstore.core.io.ChecksumException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
-import io.joshworks.ilog.fields.BlobField;
 import io.joshworks.ilog.fields.ByteField;
 import io.joshworks.ilog.fields.IntField;
 import io.joshworks.ilog.fields.LongField;
+import io.joshworks.ilog.fields.VarLenField;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.io.IOException;
@@ -16,26 +16,25 @@ import java.nio.channels.WritableByteChannel;
 import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
 /**
- * VALUE_LEN (4 BYTES)
  * CHECKSUM (4 BYTES)
  * TIMESTAMP (8 BYTES)
  * ATTR (1 BYTES)
- * KEY_LEN (4 BYTES)
  * <p>
+ * KEY_LEN (4 BYTES)
  * [KEY] (N BYTES)
+ * <p>
  * [VALUE] (N BYTES)
+ * VALUE_LEN (4 BYTES)
  */
 public class Record {
 
     public static final int HEADER_BYTES = (Integer.BYTES * 3) + Long.BYTES + Byte.BYTES;
 
-    public static final IntField VALUE_LEN = new IntField(0);
-    public static final IntField CHECKSUM = new IntField(4);
-    public static final LongField TIMESTAMP = new LongField(8);
-    public static final ByteField ATTRIBUTE = new ByteField(16);
-    public static final IntField KEY_LEN = new IntField(17);
-    public static final BlobField KEY = new BlobField(21, KEY_LEN::get);
-    public static final BlobField VALUE = BlobField.after(KEY, VALUE_LEN::get);
+    public static final IntField CHECKSUM = new IntField(0);
+    public static final LongField TIMESTAMP = LongField.after(CHECKSUM);
+    public static final ByteField ATTRIBUTE = ByteField.after(TIMESTAMP);
+    public static final VarLenField KEY = new VarLenField(21);
+    public static final VarLenField VALUE = VarLenField.after(KEY);
 
 
     public static boolean hasAttribute(ByteBuffer buffer, int attribute) {
@@ -55,8 +54,8 @@ public class Record {
     }
 
     public static int sizeOf(ByteBuffer record) {
-        int valSize = VALUE_LEN.get(record);
-        int keySize = KEY_LEN.get(record);
+        int valSize = VALUE.len(record);
+        int keySize = KEY.len(record);
         if (keySize == 0 && valSize == 0) {
             return 0;
         }
@@ -69,11 +68,9 @@ public class Record {
         int checksum = ByteBufferChecksum.crc32(value);
 
         int recLen = 0;
-        recLen += VALUE_LEN.set(dst, valueLen);
         recLen += CHECKSUM.set(dst, checksum);
         recLen += TIMESTAMP.set(dst, System.currentTimeMillis());
         recLen += ATTRIBUTE.set(dst, attribute(attr));
-        recLen += KEY_LEN.set(dst, keyLen);
         recLen += KEY.set(dst, key);
         recLen += VALUE.set(dst, value);
 
@@ -88,11 +85,9 @@ public class Record {
         int ppos = dst.position();
 
         int recLen = 0;
-        recLen += VALUE_LEN.copyTo(record, dst);
         recLen += CHECKSUM.copyTo(record, dst);
         recLen += TIMESTAMP.copyTo(record, dst);
         recLen += ATTRIBUTE.copyTo(record, dst);
-        recLen += KEY_LEN.copyTo(record, dst);
         recLen += KEY.copyTo(record, dst);
         recLen += VALUE.copyTo(record, dst);
 
@@ -118,7 +113,7 @@ public class Record {
             return false;
         }
 
-        int valSize = VALUE_LEN.get(record);
+        int valSize = VALUE.len(record);
         int valOffset = VALUE.offset(record);
         int checksum = CHECKSUM.get(record);
 
@@ -140,7 +135,7 @@ public class Record {
             throw new RuntimeException("Invalid record");
         }
 
-        int valSize = VALUE_LEN.get(record);
+        int valSize = VALUE.len(record);
         int valOffset = VALUE.offset(record);
         int checksum = CHECKSUM.get(record);
 
@@ -173,7 +168,7 @@ public class Record {
     }
 
     public static String toString(ByteBuffer buffer) {
-        int keySize = KEY_LEN.get(buffer);
+        int keySize = KEY.len(buffer);
         String key = keySize <= Long.BYTES ? "" + buffer.getLong(relativePosition(buffer, KEY.offset(buffer))) : "[BINARY]";
 
         return "Record{" +
@@ -181,7 +176,7 @@ public class Record {
                 " key=" + key +
                 ", checksum=" + CHECKSUM.get(buffer) +
                 ", keySize=" + keySize +
-                ", dataLength=" + VALUE_LEN.get(buffer) +
+                ", dataLength=" + VALUE.len(buffer) +
                 ", timestamp=" + TIMESTAMP.get(buffer) +
                 ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +
                 '}';
