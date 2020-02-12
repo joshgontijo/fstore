@@ -15,8 +15,12 @@ public class ArrayField extends Field {
     static final int HEADER_BYTES = Integer.BYTES * 2;
     private final int elementSize;
 
+    public ArrayField(int offset, int elementSize) {
+        this(b -> offset, elementSize);
+    }
+
     public ArrayField(Mapper offset, int elementSize) {
-        super(offset, b -> totalArraySize(offset, b, elementSize));
+        super(offset);
         this.elementSize = elementSize;
     }
 
@@ -24,24 +28,29 @@ public class ArrayField extends Field {
         return new ArrayField(b -> afterOf(field, b), elementSize);
     }
 
-    private static int totalArraySize(Mapper offset, ByteBuffer fieldBuffer, int elementSize) {
-        int base = offset.apply(fieldBuffer);
-        int entryCount = fieldBuffer.getInt(base);
-        return entryCount * elementSize;
-    }
-
     @Override
     public int len(ByteBuffer b) {
-        return HEADER_BYTES + entries(b) * b.getInt(b.position());
+        return HEADER_BYTES + entries(b) * valueLen();
     }
 
     public int add(ByteBuffer fieldBuffer, ByteBuffer src, int idx) {
         int base = pos(fieldBuffer);
-        int entrySize = fieldBuffer.getInt(base);
-        int entryPos = base + (idx * (HEADER_BYTES + entrySize));
+        int entryPos = base + HEADER_BYTES + (idx * elementSize);
 
         assert fieldBuffer.capacity() - entryPos >= src.remaining();
         return Buffers.copy(src, src.position(), elementSize, fieldBuffer, entryPos);
+    }
+
+    public int add(ByteBuffer fieldBuffer, Field srcField, ByteBuffer src, int idx) {
+        int base = pos(fieldBuffer);
+        int entryPos = base + HEADER_BYTES + (idx * elementSize);
+
+        int srcOffset = srcField.offset(src);
+        int srcLen = srcField.offset(src);
+
+        assert srcLen == elementSize;
+
+        return Buffers.copy(src, srcOffset, elementSize, fieldBuffer, entryPos);
     }
 
     public int entries(ByteBuffer fieldBuffer) {
@@ -56,5 +65,7 @@ public class ArrayField extends Field {
     public int copyValueTo(ByteBuffer fieldBuffer, int idx, ByteBuffer dst) {
         int base = pos(fieldBuffer);
         int entryPos = base + HEADER_BYTES + (idx * elementSize);
+        return Buffers.copy(fieldBuffer, entryPos, elementSize, dst);
     }
+
 }

@@ -23,16 +23,20 @@ public class ArrayFieldTest {
         ArrayField field = new ArrayField(0, valueSize);
 
         for (int i = 0; i < items; i++) {
-            field.add(fieldBuffer, valueBuffer, Long.BYTES);
+            field.add(fieldBuffer, valueBuffer, i);
         }
-
 
         assertEquals(expectedFieldSize, field.len(fieldBuffer));
         assertEquals(valueSize, field.valueLen());
 
         ByteBuffer dst = Buffers.allocate(valueSize, false);
-        int read = field.copyValueTo(fieldBuffer, dst);
-        assertEquals(valueSize, read);
-        assertEquals(value, dst.flip().getLong());
+
+        for (int i = 0; i < items; i++) {
+            int read = field.copyValueTo(fieldBuffer, 0, dst);
+            assertEquals(valueSize, read);
+            assertEquals(value, dst.flip().getLong());
+            dst.clear();
+        }
+
     }
 }

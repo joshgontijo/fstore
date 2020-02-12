@@ -76,8 +76,7 @@ public abstract class Field {
 
     protected int pos(ByteBuffer thisFieldBuffer) {
         int _offset = offset.apply(thisFieldBuffer);
-        _offset = relativePosition(thisFieldBuffer, _offset);
-        return _offset;
+        return relativePosition(thisFieldBuffer, _offset);
     }
 
 }

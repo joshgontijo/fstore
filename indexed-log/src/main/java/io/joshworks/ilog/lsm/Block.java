@@ -105,7 +105,7 @@ public class Block {
         int entries = 0;
         int i = 0;
         while (RecordBatch.hasNext(blockRecords)) {
-            KEYS.set(block, Record.KEY, blockRecords, i++);
+            KEYS.add(block, Record.KEY, blockRecords, i++);
             RecordBatch.advance(blockRecords);
             entries++;
         }
@@ -120,8 +120,8 @@ public class Block {
         int entries = 0;
         int i = 0;
         while (RecordBatch.hasNext(blockRecords)) {
-//            OFFSETS.set(block, Record.KEY, blockRecords.position(), i++);
-            OFFSETS.set(block, Record.KEY, null, i++);
+            //FIXME COMMENTED OUT
+//            OFFSETS.add(block, Record.KEY, blockRecords.position(), i++);
             RecordBatch.advance(blockRecords);
             entries++;
         }
