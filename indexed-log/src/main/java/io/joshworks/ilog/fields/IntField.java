@@ -6,22 +6,20 @@ import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
 public class IntField extends Field {
 
-    private static final Mapper LEN_MAPPER = b -> Integer.BYTES;
-
     public IntField(IntField offsetSupplier) {
-        super(offsetSupplier::get, LEN_MAPPER);
+        super(offsetSupplier::get);
     }
 
     public IntField(int offset) {
-        super(bb -> offset, LEN_MAPPER);
+        super(bb -> offset);
     }
 
-    private IntField(Mapper offset, Mapper len) {
-        super(offset, len);
+    private IntField(Mapper offset) {
+        super(offset);
     }
 
     public static IntField after(Field field) {
-        return new IntField(b -> afterOf(field, b), LEN_MAPPER);
+        return new IntField(b -> afterOf(field, b));
     }
 
     public int set(ByteBuffer b, int val) {
@@ -33,5 +31,10 @@ public class IntField extends Field {
     public int get(ByteBuffer b) {
         int _offset = offset.apply(b);
         return b.getInt(relativePosition(b, _offset));
+    }
+
+    @Override
+    public int len(ByteBuffer b) {
+        return Integer.BYTES;
     }
 }

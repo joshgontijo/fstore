@@ -6,19 +6,17 @@ import java.nio.ByteBuffer;
 
 import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
-public class Field {
+public abstract class Field {
 
     protected final Mapper offset;
-    protected final Mapper len;
 
-    public Field(Mapper offset, Mapper len) {
+    public Field(Mapper offset) {
         this.offset = offset;
-        this.len = len;
     }
 
     protected static int afterOf(Field field, ByteBuffer b) {
         int _offset = field.offset.apply(b);
-        int _len = field.len.apply(b);
+        int _len = field.len(b);
         return _offset + _len;
     }
 
@@ -30,13 +28,11 @@ public class Field {
         return b.position() + offset.apply(b);
     }
 
-    public int len(ByteBuffer b) {
-        return len.apply(b);
-    }
+    public abstract int len(ByteBuffer b);
 
     public int copyTo(ByteBuffer thisFieldBuffer, ByteBuffer value) {
         int _offset = pos(thisFieldBuffer);
-        int _len = len.apply(thisFieldBuffer);
+        int _len = len(thisFieldBuffer);
         if (value.remaining() < _len) {
             throw new IllegalStateException("Expected at lease " + _len + " from the value buffer");
         }
@@ -44,8 +40,8 @@ public class Field {
     }
 
     public int copyTo(ByteBuffer thisFieldBuffer, ByteBuffer value, Field targetField) {
-        int thisLen = len.apply(thisFieldBuffer);
-        int valueLen = targetField.len.apply(value);
+        int thisLen = len(thisFieldBuffer);
+        int valueLen = targetField.len(value);
         if (thisLen != valueLen) {
             throw new IllegalArgumentException("Field length mismatch");
         }
@@ -66,8 +62,8 @@ public class Field {
     }
 
     public int copyFrom(ByteBuffer thisFieldBuffer, ByteBuffer value, Field srcField) {
-        int thisLen = len.apply(thisFieldBuffer);
-        int valueLen = srcField.len.apply(value);
+        int thisLen = len(thisFieldBuffer);
+        int valueLen = srcField.len(value);
         if (thisLen != valueLen) {
             throw new IllegalArgumentException("Field length mismatch");
         }

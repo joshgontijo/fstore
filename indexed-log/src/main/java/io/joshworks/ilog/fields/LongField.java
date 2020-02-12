@@ -6,18 +6,17 @@ import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
 public class LongField extends Field {
 
-    private static final Mapper LEN_MAPPER = b -> Long.BYTES;
 
     public LongField(int offset) {
-        super(b -> offset, LEN_MAPPER);
+        super(b -> offset);
     }
 
-    private LongField(Mapper offset, Mapper len) {
-        super(offset, len);
+    private LongField(Mapper offset) {
+        super(offset);
     }
 
     public static LongField after(Field field) {
-        return new LongField(b -> afterOf(field, b), LEN_MAPPER);
+        return new LongField(b -> afterOf(field, b));
     }
 
     public int set(ByteBuffer b, long val) {
@@ -29,5 +28,10 @@ public class LongField extends Field {
     public long get(ByteBuffer b) {
         int _offset = this.offset.apply(b);
         return b.getLong(relativePosition(b, _offset));
+    }
+
+    @Override
+    public int len(ByteBuffer b) {
+        return Long.BYTES;
     }
 }

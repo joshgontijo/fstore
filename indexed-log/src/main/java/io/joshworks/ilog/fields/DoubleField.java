@@ -6,18 +6,16 @@ import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
 public class DoubleField extends Field {
 
-    private static final Mapper LEN_MAPPER = b -> Double.BYTES;
-
     public DoubleField(int offset) {
-        super(b -> offset, LEN_MAPPER);
+        super(b -> offset);
     }
 
-    private DoubleField(Mapper offset, Mapper len) {
-        super(offset, len);
+    private DoubleField(Mapper offset) {
+        super(offset);
     }
 
     public static DoubleField after(Field field) {
-        return new DoubleField(b -> afterOf(field, b), LEN_MAPPER);
+        return new DoubleField(b -> afterOf(field, b));
     }
 
     public double set(ByteBuffer b, float val) {
@@ -29,5 +27,10 @@ public class DoubleField extends Field {
     public double get(ByteBuffer b) {
         int _offset = this.offset.apply(b);
         return b.getDouble(relativePosition(b, _offset));
+    }
+
+    @Override
+    public int len(ByteBuffer b) {
+        return Double.BYTES;
     }
 }

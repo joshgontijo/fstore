@@ -16,20 +16,16 @@ public class VarLenField extends Field {
     }
 
     public VarLenField(Mapper offset) {
-        super(offset, b -> withHeader(offset, b));
+        super(offset);
     }
 
     public static VarLenField after(Field field) {
         return new VarLenField(b -> afterOf(field, b));
     }
 
-    private static int withHeader(Mapper offset, ByteBuffer b) {
-        return b.getInt(offset.apply(b));
-    }
-
     @Override
     public int len(ByteBuffer b) {
-        return HEADER_BYTES + super.len(b);
+        return HEADER_BYTES + b.getInt(b.position());
     }
 
     public int valueLen(ByteBuffer b) {

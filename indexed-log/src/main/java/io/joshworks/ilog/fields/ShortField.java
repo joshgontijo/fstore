@@ -6,18 +6,16 @@ import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
 public class ShortField extends Field {
 
-    private static final Mapper LEN_MAPPER = b -> Short.BYTES;
-
     public ShortField(int offset) {
-        super(b -> offset, LEN_MAPPER);
+        super(b -> offset);
     }
 
-    private ShortField(Mapper offset, Mapper len) {
-        super(offset, len);
+    private ShortField(Mapper offset) {
+        super(offset);
     }
 
     public static ShortField after(Field field) {
-        return new ShortField(b -> afterOf(field, b), LEN_MAPPER);
+        return new ShortField(b -> afterOf(field, b));
     }
 
     public int set(ByteBuffer b, short val) {
@@ -29,5 +27,10 @@ public class ShortField extends Field {
     public short get(ByteBuffer b) {
         int _offset = this.offset.apply(b);
         return b.getShort(relativePosition(b, _offset));
+    }
+
+    @Override
+    public int len(ByteBuffer b) {
+        return Short.BYTES;
     }
 }

@@ -4,8 +4,6 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
 
-import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
-
 /**
  * Array of fixed size fields
  * ENTRY_COUNT
@@ -15,62 +13,48 @@ import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 public class ArrayField extends Field {
 
     static final int HEADER_BYTES = Integer.BYTES * 2;
-    private final int fieldLength;
+    private final int elementSize;
 
-    //only fixed size can be used
-    private ArrayField(Mapper offset, Mapper len) {
-        super(offset, b -> computeArraySize(offset, b));
+    public ArrayField(Mapper offset, int elementSize) {
+        super(offset, b -> totalArraySize(offset, b, elementSize));
+        this.elementSize = elementSize;
     }
 
-    public ArrayField(Mapper offset, int fieldLength) {
-        super(offset, b -> computeArraySize(offset, b));
-        this.fieldLength = fieldLength;
+    public static ArrayField after(Field field, int elementSize) {
+        return new ArrayField(b -> afterOf(field, b), elementSize);
     }
 
-    public static ArrayField after(Field field, int fieldLength) {
-        if (fieldLength <= 0) {
-            throw new IllegalStateException("Field length must be greater than zero");
-        }
-        Mapper offset = b -> afterOf(field, b);
-        return new ArrayField(offset, b -> computeArraySize(offset, b));
-    }
-
-    public static int computeArraySize(Mapper offset, ByteBuffer fieldBuffer) {
-        int _offset = offset.apply(fieldBuffer);
-        int entryCount = fieldBuffer.getInt(_offset);
-        int elementSize = fieldBuffer.getInt(_offset + Integer.BYTES);
+    private static int totalArraySize(Mapper offset, ByteBuffer fieldBuffer, int elementSize) {
+        int base = offset.apply(fieldBuffer);
+        int entryCount = fieldBuffer.getInt(base);
         return entryCount * elementSize;
     }
 
-//    //returns the offset o f the field in the array
-//    public int get(ByteBuffer fieldBuffer, int idx) {
-//        int entries = entries(fieldBuffer);
-//        if (idx >= entries) {
-//            throw new IndexOutOfBoundsException(idx + ">" + (entries - 1));
-//        }
-//        int startPos = startPos(fieldBuffer, idx);
-//        int entryPos = relativePosition(fieldBuffer, startPos);
-//        return fieldBuffer.getInt(entryPos);
-//    }
-
+    @Override
     public int len(ByteBuffer b) {
         return HEADER_BYTES + entries(b) * b.getInt(b.position());
     }
 
     public int add(ByteBuffer fieldBuffer, ByteBuffer src, int idx) {
-        int pos = pos(fieldBuffer);
-        int entrySize = fieldBuffer.getInt()
+        int base = pos(fieldBuffer);
+        int entrySize = fieldBuffer.getInt(base);
+        int entryPos = base + (idx * (HEADER_BYTES + entrySize));
+
+        assert fieldBuffer.capacity() - entryPos >= src.remaining();
+        return Buffers.copy(src, src.position(), elementSize, fieldBuffer, entryPos);
     }
 
-    public int entries(ByteBuffer b) {
-        int fieldLength = len(b);
-        return b.getInt(b.position() + fieldLength);
+    public int entries(ByteBuffer fieldBuffer) {
+        int base = pos(fieldBuffer);
+        return fieldBuffer.getInt(base);
     }
 
-    private int startPos(ByteBuffer fieldBuffer, int idx) {
-        int _fieldLen = len(fieldBuffer);
-        int _offset = offset.apply(fieldBuffer);
-        return _offset + (_fieldLen * idx);
+    public int valueLen() {
+        return elementSize;
     }
 
+    public int copyValueTo(ByteBuffer fieldBuffer, int idx, ByteBuffer dst) {
+        int base = pos(fieldBuffer);
+        int entryPos = base + HEADER_BYTES + (idx * elementSize);
+    }
 }

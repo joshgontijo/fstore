@@ -28,7 +28,7 @@ public class ArrayFieldTest {
 
 
         assertEquals(expectedFieldSize, field.len(fieldBuffer));
-        assertEquals(valueSize, field.valueLen(fieldBuffer));
+        assertEquals(valueSize, field.valueLen());
 
         ByteBuffer dst = Buffers.allocate(valueSize, false);
         int read = field.copyValueTo(fieldBuffer, dst);

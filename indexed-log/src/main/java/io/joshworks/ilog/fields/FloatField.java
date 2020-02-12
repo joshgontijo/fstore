@@ -6,18 +6,16 @@ import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
 
 public class FloatField extends Field {
 
-    private static final Mapper LEN_MAPPER = b -> Float.BYTES;
-
     public FloatField(int offset) {
-        super(b -> offset, LEN_MAPPER);
+        super(b -> offset);
     }
 
-    private FloatField(Mapper offset, Mapper len) {
-        super(offset, len);
+    private FloatField(Mapper offset) {
+        super(offset);
     }
 
     public static FloatField after(Field field) {
-        return new FloatField(b -> afterOf(field, b), LEN_MAPPER);
+        return new FloatField(b -> afterOf(field, b));
     }
 
     public float set(ByteBuffer b, float val) {
@@ -29,5 +27,10 @@ public class FloatField extends Field {
     public float get(ByteBuffer b) {
         int _offset = this.offset.apply(b);
         return b.getFloat(relativePosition(b, _offset));
+    }
+
+    @Override
+    public int len(ByteBuffer b) {
+        return Float.BYTES;
     }
 }
