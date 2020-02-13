@@ -10,6 +10,7 @@ import io.joshworks.ilog.Log;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.pooled.HeapBlock;
 
 import java.io.File;
 import java.io.IOException;
@@ -54,7 +55,7 @@ public class Lsm {
         this.maxAge = maxAge;
         this.codec = codec;
 
-        this.heapBlock = new HeapBlock(comparator.keySize(), blockSize);
+        this.heapBlock = new HeapBlock(comparator.keySize(), blockSize, false);
 
 //        int maxRecordSize = Record2.HEADER_BYTES + comparator.keySize() + blockSize;
         int maxRecordSize = 36 + comparator.keySize() + blockSize;
@@ -141,19 +142,12 @@ public class Lsm {
         try {
             int blockStart = Record.VALUE.offset(record);
             int blockSize = Record.VALUE.len(record);
-            heapBlock.readFrom(record, blockStart);
 
-            int offset = heapBlock.binarySearch(key, comparator, func);
-            if (offset < 0) {
-                return 0;
-            }
-            heapBlock.decompress(decompressedTmp, codec);
-            decompressedTmp.flip();
+            Buffers.offsetPosition(record, blockStart);
+            Buffers.offsetLimit(record, blockSize);
+            heapBlock.from(record);
 
-            assert offset < decompressedTmp.remaining();
-
-            decompressedTmp.position(offset);
-            return Record.copyTo(decompressedTmp, dst);
+            return heapBlock.binarySearch(key, dst);
         } finally {
             blockRecordsBufferPool.free(decompressedTmp);
         }
@@ -163,7 +157,7 @@ public class Lsm {
         writeBlock.clear();
         blockRecords.clear();
         recordBuffer.clear();
-        long entries = memTable.writeTo(ssTables::append, maxAge, codec,heapBlock, writeBlock, blockRecords, recordBuffer);
+        long entries = memTable.writeTo(ssTables::append, maxAge, heapBlock);
         if (entries > 0) {
             ssTables.roll();
         }

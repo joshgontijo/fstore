@@ -1,12 +1,12 @@
 package io.joshworks.ilog.lsm;
 
-import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
+import io.joshworks.ilog.pooled.HeapBlock;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.locks.StampedLock;
@@ -99,7 +99,8 @@ class MemTable {
         }
     }
 
-    long writeTo(Consumer<ByteBuffer> writer, long maxAge, Codec codec, HeapBlock block, ByteBuffer blockBuffer, ByteBuffer blockRecords, ByteBuffer dst) {
+    //TODO implement maxAge
+    long writeTo(Consumer<ByteBuffer> writer, long maxAge, HeapBlock block) {
         if (table.isEmpty()) {
             return 0;
         }
@@ -110,37 +111,25 @@ class MemTable {
             int recordOffset = node.offset();
             int recordLen = node.recordLen();
 
-            Buffers.view(data, recordOffset, recordLen); //view of a Record
-            if (RecordFlags.expired(data, maxAge) && !RecordFlags.deletion(data)) {
-                continue;
+            boolean added = block.add(node.offset(), data, recordOffset, recordLen);
+            if (!added) {
+                inserted += block.entryCount();
+                block.compress();
+                block.write(writer);
+                block.clear();
+
+
+                boolean added1 = block.add(node.offset(), data, recordOffset, recordLen);
+                assert added1;
             }
 
-            int keySize = Record.KEY_LEN.get(data);
-
-            int sizeOfRecord = Record.sizeOf(data);
-
-            assert keySize == this.keySize;
-            assert recordLen == sizeOfRecord;
-
-            if (blockRecords.remaining() < sizeOfRecord) {
-                //writeBLock
-                blockRecords.flip();
-                inserted += write(writer, codec, block, blockBuffer, blockRecords, dst);
-
-                //clear buffers
-                blockRecords.clear();
-                blockBuffer.clear();
-                dst.clear();
-            }
-            assert Record.isValid(data);
-            int copied = Buffers.copy(data, recordOffset, recordLen, blockRecords);
-            assert copied == sizeOfRecord;
         }
         //compress and write
-        if (blockRecords.position() > 0) {
-            //writeBLock
-            blockRecords.flip();
-            inserted += write(writer, codec, block, blockBuffer, blockRecords, dst);
+        if (block.entryCount() > 0) {
+            inserted += block.entryCount();
+            block.compress();
+            block.write(writer);
+            block.clear();
         }
 
         assert inserted == table.size();
@@ -150,24 +139,4 @@ class MemTable {
         data.clear();
         return inserted;
     }
-
-    private int write(Consumer<ByteBuffer> writer, Codec codec, HeapBlock block, ByteBuffer blockBuffer, ByteBuffer blockRecords, ByteBuffer dst) {
-        HeapBlock.create(block, blockRecords, codec);
-        block.copyTo(blockBuffer);
-        blockBuffer.flip();
-
-        Record.create(block.first(), blockBuffer, dst);
-        dst.flip();
-
-        writer.accept(dst);
-        return block.entries();
-    }
-
-    private ByteBuffer copyKey(ByteBuffer record) {
-        Record.KEY.copyTo(record, tmpKey);
-        tmpKey.flip();
-        return tmpKey;
-    }
-
-
 }
