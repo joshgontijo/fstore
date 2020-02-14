@@ -1,6 +1,6 @@
 package io.joshworks.ilog.lsm;
 
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
+import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
@@ -20,13 +20,15 @@ public class LsmTest {
 
     public static final KeyComparator COMPARATOR = KeyComparator.LONG;
     private Lsm lsm;
-    private static final int MEM_TABLE_SIZE = 500;
+    private static final int MEM_TABLE_SIZE = 500000;
 
     @Before
     public void setUp() {
         lsm = Lsm.create(TestUtils.testFolder(), COMPARATOR)
-                .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(10), false)
-                .codec(new SnappyCodec())
+                .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(100), false)
+                .codec(Codec.noCompression())
+                .compactionThreshold(3)
+                .compactionThreads(8)
                 .open();
 
     }
@@ -55,13 +57,23 @@ public class LsmTest {
     @Test
     public void append_flush() {
         int items = (int) (MEM_TABLE_SIZE * 1.5);
+        ByteBuffer record = LsmRecordUtils.add(0, "value-123");
+        ByteBuffer key2 = Buffers.allocate(8, false);
+        long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            lsm.append(LsmRecordUtils.add(i, String.valueOf(i)));
+            key2.clear().putLong(i).flip();
+            Record.KEY.set(record, key2);
+            lsm.append(record);
+            if (i % 1000000 == 0) {
+                System.out.println("WRITTEN: " + i + " In " + (System.currentTimeMillis() - s));
+                s = System.currentTimeMillis();
+            }
         }
 
+        var dst = Buffers.allocate(1024, false);
+        var key = Buffers.allocate(8, false);
         for (int i = 0; i < items; i++) {
-            var dst = Buffers.allocate(1024, false);
-            ByteBuffer key = keyOf(i);
+            key.clear().putLong(i).flip();
             int rsize = lsm.get(key, dst);
             dst.flip();
             assertTrue("Failed on " + i, rsize > 0);
@@ -70,6 +82,11 @@ public class LsmTest {
 
             int compare = Record.compareToKey(dst, key, COMPARATOR);
             assertEquals("Keys are not equals", 0, compare);
+
+            if (i % 1000000 == 0) {
+                System.out.println("READ: " + i);
+            }
+
         }
     }
 

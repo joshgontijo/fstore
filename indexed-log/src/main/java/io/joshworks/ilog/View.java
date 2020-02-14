@@ -13,19 +13,19 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.joshworks.ilog.LogUtil.*;
+import static io.joshworks.ilog.LogUtil.EXT;
+import static io.joshworks.ilog.LogUtil.compareSegments;
+import static io.joshworks.ilog.LogUtil.indexFile;
+import static io.joshworks.ilog.LogUtil.segmentFile;
 
 public class View<T extends IndexedSegment> {
 
@@ -117,12 +117,12 @@ public class View<T extends IndexedSegment> {
             long start = System.currentTimeMillis();
             log.info("Rolling segment {}", head);
             head.roll();
+            log.info("Segment {} rolled in {}ms", head, System.currentTimeMillis() - start);
             entries.addAndGet(head.entries());
             T newHead = createHead();
 
             segments.add(newHead);
             head = newHead;
-            log.info("Segment {} rolled in {}ms", head, System.currentTimeMillis() - start);
             return newHead;
         } finally {
             lock.unlock();

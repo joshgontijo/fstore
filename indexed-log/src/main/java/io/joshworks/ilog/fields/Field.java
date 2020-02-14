@@ -34,12 +34,22 @@ public class Field {
         return len.apply(b);
     }
 
+    public int copyTo(ByteBuffer thisFieldBuffer, int baseOffset, ByteBuffer value) {
+        int _offset = baseOffset + offset.apply(thisFieldBuffer);
+        _offset = relativePosition(thisFieldBuffer, _offset);
+        int _len = len.apply(thisFieldBuffer);
+        if (value.remaining() < _len) {
+            throw new IllegalStateException("Expected at lease " + _len + " from the value buffer");
+        }
+        return Buffers.copy(thisFieldBuffer, _offset, _len, value);
+    }
+
     public int copyTo(ByteBuffer thisFieldBuffer, ByteBuffer value) {
         int _offset = offset.apply(thisFieldBuffer);
         _offset = relativePosition(thisFieldBuffer, _offset);
         int _len = len.apply(thisFieldBuffer);
         if (value.remaining() < _len) {
-            throw new IllegalStateException("Expected at lease " + _len + " from the value buffer");
+            throw new IllegalStateException("Expected at least " + _len + " from the value buffer");
         }
         return Buffers.copy(thisFieldBuffer, _offset, _len, value);
     }

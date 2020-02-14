@@ -47,15 +47,18 @@ public class ByteBufferChecksum {
     }
 
     private static int checksum(ByteBuffer buffer, int pos, int len, Checksum impl) {
+        int absPos = Buffers.absoluteArrayPosition(buffer, pos);
         if (!buffer.hasArray()) {
+
+            //FIXME garbage generator
             byte[] data = new byte[len];
             int ppos = buffer.position();
+            buffer.position(pos);
             buffer.get(data);
             buffer.position(ppos);
-            return checksum(impl, data, pos, len);
+            return checksum(impl, data, 0, len);
         }
-        pos = Buffers.absoluteArrayPosition(buffer, pos);
-        return checksum(impl, buffer.array(), pos, len);
+        return checksum(impl, buffer.array(), absPos, len);
     }
 
     private static int checksum(Checksum impl, byte[] data, int offset, int length) {

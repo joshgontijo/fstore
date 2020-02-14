@@ -145,6 +145,7 @@ public class IndexedSegment {
                 throw new IllegalStateException("Expected read of " + len + " actual read: " + read);
             }
             dst.limit(plim);
+
             return read;
         } catch (Exception e) {
             dst.limit(plim).position(ppos);
@@ -203,9 +204,13 @@ public class IndexedSegment {
         }
     }
 
-    public void flush() throws IOException {
-        channel.force(false);
-        index.flush();
+    public void flush() {
+        try {
+            channel.force(false);
+            index.flush();
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to flush segment", e);
+        }
     }
 
     public String name() {

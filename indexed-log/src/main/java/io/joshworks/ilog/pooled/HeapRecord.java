@@ -1,4 +1,4 @@
-package io.joshworks.ilog;
+package io.joshworks.ilog.pooled;
 
 import io.joshworks.fstore.core.io.ChecksumException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
@@ -23,18 +23,22 @@ import java.nio.channels.WritableByteChannel;
  * [KEY] (N BYTES)
  * [VALUE] (N BYTES)
  */
-public class Record {
+public class HeapRecord {
 
     public static final int HEADER_BYTES = (Integer.BYTES * 3) + Long.BYTES + Byte.BYTES;
 
-    public static final IntField VALUE_LEN = new IntField(0);
     public static final IntField CHECKSUM = new IntField(4);
     public static final LongField TIMESTAMP = new LongField(8);
     public static final ByteField ATTRIBUTE = new ByteField(16);
     public static final IntField KEY_LEN = new IntField(17);
     public static final BlobField KEY = new BlobField(21, KEY_LEN::get);
+    public static final IntField VALUE_LEN = IntField.after(KEY_LEN);
     public static final BlobField VALUE = BlobField.after(KEY, VALUE_LEN::get);
 
+    private int checksum;
+    private long timestamp;
+    private byte attribute;
+    private int valueLen;
 
     public static boolean hasAttribute(ByteBuffer buffer, int attribute) {
         byte attr = ATTRIBUTE.get(buffer);
@@ -79,17 +83,16 @@ public class Record {
         return recLen;
     }
 
-    public static int copyTo(ByteBuffer record,ByteBuffer dst) {
+    public static int copyTo(ByteBuffer record, ByteBuffer dst) {
 
-//        record = record.duplicate().position(srcOffset);
-        assert Record.isValid(record);
+        assert HeapRecord.isValid(record);
 
         int ppos = dst.position();
 
         int recLen = 0;
         recLen += VALUE_LEN.copyTo(record, dst);
         recLen += CHECKSUM.copyTo(record, dst);
-        recLen += TIMESTAMP.copyTo(record,  dst);
+        recLen += TIMESTAMP.copyTo(record, dst);
         recLen += ATTRIBUTE.copyTo(record, dst);
         recLen += KEY_LEN.copyTo(record, dst);
         recLen += KEY.copyTo(record, dst);
@@ -98,7 +101,7 @@ public class Record {
         int recordEnd = dst.position();
 
         dst.position(ppos);
-        assert Record.isValid(dst);
+        assert HeapRecord.isValid(dst);
         dst.position(recordEnd);
 
         return recLen;
@@ -172,15 +175,14 @@ public class Record {
     }
 
     public static String toString(ByteBuffer buffer) {
-//        return "Record{" +
-//                " recordSize=" + sizeOf(buffer) +
-//                ", checksum=" + CHECKSUM.get(buffer) +
-//                ", keySize=" + KEY_LEN.get(buffer) +
-//                ", dataLength=" + VALUE_LEN.get(buffer) +
-//                ", timestamp=" + TIMESTAMP.get(buffer) +
-//                ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +
-//                '}';
-        return "";
+        return "Record{" +
+                " recordSize=" + sizeOf(buffer) +
+                ", checksum=" + CHECKSUM.get(buffer) +
+                ", keySize=" + KEY_LEN.get(buffer) +
+                ", dataLength=" + VALUE_LEN.get(buffer) +
+                ", timestamp=" + TIMESTAMP.get(buffer) +
+                ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +
+                '}';
     }
 
 }

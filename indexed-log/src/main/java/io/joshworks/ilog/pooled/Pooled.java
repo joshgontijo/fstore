@@ -7,10 +7,10 @@ import java.nio.ByteBuffer;
 
 public abstract class Pooled implements Closeable {
 
-    private final ObjectPool.Pool<? extends Pooled> pool;
+    private final ObjectPool<? extends Pooled> pool;
     protected final ByteBuffer data;
 
-    Pooled(ObjectPool.Pool<? extends Pooled> pool, int size, boolean direct) {
+    Pooled(ObjectPool<? extends Pooled> pool, int size, boolean direct) {
         this.pool = pool;
         this.data = Buffers.allocate(size, direct);
     }

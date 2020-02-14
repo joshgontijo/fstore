@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -26,9 +25,7 @@ public class Compactor<T extends IndexedSegment> {
     private static final Logger logger = LoggerFactory.getLogger(Compactor.class);
     private final AtomicBoolean closed = new AtomicBoolean();
     private final View<T> view;
-    private final String name;
     private final SegmentCombiner segmentCombiner;
-    private final boolean threadPerLevel;
     private final int compactionThreshold;
     private final Set<T> compacting = new CopyOnWriteArraySet<>();
 
@@ -38,15 +35,11 @@ public class Compactor<T extends IndexedSegment> {
     private final ExecutorService compactionWorker;
 
     public Compactor(View<T> view,
-                     String name,
                      SegmentCombiner segmentCombiner,
-                     boolean threadPerLevel,
                      int compactionThreshold,
                      int compactionThreads) {
         this.view = view;
-        this.name = name;
         this.segmentCombiner = segmentCombiner;
-        this.threadPerLevel = threadPerLevel;
         this.compactionThreshold = compactionThreshold;
         this.compactionWorker = threadPool("compaction", compactionThreads);
         this.cleanupWorker = threadPool("compaction-cleanup", 1);
@@ -95,11 +88,6 @@ public class Compactor<T extends IndexedSegment> {
             }
         });
 
-    }
-
-
-    private String executorName(int level) {
-        return threadPerLevel ? name + "-compaction-level-" + level : name + "-compaction";
     }
 
     private void cleanup(CompactionResult<T> result) {
@@ -189,20 +177,11 @@ public class Compactor<T extends IndexedSegment> {
         }
     }
 
-    private static ExecutorService levelExecutor(String name) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1,
-                TimeUnit.MINUTES,
-                new ArrayBlockingQueue<>(5),
-                Threads.namedThreadFactory(name),
-                new ThreadPoolExecutor.DiscardPolicy());
-        return new MonitoredThreadPool(name, executor);
-    }
-
     private static ExecutorService threadPool(String name, int poolSize) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, poolSize, 1,
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(poolSize, poolSize, 1,
                 TimeUnit.MINUTES,
                 new LinkedBlockingDeque<>(),
-                Threads.namedThreadFactory(name),
+                Threads.namePrefixedThreadFactory(name),
                 new ThreadPoolExecutor.DiscardPolicy());
         return new MonitoredThreadPool(name, executor);
     }

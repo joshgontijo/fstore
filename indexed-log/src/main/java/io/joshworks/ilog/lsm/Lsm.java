@@ -11,6 +11,7 @@ import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.pooled.HeapBlock;
+import io.joshworks.ilog.pooled.ObjectPool;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,26 +25,19 @@ public class Lsm {
     private final SequenceLog tlog;
     private final MemTable memTable;
     private final Log<SSTable> ssTables;
-    private final KeyComparator comparator;
-    private final Codec codec;
 
     private final BufferPool recordPool;
-    private final BufferPool blockRecordsBufferPool;
 
     private final long maxAge;
 
-    private final ByteBuffer writeBlock;
-    private final ByteBuffer blockRecords;
-    private final ByteBuffer recordBuffer;
-
-    private final HeapBlock heapBlock;
+    private final ObjectPool<HeapBlock> blockPool;
 
 
     Lsm(File root,
         KeyComparator comparator,
         int memTableMaxSizeInBytes,
         int memTableMaxEntries,
-        boolean directMemTable,
+        boolean directBuffers,
         int blockSize,
         long maxAge,
         int compactionThreads,
@@ -51,28 +45,21 @@ public class Lsm {
         Codec codec) throws IOException {
 
         FileUtils.createDir(root);
-        this.comparator = comparator;
         this.maxAge = maxAge;
-        this.codec = codec;
 
-        this.heapBlock = new HeapBlock(comparator.keySize(), blockSize, false);
+        this.blockPool = new ObjectPool<>(100, p -> new HeapBlock(p, blockSize, comparator, directBuffers, codec));
 
 //        int maxRecordSize = Record2.HEADER_BYTES + comparator.keySize() + blockSize;
         int maxRecordSize = 36 + comparator.keySize() + blockSize;
 
-        this.writeBlock = Buffers.allocate(blockSize, false);
-        this.blockRecords = Buffers.allocate(blockSize, false);
-        this.recordBuffer = Buffers.allocate(maxRecordSize, false);
-
-        this.blockRecordsBufferPool = BufferPool.localCache(blockSize, false);
-        this.recordPool = BufferPool.localCachePool(256, maxRecordSize, false);
-        BufferPool logRecordPool = BufferPool.localCachePool(256, maxRecordSize, false);
+        this.recordPool = BufferPool.localCachePool(256, maxRecordSize, directBuffers);
+        BufferPool logRecordPool = BufferPool.localCachePool(256, maxRecordSize, directBuffers);
 
 //        int sstableIndexSize = memTableMaxEntries * (keySize + Long.BYTES); //key + pos
         int sstableIndexSize = memTableMaxSizeInBytes; // FIXME this needs to be properly calculated
         int tlogIndexSize = sstableIndexSize * 4;
 
-        this.memTable = new MemTable(comparator, memTableMaxSizeInBytes, memTableMaxEntries, directMemTable);
+        this.memTable = new MemTable(comparator, memTableMaxSizeInBytes, memTableMaxEntries, directBuffers);
 
         this.tlog = new SequenceLog(new File(root, LOG_DIR),
                 maxRecordSize,
@@ -108,23 +95,26 @@ public class Lsm {
 
     public int get(ByteBuffer key, ByteBuffer dst) {
         return ssTables.apply(Direction.BACKWARD, sst -> {
+
             int fromMem = memTable.apply(key, dst, IndexFunctions.EQUALS);
             if (fromMem > 0) {
                 return fromMem;
             }
 
             var record = recordPool.allocate();
-            try {
+            try (HeapBlock block = blockPool.allocate()) {
                 for (SSTable ssTable : sst) {
                     record.clear();
                     if (!ssTable.readOnly()) {
+                        block.clear();
                         continue;
                     }
                     int read = ssTable.find(key, record, IndexFunctions.FLOOR);
                     if (read > 0) {
                         record.flip();
-                        int entrySize = readFromBlock(key, heapBlock, record, dst, IndexFunctions.EQUALS);
+                        int entrySize = readFromBlock(key, block, record, dst, IndexFunctions.EQUALS);
                         if (entrySize <= 0) {// not found in the block, continue
+                            block.clear();
                             continue;
                         }
                         return entrySize;
@@ -138,28 +128,25 @@ public class Lsm {
     }
 
     private int readFromBlock(ByteBuffer key, HeapBlock heapBlock, ByteBuffer record, ByteBuffer dst, IndexFunctions func) {
-        ByteBuffer decompressedTmp = blockRecordsBufferPool.allocate();
-        try {
-            int blockStart = Record.VALUE.offset(record);
-            int blockSize = Record.VALUE.len(record);
 
-            Buffers.offsetPosition(record, blockStart);
-            Buffers.offsetLimit(record, blockSize);
-            heapBlock.from(record);
+        assert Record.isValid(record);
 
-            return heapBlock.binarySearch(key, dst);
-        } finally {
-            blockRecordsBufferPool.free(decompressedTmp);
-        }
+        int blockStart = Record.VALUE.offset(record);
+        int blockSize = Record.VALUE.len(record);
+
+        Buffers.offsetPosition(record, blockStart);
+        Buffers.offsetLimit(record, blockSize);
+        heapBlock.from(record, true);
+
+        return heapBlock.find(key, dst, func);
     }
 
     synchronized void flush() {
-        writeBlock.clear();
-        blockRecords.clear();
-        recordBuffer.clear();
-        long entries = memTable.writeTo(ssTables::append, maxAge, heapBlock);
-        if (entries > 0) {
-            ssTables.roll();
+        try (HeapBlock block = blockPool.allocate()) {
+            long entries = memTable.writeTo(ssTables::append, maxAge, block);
+            if (entries > 0) {
+                ssTables.roll();
+            }
         }
     }
 

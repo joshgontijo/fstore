@@ -1,601 +1,782 @@
-diff --git a/core/src/main/java/io/joshworks/fstore/core/io/buffers/Buffers.java b/core/src/main/java/io/joshworks/fstore/core/io/buffers/Buffers.java
-index 4bf11893..660f8e40 100644
---- a/core/src/main/java/io/joshworks/fstore/core/io/buffers/Buffers.java
-+++ b/core/src/main/java/io/joshworks/fstore/core/io/buffers/Buffers.java
-@@ -70,6 +70,42 @@ public class Buffers {
-         return i;
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/Record.java b/indexed-log/src/main/java/io/joshworks/ilog/Record.java
+index 933b2f56..2b13043f 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/Record.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/Record.java
+@@ -67,12 +67,12 @@ public class Record {
+         int checksum = ByteBufferChecksum.crc32(value);
+ 
+         int recLen = 0;
+-        recLen += VALUE_LEN.set(dst, valueLen);
+         recLen += CHECKSUM.set(dst, checksum);
+         recLen += TIMESTAMP.set(dst, System.currentTimeMillis());
+         recLen += ATTRIBUTE.set(dst, attribute(attr));
+         recLen += KEY_LEN.set(dst, keyLen);
+         recLen += KEY.set(dst, key);
++        recLen += VALUE_LEN.set(dst, valueLen);
+         recLen += VALUE.set(dst, value);
+ 
+         Buffers.offsetPosition(dst, recLen);
+@@ -171,14 +171,15 @@ public class Record {
      }
  
-+    public static int copy(ByteBuffer src, int srcOffset, int srcCount, ByteBuffer dst, int dstOffset) {
-+        if (srcCount == 0) {
-+            return 0;
-+        }
-+        if (srcOffset < 0 || srcOffset > src.capacity()) {
-+            throw new IndexOutOfBoundsException(srcOffset);
-+        }
-+        if (srcCount > src.capacity() - srcOffset) {
-+            throw new IndexOutOfBoundsException("srcCount bytes is more than available from srcOffset position");
-+        }
+     public static String toString(ByteBuffer buffer) {
+-        return "Record{" +
+-                " recordSize=" + sizeOf(buffer) +
+-                ", checksum=" + CHECKSUM.get(buffer) +
+-                ", keySize=" + KEY_LEN.get(buffer) +
+-                ", dataLength=" + VALUE_LEN.get(buffer) +
+-                ", timestamp=" + TIMESTAMP.get(buffer) +
+-                ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +
+-                '}';
++//        return "Record{" +
++//                " recordSize=" + sizeOf(buffer) +
++//                ", checksum=" + CHECKSUM.get(buffer) +
++//                ", keySize=" + KEY_LEN.get(buffer) +
++//                ", dataLength=" + VALUE_LEN.get(buffer) +
++//                ", timestamp=" + TIMESTAMP.get(buffer) +
++//                ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +
++//                '}';
++        return "";
+     }
+ 
+ }
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/lsm/Lsm.java b/indexed-log/src/main/java/io/joshworks/ilog/lsm/Lsm.java
+index 532c6ad6..8d3d45f7 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/lsm/Lsm.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/lsm/Lsm.java
+@@ -11,6 +11,7 @@ import io.joshworks.ilog.Record;
+ import io.joshworks.ilog.index.IndexFunctions;
+ import io.joshworks.ilog.index.KeyComparator;
+ import io.joshworks.ilog.pooled.HeapBlock;
++import io.joshworks.ilog.pooled.ObjectPool;
+ 
+ import java.io.File;
+ import java.io.IOException;
+@@ -36,7 +37,7 @@ public class Lsm {
+     private final ByteBuffer blockRecords;
+     private final ByteBuffer recordBuffer;
+ 
+-    private final HeapBlock heapBlock;
++    private final ObjectPool<HeapBlock> blockPool;
+ 
+ 
+     Lsm(File root,
+@@ -55,7 +56,7 @@ public class Lsm {
+         this.maxAge = maxAge;
+         this.codec = codec;
+ 
+-        this.heapBlock = new HeapBlock(comparator.keySize(), blockSize, false);
++        this.blockPool = new ObjectPool<>(100, p -> new HeapBlock(p, blockSize, comparator, false, codec));
+ 
+ //        int maxRecordSize = Record2.HEADER_BYTES + comparator.keySize() + blockSize;
+         int maxRecordSize = 36 + comparator.keySize() + blockSize;
+@@ -108,23 +109,26 @@ public class Lsm {
+ 
+     public int get(ByteBuffer key, ByteBuffer dst) {
+         return ssTables.apply(Direction.BACKWARD, sst -> {
 +
-+        if (srcCount > dst.remaining()) {
-+            throw new BufferOverflowException();
-+        }
+             int fromMem = memTable.apply(key, dst, IndexFunctions.EQUALS);
+             if (fromMem > 0) {
+                 return fromMem;
+             }
+ 
+             var record = recordPool.allocate();
+-            try {
++            try (HeapBlock block = blockPool.allocate()) {
+                 for (SSTable ssTable : sst) {
+                     record.clear();
+                     if (!ssTable.readOnly()) {
++                        block.clear();
+                         continue;
+                     }
+                     int read = ssTable.find(key, record, IndexFunctions.FLOOR);
+                     if (read > 0) {
+                         record.flip();
+-                        int entrySize = readFromBlock(key, heapBlock, record, dst, IndexFunctions.EQUALS);
++                        int entrySize = readFromBlock(key, block, record, dst, IndexFunctions.EQUALS);
+                         if (entrySize <= 0) {// not found in the block, continue
++                            block.clear();
+                             continue;
+                         }
+                         return entrySize;
+@@ -147,7 +151,7 @@ public class Lsm {
+             Buffers.offsetLimit(record, blockSize);
+             heapBlock.from(record);
+ 
+-            return heapBlock.binarySearch(key, dst);
++            return heapBlock.find(key, dst, func);
+         } finally {
+             blockRecordsBufferPool.free(decompressedTmp);
+         }
+@@ -157,9 +161,11 @@ public class Lsm {
+         writeBlock.clear();
+         blockRecords.clear();
+         recordBuffer.clear();
+-        long entries = memTable.writeTo(ssTables::append, maxAge, heapBlock);
+-        if (entries > 0) {
+-            ssTables.roll();
++        try (HeapBlock block = blockPool.allocate()) {
++            long entries = memTable.writeTo(ssTables::append, maxAge, block);
++            if (entries > 0) {
++                ssTables.roll();
++            }
+         }
+     }
+ 
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/lsm/MemTable.java b/indexed-log/src/main/java/io/joshworks/ilog/lsm/MemTable.java
+index 13cf7a80..1a577528 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/lsm/MemTable.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/lsm/MemTable.java
+@@ -34,7 +34,6 @@ class MemTable {
+ 
+     boolean add(ByteBuffer record) {
+         requireNonNull(record, "Record must be provided");
+-
+         try {
+ 
+             if (data.remaining() < record.remaining() || table.isFull()) {
+@@ -118,7 +117,6 @@ class MemTable {
+                 block.write(writer);
+                 block.clear();
+ 
+-
+                 boolean added1 = block.add(node.offset(), data, recordOffset, recordLen);
+                 assert added1;
+             }
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/pooled/BlockRecord.java b/indexed-log/src/main/java/io/joshworks/ilog/pooled/BlockRecord.java
+deleted file mode 100644
+index 42295d63..00000000
+--- a/indexed-log/src/main/java/io/joshworks/ilog/pooled/BlockRecord.java
++++ /dev/null
+@@ -1,35 +0,0 @@
+-package io.joshworks.ilog.pooled;
+-
+-import io.joshworks.fstore.core.io.buffers.Buffers;
+-
+-import java.nio.ByteBuffer;
+-
+-import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
+-
+-/**
+- * VALUE_LEN (4 BYTES)
+- * TIMESTAMP (8 BYTES)
+- * ATTR (1 BYTES)
+- * <p>
+- * [VALUE] (N BYTES)
+- */
+-public class BlockRecord extends Pooled {
+-
+-    private static final int HEADER_SIZE = Integer.BYTES + Long.BYTES + Byte.BYTES;
+-
+-    final ByteBuffer decompressed;
+-
+-    BlockRecord(ObjectPool.Pool<? extends Pooled> pool, int size, boolean direct) {
+-        super(pool, size, direct);
+-        this.decompressed = Buffers.allocate(size, direct);
+-    }
+-
+-    public ByteBuffer buffer() {
+-        return data;
+-    }
+-
+-    public int valueSize() {
+-        return data.get(relativePosition(data, 0));
+-    }
+-
+-}
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/pooled/HeapBlock.java b/indexed-log/src/main/java/io/joshworks/ilog/pooled/HeapBlock.java
+index 25743409..b54a9a4e 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/pooled/HeapBlock.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/pooled/HeapBlock.java
+@@ -2,7 +2,9 @@ package io.joshworks.ilog.pooled;
+ 
+ import io.joshworks.fstore.core.codec.Codec;
+ import io.joshworks.fstore.core.io.buffers.Buffers;
++import io.joshworks.fstore.core.util.ByteBufferChecksum;
+ import io.joshworks.ilog.Record;
++import io.joshworks.ilog.index.IndexFunctions;
+ import io.joshworks.ilog.index.KeyComparator;
+ 
+ import java.nio.ByteBuffer;
+@@ -29,13 +31,15 @@ public class HeapBlock extends Pooled {
+     private final Codec codec;
+     private State state = State.EMPTY;
+ 
++    private static final int HEADER_BYTES = Integer.BYTES * 2;
 +
-+        int i = 0;
-+        while ((srcCount - i) >= Long.BYTES) {
-+            dst.putLong(dstOffset + i, src.getLong(srcOffset + i));
-+            i += Long.BYTES;
-+        }
-+        while ((srcCount - i) >= Integer.BYTES) {
-+            dst.putInt(dstOffset + i, src.getInt(srcOffset + i));
-+            i += Integer.BYTES;
-+        }
-+        while ((srcCount - i) >= Short.BYTES) {
-+            dst.putShort(dstOffset + i, src.getShort(srcOffset + i));
-+            i += Short.BYTES;
-+        }
-+        while ((srcCount - i) >= Byte.BYTES) {
-+            dst.put(dstOffset + i, src.get(srcOffset + i));
-+            i += Byte.BYTES;
-+        }
-+
-+        return i;
+     private int uncompressedSize;
+     private int entries;
+ 
+     private final List<Key> keys = new ArrayList<>();
+     private final ByteBuffer compressedData;
+ 
+-    public HeapBlock(ObjectPool.Pool<? extends Pooled> pool, int blockSize, KeyComparator comparator, boolean direct, Codec codec) {
++    public HeapBlock(ObjectPool<? extends Pooled> pool, int blockSize, KeyComparator comparator, boolean direct, Codec codec) {
+         super(pool, blockSize, direct);
+         this.comparator = comparator;
+         this.direct = direct;
+@@ -43,16 +47,28 @@ public class HeapBlock extends Pooled {
+         this.compressedData = Buffers.allocate(blockSize, direct);
+     }
+ 
+-    public boolean add(int offset, ByteBuffer record, int bufferPos, int count) {
++    private boolean hasCapacity(int entrySize) {
++        return data.remaining() >= Record.HEADER_BYTES + HEADER_BYTES + (entrySize + keyOverhead()) + keyRegionSize();
 +    }
 +
-     /**
-      * Copies remaining bytes from src to the dst
-      * Does not modify source's position
-diff --git a/indexed-log/src/main/java/io/joshworks/ilog/Record2.java b/indexed-log/src/main/java/io/joshworks/ilog/Record2.java
-index ff0162c6..06bd950b 100644
---- a/indexed-log/src/main/java/io/joshworks/ilog/Record2.java
-+++ b/indexed-log/src/main/java/io/joshworks/ilog/Record2.java
-@@ -4,6 +4,10 @@ import io.joshworks.fstore.core.Serializer;
- import io.joshworks.fstore.core.io.ChecksumException;
- import io.joshworks.fstore.core.io.buffers.Buffers;
- import io.joshworks.fstore.core.util.ByteBufferChecksum;
++    private int keyRegionSize() {
++        return entries * keyOverhead(); //offset
++    }
+ 
++    private int keyOverhead() {
++        return comparator.keySize() + Integer.BYTES;
++    }
++
++    public boolean add(int offset, ByteBuffer srcRecord, int recStart, int count) {
+         //TODO set max uncompressed data size, resize data ByteBuffer
+ 
+         if (entries == 0) {
+             //TODO implement all transition
+             state = State.CREATING;
++            data.clear();
+         }
+ 
+-        if (data.remaining() < record.remaining()) {
++        if (!hasCapacity(count)) {
+             return false;
+         }
+ 
+@@ -61,11 +77,14 @@ public class HeapBlock extends Pooled {
+         Key k = getOrAllocate(entries);
+         k.offset = offset;
+ 
+-        int keySize = Record.KEY.copyTo(record, k.data);
++        int kOffset = recStart + Record.KEY.offset(null);
++        ; //null or purpose, it shouldn't be used
++        int keySize = k.write(srcRecord, kOffset);
++//        int keySize = Record.KEY.copyTo(record, k.data);
+         assert keySize == comparator.keySize();
+         k.data.flip();
+ 
+-        int copied = Buffers.copy(record, bufferPos, count, data);
++        int copied = Buffers.copy(srcRecord, recStart, count, data);
+         entries++;
+         return true;
+     }
+@@ -109,7 +128,9 @@ public class HeapBlock extends Pooled {
+         while (idx >= keys.size()) {
+             keys.add(new Key());
+         }
+-        return keys.get(idx);
++        Key key = keys.get(idx);
++        key.clear();
++        return key;
+     }
+ 
+     public void compress() {
+@@ -118,6 +139,7 @@ public class HeapBlock extends Pooled {
+         }
+ 
+         data.flip();
++        uncompressedSize = data.remaining();
+         codec.compress(data, compressedData);
+         compressedData.flip();
+ 
+@@ -129,9 +151,12 @@ public class HeapBlock extends Pooled {
+             throw new IllegalStateException("Cannot compress block: Invalid block state");
+         }
+ 
++        int blockStart = Record.HEADER_BYTES + comparator.keySize();
++
+         data.clear();
+-        data.putInt(uncompressedSize);
+-        data.putInt(entries);
++        data.position(blockStart);
++
++        //------ BLOCK ----
+ 
+         for (int i = 0; i < entries; i++) {
+             Key key = keys.get(i);
+@@ -139,8 +164,35 @@ public class HeapBlock extends Pooled {
+             Buffers.copy(key.data, data);
+         }
+ 
+-        Buffers.copy(compressedData, data);
+-        data.flip();
++        int compressedSize = Buffers.copy(compressedData, data);
++        int recordEnd = data.position();
++        // ---- BLOCK END ------
++
++        //TODO attribute
++        byte attribute = 0;
++        int blockSize = data.position() - blockStart;
++        Key firstKey = keys.get(0);
++
++
++        //------------ RECORD HEADER ------
++        data.position(0);
++        Record.VALUE_LEN.set(data, blockSize);
++        Record.TIMESTAMP.set(data, System.currentTimeMillis());
++        Record.ATTRIBUTE.set(data, attribute);
++        Record.KEY_LEN.set(data, comparator.keySize());
++        Record.KEY.set(data, firstKey.data);
++//        Record.VALUE.set(data, compressedData);
++        data.putInt(uncompressedSize);
++        data.putInt(entries);
++
++
++        //checksum must be before VALUE
++        int blockChecksum = ByteBufferChecksum.crc32(data, blockStart, blockSize);
++        Record.CHECKSUM.set(data, blockChecksum);
++
++        data.limit(recordEnd);
++
++        assert Record.isValid(data);
+ 
+         writer.accept(data);
+ 
+@@ -148,11 +200,6 @@ public class HeapBlock extends Pooled {
+     }
+ 
+     public void clear() {
+-        for (int i = 0; i < entries; i++) {
+-            Key key = keys.get(i);
+-            key.offset = -1;
+-            key.data.clear();
+-        }
+         data.clear();
+         compressedData.clear();
+         uncompressedSize = 0;
+@@ -169,7 +216,7 @@ public class HeapBlock extends Pooled {
+         data.flip();
+     }
+ 
+-    public int binarySearch(ByteBuffer key, ByteBuffer dst) {
++    public int find(ByteBuffer key, ByteBuffer dst, IndexFunctions fn) {
+         int keySize = comparator.keySize();
+ 
+         //do binary search
+@@ -211,6 +258,16 @@ public class HeapBlock extends Pooled {
+     private class Key {
+         private int offset;
+         private ByteBuffer data = Buffers.allocate(comparator.keySize(), direct);
++
++        private int write(ByteBuffer src, int srcOffset) {
++            data.clear();
++            return Buffers.copy(src, srcOffset, comparator.keySize(), data);
++        }
++
++        private void clear() {
++            data.clear();
++            offset = -1;
++        }
+     }
+ 
+     private enum State {
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/pooled/HeapRecord.java b/indexed-log/src/main/java/io/joshworks/ilog/pooled/HeapRecord.java
+new file mode 100644
+index 00000000..acf8c3d7
+--- /dev/null
++++ b/indexed-log/src/main/java/io/joshworks/ilog/pooled/HeapRecord.java
+@@ -0,0 +1,189 @@
++package io.joshworks.ilog.pooled;
++
++import io.joshworks.fstore.core.io.ChecksumException;
++import io.joshworks.fstore.core.io.buffers.Buffers;
++import io.joshworks.fstore.core.util.ByteBufferChecksum;
 +import io.joshworks.ilog.fields.BlobField;
 +import io.joshworks.ilog.fields.ByteField;
 +import io.joshworks.ilog.fields.IntField;
 +import io.joshworks.ilog.fields.LongField;
- import io.joshworks.ilog.index.KeyComparator;
- 
- import java.io.IOException;
-@@ -39,6 +43,14 @@ public class Record2 {
-     public static final int KEY_LENGTH_OFFSET = ATTR_OFFSET + ATTR_LEN;
-     public static final int KEY_OFFSET = KEY_LENGTH_OFFSET + KEY_LEN_LEN;
- 
-+    public static final IntField VALUE_LEN = new IntField(0);
++import io.joshworks.ilog.index.KeyComparator;
++
++import java.io.IOException;
++import java.nio.ByteBuffer;
++import java.nio.channels.WritableByteChannel;
++
++/**
++ * VALUE_LEN (4 BYTES)
++ * CHECKSUM (4 BYTES)
++ * TIMESTAMP (8 BYTES)
++ * ATTR (1 BYTES)
++ * KEY_LEN (4 BYTES)
++ * <p>
++ * [KEY] (N BYTES)
++ * [VALUE] (N BYTES)
++ */
++public class HeapRecord {
++
++    public static final int HEADER_BYTES = (Integer.BYTES * 3) + Long.BYTES + Byte.BYTES;
++
 +    public static final IntField CHECKSUM = new IntField(4);
 +    public static final LongField TIMESTAMP = new LongField(8);
 +    public static final ByteField ATTRIBUTE = new ByteField(16);
-+    public static final IntField KEY_LENGTH = new IntField(17);
-+    public static final BlobField KEY = new BlobField(21, KEY_LENGTH::get);
++    public static final IntField KEY_LEN = new IntField(17);
++    public static final BlobField KEY = new BlobField(21, KEY_LEN::get);
++    public static final IntField VALUE_LEN = IntField.after(KEY_LEN);
 +    public static final BlobField VALUE = BlobField.after(KEY, VALUE_LEN::get);
 +
- 
-     public static int valueSize(ByteBuffer buffer) {
-         return buffer.getInt(relativePosition(buffer, DATA_LENGTH_OFFSET));
-@@ -136,40 +148,24 @@ public class Record2 {
-         return Buffers.copy(record, absValPos, valueSize(record), dst);
-     }
- 
--    public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attributes) {
++
++    private int checksum;
++    private long timestamp;
++    private byte attribute;
++    private int valueLen;
++
++    public static boolean hasAttribute(ByteBuffer buffer, int attribute) {
++        byte attr = ATTRIBUTE.get(buffer);
++        return (attr & (1 << attribute)) == 1;
++    }
++
++    public static int compareRecordKeys(ByteBuffer r1, ByteBuffer r2, KeyComparator comparator) {
++        int k1Offset = KEY.offset(r1);
++        int k2Offset = KEY.offset(r2);
++        return comparator.compare(r1, k1Offset, r2, k2Offset);
++    }
++
++    public static int compareToKey(ByteBuffer record, ByteBuffer key, KeyComparator comparator) {
++        int k1Offset = KEY.offset(record);
++        return comparator.compare(record, k1Offset, key, key.position());
++    }
++
++    public static int sizeOf(ByteBuffer record) {
++        int valSize = VALUE_LEN.get(record);
++        int keySize = KEY_LEN.get(record);
++        if (keySize == 0 && valSize == 0) {
++            return 0;
++        }
++        return HEADER_BYTES + valSize + keySize;
++    }
++
 +    public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
-         if (dst.remaining() <= HEADER_BYTES) {
-             throw new IllegalArgumentException("Write buffer must be at least " + HEADER_BYTES);
-         }
--        try {
--            int recordStart = dst.position();
--            int originalLimit = dst.limit();
--            dst.position(HEADER_BYTES);
--            int keyStart = dst.position();
--            Buffers.copy(key, dst);
--            int keyEnd = dst.position();
--
--            int checksum = ByteBufferChecksum.crc32(value);
--            Buffers.copy(value, dst);
--            int dataEnd = dst.position();
--
--            int keyLen = keyEnd - keyStart;
--            int dataLen = dataEnd - keyEnd;
--
--            dst.position(recordStart);
--
--            dst.putInt(dataLen);
--            dst.putInt(checksum);
--            dst.putLong(System.currentTimeMillis());
--            dst.put(attribute(attributes));
--            dst.putInt(keyLen);
--
--            dst.position(dataEnd).limit(originalLimit);
--
--            return dataEnd - recordStart;
--
--        } catch (Exception e) {
--            throw new RuntimeException("Failed to create record", e);
--        }
 +        int keyLen = key.remaining();
 +        int valueLen = value.remaining();
 +        int checksum = ByteBufferChecksum.crc32(value);
 +
 +        int recLen = 0;
-+        recLen += KEY_LENGTH.set(dst, keyLen);
 +        recLen += CHECKSUM.set(dst, checksum);
-+        recLen += VALUE_LEN.set(dst, valueLen);
-+        recLen += ATTRIBUTE.set(dst, (byte) 0);
 +        recLen += TIMESTAMP.set(dst, System.currentTimeMillis());
++        recLen += ATTRIBUTE.set(dst, attribute(attr));
++        recLen += KEY_LEN.set(dst, keyLen);
 +        recLen += KEY.set(dst, key);
++        recLen += VALUE_LEN.set(dst, valueLen);
 +        recLen += VALUE.set(dst, value);
 +
++        Buffers.offsetPosition(dst, recLen);
 +        return recLen;
++    }
++
++    public static int copyTo(ByteBuffer record, ByteBuffer dst) {
++
++        assert HeapRecord.isValid(record);
++
++        int ppos = dst.position();
++
++        int recLen = 0;
++        recLen += VALUE_LEN.copyTo(record, dst);
++        recLen += CHECKSUM.copyTo(record, dst);
++        recLen += TIMESTAMP.copyTo(record, dst);
++        recLen += ATTRIBUTE.copyTo(record, dst);
++        recLen += KEY_LEN.copyTo(record, dst);
++        recLen += KEY.copyTo(record, dst);
++        recLen += VALUE.copyTo(record, dst);
++
++        int recordEnd = dst.position();
++
++        dst.position(ppos);
++        assert HeapRecord.isValid(dst);
++        dst.position(recordEnd);
++
++        return recLen;
++    }
++
++    public static boolean isValid(ByteBuffer record) {
++        int remaining = record.remaining();
++        if (remaining < HEADER_BYTES) {
++            return false;
++        }
++        int rsize = sizeOf(record);
++        if (rsize > remaining) {
++            return false;
++        }
++        if (rsize <= HEADER_BYTES) {
++            return false;
++        }
++
++        int valSize = VALUE_LEN.get(record);
++        int valOffset = VALUE.offset(record);
++        int checksum = CHECKSUM.get(record);
++
++        int absValPos = Buffers.relativePosition(record, valOffset);
++        int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
++        return computedChecksum == checksum;
++    }
++
++    public static int validate(ByteBuffer record) {
++        int remaining = record.remaining();
++        if (remaining < HEADER_BYTES) {
++            throw new RuntimeException("Invalid record");
++        }
++        int rsize = sizeOf(record);
++        if (rsize > remaining) {
++            throw new RuntimeException("Invalid record");
++        }
++        if (rsize <= HEADER_BYTES) {
++            throw new RuntimeException("Invalid record");
++        }
++
++        int valSize = VALUE_LEN.get(record);
++        int valOffset = VALUE.offset(record);
++        int checksum = CHECKSUM.get(record);
++
++        int absValPos = Buffers.relativePosition(record, valOffset);
++        int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
++        if (computedChecksum != checksum) {
++            throw new ChecksumException();
++        }
++        return rsize;
++    }
++
++    public static int writeTo(ByteBuffer record, WritableByteChannel channel) throws IOException {
++        int rsize = validate(record);
++        if (record.remaining() < rsize) {
++            return 0;
++        }
++        int plimit = record.limit();
++        record.limit(record.position() + rsize);
++        int written = channel.write(record);
++        record.limit(plimit);
++        return written;
++    }
++
++    private static byte attribute(int... attributes) {
++        byte b = 0;
++        for (int attr : attributes) {
++            b = (byte) (b | 1 << attr);
++        }
++        return b;
++    }
++
++    public static String toString(ByteBuffer buffer) {
++        return "Record{" +
++                " recordSize=" + sizeOf(buffer) +
++                ", checksum=" + CHECKSUM.get(buffer) +
++                ", keySize=" + KEY_LEN.get(buffer) +
++                ", dataLength=" + VALUE_LEN.get(buffer) +
++                ", timestamp=" + TIMESTAMP.get(buffer) +
++                ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +
++                '}';
++    }
++
++}
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/pooled/ObjectPool.java b/indexed-log/src/main/java/io/joshworks/ilog/pooled/ObjectPool.java
+index 82cdbeef..d59dd145 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/pooled/ObjectPool.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/pooled/ObjectPool.java
+@@ -1,45 +1,28 @@
+ package io.joshworks.ilog.pooled;
+ 
+-import java.util.Map;
+ import java.util.Queue;
+ import java.util.concurrent.ArrayBlockingQueue;
+-import java.util.concurrent.ConcurrentHashMap;
+ import java.util.function.Function;
+ 
+-public class ObjectPool {
++public class ObjectPool<T extends Pooled> {
++    private final Queue<T> items;
++    private final Function<ObjectPool<T>, T> supplier;
+ 
+-    private static final Map<Class<? extends Pooled>, Pool<? extends Pooled>> pools = new ConcurrentHashMap<>();
+-
+-    public static <T extends Pooled> void create(Class<T> type, int maxItems, Function<Pool<T>, T> supplier) {
+-        pools.putIfAbsent(type, new Pool<>(maxItems, supplier));
+-    }
+-
+-    public static <T extends Pooled> T allocate(Class<T> type) {
+-        return (T) pools.get(type).allocate();
++    public ObjectPool(int items, Function<ObjectPool<T>, T> supplier) {
++        this.items = new ArrayBlockingQueue<>(items);
++        this.supplier = supplier;
      }
  
-     public static int validate(ByteBuffer record) {
-@@ -268,4 +264,5 @@ public class Record2 {
-         int vSize = valueSize(buffer);
-         return ks.fromBytes(buffer.duplicate().limit(vPos + vSize).position(vPos));
+-
+-    public static class Pool<T extends Pooled> {
+-        private final Queue<T> items;
+-        private final Function<Pool<T>, T> supplier;
+-
+-        private Pool(int items, Function<Pool<T>, T> supplier) {
+-            this.items = new ArrayBlockingQueue<>(items);
+-            this.supplier = supplier;
+-        }
+-
+-
+-        private T allocate() {
+-            T poll = items.poll();
+-            if (poll == null) {
+-                return supplier.apply(this);
+-            }
+-            return poll;
++    public T allocate() {
++        T poll = items.poll();
++        if (poll == null) {
++            return supplier.apply(this);
+         }
++        return poll;
++    }
+ 
+-        void release(Pooled pooled) {
+-            items.offer((T) pooled);
+-        }
++    public void release(Pooled pooled) {
++        items.offer((T) pooled);
      }
-+
- }
-diff --git a/indexed-log/src/main/java/io/joshworks/ilog/fields/BlobField.java b/indexed-log/src/main/java/io/joshworks/ilog/fields/BlobField.java
-new file mode 100644
-index 00000000..3bf25b67
---- /dev/null
-+++ b/indexed-log/src/main/java/io/joshworks/ilog/fields/BlobField.java
-@@ -0,0 +1,32 @@
-+package io.joshworks.ilog.fields;
-+
-+import java.nio.ByteBuffer;
-+
-+public class BlobField extends Field {
-+
-+    public BlobField(int offset, int len) {
-+        super(b -> offset, b -> len);
-+    }
-+
-+    public BlobField(Mapper offsetSupplier, Mapper lenSupplier) {
-+        super(offsetSupplier, lenSupplier);
-+    }
-+
-+    public BlobField(int offset, Mapper lenSupplier) {
-+        this(b -> offset, lenSupplier);
-+    }
-+
-+    public static BlobField after(Field field, Mapper offset) {
-+        return new BlobField(b -> afterOf(field, b), offset);
-+    }
-+
-+    private static int afterOf(Field field, ByteBuffer b) {
-+        int _offset = field.offset.apply(b);
-+        int _len = field.len.apply(b);
-+        return _offset + _len;
-+    }
-+
-+    public int set(ByteBuffer fieldBuffer, ByteBuffer value) {
-+        return super.copyFrom(fieldBuffer, value);
-+    }
-+}
-diff --git a/indexed-log/src/main/java/io/joshworks/ilog/fields/ByteField.java b/indexed-log/src/main/java/io/joshworks/ilog/fields/ByteField.java
-new file mode 100644
-index 00000000..ffd34239
---- /dev/null
-+++ b/indexed-log/src/main/java/io/joshworks/ilog/fields/ByteField.java
-@@ -0,0 +1,27 @@
-+package io.joshworks.ilog.fields;
-+
-+import java.nio.ByteBuffer;
-+
-+import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
-+
-+public class ByteField extends Field {
-+
-+    public ByteField(ByteField offsetSupplier) {
-+        super(offsetSupplier::get, bb -> Byte.BYTES);
-+    }
-+
-+    public ByteField(int offset) {
-+        super(bb -> offset, bb -> Byte.BYTES);
-+    }
-+
-+    public int set(ByteBuffer b, byte val) {
-+        int _offset = offset.apply(b);
-+        b.put(_offset, val);
-+        return Byte.BYTES;
-+    }
-+
-+    public byte get(ByteBuffer b) {
-+        int _offset = offset.apply(b);
-+        return b.get(relativePosition(b, _offset));
-+    }
-+}
-diff --git a/indexed-log/src/main/java/io/joshworks/ilog/fields/Field.java b/indexed-log/src/main/java/io/joshworks/ilog/fields/Field.java
-new file mode 100644
-index 00000000..ee119481
---- /dev/null
-+++ b/indexed-log/src/main/java/io/joshworks/ilog/fields/Field.java
-@@ -0,0 +1,68 @@
-+package io.joshworks.ilog.fields;
-+
-+import io.joshworks.fstore.core.io.buffers.Buffers;
-+
-+import java.nio.ByteBuffer;
-+
-+import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
-+
-+public class Field {
-+
-+    protected final Mapper offset;
-+    protected final Mapper len;
-+
-+    public Field(Mapper offset, Mapper len) {
-+        this.offset = offset;
-+        this.len = len;
-+    }
-+
-+    public int copyTo(ByteBuffer thisFieldBuffer, ByteBuffer value) {
-+        int _offset = offset.apply(thisFieldBuffer);
-+        _offset = relativePosition(thisFieldBuffer, _offset);
-+        int _len = len.apply(thisFieldBuffer);
-+        if (value.remaining() < _len) {
-+            throw new IllegalStateException("Expected at lease " + _len + " from the value buffer");
-+        }
-+        return Buffers.copy(thisFieldBuffer, _offset, _len, value);
-+    }
-+
-+    public int copyTo(ByteBuffer thisFieldBuffer, ByteBuffer value, Field valueMapper) {
-+        int thisLen = len.apply(thisFieldBuffer);
-+        int valueLen = valueMapper.len.apply(value);
-+        if (thisLen != valueLen) {
-+            throw new IllegalArgumentException("Field length mismatch");
-+        }
-+
-+        int thisBufferOffset = offset.apply(thisFieldBuffer);
-+        thisBufferOffset = relativePosition(thisFieldBuffer, thisBufferOffset);
-+
-+        int valueOffset = valueMapper.offset.apply(value);
-+        return Buffers.copy(thisFieldBuffer, thisBufferOffset, thisLen, value, valueOffset);
-+    }
-+
-+    public int copyFrom(ByteBuffer thisFieldBuffer, ByteBuffer value) {
-+        int _offset = offset.apply(thisFieldBuffer);
-+        _offset = relativePosition(thisFieldBuffer, _offset);
-+        int _len = len.apply(thisFieldBuffer);
-+        if (value.remaining() < _len) {
-+            throw new IllegalStateException("Expected at lease " + _len + " from the value buffer");
-+        }
-+        //_len => copy only the fields size to this buffer to avoid overflow;
-+        return Buffers.copy(value, value.position(), _len, thisFieldBuffer, _offset);
-+    }
-+
-+    public int copyFrom(ByteBuffer thisFieldBuffer, ByteBuffer value, Field valueMapper) {
-+        int thisLen = len.apply(thisFieldBuffer);
-+        int valueLen = valueMapper.len.apply(value);
-+        if (thisLen != valueLen) {
-+            throw new IllegalArgumentException("Field length mismatch");
-+        }
-+
-+        int thisBufferOffset = offset.apply(thisFieldBuffer);
-+        thisBufferOffset = relativePosition(thisFieldBuffer, thisBufferOffset);
-+
-+        int valueOffset = valueMapper.offset.apply(value);
-+        return Buffers.copy(value, valueOffset, valueLen, thisFieldBuffer, thisBufferOffset);
-+    }
-+
-+}
-diff --git a/indexed-log/src/main/java/io/joshworks/ilog/fields/IntField.java b/indexed-log/src/main/java/io/joshworks/ilog/fields/IntField.java
-new file mode 100644
-index 00000000..1ea9b84c
---- /dev/null
-+++ b/indexed-log/src/main/java/io/joshworks/ilog/fields/IntField.java
-@@ -0,0 +1,27 @@
-+package io.joshworks.ilog.fields;
-+
-+import java.nio.ByteBuffer;
-+
-+import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
-+
-+public class IntField extends Field {
-+
-+    public IntField(IntField offsetSupplier) {
-+        super(offsetSupplier::get, bb -> Integer.BYTES);
-+    }
-+
-+    public IntField(int offset) {
-+        super(bb -> offset, bb -> Integer.BYTES);
-+    }
-+
-+    public int set(ByteBuffer b, int val) {
-+        int _offset = offset.apply(b);
-+        b.putInt(_offset, val);
-+        return Integer.BYTES;
-+    }
-+
-+    public int get(ByteBuffer b) {
-+        int _offset = offset.apply(b);
-+        return b.getInt(relativePosition(b, _offset));
-+    }
-+}
-diff --git a/indexed-log/src/main/java/io/joshworks/ilog/fields/LongField.java b/indexed-log/src/main/java/io/joshworks/ilog/fields/LongField.java
-new file mode 100644
-index 00000000..973823b5
---- /dev/null
-+++ b/indexed-log/src/main/java/io/joshworks/ilog/fields/LongField.java
-@@ -0,0 +1,23 @@
-+package io.joshworks.ilog.fields;
-+
-+import java.nio.ByteBuffer;
-+
-+import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
-+
-+public class LongField extends Field{
-+
-+    public LongField(int offset) {
-+        super(b -> offset, b -> Long.BYTES);
-+    }
-+
-+    public int set(ByteBuffer b, long val) {
-+        int _offset = offset.apply(b);
-+        b.putLong(_offset, val);
-+        return Long.BYTES;
-+    }
-+
-+    public long get(ByteBuffer b) {
-+        int _offset = this.offset.apply(b);
-+        return b.getLong(relativePosition(b, _offset));
-+    }
-+}
-diff --git a/indexed-log/src/main/java/io/joshworks/ilog/fields/Mapper.java b/indexed-log/src/main/java/io/joshworks/ilog/fields/Mapper.java
-new file mode 100644
-index 00000000..ceebeff7
---- /dev/null
-+++ b/indexed-log/src/main/java/io/joshworks/ilog/fields/Mapper.java
-@@ -0,0 +1,9 @@
-+package io.joshworks.ilog.fields;
-+
-+import java.nio.ByteBuffer;
-+
-+public interface Mapper {
-+
-+    int apply(ByteBuffer b);
-+
-+}
-diff --git a/indexed-log/src/main/java/io/joshworks/ilog/lsm/MemTable1.java b/indexed-log/src/main/java/io/joshworks/ilog/lsm/MemTable1.java
-new file mode 100644
-index 00000000..9312a459
---- /dev/null
-+++ b/indexed-log/src/main/java/io/joshworks/ilog/lsm/MemTable1.java
-@@ -0,0 +1,190 @@
-+package io.joshworks.ilog.lsm;
-+
+ 
+ 
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/pooled/Pooled.java b/indexed-log/src/main/java/io/joshworks/ilog/pooled/Pooled.java
+index bcf45c11..637e5591 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/pooled/Pooled.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/pooled/Pooled.java
+@@ -7,10 +7,10 @@ import java.nio.ByteBuffer;
+ 
+ public abstract class Pooled implements Closeable {
+ 
+-    private final ObjectPool.Pool<? extends Pooled> pool;
++    private final ObjectPool<? extends Pooled> pool;
+     protected final ByteBuffer data;
+ 
+-    Pooled(ObjectPool.Pool<? extends Pooled> pool, int size, boolean direct) {
++    Pooled(ObjectPool<? extends Pooled> pool, int size, boolean direct) {
+         this.pool = pool;
+         this.data = Buffers.allocate(size, direct);
+     }
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/pooled/PooledRecord.java b/indexed-log/src/main/java/io/joshworks/ilog/pooled/PooledRecord.java
+deleted file mode 100644
+index 1f4b063e..00000000
+--- a/indexed-log/src/main/java/io/joshworks/ilog/pooled/PooledRecord.java
++++ /dev/null
+@@ -1,80 +0,0 @@
+-package io.joshworks.ilog.pooled;
+-
+-import java.nio.ByteBuffer;
+-
+-import static io.joshworks.fstore.core.io.buffers.Buffers.relativePosition;
+-
+-/**
+- * VALUE_LEN (4 BYTES)
+- * CHECKSUM (4 BYTES)
+- * TIMESTAMP (8 BYTES)
+- * ATTR (1 BYTES)
+- * KEY_LEN (4 BYTES)
+- * <p>
+- * [KEY] (N BYTES)
+- * [VALUE] (N BYTES)
+- */
+-public class PooledRecord extends Pooled {
+-
+-    public static final int HEADER_SIZE = Integer.BYTES + Integer.BYTES + Long.BYTES + Byte.BYTES + Integer.BYTES;
+-
+-    private static final int DATA_LEN_LEN = Integer.BYTES;
+-    private static final int CHECKSUM_LEN = Integer.BYTES;
+-    private static final int TIMESTAMP_LEN = Long.BYTES;
+-    private static final int ATTR_LEN = Byte.BYTES;
+-    private static final int KEY_LEN_LEN = Integer.BYTES;
+-
+-
+-    public static final int DATA_LENGTH_OFFSET = 0;
+-    public static final int CHECKSUM_OFFSET = DATA_LENGTH_OFFSET + DATA_LEN_LEN;
+-    public static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + CHECKSUM_LEN;
+-    public static final int ATTR_OFFSET = TIMESTAMP_OFFSET + TIMESTAMP_LEN;
+-    public static final int KEY_LENGTH_OFFSET = ATTR_OFFSET + ATTR_LEN;
+-    public static final int KEY_OFFSET = KEY_LENGTH_OFFSET + KEY_LEN_LEN;
+-
+-    PooledRecord(ObjectPool.Pool<PooledRecord> pool, int keySize, int maxValue) {
+-        super(pool, keySize + HEADER_SIZE + keySize + maxValue, false);
+-    }
+-
+-    public ByteBuffer buffer() {
+-        return data;
+-    }
+-
+-    public int valueSize() {
+-        return data.getInt(relativePosition(data, DATA_LENGTH_OFFSET));
+-    }
+-
+-    public int valueOffset() {
+-        return relativePosition(data, KEY_OFFSET) + keySize();
+-    }
+-
+-    public int checksum() {
+-        return data.getInt(relativePosition(data, CHECKSUM_OFFSET));
+-    }
+-
+-    public long timestamp() {
+-        return data.getLong(relativePosition(data, TIMESTAMP_OFFSET));
+-    }
+-
+-    public byte attributes() {
+-        return data.get(relativePosition(data, ATTR_OFFSET));
+-    }
+-
+-    public int keyOffset() {
+-        return relativePosition(data, KEY_OFFSET);
+-    }
+-
+-    public int keySize() {
+-        return data.getInt(relativePosition(data, KEY_LENGTH_OFFSET));
+-    }
+-
+-    public boolean hasAttribute(int attribute) {
+-        byte attr = data.get(relativePosition(data, ATTR_OFFSET));
+-        return (attr & (1 << attribute)) == 1;
+-    }
+-
+-    @Override
+-    public void close() {
+-
+-    }
+-}
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/pooled/Test.java b/indexed-log/src/main/java/io/joshworks/ilog/pooled/Test.java
+deleted file mode 100644
+index 4a839a70..00000000
+--- a/indexed-log/src/main/java/io/joshworks/ilog/pooled/Test.java
++++ /dev/null
+@@ -1,18 +0,0 @@
+-package io.joshworks.ilog.pooled;
+-
+-public class Test {
+-
+-    public static void main(String[] args) {
+-
+-        ObjectPool.create(PooledRecord.class, 256, p -> new PooledRecord(p, 8, 256));
+-
+-
+-        try(PooledRecord record = ObjectPool.allocate(PooledRecord.class)) {
+-            record.buffer();
+-        }
+-
+-
+-
+-    }
+-
+-}
+diff --git a/indexed-log/src/test/java/io/joshworks/ilog/lsm/LsmTest.java b/indexed-log/src/test/java/io/joshworks/ilog/lsm/LsmTest.java
+index 4f588799..2dfbb5da 100644
+--- a/indexed-log/src/test/java/io/joshworks/ilog/lsm/LsmTest.java
++++ b/indexed-log/src/test/java/io/joshworks/ilog/lsm/LsmTest.java
+@@ -1,6 +1,6 @@
+ package io.joshworks.ilog.lsm;
+ 
+-import io.joshworks.fstore.codec.snappy.SnappyCodec;
 +import io.joshworks.fstore.core.codec.Codec;
-+import io.joshworks.fstore.core.io.buffers.BufferPool;
-+import io.joshworks.fstore.core.io.buffers.Buffers;
-+import io.joshworks.ilog.Record2;
-+import io.joshworks.ilog.index.IndexFunctions;
-+import io.joshworks.ilog.index.KeyComparator;
-+
-+import java.nio.ByteBuffer;
-+import java.util.ArrayList;
-+import java.util.List;
-+import java.util.Map;
-+import java.util.concurrent.atomic.AtomicInteger;
-+import java.util.function.Consumer;
-+
-+import static io.joshworks.ilog.Record2.keyOffset;
-+import static io.joshworks.ilog.Record2.keySize;
-+import static io.joshworks.ilog.lsm.Block2.keyOverhead;
-+import static java.util.Objects.requireNonNull;
-+
-+class MemTable1 {
-+
-+    final List<ByteBuffer> table;
-+    private final KeyComparator comparator;
-+    private final BufferPool recordPool; //used to store records
-+    private final AtomicInteger entries = new AtomicInteger();
-+    private final AtomicInteger sizeInBytes = new AtomicInteger();
-+
-+    MemTable1(KeyComparator comparator, int maxEntries, int maxRecordSize) {
-+        this.table = new ArrayList<>(maxEntries);
-+        this.recordPool = BufferPool.defaultPool(maxEntries, maxRecordSize, true);
-+        this.comparator = comparator;
-+
-+        //pre allocate
-+        for (int i = 0; i < maxEntries; i++) {
-+            recordPool.free(recordPool.allocate());
-+        }
-+    }
-+
-+    void add(ByteBuffer record) {
-+        requireNonNull(record, "Record must be provided");
-+
-+        var memRec = recordPool.allocate();
-+        try {
-+            Buffers.copy(record, memRec);
-+            memRec.flip();
-+
-+            int keyOffset = keyOffset(memRec);
-+            int recordSize = Record2.sizeOf(memRec);
-+            int idx = binarySearch(memRec, keyOffset);
-+
-+            if (idx >= 0) { //existing entry
-+                int existingSize = Record2.sizeOf(table.get(idx));
-+                table.set(idx, memRec);
-+                int diff = recordSize - existingSize;
-+                sizeInBytes.addAndGet(diff);
-+            } else {
-+                table.add(Math.abs(idx) - 1, memRec);
-+                entries.incrementAndGet();
-+            }
-+
-+        } catch (Exception e) {
-+            throw new RuntimeException("Failed to insert record", e);
-+        }
-+    }
-+
-+    public int apply(ByteBuffer key, ByteBuffer dst, IndexFunctions fn) {
-+        validateKeySize(key);
-+        int idx = binarySearch(key, key.position());
-+        idx = fn.apply(idx);
-+        if (idx < 0) {
-+            return 0;
-+        }
-+        ByteBuffer record = table.get(idx);
-+        return LsmRecord.fromRecord(record, dst);
-+    }
-+
-+    public int size() {
-+        return entries.get();
-+    }
-+
-+    private void validateKeySize(ByteBuffer key) {
-+        if (key.remaining() != comparator.keySize()) {
-+            throw new IllegalArgumentException("Invalid key size: " + key.remaining());
-+        }
-+    }
-+
-+    private static ByteBuffer getValue(Map.Entry<ByteBuffer, ByteBuffer> entry) {
-+        return entry == null ? null : entry.getValue();
-+    }
-+
-+    long writeTo(Consumer<ByteBuffer> writer, long maxAge, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst) {
-+        if (table.isEmpty()) {
-+            return 0;
-+        }
-+
-+        long inserted = 0;
-+        int blockEntries = 0;
-+        ByteBuffer first = null;
-+        int keyOverhead = keyOverhead(comparator.keySize());
-+
-+        Buffers.offsetPosition(block, Block2.HEADER_SIZE);
-+        for (ByteBuffer record : table) {
-+            if (LsmRecord.expired(record, maxAge) && !LsmRecord.deletion(record)) {
-+                continue;
-+            }
-+
-+            int valueRegionSize = blockRecords.position();
-+            int valueSize = Record2.valueSize(record);
-+            int valueOverhead = Block2.Record.valueOverhead(valueSize);
-+
-+            //not enough space in the block, compress and write
-+            if (block.remaining() < valueRegionSize + keyOverhead + valueOverhead) {
-+                writeBlock(writer, codec, block, blockRecords, dst, blockEntries, first);
-+
-+                //reset state
-+                blockEntries = 0;
-+                first = null;
-+
-+                //clear buffers
-+                block.clear();
-+                blockRecords.clear();
-+                dst.clear();
-+                Buffers.offsetPosition(block, Block2.HEADER_SIZE);
-+            }
-+
-+
-+            int offset = blockRecords.position();
-+
-+            //BLOCK DATA
-+            Block2.Record.fromRecord(record, blockRecords);
-+
-+            //KEYS_REGION
-+            Buffers.copy(record, keyOffset(record), keySize(record), block);
-+            block.putInt(offset);
-+
-+            first = first == null ? record : first;
-+            blockEntries++;
-+            inserted++;
-+        }
-+        writeBlock(writer, codec, block, blockRecords, dst, blockEntries, first);
-+
-+        entries.set(0); // TODO remove
-+        table.clear(); // TODO remove
-+        return inserted;
-+    }
-+
-+    private void writeBlock(Consumer<ByteBuffer> writer, Codec codec, ByteBuffer block, ByteBuffer blockRecords, ByteBuffer dst, int blockEntries, ByteBuffer firstRecord) {
-+        blockRecords.flip();
-+        int uncompressedSize = blockRecords.remaining();
-+
-+        if (block.remaining() < uncompressedSize) {
-+            throw new IllegalStateException("Not enough space block space");
-+        }
-+
-+        Block2.compress(blockRecords, block, codec);
-+        block.flip();
-+
-+        Block2.writeHeader(block, uncompressedSize, blockEntries);
-+
-+        Record2.create(firstRecord, block, dst);
-+
-+
-+        dst.flip();
-+
-+        writer.accept(dst);
-+    }
-+
-+    private int binarySearch(ByteBuffer key, int keyStart) {
-+        int entries = table.size();
-+
-+        int low = 0;
-+        int high = entries - 1;
-+
-+        while (low <= high) {
-+            int mid = (low + high) >>> 1;
-+            ByteBuffer rec = table.get(mid);
-+            int cmp = comparator.compare(rec, 0, key, keyStart);
-+            if (cmp < 0)
-+                low = mid + 1;
-+            else if (cmp > 0)
-+                high = mid - 1;
-+            else
-+                return mid;
-+        }
-+        return -(low + 1);
-+    }
-+
-+}
-diff --git a/indexed-log/src/test/java/io/joshworks/ilog/Record2Test.java b/indexed-log/src/test/java/io/joshworks/ilog/Record2Test.java
-index ef95cc2b..31e3f41a 100644
---- a/indexed-log/src/test/java/io/joshworks/ilog/Record2Test.java
-+++ b/indexed-log/src/test/java/io/joshworks/ilog/Record2Test.java
-@@ -4,14 +4,32 @@ import org.junit.Test;
+ import io.joshworks.fstore.core.io.buffers.Buffers;
+ import io.joshworks.fstore.core.util.Size;
+ import io.joshworks.fstore.core.util.TestUtils;
+@@ -26,7 +26,7 @@ public class LsmTest {
+     public void setUp() {
+         lsm = Lsm.create(TestUtils.testFolder(), COMPARATOR)
+                 .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(10), false)
+-                .codec(new SnappyCodec())
++                .codec(Codec.noCompression())
+                 .open();
  
- import java.nio.ByteBuffer;
- 
--import static org.junit.Assert.*;
--
- public class Record2Test {
--
--
-     @Test
-     public void create() {
--        ByteBuffer rec = RecordUtils.create(1, "abcde");
--        int validate = Record2.validate(rec);
-+
-+        var key = ByteBuffer.allocate(1024).putLong(123).flip();
-+        var value = ByteBuffer.allocate(4096).putLong(123).putInt(456).flip();
-+        var dst = ByteBuffer.allocate(4096);
-+
-+        int size = Record2.create(key, value, dst);
-+//        Buffers.offsetPosition(dst, size);
-+
-+
-+        var keyCopy = ByteBuffer.allocate(1024);
-+        var valCopy = ByteBuffer.allocate(1024);
-+
-+        int keyLen = Record2.KEY_LENGTH.get(dst);
-+        int checksum = Record2.CHECKSUM.get(dst);
-+        long timestamp = Record2.TIMESTAMP.get(dst);
-+        int valLen = Record2.VALUE_LEN.get(dst);
-+        Record2.KEY.copyTo(dst, keyCopy);
-+        Record2.VALUE.copyTo(dst, valCopy);
-+
-+        keyCopy.flip();
-+        valCopy.flip();
-+
-+        System.out.println();
-+
      }
- }
-\ No newline at end of file

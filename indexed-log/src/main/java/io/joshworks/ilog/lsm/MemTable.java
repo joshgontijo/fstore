@@ -26,15 +26,14 @@ class MemTable {
 
     MemTable(KeyComparator comparator, int memTableSizeInBytes, int maxEntries, boolean direct) {
         this.table = new RedBlackBST(comparator, maxEntries, direct);
-        this.data = Buffers.allocate(memTableSizeInBytes, false);
+        this.data = Buffers.allocate(memTableSizeInBytes, direct);
         this.comparator = comparator;
-        this.tmpKey = Buffers.allocate(comparator.keySize(), false);
+        this.tmpKey = Buffers.allocate(comparator.keySize(), direct);
         this.keySize = comparator.keySize();
     }
 
     boolean add(ByteBuffer record) {
         requireNonNull(record, "Record must be provided");
-
         try {
 
             if (data.remaining() < record.remaining() || table.isFull()) {
@@ -111,15 +110,14 @@ class MemTable {
             int recordOffset = node.offset();
             int recordLen = node.recordLen();
 
-            boolean added = block.add(node.offset(), data, recordOffset, recordLen);
+            boolean added = block.add(data, recordOffset, recordLen);
             if (!added) {
                 inserted += block.entryCount();
                 block.compress();
                 block.write(writer);
                 block.clear();
 
-
-                boolean added1 = block.add(node.offset(), data, recordOffset, recordLen);
+                boolean added1 = block.add(data, recordOffset, recordLen);
                 assert added1;
             }
 

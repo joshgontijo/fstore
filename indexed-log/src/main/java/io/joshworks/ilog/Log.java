@@ -27,7 +27,7 @@ public class Log<T extends IndexedSegment> {
                int maxEntrySize,
                int indexSize,
                int compactionThreshold,
-               int parallelCompaction,
+               int compactionThreads,
                FlushMode flushMode,
                BufferPool pool,
                SegmentFactory<T> segmentFactory) throws IOException {
@@ -46,7 +46,7 @@ public class Log<T extends IndexedSegment> {
         }
         var reindexPool = BufferPool.unpooled(Math.max(maxEntrySize, Memory.PAGE_SIZE), false);
         this.view = new View<>(root, indexSize, reindexPool, segmentFactory);
-        this.compactor = new Compactor<>(view, "someName", new ConcatenateCombiner(pool), true, compactionThreshold, parallelCompaction);
+        this.compactor = new Compactor<>(view, new ConcatenateCombiner(pool), compactionThreshold, compactionThreads);
     }
 
     public void append(ByteBuffer record) {
@@ -60,8 +60,7 @@ public class Log<T extends IndexedSegment> {
                 if (FlushMode.ON_ROLL.equals(flushMode)) {
                     head.flush();
                 }
-                head = view.roll();
-                compactor.compact(false);
+                head = rollInternal();
             }
             head.append(record);
             if (FlushMode.ALWAYS.equals(flushMode)) {
@@ -77,12 +76,19 @@ public class Log<T extends IndexedSegment> {
     }
 
     public void roll() {
+        rollInternal();
+    }
+
+    private T rollInternal() {
         try {
-            view.roll();
+            T newHead = view.roll();
+            compactor.compact(false);
+            return newHead;
         } catch (IOException e) {
             throw new RuntimeIOException(e);
         }
     }
+
 
     public long entries() {
         return view.entries();
@@ -90,11 +96,7 @@ public class Log<T extends IndexedSegment> {
 
     public void flush() {
         IndexedSegment head = view.head();
-        try {
-            head.flush();
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed flushing " + head, e);
-        }
+        head.flush();
     }
 
     public void close() {
