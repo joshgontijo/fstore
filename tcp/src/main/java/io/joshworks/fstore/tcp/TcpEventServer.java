@@ -62,6 +62,7 @@ public class TcpEventServer implements Closeable {
             long idleTimeout,
             Compression compression,
             int capacity,
+            boolean async,
             Consumer<TcpConnection> onOpen,
             Consumer<TcpConnection> onClose,
             Consumer<TcpConnection> onIdle,
@@ -75,7 +76,7 @@ public class TcpEventServer implements Closeable {
         this.handler = handler;
 
         BufferPool pool = BufferPool.defaultPool(capacity, maxMessageSize, false);
-        Acceptor acceptor = new Acceptor(idleTimeout, pool);
+        Acceptor acceptor = new Acceptor(idleTimeout, pool, async);
 
         XnioWorker worker = null;
         try {
@@ -173,10 +174,12 @@ public class TcpEventServer implements Closeable {
 
         private final long timeout;
         private final BufferPool pool;
+        private final boolean async;
 
-        Acceptor(long timeout, BufferPool pool) {
+        Acceptor(long timeout, BufferPool pool, boolean async) {
             this.timeout = timeout;
             this.pool = pool;
+            this.async = async;
         }
 
         @Override
@@ -209,7 +212,7 @@ public class TcpEventServer implements Closeable {
 
                     //---------- listeners
                     EventHandler keepAliveHandler = new KeepAliveHandler(handler);
-                    ReadListener readListener = new ReadListener(tcpConnection, keepAliveHandler, pool);
+                    ReadListener readListener = new ReadListener(tcpConnection, keepAliveHandler, async);
 
                     pipeline.readListener(readListener);
 
@@ -248,6 +251,7 @@ public class TcpEventServer implements Closeable {
         private int bufferSize = Size.KB.ofInt(64);
         private Compression compression = Compression.NONE;
         private int capacity = 256;
+        private boolean async;
 
         public Builder() {
 
@@ -279,6 +283,11 @@ public class TcpEventServer implements Closeable {
                 throw new IllegalArgumentException("Buffer size must be greater than zero");
             }
             this.capacity = capacity;
+            return this;
+        }
+
+        public Builder handleAsync() {
+            this.async = true;
             return this;
         }
 
@@ -324,6 +333,7 @@ public class TcpEventServer implements Closeable {
                     timeout,
                     compression,
                     capacity,
+                    async,
                     onOpen,
                     onClose,
                     onIdle,

@@ -234,6 +234,10 @@ public class TcpConnection implements Closeable {
                 '}';
     }
 
+    public BufferPool pool() {
+        return pool;
+    }
+
 
     private class RpcProxyHandler implements InvocationHandler {
 

@@ -1,6 +1,5 @@
 package io.joshworks.fstore.tcp;
 
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.ChannelListener;
@@ -13,14 +12,14 @@ class ReadListener implements ChannelListener<ConduitStreamSourceChannel> {
 
     private static final Logger logger = LoggerFactory.getLogger(ReadListener.class);
 
-    private final TcpConnection tcpConnection;
-    private final BufferPool pool;
+    private final TcpConnection conn;
+    private final boolean async;
     private final EventHandler handler;
 
-    ReadListener(TcpConnection tcpConnection, EventHandler handler, BufferPool pool) {
-        this.tcpConnection = tcpConnection;
+    ReadListener(TcpConnection conn, EventHandler handler, boolean async) {
+        this.conn = conn;
         this.handler = handler;
-        this.pool = pool;
+        this.async = async;
     }
 
     @Override
@@ -28,11 +27,11 @@ class ReadListener implements ChannelListener<ConduitStreamSourceChannel> {
         try {
             int read;
             do {
-                ByteBuffer buffer = pool.allocate();
+                ByteBuffer buffer = conn.pool().allocate();
                 read = channel.read(buffer);
                 buffer.flip();
                 if (buffer.hasRemaining()) {
-                    dispatch(tcpConnection, buffer);
+                    dispatch(conn, buffer);
                 }
             } while (read > 0);
 
@@ -49,20 +48,31 @@ class ReadListener implements ChannelListener<ConduitStreamSourceChannel> {
     private void dispatch(TcpConnection tcpConnection, ByteBuffer buffer) {
         try {
             tcpConnection.incrementMessageReceived();
-            tcpConnection.worker().execute(() -> handleEvent(tcpConnection, buffer));
+            if (async) {
+                handleEventAsync(tcpConnection, buffer);
+            } else {
+                handleEvent(tcpConnection, buffer);
+            }
         } catch (Exception e) {
             logger.error("Event handler threw an exception", e);
         }
     }
 
     private void handleEvent(TcpConnection tcpConnection, ByteBuffer buffer) {
-        try {
-            if (!buffer.hasRemaining()) {
-                throw new IllegalStateException("Empty buffer");
-            }
-            handler.onEvent(tcpConnection, buffer);
-        } finally {
-            pool.free(buffer);
+        if (!buffer.hasRemaining()) {
+            throw new IllegalStateException("Empty buffer");
         }
+        handler.onEvent(tcpConnection, buffer);
+    }
+
+    private void handleEventAsync(TcpConnection tcpConnection, ByteBuffer buffer) {
+        tcpConnection.worker().execute(() -> {
+            try {
+                handleEvent(tcpConnection, buffer);
+            } finally {
+                conn.pool().free(buffer);
+            }
+        });
+
     }
 }

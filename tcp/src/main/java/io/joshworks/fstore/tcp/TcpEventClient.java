@@ -41,12 +41,13 @@ public class TcpEventClient {
     private final EventHandler eventHandler;
     private final XnioWorker worker;
 
-    private final BufferPool messagePool;
+    private final BufferPool pool;
     private transient TcpConnection tcpConnection;
     private final CountDownLatch connectLatch = new CountDownLatch(1);
 
     private final ResponseTable responseTable = new ResponseTable();
     private final Compression compression;
+    private final boolean async;
 
     private TcpEventClient(OptionMap options,
                            InetSocketAddress bindAddress,
@@ -54,11 +55,13 @@ public class TcpEventClient {
                            long keepAliveInterval,
                            Compression compression,
                            int capacity,
+                           boolean async,
                            Consumer<TcpConnection> onClose,
                            EventHandler handler) {
         this.compression = compression;
+        this.async = async;
 
-        this.messagePool = BufferPool.defaultPool(capacity, maxMessageSize, false);
+        this.pool = BufferPool.defaultPool(capacity, maxMessageSize, false);
 
         this.bindAddress = bindAddress;
         this.keepAliveInterval = keepAliveInterval;
@@ -104,25 +107,25 @@ public class TcpEventClient {
 
         @Override
         public void handleEvent(StreamConnection channel) {
-            tcpConnection = new TcpConnection(channel, messagePool, responseTable, compression);
+            tcpConnection = new TcpConnection(channel, pool, responseTable, compression);
 
             channel.setCloseListener(conn -> onClose.accept(tcpConnection));
 
             ConduitPipeline pipeline = new ConduitPipeline(channel);
             pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
             pipeline.addMessageSource(conduit -> {
-                var framing = new FramingMessageSourceConduit(conduit, messagePool);
-                return new CodecConduit(framing, messagePool);
+                var framing = new FramingMessageSourceConduit(conduit, pool);
+                return new CodecConduit(framing, pool);
             });
 
-            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, messagePool));
+            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, pool));
             pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
 
             if (keepAliveInterval > 0) {
                 new KeepAliveConduit(channel, keepAliveInterval); //adds to source and sink
             }
 
-            ReadListener readListener = new ReadListener(tcpConnection, eventHandler, messagePool);
+            ReadListener readListener = new ReadListener(tcpConnection, eventHandler, async);
             pipeline.readListener(readListener);
 
             channel.setCloseListener(conn -> responseTable.clear());
@@ -148,6 +151,7 @@ public class TcpEventClient {
         private int bufferSize = Size.MB.ofInt(1);
         private Compression compression = Compression.NONE;
         private int capacity = 256;
+        private boolean async = false;
 
         private Builder() {
 
@@ -160,6 +164,11 @@ public class TcpEventClient {
 
         public Builder name(String name) {
             this.options.set(Options.WORKER_NAME, requireNonNull(name));
+            return this;
+        }
+
+        public Builder handleAsync() {
+            this.async = true;
             return this;
         }
 
@@ -209,6 +218,7 @@ public class TcpEventClient {
                     keepAliveInterval,
                     compression,
                     capacity,
+                    async,
                     onClose,
                     handler);
 
