@@ -7,6 +7,7 @@ import io.joshworks.fstore.tcp.TcpEventClient;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.lsm.Lsm;
+import org.jboss.threads.ArrayQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.Options;
@@ -14,10 +15,10 @@ import org.xnio.Options;
 import java.io.File;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Replica {
 
@@ -30,6 +31,9 @@ public class Replica {
     private final ByteBuffer protocolBuffer = Buffers.allocate(24, false);
 
     private final ReplicationExecutor writer = new ReplicationExecutor(100);
+
+    static final AtomicLong sequence = new AtomicLong();
+
 
     public Replica(File dir, int port) {
         this.lsm = Lsm.create(dir, KeyComparator.LONG).open();
@@ -73,11 +77,14 @@ public class Replica {
 
                 assert logId == replId;
 
+                sequence.set(replId);
+
                 protocolBuffer.clear();
                 Replication.replicated(protocolBuffer, replId);
                 protocolBuffer.flip();
 
                 log.info("[REPLICA] Replicated {}", logId);
+
 
                 connection.send(protocolBuffer, true);
 
@@ -93,7 +100,7 @@ public class Replica {
 
         public ReplicationExecutor(int size) {
             super(1, 1, 1, TimeUnit.HOURS, new BlockingExecutorQueue<>(size));
-            this.runnables = new LinkedList<>();
+            this.runnables = new ArrayQueue<>(size + 10);
         }
 
         private void execute(TcpConnection connection, Object data, Lsm lsm, ByteBuffer protocolBuffer, ByteBuffer replicationBuffer) {

@@ -2,6 +2,7 @@ package io.joshworks.fstore.ie.server;
 
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.TestUtils;
+import io.joshworks.fstore.core.util.Threads;
 
 import java.io.File;
 
@@ -23,17 +24,27 @@ public class Main {
         Server server = new Server(master, repPort);
         Replica replica1 = new Replica(replicaFolder, repPort);
 
+        new Thread(() -> {
+            while (true) {
+                long serverSeq = Server.sequence.get();
+                long replicaSeq = Replica.sequence.get();
+                long ackSeq = Server.replicated.get();
+                System.out.println(serverSeq + " | " + replicaSeq + " | " + ackSeq + " ---- DIFF: " + (serverSeq - replicaSeq) + " | " + (replicaSeq - ackSeq));
+                Threads.sleep(1000);
+            }
+        }).start();
+
 
         long s = System.currentTimeMillis();
         for (int i = 0; i < 1000000000; i++) {
             server.append(RecordUtils.create(i, "value-" + i));
 //            System.out.println("WRITE SUCCESSFUL: " + i);
 //            Threads.sleep(2000);
-            if (i % 50000 == 0) {
-                long now = System.currentTimeMillis();
-                System.out.println("WRITTEN: " + i + " IN " + (now - s));
-                s = now;
-            }
+//            if (i % 50000 == 0) {
+//                long now = System.currentTimeMillis();
+//                System.out.println("WRITTEN: " + i + " IN " + (now - s));
+//                s = now;
+//            }
 
         }
 

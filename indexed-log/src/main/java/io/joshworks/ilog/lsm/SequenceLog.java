@@ -66,11 +66,23 @@ public class SequenceLog implements Closeable {
         }
     }
 
-    public int find(long sequence, ByteBuffer dst, IndexFunctions fn) {
-        //TODO to apply all IndexFunctions, findSegment must also follow the same strategy
-        if (sequence < 0) {
+    public int bulkRead(long sequence, ByteBuffer dst, IndexFunctions fn) {
+        assert sequence >= 0;
+        SequenceSegment segment = findSegment(sequence, IndexFunctions.FLOOR);
+        if (segment == null) {
             return 0;
         }
+        ByteBuffer buffer = keyPool.allocate().putLong(sequence).flip();
+        try {
+            return segment.bulkRead(buffer, dst, fn);
+        } finally {
+            keyPool.free(buffer);
+        }
+    }
+
+    public int find(long sequence, ByteBuffer dst, IndexFunctions fn) {
+        assert sequence >= 0;
+
         SequenceSegment segment = findSegment(sequence, IndexFunctions.FLOOR);
         if (segment == null) {
             return 0;

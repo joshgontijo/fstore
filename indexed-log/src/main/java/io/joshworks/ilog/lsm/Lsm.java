@@ -143,7 +143,7 @@ public class Lsm {
     }
 
     public int readLog(ByteBuffer dst, long id) {
-        return tlog.find(id, dst, IndexFunctions.EQUALS);
+        return tlog.bulkRead(id, dst, IndexFunctions.EQUALS);
     }
 
     synchronized void flush() {

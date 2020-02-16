@@ -150,7 +150,6 @@ public class TcpConnection implements Closeable {
             TcpHeader.uncompressedLength(buffer, uncompressedLen);
             TcpHeader.compression(buffer, compression);
 
-
             var sink = connection.getSinkChannel();
             if (!sink.isOpen()) {
                 throw new IllegalStateException("Closed channel");

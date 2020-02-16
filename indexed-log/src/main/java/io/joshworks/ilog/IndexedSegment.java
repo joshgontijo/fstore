@@ -122,6 +122,34 @@ public class IndexedSegment {
         }
     }
 
+//    //TODO requires length prefixed record
+//    public long transferTo(ByteBuffer key, WritableByteChannel sink, IndexFunctions func) {
+//        try {
+//            int idx = index.find(key, func);
+//            if (idx == NONE) {
+//                return 0;
+//            }
+//            long pos = index.readPosition(idx);
+//            long count = writePosition() - pos;
+//            return channel.transferTo(pos, count, sink);
+//        } catch (IOException e) {
+//            throw new RuntimeIOException(e);
+//        }
+//    }
+
+    public int bulkRead(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
+        int idx = index.find(key, func);
+        if (idx == NONE) {
+            return 0;
+        }
+        try {
+            long pos = index.readPosition(idx);
+            return read(pos, dst);
+        } catch (Exception e) {
+            throw new RuntimeIOException(e);
+        }
+    }
+
     public int find(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
         int idx = index.find(key, func);
         if (idx == NONE) {

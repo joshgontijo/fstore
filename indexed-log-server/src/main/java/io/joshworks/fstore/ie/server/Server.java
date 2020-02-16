@@ -1,12 +1,11 @@
 package io.joshworks.fstore.ie.server;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.ie.server.protocol.Message;
 import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpEventServer;
+import io.joshworks.fstore.tcp.codec.Compression;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.lsm.Lsm;
@@ -23,7 +22,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class Server implements Closeable {
@@ -41,9 +39,13 @@ public class Server implements Closeable {
 
     private final BufferPool bufferPool = BufferPool.defaultPool(10, 4096, false);
 
+    public static final AtomicLong sequence = new AtomicLong();
+    public static final AtomicLong replicated = new AtomicLong();
+
     public Server(File file, int replicationPort) {
         this.lsm = Lsm.create(file, KeyComparator.LONG).open();
         this.replicationServer = TcpEventServer.create()
+                .compression(Compression.SNAPPY)
                 .idleTimeout(10, TimeUnit.SECONDS)
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
@@ -84,7 +86,8 @@ public class Server implements Closeable {
         assert Record.isValid(buffer);
 
         long logId = lsm.append(buffer);
-        replicas.await(logId);
+        sequence.set(logId);
+//        replicas.await(logId);
 
 //        ackBack(connection);
     }
@@ -130,6 +133,7 @@ public class Server implements Closeable {
         }
 
         public void update(TcpConnection conn, long id) {
+            replicated.set(id);
             long max = replicas.get(conn).accumulateAndGet(id, Math::max);
             if (!q.offer(max)) {
                 q.poll();
@@ -151,10 +155,6 @@ public class Server implements Closeable {
 
         public void await(long id) {
             try {
-//                if (id <= replicated()) {
-//                    return;
-//                }
-
                 Long pooled;
                 do {
                     pooled = q.poll(10, TimeUnit.SECONDS);
@@ -166,65 +166,6 @@ public class Server implements Closeable {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-        }
-    }
-
-    private static class ReplicationWorker {
-        private final TcpConnection sink;
-        private final Lsm src;
-        private final int poolMs;
-        private final AtomicLong sequence = new AtomicLong();
-        private final ByteBuffer keyBuffer;
-        private final ByteBuffer sinkBuffer;
-        private final AtomicBoolean closed = new AtomicBoolean();
-        private final Thread thread;
-
-        private static final Logger log = LoggerFactory.getLogger(ReplicationWorker.class);
-
-        private ReplicationWorker(TcpConnection sink, Lsm src, long startSequence, int maxRecordSize, int poolMs) {
-            assert startSequence >= 0;
-            this.sink = sink;
-            this.src = src;
-            this.sinkBuffer = Buffers.allocate(maxRecordSize, false);
-            this.keyBuffer = Buffers.allocate(Long.BYTES, false);
-            this.poolMs = poolMs;
-            this.sequence.set(startSequence);
-            this.thread = new Thread(this::replicate);
-        }
-
-        public void start() {
-            log.info("Starting worker: {}", sink.peerAddress());
-            thread.start();
-        }
-
-        public void close() {
-            closed.set(true);
-        }
-
-        private void replicate() {
-            while (!closed.get()) {
-
-                keyBuffer.clear().putLong(sequence.get()).flip();
-                sinkBuffer.clear();
-
-                int read;
-                do {
-                    read = src.readLog(sinkBuffer, sequence.get());
-                    if (read <= 0 && poolMs > 0) {
-                        Threads.sleep(poolMs);
-//                        log.info("No data to replicate...");
-                    }
-                } while (read <= 0);
-
-                sinkBuffer.flip();
-
-                assert sinkBuffer.remaining() > 0;
-                sink.send(sinkBuffer, true);
-                long id = sequence.getAndIncrement();
-                log.info("Sent id {} with {} bytes", id, sinkBuffer.remaining());
-            }
-
-
         }
     }
 
