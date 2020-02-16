@@ -91,6 +91,27 @@ public class LsmTest {
     }
 
     @Test
+    public void readLog() {
+        int items = 1000;
+        for (int i = 0; i < items; i++) {
+            lsm.append(LsmRecordUtils.add(i, "value-" + i));
+        }
+
+        for (int i = 0; i < items; i++) {
+            var readBuffer = Buffers.allocate(4096, false);
+            int read = lsm.readLog(readBuffer, i);
+            assertTrue(read > 0);
+
+            readBuffer.flip();
+            assertTrue(Record.isValid(readBuffer));
+
+            int kOffset = Record.KEY.offset(readBuffer);
+            long id = readBuffer.getLong(kOffset);
+            assertEquals(i, id);
+        }
+    }
+
+    @Test
     public void delete() {
         lsm.append(LsmRecordUtils.add(0, String.valueOf(0)));
         lsm.append(LsmRecordUtils.delete(0));

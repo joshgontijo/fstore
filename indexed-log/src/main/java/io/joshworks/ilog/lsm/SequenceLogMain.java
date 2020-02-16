@@ -8,6 +8,7 @@ import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
+import io.joshworks.ilog.index.IndexFunctions;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,7 +40,7 @@ public class SequenceLogMain {
         var kb = Buffers.allocate(Long.BYTES, false);
         for (long i = 0; i < items; ) {
             buffer.clear();
-            log.get(i, buffer);
+            log.find(i, buffer, IndexFunctions.EQUALS);
             buffer.flip();
 
             if (!buffer.hasRemaining()) {

@@ -83,14 +83,15 @@ public class Lsm {
         return new Builder(root, comparator);
     }
 
-    public void append(ByteBuffer record) {
-        tlog.append(record);
+    public long append(ByteBuffer record) {
+        long seq = tlog.append(record);
         if (!memTable.add(record)) {
             flush();
             if (!memTable.add(record)) {
                 throw new IllegalStateException("Failed to write to memtable");
             }
         }
+        return seq;
     }
 
     public int get(ByteBuffer key, ByteBuffer dst) {
@@ -141,6 +142,10 @@ public class Lsm {
         return heapBlock.find(key, dst, func);
     }
 
+    public int readLog(ByteBuffer dst, long id) {
+        return tlog.find(id, dst, IndexFunctions.EQUALS);
+    }
+
     synchronized void flush() {
         try (HeapBlock block = blockPool.allocate()) {
             long entries = memTable.writeTo(ssTables::append, maxAge, block);
@@ -155,4 +160,8 @@ public class Lsm {
         ssTables.delete();
     }
 
+    public void close() {
+        tlog.close();
+        ssTables.close();
+    }
 }

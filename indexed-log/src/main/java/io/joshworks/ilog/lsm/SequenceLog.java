@@ -15,10 +15,8 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 
 public class SequenceLog implements Closeable {
 
@@ -52,7 +50,7 @@ public class SequenceLog implements Closeable {
         this.recordWriteBuffer = recordPool.allocate();
     }
 
-    public void append(ByteBuffer data) {
+    public long append(ByteBuffer data) {
         try {
             long seq = sequence.getAndIncrement();
             keyWriteBuffer.putLong(seq).flip();
@@ -61,42 +59,51 @@ public class SequenceLog implements Closeable {
             recordWriteBuffer.flip();
             keyWriteBuffer.clear();
             log.append(recordWriteBuffer);
+            return seq;
         } catch (Exception e) {
             sequence.decrementAndGet();
             throw new RuntimeIOException(e);
         }
     }
 
-    public void get(long sequence, ByteBuffer dst) {
+    public int find(long sequence, ByteBuffer dst, IndexFunctions fn) {
         //TODO to apply all IndexFunctions, findSegment must also follow the same strategy
-        SequenceSegment segment = findSegment(sequence);
+        if (sequence < 0) {
+            return 0;
+        }
+        SequenceSegment segment = findSegment(sequence, IndexFunctions.FLOOR);
+        if (segment == null) {
+            return 0;
+        }
         ByteBuffer buffer = keyPool.allocate().putLong(sequence).flip();
         try {
-            segment.find(buffer, dst, IndexFunctions.EQUALS);
+            return segment.find(buffer, dst, fn);
         } finally {
             keyPool.free(buffer);
         }
     }
 
-    private SequenceSegment findSegment(long sequence) {
-        return log.apply(Direction.FORWARD, segs -> findSegment(segs, sequence));
+    private SequenceSegment findSegment(long sequence, IndexFunctions fn) {
+        return log.apply(Direction.FORWARD, segs -> findSegment(segs, sequence, fn));
     }
 
-    private static SequenceSegment findSegment(List<SequenceSegment> segments, long sequence) {
-        int idx = indexedBinarySearch(segments, sequence, SequenceSegment::firstKey, Long::compare);
-        idx = idx < 0 ? Math.abs(idx) - 2 : idx;
+    private static SequenceSegment findSegment(List<SequenceSegment> segments, long sequence, IndexFunctions fn) {
+        int idx = indexedBinarySearch(segments, sequence);
+        idx = fn.apply(idx);
+        if (idx < 0) {
+            return null;
+        }
         return segments.get(idx);
     }
 
-    private static <T, R> int indexedBinarySearch(List<? extends T> segments, R key, Function<T, R> mapper, Comparator<? super R> c) {
+    private static int indexedBinarySearch(List<SequenceSegment> segments, long sequence) {
         int low = 0;
         int high = segments.size() - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            T midVal = segments.get(mid);
-            R mapped = mapper.apply(midVal);
-            int cmp = c.compare(mapped, key);
+            SequenceSegment midVal = segments.get(mid);
+            int cmp = Long.compare(midVal.firstKey(), sequence);
 
             if (cmp < 0)
                 low = mid + 1;
@@ -133,6 +140,9 @@ public class SequenceLog implements Closeable {
             try {
                 index.first(keyBuffer);
                 keyBuffer.flip();
+                if (!keyBuffer.hasRemaining()) {
+                    return -1;
+                }
                 return keyBuffer.getLong();
             } finally {
                 keyPool.free(keyBuffer);

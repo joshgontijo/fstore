@@ -27,6 +27,7 @@
         <module>cluster</module>
 <!--        <module>cluster-log-test</module>-->
         <module>indexed-log</module>
+        <module>indexed-log-server</module>
     </modules>
 
     <properties>
@@ -43,10 +44,15 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.joshworks.fstore</groupId>
-                <artifactId>lsmtree</artifactId>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>indexed-log</artifactId>
                 <version>${project.version}</version>
             </dependency>
+<!--            <dependency>-->
+<!--                <groupId>io.joshworks.fstore</groupId>-->
+<!--                <artifactId>lsmtree</artifactId>-->
+<!--                <version>${project.version}</version>-->
+<!--            </dependency>-->
             <!-- Serializers -->
             <dependency>
                 <groupId>${project.groupId}</groupId>
@@ -81,27 +87,27 @@
                 <version>${project.version}</version>
             </dependency>
 
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>logstore</artifactId>
-                <version>${project.version}</version>
-            </dependency>
+<!--            <dependency>-->
+<!--                <groupId>${project.groupId}</groupId>-->
+<!--                <artifactId>logstore</artifactId>-->
+<!--                <version>${project.version}</version>-->
+<!--            </dependency>-->
 
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>event-store</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>es-shared</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>${project.groupId}</groupId>
-                <artifactId>es-client</artifactId>
-                <version>${project.version}</version>
-            </dependency>
+<!--            <dependency>-->
+<!--                <groupId>${project.groupId}</groupId>-->
+<!--                <artifactId>event-store</artifactId>-->
+<!--                <version>${project.version}</version>-->
+<!--            </dependency>-->
+<!--            <dependency>-->
+<!--                <groupId>${project.groupId}</groupId>-->
+<!--                <artifactId>es-shared</artifactId>-->
+<!--                <version>${project.version}</version>-->
+<!--            </dependency>-->
+<!--            <dependency>-->
+<!--                <groupId>${project.groupId}</groupId>-->
+<!--                <artifactId>es-client</artifactId>-->
+<!--                <version>${project.version}</version>-->
+<!--            </dependency>-->
 
 
             <dependency>
