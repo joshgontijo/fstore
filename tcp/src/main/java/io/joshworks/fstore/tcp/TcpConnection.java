@@ -141,7 +141,8 @@ public class TcpConnection implements Closeable {
             Buffers.offsetPosition(buffer, TcpHeader.BYTES);
             int uncompressedLen = src.remaining();
             if (Compression.NONE.equals(compression)) {
-                Buffers.copy(src, buffer);
+                int copied = Buffers.copy(src, buffer);
+                Buffers.offsetPosition(src, copied);
             } else {
                 CodecRegistry.lookup(compression).compress(src, buffer);
             }

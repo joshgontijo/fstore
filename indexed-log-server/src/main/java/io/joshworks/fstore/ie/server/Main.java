@@ -21,15 +21,14 @@ public class Main {
 
         int repPort = 12345;
 
-        Server server = new Server(master, repPort);
         Replica replica1 = new Replica(replicaFolder, repPort);
+        Server server = new Server(master, repPort);
 
         new Thread(() -> {
             while (true) {
                 long serverSeq = Server.sequence.get();
                 long replicaSeq = Replica.sequence.get();
-                long ackSeq = Server.replicated.get();
-                System.out.println(serverSeq + " | " + replicaSeq + " | " + ackSeq + " ---- DIFF: " + (serverSeq - replicaSeq) + " | " + (replicaSeq - ackSeq));
+                System.out.println(serverSeq + " | " + replicaSeq + " | " + (serverSeq - replicaSeq));
                 Threads.sleep(1000);
             }
         }).start();
@@ -38,6 +37,9 @@ public class Main {
         long s = System.currentTimeMillis();
         for (int i = 0; i < 1000000000; i++) {
             server.append(RecordUtils.create(i, "value-" + i));
+            if (i % 10000 == 0) {
+                Threads.sleep(100);
+            }
 //            System.out.println("WRITE SUCCESSFUL: " + i);
 //            Threads.sleep(2000);
 //            if (i % 50000 == 0) {
@@ -49,7 +51,8 @@ public class Main {
         }
 
 
-        server.awaitTermination();
+        Threads.sleep(2400000);
+//        server.awaitTermination();
         replica1.close();
 
     }

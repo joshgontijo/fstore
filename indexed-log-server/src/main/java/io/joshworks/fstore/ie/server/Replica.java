@@ -3,7 +3,7 @@ package io.joshworks.fstore.ie.server;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.fstore.tcp.TcpEventClient;
+import io.joshworks.fstore.tcp.TcpEventServer;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.lsm.Lsm;
@@ -25,7 +25,7 @@ public class Replica {
     private static final Logger log = LoggerFactory.getLogger(Replica.class);
 
     private final Lsm lsm;
-    private final TcpConnection client;
+    private final TcpEventServer receiver;
 
     private final ByteBuffer replicateBuffer = Buffers.allocate(8096, false);
     private final ByteBuffer protocolBuffer = Buffers.allocate(24, false);
@@ -37,12 +37,13 @@ public class Replica {
 
     public Replica(File dir, int port) {
         this.lsm = Lsm.create(dir, KeyComparator.LONG).open();
-        this.client = TcpEventClient.create()
-                .onEvent(this::handle)
+        this.receiver = TcpEventServer.create()
+                .idleTimeout(10, TimeUnit.SECONDS)
                 .option(Options.WORKER_IO_THREADS, 1)
-                .option(Options.WORKER_TASK_CORE_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
-                .connect(new InetSocketAddress("localhost", port), 5, TimeUnit.SECONDS);
+                .option(Options.WORKER_TASK_CORE_THREADS, 1)
+                .onEvent(this::handle)
+                .start(new InetSocketAddress("localhost", port));
 
     }
 
@@ -51,7 +52,7 @@ public class Replica {
     }
 
     public void close() {
-        client.close();
+        receiver.close();
     }
 
     private static final class ReplicationTask implements Runnable {
