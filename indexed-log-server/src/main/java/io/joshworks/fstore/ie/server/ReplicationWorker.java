@@ -37,8 +37,8 @@ class ReplicationWorker {
     private final int batchInterval;
 
     ReplicationWorker(int replicaPort, Lsm src, long startSequence, int readSize, int poolMs, int batchInterval) {
-        this.batchInterval = batchInterval;
         assert startSequence >= NONE;
+        this.batchInterval = batchInterval;
         this.src = src;
         this.buffer = Buffers.allocate(readSize, false);
         this.poolMs = poolMs;
@@ -93,7 +93,7 @@ class ReplicationWorker {
             do {
                 read = src.readLog(buffer, lastSentSequence.get() + 1);
                 if (read <= 0 && poolMs > 0) {
-                    writer.flush(false);
+                    tryFlush(lastFlushed);
                     Threads.sleep(poolMs);
                 }
             } while (read <= 0);
@@ -119,9 +119,13 @@ class ReplicationWorker {
                 }
                 buffer.limit(plim);
             }
-            if (System.currentTimeMillis() - lastFlushed >= batchInterval) {
-                writer.flush(false);
-            }
+            tryFlush(lastFlushed);
+        }
+    }
+
+    private void tryFlush(long lastFlushed) {
+        if (System.currentTimeMillis() - lastFlushed >= batchInterval) {
+            writer.flush(false);
         }
     }
 }

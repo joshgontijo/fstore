@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class Server implements Closeable {
@@ -43,12 +44,12 @@ public class Server implements Closeable {
 
     }
 
-    public void append(ByteBuffer buffer) {
+    public void append(ByteBuffer buffer, ReplicationLevel rlevel) {
         assert Record.isValid(buffer);
 
         long logId = lsm.append(buffer);
         sequence.set(logId);
-//        replicas.await(logId);
+        replicas.await(logId, rlevel);
 
 //        ackBack(connection);
     }
@@ -85,46 +86,49 @@ public class Server implements Closeable {
         }
 
         public void addReplica(int port) {
-            ReplicationWorker worker = new ReplicationWorker(port, masterStore, -1, 8096 * 2, 50);
+            ReplicationWorker worker = new ReplicationWorker(port, masterStore, -1, 8096 * 2, 50, 200);
             workers.add(worker);
             worker.start();
         }
 
-//        public void update(TcpConnection conn, long id) {
-//            replicated.set(id);
-//            long max = replicas.get(conn).accumulateAndGet(id, Math::max);
-//            if (!q.offer(max)) {
-//                q.poll();
-//                q.offer(max);
-//            }
-//        }
-//
-//        private long replicated() {
-//            long min = -1;
-//            for (AtomicLong value : replicas.values()) {
-//                min = Math.min(min, value.get());
-//            }
-//            return min;
-//        }
-//
-//        public void remove(TcpConnection conn) {
-//            replicas.remove(conn);
-//        }
-//
-//        public void await(long id) {
-//            try {
-//                Long pooled;
-//                do {
-//                    pooled = q.poll(10, TimeUnit.SECONDS);
-//                    if (pooled == null) {
-//                        throw new RuntimeException("Replication timeout");
-//                    }
-//                } while (pooled < id);
-//
-//            } catch (InterruptedException e) {
-//                throw new RuntimeException(e);
-//            }
-//        }
+        public void update(TcpConnection conn, long id) {
+            replicated.set(id);
+            long max = replicas.get(conn).accumulateAndGet(id, Math::max);
+            if (!q.offer(max)) {
+                q.poll();
+                q.offer(max);
+            }
+        }
+
+        private long replicated() {
+            long min = -1;
+            for (AtomicLong value : replicas.values()) {
+                min = Math.min(min, value.get());
+            }
+            return min;
+        }
+
+        public void remove(TcpConnection conn) {
+            replicas.remove(conn);
+        }
+
+        public void await(long id, ReplicationLevel rlevel) {
+            if (ReplicationLevel.LOCAL.equals(rlevel)) {
+                return;
+            }
+            try {
+                Long pooled;
+                do {
+                    pooled = q.poll(10, TimeUnit.SECONDS);
+                    if (pooled == null) {
+                        throw new RuntimeException("Replication timeout");
+                    }
+                } while (pooled < id);
+
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
 }

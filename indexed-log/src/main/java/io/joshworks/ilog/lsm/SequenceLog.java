@@ -26,15 +26,6 @@ public class SequenceLog implements Closeable {
     private final ByteBuffer keyWriteBuffer;
     private final ByteBuffer recordWriteBuffer;
 
-    //File root,
-    //               int maxEntrySize,
-    //               int indexSize,
-    //               int compactionThreshold,
-    //               int parallelCompaction,
-    //               FlushMode flushMode,
-    //               BufferPool pool,
-    //               SegmentFactory<T> segmentFactory
-
     public SequenceLog(File root,
                        int maxEntrySize,
                        int indexSize,
