@@ -21,13 +21,18 @@ public class BatchWriter {
         this.sink = sink;
     }
 
-    public void write(ByteBuffer src) {
+    /**
+     * returns true when flushed, false otherwise
+     */
+    public boolean write(ByteBuffer src) {
         try {
             requireNonNull(src, "Data must node be null");
             if (backingBuffer.remaining() < TcpHeader.BYTES + src.remaining()) {
                 flush(false);
+                return true;
             }
             write0(src, backingBuffer, compression);
+            return false;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -41,6 +41,7 @@ public class Replica {
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .option(Options.WORKER_TASK_CORE_THREADS, 1)
+                .onOpen(conn -> System.out.println("Connection opened: " + conn))
                 .onEvent(this::handle)
                 .start(new InetSocketAddress("localhost", port));
 

@@ -35,6 +35,7 @@ public class TcpConnection implements Closeable {
     private static final AtomicLongFieldUpdater<TcpConnection> bytesReceivedUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "bytesReceived");
     private static final AtomicLongFieldUpdater<TcpConnection> messagesSentUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "messagesSent");
     private static final AtomicLongFieldUpdater<TcpConnection> messagesReceivedUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "messagesReceived");
+    private static final AtomicLongFieldUpdater<TcpConnection> bytesDecompressedUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "bytesDecompressed");
 
     private final StreamConnection connection;
     final ResponseTable responseTable;
@@ -44,6 +45,8 @@ public class TcpConnection implements Closeable {
     private volatile long bytesReceived;
     private volatile long messagesSent;
     private volatile long messagesReceived;
+    private volatile long bytesDecompressed; //total number of bytes received
+    private long bytesCompressed;
     private final BufferPool pool;
     private final Compression compression;
 
@@ -134,7 +137,6 @@ public class TcpConnection implements Closeable {
         } finally {
             pool.free(buffer);
         }
-
     }
 
     private synchronized void doWrite(ByteBuffer src, boolean flush) {
@@ -143,6 +145,7 @@ public class TcpConnection implements Closeable {
         try {
             write0(src, dst, compression);
             dst.flip();
+            bytesCompressed += dst.remaining();
             var sink = connection.getSinkChannel();
             if (!sink.isOpen()) {
                 throw new IllegalStateException("Closed channel");
@@ -190,6 +193,10 @@ public class TcpConnection implements Closeable {
         return connection.getPeerAddress(InetSocketAddress.class);
     }
 
+    void updateDecompressedBytes(long bytes) {
+        bytesDecompressedUpdater.addAndGet(this, bytes);
+    }
+
     void updateBytesSent(long bytes) {
         bytesSentUpdater.addAndGet(this, bytes);
     }
@@ -230,6 +237,14 @@ public class TcpConnection implements Closeable {
         return bytesSent;
     }
 
+    public long bytesDecompressed() {
+        return bytesDecompressed;
+    }
+
+    public long bytesCompressed() {
+        return bytesCompressed;
+    }
+
     @Override
     public String toString() {
         return "TcpConnection{" + "since=" + since +
@@ -238,6 +253,8 @@ public class TcpConnection implements Closeable {
                 ", bytesReceived=" + bytesReceived +
                 ", messagesSent=" + messagesSent +
                 ", messagesReceived=" + messagesReceived +
+                ", bytesCompressed=" + bytesCompressed +
+                ", bytesDecompressed=" + bytesDecompressed +
                 '}';
     }
 

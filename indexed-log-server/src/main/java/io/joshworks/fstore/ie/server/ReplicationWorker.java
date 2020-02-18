@@ -7,7 +7,6 @@ import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.BatchWriter;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpEventClient;
-import io.joshworks.fstore.tcp.codec.Compression;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.lsm.Lsm;
@@ -35,15 +34,16 @@ class ReplicationWorker {
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Thread thread;
     private static final Logger log = LoggerFactory.getLogger(ReplicationWorker.class);
+    private final int batchInterval;
 
-    ReplicationWorker(int replicaPort, Lsm src, long startSequence, int readSize, int poolMs) {
+    ReplicationWorker(int replicaPort, Lsm src, long startSequence, int readSize, int poolMs, int batchInterval) {
+        this.batchInterval = batchInterval;
         assert startSequence >= NONE;
         this.src = src;
         this.buffer = Buffers.allocate(readSize, false);
         this.poolMs = poolMs;
         this.lastSentSequence.set(startSequence);
         this.sink = TcpEventClient.create()
-                .compression(Compression.LZ4_FAST)
                 .onEvent(this::onReplicationEvent)
                 .option(Options.SEND_BUFFER, Size.KB.ofInt(16))
                 .option(Options.WORKER_IO_THREADS, 1)
@@ -85,17 +85,16 @@ class ReplicationWorker {
 
     private void replicate() {
 
+        long lastFlushed = System.currentTimeMillis();
         while (!closed.get()) {
 
             buffer.clear();
-
             int read;
             do {
                 read = src.readLog(buffer, lastSentSequence.get() + 1);
                 if (read <= 0 && poolMs > 0) {
                     writer.flush(false);
                     Threads.sleep(poolMs);
-//                        log.info("No data to replicate...");
                 }
             } while (read <= 0);
 
@@ -115,8 +114,13 @@ class ReplicationWorker {
 
                 assert Record.isValid(buffer);
 
-                writer.write(buffer);
+                if (writer.write(buffer)) {
+                    lastFlushed = System.currentTimeMillis();
+                }
                 buffer.limit(plim);
+            }
+            if (System.currentTimeMillis() - lastFlushed >= batchInterval) {
+                writer.flush(false);
             }
         }
     }

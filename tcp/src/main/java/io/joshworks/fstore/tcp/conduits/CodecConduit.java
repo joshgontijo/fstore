@@ -11,19 +11,22 @@ import org.xnio.conduits.MessageSourceConduit;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.function.LongConsumer;
 
 
 public class CodecConduit extends AbstractSourceConduit<MessageSourceConduit> implements MessageSourceConduit {
 
     private final BufferPool pool;
+    private final LongConsumer callback;
 
-    public CodecConduit(MessageSourceConduit source, BufferPool pool) {
+    public CodecConduit(MessageSourceConduit source, BufferPool pool, LongConsumer callback) {
         super(source);
         this.pool = pool;
+        this.callback = callback;
     }
 
     @Override
-    public int receive(ByteBuffer dst) throws IOException {
+    public int receive(ByteBuffer dst) {
         ByteBuffer compressed = pool.allocate();
         try {
             int recv = next.receive(compressed);
@@ -44,7 +47,9 @@ public class CodecConduit extends AbstractSourceConduit<MessageSourceConduit> im
 
             Codec codec = CodecRegistry.lookup(compression);
             codec.decompress(compressed, dst);
-            return dst.remaining();
+            int decompressedSize = dst.remaining();
+            callback.accept(decompressedSize);
+            return decompressedSize;
 
         } catch (Exception e) {
             throw new RuntimeException(e);

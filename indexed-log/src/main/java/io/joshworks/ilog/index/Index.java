@@ -43,7 +43,6 @@ public class Index implements Closeable {
                 int alignedSize = align(size);
                 this.mf = MappedFile.create(file, alignedSize);
             } else { //existing file
-                //empty buffer, no writes wil be allowed anyways
                 this.mf = MappedFile.open(file);
                 long fileSize = mf.capacity();
                 if (fileSize % entrySize() != 0) {

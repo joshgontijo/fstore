@@ -114,7 +114,7 @@ public class TcpEventClient {
             pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
             pipeline.addMessageSource(conduit -> {
                 var framing = new FramingMessageSourceConduit(conduit, pool);
-                return new CodecConduit(framing, pool);
+                return new CodecConduit(framing, pool, tcpConnection::updateDecompressedBytes);
             });
 
 //            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, pool));
