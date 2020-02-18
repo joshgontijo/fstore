@@ -41,7 +41,7 @@ public class Main {
         ByteBuffer record = RecordUtils.create(0, "value-" + 0);
         ByteBuffer keyBuffer = ByteBuffer.allocate(Long.BYTES);
         for (int i = 0; i < 1000000000; i++) {
-            server.append(record);
+            server.append(record, ReplicationLevel.LOCAL);
             Record.KEY.set(record, keyBuffer.clear().putLong(i).flip());
 //            if (i % 10000 == 0) {
 //                Threads.sleep(100);

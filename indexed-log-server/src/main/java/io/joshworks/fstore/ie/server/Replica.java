@@ -114,9 +114,9 @@ public class Replica {
             task.connection = connection;
             task.lsm = lsm;
 
-//            execute(task);
-            task.run();
-            runnables.offer(task);
+            execute(task);
+//            task.run();
+//            runnables.offer(task);
         }
 
         @Override

@@ -14,11 +14,11 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Server implements Closeable {
 
@@ -49,14 +49,14 @@ public class Server implements Closeable {
 
         long logId = lsm.append(buffer);
         sequence.set(logId);
-        replicas.await(logId, rlevel);
+        replicas.await(logId, 60000, rlevel);
 
 //        ackBack(connection);
     }
 
     private void onEvent(TcpConnection connection, Object data) {
-        var buffer = (ByteBuffer) data;
-        append(buffer);
+//        var buffer = (ByteBuffer) data;
+//        append(buffer);
     }
 
 
@@ -78,55 +78,76 @@ public class Server implements Closeable {
 
     private static class Replicas {
         private final Set<ReplicationWorker> workers = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        private final BlockingQueue<Long> q = new ArrayBlockingQueue<>(1);
         private final Lsm masterStore;
+        private final Lock lock;
+        private final Condition condition;
 
         public Replicas(Lsm masterStore) {
             this.masterStore = masterStore;
+            this.lock = new ReentrantLock();
+            this.condition = lock.newCondition();
         }
 
         public void addReplica(int port) {
-            ReplicationWorker worker = new ReplicationWorker(port, masterStore, -1, 8096 * 2, 50, 200);
+            ReplicationWorker worker = new ReplicationWorker(port, this::onReplication, masterStore, -1, 8096 * 2, 50, 200);
             workers.add(worker);
             worker.start();
         }
 
-        public void update(TcpConnection conn, long id) {
-            replicated.set(id);
-            long max = replicas.get(conn).accumulateAndGet(id, Math::max);
-            if (!q.offer(max)) {
-                q.poll();
-                q.offer(max);
+        private void onReplication(long sequence) {
+            lock.lock();
+            try {
+//                System.out.println("SIGNAL " + sequence);
+                condition.signal();
+            } finally {
+                lock.unlock();
             }
         }
 
-        private long replicated() {
-            long min = -1;
-            for (AtomicLong value : replicas.values()) {
-                min = Math.min(min, value.get());
+        private boolean replicated(long sequence, ReplicationLevel rlevel) {
+            if (ReplicationLevel.LOCAL.equals(rlevel)) {
+                return true;
             }
-            return min;
+            int replicas = workers.size(); //TODO replace with quorum size
+            int replicated = 0;
+            for (ReplicationWorker worker : workers) {
+                replicated = worker.lastReplicated() >= sequence ? replicated + 1 : replicated;
+            }
+            switch (rlevel) {
+                case ALL:
+                    return replicated >= replicas;
+                case ONE:
+                    return replicated >= 1;
+                case QUORUM:
+                    return replicated >= quorum();
+            }
+
+            throw new IllegalStateException("No valid replication level");
+        }
+
+        private int quorum() {
+            return (workers.size() / 2) + 1;
         }
 
         public void remove(TcpConnection conn) {
-            replicas.remove(conn);
+//            replicas.remove(conn);
         }
 
-        public void await(long id, ReplicationLevel rlevel) {
+        public void await(long sequence, long timeoutMs, ReplicationLevel rlevel) {
             if (ReplicationLevel.LOCAL.equals(rlevel)) {
                 return;
             }
+            lock.lock();
             try {
-                Long pooled;
-                do {
-                    pooled = q.poll(10, TimeUnit.SECONDS);
-                    if (pooled == null) {
-                        throw new RuntimeException("Replication timeout");
-                    }
-                } while (pooled < id);
+                while (!replicated(sequence, rlevel)) {
+//                    System.out.println("AWAITING " + sequence);
+                    condition.await();
+                }
 
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
+            } finally {
+                lock.unlock();
             }
         }
     }
