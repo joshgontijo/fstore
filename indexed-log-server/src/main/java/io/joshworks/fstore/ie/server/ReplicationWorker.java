@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 
 class ReplicationWorker {
 
@@ -35,8 +36,12 @@ class ReplicationWorker {
     private final Thread thread;
     private static final Logger log = LoggerFactory.getLogger(ReplicationWorker.class);
     private final int batchInterval;
+    private final LongConsumer onReplication;
+    private final long startSequence;
 
-    ReplicationWorker(int replicaPort, Lsm src, long startSequence, int readSize, int poolMs, int batchInterval) {
+    ReplicationWorker(int replicaPort, LongConsumer onReplication, Lsm src, long startSequence, int readSize, int poolMs, int batchInterval) {
+        this.onReplication = onReplication;
+        this.startSequence = startSequence;
         assert startSequence >= NONE;
         this.batchInterval = batchInterval;
         this.src = src;
@@ -61,7 +66,10 @@ class ReplicationWorker {
             if (Replication.messageType(buffer) == Replication.TYPE_LAST_REPLICATED) {
                 long sequence = Replication.lastReplicatedId(buffer);
                 log.info("Received ack from replica, sequence: {}", sequence);
-                lasAckSequence.set(sequence);
+                long acked = lasAckSequence.accumulateAndGet(sequence, Math::max);
+                if (acked == sequence) {
+                    onReplication.accept(acked);
+                }
             } else {
                 throw new IllegalStateException("Invalid message type");
             }
@@ -106,7 +114,7 @@ class ReplicationWorker {
             while (RecordBatch.hasNext(buffer)) {
                 long recordKey = buffer.getLong(buffer.position() + Record.KEY.offset(buffer));
                 if (!lastSentSequence.compareAndSet(recordKey - 1, recordKey)) {
-                    throw new IllegalStateException("Non contiguous record replication entry");
+                    throw new IllegalStateException("Non contiguous record replication entry: " + recordKey + " current: " + lastSentSequence.get());
                 }
 
                 int size = Record.sizeOf(buffer);
@@ -116,6 +124,7 @@ class ReplicationWorker {
 
                 if (writer.write(buffer)) {
                     lastFlushed = System.currentTimeMillis();
+                    writer.write(buffer);
                 }
                 buffer.limit(plim);
             }
