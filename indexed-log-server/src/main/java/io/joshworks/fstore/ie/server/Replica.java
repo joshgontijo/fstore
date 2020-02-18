@@ -1,6 +1,7 @@
 package io.joshworks.fstore.ie.server;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpEventServer;
@@ -41,6 +42,8 @@ public class Replica {
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .option(Options.WORKER_TASK_CORE_THREADS, 1)
+                .option(Options.RECEIVE_BUFFER, Size.MB.ofInt(5))
+
                 .onOpen(conn -> System.out.println("Connection opened: " + conn))
                 .onEvent(this::handle)
                 .start(new InetSocketAddress("localhost", port));
@@ -87,7 +90,7 @@ public class Replica {
 //                log.info("[REPLICA] Replicated {}", logId);
 
 
-//                connection.send(protocolBuffer, true);
+                connection.send(protocolBuffer, false);
 
             } finally {
                 connection.pool().free(buffer);

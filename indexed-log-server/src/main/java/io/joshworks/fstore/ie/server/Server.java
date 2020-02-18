@@ -94,6 +94,24 @@ public class Server implements Closeable {
             worker.start();
         }
 
+        public void await(long sequence, long timeoutMs, ReplicationLevel rlevel) {
+            if (ReplicationLevel.LOCAL.equals(rlevel)) {
+                return;
+            }
+            lock.lock();
+            try {
+                while (!replicated(sequence, rlevel)) {
+//                    System.out.println("AWAITING " + sequence);
+                    condition.await();
+                }
+
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } finally {
+                lock.unlock();
+            }
+        }
+
         private void onReplication(long sequence) {
             lock.lock();
             try {
@@ -111,7 +129,7 @@ public class Server implements Closeable {
             int replicas = workers.size(); //TODO replace with quorum size
             int replicated = 0;
             for (ReplicationWorker worker : workers) {
-                replicated = worker.lastReplicated() >= sequence ? replicated + 1 : replicated;
+                replicated = worker.lasAcknowledgedSequence() >= sequence ? replicated + 1 : replicated;
             }
             switch (rlevel) {
                 case ALL:
@@ -133,23 +151,6 @@ public class Server implements Closeable {
 //            replicas.remove(conn);
         }
 
-        public void await(long sequence, long timeoutMs, ReplicationLevel rlevel) {
-            if (ReplicationLevel.LOCAL.equals(rlevel)) {
-                return;
-            }
-            lock.lock();
-            try {
-                while (!replicated(sequence, rlevel)) {
-//                    System.out.println("AWAITING " + sequence);
-                    condition.await();
-                }
-
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            } finally {
-                lock.unlock();
-            }
-        }
     }
 
 }

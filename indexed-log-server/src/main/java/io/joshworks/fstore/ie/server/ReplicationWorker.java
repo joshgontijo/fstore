@@ -37,11 +37,9 @@ class ReplicationWorker {
     private static final Logger log = LoggerFactory.getLogger(ReplicationWorker.class);
     private final int batchInterval;
     private final LongConsumer onReplication;
-    private final long startSequence;
 
     ReplicationWorker(int replicaPort, LongConsumer onReplication, Lsm src, long startSequence, int readSize, int poolMs, int batchInterval) {
         this.onReplication = onReplication;
-        this.startSequence = startSequence;
         assert startSequence >= NONE;
         this.batchInterval = batchInterval;
         this.src = src;
@@ -67,7 +65,7 @@ class ReplicationWorker {
                 long sequence = Replication.lastReplicatedId(buffer);
                 log.info("Received ack from replica, sequence: {}", sequence);
                 long acked = lasAckSequence.accumulateAndGet(sequence, Math::max);
-                if (acked == sequence) {
+                if (acked >= sequence) {
                     onReplication.accept(acked);
                 }
             } else {
@@ -85,6 +83,10 @@ class ReplicationWorker {
 
     public long lastReplicated() {
         return lastSentSequence.get();
+    }
+
+    public long lasAcknowledgedSequence() {
+        return lasAckSequence.get();
     }
 
     public void close() {
@@ -127,14 +129,19 @@ class ReplicationWorker {
                     writer.write(buffer);
                 }
                 buffer.limit(plim);
+                if (tryFlush(lastFlushed)) {
+                    lastFlushed = System.currentTimeMillis();
+                }
             }
-            tryFlush(lastFlushed);
+
         }
     }
 
-    private void tryFlush(long lastFlushed) {
-        if (System.currentTimeMillis() - lastFlushed >= batchInterval) {
+    private boolean tryFlush(long lastFlushed) {
+        boolean shouldFlush = batchInterval <= 0 || System.currentTimeMillis() - lastFlushed >= batchInterval;
+        if (shouldFlush) {
             writer.flush(false);
         }
+        return shouldFlush;
     }
 }
