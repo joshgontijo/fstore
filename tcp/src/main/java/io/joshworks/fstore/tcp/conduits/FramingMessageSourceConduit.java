@@ -28,10 +28,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
+import static io.joshworks.fstore.tcp.TcpHeader.RECORD_LEN_LENGTH;
+
 
 public final class FramingMessageSourceConduit extends AbstractSourceConduit<StreamSourceConduit> implements MessageSourceConduit {
 
-    public static final int LENGTH_LENGTH = Integer.BYTES;
     private final ByteBuffer frameBuffer;
     private final BufferPool pool;
     private boolean ready;
@@ -77,7 +78,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
         do {
             res = next.read(frameBuffer);
         } while (res > 0);
-        if (frameBuffer.position() < LENGTH_LENGTH) {
+        if (frameBuffer.position() < RECORD_LEN_LENGTH) {
             if (res == -1) {
                 frameBuffer.clear();
             }
@@ -88,15 +89,15 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
         frameBuffer.flip();
         try {
             final int length = frameBuffer.getInt();
-            if (length < 0 || length > frameBuffer.capacity() - LENGTH_LENGTH) {
-                Buffers.offsetPosition(frameBuffer, -LENGTH_LENGTH);
+            if (length < 0 || length > frameBuffer.capacity() - RECORD_LEN_LENGTH) {
+                Buffers.offsetPosition(frameBuffer, -RECORD_LEN_LENGTH);
                 throw new IllegalStateException("Invalid message length: " + length);
             }
             if (frameBuffer.remaining() < length) {
                 if (res == -1) {
                     frameBuffer.clear();
                 } else {
-                    Buffers.offsetPosition(frameBuffer, -LENGTH_LENGTH);
+                    Buffers.offsetPosition(frameBuffer, -RECORD_LEN_LENGTH);
                 }
                 ready = false;
                 // must be <= 0
@@ -113,7 +114,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
         } finally {
             if (res != -1) {
                 frameBuffer.compact();
-                if (frameBuffer.position() >= LENGTH_LENGTH && frameBuffer.position() >= (LENGTH_LENGTH + frameBuffer.getInt(0))) {
+                if (frameBuffer.position() >= RECORD_LEN_LENGTH && frameBuffer.position() >= (RECORD_LEN_LENGTH + frameBuffer.getInt(0))) {
                     // there's another packet ready to go
                     ready = true;
                 }
@@ -127,7 +128,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
         do {
             res = next.read(frameBuffer);
         } while (res > 0);
-        if (frameBuffer.position() < LENGTH_LENGTH) {
+        if (frameBuffer.position() < RECORD_LEN_LENGTH) {
             if (res == -1) {
                 frameBuffer.clear();
             }
@@ -137,15 +138,15 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
         frameBuffer.flip();
         try {
             final int length = frameBuffer.getInt();
-            if (length < 0 || length > frameBuffer.capacity() - LENGTH_LENGTH) {
-                Buffers.offsetPosition(frameBuffer, -LENGTH_LENGTH);
+            if (length < 0 || length > frameBuffer.capacity() - RECORD_LEN_LENGTH) {
+                Buffers.offsetPosition(frameBuffer, -RECORD_LEN_LENGTH);
                 throw new IllegalStateException("Invalid message length: " + length);
             }
             if (frameBuffer.remaining() < length) {
                 if (res == -1) {
                     frameBuffer.clear();
                 } else {
-                    Buffers.offsetPosition(frameBuffer, -LENGTH_LENGTH);
+                    Buffers.offsetPosition(frameBuffer, -RECORD_LEN_LENGTH);
                 }
                 ready = false;
                 // must be <= 0
@@ -160,7 +161,7 @@ public final class FramingMessageSourceConduit extends AbstractSourceConduit<Str
         } finally {
             if (res != -1) {
                 frameBuffer.compact();
-                if (frameBuffer.position() >= LENGTH_LENGTH && frameBuffer.position() >= LENGTH_LENGTH + frameBuffer.getInt(0)) {
+                if (frameBuffer.position() >= RECORD_LEN_LENGTH && frameBuffer.position() >= RECORD_LEN_LENGTH + frameBuffer.getInt(0)) {
                     // there's another packet ready to go
                     ready = true;
                 }

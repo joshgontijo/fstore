@@ -48,7 +48,7 @@ public class SequenceLogMain {
             }
 
             while (RecordBatch.hasNext(buffer)) {
-                int size = Record.validate(buffer);
+                int size = Record.sizeOf(buffer);
                 kb.clear();
                 Record.KEY.copyTo(buffer, kb);
                 kb.flip();

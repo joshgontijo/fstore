@@ -10,11 +10,11 @@ import org.xnio.conduits.StreamSinkConduit;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import static io.joshworks.fstore.tcp.TcpHeader.RECORD_LEN_LENGTH;
 import static org.xnio._private.Messages.msg;
 
 public class FramingMessageSinkConduit extends AbstractSinkConduit<StreamSinkConduit> implements MessageSinkConduit {
 
-    public static final int LENGTH_LENGTH = Integer.BYTES;
     private final ByteBuffer transmitBuffer;
     private final BufferPool pool;
 
@@ -31,10 +31,10 @@ public class FramingMessageSinkConduit extends AbstractSinkConduit<StreamSinkCon
             return false;
         }
         final int remaining = src.remaining();
-        if (remaining > transmitBuffer.capacity() - LENGTH_LENGTH) {
+        if (remaining > transmitBuffer.capacity() - RECORD_LEN_LENGTH) {
             throw msg.txMsgTooLarge();
         }
-        if (transmitBuffer.remaining() < LENGTH_LENGTH + remaining && !writeBuffer()) {
+        if (transmitBuffer.remaining() < RECORD_LEN_LENGTH + remaining && !writeBuffer()) {
             return false;
         }
         transmitBuffer.putInt(remaining);
@@ -51,10 +51,10 @@ public class FramingMessageSinkConduit extends AbstractSinkConduit<StreamSinkCon
             return false;
         }
         final long remaining = Buffers.remaining(srcs, offs, len);
-        if (remaining > transmitBuffer.capacity() - LENGTH_LENGTH) {
+        if (remaining > transmitBuffer.capacity() - RECORD_LEN_LENGTH) {
             throw msg.txMsgTooLarge();
         }
-        if (transmitBuffer.remaining() < LENGTH_LENGTH + remaining && !writeBuffer()) {
+        if (transmitBuffer.remaining() < RECORD_LEN_LENGTH + remaining && !writeBuffer()) {
             return false;
         }
         transmitBuffer.putInt((int) remaining);

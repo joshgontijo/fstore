@@ -6,7 +6,6 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.serializer.kryo.KryoSerializer;
 import io.joshworks.fstore.tcp.codec.CodecRegistry;
 import io.joshworks.fstore.tcp.codec.Compression;
-import io.joshworks.fstore.tcp.codec.TcpHeader;
 import io.joshworks.fstore.tcp.internal.Message;
 import io.joshworks.fstore.tcp.internal.Response;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
@@ -94,6 +93,10 @@ public class TcpConnection implements Closeable {
                 new RpcProxyHandler(timeoutMillis));
     }
 
+    public BatchWriter batching(int batchSize) {
+        return new BatchWriter(Buffers.allocate(batchSize, false), compression, connection.getSinkChannel());
+    }
+
     //---------------------------------
 
     public void send(ByteBuffer buffer, boolean flush) {
@@ -136,27 +139,16 @@ public class TcpConnection implements Closeable {
 
     private synchronized void doWrite(ByteBuffer src, boolean flush) {
         requireNonNull(src, "Data must node be null");
-        ByteBuffer buffer = pool.allocate();
+        ByteBuffer dst = pool.allocate();
         try {
-            Buffers.offsetPosition(buffer, TcpHeader.BYTES);
-            int uncompressedLen = src.remaining();
-            if (Compression.NONE.equals(compression)) {
-                int copied = Buffers.copy(src, buffer);
-                Buffers.offsetPosition(src, copied);
-            } else {
-                CodecRegistry.lookup(compression).compress(src, buffer);
-            }
-
-            buffer.flip();
-            TcpHeader.uncompressedLength(buffer, uncompressedLen);
-            TcpHeader.compression(buffer, compression);
-
+            write0(src, dst, compression);
+            dst.flip();
             var sink = connection.getSinkChannel();
             if (!sink.isOpen()) {
                 throw new IllegalStateException("Closed channel");
             }
 
-            Channels.writeBlocking(sink, buffer);
+            Channels.writeBlocking(sink, dst);
             if (flush) {
                 Channels.flushBlocking(sink);
             }
@@ -165,8 +157,23 @@ public class TcpConnection implements Closeable {
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to write data", e);
         } finally {
-            pool.free(buffer);
+            pool.free(dst);
         }
+    }
+
+    static void write0(ByteBuffer src, ByteBuffer dst, Compression compression) {
+        int basePos = dst.position();
+        Buffers.offsetPosition(dst, TcpHeader.BYTES);
+        int recordStart = dst.position();
+        if (Compression.NONE.equals(compression)) {
+            int copied = Buffers.copy(src, dst);
+            Buffers.offsetPosition(src, copied);
+        } else {
+            CodecRegistry.lookup(compression).compress(src, dst);
+        }
+        int dataLen = dst.position() - recordStart;
+        TcpHeader.messageLength(basePos, dst, dataLen + TcpHeader.COMPRESSION_LENGTH);
+        TcpHeader.compression(basePos, dst, compression);
     }
 
     public void flush() throws IOException {

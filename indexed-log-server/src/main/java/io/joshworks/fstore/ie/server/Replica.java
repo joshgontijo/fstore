@@ -26,7 +26,6 @@ public class Replica {
 
     private final Lsm lsm;
     private final TcpEventServer receiver;
-
     private final ByteBuffer replicateBuffer = Buffers.allocate(8096, false);
     private final ByteBuffer protocolBuffer = Buffers.allocate(24, false);
 
@@ -38,7 +37,7 @@ public class Replica {
     public Replica(File dir, int port) {
         this.lsm = Lsm.create(dir, KeyComparator.LONG).open();
         this.receiver = TcpEventServer.create()
-                .idleTimeout(10, TimeUnit.SECONDS)
+//                .idleTimeout(10, TimeUnit.SECONDS)
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .option(Options.WORKER_TASK_CORE_THREADS, 1)
@@ -84,10 +83,10 @@ public class Replica {
                 Replication.replicated(protocolBuffer, replId);
                 protocolBuffer.flip();
 
-                log.info("[REPLICA] Replicated {}", logId);
+//                log.info("[REPLICA] Replicated {}", logId);
 
 
-                connection.send(protocolBuffer, true);
+//                connection.send(protocolBuffer, true);
 
             } finally {
                 connection.pool().free(buffer);
@@ -114,8 +113,9 @@ public class Replica {
             task.connection = connection;
             task.lsm = lsm;
 
-            execute(task);
-
+//            execute(task);
+            task.run();
+            runnables.offer(task);
         }
 
         @Override

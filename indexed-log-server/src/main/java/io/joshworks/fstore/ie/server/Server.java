@@ -85,7 +85,7 @@ public class Server implements Closeable {
         }
 
         public void addReplica(int port) {
-            ReplicationWorker worker = new ReplicationWorker(port, masterStore, 0, 8096, -1);
+            ReplicationWorker worker = new ReplicationWorker(port, masterStore, -1, 8096 * 2, 50);
             workers.add(worker);
             worker.start();
         }

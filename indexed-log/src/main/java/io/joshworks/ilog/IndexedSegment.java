@@ -108,7 +108,6 @@ public class IndexedSegment {
         }
 
         try {
-            Record.validate(record);
             int written = Record.writeTo(record, channel);
             Buffers.offsetPosition(record, -written);
             if (written <= 0) {

@@ -1,11 +1,11 @@
 package io.joshworks.fstore.tcp.conduits;
 
 import io.joshworks.fstore.core.codec.Codec;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.tcp.codec.CodecRegistry;
 import io.joshworks.fstore.tcp.codec.Compression;
-import io.joshworks.fstore.tcp.codec.TcpHeader;
+import io.joshworks.fstore.tcp.TcpHeader;
 import org.xnio.conduits.AbstractSourceConduit;
 import org.xnio.conduits.MessageSourceConduit;
 
@@ -35,23 +35,20 @@ public class CodecConduit extends AbstractSourceConduit<MessageSourceConduit> im
             }
             compressed.flip();
 
-            int ucpLen = TcpHeader.uncompressedLength(compressed);
             Compression compression = TcpHeader.compression(compressed);
-            Buffers.offsetPosition(compressed, TcpHeader.BYTES);
+            Buffers.offsetPosition(compressed, TcpHeader.COMPRESSION_LENGTH);
 
             if (Compression.NONE.equals(compression)) {
                 return Buffers.copy(compressed, dst);
             }
 
-            if (ucpLen > dst.remaining()) {
-                throw new IllegalStateException("Cannot decompress: Uncompressed length: " + ucpLen + ", target buffer: " + dst.remaining());
-            }
-
             Codec codec = CodecRegistry.lookup(compression);
             codec.decompress(compressed, dst);
-            return ucpLen;
+            return dst.remaining();
 
-        } finally {
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }finally {
             pool.free(compressed);
         }
     }
@@ -69,18 +66,22 @@ public class CodecConduit extends AbstractSourceConduit<MessageSourceConduit> im
             }
             compressed.flip();
 
-            Compression compression = TcpHeader.compression(compressed);
+            Compression compression = TcpHeader.compression(compressed.position(), compressed);
+            Buffers.offsetPosition(compressed, TcpHeader.COMPRESSION_LENGTH);
             Codec codec = CodecRegistry.lookup(compression);
             if (Compression.NONE.equals(compression)) {
                 return Buffers.copy(dsts, offs, len, compressed);
             }
 
-            int ucpLen = TcpHeader.uncompressedLength(compressed);
-            ByteBuffer tmp = Buffers.allocate(ucpLen, compressed.isDirect());
+            ByteBuffer tmp = pool.allocate();
+            try {
+                codec.decompress(compressed, tmp);
+                tmp.flip();
+                return Buffers.copy(dsts, offs, len, tmp);
+            } finally {
+                pool.free(tmp);
+            }
 
-            codec.decompress(compressed, tmp);
-            tmp.flip();
-            return Buffers.copy(dsts, offs, len, tmp);
         } finally {
             pool.free(compressed);
         }

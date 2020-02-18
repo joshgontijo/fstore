@@ -47,7 +47,10 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
         if (!hasNext(readBuffer)) {
             throw new NoSuchElementException();
         }
-        bufferPos += Record.validate(readBuffer);
+
+        assert Record.isValid(readBuffer);
+
+        bufferPos += Record.sizeOf(readBuffer);
         return readBuffer;
     }
 

@@ -8,7 +8,6 @@ import io.joshworks.fstore.tcp.conduits.BytesReceivedStreamSourceConduit;
 import io.joshworks.fstore.tcp.conduits.BytesSentStreamSinkConduit;
 import io.joshworks.fstore.tcp.conduits.CodecConduit;
 import io.joshworks.fstore.tcp.conduits.ConduitPipeline;
-import io.joshworks.fstore.tcp.conduits.FramingMessageSinkConduit;
 import io.joshworks.fstore.tcp.conduits.FramingMessageSourceConduit;
 import io.joshworks.fstore.tcp.conduits.KeepAliveConduit;
 import io.joshworks.fstore.tcp.internal.ResponseTable;
@@ -118,7 +117,7 @@ public class TcpEventClient {
                 return new CodecConduit(framing, pool);
             });
 
-            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, pool));
+//            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, pool));
             pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
 
             if (keepAliveInterval > 0) {

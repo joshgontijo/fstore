@@ -3,8 +3,10 @@ package io.joshworks.fstore.ie.server;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.ilog.Record;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 
 public class Main {
 
@@ -12,14 +14,15 @@ public class Main {
 
         File root = TestUtils.testFolder();
         File master = new File(root, "master");
-        File replicaFolder = new File(root, "replica");
+        File replicaFolder = new File(new File("D:\\Test"), "replica");
 
+        TestUtils.deleteRecursively(replicaFolder);
         FileUtils.deleteIfExists(master);
         FileUtils.deleteIfExists(replicaFolder);
         FileUtils.createDir(master);
         FileUtils.createDir(replicaFolder);
 
-        int repPort = 12345;
+        int repPort = 12376;
 
         Replica replica1 = new Replica(replicaFolder, repPort);
         Server server = new Server(master, repPort);
@@ -35,11 +38,14 @@ public class Main {
 
 
         long s = System.currentTimeMillis();
+        ByteBuffer record = RecordUtils.create(0, "value-" + 0);
+        ByteBuffer keyBuffer = ByteBuffer.allocate(Long.BYTES);
         for (int i = 0; i < 1000000000; i++) {
-            server.append(RecordUtils.create(i, "value-" + i));
-            if (i % 10000 == 0) {
-                Threads.sleep(100);
-            }
+            server.append(record);
+            Record.KEY.set(record, keyBuffer.clear().putLong(i).flip());
+//            if (i % 10000 == 0) {
+//                Threads.sleep(100);
+//            }
 //            System.out.println("WRITE SUCCESSFUL: " + i);
 //            Threads.sleep(2000);
 //            if (i % 50000 == 0) {

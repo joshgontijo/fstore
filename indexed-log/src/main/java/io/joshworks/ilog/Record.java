@@ -1,6 +1,5 @@
 package io.joshworks.ilog;
 
-import io.joshworks.fstore.core.io.ChecksumException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.fields.BlobField;
@@ -79,7 +78,7 @@ public class Record {
         return recLen;
     }
 
-    public static int copyTo(ByteBuffer record,ByteBuffer dst) {
+    public static int copyTo(ByteBuffer record, ByteBuffer dst) {
 
 //        record = record.duplicate().position(srcOffset);
         assert Record.isValid(record);
@@ -89,7 +88,7 @@ public class Record {
         int recLen = 0;
         recLen += VALUE_LEN.copyTo(record, dst);
         recLen += CHECKSUM.copyTo(record, dst);
-        recLen += TIMESTAMP.copyTo(record,  dst);
+        recLen += TIMESTAMP.copyTo(record, dst);
         recLen += ATTRIBUTE.copyTo(record, dst);
         recLen += KEY_LEN.copyTo(record, dst);
         recLen += KEY.copyTo(record, dst);
@@ -119,40 +118,23 @@ public class Record {
 
         int valSize = VALUE_LEN.get(record);
         int valOffset = VALUE.offset(record);
+        int klen = KEY_LEN.get(record);
         int checksum = CHECKSUM.get(record);
+
+        if (valSize + klen + HEADER_BYTES != rsize) {
+            return false;
+        }
 
         int absValPos = Buffers.relativePosition(record, valOffset);
         int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
         return computedChecksum == checksum;
     }
 
-    public static int validate(ByteBuffer record) {
-        int remaining = record.remaining();
-        if (remaining < HEADER_BYTES) {
-            throw new RuntimeException("Invalid record");
-        }
-        int rsize = sizeOf(record);
-        if (rsize > remaining) {
-            throw new RuntimeException("Invalid record");
-        }
-        if (rsize <= HEADER_BYTES) {
-            throw new RuntimeException("Invalid record");
-        }
-
-        int valSize = VALUE_LEN.get(record);
-        int valOffset = VALUE.offset(record);
-        int checksum = CHECKSUM.get(record);
-
-        int absValPos = Buffers.relativePosition(record, valOffset);
-        int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
-        if (computedChecksum != checksum) {
-            throw new ChecksumException();
-        }
-        return rsize;
-    }
-
     public static int writeTo(ByteBuffer record, WritableByteChannel channel) throws IOException {
-        int rsize = validate(record);
+        if (!Record.isValid(record)) {
+            throw new IllegalStateException("Invalid record");
+        }
+        int rsize = Record.sizeOf(record);
         if (record.remaining() < rsize) {
             return 0;
         }
