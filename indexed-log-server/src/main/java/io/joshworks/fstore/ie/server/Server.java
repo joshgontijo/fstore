@@ -14,7 +14,12 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -36,6 +41,9 @@ public class Server implements Closeable {
     private final BufferPool bufferPool = BufferPool.defaultPool(10, 4096, false);
 
     public static final AtomicLong sequence = new AtomicLong();
+
+    private final ExecutorService writer = Executors.newSingleThreadExecutor();
+    private final ExecutorService replicationPark = Executors.newSingleThreadExecutor();
 
     public Server(File file, int replicaPort) {
         this.lsm = Lsm.create(file, KeyComparator.LONG).open();
@@ -89,7 +97,7 @@ public class Server implements Closeable {
         }
 
         public void addReplica(int port) {
-            ReplicationWorker worker = new ReplicationWorker(port, this::onReplication, masterStore, -1, 8096 * 1, 50, 200);
+            ReplicationWorker worker = new ReplicationWorker(port, this::onReplication, masterStore, -1, 8096 * 2, 0, 0);
             workers.add(worker);
             worker.start();
         }
@@ -101,10 +109,8 @@ public class Server implements Closeable {
             lock.lock();
             try {
                 while (!replicated(sequence, rlevel)) {
-//                    System.out.println("AWAITING " + sequence);
-                    condition.await();
+                    condition.await(timeoutMs, TimeUnit.MILLISECONDS);
                 }
-
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             } finally {
@@ -115,7 +121,6 @@ public class Server implements Closeable {
         private void onReplication(long sequence) {
             lock.lock();
             try {
-//                System.out.println("SIGNAL " + sequence);
                 condition.signal();
             } finally {
                 lock.unlock();
@@ -127,17 +132,19 @@ public class Server implements Closeable {
                 return true;
             }
             int replicas = workers.size(); //TODO replace with quorum size
-            int replicated = 0;
+            int replications = 0;
             for (ReplicationWorker worker : workers) {
-                replicated = worker.lasAcknowledgedSequence() >= sequence ? replicated + 1 : replicated;
+                if (worker.lasAcknowledgedSequence() >= sequence) {
+                    replications++;
+                }
             }
             switch (rlevel) {
                 case ALL:
-                    return replicated >= replicas;
+                    return replications >= replicas;
                 case ONE:
-                    return replicated >= 1;
+                    return replications >= 1;
                 case QUORUM:
-                    return replicated >= quorum();
+                    return replications >= quorum();
             }
 
             throw new IllegalStateException("No valid replication level");

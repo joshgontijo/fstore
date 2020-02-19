@@ -28,7 +28,7 @@ public class Replica {
     private final ByteBuffer replicateBuffer = Buffers.allocate(8096, false);
     private final ByteBuffer protocolBuffer = Buffers.allocate(24, false);
 
-    private final ReplicationExecutor writer = new ReplicationExecutor(100);
+    private final ReplicationExecutor writer = new ReplicationExecutor(100000);
 
     static final AtomicLong sequence = new AtomicLong();
 
@@ -40,8 +40,7 @@ public class Replica {
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .option(Options.WORKER_TASK_CORE_THREADS, 1)
-                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))
-
+                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(64))
                 .onOpen(conn -> System.out.println("Connection opened: " + conn))
                 .onEvent(this::handle)
                 .start(new InetSocketAddress("localhost", port));
@@ -75,9 +74,9 @@ public class Replica {
             task.connection = connection;
             task.lsm = lsm;
 
-            execute(task);
-//            task.run();
-//            runnables.offer(task);
+//            execute(task);
+            task.run();
+            runnables.offer(task);
         }
 
         @Override

@@ -81,10 +81,6 @@ class ReplicationWorker {
         thread.start();
     }
 
-    public long lastReplicated() {
-        return lastSentSequence.get();
-    }
-
     public long lasAcknowledgedSequence() {
         return lasAckSequence.get();
     }
@@ -102,9 +98,13 @@ class ReplicationWorker {
             int read;
             do {
                 read = src.readLog(buffer, lastSentSequence.get() + 1);
-                if (read <= 0 && poolMs > 0) {
-                    tryFlush(lastFlushed);
-                    Threads.sleep(poolMs);
+                if (read <= 0) {
+                    if (tryFlush(lastFlushed)) {
+                        lastFlushed = System.currentTimeMillis();
+                    }
+                    if (poolMs > 0) {
+                        Threads.sleep(poolMs);
+                    }
                 }
             } while (read <= 0);
 
@@ -126,13 +126,12 @@ class ReplicationWorker {
 
                 if (writer.write(buffer)) {
                     lastFlushed = System.currentTimeMillis();
+//                    System.out.println("SEND: " + recordKey);
                     writer.write(buffer);
                 }
                 buffer.limit(plim);
-                if (tryFlush(lastFlushed)) {
-                    lastFlushed = System.currentTimeMillis();
-                }
             }
+            writer.flush(false);
 
         }
     }

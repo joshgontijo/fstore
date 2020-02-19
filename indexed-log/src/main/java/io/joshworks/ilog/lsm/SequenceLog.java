@@ -36,7 +36,7 @@ public class SequenceLog implements Closeable {
 
         FileUtils.createDir(root);
         log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, compactionThreads, flushMode, recordPool, SequenceSegment::new);
-        keyPool = BufferPool.localCachePool(256, Long.BYTES, false);
+        keyPool = BufferPool.defaultPool(256, Long.BYTES, false);
         keyWriteBuffer = keyPool.allocate();
         this.recordWriteBuffer = recordPool.allocate();
     }

@@ -14,7 +14,7 @@ public class Main {
 
         File root = TestUtils.testFolder();
         File master = new File(root, "master");
-        File replicaFolder = new File(new File("D:\\Test"), "replica");
+        File replicaFolder = new File(root, "replica");
 
         TestUtils.deleteRecursively(replicaFolder);
         FileUtils.deleteIfExists(master);
@@ -41,8 +41,8 @@ public class Main {
         ByteBuffer record = RecordUtils.create(0, "value-" + 0);
         ByteBuffer keyBuffer = ByteBuffer.allocate(Long.BYTES);
         for (int i = 0; i < 1000000000; i++) {
-            server.append(record, ReplicationLevel.LOCAL);
             Record.KEY.set(record, keyBuffer.clear().putLong(i).flip());
+            server.append(record, ReplicationLevel.ONE);
 //            if (i % 10000 == 0) {
 //                Threads.sleep(100);
 //            }

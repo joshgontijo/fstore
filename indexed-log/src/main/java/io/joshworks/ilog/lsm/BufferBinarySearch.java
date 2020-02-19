@@ -32,8 +32,4 @@ public class BufferBinarySearch {
         return -(low + 1);
     }
 
-    public static int binarySearch(ByteBuffer key, ByteBuffer data, int dataStart, int dataCount, KeyComparator comparator) {
-        return binarySearch(key, data, dataStart, dataCount, comparator.keySize(), comparator);
-    }
-
 }
