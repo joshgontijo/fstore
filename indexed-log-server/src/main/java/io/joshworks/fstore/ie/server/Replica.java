@@ -2,10 +2,8 @@ package io.joshworks.fstore.ie.server;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpEventServer;
-import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.lsm.Lsm;
 import org.jboss.threads.ArrayQueue;
@@ -42,7 +40,7 @@ public class Replica {
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .option(Options.WORKER_TASK_CORE_THREADS, 1)
-                .option(Options.RECEIVE_BUFFER, Size.MB.ofInt(5))
+                .option(Options.RECEIVE_BUFFER, Size.KB.ofInt(16))
 
                 .onOpen(conn -> System.out.println("Connection opened: " + conn))
                 .onEvent(this::handle)
@@ -56,46 +54,6 @@ public class Replica {
 
     public void close() {
         receiver.close();
-    }
-
-    private static final class ReplicationTask implements Runnable {
-
-        private ByteBuffer buffer;
-        private ByteBuffer replicateBuffer;
-        private ByteBuffer protocolBuffer;
-        private Lsm lsm;
-        private TcpConnection connection;
-
-        @Override
-        public void run() {
-            try {
-                int keyOffset = Record.KEY.offset(buffer);
-                long replId = buffer.getLong(buffer.position() + keyOffset);
-
-                replicateBuffer.clear();
-                Record.VALUE.copyTo(buffer, replicateBuffer);
-                replicateBuffer.flip();
-
-                assert Record.isValid(replicateBuffer);
-                long logId = lsm.append(replicateBuffer);
-
-                assert logId == replId;
-
-                sequence.set(replId);
-
-                protocolBuffer.clear();
-                Replication.replicated(protocolBuffer, replId);
-                protocolBuffer.flip();
-
-//                log.info("[REPLICA] Replicated {}", logId);
-
-
-                connection.send(protocolBuffer, false);
-
-            } finally {
-                connection.pool().free(buffer);
-            }
-        }
     }
 
     private static class ReplicationExecutor extends ThreadPoolExecutor {
