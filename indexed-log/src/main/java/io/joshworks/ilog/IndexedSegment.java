@@ -136,19 +136,6 @@ public class IndexedSegment {
 //        }
 //    }
 
-    public int bulkRead(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
-        int idx = index.find(key, func);
-        if (idx == NONE) {
-            return 0;
-        }
-        try {
-            long pos = index.readPosition(idx);
-            return read(pos, dst);
-        } catch (Exception e) {
-            throw new RuntimeIOException(e);
-        }
-    }
-
     public int find(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
         int idx = index.find(key, func);
         if (idx == NONE) {
@@ -176,6 +163,23 @@ public class IndexedSegment {
             return read;
         } catch (Exception e) {
             dst.limit(plim).position(ppos);
+            throw new RuntimeIOException(e);
+        }
+    }
+
+    /**
+     * Read data starting from the position of the given key
+     * Data fill dst with available bytes
+     */
+    public int bulkRead(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
+        int idx = index.find(key, func);
+        if (idx == NONE) {
+            return 0;
+        }
+        try {
+            long pos = index.readPosition(idx);
+            return read(pos, dst);
+        } catch (Exception e) {
             throw new RuntimeIOException(e);
         }
     }

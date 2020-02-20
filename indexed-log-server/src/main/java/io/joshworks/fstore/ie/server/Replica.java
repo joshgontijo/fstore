@@ -37,6 +37,7 @@ public class Replica {
         this.lsm = Lsm.create(dir, KeyComparator.LONG).open();
         this.receiver = TcpEventServer.create()
 //                .idleTimeout(10, TimeUnit.SECONDS)
+                .name("replica-server")
                 .option(Options.WORKER_IO_THREADS, 1)
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .option(Options.WORKER_TASK_CORE_THREADS, 1)

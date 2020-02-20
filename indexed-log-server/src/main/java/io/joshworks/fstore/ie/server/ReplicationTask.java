@@ -3,6 +3,7 @@ package io.joshworks.fstore.ie.server;
 import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.ilog.Record;
+import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.lsm.Lsm;
 
 import java.nio.ByteBuffer;
@@ -18,26 +19,28 @@ class ReplicationTask implements Runnable {
     @Override
     public void run() {
         try {
-            int keyOffset = Record.KEY.offset(buffer);
-            long replId = buffer.getLong(buffer.position() + keyOffset);
 
-            replicateBuffer.clear();
-            Record.VALUE.copyTo(buffer, replicateBuffer);
-            replicateBuffer.flip();
+            long lastSequence = -1;
+            while (RecordBatch.hasNext(buffer)) {
+                int keyOffset = Record.KEY.offset(buffer);
+                long recordSequence = buffer.getLong(buffer.position() + keyOffset);
 
-            assert Record.isValid(replicateBuffer);
-            long logId = lsm.append(replicateBuffer);
+                replicateBuffer.clear();
+                Record.VALUE.copyTo(buffer, replicateBuffer);
+                replicateBuffer.flip();
 
-            assert logId == replId;
+                assert Record.isValid(replicateBuffer);
+                long logSequence = lsm.append(replicateBuffer);
+                assert logSequence == recordSequence;
+                lastSequence = logSequence;
+                RecordBatch.advance(buffer);
+            }
 
-            Replica.sequence.set(replId);
+            Replica.sequence.set(lastSequence);
 
             protocolBuffer.clear();
-            Replication.replicated(protocolBuffer, replId);
+            Replication.replicated(protocolBuffer, lastSequence);
             protocolBuffer.flip();
-
-//                log.info("[REPLICA] Replicated {}", logId);
-
 
             connection.send(protocolBuffer, false);
 

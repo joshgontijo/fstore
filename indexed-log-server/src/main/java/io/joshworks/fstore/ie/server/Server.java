@@ -14,9 +14,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -97,7 +95,7 @@ public class Server implements Closeable {
         }
 
         public void addReplica(int port) {
-            ReplicationWorker worker = new ReplicationWorker(port, this::onReplication, masterStore, -1, 8096 * 2, 0, 0);
+            ReplicationWorker worker = new ReplicationWorker(port, this::onReplication, masterStore, -1, 8096 * 2, 0);
             workers.add(worker);
             worker.start();
         }
