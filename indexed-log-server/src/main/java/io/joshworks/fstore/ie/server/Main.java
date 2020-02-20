@@ -7,6 +7,7 @@ import io.joshworks.ilog.Record;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Main {
 
@@ -27,11 +28,14 @@ public class Main {
         Replica replica1 = new Replica(replicaFolder, repPort);
         Server server = new Server(master, repPort);
 
+        AtomicLong last = new AtomicLong();
         new Thread(() -> {
             while (true) {
                 long serverSeq = Server.sequence.get();
                 long replicaSeq = Replica.sequence.get();
-                System.out.println(serverSeq + " | " + replicaSeq + " | " + (serverSeq - replicaSeq));
+                long lastSeq = last.get();
+                System.out.println(serverSeq + " | " + replicaSeq + " | " + (serverSeq - replicaSeq) + " -> " + (serverSeq - lastSeq));
+                last.set(serverSeq);
                 Threads.sleep(1000);
             }
         }).start();
