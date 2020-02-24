@@ -32,7 +32,7 @@ public class View<T extends IndexedSegment> {
     private static final Logger log = LoggerFactory.getLogger(View.class);
 
 
-    private volatile List<T> segments = new CopyOnWriteArrayList<>();
+    public volatile List<T> segments = new CopyOnWriteArrayList<>();
     private volatile T head;
 
     private final AtomicLong nextSegmentIdx = new AtomicLong();

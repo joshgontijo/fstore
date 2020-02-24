@@ -31,7 +31,7 @@ public class RecordUtils {
 
     public static long readKey(ByteBuffer record) {
         var dst = Buffers.allocate(Record.KEY_LEN.get(record), false);
-        Record.KEY_LEN.copyTo(record, dst);
+        Record.KEY.copyTo(record, dst);
         dst.flip();
         return dst.getLong();
     }

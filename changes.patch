@@ -1,0 +1,327 @@
+diff --git a/indexed-log-server/pom.xml b/indexed-log-server/pom.xml
+index 5dbd27c2..e1cd65bb 100644
+--- a/indexed-log-server/pom.xml
++++ b/indexed-log-server/pom.xml
+@@ -25,11 +25,11 @@
+             <groupId>io.joshworks.fstore</groupId>
+             <artifactId>cluster</artifactId>
+         </dependency>
+-<!--        <dependency>-->
+-<!--            <groupId>org.slf4j</groupId>-->
+-<!--            <artifactId>slf4j-simple</artifactId>-->
+-<!--            <version>1.7.30</version>-->
+-<!--        </dependency>-->
++        <dependency>
++            <groupId>org.slf4j</groupId>
++            <artifactId>slf4j-simple</artifactId>
++            <version>1.7.30</version>
++        </dependency>
+ 
+     </dependencies>
+ 
+diff --git a/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/Main.java b/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/Main.java
+index feb23526..4e815f96 100644
+--- a/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/Main.java
++++ b/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/Main.java
+@@ -46,7 +46,7 @@ public class Main {
+         ByteBuffer keyBuffer = ByteBuffer.allocate(Long.BYTES);
+         for (int i = 0; i < 1000000000; i++) {
+             Record.KEY.set(record, keyBuffer.clear().putLong(i).flip());
+-            server.append(record, ReplicationLevel.ONE);
++            server.append(record, ReplicationLevel.LOCAL);
+ //            if (i % 10000 == 0) {
+ //                Threads.sleep(100);
+ //            }
+diff --git a/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/ReplicationTask.java b/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/ReplicationTask.java
+index 1bfcc47e..b9374a76 100644
+--- a/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/ReplicationTask.java
++++ b/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/ReplicationTask.java
+@@ -31,7 +31,7 @@ class ReplicationTask implements Runnable {
+ 
+                 assert Record.isValid(replicateBuffer);
+                 long logSequence = lsm.append(replicateBuffer);
+-                assert logSequence == recordSequence;
++//                assert logSequence == recordSequence;
+                 lastSequence = logSequence;
+                 RecordBatch.advance(buffer);
+             }
+@@ -42,7 +42,7 @@ class ReplicationTask implements Runnable {
+             Replication.replicated(protocolBuffer, lastSequence);
+             protocolBuffer.flip();
+ 
+-            connection.send(protocolBuffer, false);
++//            connection.send(protocolBuffer, false);
+ 
+         } finally {
+             connection.pool().free(buffer);
+diff --git a/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/ReplicationWorker.java b/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/ReplicationWorker.java
+index f1eee182..7dd1e73d 100644
+--- a/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/ReplicationWorker.java
++++ b/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/ReplicationWorker.java
+@@ -6,9 +6,12 @@ import io.joshworks.fstore.core.util.Threads;
+ import io.joshworks.fstore.ie.server.protocol.Replication;
+ import io.joshworks.fstore.tcp.TcpConnection;
+ import io.joshworks.fstore.tcp.TcpEventClient;
++import io.joshworks.ilog.Log;
++import io.joshworks.ilog.LogIterator;
+ import io.joshworks.ilog.Record;
+ import io.joshworks.ilog.RecordBatch;
+ import io.joshworks.ilog.lsm.Lsm;
++import io.joshworks.ilog.lsm.SequenceLog;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ import org.xnio.Options;
+@@ -24,7 +27,7 @@ class ReplicationWorker {
+ 
+ 
+     private final TcpConnection sink;
+-    private final Lsm src;
++    private final Log<?> src;
+     private final int poolMs;
+     private final AtomicLong lastSentSequence = new AtomicLong();
+     private final AtomicLong lasAckSequence = new AtomicLong();
+@@ -36,7 +39,7 @@ class ReplicationWorker {
+ 
+     ReplicationWorker(int replicaPort, LongConsumer onReplication, Lsm src, long lastSequence, int readSize, int poolMs) {
+         this.onReplication = onReplication;
+-        this.src = src;
++        this.src = src.tlog.log;
+         this.buffer = Buffers.allocate(readSize, false);
+         this.poolMs = poolMs;
+         this.lastSentSequence.set(Math.max(-1, lastSequence));
+@@ -44,7 +47,7 @@ class ReplicationWorker {
+                 .name("replication-worker")
+                 .maxMessageSize(readSize)
+                 .onEvent(this::onReplicationEvent)
+-                .option(Options.SEND_BUFFER, Size.KB.ofInt(16))
++                .option(Options.SEND_BUFFER, Size.KB.ofInt(8))
+                 .option(Options.WORKER_IO_THREADS, 1)
+                 .option(Options.WORKER_TASK_CORE_THREADS, 1)
+                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
+@@ -85,33 +88,36 @@ class ReplicationWorker {
+     }
+ 
+     private void replicate() {
++        LogIterator it = new LogIterator(src);
++
+         while (!closed.get()) {
+-            buffer.clear();
+             int read;
+             do {
+-                read = src.readLog(buffer, lastSentSequence.get() + 1);
+-                if (read <= 0) {
+-                    if (poolMs > 0) {
+-                        Threads.sleep(poolMs);
+-                    }
++                read = it.read(buffer);
++                if (read <= 0 && poolMs > 0) {
++                    Threads.sleep(poolMs);
+                 }
+             } while (read <= 0);
+ 
+             buffer.flip();
+ 
++            assert buffer.hasRemaining();
++
+             int totalSize = 0;
+             while (RecordBatch.hasNext(buffer)) {
++                assert Record.isValid(buffer);
++
+                 long recordKey = buffer.getLong(buffer.position() + Record.KEY.offset(buffer));
+                 if (!lastSentSequence.compareAndSet(recordKey - 1, recordKey)) {
++                    System.out.println(it.segIdx + " -> " + it.segPos);
+                     throw new IllegalStateException("Non contiguous record replication entry: " + recordKey + " current: " + lastSentSequence.get());
+                 }
+-                assert Record.isValid(buffer);
+-
+                 totalSize += Record.sizeOf(buffer);
+                 RecordBatch.advance(buffer);
+             }
+             buffer.position(0).limit(totalSize);
+             sink.send(buffer, false);
++            buffer.compact();
+         }
+     }
+ 
+diff --git a/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/Server.java b/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/Server.java
+index 7197fe50..c71b7978 100644
+--- a/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/Server.java
++++ b/indexed-log-server/src/main/java/io/joshworks/fstore/ie/server/Server.java
+@@ -40,11 +40,11 @@ public class Server implements Closeable {
+ 
+     public static final AtomicLong sequence = new AtomicLong();
+ 
+-    private final ExecutorService writer = Executors.newSingleThreadExecutor();
+-    private final ExecutorService replicationPark = Executors.newSingleThreadExecutor();
+-
+     public Server(File file, int replicaPort) {
+-        this.lsm = Lsm.create(file, KeyComparator.LONG).open();
++        this.lsm = Lsm.create(file, KeyComparator.LONG)
++                .compactionThreshold(-1)
++                .open();
++
+         this.replicas = new Replicas(lsm);
+         replicas.addReplica(replicaPort);
+ 
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/IndexedSegment.java b/indexed-log/src/main/java/io/joshworks/ilog/IndexedSegment.java
+index 269d0b79..b134ba22 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/IndexedSegment.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/IndexedSegment.java
+@@ -190,7 +190,16 @@ public class IndexedSegment {
+      */
+     public int read(long position, ByteBuffer dst) {
+         try {
+-            return channel.read(dst, position);
++            long writePos = writePosition();
++            if (position >= writePos) {
++                return readOnly() ? -1 : 0;
++            }
++            int count = (int) Math.min(dst.remaining(), writePos - position);
++            assert count > 0;
++            Buffers.offsetLimit(dst, count);
++            int read = channel.read(dst, position);
++            assert read == count;
++            return read;
+         } catch (IOException e) {
+             throw new RuntimeIOException(e);
+         }
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/LogIterator.java b/indexed-log/src/main/java/io/joshworks/ilog/LogIterator.java
+new file mode 100644
+index 00000000..c0ef9771
+--- /dev/null
++++ b/indexed-log/src/main/java/io/joshworks/ilog/LogIterator.java
+@@ -0,0 +1,35 @@
++package io.joshworks.ilog;
++
++import java.nio.ByteBuffer;
++
++public class LogIterator {
++
++    private final Log<?> log;
++    public long segPos;
++    public int segIdx;
++
++    public LogIterator(Log<?> log) {
++        this.log = log;
++    }
++
++    public int read(ByteBuffer dst) {
++
++        IndexedSegment segment = log.view.segments.get(segIdx);
++        int read = segment.read(segPos, dst);
++        if (read < 0) {
++            if (segIdx + 1 >= log.view.segments.size()) {
++                return 0;
++            }
++            segIdx++;
++            segPos = 0;
++            segment = log.view.segments.get(segIdx);
++            read = segment.read(segPos, dst);
++        }
++        if (read > 0) {
++            segPos += read;
++        }
++        return read;
++    }
++
++
++}
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/View.java b/indexed-log/src/main/java/io/joshworks/ilog/View.java
+index 7cd4de08..8062450c 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/View.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/View.java
+@@ -32,7 +32,7 @@ public class View<T extends IndexedSegment> {
+     private static final Logger log = LoggerFactory.getLogger(View.class);
+ 
+ 
+-    private volatile List<T> segments = new CopyOnWriteArrayList<>();
++    public volatile List<T> segments = new CopyOnWriteArrayList<>();
+     private volatile T head;
+ 
+     private final AtomicLong nextSegmentIdx = new AtomicLong();
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/lsm/Lsm.java b/indexed-log/src/main/java/io/joshworks/ilog/lsm/Lsm.java
+index 1b0fe596..2a921d61 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/lsm/Lsm.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/lsm/Lsm.java
+@@ -22,7 +22,7 @@ public class Lsm {
+     public static final String LOG_DIR = "log";
+     public static final String SSTABLES_DIR = "sstables";
+ 
+-    private final SequenceLog tlog;
++    public final SequenceLog tlog;
+     private final MemTable memTable;
+     private final Log<SSTable> ssTables;
+ 
+diff --git a/indexed-log/src/main/java/io/joshworks/ilog/lsm/SequenceLog.java b/indexed-log/src/main/java/io/joshworks/ilog/lsm/SequenceLog.java
+index 649ae4ed..31f175df 100644
+--- a/indexed-log/src/main/java/io/joshworks/ilog/lsm/SequenceLog.java
++++ b/indexed-log/src/main/java/io/joshworks/ilog/lsm/SequenceLog.java
+@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
+ 
+ public class SequenceLog implements Closeable {
+ 
+-    private final Log<SequenceSegment> log;
++    public final Log<SequenceSegment> log;
+     private final BufferPool keyPool;
+     private final AtomicLong sequence = new AtomicLong();
+     private final ByteBuffer keyWriteBuffer;
+diff --git a/indexed-log/src/test/java/io/joshworks/ilog/RecordUtils.java b/indexed-log/src/test/java/io/joshworks/ilog/RecordUtils.java
+index 1da5c388..42c0aaa9 100644
+--- a/indexed-log/src/test/java/io/joshworks/ilog/RecordUtils.java
++++ b/indexed-log/src/test/java/io/joshworks/ilog/RecordUtils.java
+@@ -31,7 +31,7 @@ public class RecordUtils {
+ 
+     public static long readKey(ByteBuffer record) {
+         var dst = Buffers.allocate(Record.KEY_LEN.get(record), false);
+-        Record.KEY_LEN.copyTo(record, dst);
++        Record.KEY.copyTo(record, dst);
+         dst.flip();
+         return dst.getLong();
+     }
+diff --git a/indexed-log/src/test/java/io/joshworks/ilog/lsm/LsmTest.java b/indexed-log/src/test/java/io/joshworks/ilog/lsm/LsmTest.java
+index b96bc634..15c5034a 100644
+--- a/indexed-log/src/test/java/io/joshworks/ilog/lsm/LsmTest.java
++++ b/indexed-log/src/test/java/io/joshworks/ilog/lsm/LsmTest.java
+@@ -4,7 +4,9 @@ import io.joshworks.fstore.core.codec.Codec;
+ import io.joshworks.fstore.core.io.buffers.Buffers;
+ import io.joshworks.fstore.core.util.Size;
+ import io.joshworks.fstore.core.util.TestUtils;
++import io.joshworks.ilog.LogIterator;
+ import io.joshworks.ilog.Record;
++import io.joshworks.ilog.RecordBatch;
+ import io.joshworks.ilog.RecordUtils;
+ import io.joshworks.ilog.index.KeyComparator;
+ import org.junit.After;
+@@ -54,6 +56,32 @@ public class LsmTest {
+         }
+     }
+ 
++    @Test
++    public void iterate() {
++        int items = (int) (MEM_TABLE_SIZE * 10.5);
++        for (int i = 0; i < items; i++) {
++            lsm.append(LsmRecordUtils.add(i, String.valueOf(i)));
++        }
++
++        LogIterator it = new LogIterator(lsm.tlog.log);
++        var dst = Buffers.allocate(1024, false);
++        int entries = 0;
++        long lastKey = -1;
++        while (it.read(dst) > 0) {
++            dst.flip();
++            while (RecordBatch.hasNext(dst)) {
++                long k = dst.getLong(dst.position() + Record.KEY.offset(dst));
++                RecordBatch.advance(dst);
++                assertEquals(lastKey + 1, k);
++                lastKey = k;
++                entries++;
++            }
++            dst.compact();
++        }
++
++        assertEquals(items, entries);
++    }
++
+     @Test
+     public void append_flush() {
+         int items = (int) (MEM_TABLE_SIZE * 1.5);

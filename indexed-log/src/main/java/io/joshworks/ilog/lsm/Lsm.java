@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.Log;
+import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
@@ -22,7 +23,7 @@ public class Lsm {
     public static final String LOG_DIR = "log";
     public static final String SSTABLES_DIR = "sstables";
 
-    private final SequenceLog tlog;
+    public final SequenceLog tlog;
     private final MemTable memTable;
     private final Log<SSTable> ssTables;
 
@@ -64,7 +65,7 @@ public class Lsm {
         this.tlog = new SequenceLog(new File(root, LOG_DIR),
                 maxRecordSize,
                 tlogIndexSize,
-                0,
+                2,
                 1,
                 FlushMode.ON_ROLL,
                 logRecordPool);
@@ -146,7 +147,11 @@ public class Lsm {
         return tlog.bulkRead(id, dst, IndexFunctions.EQUALS);
     }
 
-    synchronized void flush() {
+    public LogIterator logIterator() {
+        return tlog.iterator();
+    }
+
+    public synchronized void flush() {
         try (HeapBlock block = blockPool.allocate()) {
             long entries = memTable.writeTo(ssTables::append, maxAge, block);
             if (entries > 0) {
@@ -164,4 +169,6 @@ public class Lsm {
         tlog.close();
         ssTables.close();
     }
+
+
 }

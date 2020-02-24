@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.fstore.tcp.TcpEventClient;
+import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.lsm.Lsm;
@@ -13,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xnio.Options;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
@@ -24,7 +26,7 @@ class ReplicationWorker {
 
 
     private final TcpConnection sink;
-    private final Lsm src;
+    private final Lsm lsm;
     private final int poolMs;
     private final AtomicLong lastSentSequence = new AtomicLong();
     private final AtomicLong lasAckSequence = new AtomicLong();
@@ -34,9 +36,9 @@ class ReplicationWorker {
     private static final Logger log = LoggerFactory.getLogger(ReplicationWorker.class);
     private final LongConsumer onReplication;
 
-    ReplicationWorker(int replicaPort, LongConsumer onReplication, Lsm src, long lastSequence, int readSize, int poolMs) {
+    ReplicationWorker(int replicaPort, LongConsumer onReplication, Lsm lsm, long lastSequence, int readSize, int poolMs) {
         this.onReplication = onReplication;
-        this.src = src;
+        this.lsm = lsm;
         this.buffer = Buffers.allocate(readSize, false);
         this.poolMs = poolMs;
         this.lastSentSequence.set(Math.max(-1, lastSequence));
@@ -50,7 +52,13 @@ class ReplicationWorker {
                 .option(Options.WORKER_TASK_MAX_THREADS, 1)
                 .connect(new InetSocketAddress("localhost", replicaPort), 5, TimeUnit.SECONDS);
 
-        this.thread = new Thread(this::replicate);
+        this.thread = new Thread(() -> {
+            try {
+                this.replicate();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     private void onReplicationEvent(TcpConnection connection, Object event) {
@@ -84,34 +92,43 @@ class ReplicationWorker {
         closed.set(true);
     }
 
-    private void replicate() {
+    private void replicate() throws IOException {
+//        Threads.sleep(20000);
+        LogIterator it = lsm.logIterator();
+
+
         while (!closed.get()) {
-            buffer.clear();
             int read;
             do {
-                read = src.readLog(buffer, lastSentSequence.get() + 1);
-                if (read <= 0) {
-                    if (poolMs > 0) {
-                        Threads.sleep(poolMs);
-                    }
+                read = it.read(buffer);
+                if (read <= 0 && poolMs > 0) {
+                    Threads.sleep(poolMs);
                 }
             } while (read <= 0);
 
             buffer.flip();
 
+            assert buffer.hasRemaining();
+
             int totalSize = 0;
             while (RecordBatch.hasNext(buffer)) {
+                assert Record.isValid(buffer);
+
                 long recordKey = buffer.getLong(buffer.position() + Record.KEY.offset(buffer));
                 if (!lastSentSequence.compareAndSet(recordKey - 1, recordKey)) {
                     throw new IllegalStateException("Non contiguous record replication entry: " + recordKey + " current: " + lastSentSequence.get());
                 }
-                assert Record.isValid(buffer);
-
                 totalSize += Record.sizeOf(buffer);
                 RecordBatch.advance(buffer);
             }
+
+            assert totalSize > 0 : "When read > 0 then at least a record should be read";
+
+            int plim = buffer.limit();
             buffer.position(0).limit(totalSize);
             sink.send(buffer, false);
+            buffer.limit(plim); //restore, so we can compact
+            buffer.compact();
         }
     }
 

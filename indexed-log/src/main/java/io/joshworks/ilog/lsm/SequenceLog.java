@@ -7,6 +7,7 @@ import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
+import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
@@ -20,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class SequenceLog implements Closeable {
 
-    private final Log<SequenceSegment> log;
+    public final Log<SequenceSegment> log;
     private final BufferPool keyPool;
     private final AtomicLong sequence = new AtomicLong();
     private final ByteBuffer keyWriteBuffer;
@@ -130,6 +131,10 @@ public class SequenceLog implements Closeable {
 
     public void delete() {
         log.delete();
+    }
+
+    public LogIterator iterator() {
+        return new LogIterator(log);
     }
 
     private class SequenceSegment extends IndexedSegment {

@@ -14,7 +14,8 @@ public class RecordBatch {
             return false;
         }
         int rsize = Record.sizeOf(record);
-        return rsize <= remaining && rsize > HEADER_BYTES;
+        boolean hasReadableBytes = rsize <= remaining && rsize > HEADER_BYTES;
+        return hasReadableBytes && Record.isValid(record);
     }
 
     public static void advance(ByteBuffer record) {

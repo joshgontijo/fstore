@@ -3,7 +3,6 @@ package io.joshworks.fstore.ie.server;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.ilog.Record;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -15,7 +14,7 @@ public class Main {
 
         File root = TestUtils.testFolder();
         File master = new File(root, "master");
-        File replicaFolder = new File(root, "replica");
+        File replicaFolder = new File(new File("D:\\Test"), "replica");
 
         TestUtils.deleteRecursively(replicaFolder);
         FileUtils.deleteIfExists(master);
@@ -41,11 +40,8 @@ public class Main {
         }).start();
 
 
-        long s = System.currentTimeMillis();
-        ByteBuffer record = RecordUtils.create(0, "value-" + 0);
-        ByteBuffer keyBuffer = ByteBuffer.allocate(Long.BYTES);
         for (int i = 0; i < 1000000000; i++) {
-            Record.KEY.set(record, keyBuffer.clear().putLong(i).flip());
+            ByteBuffer record = RecordUtils.create(i, "value-" + i);
             server.append(record, ReplicationLevel.ONE);
 //            if (i % 10000 == 0) {
 //                Threads.sleep(100);

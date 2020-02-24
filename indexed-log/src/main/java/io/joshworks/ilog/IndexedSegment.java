@@ -87,7 +87,9 @@ public class IndexedSegment {
 
     private void seekEndOfLog() {
         try {
-            writePosition.set(channel.size());
+            long size = channel.size();
+            writePosition.set(size);
+            channel.position(size);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to set position at the of the log");
         }
@@ -190,7 +192,19 @@ public class IndexedSegment {
      */
     public int read(long position, ByteBuffer dst) {
         try {
-            return channel.read(dst, position);
+            long writePos = writePosition();
+            if (position >= writePos) {
+                return readOnly() ? -1 : 0;
+            }
+
+            int count = (int) Math.min(dst.remaining(), writePos - position);
+            assert count > 0;
+            int plim = dst.limit();
+            Buffers.offsetLimit(dst, count);
+            int read = channel.read(dst, position);
+            dst.limit(plim);
+            assert read == count;
+            return read;
         } catch (IOException e) {
             throw new RuntimeIOException(e);
         }
@@ -214,9 +228,9 @@ public class IndexedSegment {
 
     public void forceRoll() throws IOException {
         flush();
-        long fileSize = size();
-        channel.truncate(fileSize);
+        long fileSize = writePosition();
         writePosition.set(fileSize);
+        channel.truncate(fileSize);
         index.complete();
     }
 

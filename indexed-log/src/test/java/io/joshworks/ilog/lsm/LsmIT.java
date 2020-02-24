@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
+import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
@@ -13,12 +14,15 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class LsmTest {
+public class LsmIT {
 
     public static final KeyComparator COMPARATOR = KeyComparator.LONG;
     private Lsm lsm;
@@ -27,10 +31,10 @@ public class LsmTest {
     @Before
     public void setUp() {
         lsm = Lsm.create(TestUtils.testFolder(), COMPARATOR)
-                .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(5), false)
+                .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(500), false)
                 .codec(Codec.noCompression())
-                .compactionThreshold(2)
-                .compactionThreads(1)
+                .compactionThreshold(0)
+                .compactionThreads(8)
                 .open();
 
     }
@@ -41,45 +45,69 @@ public class LsmTest {
     }
 
     @Test
-    public void append_no_flush() {
-        int items = MEM_TABLE_SIZE / 2;
-        for (int i = 0; i < items; i++) {
-            lsm.append(LsmRecordUtils.add(i, String.valueOf(i)));
-        }
-
-        for (int i = 0; i < items; i++) {
-            var dst = Buffers.allocate(1024, false);
-            int rsize = lsm.get(keyOf(i), dst);
-            dst.flip();
-            assertTrue(rsize > 0);
-            assertEquals(i, RecordUtils.readKey(dst));
-        }
-    }
-
-    @Test
-    public void iterate() {
+    public void concurrent_write_read() throws InterruptedException {
         int items = (int) (MEM_TABLE_SIZE * 20.5);
-        for (int i = 0; i < items; i++) {
-            lsm.append(LsmRecordUtils.add(i, String.valueOf(i)));
-        }
-
-        LogIterator it = lsm.logIterator();
-        var dst = Buffers.allocate(8096, false);
-        int entries = 0;
-        long lastKey = -1;
-        while (it.read(dst) > 0) {
-            dst.flip();
-            while (RecordBatch.hasNext(dst)) {
-                long k = dst.getLong(dst.position() + Record.KEY.offset(dst));
-                RecordBatch.advance(dst);
-                assertEquals(lastKey + 1, k);
-                lastKey = k;
-                entries++;
+        Thread writer = new Thread(() -> {
+            for (int i = 0; i < items; i++) {
+                lsm.append(LsmRecordUtils.add(i, String.valueOf(i)));
+                if(i % 100000 == 0) {
+                    System.out.println("WRITE " + i);
+                }
             }
-            dst.compact();
-        }
+            lsm.flush();
+        });
 
-        assertEquals(items, entries);
+        Thread reader = new Thread(() -> {
+            LogIterator it = lsm.logIterator();
+            var dst = Buffers.allocate(8096, false);
+            int entries = 0;
+            long lastKey = -1;
+
+            try {
+                File file = new File("result.txt");
+                file.createNewFile();
+                FileWriter writer1 = new FileWriter(file);
+
+
+            while (entries < items) {
+                if(it.read(dst) == 0) {
+                    Threads.sleep(5);
+                    continue;
+                }
+                dst.flip();
+                while (RecordBatch.hasNext(dst)) {
+                    long k = dst.getLong(dst.position() + Record.KEY.offset(dst));
+                    writer1.append(String.valueOf(it.segPos))
+                            .append(" -> ")
+                            .append(String.valueOf(dst.position()))
+                            .append(" -> ")
+                            .append(String.valueOf(k))
+                            .append(System.lineSeparator());
+                    writer1.flush();
+
+                    RecordBatch.advance(dst);
+                    assertEquals(lastKey + 1, k);
+                    lastKey = k;
+                    if(entries % 100000 == 0) {
+                        System.out.println("READ " + entries);
+                    }
+                    entries++;
+                }
+                dst.compact();
+            }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            assertEquals(items, entries);
+        });
+
+        writer.start();
+        reader.start();
+
+        writer.join();
+        reader.join();
+
     }
 
     @Test

@@ -44,7 +44,10 @@ public class Server implements Closeable {
     private final ExecutorService replicationPark = Executors.newSingleThreadExecutor();
 
     public Server(File file, int replicaPort) {
-        this.lsm = Lsm.create(file, KeyComparator.LONG).open();
+        this.lsm = Lsm.create(file, KeyComparator.LONG)
+                .compactionThreshold(-1)
+                .open();
+
         this.replicas = new Replicas(lsm);
         replicas.addReplica(replicaPort);
 
@@ -55,7 +58,7 @@ public class Server implements Closeable {
 
         long logId = lsm.append(buffer);
         sequence.set(logId);
-        replicas.await(logId, 60000, rlevel);
+        replicas.await(logId, rlevel);
 
 //        ackBack(connection);
     }
@@ -95,19 +98,22 @@ public class Server implements Closeable {
         }
 
         public void addReplica(int port) {
-            ReplicationWorker worker = new ReplicationWorker(port, this::onReplication, masterStore, -1, 8096 * 2, 0);
+            ReplicationWorker worker = new ReplicationWorker(port, this::onReplication, masterStore, -1, 8096 * 4, 0);
             workers.add(worker);
             worker.start();
         }
 
-        public void await(long sequence, long timeoutMs, ReplicationLevel rlevel) {
+        public void await(long sequence, ReplicationLevel rlevel) {
             if (ReplicationLevel.LOCAL.equals(rlevel)) {
                 return;
             }
             lock.lock();
             try {
                 while (!replicated(sequence, rlevel)) {
-                    condition.await(timeoutMs, TimeUnit.MILLISECONDS);
+                    //TODO make configurable
+                    if (!condition.await(3, TimeUnit.SECONDS)) {
+                        log.warn("Slow replication, sequence: {}", sequence);
+                    }
                 }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
