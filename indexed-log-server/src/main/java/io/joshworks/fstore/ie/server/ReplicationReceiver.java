@@ -8,7 +8,7 @@ import io.joshworks.ilog.lsm.Lsm;
 
 import java.nio.ByteBuffer;
 
-class ReplicationTask implements Runnable {
+class ReplicationReceiver implements Runnable {
 
     ByteBuffer buffer;
     ByteBuffer replicateBuffer;
@@ -31,7 +31,7 @@ class ReplicationTask implements Runnable {
 
                 assert Record.isValid(replicateBuffer);
                 long logSequence = lsm.append(replicateBuffer);
-                assert logSequence == recordSequence;
+                assert logSequence == recordSequence : logSequence + " != " + recordSequence;
                 lastSequence = logSequence;
                 RecordBatch.advance(buffer);
             }

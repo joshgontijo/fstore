@@ -58,7 +58,7 @@ public class Replica {
 
     private static class ReplicationExecutor extends ThreadPoolExecutor {
 
-        private final Queue<ReplicationTask> runnables;
+        private final Queue<ReplicationReceiver> runnables;
 
         public ReplicationExecutor(int size) {
             super(1, 1, 1, TimeUnit.HOURS, new BlockingExecutorQueue<>(size));
@@ -66,8 +66,8 @@ public class Replica {
         }
 
         private void execute(TcpConnection connection, Object data, Lsm lsm, ByteBuffer protocolBuffer, ByteBuffer replicationBuffer) {
-            ReplicationTask task = runnables.poll();
-            task = task == null ? new ReplicationTask() : task;
+            ReplicationReceiver task = runnables.poll();
+            task = task == null ? new ReplicationReceiver() : task;
 
             task.buffer = (ByteBuffer) data;
             task.protocolBuffer = protocolBuffer;
@@ -82,7 +82,7 @@ public class Replica {
 
         @Override
         protected void afterExecute(Runnable r, Throwable t) {
-            runnables.offer((ReplicationTask) r);
+            runnables.offer((ReplicationReceiver) r);
             super.afterExecute(r, t);
         }
     }

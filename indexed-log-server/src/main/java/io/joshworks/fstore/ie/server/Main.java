@@ -14,18 +14,28 @@ public class Main {
 
         File root = TestUtils.testFolder();
         File master = new File(root, "master");
-        File replicaFolder = new File(new File("D:\\Test"), "replica");
+        File replica1Folder = new File(root, "replica1");
+        File replica2Folder = new File(root, "replica2");
 
-        TestUtils.deleteRecursively(replicaFolder);
-        FileUtils.deleteIfExists(master);
-        FileUtils.deleteIfExists(replicaFolder);
         FileUtils.createDir(master);
-        FileUtils.createDir(replicaFolder);
+        FileUtils.createDir(replica1Folder);
+        FileUtils.createDir(replica2Folder);
 
-        int repPort = 12376;
+        System.out.println(root);
 
-        Replica replica1 = new Replica(replicaFolder, repPort);
-        Server server = new Server(master, repPort);
+        int rep1Port = 1346;
+        int rep2Port = 1347;
+
+        Replica replica1 = new Replica(replica1Folder, rep1Port);
+        Replica replica2 = new Replica(replica2Folder, rep2Port);
+        Server server = new Server(master, rep1Port, rep2Port);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            server.close();
+            replica1.close();
+            replica2.close();
+//            TestUtils.deleteRecursively(root);
+        }));
 
         AtomicLong last = new AtomicLong();
         new Thread(() -> {
@@ -59,7 +69,6 @@ public class Main {
 
         Threads.sleep(2400000);
 //        server.awaitTermination();
-        replica1.close();
 
     }
 

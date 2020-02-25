@@ -40,17 +40,16 @@ public class Server implements Closeable {
 
     public static final AtomicLong sequence = new AtomicLong();
 
-    private final ExecutorService writer = Executors.newSingleThreadExecutor();
-    private final ExecutorService replicationPark = Executors.newSingleThreadExecutor();
-
-    public Server(File file, int replicaPort) {
+    public Server(File file, int... replicas) {
         this.lsm = Lsm.create(file, KeyComparator.LONG)
                 .compactionThreshold(-1)
                 .open();
 
         this.replicas = new Replicas(lsm);
-        replicas.addReplica(replicaPort);
 
+        for (int replica : replicas) {
+            this.replicas.addReplica(replica);
+        }
     }
 
     public void append(ByteBuffer buffer, ReplicationLevel rlevel) {
@@ -59,8 +58,6 @@ public class Server implements Closeable {
         long logId = lsm.append(buffer);
         sequence.set(logId);
         replicas.await(logId, rlevel);
-
-//        ackBack(connection);
     }
 
     private void onEvent(TcpConnection connection, Object data) {
@@ -155,6 +152,7 @@ public class Server implements Closeable {
         }
 
         private int quorum() {
+            //TODO wrong
             return (workers.size() / 2) + 1;
         }
 
