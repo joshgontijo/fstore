@@ -2,6 +2,7 @@ package io.joshworks.ilog.compaction;
 
 import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
 import io.joshworks.fstore.core.util.Threads;
+import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.View;
 import io.joshworks.ilog.compaction.combiner.SegmentCombiner;
@@ -107,7 +108,7 @@ public class Compactor<T extends IndexedSegment> {
             view.lock(() -> {
                 if (target.entries() == 0) {
                     logger.info("No entries were found in the result segment {}, deleting", target.name());
-                    deleteAll(List.of(target));
+                    target.delete(); //safe to delete as it's not used yet
                     view.remove(sources);
                 } else {
                     view.merge(sources, target);
@@ -118,7 +119,6 @@ public class Compactor<T extends IndexedSegment> {
                 //force does not propagate to upper level
                 scheduleCompaction(level, false);
                 scheduleCompaction(level + 1, false);
-                deleteAll(sources);
             });
         });
     }
@@ -154,17 +154,6 @@ public class Compactor<T extends IndexedSegment> {
         });
     }
 
-    //delete all source segments only if all of them are not being used
-    private void deleteAll(List<T> segments) {
-        for (T segment : segments) {
-            String segmentName = segment.name();
-            try {
-                segment.delete();
-            } catch (Exception e) {
-                logger.error("Failed to delete " + segmentName, e);
-            }
-        }
-    }
 
 
     public synchronized void close() {

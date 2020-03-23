@@ -16,6 +16,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -36,6 +38,8 @@ public class IndexedSegment {
 
     private final AtomicBoolean readOnly = new AtomicBoolean();
     private final AtomicLong writePosition = new AtomicLong();
+    private final AtomicBoolean markedForDeletion = new AtomicBoolean();
+    private final Set<SegmentIterator> iterators = new HashSet<>();
 
     public IndexedSegment(File file, int indexSize, KeyComparator comparator) {
         this.file = file;
@@ -56,6 +60,7 @@ public class IndexedSegment {
         return new Index(indexFile, indexSize, comparator);
     }
 
+    //TODO remove BufferPool
     void reindex(BufferPool pool) throws IOException {
         log.info("Reindexing {}", name());
 
@@ -65,7 +70,7 @@ public class IndexedSegment {
         this.index = openIndex(indexFile, indexSize, comparator);
 
         long start = System.currentTimeMillis();
-        RecordBatchIterator it = new RecordBatchIterator(this, START, pool);
+        SegmentIterator it = iterator(START, pool);
         int processed = 0;
 
         while (it.hasNext()) {
@@ -122,6 +127,56 @@ public class IndexedSegment {
             throw new RuntimeIOException("Failed to append record", e);
         }
     }
+
+    public void appendN(ByteBuffer records) {
+        if (isFull()) {
+            throw new IllegalStateException("Index is full");
+        }
+        if (readOnly()) {
+            throw new IllegalStateException("Segment is read only");
+        }
+
+        int ppos = records.position();
+        int plim = records.limit();
+
+        int remainingIndexEntries = index.remaining();
+
+        long logStartPos = writePosition();
+        int totalBytes = 0;
+        int totalEntries = 0;
+        while (RecordBatch.hasNext(records) && totalEntries <= remainingIndexEntries) {
+            assert Record.isValid(records);
+            int expectedKeySize = index.keySize();
+            int actualKeySize = Record.KEY.len(records);
+            int recLen = Record.sizeOf(records);
+            if (actualKeySize != expectedKeySize) { // validates the key BEFORE adding to log
+                throw new IllegalArgumentException("Invalid key size: Expected " + expectedKeySize + ", got " + actualKeySize);
+            }
+
+            //TODO validate record size
+//            if (recLen > maxEntrySize) {
+//                throw new IllegalArgumentException("Record to large, max allowed size: " + maxEntrySize + ", record size: " + recordLength);
+//            }
+
+            totalBytes += Record.sizeOf(records);
+            RecordBatch.advance(records);
+        }
+        records.limit(plim).position(ppos);
+
+        int totalLen = records.remaining();
+
+        int written = RecordBatch.writeTo(records, channel);
+        assert totalLen == totalBytes;
+        assert written == totalBytes;
+
+        writePosition.getAndAdd(written);
+
+        records.limit(plim).position(ppos);
+        index.writeN(records, logStartPos);
+
+        records.limit(plim).position(ppos + written);
+    }
+
 
 //    //TODO requires length prefixed record
 //    public long transferTo(ByteBuffer key, WritableByteChannel sink, IndexFunctions func) {
@@ -218,6 +273,10 @@ public class IndexedSegment {
         return index.isFull();
     }
 
+    public int remaining() {
+        return index.remaining();
+    }
+
     public int indexSize() {
         return index.size();
     }
@@ -286,13 +345,43 @@ public class IndexedSegment {
         return writePosition.get();
     }
 
-    public void delete() {
+    public synchronized void delete() {
+        if (!markedForDeletion.compareAndSet(false, true)) {
+            return;
+        }
+        if (!iterators.isEmpty()) {
+            log.info("Segment marked for deletion");
+            return;
+        }
+        doDelete();
+    }
+
+    public synchronized SegmentIterator iterator(long pos, BufferPool pool) {
+        SegmentIterator it = new SegmentIterator(this, pos, pool);
+        iterators.add(it);
+        return it;
+    }
+
+    private void doDelete() {
+        if (!iterators.isEmpty()) {
+            throw new IllegalStateException("Segment in being used");
+        }
         try {
+            log.info("Deleting {}", name());
             channel.close();
             Files.delete(file.toPath());
             index.delete();
         } catch (IOException e) {
             throw new RuntimeIOException(e);
+        }
+    }
+
+    void release(SegmentIterator iterator) {
+        iterators.remove(iterator);
+        if (markedForDeletion.get()) {
+            synchronized (this) {
+                doDelete();
+            }
         }
     }
 

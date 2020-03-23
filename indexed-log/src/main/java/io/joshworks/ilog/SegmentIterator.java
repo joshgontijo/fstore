@@ -10,7 +10,7 @@ import java.util.NoSuchElementException;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
 
-public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuffer> {
+public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> {
 
     private final ByteBuffer readBuffer;
     private final IndexedSegment segment;
@@ -19,7 +19,7 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
     private int bufferPos;
     private int bufferLimit;
 
-    public RecordBatchIterator(IndexedSegment segment, long startPos, BufferPool pool) {
+    public SegmentIterator(IndexedSegment segment, long startPos, BufferPool pool) {
         this.pool = pool;
         this.segment = segment;
         this.readPos = startPos;
@@ -116,5 +116,6 @@ public class RecordBatchIterator implements Iterators.CloseableIterator<ByteBuff
     @Override
     public void close() {
         pool.free(readBuffer);
+        segment.release(this);
     }
 }

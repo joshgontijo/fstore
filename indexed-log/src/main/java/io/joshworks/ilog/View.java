@@ -43,6 +43,7 @@ public class View<T extends IndexedSegment> {
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
+    //TODO remove BufferPool
     View(File root, int indexSize, BufferPool pool, SegmentFactory<T> segmentFactory) throws IOException {
         this.root = root;
         this.indexSize = indexSize;
@@ -203,6 +204,11 @@ public class View<T extends IndexedSegment> {
                 copy.remove(seg);
             }
             this.segments = copy;
+
+            for (T seg : segments) {
+                seg.delete();
+            }
+
         } finally {
             lock.unlock();
         }
@@ -233,6 +239,12 @@ public class View<T extends IndexedSegment> {
             //or the target segment
             merged.roll();
             this.segments = copy;
+
+            for (T source : sources) {
+                source.delete();
+            }
+
+
         } catch (IOException e) {
             throw new RuntimeIOException("Error while merging files", e);
         } finally {

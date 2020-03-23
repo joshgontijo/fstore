@@ -2,6 +2,7 @@ package io.joshworks.ilog.index;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
+import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.lsm.BufferBinarySearch;
 
 import java.io.Closeable;
@@ -73,6 +74,25 @@ public class Index implements Closeable {
         doWrite(keySize, position, record, dst);
     }
 
+    /**
+     * Relies on segment to validate the size of all keys and also the remaining space int this index
+     */
+    public void writeN(ByteBuffer records, long startPos) {
+        assert !readOnly.get();
+
+        MappedByteBuffer dst = mf.buffer();
+
+        long pos = startPos;
+        while (RecordBatch.hasNext(records)) {
+            int keySize = Record.KEY.len(records);
+            assert keySize == keySize();
+            doWrite(keySize, pos, records, dst);
+            pos += Record.sizeOf(records);
+            RecordBatch.advance(records);
+        }
+
+    }
+
     public int find(ByteBuffer key, IndexFunctions func) {
         requireNonNull(key, "Key must be provided");
         int remaining = key.remaining();
@@ -90,10 +110,7 @@ public class Index implements Closeable {
     private void doWrite(int keySize, long position, ByteBuffer record, ByteBuffer dst) {
         int rsize = Record.sizeOf(record);
         int written = Record.KEY.copyTo(record, dst);
-        if (written != keySize) {
-            Buffers.offsetPosition(dst, -written);
-            throw new IllegalStateException("Expected " + keySize + " bytes written to index, actual: " + written);
-        }
+        assert written == keySize;
         dst.putLong(position);
         dst.putInt(rsize);
     }
@@ -163,7 +180,6 @@ public class Index implements Closeable {
         return comparator.keySize();
     }
 
-
     private int align(int size) {
         int entrySize = entrySize();
         int aligned = entrySize * (size / entrySize);
@@ -189,5 +205,9 @@ public class Index implements Closeable {
             throw new RuntimeException("Buffer key length mismatch");
         }
         mf.get(dst, 0, keySize());
+    }
+
+    public int remaining() {
+        return mf.capacity() / entrySize();
     }
 }

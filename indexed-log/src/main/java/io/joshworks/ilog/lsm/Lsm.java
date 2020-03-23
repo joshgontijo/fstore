@@ -9,6 +9,7 @@ import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
+import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.pooled.HeapBlock;
@@ -95,6 +96,26 @@ public class Lsm {
         return seq;
     }
 
+    public long replicate(ByteBuffer records) {
+        int ppos = records.position();
+        int plim = records.limit();
+
+        long lasSequence = tlog.replicate(records);
+        records.limit(plim).position(ppos);
+
+        while (RecordBatch.hasNext(records)) {
+            if (!memTable.add(records)) {
+                flush();
+                if (!memTable.add(records)) {
+                    throw new IllegalStateException("Failed to write to memtable");
+                }
+            }
+            RecordBatch.advance(records);
+        }
+
+        return lasSequence;
+    }
+
     public int get(ByteBuffer key, ByteBuffer dst) {
         return ssTables.apply(Direction.BACKWARD, sst -> {
 
@@ -149,6 +170,10 @@ public class Lsm {
 
     public LogIterator logIterator() {
         return tlog.iterator();
+    }
+
+    public LogIterator logIterator(long fromSequence) {
+        return tlog.iterator(fromSequence);
     }
 
     public synchronized void flush() {

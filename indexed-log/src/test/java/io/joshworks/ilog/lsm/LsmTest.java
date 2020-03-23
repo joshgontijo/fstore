@@ -56,31 +56,31 @@ public class LsmTest {
         }
     }
 
-    @Test
-    public void iterate() {
-        int items = (int) (MEM_TABLE_SIZE * 20.5);
-        for (int i = 0; i < items; i++) {
-            lsm.append(LsmRecordUtils.add(i, String.valueOf(i)));
-        }
-
-        LogIterator it = lsm.logIterator();
-        var dst = Buffers.allocate(8096, false);
-        int entries = 0;
-        long lastKey = -1;
-        while (it.read(dst) > 0) {
-            dst.flip();
-            while (RecordBatch.hasNext(dst)) {
-                long k = dst.getLong(dst.position() + Record.KEY.offset(dst));
-                RecordBatch.advance(dst);
-                assertEquals(lastKey + 1, k);
-                lastKey = k;
-                entries++;
-            }
-            dst.compact();
-        }
-
-        assertEquals(items, entries);
-    }
+//    @Test
+//    public void iterate() {
+//        int items = (int) (MEM_TABLE_SIZE * 20.5);
+//        for (int i = 0; i < items; i++) {
+//            lsm.append(LsmRecordUtils.add(i, String.valueOf(i)));
+//        }
+//
+//        LogIterator it = lsm.logIterator();
+//        var dst = Buffers.allocate(8096, false);
+//        int entries = 0;
+//        long lastKey = -1;
+//        while (it.read(dst) > 0) {
+//            dst.flip();
+//            while (RecordBatch.hasNext(dst)) {
+//                long k = dst.getLong(dst.position() + Record.KEY.offset(dst));
+//                RecordBatch.advance(dst);
+//                assertEquals(lastKey + 1, k);
+//                lastKey = k;
+//                entries++;
+//            }
+//            dst.compact();
+//        }
+//
+//        assertEquals(items, entries);
+//    }
 
     @Test
     public void append_flush() {

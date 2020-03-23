@@ -9,6 +9,8 @@ import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
+import io.joshworks.ilog.RecordBatch;
+import io.joshworks.ilog.SegmentIterator;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
 
@@ -16,6 +18,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -26,6 +29,7 @@ public class SequenceLog implements Closeable {
     private final AtomicLong sequence = new AtomicLong();
     private final ByteBuffer keyWriteBuffer;
     private final ByteBuffer recordWriteBuffer;
+    private final BufferPool pool;
 
     public SequenceLog(File root,
                        int maxEntrySize,
@@ -33,13 +37,43 @@ public class SequenceLog implements Closeable {
                        int compactionThreshold,
                        int compactionThreads,
                        FlushMode flushMode,
-                       BufferPool recordPool) throws IOException {
+                       BufferPool pool) throws IOException {
+        this.pool = pool;
 
         FileUtils.createDir(root);
-        log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, compactionThreads, flushMode, recordPool, SequenceSegment::new);
+        log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, compactionThreads, flushMode, pool, SequenceSegment::new);
         keyPool = BufferPool.defaultPool(256, Long.BYTES, false);
         keyWriteBuffer = keyPool.allocate();
-        this.recordWriteBuffer = recordPool.allocate();
+        this.recordWriteBuffer = pool.allocate();
+    }
+
+    public long replicate(ByteBuffer records) {
+        try {
+            int plim = records.limit();
+            int ppos = records.position();
+
+            long lastSeq = sequence.get();
+            while (RecordBatch.hasNext(records)) {
+                long recordKey = readSequence(records);
+                if (lastSeq + 1 != recordKey) {
+                    throw new RuntimeException("Non sequential sequence");
+                }
+                lastSeq++;
+                RecordBatch.advance(records);
+            }
+
+            //all records sequences are ok, batch insert them
+            records.limit(plim).position(ppos);
+
+            //batch write
+            log.appendN(records);
+            sequence.set(lastSeq);
+
+            return lastSeq;
+        } catch (Exception e) {
+            sequence.decrementAndGet();
+            throw new RuntimeIOException(e);
+        }
     }
 
     public long append(ByteBuffer data) {
@@ -73,7 +107,9 @@ public class SequenceLog implements Closeable {
     }
 
     public int find(long sequence, ByteBuffer dst, IndexFunctions fn) {
-        assert sequence >= 0;
+        if (sequence < 0) {
+            throw new IllegalArgumentException("Sequence must be greater than zero");
+        }
 
         SequenceSegment segment = findSegment(sequence, IndexFunctions.FLOOR);
         if (segment == null) {
@@ -125,8 +161,8 @@ public class SequenceLog implements Closeable {
 
     @Override
     public void close() {
-        keyPool.free(keyWriteBuffer);
         log.close();
+        keyPool.free(keyWriteBuffer);
     }
 
     public void delete() {
@@ -134,13 +170,54 @@ public class SequenceLog implements Closeable {
     }
 
     public LogIterator iterator() {
-        return new LogIterator(log);
+        return log.iterator();
+    }
+
+    public LogIterator iterator(long startSequenceInclusive) {
+        return log.apply(Direction.FORWARD, segs -> {
+            int idx = indexedBinarySearch(segs, startSequenceInclusive);
+            idx = IndexFunctions.EQUALS.apply(idx);
+            if (idx < 0) {
+                return LogIterator.empty();
+            }
+            long pos = segs.get(idx).positionOf(startSequenceInclusive);
+            if (pos < 0) {
+                return LogIterator.empty();
+            }
+
+            List<SegmentIterator> iterators = new ArrayList<>();
+            iterators.add(segs.get(idx).iterator(pos, pool));
+            for (int i = idx + 1; i < segs.size(); i++) {
+                iterators.add(segs.get(i).iterator(IndexedSegment.START, pool));
+            }
+
+            return log.registerIterator(iterators);
+        });
+    }
+
+    public static long readSequence(ByteBuffer record) {
+        return record.getLong(record.position() + Record.KEY.offset(record));
     }
 
     private class SequenceSegment extends IndexedSegment {
 
         public SequenceSegment(File file, int indexSize) {
             super(file, indexSize, KeyComparator.LONG);
+        }
+
+        public long positionOf(long sequence) {
+            var keyBuffer = keyPool.allocate();
+            try {
+                keyBuffer.putLong(sequence).flip();
+                index.find(keyBuffer, IndexFunctions.EQUALS);
+                keyBuffer.flip();
+                if (!keyBuffer.hasRemaining()) {
+                    return -1;
+                }
+                return keyBuffer.getLong();
+            } finally {
+                keyPool.free(keyBuffer);
+            }
         }
 
         public long firstKey() {

@@ -17,6 +17,7 @@ import org.xnio.Options;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -25,7 +26,7 @@ import java.util.function.LongConsumer;
 class ReplicationWorker {
 
 
-    private final TcpConnection sink;
+    private final SocketChannel sink;
     private final Lsm lsm;
     private final int poolMs;
     private final AtomicLong lastSentSequence = new AtomicLong();
@@ -36,23 +37,23 @@ class ReplicationWorker {
     private static final Logger log = LoggerFactory.getLogger(ReplicationWorker.class);
     private final LongConsumer onReplication;
 
-    ReplicationWorker(int replicaPort, LongConsumer onReplication, Lsm lsm, long lastSequence, int readSize, int poolMs) {
+    ReplicationWorker(int replicaPort, LongConsumer onReplication, Lsm lsm, long lastSequence, int readSize, int poolMs) throws IOException {
         this.onReplication = onReplication;
         this.lsm = lsm;
         this.buffer = Buffers.allocate(readSize, false);
         this.poolMs = poolMs;
         this.lastSentSequence.set(Math.max(-1, lastSequence));
-        this.sink = TcpEventClient.create()
-                .name("replication-worker")
-                .maxMessageSize(readSize)
-                .onEvent(this::onReplicationEvent)
-                .option(Options.SEND_BUFFER, Size.KB.ofInt(16))
-                .option(Options.WORKER_IO_THREADS, 1)
-                .option(Options.WORKER_TASK_CORE_THREADS, 1)
-                .option(Options.WORKER_TASK_MAX_THREADS, 1)
-                .connect(new InetSocketAddress("localhost", replicaPort), 5, TimeUnit.SECONDS);
+        this.sink = SocketChannel.open(new InetSocketAddress("localhost", replicaPort));
 
         this.thread = new Thread(() -> {
+            try {
+                this.replicate();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        this.receiver = new Thread(() -> {
             try {
                 this.replicate();
             } catch (IOException e) {

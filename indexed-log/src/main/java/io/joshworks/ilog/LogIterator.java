@@ -1,42 +1,56 @@
 package io.joshworks.ilog;
 
+import io.joshworks.fstore.core.util.Iterators;
+
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Queue;
 
-public class LogIterator {
+public class LogIterator implements Iterators.CloseableIterator<ByteBuffer> {
 
-    private final Log<?> log;
-    public long segPos;
-    public int segIdx;
+    private final Queue<SegmentIterator> iterators = new ArrayDeque<>();
 
-    public LogIterator(Log<?> log) {
-        this.log = log;
+    public LogIterator(List<SegmentIterator> iterators) {
+        this.iterators.addAll(iterators);
     }
 
-    public int read(ByteBuffer dst) {
+    public static LogIterator empty() {
+        return new LogIterator(new ArrayList<>());
+    }
 
-        return log.view.apply(Direction.FORWARD, segs -> {
-            if (segIdx >= segs.size()) {
-                return 0;
-            }
-            IndexedSegment segment = segs.get(segIdx);
-            int read = segment.read(segPos, dst);
-            if (read == 0) {
-                return 0;
-            }
-            if (read < 0) {
-                if (segIdx + 1 >= segs.size()) {
-                    return 0;
-                }
-                segIdx++;
-                segPos = 0;
-                segment = segs.get(segIdx);
-                read = segment.read(segPos, dst);
-            }
-            if (read > 0) {
-                segPos += read;
-            }
-            return read;
-        });
+    @Override
+    public boolean hasNext() {
+        SegmentIterator curr = iterators.peek();
+        if (curr == null) {
+            return false;
+        }
+        if (!curr.hasNext()) {
+            iterators.poll();
+            return hasNext();
+        }
+        return true;
+    }
 
+    @Override
+    public ByteBuffer next() {
+        if (!hasNext()) {
+            throw new NoSuchElementException();
+        }
+        SegmentIterator peeked = iterators.peek();
+        return peeked == null ? null : peeked.next();
+    }
+
+    @Override
+    public void close() {
+        for (SegmentIterator iterator : iterators) {
+            iterator.close();
+        }
+    }
+
+    public void add(SegmentIterator iterator) {
+        iterators.add(iterator);
     }
 }

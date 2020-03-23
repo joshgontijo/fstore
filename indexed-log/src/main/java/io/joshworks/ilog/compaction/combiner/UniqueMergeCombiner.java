@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Record;
-import io.joshworks.ilog.RecordBatchIterator;
+import io.joshworks.ilog.SegmentIterator;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.nio.ByteBuffer;
@@ -35,24 +35,24 @@ public class UniqueMergeCombiner implements SegmentCombiner {
 
     @Override
     public void merge(List<? extends IndexedSegment> segments, IndexedSegment output) {
-        List<RecordBatchIterator> iterators = segments.stream()
-                .map(s -> new RecordBatchIterator(s, 0, pool))
+        List<SegmentIterator> iterators = segments.stream()
+                .map(s -> new SegmentIterator(s, 0, pool))
                 .collect(Collectors.toList());
 
         mergeItems(iterators, output);
     }
 
 
-    public void mergeItems(List<RecordBatchIterator> items, IndexedSegment output) {
+    public void mergeItems(List<SegmentIterator> items, IndexedSegment output) {
 
         //reversed guarantees that the most recent data is kept when duplicate keys are found
         Collections.reverse(items);
 
         while (!items.isEmpty()) {
-            List<RecordBatchIterator> segmentIterators = new ArrayList<>();
-            Iterator<RecordBatchIterator> itit = items.iterator();
+            List<SegmentIterator> segmentIterators = new ArrayList<>();
+            Iterator<SegmentIterator> itit = items.iterator();
             while (itit.hasNext()) {
-                RecordBatchIterator seg = itit.next();
+                SegmentIterator seg = itit.next();
                 if (!seg.hasNext()) {
                     itit.remove();
                     continue;
@@ -62,7 +62,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
 
             //single segment, drain it
             if (segmentIterators.size() == 1) {
-                RecordBatchIterator it = segmentIterators.get(0);
+                SegmentIterator it = segmentIterators.get(0);
                 while (it.hasNext()) {
                     writeOut(output, it.next());
                 }
@@ -84,12 +84,12 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         output.append(nextEntry);
     }
 
-    private ByteBuffer getNextEntry(List<RecordBatchIterator> segmentIterators) {
+    private ByteBuffer getNextEntry(List<SegmentIterator> segmentIterators) {
         if (segmentIterators.isEmpty()) {
             return null;
         }
-        RecordBatchIterator prev = null;
-        for (RecordBatchIterator curr : segmentIterators) {
+        SegmentIterator prev = null;
+        for (SegmentIterator curr : segmentIterators) {
             if (prev == null) {
                 prev = curr;
                 continue;

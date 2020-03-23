@@ -13,25 +13,27 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
 /**
+ * RECORD_LEN (4 BYTES)
  * VALUE_LEN (4 BYTES)
+ * KEY_LEN (4 BYTES)
  * CHECKSUM (4 BYTES)
  * TIMESTAMP (8 BYTES)
  * ATTR (1 BYTES)
- * KEY_LEN (4 BYTES)
  * <p>
  * [KEY] (N BYTES)
  * [VALUE] (N BYTES)
  */
 public class Record {
 
-    public static final int HEADER_BYTES = (Integer.BYTES * 3) + Long.BYTES + Byte.BYTES;
+    public static final int HEADER_BYTES = (Integer.BYTES * 4) + Long.BYTES + Byte.BYTES;
 
-    public static final IntField VALUE_LEN = new IntField(0);
-    public static final IntField CHECKSUM = new IntField(4);
-    public static final LongField TIMESTAMP = new LongField(8);
-    public static final ByteField ATTRIBUTE = new ByteField(16);
-    public static final IntField KEY_LEN = new IntField(17);
-    public static final BlobField KEY = new BlobField(21, KEY_LEN::get);
+    public static final IntField RECORD_LEN = new IntField(0);
+    public static final IntField VALUE_LEN = IntField.after(RECORD_LEN);
+    public static final IntField KEY_LEN = IntField.after(VALUE_LEN);
+    public static final IntField CHECKSUM = IntField.after(KEY_LEN);
+    public static final LongField TIMESTAMP = LongField.after(CHECKSUM);
+    public static final ByteField ATTRIBUTE = ByteField.after(TIMESTAMP);
+    public static final BlobField KEY = BlobField.after(ATTRIBUTE, KEY_LEN::get);
     public static final BlobField VALUE = BlobField.after(KEY, VALUE_LEN::get);
 
 
@@ -52,12 +54,7 @@ public class Record {
     }
 
     public static int sizeOf(ByteBuffer record) {
-        int valSize = VALUE_LEN.get(record);
-        int keySize = KEY_LEN.get(record);
-        if (keySize == 0 && valSize == 0) {
-            return 0;
-        }
-        return HEADER_BYTES + valSize + keySize;
+        return RECORD_LEN.get(record);
     }
 
     public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
@@ -73,8 +70,11 @@ public class Record {
         recLen += KEY.set(dst, key);
         recLen += VALUE_LEN.set(dst, valueLen);
         recLen += VALUE.set(dst, value);
+        recLen += RECORD_LEN.set(dst, recLen + Integer.BYTES);
 
+        assert isValid(dst);
         Buffers.offsetPosition(dst, recLen);
+
         return recLen;
     }
 
@@ -86,11 +86,12 @@ public class Record {
         int ppos = dst.position();
 
         int recLen = 0;
+        recLen += RECORD_LEN.copyTo(record, dst);
         recLen += VALUE_LEN.copyTo(record, dst);
+        recLen += KEY_LEN.copyTo(record, dst);
         recLen += CHECKSUM.copyTo(record, dst);
         recLen += TIMESTAMP.copyTo(record, dst);
         recLen += ATTRIBUTE.copyTo(record, dst);
-        recLen += KEY_LEN.copyTo(record, dst);
         recLen += KEY.copyTo(record, dst);
         recLen += VALUE.copyTo(record, dst);
 
@@ -119,12 +120,12 @@ public class Record {
         int valSize = VALUE_LEN.get(record);
         int valOffset = VALUE.offset(record);
         int klen = KEY_LEN.get(record);
-        int checksum = CHECKSUM.get(record);
 
         if (valSize + klen + HEADER_BYTES != rsize) {
             return false;
         }
 
+        int checksum = CHECKSUM.get(record);
         int absValPos = Buffers.relativePosition(record, valOffset);
         int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
         return computedChecksum == checksum;
@@ -154,15 +155,14 @@ public class Record {
     }
 
     public static String toString(ByteBuffer buffer) {
-//        return "Record{" +
-//                " recordSize=" + sizeOf(buffer) +
-//                ", checksum=" + CHECKSUM.get(buffer) +
-//                ", keySize=" + KEY_LEN.get(buffer) +
-//                ", dataLength=" + VALUE_LEN.get(buffer) +
-//                ", timestamp=" + TIMESTAMP.get(buffer) +
-//                ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +
-//                '}';
-        return "";
+        return "Record{" +
+                " recordSize=" + sizeOf(buffer) +
+                ", checksum=" + CHECKSUM.get(buffer) +
+                ", keySize=" + KEY_LEN.get(buffer) +
+                ", dataLength=" + VALUE_LEN.get(buffer) +
+                ", timestamp=" + TIMESTAMP.get(buffer) +
+                ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +
+                '}';
     }
 
 }
