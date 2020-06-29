@@ -19,8 +19,6 @@ class MemTable {
     private final RedBlackBST table;
     private final ByteBuffer data;
     private final KeyComparator comparator;
-    private final ByteBuffer tmpKey;
-    private final int keySize;
 
     private final StampedLock lock = new StampedLock();
 
@@ -28,8 +26,6 @@ class MemTable {
         this.table = new RedBlackBST(comparator, maxEntries, direct);
         this.data = Buffers.allocate(memTableSizeInBytes, direct);
         this.comparator = comparator;
-        this.tmpKey = Buffers.allocate(comparator.keySize(), direct);
-        this.keySize = comparator.keySize();
     }
 
     boolean add(ByteBuffer record) {
