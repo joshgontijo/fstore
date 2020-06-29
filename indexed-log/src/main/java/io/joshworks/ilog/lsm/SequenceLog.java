@@ -98,7 +98,7 @@ public class SequenceLog implements Closeable {
         if (segment == null) {
             return 0;
         }
-        ByteBuffer buffer = keyPool.allocate().putLong(sequence).flip();
+        ByteBuffer buffer = longBuffer(sequence);
         try {
             return segment.bulkRead(buffer, dst, fn);
         } finally {
@@ -115,7 +115,7 @@ public class SequenceLog implements Closeable {
         if (segment == null) {
             return 0;
         }
-        ByteBuffer buffer = keyPool.allocate().putLong(sequence).flip();
+        ByteBuffer buffer = longBuffer(sequence);
         try {
             return segment.find(buffer, dst, fn);
         } finally {
@@ -199,6 +199,10 @@ public class SequenceLog implements Closeable {
         return record.getLong(record.position() + Record.KEY.offset(record));
     }
 
+    private ByteBuffer longBuffer(long sequence) {
+        return keyPool.allocate().putLong(sequence).flip();
+    }
+
     private class SequenceSegment extends IndexedSegment {
 
         public SequenceSegment(File file, int indexSize) {
@@ -206,9 +210,8 @@ public class SequenceLog implements Closeable {
         }
 
         public long positionOf(long sequence) {
-            var keyBuffer = keyPool.allocate();
+            var keyBuffer = longBuffer(sequence);
             try {
-                keyBuffer.putLong(sequence).flip();
                 index.find(keyBuffer, IndexFunctions.EQUALS);
                 keyBuffer.flip();
                 if (!keyBuffer.hasRemaining()) {

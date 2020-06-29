@@ -2,20 +2,16 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
-import io.joshworks.ilog.fields.BlobField;
-import io.joshworks.ilog.fields.ByteField;
-import io.joshworks.ilog.fields.IntField;
-import io.joshworks.ilog.fields.LongField;
 import io.joshworks.ilog.index.KeyComparator;
 
 import java.io.IOException;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
 /**
  * RECORD_LEN (4 BYTES)
  * VALUE_LEN (4 BYTES)
- * KEY_LEN (4 BYTES)
  * CHECKSUM (4 BYTES)
  * TIMESTAMP (8 BYTES)
  * ATTR (1 BYTES)
@@ -25,83 +21,98 @@ import java.nio.channels.WritableByteChannel;
  */
 public class Record {
 
-    public static final int HEADER_BYTES = (Integer.BYTES * 4) + Long.BYTES + Byte.BYTES;
+    public static final int HEADER_BYTES = (Integer.BYTES * 3) + Long.BYTES + Byte.BYTES;
 
-    public static final IntField RECORD_LEN = new IntField(0);
-    public static final IntField VALUE_LEN = IntField.after(RECORD_LEN);
-    public static final IntField KEY_LEN = IntField.after(VALUE_LEN);
-    public static final IntField CHECKSUM = IntField.after(KEY_LEN);
-    public static final LongField TIMESTAMP = LongField.after(CHECKSUM);
-    public static final ByteField ATTRIBUTE = ByteField.after(TIMESTAMP);
-    public static final BlobField KEY = BlobField.after(ATTRIBUTE, KEY_LEN::get);
-    public static final BlobField VALUE = BlobField.after(KEY, VALUE_LEN::get);
+    private static final int RECORD_LEN_OFFSET = 0;
+    private static final int VALUE_LEN_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
+    private static final int CHECKSUM_OFFSET = VALUE_LEN_OFFSET + Integer.BYTES;
+    private static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
+    private static final int ATTRIBUTE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
 
+    private static final int KEY_OFFSET = ATTRIBUTE_OFFSET + Byte.BYTES;
 
     public static boolean hasAttribute(ByteBuffer buffer, int attribute) {
-        byte attr = ATTRIBUTE.get(buffer);
+        byte attr = buffer.get(buffer.position() + ATTRIBUTE_OFFSET);
         return (attr & (1 << attribute)) == 1;
     }
 
+
     public static int compareRecordKeys(ByteBuffer r1, ByteBuffer r2, KeyComparator comparator) {
-        int k1Offset = KEY.offset(r1);
-        int k2Offset = KEY.offset(r2);
-        return comparator.compare(r1, k1Offset, r2, k2Offset);
+        return comparator.compare(r1, KEY_OFFSET, r2, KEY_OFFSET);
     }
 
     public static int compareToKey(ByteBuffer record, ByteBuffer key, KeyComparator comparator) {
-        int k1Offset = KEY.offset(record);
-        return comparator.compare(record, k1Offset, key, key.position());
+        return comparator.compare(record, KEY_OFFSET, key, key.position());
     }
 
     public static int sizeOf(ByteBuffer record) {
-        return RECORD_LEN.get(record);
+        return record.getInt(record.position() + RECORD_LEN_OFFSET);
+    }
+
+    public static int keySize(ByteBuffer record) {
+        if (isValid(record)) {
+            throw new RuntimeException("Invalid record");
+        }
+        int recSize = sizeOf(record);
+        int valSize = valueSize(record);
+
+        return recSize - HEADER_BYTES - valSize;
+    }
+
+    public static int valueSize(ByteBuffer record) {
+        return record.getInt(record.position() + VALUE_LEN_OFFSET);
+    }
+
+    public static int checksum(ByteBuffer record) {
+        return record.getInt(record.position() + CHECKSUM_OFFSET);
+    }
+
+    private static int valueOffset(ByteBuffer record) {
+        int recSize = sizeOf(record);
+        int valSize = valueSize(record);
+        return recSize - valSize;
     }
 
     public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
-        int keyLen = key.remaining();
-        int valueLen = value.remaining();
         int checksum = ByteBufferChecksum.crc32(value);
 
-        int recLen = 0;
-        recLen += CHECKSUM.set(dst, checksum);
-        recLen += TIMESTAMP.set(dst, System.currentTimeMillis());
-        recLen += ATTRIBUTE.set(dst, attribute(attr));
-        recLen += KEY_LEN.set(dst, keyLen);
-        recLen += KEY.set(dst, key);
-        recLen += VALUE_LEN.set(dst, valueLen);
-        recLen += VALUE.set(dst, value);
-        recLen += RECORD_LEN.set(dst, recLen + Integer.BYTES);
+        int recordStart = dst.position();
 
-        assert isValid(dst);
-        Buffers.offsetPosition(dst, recLen);
+        int recLen = 0;
+        dst.putInt(HEADER_BYTES + key.remaining() + value.remaining()); // RECORD_LEN
+        dst.putInt(value.remaining()); // VALUE_LEN
+        dst.putInt(checksum); // CHECKSUM
+        dst.putLong(System.currentTimeMillis()); // TIMESTAMP
+        dst.put(attribute(attr)); // ATTRIBUTES
+
+        Buffers.copy(key, dst);
+        Buffers.copy(value, dst);
+
+        int recordEnd = dst.position();
+
+        dst.position(recordStart);
+        if (!isValid(dst)) {
+            throw new RuntimeException("Invalid record");
+        }
+        dst.position(recordEnd);
 
         return recLen;
     }
 
     public static int copyTo(ByteBuffer record, ByteBuffer dst) {
 
-//        record = record.duplicate().position(srcOffset);
-        assert Record.isValid(record);
+        if (!isValid(record)) {
+            throw new RuntimeException("Invalid record");
+        }
 
-        int ppos = dst.position();
+        int recLen = sizeOf(record);
+        if (dst.remaining() < recLen) {
+            throw new BufferOverflowException();
+        }
 
-        int recLen = 0;
-        recLen += RECORD_LEN.copyTo(record, dst);
-        recLen += VALUE_LEN.copyTo(record, dst);
-        recLen += KEY_LEN.copyTo(record, dst);
-        recLen += CHECKSUM.copyTo(record, dst);
-        recLen += TIMESTAMP.copyTo(record, dst);
-        recLen += ATTRIBUTE.copyTo(record, dst);
-        recLen += KEY.copyTo(record, dst);
-        recLen += VALUE.copyTo(record, dst);
-
-        int recordEnd = dst.position();
-
-        dst.position(ppos);
-        assert Record.isValid(dst);
-        dst.position(recordEnd);
-
-        return recLen;
+        int copied = Buffers.copy(record, record.position(), recLen, dst);
+        assert copied == recLen;
+        return copied;
     }
 
     public static boolean isValid(ByteBuffer record) {
@@ -109,25 +120,29 @@ public class Record {
         if (remaining < HEADER_BYTES) {
             return false;
         }
-        int rsize = sizeOf(record);
-        if (rsize > remaining) {
+        int recordSize = sizeOf(record);
+        if (recordSize > remaining) {
             return false;
         }
-        if (rsize <= HEADER_BYTES) {
-            return false;
-        }
-
-        int valSize = VALUE_LEN.get(record);
-        int valOffset = VALUE.offset(record);
-        int klen = KEY_LEN.get(record);
-
-        if (valSize + klen + HEADER_BYTES != rsize) {
+        if (recordSize <= HEADER_BYTES) {
             return false;
         }
 
-        int checksum = CHECKSUM.get(record);
-        int absValPos = Buffers.relativePosition(record, valOffset);
-        int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valSize);
+        int valueSize = valueSize(record);
+
+        int keySize = keySize(record);
+        if (keySize <= 0 || keySize > recordSize - valueSize) {
+            return false;
+        }
+
+        if (sizeOf(record) != HEADER_BYTES + keySize + valueOffset(record)) {
+            return false;
+        }
+
+        int checksum = checksum(record);
+        int valOffset = valueOffset(record);
+        int absValPos = Buffers.toAbsolutePosition(record, valOffset);
+        int computedChecksum = ByteBufferChecksum.crc32(record, absValPos, valueSize);
         return computedChecksum == checksum;
     }
 
@@ -153,16 +168,4 @@ public class Record {
         }
         return b;
     }
-
-    public static String toString(ByteBuffer buffer) {
-        return "Record{" +
-                " recordSize=" + sizeOf(buffer) +
-                ", checksum=" + CHECKSUM.get(buffer) +
-                ", keySize=" + KEY_LEN.get(buffer) +
-                ", dataLength=" + VALUE_LEN.get(buffer) +
-                ", timestamp=" + TIMESTAMP.get(buffer) +
-                ", attributes=" + Integer.toBinaryString(ATTRIBUTE.get(buffer)) +
-                '}';
-    }
-
 }

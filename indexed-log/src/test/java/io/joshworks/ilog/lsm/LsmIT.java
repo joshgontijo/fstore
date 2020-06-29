@@ -55,7 +55,6 @@ public class LsmIT {
         LogIterator it = lsm.logIterator();
         while(it.hasNext()) {
             ByteBuffer next = it.next();
-            System.out.println(Record.toString(next));
         }
 
     }

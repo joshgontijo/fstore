@@ -261,8 +261,8 @@ public class Buffers {
     }
 
 
-    public static int relativePosition(ByteBuffer buffer, int offset) {
-        return buffer.position() + offset;
+    public static int toAbsolutePosition(ByteBuffer buffer, int relativeOffset) {
+        return buffer.position() + relativeOffset;
     }
 
     public static int relativeRemaining(ByteBuffer buffer, int offset) {
