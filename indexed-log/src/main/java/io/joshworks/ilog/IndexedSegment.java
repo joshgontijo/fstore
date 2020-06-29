@@ -139,24 +139,13 @@ public class IndexedSegment {
         int ppos = records.position();
         int plim = records.limit();
 
-        int remainingIndexEntries = index.remaining();
-
         long logStartPos = writePosition();
         int totalBytes = 0;
-        int totalEntries = 0;
-        while (RecordBatch.hasNext(records) && totalEntries <= remainingIndexEntries) {
+        while (RecordBatch.hasNext(records) && index.remaining() > 0) {
             assert Record.isValid(records);
-            int expectedKeySize = index.keySize();
-            int actualKeySize = Record.KEY.len(records);
-            int recLen = Record.sizeOf(records);
-            if (actualKeySize != expectedKeySize) { // validates the key BEFORE adding to log
-                throw new IllegalArgumentException("Invalid key size: Expected " + expectedKeySize + ", got " + actualKeySize);
+            if (index.keySize() != Record.KEY.len(records)) { // validates the key BEFORE adding to log
+                throw new IllegalArgumentException("Invalid key size: Expected " + index.keySize() + ", got " + Record.KEY.len(records));
             }
-
-            //TODO validate record size
-//            if (recLen > maxEntrySize) {
-//                throw new IllegalArgumentException("Record to large, max allowed size: " + maxEntrySize + ", record size: " + recordLength);
-//            }
 
             totalBytes += Record.sizeOf(records);
             RecordBatch.advance(records);

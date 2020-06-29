@@ -28,6 +28,7 @@
 <!--        <module>cluster-log-test</module>-->
         <module>indexed-log</module>
         <module>indexed-log-server</module>
+        <module>log-server-test</module>
     </modules>
 
     <properties>

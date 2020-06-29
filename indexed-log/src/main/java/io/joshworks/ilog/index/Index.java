@@ -1,6 +1,5 @@
 package io.joshworks.ilog.index;
 
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.lsm.BufferBinarySearch;
@@ -90,7 +89,6 @@ public class Index implements Closeable {
             pos += Record.sizeOf(records);
             RecordBatch.advance(records);
         }
-
     }
 
     public int find(ByteBuffer key, IndexFunctions func) {

@@ -1,6 +1,5 @@
 package io.joshworks.ilog.lsm.tree;
 
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.Record;
@@ -8,8 +7,6 @@ import io.joshworks.ilog.index.KeyComparator;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.junit.Assert.assertEquals;
@@ -40,49 +37,32 @@ public class RedBlackBSTTest {
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        List<Integer> lengths = new ArrayList<>();
-        int items = 100;
+        int items = 10000;
         for (int i = 0; i < items; i++) {
-            int v = random.nextInt();
-            String val = "value-" + v;
-            lengths.add(val.length());
-            tree.put(create(v, val), i);
+            String val = "value-" + i;
+            tree.put(create(i, val), i);
         }
 
-
-        for (Node node : tree) {
-            System.out.println(node.key.getLong(0));
-        }
-
-
         for (int i = 0; i < items; i++) {
-            Node node = tree.get(ByteBuffer.allocate(Long.BYTES).putLong(i).flip());
-            assertNotNull(node);
+            Node node = tree.get(keyOf(i));
+            assertNotNull("Failed on " + i, node);
             assertEquals("Failed on " + i, i, node.offset());
-            assertEquals("Failed on " + i, lengths.get(i), Integer.valueOf(node.recordLen()));
         }
-
-//        tree.clear();
-//
-//        for (int i = 0; i < 100; i++) {
-//            tree.put(create(i, "value-" + i), i);
-//        }
-
     }
 
-    public static ByteBuffer create(long key, String val) {
-        return create(key, Serializers.LONG, val, Serializers.STRING);
+    private static ByteBuffer keyOf(long key) {
+        return ByteBuffer.allocate(Long.BYTES).putLong(key).flip();
     }
 
-    public static <K, V> ByteBuffer create(K key, Serializer<K> ks, V value, Serializer<V> vs) {
-        var kb = Buffers.allocate(128, false);
+    private static ByteBuffer create(long key, String val) {
+        var kb = Buffers.allocate(8, false);
         var vb = Buffers.allocate(64, false);
         var dst = Buffers.allocate(256, false);
 
-        ks.writeTo(key, kb);
+        Serializers.LONG.writeTo(key, kb);
         kb.flip();
 
-        vs.writeTo(value, vb);
+        Serializers.STRING.writeTo(val, vb);
         vb.flip();
 
         Record.create(kb, vb, dst);
