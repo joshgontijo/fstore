@@ -4,11 +4,9 @@ import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
-import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
-import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.RecordUtils;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,7 +18,7 @@ import static org.junit.Assert.assertTrue;
 
 public class LsmTest {
 
-    public static final KeyComparator COMPARATOR = KeyComparator.LONG;
+    public static final RowKey COMPARATOR = RowKey.LONG;
     private Lsm lsm;
     private static final int MEM_TABLE_SIZE = 500000;
 

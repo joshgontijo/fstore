@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,7 +21,7 @@ public class IndexedSegmentTest {
 
     @Before
     public void setUp() {
-        segment = new IndexedSegment(TestUtils.testFile(LogUtil.segmentFileName(0, 0)), Size.MB.ofInt(500), KeyComparator.LONG);
+        segment = new IndexedSegment(TestUtils.testFile(LogUtil.segmentFileName(0, 0)), Size.MB.ofInt(500), RowKey.LONG);
     }
 
     @After
@@ -58,7 +58,7 @@ public class IndexedSegmentTest {
 
     private void writeRecords(ByteBuffer records) {
         records.flip();
-        segment.appendN(records);
+        segment.append(records);
         records.clear();
     }
 

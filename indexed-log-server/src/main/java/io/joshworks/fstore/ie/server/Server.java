@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.ie.server.protocol.Message;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.ilog.Record;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.Lsm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,8 +15,6 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
@@ -41,7 +39,7 @@ public class Server implements Closeable {
     public static final AtomicLong sequence = new AtomicLong();
 
     public Server(File file, int... replicas) {
-        this.lsm = Lsm.create(file, KeyComparator.LONG)
+        this.lsm = Lsm.create(file, RowKey.LONG)
                 .compactionThreshold(-1)
                 .open();
 

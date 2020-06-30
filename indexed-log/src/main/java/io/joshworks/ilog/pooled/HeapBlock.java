@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -26,7 +26,7 @@ import java.util.function.Consumer;
  */
 public class HeapBlock extends Pooled {
 
-    private final KeyComparator comparator;
+    private final RowKey comparator;
     private final boolean direct;
     private final Codec codec;
     private State state = State.EMPTY;
@@ -40,7 +40,7 @@ public class HeapBlock extends Pooled {
     private final List<Key> keys = new ArrayList<>();
     private final ByteBuffer block;
 
-    public HeapBlock(ObjectPool<? extends Pooled> pool, int blockSize, KeyComparator comparator, boolean direct, Codec codec) {
+    public HeapBlock(ObjectPool<? extends Pooled> pool, int blockSize, RowKey comparator, boolean direct, Codec codec) {
         super(pool, blockSize, direct);
         this.comparator = comparator;
         this.direct = direct;
@@ -300,9 +300,9 @@ public class HeapBlock extends Pooled {
     private static class Key implements Comparable<ByteBuffer> {
         private int offset;
         private final ByteBuffer data;
-        private final KeyComparator comparator;
+        private final RowKey comparator;
 
-        private Key(KeyComparator comparator, boolean direct) {
+        private Key(RowKey comparator, boolean direct) {
             this.data = Buffers.allocate(comparator.keySize(), direct);
             this.comparator = comparator;
         }

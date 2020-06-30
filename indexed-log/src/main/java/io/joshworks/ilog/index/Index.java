@@ -1,8 +1,8 @@
 package io.joshworks.ilog.index;
 
-import io.joshworks.ilog.Record;
-import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.lsm.BufferBinarySearch;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Records;
 
 import java.io.Closeable;
 import java.io.File;
@@ -29,13 +29,13 @@ import static java.util.Objects.requireNonNull;
 public class Index implements Closeable {
 
     private final MappedFile mf;
-    private final KeyComparator comparator;
+    private final RowKey comparator;
     private final AtomicBoolean readOnly = new AtomicBoolean();
     public static final int NONE = -1;
 
     public static int MAX_SIZE = Integer.MAX_VALUE - 8;
 
-    public Index(File file, int size, KeyComparator comparator) {
+    public Index(File file, int size, RowKey comparator) {
         this.comparator = comparator;
         try {
             boolean newFile = file.createNewFile();
@@ -56,38 +56,19 @@ public class Index implements Closeable {
         }
     }
 
-    public void write(ByteBuffer record, long position) {
-        if (readOnly.get()) {
-            throw new RuntimeException("Index is read only");
-        }
-
-        int keySize = Record.KEY.len(record);
-        if (keySize != comparator.keySize()) {
-            throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + keySize);
-        }
-
-        MappedByteBuffer dst = mf.buffer();
-        if (dst.remaining() < keySize) {
-            throw new IllegalStateException("Not enough index space");
-        }
-        doWrite(keySize, position, record, dst);
-    }
-
     /**
      * Relies on segment to validate the size of all keys and also the remaining space int this index
      */
-    public void writeN(ByteBuffer records, long startPos) {
+    public void write(Records records, int offset, int count, long startPos) {
         assert !readOnly.get();
 
         MappedByteBuffer dst = mf.buffer();
 
         long pos = startPos;
-        while (RecordBatch.hasNext(records)) {
-            int keySize = Record.KEY.len(records);
-            assert keySize == keySize();
-            doWrite(keySize, pos, records, dst);
-            pos += Record.sizeOf(records);
-            RecordBatch.advance(records);
+        for (int i = offset; i < count; i++) {
+            Record2 record = records.get(i);
+            doWrite(pos, record, dst);
+            pos += record.recordSize();
         }
     }
 
@@ -105,9 +86,16 @@ public class Index implements Closeable {
         return func.apply(idx);
     }
 
-    private void doWrite(int keySize, long position, ByteBuffer record, ByteBuffer dst) {
-        int rsize = Record.sizeOf(record);
-        int written = Record.KEY.copyTo(record, dst);
+    private void doWrite(long position, Record2 record, ByteBuffer dst) {
+        int keySize = record.keySize();
+        if (keySize != comparator.keySize()) {
+            throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + keySize);
+        }
+        if (dst.remaining() < keySize) {
+            throw new IllegalStateException("Not enough index space");
+        }
+        int rsize = record.recordSize();
+        int written = record.writeKey(dst);
         assert written == keySize;
         dst.putLong(position);
         dst.putInt(rsize);

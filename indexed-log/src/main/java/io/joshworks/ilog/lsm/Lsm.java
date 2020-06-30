@@ -11,7 +11,7 @@ import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.index.IndexFunctions;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.pooled.HeapBlock;
 import io.joshworks.ilog.pooled.ObjectPool;
 
@@ -36,7 +36,7 @@ public class Lsm {
 
 
     Lsm(File root,
-        KeyComparator comparator,
+        RowKey comparator,
         int memTableMaxSizeInBytes,
         int memTableMaxEntries,
         boolean directBuffers,
@@ -81,11 +81,11 @@ public class Lsm {
                 (file, idxSize) -> new SSTable(file, idxSize, comparator));
     }
 
-    public static Builder create(File root, KeyComparator comparator) {
+    public static Builder create(File root, RowKey comparator) {
         return new Builder(root, comparator);
     }
 
-    public long append(ByteBuffer record) {
+    public void append(ByteBuffer record) {
         long seq = tlog.append(record);
         if (!memTable.add(record)) {
             flush();
@@ -93,7 +93,6 @@ public class Lsm {
                 throw new IllegalStateException("Failed to write to memtable");
             }
         }
-        return seq;
     }
 
     public long replicate(ByteBuffer records) {

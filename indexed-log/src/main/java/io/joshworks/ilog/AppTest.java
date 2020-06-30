@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.Lsm;
 
 import java.nio.ByteBuffer;
@@ -18,7 +18,7 @@ public class AppTest {
         Threads.sleep(7000);
         int items = 1000000000;
 
-        final Lsm lsm = Lsm.create(TestUtils.testFolder(), KeyComparator.LONG)
+        final Lsm lsm = Lsm.create(TestUtils.testFolder(), RowKey.LONG)
                 .memTable(1000000, Size.MB.ofInt(50), true)
                 .codec(new SnappyCodec())
                 .compactionThreads(1)

@@ -5,7 +5,7 @@ import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.TcpConnection;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.Lsm;
 import org.jboss.threads.ArrayQueue;
 import org.slf4j.Logger;
@@ -36,7 +36,7 @@ public class Replica {
 
 
     public Replica(File dir, int port) {
-        this.lsm = Lsm.create(dir, KeyComparator.LONG).open();
+        this.lsm = Lsm.create(dir, RowKey.LONG).open();
         try {
             this.channel = SocketChannel.open(new InetSocketAddress("localhost", port));
 

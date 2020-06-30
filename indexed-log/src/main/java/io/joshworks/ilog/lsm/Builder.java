@@ -3,7 +3,7 @@ package io.joshworks.ilog.lsm;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 
 import java.io.File;
 
@@ -11,7 +11,7 @@ import static java.util.Objects.requireNonNull;
 
 public class Builder {
     private final File root;
-    private final KeyComparator comparator;
+    private final RowKey comparator;
     private int blockSize = Size.KB.ofInt(4);
     private long maxAge = -1;
     private Codec codec = Codec.noCompression();
@@ -23,7 +23,7 @@ public class Builder {
     private int memTableMaxEntries = 500000;
     private boolean memTableDirect;
 
-    public Builder(File root, KeyComparator comparator) {
+    public Builder(File root, RowKey comparator) {
         this.root = root;
         this.comparator = comparator;
     }

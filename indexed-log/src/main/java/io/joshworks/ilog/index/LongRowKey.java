@@ -2,7 +2,7 @@ package io.joshworks.ilog.index;
 
 import java.nio.ByteBuffer;
 
-class LongKeyComparator implements KeyComparator {
+class LongRowKey implements RowKey {
 
     @Override
     public int compare(ByteBuffer k1, ByteBuffer k2) {

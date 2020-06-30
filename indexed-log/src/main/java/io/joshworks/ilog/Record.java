@@ -2,7 +2,7 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 
 import java.io.IOException;
 import java.nio.BufferOverflowException;
@@ -37,11 +37,11 @@ public class Record {
     }
 
 
-    public static int compareRecordKeys(ByteBuffer r1, ByteBuffer r2, KeyComparator comparator) {
+    public static int compareRecordKeys(ByteBuffer r1, ByteBuffer r2, RowKey comparator) {
         return comparator.compare(r1, KEY_OFFSET, r2, KEY_OFFSET);
     }
 
-    public static int compareToKey(ByteBuffer record, ByteBuffer key, KeyComparator comparator) {
+    public static int compareToKey(ByteBuffer record, ByteBuffer key, RowKey comparator) {
         return comparator.compare(record, KEY_OFFSET, key, key.position());
     }
 

@@ -1,12 +1,12 @@
 package io.joshworks.ilog.lsm;
 
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 
 import java.nio.ByteBuffer;
 
 public class BufferBinarySearch {
 
-    public static int binarySearch(ByteBuffer key, ByteBuffer data, int dataStart, int dataCount, int entrySize, KeyComparator comparator) {
+    public static int binarySearch(ByteBuffer key, ByteBuffer data, int dataStart, int dataCount, int entrySize, RowKey comparator) {
         if (dataCount % entrySize != 0) {
             throw new IllegalArgumentException("Read buffer must be multiple of " + entrySize);
         }

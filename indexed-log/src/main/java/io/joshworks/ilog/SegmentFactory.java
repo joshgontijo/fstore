@@ -1,8 +1,5 @@
 package io.joshworks.ilog;
 
-import io.joshworks.ilog.index.Index;
-import io.joshworks.ilog.index.KeyComparator;
-
 import java.io.File;
 
 @FunctionalInterface

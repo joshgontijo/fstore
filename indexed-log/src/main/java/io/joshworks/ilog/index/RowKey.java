@@ -3,11 +3,11 @@ package io.joshworks.ilog.index;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
-public interface KeyComparator extends Comparator<ByteBuffer> {
+public interface RowKey extends Comparator<ByteBuffer> {
 
-    KeyComparator LONG = new LongKeyComparator();
+    RowKey LONG = new LongRowKey();
 
-    KeyComparator INT = new IntKeyComparator();
+    RowKey INT = new IntRowKey();
 
     int compare(ByteBuffer k1, int k1Idx, ByteBuffer k2, int k2Idx);
 

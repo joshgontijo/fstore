@@ -6,7 +6,8 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunctions;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.Records;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +32,7 @@ public class IndexedSegment {
 
     private final File file;
     private final int indexSize;
-    protected final KeyComparator comparator;
+    protected final RowKey comparator;
     private final FileChannel channel;
     private final long id;
     protected Index index;
@@ -41,7 +42,7 @@ public class IndexedSegment {
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
     private final Set<SegmentIterator> iterators = new HashSet<>();
 
-    public IndexedSegment(File file, int indexSize, KeyComparator comparator) {
+    public IndexedSegment(File file, int indexSize, RowKey comparator) {
         this.file = file;
         this.indexSize = indexSize;
         this.comparator = comparator;
@@ -55,7 +56,7 @@ public class IndexedSegment {
         }
     }
 
-    private Index openIndex(File file, int indexSize, KeyComparator comparator) {
+    private Index openIndex(File file, int indexSize, RowKey comparator) {
         File indexFile = LogUtil.indexFile(file);
         return new Index(indexFile, indexSize, comparator);
     }
@@ -128,7 +129,7 @@ public class IndexedSegment {
         }
     }
 
-    public void appendN(ByteBuffer records) {
+    public void append(Records records, int offset, int count) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
@@ -136,34 +137,10 @@ public class IndexedSegment {
             throw new IllegalStateException("Segment is read only");
         }
 
-        int ppos = records.position();
-        int plim = records.limit();
-
         long logStartPos = writePosition();
-        int totalBytes = 0;
-        while (RecordBatch.hasNext(records) && index.remaining() > 0) {
-            assert Record.isValid(records);
-            if (index.keySize() != Record.KEY.len(records)) { // validates the key BEFORE adding to log
-                throw new IllegalArgumentException("Invalid key size: Expected " + index.keySize() + ", got " + Record.KEY.len(records));
-            }
 
-            totalBytes += Record.sizeOf(records);
-            RecordBatch.advance(records);
-        }
-        records.limit(plim).position(ppos);
-
-        int totalLen = records.remaining();
-
-        int written = RecordBatch.writeTo(records, channel);
-        assert totalLen == totalBytes;
-        assert written == totalBytes;
-
-        writePosition.getAndAdd(written);
-
-        records.limit(plim).position(ppos);
-        index.writeN(records, logStartPos);
-
-        records.limit(plim).position(ppos + written);
+        records.writeTo(channel, offset, count);
+        index.write(records, offset, count, logStartPos);
     }
 
 

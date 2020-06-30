@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.SegmentIterator;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -21,12 +21,12 @@ import java.util.stream.Collectors;
  */
 public class UniqueMergeCombiner implements SegmentCombiner {
 
-    private final KeyComparator comparator;
+    private final RowKey comparator;
     private final ByteBuffer k1Buffer;
     private final ByteBuffer k2Buffer;
     private final BufferPool pool;
 
-    protected UniqueMergeCombiner(KeyComparator comparator, BufferPool pool) {
+    protected UniqueMergeCombiner(RowKey comparator, BufferPool pool) {
         this.comparator = comparator;
         this.k1Buffer = Buffers.allocate(comparator.keySize(), false);
         this.k2Buffer = Buffers.allocate(comparator.keySize(), false);

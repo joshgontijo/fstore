@@ -12,7 +12,10 @@ import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.SegmentIterator;
 import io.joshworks.ilog.index.IndexFunctions;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
 import java.io.Closeable;
 import java.io.File;
@@ -66,7 +69,7 @@ public class SequenceLog implements Closeable {
             records.limit(plim).position(ppos);
 
             //batch write
-            log.appendN(records);
+            log.append(records);
             sequence.set(lastSeq);
 
             return lastSeq;
@@ -76,16 +79,17 @@ public class SequenceLog implements Closeable {
         }
     }
 
-    public long append(ByteBuffer data) {
+    //returns the last sequence id
+    public long append(Records records) {
         try {
-            long seq = sequence.getAndIncrement();
-            keyWriteBuffer.putLong(seq).flip();
-            recordWriteBuffer.clear();
-            Record.create(keyWriteBuffer, data, recordWriteBuffer);
-            recordWriteBuffer.flip();
-            keyWriteBuffer.clear();
-            log.append(recordWriteBuffer);
-            return seq;
+            try (Records sequenceRecs = RecordPool.get("SEQUENCE_LOG_RECORDS_POOL")) {
+                for (Record2 record : records) {
+                    long seq = sequence.getAndIncrement();
+                    sequenceRecs.wrap(record, b -> b.putLong(seq));
+                }
+                log.append(sequenceRecs);
+                return sequence.get();
+            }
         } catch (Exception e) {
             sequence.decrementAndGet();
             throw new RuntimeIOException(e);
@@ -206,7 +210,7 @@ public class SequenceLog implements Closeable {
     private class SequenceSegment extends IndexedSegment {
 
         public SequenceSegment(File file, int indexSize) {
-            super(file, indexSize, KeyComparator.LONG);
+            super(file, indexSize, RowKey.LONG);
         }
 
         public long positionOf(long sequence) {

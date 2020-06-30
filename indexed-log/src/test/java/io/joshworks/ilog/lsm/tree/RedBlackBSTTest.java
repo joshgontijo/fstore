@@ -3,7 +3,7 @@ package io.joshworks.ilog.lsm.tree;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.Record;
-import io.joshworks.ilog.index.KeyComparator;
+import io.joshworks.ilog.index.RowKey;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
@@ -17,7 +17,7 @@ public class RedBlackBSTTest {
     @Test
     public void iterator() {
         int items = 1500000;
-        RedBlackBST tree = new RedBlackBST(KeyComparator.LONG, items, false);
+        RedBlackBST tree = new RedBlackBST(RowKey.LONG, items, false);
 
         for (int i = 0; i < items; i++) {
             tree.put(create(i, "val-" + i), i);
@@ -33,7 +33,7 @@ public class RedBlackBSTTest {
 
     @Test
     public void test() {
-        RedBlackBST tree = new RedBlackBST(KeyComparator.LONG, 30000, false);
+        RedBlackBST tree = new RedBlackBST(RowKey.LONG, 30000, false);
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
