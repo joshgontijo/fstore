@@ -2,7 +2,7 @@ package io.joshworks.ilog.lsm.tree;
 
 import io.joshworks.ilog.record.Record2;
 
-class Node {
+public class Node {
     Record2 key;
     Object value;
 
@@ -10,5 +10,9 @@ class Node {
     Node right;
     boolean color;
     int size;
+
+    public Record2 record() {
+        return key;
+    }
 
 }

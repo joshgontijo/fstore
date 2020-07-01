@@ -21,13 +21,13 @@ public class Records implements Iterable<Record2>, Closeable {
     final String cachePoolName;
 
     private final ArrayList<Record2> records = new ArrayList<>();
-    private final RowKey rowKey;
+    protected final RowKey rowKey;
     private final ByteBuffer[] buffers;
     private final Queue<Record2> cache = new ArrayDeque<>();
     private int totalSize;
 
     private final int maxItems;
-    private final StripedBufferPool pool;
+    protected final StripedBufferPool pool;
 
     Records(String cachePoolName, RowKey rowKey, int maxItems, StripedBufferPool pool) {
         this.rowKey = rowKey;
@@ -42,11 +42,11 @@ public class Records implements Iterable<Record2>, Closeable {
         int i = 0;
         while (RecordBatch.hasNext(data) && i < maxItems) {
             int rsize = Record.sizeOf(data);
-            ByteBuffer recdata = pool.allocate(rsize);
-            Buffers.copy(data, data.position(), rsize, recdata);
+            ByteBuffer recData = pool.allocate(rsize);
+            Buffers.copy(data, data.position(), rsize, recData);
 
-            addRecord(recdata);
-            read += recdata.remaining();
+            addRecord(recData);
+            read += recData.remaining();
             i++;
         }
 
@@ -55,14 +55,17 @@ public class Records implements Iterable<Record2>, Closeable {
 
     private Record2 addRecord(ByteBuffer recdata) {
         Record2 record = allocateRecord();
-        record.data = recdata.flip();
+
+        recdata.flip();
+        record.data = recdata;
 
         if (!Record.isValid(recdata)) {
+            pool.free(recdata);
             throw new RuntimeException("Invalid record"); // should never happen
         }
 
         int recSize = recdata.remaining();
-        buffers[records.size()] = record.data;
+        buffers[records.size()] = recdata;
         records.add(record);
         totalSize += recSize;
 

@@ -50,45 +50,17 @@ public class SequenceLog implements Closeable {
         this.recordWriteBuffer = pool.allocate();
     }
 
-    public long replicate(ByteBuffer records) {
-        try {
-            int plim = records.limit();
-            int ppos = records.position();
-
-            long lastSeq = sequence.get();
-            while (RecordBatch.hasNext(records)) {
-                long recordKey = readSequence(records);
-                if (lastSeq + 1 != recordKey) {
-                    throw new RuntimeException("Non sequential sequence");
-                }
-                lastSeq++;
-                RecordBatch.advance(records);
-            }
-
-            //all records sequences are ok, batch insert them
-            records.limit(plim).position(ppos);
-
-            //batch write
-            log.append(records);
-            sequence.set(lastSeq);
-
-            return lastSeq;
-        } catch (Exception e) {
-            sequence.decrementAndGet();
-            throw new RuntimeIOException(e);
-        }
-    }
-
-    //returns the last sequence id
+    //returns the first sequence
     public long append(Records records) {
         try {
+            long firstSeq = sequence.get();
             try (Records sequenceRecs = RecordPool.get("SEQUENCE_LOG_RECORDS_POOL")) {
                 for (Record2 record : records) {
                     long seq = sequence.getAndIncrement();
                     sequenceRecs.wrap(record, b -> b.putLong(seq));
                 }
                 log.append(sequenceRecs);
-                return sequence.get();
+                return firstSeq;
             }
         } catch (Exception e) {
             sequence.decrementAndGet();

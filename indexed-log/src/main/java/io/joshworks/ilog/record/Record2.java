@@ -2,6 +2,7 @@ package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
+import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.RowKey;
 
 import java.io.IOException;
@@ -17,7 +18,7 @@ public class Record2 implements Comparable<Record2> {
     public static final int HEADER_BYTES = (Integer.BYTES * 3) + Long.BYTES + Byte.BYTES;
 
     private static final int RECORD_LEN_OFFSET = 0;
-    private static final int VALUE_LEN_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
+    static final int VALUE_LEN_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
     private static final int CHECKSUM_OFFSET = VALUE_LEN_OFFSET + Integer.BYTES;
     private static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
     private static final int ATTRIBUTE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
@@ -73,7 +74,7 @@ public class Record2 implements Comparable<Record2> {
         int recordEnd = dst.position();
 
         dst.position(recordStart);
-        if (!isValid(dst)) {
+        if (!Record.isValid(dst)) {
             throw new RuntimeException("Invalid record");
         }
         dst.position(recordEnd);
@@ -91,6 +92,10 @@ public class Record2 implements Comparable<Record2> {
         int copied = Buffers.copy(data, data.position(), recLen, dst);
         assert copied == recLen;
         return copied;
+    }
+
+    public int copy(ByteBuffer dst) {
+        return Buffers.copy(data, dst);
     }
 
     public int writeTo(WritableByteChannel channel) throws IOException {

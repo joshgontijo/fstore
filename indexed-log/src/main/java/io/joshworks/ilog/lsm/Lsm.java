@@ -14,6 +14,7 @@ import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.pooled.HeapBlock;
 import io.joshworks.ilog.pooled.ObjectPool;
+import io.joshworks.ilog.record.Records;
 
 import java.io.File;
 import java.io.IOException;
@@ -61,7 +62,7 @@ public class Lsm {
         int sstableIndexSize = memTableMaxSizeInBytes; // FIXME this needs to be properly calculated
         int tlogIndexSize = sstableIndexSize * 4;
 
-        this.memTable = new MemTable(comparator, memTableMaxSizeInBytes, memTableMaxEntries, directBuffers);
+        this.memTable = new MemTable(memTableMaxEntries);
 
         this.tlog = new SequenceLog(new File(root, LOG_DIR),
                 maxRecordSize,
@@ -72,7 +73,6 @@ public class Lsm {
                 logRecordPool);
 
         this.ssTables = new Log<>(new File(root, SSTABLES_DIR),
-                maxRecordSize,
                 sstableIndexSize,
                 compactionThreshold,
                 compactionThreads,
@@ -85,34 +85,14 @@ public class Lsm {
         return new Builder(root, comparator);
     }
 
-    public void append(ByteBuffer record) {
-        long seq = tlog.append(record);
-        if (!memTable.add(record)) {
+    public void append(Records records) {
+        tlog.append(records);
+        if (!memTable.add(records)) {
             flush();
-            if (!memTable.add(record)) {
+            if (!memTable.add(records)) {
                 throw new IllegalStateException("Failed to write to memtable");
             }
         }
-    }
-
-    public long replicate(ByteBuffer records) {
-        int ppos = records.position();
-        int plim = records.limit();
-
-        long lasSequence = tlog.replicate(records);
-        records.limit(plim).position(ppos);
-
-        while (RecordBatch.hasNext(records)) {
-            if (!memTable.add(records)) {
-                flush();
-                if (!memTable.add(records)) {
-                    throw new IllegalStateException("Failed to write to memtable");
-                }
-            }
-            RecordBatch.advance(records);
-        }
-
-        return lasSequence;
     }
 
     public int get(ByteBuffer key, ByteBuffer dst) {
@@ -177,7 +157,7 @@ public class Lsm {
 
     public synchronized void flush() {
         try (HeapBlock block = blockPool.allocate()) {
-            long entries = memTable.writeTo(ssTables::append, maxAge, block);
+            long entries = memTable.writeTo(ssTables::append, block);
             if (entries > 0) {
                 ssTables.roll();
             }

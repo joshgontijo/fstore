@@ -5,6 +5,9 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -38,11 +41,13 @@ public class HeapBlock extends Pooled {
     private int entries;
 
     private final List<Key> keys = new ArrayList<>();
+    private final Records uncompressedRecords; //used to read from disk
     private final ByteBuffer block;
 
-    public HeapBlock(ObjectPool<? extends Pooled> pool, int blockSize, RowKey comparator, boolean direct, Codec codec) {
+    public HeapBlock(ObjectPool<? extends Pooled> pool, int blockSize, RowKey rowKey, boolean direct, Codec codec) {
         super(pool, blockSize, direct);
-        this.comparator = comparator;
+        this.uncompressedRecords = RecordPool.get("BLOCK");
+        this.comparator = rowKey;
         this.direct = direct;
         this.codec = codec;
         this.block = Buffers.allocate(blockSize, direct);
@@ -65,7 +70,7 @@ public class HeapBlock extends Pooled {
         return comparator.keySize() + Integer.BYTES;
     }
 
-    public boolean add(ByteBuffer srcRecord, int recStart, int count) {
+    public boolean add(Record2 record) {
         //TODO set max uncompressed data size, resize data ByteBuffer
         if (!State.EMPTY.equals(state) && !State.CREATING.equals(state)) {
             throw new IllegalStateException();
@@ -76,20 +81,18 @@ public class HeapBlock extends Pooled {
             data.clear();
         }
 
-        if (!hasCapacity(count)) {
+        if (!hasCapacity(record.recordSize())) {
             return false;
         }
 
         //uses data as temporary storage
         //TODO check for readonly blocks
         Key key = getOrAllocate(entries);
+
         key.offset = data.position();
+        key.write(record);
 
-        int kOffset = recStart + Record.KEY.offset(null);
-        int keySize = key.write(srcRecord, kOffset);
-        assert keySize == comparator.keySize();
-
-        int copied = Buffers.copy(srcRecord, recStart, count, data);
+        record.copy(data);
         entries++;
         return true;
     }
@@ -317,12 +320,12 @@ public class HeapBlock extends Pooled {
             return copied;
         }
 
-        private int write(ByteBuffer src, int srcOffset) {
+        private int write(Record2 record) {
             data.clear();
-            int copied = Buffers.copy(src, srcOffset, comparator.keySize(), data);
-            assert copied == comparator.keySize();
+            int keySize = record.writeKey(data);
+            assert keySize == comparator.keySize();
             data.flip();
-            return copied;
+            return keySize;
         }
 
         private void clear() {

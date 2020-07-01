@@ -23,11 +23,9 @@ class MemTable {
 
     private final StampedLock lock = new StampedLock();
     private final int maxEntries;
-    private final int maxSizeInBytes;
 
-    MemTable(int maxSizeInBytes, int maxEntries) {
+    MemTable(int maxEntries) {
         this.maxEntries = maxEntries;
-        this.maxSizeInBytes = maxSizeInBytes;
     }
 
     boolean add(Records records) {
@@ -42,10 +40,6 @@ class MemTable {
 
             long stamp = lock.writeLock();
             try {
-                int copied = Buffers.copy(records, data);
-                if (recordLen != copied) {
-                    throw new IllegalStateException("Unexpected record length");
-                }
                 table.put(records, recordPos);
             } finally {
                 lock.unlockWrite(stamp);
@@ -96,8 +90,7 @@ class MemTable {
         }
     }
 
-    //TODO implement maxAge
-    long writeTo(Consumer<ByteBuffer> writer, long maxAge, HeapBlock block) {
+    long writeTo(Consumer<Records> writer, HeapBlock block) {
         if (table.isEmpty()) {
             return 0;
         }
@@ -105,17 +98,15 @@ class MemTable {
         long inserted = 0;
 
         for (Node node : table) {
-            int recordOffset = node.offset();
-            int recordLen = node.recordLen();
 
-            boolean added = block.add(data, recordOffset, recordLen);
+            boolean added = block.add(node.record());
             if (!added) {
                 inserted += block.entryCount();
 //                block.compress();
                 block.write(writer);
                 block.clear();
 
-                added = block.add(data, recordOffset, recordLen);
+                added = block.add(node.record());
                 assert added;
             }
 
