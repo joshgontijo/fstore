@@ -1,7 +1,7 @@
 package io.joshworks.ilog.lsm.tree;
 
 import io.joshworks.fstore.core.util.Pool;
-import io.joshworks.ilog.Record;
+import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.record.Record2;
 
 import java.nio.ByteBuffer;
@@ -46,6 +46,20 @@ public class RedBlackBST implements Iterable<Node> {
 
     public Node get(ByteBuffer key) {
         return get(root, key);
+    }
+
+    public Node apply(ByteBuffer key, IndexFunctions fn) {
+        if (IndexFunctions.CEILING.equals(fn)) {
+            return ceiling(key);
+        }
+        if (IndexFunctions.EQUALS.equals(fn)) {
+            return get(key);
+        }
+        if (IndexFunctions.FLOOR.equals(fn)) {
+            return floor(key);
+        }
+        //TODO ADD LOWER AND HIGHER
+        throw new UnsupportedOperationException("FUNCTION NOT SUPPORTED");
     }
 
     private Node get(Node x, ByteBuffer key) {
@@ -287,7 +301,7 @@ public class RedBlackBST implements Iterable<Node> {
 
     private static class NodePool implements Pool<Node> {
 
-        private final Queue<Node> pool= new ArrayDeque<>(1000);
+        private final Queue<Node> pool = new ArrayDeque<>(1000);
 
         @Override
         public Node allocate() {

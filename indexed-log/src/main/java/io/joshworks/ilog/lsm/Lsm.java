@@ -9,7 +9,6 @@ import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
-import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.pooled.HeapBlock;
@@ -34,10 +33,11 @@ public class Lsm {
     private final long maxAge;
 
     private final ObjectPool<HeapBlock> blockPool;
+    private final RowKey rowKey;
 
 
     Lsm(File root,
-        RowKey comparator,
+        RowKey rowKey,
         int memTableMaxSizeInBytes,
         int memTableMaxEntries,
         boolean directBuffers,
@@ -46,14 +46,15 @@ public class Lsm {
         int compactionThreads,
         int compactionThreshold,
         Codec codec) throws IOException {
+        this.rowKey = rowKey;
 
         FileUtils.createDir(root);
         this.maxAge = maxAge;
 
-        this.blockPool = new ObjectPool<>(100, p -> new HeapBlock(p, blockSize, comparator, directBuffers, codec));
+        this.blockPool = new ObjectPool<>(100, p -> new HeapBlock(p, blockSize, rowKey, directBuffers, codec));
 
 //        int maxRecordSize = Record2.HEADER_BYTES + comparator.keySize() + blockSize;
-        int maxRecordSize = 36 + comparator.keySize() + blockSize;
+        int maxRecordSize = 36 + rowKey.keySize() + blockSize;
 
         this.recordPool = BufferPool.localCachePool(256, maxRecordSize, directBuffers);
         BufferPool logRecordPool = BufferPool.localCachePool(256, maxRecordSize, directBuffers);
@@ -65,7 +66,6 @@ public class Lsm {
         this.memTable = new MemTable(memTableMaxEntries);
 
         this.tlog = new SequenceLog(new File(root, LOG_DIR),
-                maxRecordSize,
                 tlogIndexSize,
                 2,
                 1,
@@ -78,7 +78,7 @@ public class Lsm {
                 compactionThreads,
                 FlushMode.ON_ROLL,
                 recordPool,
-                (file, idxSize) -> new SSTable(file, idxSize, comparator));
+                (file, idxSize) -> new SSTable(file, idxSize, rowKey));
     }
 
     public static Builder create(File root, RowKey comparator) {
@@ -87,15 +87,24 @@ public class Lsm {
 
     public void append(Records records) {
         tlog.append(records);
-        if (!memTable.add(records)) {
-            flush();
-            if (!memTable.add(records)) {
-                throw new IllegalStateException("Failed to write to memtable");
+        writeToMemTable(records);
+    }
+
+    private void writeToMemTable(Records records) {
+        int inserted = 0;
+        while (inserted < records.size()) {
+            int i = memTable.add(records, inserted);
+            if (i == 0) {
+                flush();
             }
+            inserted += i;
         }
     }
 
     public int get(ByteBuffer key, ByteBuffer dst) {
+        if (rowKey.keySize() != key.remaining()) {
+            throw new IllegalArgumentException("Invalid key size");
+        }
         return ssTables.apply(Direction.BACKWARD, sst -> {
 
             int fromMem = memTable.apply(key, dst, IndexFunctions.EQUALS);

@@ -1,11 +1,12 @@
 package io.joshworks.ilog.compaction.combiner;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.SegmentIterator;
 import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -22,14 +23,11 @@ import java.util.stream.Collectors;
 public class UniqueMergeCombiner implements SegmentCombiner {
 
     private final RowKey comparator;
-    private final ByteBuffer k1Buffer;
-    private final ByteBuffer k2Buffer;
     private final BufferPool pool;
+    private Records recordBuffer;
 
     protected UniqueMergeCombiner(RowKey comparator, BufferPool pool) {
         this.comparator = comparator;
-        this.k1Buffer = Buffers.allocate(comparator.keySize(), false);
-        this.k2Buffer = Buffers.allocate(comparator.keySize(), false);
         this.pool = pool;
     }
 
@@ -41,7 +39,6 @@ public class UniqueMergeCombiner implements SegmentCombiner {
 
         mergeItems(iterators, output);
     }
-
 
     public void mergeItems(List<SegmentIterator> items, IndexedSegment output) {
 
@@ -70,8 +67,8 @@ public class UniqueMergeCombiner implements SegmentCombiner {
                 ByteBuffer nextEntry = getNextEntry(segmentIterators);
                 writeOut(output, nextEntry);
             }
-
         }
+        output.append(recordBuffer, 0);
     }
 
     private void writeOut(IndexedSegment output, ByteBuffer nextEntry) {
@@ -81,7 +78,13 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         if (output.isFull()) {
             throw new IllegalStateException("Insufficient output segment (" + output.name() + ") data space: " + output.size());
         }
-        output.append(nextEntry);
+
+        if (recordBuffer.read(nextEntry) == 0) {
+            output.append(recordBuffer, 0);
+            recordBuffer.close();
+            recordBuffer = RecordPool.get("TODO - DEFINE");
+        }
+
     }
 
     private ByteBuffer getNextEntry(List<SegmentIterator> segmentIterators) {

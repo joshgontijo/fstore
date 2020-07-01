@@ -10,6 +10,7 @@ import io.joshworks.ilog.index.RowKey;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.ScatteringByteChannel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Iterator;

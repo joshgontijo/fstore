@@ -1,17 +1,13 @@
 package io.joshworks.ilog.lsm;
 
-import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
-import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
 import io.joshworks.ilog.pooled.HeapBlock;
+import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
 
@@ -28,23 +24,23 @@ class MemTable {
         this.maxEntries = maxEntries;
     }
 
-    boolean add(Records records) {
+    int add(Records records, int offset) {
         requireNonNull(records, "Records must be provided");
         try {
-
-            if (table.size() >= maxEntries) {
-                return false;
-            }
-            int recordPos = data.position();
-            int recordLen = Record.sizeOf(records);
-
             long stamp = lock.writeLock();
             try {
-                table.put(records, recordPos);
+                int inserted = 0;
+                for (int idx = offset; idx < records.size(); idx++, inserted++) {
+                    if (table.size() >= maxEntries) {
+                        return inserted;
+                    }
+                    Record2 record = records.get(idx);
+                    table.put(record);
+                }
+                return inserted;
             } finally {
                 lock.unlockWrite(stamp);
             }
-            return true;
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to insert record", e);
@@ -52,7 +48,6 @@ class MemTable {
     }
 
     public int apply(ByteBuffer key, ByteBuffer dst, IndexFunctions fn) {
-        validateKeySize(key);
 
         long stamp = lock.tryOptimisticRead();
         int ppos = dst.position();
@@ -72,22 +67,15 @@ class MemTable {
     }
 
     private int tryRead(ByteBuffer key, ByteBuffer dst, IndexFunctions fn) {
-
-        Node node = table.get(key);
+        Node node = table.apply(key, fn);
         if (node == null) {
             return 0;
         }
-        return Buffers.copy(data, node.offset(), node.recordLen(), dst);
+        return node.record().copy(dst);
     }
 
     public int size() {
         return table.size();
-    }
-
-    private void validateKeySize(ByteBuffer key) {
-        if (key.remaining() != comparator.keySize()) {
-            throw new IllegalArgumentException("Invalid key size: " + key.remaining());
-        }
     }
 
     long writeTo(Consumer<Records> writer, HeapBlock block) {
@@ -123,7 +111,6 @@ class MemTable {
 
         // TODO remove
         table.clear();
-        data.clear();
         return inserted;
     }
 }

@@ -31,11 +31,9 @@ public class SequenceLog implements Closeable {
     private final BufferPool keyPool;
     private final AtomicLong sequence = new AtomicLong();
     private final ByteBuffer keyWriteBuffer;
-    private final ByteBuffer recordWriteBuffer;
     private final BufferPool pool;
 
     public SequenceLog(File root,
-                       int maxEntrySize,
                        int indexSize,
                        int compactionThreshold,
                        int compactionThreads,
@@ -44,10 +42,9 @@ public class SequenceLog implements Closeable {
         this.pool = pool;
 
         FileUtils.createDir(root);
-        log = new Log<>(root, maxEntrySize, indexSize, compactionThreshold, compactionThreads, flushMode, pool, SequenceSegment::new);
+        log = new Log<>(root, indexSize, compactionThreshold, compactionThreads, flushMode, pool, SequenceSegment::new);
         keyPool = BufferPool.defaultPool(256, Long.BYTES, false);
         keyWriteBuffer = keyPool.allocate();
-        this.recordWriteBuffer = pool.allocate();
     }
 
     //returns the first sequence
@@ -169,10 +166,6 @@ public class SequenceLog implements Closeable {
 
             return log.registerIterator(iterators);
         });
-    }
-
-    public static long readSequence(ByteBuffer record) {
-        return record.getLong(record.position() + Record.KEY.offset(record));
     }
 
     private ByteBuffer longBuffer(long sequence) {

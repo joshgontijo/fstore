@@ -25,7 +25,7 @@ public class SequenceLogMain {
 
         BufferPool bufferPool = BufferPool.localCachePool(256, 1024, false);
         File root = TestUtils.testFolder();
-        SequenceLog log = new SequenceLog(root, 1024, Size.MB.ofInt(20), 2, 1, FlushMode.ON_ROLL, bufferPool);
+        SequenceLog log = new SequenceLog(root, Size.MB.ofInt(20), 2, 1, FlushMode.ON_ROLL, bufferPool);
         byte[] uuid = UUID.randomUUID().toString().getBytes(StandardCharsets.UTF_8);
         var bb = ByteBuffer.wrap(uuid);
         for (int i = 0; i < items; i++) {

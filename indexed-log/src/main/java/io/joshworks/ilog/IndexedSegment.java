@@ -101,63 +101,27 @@ public class IndexedSegment {
         }
     }
 
-    public void append(ByteBuffer record) {
+    //return number of written items
+    public int append(Records records, int offset) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
         if (readOnly()) {
             throw new IllegalStateException("Segment is read only");
         }
-
-        int expectedKeySize = index.keySize();
-        int actualKeySize = Record.KEY.len(record);
-        if (actualKeySize != expectedKeySize) { // validates the key BEFORE adding to log
-            throw new IllegalArgumentException("Invalid key size: Expected " + expectedKeySize + ", got " + actualKeySize);
-        }
-
-        try {
-            int written = Record.writeTo(record, channel);
-            Buffers.offsetPosition(record, -written);
-            if (written <= 0) {
-                throw new RuntimeIOException("Failed to write entry");
-            }
-            long position = writePosition.getAndAdd(written);
-            index.write(record, position);
-            Buffers.offsetPosition(record, written);
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to append record", e);
-        }
-    }
-
-    public void append(Records records, int offset, int count) {
-        if (isFull()) {
-            throw new IllegalStateException("Index is full");
-        }
-        if (readOnly()) {
-            throw new IllegalStateException("Segment is read only");
+        if (records.size() == 0) {
+            return 0;
         }
 
         long logStartPos = writePosition();
 
-        records.writeTo(channel, offset, count);
-        index.write(records, offset, count, logStartPos);
+        int remainingEntries = index.remaining();
+        int maxItems = Math.min(remainingEntries, records.size());
+        long written = records.writeTo(channel, offset, maxItems);
+        writePosition.getAndAdd(written);
+        index.write(records, offset, maxItems, logStartPos);
+        return maxItems;
     }
-
-
-//    //TODO requires length prefixed record
-//    public long transferTo(ByteBuffer key, WritableByteChannel sink, IndexFunctions func) {
-//        try {
-//            int idx = index.find(key, func);
-//            if (idx == NONE) {
-//                return 0;
-//            }
-//            long pos = index.readPosition(idx);
-//            long count = writePosition() - pos;
-//            return channel.transferTo(pos, count, sink);
-//        } catch (IOException e) {
-//            throw new RuntimeIOException(e);
-//        }
-//    }
 
     public int find(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
         int idx = index.find(key, func);

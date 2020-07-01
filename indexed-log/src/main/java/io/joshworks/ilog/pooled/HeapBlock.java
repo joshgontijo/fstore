@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.BlockRecords;
 import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
@@ -41,12 +42,10 @@ public class HeapBlock extends Pooled {
     private int entries;
 
     private final List<Key> keys = new ArrayList<>();
-    private final Records uncompressedRecords; //used to read from disk
     private final ByteBuffer block;
 
     public HeapBlock(ObjectPool<? extends Pooled> pool, int blockSize, RowKey rowKey, boolean direct, Codec codec) {
         super(pool, blockSize, direct);
-        this.uncompressedRecords = RecordPool.get("BLOCK");
         this.comparator = rowKey;
         this.direct = direct;
         this.codec = codec;
@@ -153,7 +152,7 @@ public class HeapBlock extends Pooled {
         state = State.COMPRESSED;
     }
 
-    public void write(Consumer<ByteBuffer> writer) {
+    public void write(Consumer<Records> writer) {
         if (!State.CREATING.equals(state)) {
             throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
         }
@@ -190,14 +189,15 @@ public class HeapBlock extends Pooled {
         block.limit(blockEnd).position(0);
         state = State.COMPRESSED;
 
-        byte attribute = 0;
         Key firstKey = keys.get(0);
         data.clear();
-        int recLen = Record.create(firstKey.data, block, data, attribute);
 
-        data.flip();
-        assert Record.isValid(data);
-        writer.accept(data);
+        try(Records records = RecordPool.get("BLOCK")) {
+            records.add(data, b -> b.put(firstKey.data));
+            firstKey.data.clear();
+            writer.accept(records);
+        }
+
     }
 
     private int blockSize() {

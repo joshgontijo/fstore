@@ -50,12 +50,11 @@ public class Log<T extends IndexedSegment> {
 
     public void append(Records records) {
         try {
-            int inserted = 0;
-            while (inserted < records.size()) {
+            int offset = 0;
+            while (offset < records.size()) {
                 IndexedSegment head = getHeadOrRoll();
-                int items = Math.min(head.remaining(), records.size());
-                head.append(records, inserted, items);
-                inserted += items;
+                int items = head.append(records, offset);
+                offset += items;
             }
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to append entry", e);

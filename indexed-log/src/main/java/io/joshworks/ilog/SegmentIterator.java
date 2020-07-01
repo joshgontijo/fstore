@@ -2,38 +2,34 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Iterators;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
 import java.util.NoSuchElementException;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
 
-public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> {
+public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
 
     private final ByteBuffer readBuffer;
     private final IndexedSegment segment;
     private final BufferPool pool;
     private long readPos;
-    private int bufferPos;
-    private int bufferLimit;
+    private int recordsIdx = 0;
+    private Records records = RecordPool.get("TODO - DEFINE");;
 
     public SegmentIterator(IndexedSegment segment, long startPos, BufferPool pool) {
         this.pool = pool;
         this.segment = segment;
         this.readPos = startPos;
         this.readBuffer = pool.allocate();
-        this.bufferLimit = readBuffer.limit();
-        if (readBuffer.capacity() < HEADER_BYTES) {
-            pool.free(readBuffer);
-            throw new IllegalArgumentException("Read buffer must be at least " + HEADER_BYTES);
-        }
     }
 
     @Override
     public boolean hasNext() {
-        readBuffer.limit(bufferLimit).position(bufferPos);
+        if(recordsIdx >= records.size())
         if (hasNext(readBuffer)) {
             return true;
         }
@@ -42,13 +38,11 @@ public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> 
     }
 
     @Override
-    public ByteBuffer next() {
+    public Record2 next() {
         readBuffer.limit(bufferLimit).position(bufferPos);
         if (!hasNext(readBuffer)) {
             throw new NoSuchElementException();
         }
-
-        assert Record.isValid(readBuffer);
 
         bufferPos += Record.sizeOf(readBuffer);
         return readBuffer;
@@ -70,34 +64,23 @@ public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> 
         return rsize <= remaining && rsize > HEADER_BYTES;
     }
 
-    public long transferTo(WritableByteChannel channel) throws IOException {
-        long written = 0;
-        while (hasNext() && !endOfLog()) {
-            ByteBuffer buffer = next();
-            int w = Record.writeTo(buffer, channel);
-            if (w > 0) written += w;
-        }
-        return written;
-    }
-
     private void readBatch() {
         if (readPos + bufferPos >= segment.writePosition()) {
             return;
         }
-        readPos += bufferPos;
-        long rpos = readPos;
-        if (readBuffer.position() > 0) {
-            readBuffer.compact();
-            rpos += readBuffer.position();
-        }
 
-        int read = segment.read(rpos, readBuffer);
-        if (read <= 0) { //EOF or no more data
-            throw new IllegalStateException("Expected data to be read");
+        int read = segment.read(readPos, readBuffer);
+        if (read <= 0) {
+            return;
         }
+        records.close();
+        records = RecordPool.get("TODO - DEFINE");
+        recordsIdx = 0;
+
+        readPos += read;
         readBuffer.flip();
-        bufferPos = 0;
-        bufferLimit = readBuffer.limit();
+        records.read(readBuffer);
+        readBuffer.compact();
     }
 
     //internal
