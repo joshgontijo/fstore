@@ -8,8 +8,6 @@ import io.joshworks.ilog.index.KeyComparator;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.junit.Assert.assertEquals;
@@ -40,26 +38,15 @@ public class RedBlackBSTTest {
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        List<Integer> lengths = new ArrayList<>();
         int items = 100;
         for (int i = 0; i < items; i++) {
-            int v = random.nextInt();
-            String val = "value-" + v;
-            lengths.add(val.length());
-            tree.put(create(v, val), i);
+            tree.put(create(i, "value-" + i), i);
         }
-
-
-        for (Node node : tree) {
-            System.out.println(node.key.getLong(0));
-        }
-
 
         for (int i = 0; i < items; i++) {
             Node node = tree.get(ByteBuffer.allocate(Long.BYTES).putLong(i).flip());
-            assertNotNull(node);
+            assertNotNull("Failed on " + i, node);
             assertEquals("Failed on " + i, i, node.offset());
-            assertEquals("Failed on " + i, lengths.get(i), Integer.valueOf(node.recordLen()));
         }
 
 //        tree.clear();
