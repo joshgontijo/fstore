@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.SegmentIterator;
 import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
+import io.joshworks.ilog.record.BufferRecords;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -31,7 +31,7 @@ public class ConcatenateCombiner implements SegmentCombiner {
     public void mergeItems(List<SegmentIterator> items, IndexedSegment output) {
         try {
 
-            Records records = RecordPool.get("TODO - DEFINE");
+            BufferRecords records = RecordPool.get("TODO - DEFINE");
 
             for (SegmentIterator segmentIterator : items) {
                 while (segmentIterator.hasNext()) {
@@ -40,7 +40,7 @@ public class ConcatenateCombiner implements SegmentCombiner {
                         throw new IllegalStateException("Insufficient output segment space: " + output);
                     }
 
-                    if(records.read(next) == 0) {
+                    if(records.fromBuffer(next) == 0) {
                         output.append(records, 0);
                         records.close();
                         records = RecordPool.get("TODO - DEFINE");

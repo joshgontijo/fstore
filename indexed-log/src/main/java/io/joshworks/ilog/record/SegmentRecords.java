@@ -1,17 +1,15 @@
-package io.joshworks.ilog;
+package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.util.Iterators;
-import io.joshworks.ilog.record.Record2;
-import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.IndexedSegment;
+import io.joshworks.ilog.Record;
 
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
 import static io.joshworks.ilog.Record.HEADER_BYTES;
 
-public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
+public class SegmentRecords implements Records {
 
     private final ByteBuffer readBuffer;
     private final IndexedSegment segment;
@@ -20,7 +18,7 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
     private int recordsIdx = 0;
     private BufferRecords records = RecordPool.get("TODO - DEFINE");;
 
-    public SegmentIterator(IndexedSegment segment, long startPos, BufferPool pool) {
+    SegmentRecords(IndexedSegment segment, long startPos, BufferPool pool) {
         this.pool = pool;
         this.segment = segment;
         this.readPos = startPos;
@@ -79,7 +77,7 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
 
         readPos += read;
         readBuffer.flip();
-        records.fromBuffer(readBuffer);
+        records.init(readBuffer);
         readBuffer.compact();
     }
 

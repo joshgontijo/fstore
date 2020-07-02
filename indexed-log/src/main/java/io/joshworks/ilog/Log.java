@@ -1,14 +1,12 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.ilog.compaction.Compactor;
 import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Records;
+import io.joshworks.ilog.record.BufferRecords;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,13 +45,11 @@ public class Log<T extends IndexedSegment> {
         this.compactor = new Compactor<>(view, new ConcatenateCombiner(), compactionThreshold, compactionThreads);
     }
 
-    public void append(Records records) {
+    public void append(BufferRecords records) {
         try {
-            int offset = 0;
-            while (offset < records.size()) {
+            while (records.peek() != null) {
                 IndexedSegment head = getHeadOrRoll();
-                int items = head.append(records, offset);
-                offset += items;
+                head.append(records);
             }
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to append entry", e);

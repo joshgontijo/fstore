@@ -6,7 +6,7 @@ import io.joshworks.ilog.Record;
 import io.joshworks.ilog.SegmentIterator;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
+import io.joshworks.ilog.record.BufferRecords;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
 
     private final RowKey comparator;
     private final BufferPool pool;
-    private Records recordBuffer;
+    private BufferRecords recordBuffer;
 
     protected UniqueMergeCombiner(RowKey comparator, BufferPool pool) {
         this.comparator = comparator;
@@ -79,7 +79,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
             throw new IllegalStateException("Insufficient output segment (" + output.name() + ") data space: " + output.size());
         }
 
-        if (recordBuffer.read(nextEntry) == 0) {
+        if (recordBuffer.fromBuffer(nextEntry) == 0) {
             output.append(recordBuffer, 0);
             recordBuffer.close();
             recordBuffer = RecordPool.get("TODO - DEFINE");

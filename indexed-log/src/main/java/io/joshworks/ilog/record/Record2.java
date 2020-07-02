@@ -5,27 +5,31 @@ import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.RowKey;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-public class Record2 implements Comparable<Record2> {
+public class Record2 implements Comparable<Record2>, Closeable {
 
     ByteBuffer data;
+    final BufferRecords owner;
     private final RowKey rowKey;
 
-    public static final int HEADER_BYTES = (Integer.BYTES * 3) + Long.BYTES + Byte.BYTES;
+    public static final int HEADER_BYTES = (Integer.BYTES * 3) + (Long.BYTES * 2) + Byte.BYTES;
 
     private static final int RECORD_LEN_OFFSET = 0;
     static final int VALUE_LEN_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
-    private static final int CHECKSUM_OFFSET = VALUE_LEN_OFFSET + Integer.BYTES;
+    static final int SEQUENCE_OFFSET = VALUE_LEN_OFFSET + Integer.BYTES;
+    private static final int CHECKSUM_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
     private static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
     private static final int ATTRIBUTE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
 
     static final int KEY_OFFSET = ATTRIBUTE_OFFSET + Byte.BYTES;
 
-    Record2(RowKey rowKey) {
+    Record2(BufferRecords owner, RowKey rowKey) {
+        this.owner = owner;
         this.rowKey = rowKey;
     }
 
@@ -56,14 +60,15 @@ public class Record2 implements Comparable<Record2> {
         return recSize - valSize;
     }
 
-    public int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
+    public int create(long sequence, ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
         int checksum = ByteBufferChecksum.crc32(value);
 
         int recordStart = dst.position();
 
         int recLen = 0;
-        dst.putInt(HEADER_BYTES + key.remaining() + value.remaining()); // RECORD_LEN
+        dst.putInt(HEADER_BYTES + key.remaining() + value.remaining()); // RECORD_LEN (including this field)
         dst.putInt(value.remaining()); // VALUE_LEN
+        dst.putLong(sequence); // SEQUENCE
         dst.putInt(checksum); // CHECKSUM
         dst.putLong(System.currentTimeMillis()); // TIMESTAMP
         dst.put(attribute(attr)); // ATTRIBUTES
@@ -130,11 +135,20 @@ public class Record2 implements Comparable<Record2> {
         return rowKey.compare(data, KEY_OFFSET, key, key.position());
     }
 
+    public boolean valid() {
+        return data != null;
+    }
+
     @Override
     public int compareTo(Record2 o) {
         if (!o.rowKey.getClass().equals(rowKey.getClass())) {
             throw new IllegalArgumentException("Incompatible records");
         }
         return rowKey.compare(data, KEY_OFFSET, o.data, KEY_OFFSET);
+    }
+
+    @Override
+    public void close() {
+        owner.release(this);
     }
 }

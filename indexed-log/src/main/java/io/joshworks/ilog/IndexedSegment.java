@@ -7,19 +7,20 @@ import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Records;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.BufferRecords;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static io.joshworks.ilog.index.Index.NONE;
@@ -40,7 +41,8 @@ public class IndexedSegment {
     private final AtomicBoolean readOnly = new AtomicBoolean();
     private final AtomicLong writePosition = new AtomicLong();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
-    private final Set<SegmentIterator> iterators = new HashSet<>();
+
+    private final SegmentLock lock = new SegmentLock();
 
     public IndexedSegment(File file, int indexSize, RowKey comparator) {
         this.file = file;
@@ -61,7 +63,7 @@ public class IndexedSegment {
         return new Index(indexFile, indexSize, comparator);
     }
 
-    void reindex() throws IOException {
+    synchronized void reindex() throws IOException {
         log.info("Reindexing {}", name());
 
         index.delete();
@@ -75,7 +77,7 @@ public class IndexedSegment {
 
         while (it.hasNext()) {
             long position = it.position();
-            ByteBuffer record = it.next();
+            Record2 record = it.next();
             index.write(record, position);
             processed++;
         }
@@ -101,7 +103,7 @@ public class IndexedSegment {
     }
 
     //return number of written items
-    public int append(Records records, int offset) {
+    public int append(BufferRecords records) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
@@ -112,14 +114,20 @@ public class IndexedSegment {
             return 0;
         }
 
-        long logStartPos = writePosition();
+        long recordPos = writePosition();
 
-        int remainingEntries = index.remaining();
-        int maxItems = Math.min(remainingEntries, records.size());
-        long written = records.writeTo(channel, offset, maxItems);
+        int count = Math.min(remaining(), records.size());
+        long written = records.writeTo(channel, count);
+
+        for (int i = 0; i < count; i++) {
+            try (Record2 rec = records.poll()) {
+                index.write(rec, recordPos);
+                recordPos += rec.recordSize();
+            }
+        }
+
         writePosition.getAndAdd(written);
-        index.write(records, offset, maxItems, logStartPos);
-        return maxItems;
+        return count;
     }
 
     public int find(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
@@ -278,11 +286,16 @@ public class IndexedSegment {
         if (!markedForDeletion.compareAndSet(false, true)) {
             return;
         }
-        if (!iterators.isEmpty()) {
+        if (iterators.get() == 0) {
             log.info("Segment marked for deletion");
             return;
         }
         doDelete();
+    }
+
+    public synchronized SegmentLock lock() {
+        lock.counter.incrementAndGet();
+        return lock;
     }
 
     public synchronized SegmentIterator iterator(long pos, BufferPool pool) {
@@ -292,9 +305,6 @@ public class IndexedSegment {
     }
 
     private void doDelete() {
-        if (!iterators.isEmpty()) {
-            throw new IllegalStateException("Segment in being used");
-        }
         try {
             log.info("Deleting {}", name());
             channel.close();
@@ -327,6 +337,17 @@ public class IndexedSegment {
                 ", entries=" + entries() +
                 ", indexSize=" + indexSize() +
                 '}';
+    }
+
+    public static class SegmentLock implements Closeable {
+
+        private final AtomicInteger counter = new AtomicInteger();
+
+        @Override
+        public void close() {
+            //make sure close is not called twice
+            counter.decrementAndGet();
+        }
     }
 
 }

@@ -2,7 +2,6 @@ package io.joshworks.ilog.index;
 
 import io.joshworks.ilog.lsm.BufferBinarySearch;
 import io.joshworks.ilog.record.Record2;
-import io.joshworks.ilog.record.Records;
 
 import java.io.Closeable;
 import java.io.File;
@@ -59,17 +58,11 @@ public class Index implements Closeable {
     /**
      * Relies on segment to validate the size of all keys and also the remaining space int this index
      */
-    public void write(Records records, int offset, int count, long startPos) {
+    public void write(Record2 record, long pos) {
         assert !readOnly.get();
 
         MappedByteBuffer dst = mf.buffer();
-
-        long pos = startPos;
-        for (int i = offset; i < count; i++) {
-            Record2 record = records.get(i);
-            doWrite(pos, record, dst);
-            pos += record.recordSize();
-        }
+        doWrite(pos, record, dst);
     }
 
     public int find(ByteBuffer key, IndexFunctions func) {

@@ -4,8 +4,9 @@ import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
 import io.joshworks.ilog.pooled.HeapBlock;
-import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.Records;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.BufferRecords;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.locks.StampedLock;
@@ -24,7 +25,7 @@ class MemTable {
         this.maxEntries = maxEntries;
     }
 
-    int add(Records records, int offset) {
+    int add(BufferRecords records, int offset) {
         requireNonNull(records, "Records must be provided");
         try {
             long stamp = lock.writeLock();
