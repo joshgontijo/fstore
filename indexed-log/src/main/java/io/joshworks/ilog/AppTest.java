@@ -5,25 +5,26 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
-import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.lsm.Lsm;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public class AppTest {
     public static void main(String[] args) {
 
-        Threads.sleep(7000);
-        int items = 1000000;
+        int memTableSize = 1_000_000;
+        int items = memTableSize * 50;
 
-        final Lsm lsm = Lsm.create(TestUtils.testFolder(), KeyComparator.LONG)
+        File file = TestUtils.testFolder();
+        final Lsm lsm = Lsm.create(file, KeyComparator.LONG)
                 .memTable(1000000, Size.MB.ofInt(50), true)
                 .codec(new SnappyCodec())
-                .compactionThreads(1)
-                .compactionThreshold(5)
+                .compactionThreads(10)
+                .compactionThreshold(2)
                 .open();
 
 
@@ -57,7 +58,7 @@ public class AppTest {
             recBuffer.get(voffset, b, 0, b.length);
             String value = new String(b, StandardCharsets.UTF_8);
 
-            System.out.println("KEY: " + key + " -> " + value);
+//            System.out.println("KEY: " + key + " -> " + value);
 
         }
 
