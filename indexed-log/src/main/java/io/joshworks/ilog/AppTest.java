@@ -11,12 +11,13 @@ import io.joshworks.ilog.index.KeyComparator;
 import io.joshworks.ilog.lsm.Lsm;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 public class AppTest {
     public static void main(String[] args) {
 
         Threads.sleep(7000);
-        int items = 1000000000;
+        int items = 1000000;
 
         final Lsm lsm = Lsm.create(TestUtils.testFolder(), KeyComparator.LONG)
                 .memTable(1000000, Size.MB.ofInt(50), true)
@@ -25,19 +26,39 @@ public class AppTest {
                 .compactionThreshold(5)
                 .open();
 
-        ByteBuffer record = create(0, "value-123");
-        ByteBuffer keyBuff = ByteBuffer.allocate(Long.BYTES);
-        int limit = record.limit();
+
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            keyBuff.clear().putLong(i).flip();
-            Record.KEY.set(record, keyBuff);
+            ByteBuffer record = create(i, "value-" + i);
             lsm.append(record);
-            record.limit(limit).position(0);
             if (i % 1000000 == 0) {
                 System.out.println("-> " + i + ": " + (System.currentTimeMillis() - s));
                 s = System.currentTimeMillis();
             }
+        }
+
+        ByteBuffer recBuffer = ByteBuffer.allocate(4096);
+        ByteBuffer keyBuff = ByteBuffer.allocate(Long.BYTES);
+
+        for (int i = 0; i < items; i++) {
+            recBuffer.clear();
+            keyBuff.clear().putLong(i).flip();
+            lsm.get(keyBuff, recBuffer);
+
+            recBuffer.flip();
+
+            int koffset = Record.KEY.offset(recBuffer);
+            int voffset = Record.VALUE.offset(recBuffer);
+            int vlen = Record.VALUE.len(recBuffer);
+
+            long key = recBuffer.getLong(koffset);
+
+            byte[] b = new byte[vlen];
+            recBuffer.get(voffset, b, 0, b.length);
+            String value = new String(b, StandardCharsets.UTF_8);
+
+            System.out.println("KEY: " + key + " -> " + value);
+
         }
 
 

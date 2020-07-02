@@ -85,6 +85,11 @@ class MemTable {
         if (node == null) {
             return 0;
         }
+
+        if (node.recordLen() > data.remaining()) {
+            throw new IllegalArgumentException("Destination buffer space is less than record size");
+        }
+
         return Buffers.copy(data, node.offset(), node.recordLen(), dst);
     }
 
