@@ -113,7 +113,6 @@ class MemTable {
             boolean added = block.add(data, recordOffset, recordLen);
             if (!added) {
                 inserted += block.entryCount();
-                block.compress();
                 block.write(writer);
                 block.clear();
 
@@ -125,7 +124,6 @@ class MemTable {
         //compress and write
         if (block.entryCount() > 0) {
             inserted += block.entryCount();
-            block.compress();
             block.write(writer);
             block.clear();
         }

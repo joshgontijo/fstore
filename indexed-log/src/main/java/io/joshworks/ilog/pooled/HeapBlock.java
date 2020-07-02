@@ -2,7 +2,6 @@ package io.joshworks.ilog.pooled;
 
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.KeyComparator;
@@ -19,7 +18,7 @@ import java.util.function.Consumer;
  * ENTRY_COUNT (4bytes)
  * <p>
  * ------- KEYS REGION -----
- * KEY_ENTRY
+ * KEY_ENTRY [OFFSET,KEY]
  * ...
  * -------- COMPRESSED VALUES REGION --------
  * COMPRESSED_BLOCK
@@ -39,14 +38,14 @@ public class HeapBlock extends Pooled {
     private int entries;
 
     private final List<Key> keys = new ArrayList<>();
-    private final ByteBuffer compressedData;
+    private final ByteBuffer block;
 
     public HeapBlock(ObjectPool<? extends Pooled> pool, int blockSize, KeyComparator comparator, boolean direct, Codec codec) {
         super(pool, blockSize, direct);
         this.comparator = comparator;
         this.direct = direct;
         this.codec = codec;
-        this.compressedData = Buffers.allocate(blockSize, direct);
+        this.block = Buffers.allocate(blockSize, direct);
     }
 
     private boolean hasCapacity(int entrySize) {
@@ -109,7 +108,7 @@ public class HeapBlock extends Pooled {
         }
 
         //----- READ DECOMPRESSED ----
-        if(decompress) {
+        if (decompress) {
             codec.decompress(block, data);
             data.flip();
             assert data.remaining() == uncompressedSize;
@@ -118,10 +117,10 @@ public class HeapBlock extends Pooled {
         }
 
         //----- READ COMPRESSED ----
-        int copied = Buffers.copy(block, compressedData);
+        int copied = Buffers.copy(block, this.block);
         assert copied == uncompressedSize;
 
-        compressedData.flip();
+        this.block.flip();
         Buffers.offsetPosition(block, copied);
 
         state = State.COMPRESSED;
@@ -137,72 +136,62 @@ public class HeapBlock extends Pooled {
         return key;
     }
 
-    public void compress() {
-        if (!State.CREATING.equals(state)) {
-            throw new IllegalStateException("Cannot compress block: Invalid block state");
-        }
-
-        data.flip();
-        uncompressedSize = data.remaining();
-        codec.compress(data, compressedData);
-        compressedData.flip();
-        compressedSize = compressedData.remaining();
-
-        state = State.COMPRESSED;
-    }
+//    public void compress() {
+//        if (!State.CREATING.equals(state)) {
+//            throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
+//        }
+//
+//        data.flip();
+//        uncompressedSize = data.remaining();
+//        codec.compress(data, block);
+//        block.flip();
+//        compressedSize = block.remaining();
+//
+//        state = State.COMPRESSED;
+//    }
 
     public void write(Consumer<ByteBuffer> writer) {
-        if (!State.COMPRESSED.equals(state)) {
-            throw new IllegalStateException("Cannot compress block: Invalid block state");
+        if (!State.CREATING.equals(state)) {
+            throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
         }
 
-        byte attribute = 0;
+        block.clear();
+        data.flip();
 
-        data.clear();
+        int uncompressedSize = data.remaining();
 
-        int blockStart = Record.HEADER_BYTES + comparator.keySize();
-        int blockSize = blockSize();
 
-        Key firstKey = keys.get(0);
+        //------------ COMPRESSED DATA
+        int keysSectionSize = keyOverhead() * entryCount();
+        int dataRegion = HEADER_BYTES + keysSectionSize;
+        block.position(dataRegion);
+        codec.compress(data, block);
 
-        Buffers.offsetPosition(data, blockStart);
-
-        int bStart = data.position();
-        assert blockStart == bStart;
+        int blockEnd = block.position();
+        int compressedSize = blockEnd - dataRegion;
 
         //------------ BLOCK START
-        data.putInt(uncompressedSize);
-        data.putInt(compressedSize);
-        data.putInt(entries);
+        block.position(0);
+        block.putInt(uncompressedSize);
+        block.putInt(compressedSize);
+        block.putInt(entries);
 
-        //block keys
+        //------------ UNCOMPRESSED KEYS
         for (int i = 0; i < entries; i++) {
             Key key = keys.get(i);
-            data.putInt(key.offset);
-            Buffers.copy(key.data, data);
+            block.putInt(key.offset);
+            Buffers.copy(key.data, block);
         }
 
-        //data
-        Buffers.copy(compressedData, data);
-        assert data.position() - bStart == blockSize;
+        block.limit(blockEnd).position(0);
+        state = State.COMPRESSED;
 
-        int blockEnd = data.position();
+        byte attribute = 0;
+        Key firstKey = keys.get(0);
+        data.clear();
+        int recLen = Record.create(firstKey.data, block, data, attribute);
 
-        data.position(0);
-
-        int blockChecksum = ByteBufferChecksum.crc32(data, blockStart, blockSize);
-
-        //------------ RECORD HEADER ------
-        data.position(0);
-        data.putInt(blockSize); //VALUE_LEN (BLOCK_SIZE)
-        data.putInt(blockChecksum); //CHECKSUM
-        data.putLong(System.currentTimeMillis()); //TIMESTAMP
-        data.put(attribute); //ATTRIBUTES
-        data.putInt(comparator.keySize()); //KEY_SIZE
-        Buffers.copy(firstKey.data, data); // FIRST_KEY
-
-        data.position(0).limit(blockEnd);
-
+        data.flip();
         assert Record.isValid(data);
         writer.accept(data);
     }
@@ -222,7 +211,7 @@ public class HeapBlock extends Pooled {
 
     public void clear() {
         data.clear();
-        compressedData.clear();
+        block.clear();
         uncompressedSize = 0;
         entries = 0;
         state = State.EMPTY;
@@ -233,7 +222,7 @@ public class HeapBlock extends Pooled {
             return;
         }
         data.clear();
-        codec.decompress(compressedData, data);
+        codec.decompress(block, data);
         data.flip();
 
         assert uncompressedSize == data.remaining();

@@ -11,7 +11,7 @@ public class BloomFilterTest {
 
     @Test
     public void name() {
-        int items = 20_000_000;
+        int items = 500_000;
         var bf = new BloomFilter(items, 0.07);
 
         long s = System.currentTimeMillis();
