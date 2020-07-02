@@ -3,6 +3,7 @@ package io.joshworks.ilog;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.RowKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,14 +39,16 @@ public class View<T extends IndexedSegment> {
     private final AtomicLong nextSegmentIdx = new AtomicLong();
     private final AtomicLong entries = new AtomicLong();
     private final File root;
+    private final RowKey rowKey;
     private final int indexSize;
     private final SegmentFactory<T> segmentFactory;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     //TODO remove BufferPool
-    View(File root, int indexSize, BufferPool pool, SegmentFactory<T> segmentFactory) throws IOException {
+    View(File root, RowKey rowKey, int indexSize,  SegmentFactory<T> segmentFactory) throws IOException {
         this.root = root;
+        this.rowKey = rowKey;
         this.indexSize = indexSize;
         this.segmentFactory = segmentFactory;
 
@@ -60,7 +63,7 @@ public class View<T extends IndexedSegment> {
 
         if (!segments.isEmpty()) {
             T head = segments.get(segments.size() - 1);
-            head.reindex(pool);
+            head.reindex();
             head.forceRoll();
 
             nextSegmentIdx.set(head.segmentId() + 1);
@@ -98,13 +101,13 @@ public class View<T extends IndexedSegment> {
         }
         long nextSegIdx = nextSegmentIdx.getAndIncrement();
         File segmentFile = segmentFile(root, nextSegIdx, level);
-        return segmentFactory.create(segmentFile, (int) indexSize);
+        return segmentFactory.create(segmentFile, (int) indexSize, rowKey);
     }
 
     private T open(File segmentFile) {
         try {
             File indexFile = indexFile(segmentFile);
-            return segmentFactory.create(indexFile, indexSize);
+            return segmentFactory.create(indexFile, indexSize, rowKey);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment " + segmentFile.getName(), e);
         }

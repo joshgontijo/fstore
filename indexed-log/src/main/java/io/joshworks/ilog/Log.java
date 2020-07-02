@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.ilog.compaction.Compactor;
 import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
@@ -21,7 +22,6 @@ public class Log<T extends IndexedSegment> {
 
     protected final View<T> view;
     private final FlushMode flushMode;
-    protected final BufferPool pool;
     private final Compactor<T> compactor;
 
     private final List<LogIterator> forwardIterators = new ArrayList<>();
@@ -31,11 +31,10 @@ public class Log<T extends IndexedSegment> {
                int compactionThreshold,
                int compactionThreads,
                FlushMode flushMode,
-               BufferPool pool,
+               RowKey rowKey,
                SegmentFactory<T> segmentFactory) throws IOException {
         FileUtils.createDir(root);
         this.flushMode = flushMode;
-        this.pool = pool;
 
         if (indexSize > Index.MAX_SIZE) {
             throw new IllegalArgumentException("Index cannot be greater than " + Index.MAX_SIZE);
@@ -44,8 +43,8 @@ public class Log<T extends IndexedSegment> {
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
-        this.view = new View<>(root, indexSize, segmentFactory);
-        this.compactor = new Compactor<>(view, new ConcatenateCombiner(pool), compactionThreshold, compactionThreads);
+        this.view = new View<>(root, rowKey, indexSize, segmentFactory);
+        this.compactor = new Compactor<>(view, new ConcatenateCombiner(), compactionThreshold, compactionThreads);
     }
 
     public void append(Records records) {

@@ -61,8 +61,7 @@ public class IndexedSegment {
         return new Index(indexFile, indexSize, comparator);
     }
 
-    //TODO remove BufferPool
-    void reindex(BufferPool pool) throws IOException {
+    void reindex() throws IOException {
         log.info("Reindexing {}", name());
 
         index.delete();

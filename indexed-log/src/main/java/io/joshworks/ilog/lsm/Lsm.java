@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
+import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
@@ -24,7 +25,7 @@ public class Lsm {
     public static final String LOG_DIR = "log";
     public static final String SSTABLES_DIR = "sstables";
 
-    public final SequenceLog tlog;
+    public final Log<IndexedSegment> tlog;
     private final MemTable memTable;
     private final Log<SSTable> ssTables;
 
@@ -46,10 +47,10 @@ public class Lsm {
         int compactionThreads,
         int compactionThreshold,
         Codec codec) throws IOException {
-        this.rowKey = rowKey;
 
         FileUtils.createDir(root);
         this.maxAge = maxAge;
+        this.rowKey = rowKey;
 
         this.blockPool = new ObjectPool<>(100, p -> new HeapBlock(p, blockSize, rowKey, directBuffers, codec));
 
@@ -65,20 +66,22 @@ public class Lsm {
 
         this.memTable = new MemTable(memTableMaxEntries);
 
-        this.tlog = new SequenceLog(new File(root, LOG_DIR),
+        this.tlog = new Log<IndexedSegment>(
+                new File(root, LOG_DIR),
                 tlogIndexSize,
                 2,
                 1,
                 FlushMode.ON_ROLL,
-                logRecordPool);
+                RowKey.LONG,
+                IndexedSegment::new);
 
         this.ssTables = new Log<>(new File(root, SSTABLES_DIR),
                 sstableIndexSize,
                 compactionThreshold,
                 compactionThreads,
                 FlushMode.ON_ROLL,
-                recordPool,
-                (file, idxSize) -> new SSTable(file, idxSize, rowKey));
+                rowKey,
+                SSTable::new);
     }
 
     public static Builder create(File root, RowKey comparator) {
