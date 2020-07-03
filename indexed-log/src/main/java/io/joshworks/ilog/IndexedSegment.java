@@ -1,14 +1,15 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunctions;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Records;
+import io.joshworks.ilog.record.RecordsPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,16 +73,20 @@ public class IndexedSegment {
         this.index = openIndex(indexFile, indexSize, comparator);
 
         long start = System.currentTimeMillis();
-        SegmentIterator it = iterator(START, pool);
-        int processed = 0;
 
-        while (it.hasNext()) {
-            long position = it.position();
-            Record2 record = it.next();
-            index.write(record, position);
-            processed++;
+        try (Records records = RecordsPool.fromSegment("segment", this, START)) {
+            int processed = 0;
+
+            long position = START;
+            while (records.hasNext()) {
+                Record2 record = records.poll();
+                index.write(record, position);
+                position += record.recordSize();
+                processed++;
+            }
+            log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
         }
-        log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
+
     }
 
     private FileChannel openChannel(File file) {
@@ -262,8 +267,8 @@ public class IndexedSegment {
         return file;
     }
 
-    public String index() {
-        return index.name();
+    public Index index() {
+        return index;
     }
 
     public int level() {
@@ -286,7 +291,7 @@ public class IndexedSegment {
         if (!markedForDeletion.compareAndSet(false, true)) {
             return;
         }
-        if (iterators.get() == 0) {
+        if (lock.counter.get() > 0) {
             log.info("Segment marked for deletion");
             return;
         }
@@ -294,14 +299,11 @@ public class IndexedSegment {
     }
 
     public synchronized SegmentLock lock() {
+        if (markedForDeletion.get()) {
+            return null;
+        }
         lock.counter.incrementAndGet();
         return lock;
-    }
-
-    public synchronized SegmentIterator iterator(long pos, BufferPool pool) {
-        SegmentIterator it = new SegmentIterator(this, pos, pool);
-        iterators.add(it);
-        return it;
     }
 
     private void doDelete() {
@@ -312,15 +314,6 @@ public class IndexedSegment {
             index.delete();
         } catch (IOException e) {
             throw new RuntimeIOException(e);
-        }
-    }
-
-    void release(SegmentIterator iterator) {
-        iterators.remove(iterator);
-        if (markedForDeletion.get()) {
-            synchronized (this) {
-                doDelete();
-            }
         }
     }
 

@@ -4,7 +4,8 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.SegmentIterator;
-import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
+import io.joshworks.ilog.record.RecordsPool;
 import io.joshworks.ilog.record.BufferRecords;
 
 import java.nio.ByteBuffer;
@@ -21,19 +22,20 @@ public class ConcatenateCombiner implements SegmentCombiner {
 
     @Override
     public void merge(List<? extends IndexedSegment> segments, IndexedSegment output) {
-        List<SegmentIterator> iterators = segments.stream()
-                .map(s -> s.iterator(0, pool))
+        List<Records> iterators = segments.stream()
+                .map(s -> RecordsPool.fromSegment("compaction", s, IndexedSegment.START))
                 .collect(Collectors.toList());
 
         mergeItems(iterators, output);
     }
 
-    public void mergeItems(List<SegmentIterator> items, IndexedSegment output) {
+    public void mergeItems(List<Records> items, IndexedSegment output) {
         try {
 
-            BufferRecords records = RecordPool.get("TODO - DEFINE");
+            BufferRecords records = RecordsPool.get("TODO - DEFINE");
 
-            for (SegmentIterator segmentIterator : items) {
+            for (Records segmentIterator : items) {
+                segmentIterator.writeTo()
                 while (segmentIterator.hasNext()) {
                     ByteBuffer next = segmentIterator.next();
                     if (output.isFull()) {
@@ -43,7 +45,7 @@ public class ConcatenateCombiner implements SegmentCombiner {
                     if(records.fromBuffer(next) == 0) {
                         output.append(records, 0);
                         records.close();
-                        records = RecordPool.get("TODO - DEFINE");
+                        records = RecordsPool.get("TODO - DEFINE");
                     }
 
                 }

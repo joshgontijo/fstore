@@ -7,6 +7,7 @@ import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,9 +25,12 @@ public class StripedBufferPool {
     private final Map<Integer, AtomicInteger> allocated = new HashMap<>();
     private final Map<Integer, AtomicInteger> inUse = new HashMap<>();
 
-    public StripedBufferPool(int maxSize, boolean direct, int... stripes) {
+    public StripedBufferPool(int maxSize, boolean direct, Set<Integer> stripes) {
         this.maxSize = maxSize;
         this.direct = direct;
+
+        stripes.add(maxSize);
+
         for (int stripe : stripes) {
             pools.put(stripe, new ArrayDeque<>());
             count.put(stripe, new AtomicInteger());

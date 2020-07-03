@@ -27,7 +27,7 @@ public class Lsm {
 
     public final Log<IndexedSegment> tlog;
     private final MemTable memTable;
-    private final Log<SSTable> ssTables;
+    private final Log<IndexedSegment> ssTables;
 
     private final BufferPool recordPool;
 
@@ -66,7 +66,7 @@ public class Lsm {
 
         this.memTable = new MemTable(memTableMaxEntries);
 
-        this.tlog = new Log<IndexedSegment>(
+        this.tlog = new Log<>(
                 new File(root, LOG_DIR),
                 tlogIndexSize,
                 2,
@@ -81,7 +81,7 @@ public class Lsm {
                 compactionThreads,
                 FlushMode.ON_ROLL,
                 rowKey,
-                SSTable::new);
+                IndexedSegment::new);
     }
 
     public static Builder create(File root, RowKey comparator) {
@@ -117,7 +117,7 @@ public class Lsm {
 
             var record = recordPool.allocate();
             try (HeapBlock block = blockPool.allocate()) {
-                for (SSTable ssTable : sst) {
+                for (IndexedSegment ssTable : sst) {
                     record.clear();
                     if (!ssTable.readOnly()) {
                         block.clear();

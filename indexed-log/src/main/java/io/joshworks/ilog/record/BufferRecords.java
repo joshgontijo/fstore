@@ -112,6 +112,11 @@ public class BufferRecords extends AbstractRecords {
         return records.peek();
     }
 
+    @Override
+    public boolean hasNext() {
+        return peek() != null;
+    }
+
     private Record2 allocateRecord() {
         Record2 poll = cache.poll();
         return poll == null ? new Record2(this, rowKey) : poll;
@@ -121,7 +126,7 @@ public class BufferRecords extends AbstractRecords {
     public void close() {
         for (Record2 record : records) {
             release(record);
-            RecordPool.free(this);
+            RecordsPool.free(this);
         }
         records.clear();
         totalSize = 0;
@@ -129,7 +134,7 @@ public class BufferRecords extends AbstractRecords {
 
     void release(Record2 record) {
         if (record.owner != this) {
-            throw new IllegalArgumentException("Record pool " + this.poolName + "not owner of this record: pool name " + record.owner.poolName);
+            throw new IllegalArgumentException("Record pool " + this.poolName() + "not owner of this record: pool name " + record.owner.poolName());
         }
 
         Record2 first = records.peek();
@@ -156,6 +161,7 @@ public class BufferRecords extends AbstractRecords {
         return writeTo(channel, buffers.size());
     }
 
+    //TODO does not remove from buffer ???????????????
     @Override
     public long writeTo(GatheringByteChannel channel, int count) {
         try {

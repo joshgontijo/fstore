@@ -3,7 +3,7 @@ package io.joshworks.ilog;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.ilog.record.Record2;
-import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.RecordsPool;
 import io.joshworks.ilog.record.BufferRecords;
 
 import java.nio.ByteBuffer;
@@ -18,7 +18,7 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
     private final BufferPool pool;
     private long readPos;
     private int recordsIdx = 0;
-    private BufferRecords records = RecordPool.get("TODO - DEFINE");;
+    private BufferRecords records = RecordsPool.get("TODO - DEFINE");;
 
     public SegmentIterator(IndexedSegment segment, long startPos, BufferPool pool) {
         this.pool = pool;
@@ -74,7 +74,7 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
             return;
         }
         records.close();
-        records = RecordPool.get("TODO - DEFINE");
+        records = RecordsPool.get("TODO - DEFINE");
         recordsIdx = 0;
 
         readPos += read;

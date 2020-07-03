@@ -8,7 +8,7 @@ import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.BlockRecords;
 import io.joshworks.ilog.record.Records;
 import io.joshworks.ilog.record.Record2;
-import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.RecordsPool;
 import io.joshworks.ilog.record.BufferRecords;
 
 import java.nio.ByteBuffer;
@@ -193,7 +193,7 @@ public class HeapBlock extends Pooled {
         Key firstKey = keys.get(0);
         data.clear();
 
-        try(BufferRecords records = RecordPool.get("BLOCK")) {
+        try(BufferRecords records = RecordsPool.get("BLOCK")) {
             records.create(data, b -> b.put(firstKey.data));
             firstKey.data.clear();
             writer.accept(records);

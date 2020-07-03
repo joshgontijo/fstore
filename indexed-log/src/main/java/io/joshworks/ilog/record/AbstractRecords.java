@@ -1,10 +1,10 @@
 package io.joshworks.ilog.record;
 
-public abstract class AbstractRecords implements Records {
+abstract class AbstractRecords implements Records {
 
     private final String poolName;
 
-    protected AbstractRecords(String poolName) {
+    AbstractRecords(String poolName) {
         this.poolName = poolName;
     }
 

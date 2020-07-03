@@ -47,9 +47,10 @@ public class Log<T extends IndexedSegment> {
 
     public void append(BufferRecords records) {
         try {
-            while (records.peek() != null) {
+            while (records.hasNext()) {
                 IndexedSegment head = getHeadOrRoll();
-                head.append(records);
+                records.writeTo(head);
+//                head.append(records);
             }
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to append entry", e);
