@@ -87,7 +87,6 @@ public class Record2 implements Comparable<Record2>, Closeable {
         return recLen;
     }
 
-
     public int copyTo(ByteBuffer dst) {
         int recLen = recordSize();
         if (dst.remaining() < recLen) {

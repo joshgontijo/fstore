@@ -1,7 +1,7 @@
 package io.joshworks.ilog.lsm.tree;
 
 import io.joshworks.fstore.core.util.Pool;
-import io.joshworks.ilog.index.IndexFunctions;
+import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.record.Record2;
 
 import java.nio.ByteBuffer;
@@ -48,14 +48,14 @@ public class RedBlackBST implements Iterable<Node> {
         return get(root, key);
     }
 
-    public Node apply(ByteBuffer key, IndexFunctions fn) {
-        if (IndexFunctions.CEILING.equals(fn)) {
+    public Node apply(ByteBuffer key, IndexFunction fn) {
+        if (IndexFunction.CEILING.equals(fn)) {
             return ceiling(key);
         }
-        if (IndexFunctions.EQUALS.equals(fn)) {
+        if (IndexFunction.EQUALS.equals(fn)) {
             return get(key);
         }
-        if (IndexFunctions.FLOOR.equals(fn)) {
+        if (IndexFunction.FLOOR.equals(fn)) {
             return floor(key);
         }
         //TODO ADD LOWER AND HIGHER

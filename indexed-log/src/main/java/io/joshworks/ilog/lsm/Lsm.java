@@ -10,7 +10,7 @@ import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
-import io.joshworks.ilog.index.IndexFunctions;
+import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.pooled.HeapBlock;
 import io.joshworks.ilog.pooled.ObjectPool;
@@ -110,7 +110,7 @@ public class Lsm {
         }
         return ssTables.apply(Direction.BACKWARD, sst -> {
 
-            int fromMem = memTable.apply(key, dst, IndexFunctions.EQUALS);
+            int fromMem = memTable.apply(key, dst, IndexFunction.EQUALS);
             if (fromMem > 0) {
                 return fromMem;
             }
@@ -123,10 +123,10 @@ public class Lsm {
                         block.clear();
                         continue;
                     }
-                    int read = ssTable.find(key, record, IndexFunctions.FLOOR);
+                    int read = ssTable.find(key, record, IndexFunction.FLOOR);
                     if (read > 0) {
                         record.flip();
-                        int entrySize = readFromBlock(key, block, record, dst, IndexFunctions.EQUALS);
+                        int entrySize = readFromBlock(key, block, record, dst, IndexFunction.EQUALS);
                         if (entrySize <= 0) {// not found in the block, continue
                             block.clear();
                             continue;
@@ -141,7 +141,7 @@ public class Lsm {
         });
     }
 
-    private int readFromBlock(ByteBuffer key, HeapBlock heapBlock, ByteBuffer record, ByteBuffer dst, IndexFunctions func) {
+    private int readFromBlock(ByteBuffer key, HeapBlock heapBlock, ByteBuffer record, ByteBuffer dst, IndexFunction func) {
 
         assert Record.isValid(record);
 
@@ -156,7 +156,7 @@ public class Lsm {
     }
 
     public int readLog(ByteBuffer dst, long id) {
-        return tlog.bulkRead(id, dst, IndexFunctions.EQUALS);
+        return tlog.bulkRead(id, dst, IndexFunction.EQUALS);
     }
 
     public LogIterator logIterator() {

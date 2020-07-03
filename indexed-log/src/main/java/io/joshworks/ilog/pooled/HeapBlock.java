@@ -3,9 +3,8 @@ package io.joshworks.ilog.pooled;
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
-import io.joshworks.ilog.index.IndexFunctions;
+import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.BlockRecords;
 import io.joshworks.ilog.record.Records;
 import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.RecordsPool;
@@ -235,7 +234,7 @@ public class HeapBlock extends Pooled {
         state = State.DECOMPRESSED;
     }
 
-    public int find(ByteBuffer key, ByteBuffer dst, IndexFunctions fn) {
+    public int find(ByteBuffer key, ByteBuffer dst, IndexFunction fn) {
         int cmp = indexedBinarySearch(keys, key);
         int idx = fn.apply(cmp);
         if (idx < 0) {

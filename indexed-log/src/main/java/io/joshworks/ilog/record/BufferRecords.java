@@ -2,10 +2,13 @@ package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Record;
+import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -96,6 +99,16 @@ public class BufferRecords extends AbstractRecords {
 //        recdata.limit(recLen).position(0);
 //    }
 
+    private Record2 checkValid(Record2 rec) {
+        if (rec == null) {
+            return rec;
+        }
+        if (rec.data.position() > 0) {
+            throw new IllegalStateException("Invalid entry");
+        }
+        return rec;
+    }
+
     @Override
     public Record2 poll() {
         Record2 poll = records.poll();
@@ -104,12 +117,21 @@ public class BufferRecords extends AbstractRecords {
         }
         buffers.remove(poll.data);
         totalSize -= poll.recordSize();
-        return poll;
+        return checkValid(poll);
     }
 
     @Override
     public Record2 peek() {
-        return records.peek();
+        return checkValid(records.peek());
+    }
+
+    public boolean remove() {
+        Record2 poll = records.poll();
+        if (poll == null) {
+            return false;
+        }
+        poll.close();
+        return true;
     }
 
     @Override
@@ -157,20 +179,90 @@ public class BufferRecords extends AbstractRecords {
     }
 
     @Override
+    public long writeTo(IndexedSegment segment) {
+        if (segment.index().isFull()) {
+            throw new IllegalStateException("Index is full");
+        }
+        if (segment.readOnly()) {
+            throw new IllegalStateException("Segment is read only");
+        }
+        if (records.size() == 0) {
+            return 0;
+        }
+
+        try {
+            FileChannel channel = segment.channel();
+            Index index = segment.index();
+
+            long totalWritten = 0;
+
+            long recordPos = channel.position();
+            while (hasNext() && !index.isFull()) {
+                //bulk write to data region
+                int count = Math.min(index.remaining(), records.size());
+                buffers.toArray(tmp);
+                long written = channel.write(tmp, 0, count);
+                checkClosed(written);
+                totalWritten += written;
+
+                //files are always available, no need to use removeWrittenEntries
+                //poll entries and add to index
+                for (int i = 0; i < count; i++) {
+                    try (Record2 rec = poll()) {
+                        int recSize = rec.recordSize();
+                        index.write(rec.data, Record2.KEY_OFFSET, rec.keySize(), recSize, recordPos);
+                        recordPos += recSize;
+                    }
+                }
+            }
+            return totalWritten;
+
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to write to segment");
+        }
+    }
+
+    private void checkClosed(long w) {
+        if (w == -1) {
+            throw new RuntimeIOException("Channel closed");
+        }
+    }
+
+    @Override
     public long writeTo(GatheringByteChannel channel) {
         return writeTo(channel, buffers.size());
     }
 
-    //TODO does not remove from buffer ???????????????
     @Override
     public long writeTo(GatheringByteChannel channel, int count) {
         try {
-            buffers.toArray(tmp);
 
-            count = Math.min(count, buffers.size());
-            return channel.write(tmp, 0, count);
+            long totalWritten = 0;
+            while (hasNext()) {
+                buffers.toArray(tmp);
+                count = Math.min(count, buffers.size());
+                long written = channel.write(tmp, 0, count);
+                checkClosed(written);
+                totalWritten += written;
+
+                removeWrittenEntries(written);
+            }
+            return totalWritten;
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to write to channel", e);
+        }
+    }
+
+    private void removeWrittenEntries(long written) {
+        //removes only fully written entries, leftovers will be retried next iteration
+        int bytesRemoved = 0;
+        while (bytesRemoved < written) {
+            Record2 rec = peek();
+            int recordSize = rec.recordSize();
+            if (bytesRemoved + recordSize <= written) {
+                remove();
+                bytesRemoved += recordSize;
+            }
         }
     }
 

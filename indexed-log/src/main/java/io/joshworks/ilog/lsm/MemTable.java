@@ -1,6 +1,6 @@
 package io.joshworks.ilog.lsm;
 
-import io.joshworks.ilog.index.IndexFunctions;
+import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
 import io.joshworks.ilog.pooled.HeapBlock;
@@ -48,7 +48,7 @@ class MemTable {
         }
     }
 
-    public int apply(ByteBuffer key, ByteBuffer dst, IndexFunctions fn) {
+    public int apply(ByteBuffer key, ByteBuffer dst, IndexFunction fn) {
 
         long stamp = lock.tryOptimisticRead();
         int ppos = dst.position();
@@ -67,7 +67,7 @@ class MemTable {
         }
     }
 
-    private int tryRead(ByteBuffer key, ByteBuffer dst, IndexFunctions fn) {
+    private int tryRead(ByteBuffer key, ByteBuffer dst, IndexFunction fn) {
         Node node = table.apply(key, fn);
         if (node == null) {
             return 0;

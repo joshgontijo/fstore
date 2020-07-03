@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.index.Index;
-import io.joshworks.ilog.index.IndexFunctions;
+import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.BufferRecords;
 import io.joshworks.ilog.record.Record2;
@@ -18,11 +18,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static io.joshworks.ilog.index.Index.NONE;
 
@@ -30,38 +27,23 @@ public class IndexedSegment {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
-    public static long START = 0;
-
-    private final File file;
-    private final int indexSize;
     protected final RowKey comparator;
-    private final FileChannel channel;
+    private final SegmentChannel channel;
     private final long id;
     protected Index index;
+    private final long logStart;
 
-    private final AtomicBoolean readOnly = new AtomicBoolean();
-    private final AtomicLong writePosition = new AtomicLong();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
     private final SegmentLock lock = new SegmentLock();
 
-    public IndexedSegment(File file, int indexSize, RowKey comparator) {
-        this.file = file;
-        this.indexSize = indexSize;
+    public IndexedSegment(File file, int maxEntries, RowKey comparator) {
         this.comparator = comparator;
-        this.index = openIndex(file, indexSize, comparator);
+        //FIXME log start pos
+        this.channel = SegmentChannel.open(file);
+        this.index = new Index(channel, 0, maxEntries, comparator);
+        this.logStart = index.size();
         this.id = LogUtil.segmentId(file.getName());
-        boolean newSegment = FileUtils.createIfNotExists(file);
-        this.readOnly.set(!newSegment);
-        this.channel = openChannel(file);
-        if (!newSegment) {
-            seekEndOfLog();
-        }
-    }
-
-    private Index openIndex(File file, int indexSize, RowKey comparator) {
-        File indexFile = LogUtil.indexFile(file);
-        return new Index(indexFile, indexSize, comparator);
     }
 
     synchronized void reindex() throws IOException {
@@ -89,23 +71,6 @@ public class IndexedSegment {
 
     }
 
-    private FileChannel openChannel(File file) {
-        try {
-            return FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to open segment", e);
-        }
-    }
-
-    private void seekEndOfLog() {
-        try {
-            long size = channel.size();
-            writePosition.set(size);
-            channel.position(size);
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to set position at the of the log");
-        }
-    }
 
     //return number of written items
     public int append(BufferRecords records) {
@@ -135,7 +100,7 @@ public class IndexedSegment {
         return count;
     }
 
-    public int find(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
+    public int find(ByteBuffer key, ByteBuffer dst, IndexFunction func) {
         int idx = index.find(key, func);
         if (idx == NONE) {
             return 0;
@@ -170,7 +135,7 @@ public class IndexedSegment {
      * Read data starting from the position of the given key
      * Data fill dst with available bytes
      */
-    public int bulkRead(ByteBuffer key, ByteBuffer dst, IndexFunctions func) {
+    public int bulkRead(ByteBuffer key, ByteBuffer dst, IndexFunction func) {
         int idx = index.find(key, func);
         if (idx == NONE) {
             return 0;
@@ -189,7 +154,7 @@ public class IndexedSegment {
      */
     public int read(long position, ByteBuffer dst) {
         try {
-            long writePos = writePosition();
+            long writePos = channel.position();
             if (position >= writePos) {
                 return readOnly() ? -1 : 0;
             }
@@ -208,35 +173,21 @@ public class IndexedSegment {
     }
 
     public boolean readOnly() {
-        return readOnly.get();
+        return channel.readOnly();
     }
 
-    public boolean isFull() {
-        return index.isFull();
+    public long start() {
+        return logStart;
     }
 
-    public int remaining() {
-        return index.remaining();
-    }
-
-    public int indexSize() {
-        return index.size();
-    }
-
-    public long entries() {
-        return index.entries();
-    }
-
-    public void forceRoll() throws IOException {
+    public void forceRoll() {
         flush();
-        long fileSize = writePosition();
-        writePosition.set(fileSize);
-        channel.truncate(fileSize);
+        channel.truncate();
         index.complete();
     }
 
-    public void roll() throws IOException {
-        if (!readOnly.compareAndSet(false, true)) {
+    public void roll() {
+        if (!channel.markAsReadOnly()) {
             throw new IllegalStateException("Already read only: " + name());
         }
         forceRoll();
@@ -259,12 +210,12 @@ public class IndexedSegment {
         }
     }
 
-    public String name() {
-        return file.getName();
+    public FileChannel channel() {
+        return channel;
     }
 
-    public File file() {
-        return file;
+    public String name() {
+        return channel.name();
     }
 
     public Index index() {
@@ -281,10 +232,6 @@ public class IndexedSegment {
 
     public long segmentIdx() {
         return LogUtil.segmentIdx(id);
-    }
-
-    public long writePosition() {
-        return writePosition.get();
     }
 
     public synchronized void delete() {
@@ -307,14 +254,9 @@ public class IndexedSegment {
     }
 
     private void doDelete() {
-        try {
-            log.info("Deleting {}", name());
-            channel.close();
-            Files.delete(file.toPath());
-            index.delete();
-        } catch (IOException e) {
-            throw new RuntimeIOException(e);
-        }
+        log.info("Deleting {}", name());
+        channel.delete();
+        index.delete();
     }
 
     public void close() throws IOException {
@@ -325,10 +267,11 @@ public class IndexedSegment {
     @Override
     public String toString() {
         return "IndexedSegment{" +
-                "name=" + file.getName() +
-                ", writePosition=" + writePosition +
-                ", entries=" + entries() +
-                ", indexSize=" + indexSize() +
+                "name=" + name() +
+                ", writePosition=" + channel.position() +
+                ", size=" + size() +
+                ", entries=" + index.entries() +
+                ", indexSize=" + index.size() +
                 '}';
     }
 

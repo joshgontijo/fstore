@@ -1,0 +1,208 @@
+package io.joshworks.ilog;
+
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.util.FileUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+class SegmentChannel extends FileChannel {
+
+    private final File file;
+    private final long start;
+    private final FileChannel delegate;
+    private final AtomicLong writePosition = new AtomicLong();
+    private final AtomicBoolean readOnly = new AtomicBoolean();
+
+    private SegmentChannel(File file, long start, FileChannel delegate) {
+        this.file = file;
+        this.start = start;
+        this.delegate = delegate;
+    }
+
+    static SegmentChannel open(File file, long start) {
+        try {
+            boolean newSegment = FileUtils.createIfNotExists(file);
+
+            FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+            SegmentChannel segmentChannel = new SegmentChannel(file, start, channel);
+            segmentChannel.readOnly.set(!newSegment);
+
+            if (!newSegment) {
+                seekEndOfLog(channel);
+            }
+
+            return segmentChannel;
+
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to open segment", e);
+        }
+    }
+
+    private static void seekEndOfLog(FileChannel channel) {
+        try {
+            channel.position(channel.size());
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to set position at the of the log");
+        }
+    }
+
+    private long update(long written) {
+        if (written > 0) {
+            writePosition.addAndGet(written);
+        }
+        return written;
+    }
+
+    private void checkReadOnly() {
+        if (readOnly()) {
+            throw new IllegalStateException("Segment is read only");
+        }
+    }
+
+    @Override
+    public int read(ByteBuffer dst) throws IOException {
+        return delegate.read(dst);
+    }
+
+    @Override
+    public long read(ByteBuffer[] dsts, int offset, int length) throws IOException {
+        return delegate.read(dsts, offset, length);
+    }
+
+    @Override
+    public int write(ByteBuffer src) throws IOException {
+        checkReadOnly();
+        return (int) update(delegate.write(src));
+    }
+
+    @Override
+    public long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
+        checkReadOnly();
+        return update(delegate.write(srcs, offset, length));
+    }
+
+    @Override
+    public long position() {
+        return writePosition.get();
+    }
+
+    @Override
+    public FileChannel position(long newPosition) throws IOException {
+        checkReadOnly();
+        checkPosition(newPosition);
+        writePosition.set(newPosition);
+        return delegate.position(newPosition);
+    }
+
+    private void checkPosition(long newPosition) {
+        if (newPosition < start) {
+            throw new IllegalArgumentException("Position cannot be less than " + start);
+        }
+    }
+
+    @Override
+    public long size() throws IOException {
+        return delegate.size();
+    }
+
+    @Override
+    public FileChannel truncate(long size) {
+        //internal method call only
+        throw new UnsupportedOperationException("Cannot truncate segment file");
+    }
+
+    @Override
+    public void force(boolean metaData) throws IOException {
+        delegate.force(metaData);
+    }
+
+    @Override
+    public long transferTo(long position, long count, WritableByteChannel target) throws IOException {
+        checkPosition(position);
+        return delegate.transferTo(position, count, target);
+    }
+
+    @Override
+    public long transferFrom(ReadableByteChannel src, long position, long count) throws IOException {
+        checkReadOnly();
+        checkPosition(position);
+        return update(delegate.transferFrom(src, position, count));
+    }
+
+    @Override
+    public int read(ByteBuffer dst, long position) throws IOException {
+        checkPosition(position);
+        return delegate.read(dst, position);
+    }
+
+    @Override
+    public int write(ByteBuffer src, long position) throws IOException {
+        checkReadOnly();
+        checkPosition(position);
+        return (int) update(delegate.write(src, position));
+    }
+
+    @Override
+    public MappedByteBuffer map(MapMode mode, long position, long size) throws IOException {
+        throw new UnsupportedOperationException("Cannot mmap segment");
+    }
+
+    @Override
+    public FileLock lock(long position, long size, boolean shared) throws IOException {
+        checkPosition(position);
+        return delegate.lock(position, size, shared);
+    }
+
+    @Override
+    public FileLock tryLock(long position, long size, boolean shared) throws IOException {
+        checkPosition(position);
+        return delegate.tryLock(position, size, shared);
+    }
+
+    @Override
+    protected void implCloseChannel() throws IOException {
+        delegate.close();
+    }
+
+    void truncate() {
+        try {
+            long pos = writePosition.get();
+            checkPosition(pos);
+            delegate.truncate(pos);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to truncate file");
+        }
+    }
+
+    void delete() {
+        try {
+            delegate.close();
+            Files.delete(file.toPath());
+        } catch (IOException e) {
+            throw new RuntimeIOException(e);
+        }
+    }
+
+    public String name() {
+        return file.getName();
+    }
+
+    boolean markAsReadOnly() {
+        return readOnly.compareAndSet(false, true);
+    }
+
+    boolean readOnly() {
+        return readOnly.get();
+    }
+}

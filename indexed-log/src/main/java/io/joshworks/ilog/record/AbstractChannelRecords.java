@@ -1,6 +1,7 @@
 package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.ilog.IndexedSegment;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -9,8 +10,8 @@ import java.nio.channels.GatheringByteChannel;
 abstract class AbstractChannelRecords extends AbstractRecords {
 
     private StripedBufferPool pool;
-    private BufferRecords records;
-    private ByteBuffer readBuffer;
+    protected BufferRecords records;
+    protected ByteBuffer readBuffer;
     private boolean closed;
 
     AbstractChannelRecords(String poolName) {
@@ -20,6 +21,7 @@ abstract class AbstractChannelRecords extends AbstractRecords {
     protected void init(int bufferSize, StripedBufferPool pool) {
         this.pool = pool;
         this.readBuffer = pool.allocate(bufferSize);
+        this.records = RecordsPool.fromBuffer(poolName(), readBuffer);
     }
 
     protected abstract int read(ByteBuffer readBuffer) throws IOException;
@@ -29,6 +31,9 @@ abstract class AbstractChannelRecords extends AbstractRecords {
             return -1;
         }
         if (records != null) {
+            if (records.hasNext()) {
+                return 0;
+            }
             records.close();
         }
         try {
@@ -52,18 +57,18 @@ abstract class AbstractChannelRecords extends AbstractRecords {
 
     @Override
     public Record2 poll() {
-        if (records == null || records.peek() == null) {
-            readBatch();
+        if (hasNext()) {//using hasNext to trigger readBatch
+            return records.poll();
         }
-        return records == null ? null : records.poll();
+        return null;
     }
 
     @Override
     public Record2 peek() {
         Record2 rec;
-        if (records == null || (rec = records.peek()) == null) {
+        if ((rec = records.peek()) == null) {
             readBatch();
-            rec = records == null ? null : records.peek();
+            rec = records.peek();
         }
         return rec;
     }
@@ -74,32 +79,35 @@ abstract class AbstractChannelRecords extends AbstractRecords {
     }
 
     @Override
-    public long writeTo(GatheringByteChannel channel) {
-        long written = 0;
-        while (readBatch() > 0) {
-            written += records.writeTo(channel);
+    public long writeTo(IndexedSegment segment) {
+        if (hasNext()) {
+            return records.writeTo(segment);
         }
-        return written;
+        return 0;
+    }
+
+    @Override
+    public long writeTo(GatheringByteChannel channel) {
+        if (hasNext()) {
+            return records.writeTo(channel);
+        }
+        return 0;
     }
 
     @Override
     public long writeTo(GatheringByteChannel channel, int count) {
-        long written = 0;
-        int items = 0;
-        if (records != null) {
-            while (records.peek() != null && items < count) {
-                written += records.writeTo(channel);
-                items++;
-            }
+        if (hasNext()) {
+            count = Math.min(count, records.size());
+            return records.writeTo(channel, count);
         }
-        return written;
+        return 0;
     }
-
 
     @Override
     public void close() {
         closed = true;
         pool.free(readBuffer);
+        records.close();
     }
 
 }

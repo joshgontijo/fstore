@@ -1,5 +1,7 @@
 package io.joshworks.ilog.record;
 
+import io.joshworks.ilog.IndexedSegment;
+
 import java.io.Closeable;
 import java.nio.channels.GatheringByteChannel;
 
@@ -7,6 +9,8 @@ public interface Records extends Closeable {
     Record2 poll();
 
     Record2 peek();
+
+    long writeTo(IndexedSegment segment);
 
     long writeTo(GatheringByteChannel channel);
 

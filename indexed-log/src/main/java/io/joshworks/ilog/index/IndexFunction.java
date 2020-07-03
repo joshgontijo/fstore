@@ -2,17 +2,17 @@ package io.joshworks.ilog.index;
 
 import static io.joshworks.ilog.index.Index.NONE;
 
-public abstract class IndexFunctions {
+public abstract class IndexFunction {
 
     public abstract int apply(int idx);
 
-    public static final IndexFunctions EQUALS = new Equals();
-    public static final IndexFunctions FLOOR = new Floor();
-    public static final IndexFunctions CEILING = new Ceiling();
-    public static final IndexFunctions HIGHER = new Higher();
-    public static final IndexFunctions LOWER = new Lower();
+    public static final IndexFunction EQUALS = new Equals();
+    public static final IndexFunction FLOOR = new Floor();
+    public static final IndexFunction CEILING = new Ceiling();
+    public static final IndexFunction HIGHER = new Higher();
+    public static final IndexFunction LOWER = new Lower();
 
-    private static class Equals extends IndexFunctions {
+    private static class Equals extends IndexFunction {
 
         @Override
         public int apply(int idx) {
@@ -20,7 +20,7 @@ public abstract class IndexFunctions {
         }
     }
 
-    private static class Floor extends IndexFunctions {
+    private static class Floor extends IndexFunction {
 
         @Override
         public int apply(int idx) {
@@ -28,7 +28,7 @@ public abstract class IndexFunctions {
         }
     }
 
-    private static class Ceiling extends IndexFunctions {
+    private static class Ceiling extends IndexFunction {
 
         @Override
         public int apply(int idx) {
@@ -36,7 +36,7 @@ public abstract class IndexFunctions {
         }
     }
 
-    private static class Lower extends IndexFunctions {
+    private static class Lower extends IndexFunction {
 
         @Override
         public int apply(int idx) {
@@ -44,7 +44,7 @@ public abstract class IndexFunctions {
         }
     }
 
-    private static class Higher extends IndexFunctions {
+    private static class Higher extends IndexFunction {
 
         @Override
         public int apply(int idx) {
