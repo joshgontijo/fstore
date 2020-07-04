@@ -1,11 +1,10 @@
 package io.joshworks.ilog.index;
 
-import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.Buffers;
-
 import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Objects.requireNonNull;
 
@@ -18,55 +17,38 @@ import static java.util.Objects.requireNonNull;
  * <p>
  * If opening from an existing file, the index is marked as read only.
  * <p>
- * ENTRY FORMAT:
+ * FORMAT:
  * KEY (N bytes)
  * LOG_POS (8 bytes)
- * ENTRY_SIZE (4 bytes)
  */
 public class Index implements Closeable {
 
-    private final MappedRegion region;
+    private final MappedFile mf;
     private final RowKey comparator;
-    private final Header header;
+    private final AtomicBoolean readOnly = new AtomicBoolean();
     public static final int NONE = -1;
 
-    public Index(FileChannel channel, long start, int indexSize, RowKey comparator) {
-        indexSize = align(indexSize);
-        tryResizeChannel(channel, Header.BYTES + indexSize);
+    public static int MAX_SIZE = Integer.MAX_VALUE - 8;
 
+    public Index(File file, int size, RowKey comparator) {
         this.comparator = comparator;
-        this.header = new Header(channel, start);
-        long indexStart = start + Header.BYTES;
-
-        this.region = new MappedRegion(channel, indexStart, indexSize);
-        if (header.completed()) {
-            openIndex(comparator, header, indexSize);
-        }
-    }
-
-    private void tryResizeChannel(FileChannel channel, int regionSize) {
         try {
-            if (channel.size() < regionSize) {
-                channel.truncate(regionSize);
+            boolean newFile = file.createNewFile();
+            if (newFile) {
+                int alignedSize = align(size);
+                this.mf = MappedFile.create(file, alignedSize);
+            } else { //existing file
+                this.mf = MappedFile.open(file);
+                long fileSize = mf.capacity();
+                if (fileSize % entrySize() != 0) {
+                    throw new IllegalStateException("Invalid index file length: " + fileSize);
+                }
+                readOnly.set(true);
             }
-        } catch (Exception e) {
-            throw new RuntimeIOException("Could not extend channel to accomodate index");
+
+        } catch (IOException ioex) {
+            throw new RuntimeException("Failed to create index", ioex);
         }
-    }
-
-    private void openIndex(RowKey comparator, Header header, int indexSize) {
-        int storedIndexSize = header.indexSize();
-        int entries = header.entries();
-        int maxEntries = indexSize / entrySize();
-
-        assert storedIndexSize == indexSize;
-        assert entries >= 0;
-        assert entries <= maxEntries;
-        assert header.keySize() == comparator.keySize();
-
-        int indexPos = entries * entrySize();
-
-        region.position(indexPos); //all information is derived from buffer pos and entry size
     }
 
     public void write(ByteBuffer src, int recordSize, long position) {
@@ -88,14 +70,11 @@ public class Index implements Closeable {
         if (kCount != comparator.keySize()) {
             throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + kCount);
         }
-        region.put(src, kOffset, kCount);
-        region.putLong(position);
-        region.putInt(recordSize);
+        mf.put(src, kOffset, kCount);
+        mf.putLong(position);
+        mf.putInt(recordSize);
     }
 
-    /**
-     * Returns the index of the given key by applying the given {@link IndexFunction}
-     */
     public int find(ByteBuffer key, IndexFunction func) {
         requireNonNull(key, "Key must be provided");
         int remaining = key.remaining();
@@ -110,8 +89,9 @@ public class Index implements Closeable {
         return func.apply(idx);
     }
 
+
     private int binarySearch(ByteBuffer key) {
-        return binarySearch(key, region.buffer(), 0, indexSize(), entrySize(), comparator);
+        return binarySearch(key, mf.buffer(), 0, size(), entrySize(), comparator);
     }
 
     private static int binarySearch(ByteBuffer key, ByteBuffer data, int dataStart, int dataCount, int entrySize, RowKey comparator) {
@@ -140,14 +120,13 @@ public class Index implements Closeable {
         return -(low + 1);
     }
 
-
     public long readPosition(int idx) {
         if (idx < 0 || idx >= entries()) {
             return NONE;
         }
         int startPos = idx * entrySize();
         int positionOffset = startPos + comparator.keySize();
-        return region.getLong(positionOffset);
+        return mf.getLong(positionOffset);
     }
 
     public int readEntrySize(int idx) {
@@ -156,60 +135,66 @@ public class Index implements Closeable {
         }
         int startPos = idx * entrySize();
         int positionOffset = startPos + comparator.keySize() + Long.BYTES;
-        return region.getInt(positionOffset);
+        return mf.getInt(positionOffset);
     }
 
     public boolean isFull() {
-        return remaining() == 0;
+        return mf.position() >= mf.capacity();
     }
 
     public int entries() {
-        return (region.position() / entrySize());
+        //there can be a partial write in the buffer, doing this makes sure it won't be considered
+        int entrySize = entrySize();
+        return (mf.position() / entrySize);
     }
 
-    public void delete() {
-        region.clear();
+    public void delete() throws IOException {
+        mf.delete();
     }
 
-    public boolean readOnly() {
-        return header.completed();
-    }
-
-    public void flush() {
-        region.flush();
-    }
-
-    @Override
-    public void close() {
-        region.close();
-    }
-
-    protected int entrySize() {
-        return keySize() + Long.BYTES + Integer.BYTES;
-    }
-
-    public int keySize() {
-        return comparator.keySize();
+    public void truncate() {
+        mf.truncate(mf.position());
     }
 
     /**
      * Complete this index and mark it as read only.
      */
     public void complete() {
-        header.complete();
+        truncate();
+        readOnly.set(true);
     }
 
-    /**
-     * Actual index size, including HEADER
-     */
+    public void flush() {
+        mf.flush();
+    }
+
+    @Override
+    public void close() {
+        mf.close();
+    }
+
+    protected int entrySize() {
+        return comparator.keySize() + Long.BYTES + Integer.BYTES;
+    }
+
+    public int keySize() {
+        return comparator.keySize();
+    }
+
+    private int align(int size) {
+        int entrySize = entrySize();
+        int aligned = entrySize * (size / entrySize);
+        if (aligned <= 0) {
+            throw new IllegalArgumentException("Invalid index size: " + size);
+        }
+        return aligned;
+    }
+
+    public String name() {
+        return mf.name();
+    }
+
     public int size() {
-        return Header.BYTES + indexSize();
-    }
-
-    /**
-     * Actual index size, excluding HEADER
-     */
-    private int indexSize() {
         return entries() * entrySize();
     }
 
@@ -220,87 +205,10 @@ public class Index implements Closeable {
         if (dst.remaining() != keySize()) {
             throw new RuntimeException("Buffer key length mismatch");
         }
-        region.get(dst, 0, keySize());
+        mf.get(dst, 0, keySize());
     }
 
     public int remaining() {
-        return region.capacity() / entrySize();
+        return mf.capacity() / entrySize();
     }
-
-    private int align(int size) {
-        int entrySize = entrySize();
-        int aligned = entrySize * (size / entrySize);
-        if (aligned <= 0 || aligned > size) {
-            throw new IllegalArgumentException("Invalid index size: " + size);
-        }
-        return aligned;
-    }
-
-    private class Header {
-
-        private static final int BYTES = (Integer.BYTES * 4) + Byte.BYTES;
-
-        private final ByteBuffer buffer = Buffers.allocate(BYTES, false);
-        private final FileChannel channel;
-        private final long position;
-
-        private static final int INDEX_CAPACITY = 0;
-        private static final int COMPLETED_FLAG = INDEX_CAPACITY + Integer.BYTES;
-        private static final int ENTRIES = COMPLETED_FLAG + Byte.BYTES;
-        private static final int INDEX_SIZE = ENTRIES + Integer.BYTES;
-        private static final int KEY_SIZE = INDEX_SIZE + Integer.BYTES;
-
-        private Header(FileChannel channel, long position) {
-            this.channel = channel;
-            this.position = position;
-            try {
-                int read = channel.read(buffer, position);
-                if (read < buffer.capacity()) {
-                    throw new IllegalStateException("Invalid header size");
-                }
-                buffer.flip();
-            } catch (Exception e) {
-                throw new RuntimeIOException("Failed to read index header", e);
-            }
-        }
-
-        public void complete() {
-            buffer.clear();
-            buffer.putInt(INDEX_CAPACITY, region.capacity()); //INDEX_CAPACITY
-            buffer.put(COMPLETED_FLAG, (byte) 1); //COMPLETED_FLAG
-            buffer.putInt(ENTRIES, entries()); //ENTRIES
-            buffer.putInt(INDEX_SIZE, indexSize()); //INDEX_SIZE
-            buffer.putInt(KEY_SIZE, comparator.keySize()); //KEY_SIZE
-            try {
-                int written = channel.write(buffer, position);
-                if (written != BYTES) {
-                    throw new IllegalStateException("Expected bytes written: " + BYTES + ", got: " + written);
-                }
-            } catch (Exception e) {
-                throw new RuntimeIOException("Failed to write index header");
-            }
-        }
-
-        private int indexSize() {
-            return buffer.getInt(INDEX_CAPACITY);
-        }
-
-        private boolean completed() {
-            return buffer.get(COMPLETED_FLAG) == 1;
-        }
-
-        private int indexUtilized() {
-            return buffer.getInt(INDEX_SIZE);
-        }
-
-        private int keySize() {
-            return buffer.getInt(KEY_SIZE);
-        }
-
-        private int entries() {
-            return buffer.getInt(ENTRIES);
-        }
-
-    }
-
 }
