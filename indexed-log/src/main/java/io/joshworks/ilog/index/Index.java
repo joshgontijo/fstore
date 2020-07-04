@@ -30,8 +30,8 @@ public class Index implements Closeable {
     private final Header header;
     public static final int NONE = -1;
 
-    public Index(FileChannel channel, long start, int maxEntries, RowKey comparator) {
-        int indexSize = calculateIndexSize(maxEntries);
+    public Index(FileChannel channel, long start, int indexSize, RowKey comparator) {
+        indexSize = align(indexSize);
         tryResizeChannel(channel, Header.BYTES + indexSize);
 
         this.comparator = comparator;
@@ -40,7 +40,7 @@ public class Index implements Closeable {
 
         this.region = new MappedRegion(channel, indexStart, indexSize);
         if (header.completed()) {
-            openIndex(comparator, header, maxEntries, indexSize);
+            openIndex(comparator, header, indexSize);
         }
     }
 
@@ -54,9 +54,10 @@ public class Index implements Closeable {
         }
     }
 
-    private void openIndex(RowKey comparator, Header header, int maxEntries, int indexSize) {
+    private void openIndex(RowKey comparator, Header header, int indexSize) {
         int storedIndexSize = header.indexSize();
         int entries = header.entries();
+        int maxEntries = indexSize / entrySize();
 
         assert storedIndexSize == indexSize;
         assert entries >= 0;
@@ -226,8 +227,13 @@ public class Index implements Closeable {
         return region.capacity() / entrySize();
     }
 
-    private int calculateIndexSize(int entries) {
-        return entries * entrySize();
+    private int align(int size) {
+        int entrySize = entrySize();
+        int aligned = entrySize * (size / entrySize);
+        if (aligned <= 0 || aligned > size) {
+            throw new IllegalArgumentException("Invalid index size: " + size);
+        }
+        return aligned;
     }
 
     private class Header {

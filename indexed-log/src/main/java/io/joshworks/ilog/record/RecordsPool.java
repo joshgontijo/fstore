@@ -33,7 +33,7 @@ public class RecordsPool {
 
         poolConfig.put(config.poolName, config);
 
-        StripedBufferPool pool = new StripedBufferPool(config.maxRecordSize, config.directBuffers, config.poolStripes);
+        StripedBufferPool pool = new StripedBufferPool(config.pollMaxSizeInBytes, config.directBuffers, config.poolStripes);
         pools.put(config.poolName, pool);
 
     }
@@ -65,6 +65,11 @@ public class RecordsPool {
         records.init(config.readBufferSize, pool, channel);
         return records;
     }
+
+    public static SegmentRecords fromSegment(IndexedSegment segment) {
+        return fromSegment("", segment, segment.start());
+    }
+
 
     public static SegmentRecords fromSegment(String name, IndexedSegment segment, long startPos) {
         StripedBufferPool pool = pools.get(name);

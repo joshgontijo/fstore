@@ -31,17 +31,15 @@ public class IndexedSegment {
     private final SegmentChannel channel;
     private final long id;
     protected Index index;
-    private final long logStart;
 
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
     private final SegmentLock lock = new SegmentLock();
 
-    public IndexedSegment(File file, int maxEntries, RowKey comparator) {
+    public IndexedSegment(File file, int indexSize, RowKey comparator) {
         this.comparator = comparator;
-        //FIXME log start pos
-        this.channel = SegmentChannel.open(file);
-        this.index = new Index(channel, 0, maxEntries, comparator);
+        this.channel = SegmentChannel.open(file, indexSize); //index will align (round down) size
+        this.index = new Index(channel, 0, indexSize, comparator);
         this.logStart = index.size();
         this.id = LogUtil.segmentId(file.getName());
     }
@@ -69,35 +67,6 @@ public class IndexedSegment {
             log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
         }
 
-    }
-
-
-    //return number of written items
-    public int append(BufferRecords records) {
-        if (isFull()) {
-            throw new IllegalStateException("Index is full");
-        }
-        if (readOnly()) {
-            throw new IllegalStateException("Segment is read only");
-        }
-        if (records.size() == 0) {
-            return 0;
-        }
-
-        long recordPos = writePosition();
-
-        int count = Math.min(remaining(), records.size());
-        long written = records.writeTo(channel, count);
-
-        for (int i = 0; i < count; i++) {
-            try (Record2 rec = records.poll()) {
-                index.write(rec, recordPos);
-                recordPos += rec.recordSize();
-            }
-        }
-
-        writePosition.getAndAdd(written);
-        return count;
     }
 
     public int find(ByteBuffer key, ByteBuffer dst, IndexFunction func) {
@@ -176,10 +145,6 @@ public class IndexedSegment {
         return channel.readOnly();
     }
 
-    public long start() {
-        return logStart;
-    }
-
     public void forceRoll() {
         flush();
         channel.truncate();
@@ -208,6 +173,10 @@ public class IndexedSegment {
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to flush segment", e);
         }
+    }
+
+    public long start() {
+        return channel.start();
     }
 
     public FileChannel channel() {

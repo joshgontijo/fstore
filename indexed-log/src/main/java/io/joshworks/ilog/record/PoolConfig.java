@@ -9,7 +9,7 @@ public class PoolConfig {
 
     final String poolName;
     final RowKey rowKey;
-    int maxRecordSize = Size.MB.ofInt(1);
+    int pollMaxSizeInBytes = Size.MB.ofInt(1);
     int batchSize = 100;
     boolean directBuffers;
     int readBufferSize = Size.KB.ofInt(8);
@@ -37,8 +37,8 @@ public class PoolConfig {
         return new PoolConfig(poolName, rowKey);
     }
 
-    public PoolConfig maxRecordSize(int maxRecordSize) {
-        this.maxRecordSize = maxRecordSize;
+    public PoolConfig pollMaxSizeInBytes(int pollMaxSizeInBytes) {
+        this.pollMaxSizeInBytes = pollMaxSizeInBytes;
         return this;
     }
 

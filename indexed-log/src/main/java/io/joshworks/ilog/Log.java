@@ -31,16 +31,9 @@ public class Log<T extends IndexedSegment> {
                FlushMode flushMode,
                RowKey rowKey,
                SegmentFactory<T> segmentFactory) throws IOException {
+
         FileUtils.createDir(root);
         this.flushMode = flushMode;
-
-        if (indexSize > Index.MAX_SIZE) {
-            throw new IllegalArgumentException("Index cannot be greater than " + Index.MAX_SIZE);
-        }
-
-        if (!root.isDirectory()) {
-            throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
-        }
         this.view = new View<>(root, rowKey, indexSize, segmentFactory);
         this.compactor = new Compactor<>(view, new ConcatenateCombiner(), compactionThreshold, compactionThreads);
     }
