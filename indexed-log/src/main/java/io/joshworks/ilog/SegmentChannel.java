@@ -28,11 +28,11 @@ class SegmentChannel extends FileChannel {
         this.delegate = delegate;
     }
 
-    static SegmentChannel open(File file, long startPos) {
+    public static SegmentChannel open(File file) {
         try {
             boolean newSegment = FileUtils.createIfNotExists(file);
             FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-            SegmentChannel segmentChannel = new SegmentChannel(file, startPos, channel);
+            SegmentChannel segmentChannel = new SegmentChannel(file, channel);
             segmentChannel.readOnly.set(!newSegment);
 
             if (!newSegment) {
@@ -187,9 +187,5 @@ class SegmentChannel extends FileChannel {
 
     boolean readOnly() {
         return readOnly.get();
-    }
-
-    public long start() {
-        return start;
     }
 }

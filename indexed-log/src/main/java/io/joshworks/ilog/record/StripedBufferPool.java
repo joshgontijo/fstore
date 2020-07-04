@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class StripedBufferPool {
 
-    private final long maxSizeInBytes;
+    private final long maxSize;
     private final boolean direct;
 
     private final AtomicLong totalAllocated = new AtomicLong();
@@ -25,9 +25,11 @@ public class StripedBufferPool {
     private final Map<Integer, AtomicInteger> allocated = new HashMap<>();
     private final Map<Integer, AtomicInteger> inUse = new HashMap<>();
 
-    public StripedBufferPool(int maxSizeInBytes, boolean direct, Set<Integer> stripes) {
+    public StripedBufferPool(int maxSize, boolean direct, Set<Integer> stripes) {
+        this.maxSize = maxSize;
         this.direct = direct;
-        this.maxSizeInBytes = maxSizeInBytes;
+
+        stripes.add(maxSize);
 
         for (int stripe : stripes) {
             pools.put(stripe, new ArrayDeque<>());
@@ -69,8 +71,8 @@ public class StripedBufferPool {
 
 
     private ByteBuffer allocateBuffer(int size) {
-        if (totalAllocated.get() + size > maxSizeInBytes) {
-            System.err.println("BUFFER POOL CAPACITY EXCEEDED: " + totalAllocated.get() + ", CAPACITY: " + maxSizeInBytes);
+        if (totalAllocated.get() + size > maxSize) {
+            System.err.println("BUFFER POOL CAPACITY EXCEEDED: " + totalAllocated.get() + ", CAPACITY: " + maxSize);
         }
         ByteBuffer buffer = Buffers.allocate(size, direct);
 

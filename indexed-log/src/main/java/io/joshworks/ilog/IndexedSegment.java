@@ -105,10 +105,6 @@ public class IndexedSegment {
         }
     }
 
-    public long start() {
-        return channel.start();
-    }
-
     public FileChannel channel() {
         return channel;
     }
