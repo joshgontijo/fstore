@@ -19,21 +19,18 @@ import java.util.concurrent.atomic.AtomicLong;
 class SegmentChannel extends FileChannel {
 
     private final File file;
-    private final long start;
     private final FileChannel delegate;
     private final AtomicLong writePosition = new AtomicLong();
     private final AtomicBoolean readOnly = new AtomicBoolean();
 
-    private SegmentChannel(File file, long start, FileChannel delegate) {
+    private SegmentChannel(File file, FileChannel delegate) {
         this.file = file;
-        this.start = start;
         this.delegate = delegate;
     }
 
     static SegmentChannel open(File file, long startPos) {
         try {
             boolean newSegment = FileUtils.createIfNotExists(file);
-
             FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
             SegmentChannel segmentChannel = new SegmentChannel(file, startPos, channel);
             segmentChannel.readOnly.set(!newSegment);
@@ -100,15 +97,8 @@ class SegmentChannel extends FileChannel {
     @Override
     public FileChannel position(long newPosition) throws IOException {
         checkReadOnly();
-        checkPosition(newPosition);
         writePosition.set(newPosition);
         return delegate.position(newPosition);
-    }
-
-    private void checkPosition(long newPosition) {
-        if (newPosition < start) {
-            throw new IllegalArgumentException("Position cannot be less than " + start);
-        }
     }
 
     @Override
@@ -129,27 +119,23 @@ class SegmentChannel extends FileChannel {
 
     @Override
     public long transferTo(long position, long count, WritableByteChannel target) throws IOException {
-        checkPosition(position);
         return delegate.transferTo(position, count, target);
     }
 
     @Override
     public long transferFrom(ReadableByteChannel src, long position, long count) throws IOException {
         checkReadOnly();
-        checkPosition(position);
         return update(delegate.transferFrom(src, position, count));
     }
 
     @Override
     public int read(ByteBuffer dst, long position) throws IOException {
-        checkPosition(position);
         return delegate.read(dst, position);
     }
 
     @Override
     public int write(ByteBuffer src, long position) throws IOException {
         checkReadOnly();
-        checkPosition(position);
         return (int) update(delegate.write(src, position));
     }
 
@@ -160,13 +146,11 @@ class SegmentChannel extends FileChannel {
 
     @Override
     public FileLock lock(long position, long size, boolean shared) throws IOException {
-        checkPosition(position);
         return delegate.lock(position, size, shared);
     }
 
     @Override
     public FileLock tryLock(long position, long size, boolean shared) throws IOException {
-        checkPosition(position);
         return delegate.tryLock(position, size, shared);
     }
 
@@ -178,7 +162,6 @@ class SegmentChannel extends FileChannel {
     void truncate() {
         try {
             long pos = writePosition.get();
-            checkPosition(pos);
             delegate.truncate(pos);
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to truncate file");

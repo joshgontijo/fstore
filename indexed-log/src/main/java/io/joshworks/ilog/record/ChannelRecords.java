@@ -8,12 +8,12 @@ public class ChannelRecords extends AbstractChannelRecords {
 
     private ReadableByteChannel src;
 
-    ChannelRecords(String poolName) {
-        super(poolName);
+    ChannelRecords(RecordPool pool) {
+        super(pool);
     }
 
-    void init(int bufferSize, StripedBufferPool pool, ReadableByteChannel src) {
-        super.init(bufferSize, pool);
+    void init(int bufferSize, ReadableByteChannel src) {
+        super.init(bufferSize);
         this.src = src;
     }
 

@@ -3,6 +3,7 @@ package io.joshworks.ilog.record;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.Record;
+import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 
 import java.io.Closeable;
@@ -52,6 +53,12 @@ public class Record2 implements Comparable<Record2>, Closeable {
 
     public int checksum() {
         return data.getInt(data.position() + CHECKSUM_OFFSET);
+    }
+
+    public int writeToIndex(Index index, long recordPos) {
+        int recSize = recordSize();
+        index.write(data, Record2.KEY_OFFSET, keySize(), recSize, recordPos);
+        return recSize;
     }
 
     int valueOffset() {

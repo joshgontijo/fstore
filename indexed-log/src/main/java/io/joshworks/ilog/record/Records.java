@@ -16,7 +16,5 @@ public interface Records extends Closeable {
 
     long writeTo(GatheringByteChannel channel, int count);
 
-    String poolName();
-
     boolean hasNext();
 }

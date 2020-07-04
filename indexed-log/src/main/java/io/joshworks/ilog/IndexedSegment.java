@@ -2,14 +2,12 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.BufferRecords;
 import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
-import io.joshworks.ilog.record.RecordsPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +25,11 @@ public class IndexedSegment {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
-    protected final RowKey comparator;
+    public static int START = 0;
+
+    private final File file;
+    private final RowKey rowKey;
+    private final RecordPool pool;
     private final SegmentChannel channel;
     private final long id;
     protected Index index;
@@ -36,32 +38,37 @@ public class IndexedSegment {
 
     private final SegmentLock lock = new SegmentLock();
 
-    public IndexedSegment(File file, int indexSize, RowKey comparator) {
-        this.comparator = comparator;
-        this.channel = SegmentChannel.open(file, indexSize); //index will align (round down) size
-        this.index = new Index(channel, 0, indexSize, comparator);
-        this.logStart = index.size();
+    public IndexedSegment(File file, int indexSize, RecordPool pool) {
+        this.file = file;
+        this.pool = pool;
+        this.rowKey = pool.rowKey();
+        this.index = openIndex(file, indexSize, rowKey);
         this.id = LogUtil.segmentId(file.getName());
+        this.channel = SegmentChannel.open(file);
+        ;
+    }
+
+    private Index openIndex(File file, int indexSize, RowKey comparator) {
+        File indexFile = LogUtil.indexFile(file);
+        return new Index(indexFile, indexSize, comparator);
     }
 
     synchronized void reindex() throws IOException {
-        log.info("Reindexing {}", name());
+        log.info("Reindexing {}", index.name());
 
+        int indexCapacity = index.capacity();
         index.delete();
-        File indexFile = LogUtil.indexFile(file);
-        FileUtils.deleteIfExists(indexFile);
-        this.index = openIndex(indexFile, indexSize, comparator);
+        this.index = openIndex(file, indexCapacity, rowKey);
 
         long start = System.currentTimeMillis();
 
-        try (Records records = RecordsPool.fromSegment("segment", this, START)) {
+        try (Records records = pool.fromSegment(this)) {
             int processed = 0;
 
-            long position = START;
+            long recordPos = 0;
             while (records.hasNext()) {
                 Record2 record = records.poll();
-                index.write(record, position);
-                position += record.recordSize();
+                recordPos += record.writeToIndex(index, recordPos);
                 processed++;
             }
             log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
@@ -96,23 +103,6 @@ public class IndexedSegment {
             return read;
         } catch (Exception e) {
             dst.limit(plim).position(ppos);
-            throw new RuntimeIOException(e);
-        }
-    }
-
-    /**
-     * Read data starting from the position of the given key
-     * Data fill dst with available bytes
-     */
-    public int bulkRead(ByteBuffer key, ByteBuffer dst, IndexFunction func) {
-        int idx = index.find(key, func);
-        if (idx == NONE) {
-            return 0;
-        }
-        try {
-            long pos = index.readPosition(idx);
-            return read(pos, dst);
-        } catch (Exception e) {
             throw new RuntimeIOException(e);
         }
     }

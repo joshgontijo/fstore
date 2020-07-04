@@ -46,7 +46,6 @@ public class MappedFile extends MappedRegion {
         }
     }
 
-    //TODO remove ?
     public MappedByteBuffer buffer() {
         return mbb;
     }

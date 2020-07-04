@@ -1,5 +1,7 @@
 package io.joshworks.ilog.index;
 
+import io.joshworks.fstore.core.RuntimeIOException;
+
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -148,8 +150,12 @@ public class Index implements Closeable {
         return (mf.position() / entrySize);
     }
 
-    public void delete() throws IOException {
-        mf.delete();
+    public void delete() {
+        try {
+            mf.delete();
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to delete index");
+        }
     }
 
     public void truncate() {
@@ -196,6 +202,10 @@ public class Index implements Closeable {
 
     public int size() {
         return entries() * entrySize();
+    }
+
+    public int capacity() {
+        return mf.capacity();
     }
 
     public void first(ByteBuffer dst) {

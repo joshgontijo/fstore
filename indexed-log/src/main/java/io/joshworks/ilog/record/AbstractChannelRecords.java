@@ -9,19 +9,17 @@ import java.nio.channels.GatheringByteChannel;
 
 abstract class AbstractChannelRecords extends AbstractRecords {
 
-    private StripedBufferPool pool;
     protected BufferRecords records;
     protected ByteBuffer readBuffer;
     private boolean closed;
 
-    AbstractChannelRecords(String poolName) {
-        super(poolName);
+    AbstractChannelRecords(RecordPool bufferPool) {
+        super(bufferPool);
     }
 
-    protected void init(int bufferSize, StripedBufferPool pool) {
-        this.pool = pool;
+    protected void init(int bufferSize) {
         this.readBuffer = pool.allocate(bufferSize);
-        this.records = RecordsPool.fromBuffer(poolName(), readBuffer);
+        this.records = pool.fromBuffer(readBuffer);
     }
 
     protected abstract int read(ByteBuffer readBuffer) throws IOException;
@@ -46,7 +44,7 @@ abstract class AbstractChannelRecords extends AbstractRecords {
                 return 0;
             }
             readBuffer.flip();
-            records = RecordsPool.fromBuffer(poolName(), readBuffer);
+            records = pool.fromBuffer(readBuffer);
             readBuffer.compact();
 
             return read;

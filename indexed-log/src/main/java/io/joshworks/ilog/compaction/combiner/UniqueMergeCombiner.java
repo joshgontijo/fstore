@@ -5,7 +5,7 @@ import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.SegmentIterator;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.RecordsPool;
+import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.BufferRecords;
 
 import java.nio.ByteBuffer;
@@ -82,7 +82,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         if (recordBuffer.fromBuffer(nextEntry) == 0) {
             output.append(recordBuffer, 0);
             recordBuffer.close();
-            recordBuffer = RecordsPool.get("TODO - DEFINE");
+            recordBuffer = RecordPool.get("TODO - DEFINE");
         }
 
     }

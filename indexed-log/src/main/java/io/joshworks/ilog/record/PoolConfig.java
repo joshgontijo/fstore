@@ -7,9 +7,8 @@ import java.util.Set;
 
 public class PoolConfig {
 
-    final String poolName;
     final RowKey rowKey;
-    int pollMaxSizeInBytes = Size.MB.ofInt(1);
+    int pollMaxSizeInBytes = Size.MB.ofInt(20);
     int batchSize = 100;
     boolean directBuffers;
     int readBufferSize = Size.KB.ofInt(8);
@@ -28,13 +27,8 @@ public class PoolConfig {
             Size.MB.ofInt(1),
             Size.MB.ofInt(5));
 
-    PoolConfig(String poolName, RowKey rowKey) {
-        this.poolName = poolName;
+    PoolConfig(RowKey rowKey) {
         this.rowKey = rowKey;
-    }
-
-    public static PoolConfig create(String poolName, RowKey rowKey) {
-        return new PoolConfig(poolName, rowKey);
     }
 
     public PoolConfig pollMaxSizeInBytes(int pollMaxSizeInBytes) {
@@ -64,4 +58,10 @@ public class PoolConfig {
         this.poolStripes = stripes;
         return this;
     }
+
+    public RecordPool build() {
+        StripedBufferPool pool = new StripedBufferPool(pollMaxSizeInBytes, directBuffers, poolStripes);
+        return new RecordPool(pool, rowKey, readBufferSize, batchSize);
+    }
+
 }

@@ -2,14 +2,10 @@ package io.joshworks.ilog.record;
 
 abstract class AbstractRecords implements Records {
 
-    private final String poolName;
+    protected final RecordPool pool;
 
-    AbstractRecords(String poolName) {
-        this.poolName = poolName;
+    AbstractRecords(RecordPool pool) {
+        this.pool = pool;
     }
 
-    @Override
-    public String poolName() {
-        return poolName;
-    }
 }

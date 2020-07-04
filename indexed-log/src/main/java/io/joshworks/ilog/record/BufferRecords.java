@@ -24,20 +24,16 @@ public class BufferRecords extends AbstractRecords {
     //the object cache where all instances should return to
     private final Queue<Record2> cache = new ArrayDeque<>();
 
-    //The buffer poll where all data should return to
-    private final StripedBufferPool pool;
-
     //temp holder for buffers so it can gather write to a channel
     private final ByteBuffer[] tmp;
 
     protected final RowKey rowKey;
     private int totalSize;
 
-    BufferRecords(String poolName, RowKey rowKey, int maxItems, StripedBufferPool pool) {
-        super(poolName);
+    BufferRecords(RecordPool pool, RowKey rowKey, int maxItems) {
+        super(pool);
         this.tmp = new ByteBuffer[maxItems];
         this.rowKey = rowKey;
-        this.pool = pool;
     }
 
     //copied the record into this pool
@@ -148,7 +144,7 @@ public class BufferRecords extends AbstractRecords {
     public void close() {
         for (Record2 record : records) {
             release(record);
-            RecordsPool.free(this);
+            pool.free(this);
         }
         records.clear();
         totalSize = 0;
@@ -156,7 +152,7 @@ public class BufferRecords extends AbstractRecords {
 
     void release(Record2 record) {
         if (record.owner != this) {
-            throw new IllegalArgumentException("Record pool " + this.poolName() + "not owner of this record: pool name " + record.owner.poolName());
+            throw new IllegalArgumentException("Record pool not owner of this record");
         }
 
         Record2 first = records.peek();
@@ -209,9 +205,7 @@ public class BufferRecords extends AbstractRecords {
                 //poll entries and add to index
                 for (int i = 0; i < count; i++) {
                     try (Record2 rec = poll()) {
-                        int recSize = rec.recordSize();
-                        index.write(rec.data, Record2.KEY_OFFSET, rec.keySize(), recSize, recordPos);
-                        recordPos += recSize;
+                        recordPos += rec.writeToIndex(index, recordPos);
                     }
                 }
             }

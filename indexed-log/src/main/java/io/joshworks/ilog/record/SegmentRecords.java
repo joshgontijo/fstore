@@ -11,12 +11,12 @@ public class SegmentRecords extends AbstractChannelRecords {
     private IndexedSegment segment;
     private long readPos;
 
-    SegmentRecords(String poolName) {
-        super(poolName);
+    SegmentRecords(RecordPool pool) {
+        super(pool);
     }
 
-    void init(int bufferSize, StripedBufferPool pool, IndexedSegment segment, long startPos) {
-        super.init(bufferSize, pool);
+    void init(int bufferSize, IndexedSegment segment, long startPos) {
+        super.init(bufferSize);
         this.segment = segment;
         this.readPos = startPos;
     }
