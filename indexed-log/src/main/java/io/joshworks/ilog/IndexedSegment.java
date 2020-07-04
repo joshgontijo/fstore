@@ -1,9 +1,7 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.index.Index;
-import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.RecordPool;
@@ -14,12 +12,9 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static io.joshworks.ilog.index.Index.NONE;
 
 public class IndexedSegment {
 
@@ -74,61 +69,6 @@ public class IndexedSegment {
             log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
         }
 
-    }
-
-    public int find(ByteBuffer key, ByteBuffer dst, IndexFunction func) {
-        int idx = index.find(key, func);
-        if (idx == NONE) {
-            return 0;
-        }
-
-        int plim = dst.limit();
-        int ppos = dst.position();
-        try {
-            long pos = index.readPosition(idx);
-            int len = index.readEntrySize(idx);
-
-            if (len > dst.remaining()) {
-                throw new IllegalStateException("Destination buffer remaining bytes is less than entry size");
-            }
-
-            Buffers.offsetLimit(dst, len);
-
-            int read = read(pos, dst);
-            if (read != len) {
-                throw new IllegalStateException("Expected read of " + len + " actual read: " + read);
-            }
-            dst.limit(plim);
-
-            return read;
-        } catch (Exception e) {
-            dst.limit(plim).position(ppos);
-            throw new RuntimeIOException(e);
-        }
-    }
-
-    /**
-     * Reads a single entry for the given offset, read is performed with a single IO call
-     * with a buffer of size specified by readSize. If the buffer is too small for the entry, then a new one is created and
-     */
-    public int read(long position, ByteBuffer dst) {
-        try {
-            long writePos = channel.position();
-            if (position >= writePos) {
-                return readOnly() ? -1 : 0;
-            }
-
-            int count = (int) Math.min(dst.remaining(), writePos - position);
-            assert count > 0;
-            int plim = dst.limit();
-            Buffers.offsetLimit(dst, count);
-            int read = channel.read(dst, position);
-            dst.limit(plim);
-            assert read == count;
-            return read;
-        } catch (IOException e) {
-            throw new RuntimeIOException(e);
-        }
     }
 
     public boolean readOnly() {

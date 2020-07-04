@@ -1,15 +1,20 @@
 package io.joshworks.ilog.record;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
+import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayDeque;
 import java.util.Queue;
+
+import static io.joshworks.ilog.index.Index.NONE;
 
 public class RecordPool {
 
@@ -38,7 +43,10 @@ public class RecordPool {
         return rowKey;
     }
 
-    public BufferRecords fromBuffer(ByteBuffer data) {
+    public Records fromBuffer(ByteBuffer data) {
+        if (!data.hasRemaining()) {
+            return Records.EMPTY;
+        }
         BufferRecords records = getBufferRecords();
 
         int i = 0;
@@ -51,24 +59,49 @@ public class RecordPool {
             records.add(recData);
             i++;
         }
+        if (i == 0) {
+            return Records.EMPTY;
+        }
+
         Buffers.offsetPosition(data, copied);
         return records;
     }
 
-    public AbstractChannelRecords fromChannel(ReadableByteChannel channel) {
+    public Records fromChannel(ReadableByteChannel channel) {
         ChannelRecords records = getChannelRecords();
         records.init(readBufferSize, channel);
         return records;
     }
 
-    public SegmentRecords fromSegment(IndexedSegment segment) {
+    public Records fromSegment(IndexedSegment segment) {
         return fromSegment(segment, IndexedSegment.START);
     }
 
-    public SegmentRecords fromSegment(IndexedSegment segment, long startPos) {
+    public Records fromSegment(IndexedSegment segment, long startPos) {
         SegmentRecords records = getSegmentRecords();
         records.init(readBufferSize, segment, startPos);
         return records;
+    }
+
+    public Records read(IndexedSegment segment, ByteBuffer key, IndexFunction func) {
+        Index index = segment.index();
+        int idx = index.find(key, func);
+        if (idx == NONE) {
+            return Records.EMPTY;
+        }
+        long pos = index.readPosition(idx);
+        int len = index.readEntrySize(idx);
+
+        ByteBuffer buffer = allocate(len);
+        try {
+            segment.channel().read(buffer, pos);
+            buffer.flip();
+            return fromBuffer(buffer);
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to read entry", e);
+        } finally {
+            free(buffer);
+        }
     }
 
     private BufferRecords getBufferRecords() {

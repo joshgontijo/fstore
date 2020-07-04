@@ -230,7 +230,6 @@ public class BufferRecords extends AbstractRecords {
     @Override
     public long writeTo(GatheringByteChannel channel, int count) {
         try {
-
             long totalWritten = 0;
             while (hasNext()) {
                 buffers.toArray(tmp);

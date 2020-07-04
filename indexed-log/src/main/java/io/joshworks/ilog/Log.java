@@ -7,6 +7,7 @@ import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.Records;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,12 +39,11 @@ public class Log<T extends IndexedSegment> {
         this.compactor = new Compactor<>(view, new ConcatenateCombiner(), compactionThreshold, compactionThreads);
     }
 
-    public void append(BufferRecords records) {
+    public void append(Records records) {
         try {
             while (records.hasNext()) {
                 IndexedSegment head = getHeadOrRoll();
                 records.writeTo(head);
-//                head.append(records);
             }
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to append entry", e);
@@ -56,7 +56,7 @@ public class Log<T extends IndexedSegment> {
 
     private IndexedSegment getHeadOrRoll() {
         IndexedSegment head = view.head();
-        if (head.isFull()) {
+        if (head.index().isFull()) {
             head = roll(head);
         }
         return head;

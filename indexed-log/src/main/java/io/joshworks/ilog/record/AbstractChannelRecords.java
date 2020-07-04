@@ -9,7 +9,7 @@ import java.nio.channels.GatheringByteChannel;
 
 abstract class AbstractChannelRecords extends AbstractRecords {
 
-    protected BufferRecords records;
+    protected Records records;
     protected ByteBuffer readBuffer;
     private boolean closed;
 
@@ -78,7 +78,7 @@ abstract class AbstractChannelRecords extends AbstractRecords {
 
     @Override
     public long writeTo(IndexedSegment segment) {
-        if (hasNext()) {
+        if (hasNext()) { //just to trigger read if buffer is empty
             return records.writeTo(segment);
         }
         return 0;
@@ -86,7 +86,7 @@ abstract class AbstractChannelRecords extends AbstractRecords {
 
     @Override
     public long writeTo(GatheringByteChannel channel) {
-        if (hasNext()) {
+        if (hasNext()) { //just to trigger read if buffer is empty
             return records.writeTo(channel);
         }
         return 0;
@@ -94,8 +94,7 @@ abstract class AbstractChannelRecords extends AbstractRecords {
 
     @Override
     public long writeTo(GatheringByteChannel channel, int count) {
-        if (hasNext()) {
-            count = Math.min(count, records.size());
+        if (hasNext()) { //just to trigger read if buffer is empty
             return records.writeTo(channel, count);
         }
         return 0;

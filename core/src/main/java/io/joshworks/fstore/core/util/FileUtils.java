@@ -51,13 +51,14 @@ public class FileUtils {
     /**
      * returns true if the file was created, false otherwise
      */
-    public static boolean createDir(File file) {
+    public static void createDir(File file) {
         try {
             if (!Files.exists(file.toPath())) {
                 Files.createDirectory(file.toPath());
-                return true;
             }
-            return false;
+            if (!file.isDirectory()) {
+                throw new IllegalArgumentException("Not a directory: " + file.getAbsoluteFile());
+            }
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to create " + file, e);
         }

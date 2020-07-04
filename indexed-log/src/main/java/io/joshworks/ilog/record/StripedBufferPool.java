@@ -35,7 +35,6 @@ public class StripedBufferPool {
         }
     }
 
-
     ByteBuffer allocate(int size) {
         var entry = pools.ceilingEntry(size);
         if (entry == null) {

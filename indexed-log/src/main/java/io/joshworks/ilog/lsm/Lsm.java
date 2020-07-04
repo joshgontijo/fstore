@@ -14,7 +14,7 @@ import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.pooled.HeapBlock;
 import io.joshworks.ilog.pooled.ObjectPool;
-import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.Records;
 
 import java.io.File;
 import java.io.IOException;
@@ -88,12 +88,15 @@ public class Lsm {
         return new Builder(root, comparator);
     }
 
-    public void append(BufferRecords records) {
-        tlog.append(records);
-        writeToMemTable(records);
+    public void append(Records records) {
+        while (records.hasNext()) {
+            tlog.append(records);
+            writeToMemTable(records);
+        }
+
     }
 
-    private void writeToMemTable(BufferRecords records) {
+    private void writeToMemTable(Records records) {
         int inserted = 0;
         while (inserted < records.size()) {
             int i = memTable.add(records, inserted);

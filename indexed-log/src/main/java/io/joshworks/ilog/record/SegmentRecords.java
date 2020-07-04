@@ -23,26 +23,34 @@ public class SegmentRecords extends AbstractChannelRecords {
 
     @Override
     protected int read(ByteBuffer readBuffer) {
-        int read = segment.read(readPos, readBuffer);
-        readPos += read;
-        return read;
+        try {
+            int read = segment.channel().read(readBuffer, readPos);
+            if (read == 0) {
+                return -1;
+            }
+            readPos += read;
+            return read;
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to read", e);
+        }
     }
 
     @Override
     public long writeTo(GatheringByteChannel channel) {
         try {
             if (records.hasNext()) { //flush remaining data from buffers
-                return records.writeTo(channel);
+                long written = records.writeTo(channel);
+                return updateWritten(written);
             }
             if (readBuffer.hasRemaining()) {
-                return channel.write(readBuffer);
+                long written = channel.write(readBuffer);
+                return updateWritten(written);
             }
 
             //use sendFile
             long transferred = segment.channel().transferTo(readPos, readBuffer.capacity(), channel);
-            readPos += transferred;
+            return updateWritten(transferred);
 
-            return transferred;
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to send data", e);
         }
@@ -51,5 +59,10 @@ public class SegmentRecords extends AbstractChannelRecords {
     @Override
     public long writeTo(GatheringByteChannel channel, int count) {
         return super.writeTo(channel, count);
+    }
+
+    private long updateWritten(long written) {
+        readPos += written;
+        return written;
     }
 }
