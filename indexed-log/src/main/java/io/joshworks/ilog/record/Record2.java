@@ -1,9 +1,6 @@
 package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.util.ByteBufferChecksum;
-import io.joshworks.ilog.Record;
-import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 
 import java.io.Closeable;
@@ -34,13 +31,13 @@ public class Record2 implements Comparable<Record2>, Closeable {
         this.rowKey = rowKey;
     }
 
-    public boolean hasAttribute(ByteBuffer buffer, int attribute) {
-        byte attr = buffer.get(buffer.position() + ATTRIBUTE_OFFSET);
+    public boolean hasAttribute(int attribute) {
+        byte attr = data.get(ATTRIBUTE_OFFSET);
         return (attr & (1 << attribute)) == 1;
     }
 
     public int recordSize() {
-        return data.remaining();
+        return data.getInt(RECORD_LEN_OFFSET);
     }
 
     public int keySize() {
@@ -48,17 +45,11 @@ public class Record2 implements Comparable<Record2>, Closeable {
     }
 
     public int valueSize() {
-        return data.getInt(data.position() + VALUE_LEN_OFFSET);
+        return data.getInt(VALUE_LEN_OFFSET);
     }
 
     public int checksum() {
-        return data.getInt(data.position() + CHECKSUM_OFFSET);
-    }
-
-    public int writeToIndex(Index index, long recordPos) {
-        int recSize = recordSize();
-        index.write(data, Record2.KEY_OFFSET, keySize(), recSize, recordPos);
-        return recSize;
+        return data.getInt(CHECKSUM_OFFSET);
     }
 
     int valueOffset() {
@@ -67,32 +58,32 @@ public class Record2 implements Comparable<Record2>, Closeable {
         return recSize - valSize;
     }
 
-    public int create(long sequence, ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
-        int checksum = ByteBufferChecksum.crc32(value);
-
-        int recordStart = dst.position();
-
-        int recLen = 0;
-        dst.putInt(HEADER_BYTES + key.remaining() + value.remaining()); // RECORD_LEN (including this field)
-        dst.putInt(value.remaining()); // VALUE_LEN
-        dst.putLong(sequence); // SEQUENCE
-        dst.putInt(checksum); // CHECKSUM
-        dst.putLong(System.currentTimeMillis()); // TIMESTAMP
-        dst.put(attribute(attr)); // ATTRIBUTES
-
-        Buffers.copy(key, dst);
-        Buffers.copy(value, dst);
-
-        int recordEnd = dst.position();
-
-        dst.position(recordStart);
-        if (!Record.isValid(dst)) {
-            throw new RuntimeException("Invalid record");
-        }
-        dst.position(recordEnd);
-
-        return recLen;
-    }
+//    public int create(long sequence, ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
+//        int checksum = ByteBufferChecksum.crc32(value);
+//
+//        int recordStart = dst.position();
+//
+//        int recLen = 0;
+//        dst.putInt(HEADER_BYTES + key.remaining() + value.remaining()); // RECORD_LEN (including this field)
+//        dst.putInt(value.remaining()); // VALUE_LEN
+//        dst.putLong(sequence); // SEQUENCE
+//        dst.putInt(checksum); // CHECKSUM
+//        dst.putLong(System.currentTimeMillis()); // TIMESTAMP
+//        dst.put(attribute(attr)); // ATTRIBUTES
+//
+//        Buffers.copy(key, dst);
+//        Buffers.copy(value, dst);
+//
+//        int recordEnd = dst.position();
+//
+//        dst.position(recordStart);
+//        if (!Record.isValid(dst)) {
+//            throw new RuntimeException("Invalid record");
+//        }
+//        dst.position(recordEnd);
+//
+//        return recLen;
+//    }
 
     public int copyTo(ByteBuffer dst) {
         int recLen = recordSize();
@@ -100,25 +91,15 @@ public class Record2 implements Comparable<Record2>, Closeable {
             throw new BufferOverflowException();
         }
 
-        int copied = Buffers.copy(data, data.position(), recLen, dst);
+        int copied = Buffers.copy(data, 0, recLen, dst);
         assert copied == recLen;
         return copied;
     }
 
-    public int copy(ByteBuffer dst) {
-        return Buffers.copy(data, dst);
-    }
-
     public int writeTo(WritableByteChannel channel) throws IOException {
         int rsize = recordSize();
-        if (data.remaining() < rsize) {
-            return 0;
-        }
-        int plimit = data.limit();
-        data.limit(data.position() + rsize);
-        int written = channel.write(data);
-        data.limit(plimit);
-        return written;
+        data.position(0).limit(rsize);
+        return channel.write(data);
     }
 
     private byte attribute(int... attributes) {
@@ -139,10 +120,6 @@ public class Record2 implements Comparable<Record2>, Closeable {
 
     public int compare(ByteBuffer key) {
         return rowKey.compare(data, KEY_OFFSET, key, key.position());
-    }
-
-    public boolean valid() {
-        return data != null;
     }
 
     @Override
