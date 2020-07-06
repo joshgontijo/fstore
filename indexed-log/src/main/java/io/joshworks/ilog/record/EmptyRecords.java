@@ -1,8 +1,7 @@
 package io.joshworks.ilog.record;
 
-import io.joshworks.ilog.IndexedSegment;
-
 import java.nio.channels.GatheringByteChannel;
+import java.util.function.Consumer;
 
 class EmptyRecords implements Records {
 
@@ -17,17 +16,12 @@ class EmptyRecords implements Records {
     }
 
     @Override
-    public long writeTo(IndexedSegment segment) {
+    public long writeTo(GatheringByteChannel channel, Consumer<Record2> onWritten) {
         return 0;
     }
 
     @Override
-    public long writeTo(GatheringByteChannel channel) {
-        return 0;
-    }
-
-    @Override
-    public long writeTo(GatheringByteChannel channel, int count) {
+    public long writeTo(GatheringByteChannel channel, int count, Consumer<Record2> onWritten) {
         return 0;
     }
 
@@ -39,5 +33,10 @@ class EmptyRecords implements Records {
     @Override
     public void close() {
 
+    }
+
+    @Override
+    public int size() {
+        return 0;
     }
 }

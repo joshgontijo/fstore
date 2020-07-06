@@ -120,14 +120,6 @@ public class RecordPool {
         return records;
     }
 
-    private SegmentRecords getSegmentRecords() {
-        SegmentRecords records = segmentRecordsCache.poll();
-        if (records == null) {
-            return new SegmentRecords(this);
-        }
-        return records;
-    }
-
     ByteBuffer allocate(int size) {
         return pool.allocate(size);
     }
@@ -144,8 +136,6 @@ public class RecordPool {
             bufferRecordsCache.offer((BufferRecords) records);
         } else if (records instanceof ChannelRecords) {
             channelRecordsCache.offer((ChannelRecords) records);
-        } else if (records instanceof SegmentRecords) {
-            segmentRecordsCache.offer((SegmentRecords) records);
         } else {
             throw new RuntimeException("Unknown type: " + records.getClass());
         }

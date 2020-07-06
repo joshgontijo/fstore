@@ -2,13 +2,10 @@ package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Record;
-import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -62,38 +59,6 @@ public class BufferRecords extends AbstractRecords {
         buffers.add(data);
         totalSize += recSize;
     }
-
-    //TODO MOVE TO SOMEWHERE ELSE
-//    public void create(long sequence, ByteBuffer value, Consumer<ByteBuffer> keyWriter) {
-//        int rsize = Record2.HEADER_BYTES + Integer.BYTES + value.remaining();
-//        ByteBuffer recdata = pool.allocate(rsize);
-//        recdata.position(Record2.KEY_OFFSET);
-//        keyWriter.accept(recdata);
-//        if (recdata.position() - Record2.KEY_OFFSET != rowKey.keySize()) {
-//            throw new IllegalStateException("Invalid row key size");
-//        }
-//        int checksum = ByteBufferChecksum.crc32(value);
-//        int valLen = value.remaining();
-//        Buffers.copy(value, recdata);
-//
-//        int recLen = Record2.HEADER_BYTES + rowKey.keySize() + valLen;
-//
-//        writeHeader(recdata, sequence, value.remaining(), checksum, recLen);
-//
-//        add(recdata);
-//    }
-//
-//    private void writeHeader(ByteBuffer recdata, long sequence, int valueLen, int checksum, int recLen) {
-//        recdata.position(0);
-//        recdata.putInt(recLen); // RECORD_LEN
-//        recdata.putInt(valueLen); // VALUE_LEN
-//        recdata.putLong(sequence); // SEQUENCE
-//        recdata.putInt(checksum); // CHECKSUM
-//        recdata.putLong(System.currentTimeMillis()); // TIMESTAMP
-//        recdata.put((byte) 0); // ATTRIBUTES
-//
-//        recdata.limit(recLen).position(0);
-//    }
 
     private Record2 checkValid(Record2 rec) {
         if (rec == null) {
@@ -150,6 +115,10 @@ public class BufferRecords extends AbstractRecords {
         totalSize = 0;
     }
 
+    public long totalSize() {
+        return totalSize;
+    }
+
     void release(Record2 record) {
         if (record.owner != this) {
             throw new IllegalArgumentException("Record pool not owner of this record");
@@ -166,97 +135,63 @@ public class BufferRecords extends AbstractRecords {
         cache.add(record);
     }
 
+    public void reset() {
+        for (Record2 record : records) {
+            record.reset();
+        }
+    }
+
+    @Override
     public int size() {
         return records.size();
     }
 
-    public int totalSize() {
-        return totalSize;
-    }
-
-    @Override
-    public long writeTo(IndexedSegment segment) {
-        if (segment.index().isFull()) {
-            throw new IllegalStateException("Index is full");
-        }
-        if (segment.readOnly()) {
-            throw new IllegalStateException("Segment is read only");
-        }
-        if (records.size() == 0) {
-            return 0;
-        }
-
-        try {
-            FileChannel channel = segment.channel();
-            Index index = segment.index();
-
-            long totalWritten = 0;
-
-            long recordPos = channel.position();
-            while (hasNext() && !index.isFull()) {
-                //bulk write to data region
-                int count = Math.min(index.remaining(), records.size());
-                buffers.toArray(tmp);
-                long written = channel.write(tmp, 0, count);
-                checkClosed(written);
-                totalWritten += written;
-
-                //files are always available, no need to use removeWrittenEntries
-                //poll entries and add to index
-                for (int i = 0; i < count; i++) {
-                    try (Record2 rec = poll()) {
-                        recordPos += rec.writeToIndex(index, recordPos);
-                    }
-                }
-            }
-            return totalWritten;
-
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to write to segment");
-        }
-    }
-
-    private void checkClosed(long w) {
-        if (w == -1) {
-            throw new RuntimeIOException("Channel closed");
-        }
-    }
-
     @Override
     public long writeTo(GatheringByteChannel channel) {
-        return writeTo(channel, buffers.size());
+        return writeTo(channel, 0, buffers.size());
     }
 
     @Override
-    public long writeTo(GatheringByteChannel channel, int count) {
+    public long writeTo(GatheringByteChannel channel, int offset, int count) {
         try {
-            long totalWritten = 0;
-            while (hasNext()) {
-                buffers.toArray(tmp);
-                count = Math.min(count, buffers.size());
-                long written = channel.write(tmp, 0, count);
-                checkClosed(written);
-                totalWritten += written;
-
-                removeWrittenEntries(written);
-            }
-            return totalWritten;
+            count = Math.min(count, buffers.size());
+            buffers.toArray(tmp);
+            return channel.write(tmp, offset, count);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to write to channel", e);
         }
     }
 
-    private void removeWrittenEntries(long written) {
-        //removes only fully written entries, leftovers will be retried next iteration
-        int bytesRemoved = 0;
-        while (bytesRemoved < written) {
-            Record2 rec = peek();
-            int recordSize = rec.recordSize();
-            if (bytesRemoved + recordSize <= written) {
-                remove();
-                bytesRemoved += recordSize;
-            }
-        }
-    }
+    //TODO MOVE TO SOMEWHERE ELSE
+//    public void create(long sequence, ByteBuffer value, Consumer<ByteBuffer> keyWriter) {
+//        int rsize = Record2.HEADER_BYTES + Integer.BYTES + value.remaining();
+//        ByteBuffer recdata = pool.allocate(rsize);
+//        recdata.position(Record2.KEY_OFFSET);
+//        keyWriter.accept(recdata);
+//        if (recdata.position() - Record2.KEY_OFFSET != rowKey.keySize()) {
+//            throw new IllegalStateException("Invalid row key size");
+//        }
+//        int checksum = ByteBufferChecksum.crc32(value);
+//        int valLen = value.remaining();
+//        Buffers.copy(value, recdata);
+//
+//        int recLen = Record2.HEADER_BYTES + rowKey.keySize() + valLen;
+//
+//        writeHeader(recdata, sequence, value.remaining(), checksum, recLen);
+//
+//        add(recdata);
+//    }
+//
+//    private void writeHeader(ByteBuffer recdata, long sequence, int valueLen, int checksum, int recLen) {
+//        recdata.position(0);
+//        recdata.putInt(recLen); // RECORD_LEN
+//        recdata.putInt(valueLen); // VALUE_LEN
+//        recdata.putLong(sequence); // SEQUENCE
+//        recdata.putInt(checksum); // CHECKSUM
+//        recdata.putLong(System.currentTimeMillis()); // TIMESTAMP
+//        recdata.put((byte) 0); // ATTRIBUTES
+//
+//        recdata.limit(recLen).position(0);
+//    }
 
 }

@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 public class IndexedSegment {
 
@@ -69,6 +70,55 @@ public class IndexedSegment {
             log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
         }
 
+    }
+
+    public void append(Records records) {
+        if (index.isFull()) {
+            throw new IllegalStateException("Index is full");
+        }
+        if (readOnly()) {
+            throw new IllegalStateException("Segment is read only");
+        }
+        if (records.size() == 0) {
+            return 0;
+        }
+
+        try {
+
+            long totalWritten = 0;
+
+            long recordPos = channel.position();
+            while (records.hasNext() && !index.isFull()) {
+                //bulk write to data region
+                int count = Math.min(index.remaining(), records.size());
+                records.writeTo(channel, rec -> {
+                    writeToIndex(rec, recordPos, onWrite);
+                })
+                buffers.toArray(tmp);
+                records.writeTo(channel)
+                long written = channel.write(tmp, 0, count);
+                checkClosed(written);
+                totalWritten += written;
+
+                //files are always available, no need to use removeWrittenEntries
+                //poll entries and add to index
+                for (int i = 0; i < count; i++) {
+                    try (Record2 rec = poll()) {
+                        recordPos += rec.writeToIndex(index, recordPos);
+                        onInsert.accept(rec);
+                    }
+                }
+            }
+            return totalWritten;
+
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to write to segment");
+        }
+    }
+
+    private void writeToIndex(Record2 rec, long recordPos, Consumer<Record2> onWrite) {
+        rec.writeToIndex(index, recordPos);
+        onWrite.accept(rec);
     }
 
     public boolean readOnly() {

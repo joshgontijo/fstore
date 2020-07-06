@@ -1,6 +1,7 @@
 package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 
 import java.io.Closeable;
@@ -29,6 +30,12 @@ public class Record2 implements Comparable<Record2>, Closeable {
     Record2(BufferRecords owner, RowKey rowKey) {
         this.owner = owner;
         this.rowKey = rowKey;
+    }
+
+    public int writeToIndex(Index index, long recordPos) {
+        int rsize = recordSize();
+
+        return rsize;
     }
 
     public boolean hasAttribute(int attribute) {
@@ -133,5 +140,9 @@ public class Record2 implements Comparable<Record2>, Closeable {
     @Override
     public void close() {
         owner.release(this);
+    }
+
+    void reset() {
+        data.position(0).limit(recordSize());
     }
 }
