@@ -1,8 +1,10 @@
 package io.joshworks.fstore.core.io.buffers;
 
+import java.io.IOException;
 import java.nio.Buffer;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.nio.channels.GatheringByteChannel;
 
 public class Buffers {
 
@@ -271,6 +273,31 @@ public class Buffers {
 
     public static int remaining(ByteBuffer buffer, int absPos) {
         return buffer.limit() - absPos;
+    }
+
+    public static long remaining(ByteBuffer[] buffers, int offset, int count) {
+        long remaining = 0;
+        for (int i = offset; i < count; i++) {
+            remaining = buffers[i].remaining();
+        }
+        return remaining;
+    }
+
+    public static long writeFully(GatheringByteChannel dst, ByteBuffer[] buffers, int offset, int count) throws IOException {
+        long remaining = remaining(buffers, offset, count);
+        if (remaining == 0) {
+            return 0;
+        }
+
+        long written = 0;
+        while (written < remaining) {
+            long w = dst.write(buffers, offset, count);
+            if (w == -1) {
+                return -1;
+            }
+            written += w;
+        }
+        return written;
     }
 
 }
