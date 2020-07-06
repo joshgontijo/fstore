@@ -5,6 +5,7 @@ import java.nio.Buffer;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.WritableByteChannel;
 
 public class Buffers {
 
@@ -281,6 +282,14 @@ public class Buffers {
             remaining = buffers[i].remaining();
         }
         return remaining;
+    }
+
+    public static int writeFully(WritableByteChannel dst, ByteBuffer buffer) throws IOException {
+        int total = 0;
+        while (buffer.hasRemaining()) {
+            total += dst.write(buffer);
+        }
+        return total;
     }
 
     public static long writeFully(GatheringByteChannel dst, ByteBuffer[] buffers, int offset, int count) throws IOException {
