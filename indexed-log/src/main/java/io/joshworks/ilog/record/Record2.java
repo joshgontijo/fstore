@@ -155,6 +155,6 @@ public class Record2 implements Comparable<Record2>, Closeable {
 
     @Override
     public void close() {
-        owner.release(this);
+        owner.free(this);
     }
 }

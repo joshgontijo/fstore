@@ -1,6 +1,7 @@
 package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.IndexedSegment;
 
 import java.nio.ByteBuffer;
@@ -24,10 +25,10 @@ public class SegmentRecords extends AbstractChannelRecords {
     @Override
     protected int read(ByteBuffer readBuffer) {
         try {
-            int read = segment.channel().read(readBuffer, readPos);
-            if (read == 0 && endOfLog()) {
-                return -1;
+            if (endOfLog()) {
+                return 0;
             }
+            int read = segment.channel().read(readBuffer, readPos);
             readPos += read;
             return read;
         } catch (Exception e) {
@@ -38,18 +39,24 @@ public class SegmentRecords extends AbstractChannelRecords {
     @Override
     public long writeTo(GatheringByteChannel channel) {
         try {
+            long total = 0;
             if (records.hasNext()) { //flush remaining data from buffers
-                long written = records.writeTo(channel);
-                return updateWritten(written);
+                total += records.writeTo(channel);
             }
-            if (readBuffer.hasRemaining()) {
-                long written = channel.write(readBuffer);
-                return updateWritten(written);
+            if (readBuffer.position() > 0) { //flush incomplete records
+                readBuffer.flip();
+                Buffers.writeFully(channel, readBuffer);
+                readBuffer.compact();
             }
 
             //use sendFile
-            long transferred = segment.channel().transferTo(readPos, readBuffer.capacity(), channel);
-            return updateWritten(transferred);
+            long transferred = segment.channel().transferTo(readPos, segment.size() - readPos, channel);
+            if (transferred == -1) {
+                return -1;
+            }
+            total += transferred;
+            readPos += total;
+            return total;
 
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to send data", e);
@@ -70,8 +77,4 @@ public class SegmentRecords extends AbstractChannelRecords {
         return !hasNext() && segment.readOnly();
     }
 
-    private long updateWritten(long written) {
-        readPos += written;
-        return written;
-    }
 }

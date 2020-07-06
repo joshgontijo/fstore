@@ -10,10 +10,14 @@ import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.LogIterator;
 import io.joshworks.ilog.Record;
+import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.pooled.HeapBlock;
 import io.joshworks.ilog.pooled.ObjectPool;
+import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
@@ -88,26 +92,24 @@ public class Lsm {
         return new Builder(root, comparator);
     }
 
-    public void append(Records records) {
-        while (records.hasNext()) {
-            tlog.append(records);
-            writeToMemTable(records);
+    public void append(BufferRecords records) {
+        Records copy = records.copy(); //copy so it can be reused in memtable
+        tlog.append(records);
+        while (copy.hasNext()) {
+            memTable.add(copy);
+            if(memTable.isFull()) {
+                flush();
+            }
         }
 
     }
 
     private void writeToMemTable(Records records) {
         int inserted = 0;
-        while (inserted < records.size()) {
-            int i = memTable.add(records, inserted);
-            if (i == 0) {
-                flush();
-            }
-            inserted += i;
-        }
+
     }
 
-    public int get(ByteBuffer key, ByteBuffer dst) {
+    public Records get(ByteBuffer key) {
         if (rowKey.keySize() != key.remaining()) {
             throw new IllegalArgumentException("Invalid key size");
         }
@@ -118,7 +120,6 @@ public class Lsm {
                 return fromMem;
             }
 
-            var record = recordPool.allocate();
             try (HeapBlock block = blockPool.allocate()) {
                 for (IndexedSegment ssTable : sst) {
                     record.clear();
@@ -126,9 +127,9 @@ public class Lsm {
                         block.clear();
                         continue;
                     }
-                    int read = ssTable.find(key, record, IndexFunction.FLOOR);
-                    if (read > 0) {
-                        record.flip();
+                    Index index = ssTable.index();
+                    int idx = index.find(key, IndexFunction.FLOOR);
+                    if (idx != Index.NONE) {
                         int entrySize = readFromBlock(key, block, record, dst, IndexFunction.EQUALS);
                         if (entrySize <= 0) {// not found in the block, continue
                             block.clear();

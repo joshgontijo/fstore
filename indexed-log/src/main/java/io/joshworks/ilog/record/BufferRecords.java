@@ -28,7 +28,6 @@ public class BufferRecords extends AbstractRecords {
     private final ByteBuffer[] tmp;
 
     protected final RowKey rowKey;
-    private int totalSize;
 
     BufferRecords(RecordPool pool, RowKey rowKey, int maxItems) {
         super(pool);
@@ -60,7 +59,6 @@ public class BufferRecords extends AbstractRecords {
 
         records.add(record);
         buffers.add(data);
-        totalSize += recSize;
     }
 
     //TODO MOVE TO SOMEWHERE ELSE
@@ -97,7 +95,7 @@ public class BufferRecords extends AbstractRecords {
 
     private Record2 checkValid(Record2 rec) {
         if (rec == null) {
-            return rec;
+            return null;
         }
         if (rec.data.position() > 0) {
             throw new IllegalStateException("Invalid entry");
@@ -111,8 +109,10 @@ public class BufferRecords extends AbstractRecords {
         if (poll == null) {
             return null;
         }
-        buffers.remove(poll.data);
-        totalSize -= poll.recordSize();
+        ByteBuffer buff = buffers.poll();
+        if (poll.data != buff) {
+            throw new IllegalStateException("Invalid buffer queue"); // should never happen
+        }
         return checkValid(poll);
     }
 
@@ -122,11 +122,12 @@ public class BufferRecords extends AbstractRecords {
     }
 
     public boolean remove() {
-        Record2 poll = records.poll();
-        if (poll == null) {
+        Record2 rec = records.poll();
+        if (rec == null) {
             return false;
         }
-        poll.close();
+        free(rec);
+
         return true;
     }
 
@@ -143,14 +144,13 @@ public class BufferRecords extends AbstractRecords {
     @Override
     public void close() {
         for (Record2 record : records) {
-            release(record);
+            free(record);
             pool.free(this);
         }
         records.clear();
-        totalSize = 0;
     }
 
-    void release(Record2 record) {
+    void free(Record2 record) {
         if (record.owner != this) {
             throw new IllegalArgumentException("Record pool not owner of this record");
         }
@@ -168,10 +168,6 @@ public class BufferRecords extends AbstractRecords {
 
     public int size() {
         return records.size();
-    }
-
-    public int totalSize() {
-        return totalSize;
     }
 
     @Override
@@ -194,10 +190,9 @@ public class BufferRecords extends AbstractRecords {
 
             long recordPos = channel.position();
             while (hasNext() && !index.isFull()) {
-                //bulk write to data region
                 int count = Math.min(index.remaining(), records.size());
                 buffers.toArray(tmp);
-                long written = channel.write(tmp, 0, count);
+                long written = Buffers.writeFully(channel, tmp, 0, count);
                 checkClosed(written);
                 totalWritten += written;
 
@@ -234,7 +229,7 @@ public class BufferRecords extends AbstractRecords {
             while (hasNext()) {
                 buffers.toArray(tmp);
                 count = Math.min(count, buffers.size());
-                long written = channel.write(tmp, 0, count);
+                long written = Buffers.writeFully(channel, tmp, 0, count);
                 checkClosed(written);
                 totalWritten += written;
 
@@ -259,4 +254,11 @@ public class BufferRecords extends AbstractRecords {
         }
     }
 
+    public Records copy() {
+        BufferRecords copy = pool.getBufferRecords();
+        for (Record2 record : records) {
+            copy.add(record);
+        }
+        return copy;
+    }
 }

@@ -24,18 +24,15 @@ class MemTable {
         this.maxEntries = maxEntries;
     }
 
-    int add(Records records) {
+    void add(Records records) {
         requireNonNull(records, "Records must be provided");
         try {
             long stamp = lock.writeLock();
             try {
-                int inserted = 0;
-                while (records.hasNext() && table.size() >= maxEntries) {
+                while (records.hasNext() && !isFull()) {
                     Record2 record = records.poll();
                     table.put(record);
-                    inserted++;
                 }
-                return inserted;
             } finally {
                 lock.unlockWrite(stamp);
             }
@@ -110,5 +107,9 @@ class MemTable {
         // TODO remove
         table.clear();
         return inserted;
+    }
+
+    public boolean isFull() {
+        return table.size() >= maxEntries;
     }
 }
