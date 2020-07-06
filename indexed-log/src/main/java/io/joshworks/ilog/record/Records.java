@@ -11,7 +11,6 @@ public interface Records extends Closeable {
 
     Record2 peek();
 
-
     boolean hasNext();
 
     @Override

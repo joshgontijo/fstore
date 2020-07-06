@@ -62,7 +62,7 @@ public class BufferRecords extends AbstractRecords {
 
     private Record2 checkValid(Record2 rec) {
         if (rec == null) {
-            return rec;
+            return null;
         }
         if (rec.data.position() > 0) {
             throw new IllegalStateException("Invalid entry");
@@ -138,6 +138,13 @@ public class BufferRecords extends AbstractRecords {
     public void reset() {
         for (Record2 record : records) {
             record.reset();
+        }
+    }
+
+    public long size(int offset, int count) {
+        long size = 0;
+        for (int i = offset; i < count; i++) {
+
         }
     }
 

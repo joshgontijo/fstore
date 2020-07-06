@@ -21,7 +21,6 @@ public class RecordPool {
     //object cache
     private final Queue<BufferRecords> bufferRecordsCache = new ArrayDeque<>();
     private final Queue<ChannelRecords> channelRecordsCache = new ArrayDeque<>();
-    private final Queue<SegmentRecords> segmentRecordsCache = new ArrayDeque<>();
 
     private final StripedBufferPool pool;
     private final RowKey rowKey;
@@ -70,16 +69,6 @@ public class RecordPool {
     public Records fromChannel(ReadableByteChannel channel) {
         ChannelRecords records = getChannelRecords();
         records.init(readBufferSize, channel);
-        return records;
-    }
-
-    public Records fromSegment(IndexedSegment segment) {
-        return fromSegment(segment, IndexedSegment.START);
-    }
-
-    public Records fromSegment(IndexedSegment segment, long startPos) {
-        SegmentRecords records = getSegmentRecords();
-        records.init(readBufferSize, segment, startPos);
         return records;
     }
 

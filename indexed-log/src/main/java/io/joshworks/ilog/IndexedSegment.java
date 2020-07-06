@@ -49,7 +49,7 @@ public class IndexedSegment {
         return new Index(indexFile, indexSize, comparator);
     }
 
-    synchronized void reindex() throws IOException {
+    synchronized void reindex() {
         log.info("Reindexing {}", index.name());
 
         int indexCapacity = index.capacity();
@@ -72,7 +72,7 @@ public class IndexedSegment {
 
     }
 
-    public void append(Records records) {
+    public long append(Records records) {
         if (index.isFull()) {
             throw new IllegalStateException("Index is full");
         }
@@ -88,16 +88,18 @@ public class IndexedSegment {
             long totalWritten = 0;
 
             long recordPos = channel.position();
-            while (records.hasNext() && !index.isFull()) {
+            int inserted = 0;
+            while (!index.isFull()) {
                 //bulk write to data region
                 int count = Math.min(index.remaining(), records.size());
-                records.writeTo(channel, rec -> {
-                    writeToIndex(rec, recordPos, onWrite);
-                })
+
+                long written = 0;
+                long written = records.writeTo(channel, inserted, count);
+
                 buffers.toArray(tmp);
                 records.writeTo(channel)
                 long written = channel.write(tmp, 0, count);
-                checkClosed(written);
+
                 totalWritten += written;
 
                 //files are always available, no need to use removeWrittenEntries
