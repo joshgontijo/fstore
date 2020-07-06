@@ -25,7 +25,7 @@ public class SegmentRecords extends AbstractChannelRecords {
     protected int read(ByteBuffer readBuffer) {
         try {
             int read = segment.channel().read(readBuffer, readPos);
-            if (read == 0) {
+            if (read == 0 && endOfLog()) {
                 return -1;
             }
             readPos += read;
@@ -59,6 +59,15 @@ public class SegmentRecords extends AbstractChannelRecords {
     @Override
     public long writeTo(GatheringByteChannel channel, int count) {
         return super.writeTo(channel, count);
+    }
+
+    @Override
+    public boolean hasNext() {
+        return readPos < segment.size();
+    }
+
+    public boolean endOfLog() {
+        return !hasNext() && segment.readOnly();
     }
 
     private long updateWritten(long written) {
