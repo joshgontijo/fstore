@@ -13,11 +13,9 @@ import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.pooled.HeapBlock;
+import io.joshworks.ilog.record.HeapBlock;
 import io.joshworks.ilog.pooled.ObjectPool;
 import io.joshworks.ilog.record.BufferRecords;
-import io.joshworks.ilog.record.Record2;
-import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;

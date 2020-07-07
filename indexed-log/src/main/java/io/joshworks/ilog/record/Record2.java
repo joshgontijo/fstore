@@ -105,10 +105,6 @@ public class Record2 implements Comparable<Record2>, Closeable {
         return copied;
     }
 
-    public int copy(ByteBuffer dst) {
-        return Buffers.copy(data, dst);
-    }
-
     public int writeTo(WritableByteChannel channel) throws IOException {
         int rsize = recordSize();
         if (data.remaining() < rsize) {

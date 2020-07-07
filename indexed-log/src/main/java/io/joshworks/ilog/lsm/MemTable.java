@@ -3,7 +3,7 @@ package io.joshworks.ilog.lsm;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
-import io.joshworks.ilog.pooled.HeapBlock;
+import io.joshworks.ilog.record.HeapBlock;
 import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.Records;
 

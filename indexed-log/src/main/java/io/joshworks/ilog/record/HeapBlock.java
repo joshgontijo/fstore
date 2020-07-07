@@ -1,14 +1,10 @@
-package io.joshworks.ilog.pooled;
+package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Records;
-import io.joshworks.ilog.record.Record2;
-import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.BufferRecords;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -28,9 +24,9 @@ import java.util.function.Consumer;
  * COMPRESSED_BLOCK
  * ...
  */
-public class HeapBlock extends Pooled {
+public class HeapBlock {
 
-    private final RowKey comparator;
+    private final RowKey rowKey;
     private final boolean direct;
     private final Codec codec;
     private State state = State.EMPTY;
@@ -43,22 +39,33 @@ public class HeapBlock extends Pooled {
 
     private final List<Key> keys = new ArrayList<>();
     private final ByteBuffer block;
+    private final ByteBuffer records;
 
-    public HeapBlock(ObjectPool<? extends Pooled> pool, int blockSize, RowKey rowKey, boolean direct, Codec codec) {
-        super(pool, blockSize, direct);
-        this.comparator = rowKey;
+    private final RecordPool pool;
+
+    public HeapBlock(RecordPool pool, int blockSize, RowKey rowKey, boolean direct, Codec codec) {
+        this.pool = pool;
+        this.rowKey = rowKey;
         this.direct = direct;
         this.codec = codec;
         this.block = Buffers.allocate(blockSize, direct);
+        this.records = Buffers.allocate(blockSize, direct);
+
+        block.position(
+                Record.HEADER_BYTES + //record header
+                keyOverhead() + // first key
+                HEADER_BYTES // block info
+        );
     }
 
     private boolean hasCapacity(int entrySize) {
-        return data.remaining() >=
-                Record.HEADER_BYTES +
-                        keyOverhead() +
-                        HEADER_BYTES +
-                        (entrySize + keyOverhead()) +
-                        keyRegionSize();
+        return block.remaining() >= (records.position()) + (entrySize + keyOverhead());
+//        return records.remaining() >=
+//                Record.HEADER_BYTES +
+//                        keyOverhead() +
+//                        HEADER_BYTES +
+//                        (entrySize + keyOverhead()) +
+//                        keyRegionSize();
     }
 
     private int keyRegionSize() {
@@ -66,7 +73,7 @@ public class HeapBlock extends Pooled {
     }
 
     private int keyOverhead() {
-        return comparator.keySize() + Integer.BYTES;
+        return rowKey.keySize() + Integer.BYTES;
     }
 
     public boolean add(Record2 record) {
@@ -77,21 +84,18 @@ public class HeapBlock extends Pooled {
         if (entries == 0) {
             //TODO implement all transition
             state = State.CREATING;
-            data.clear();
+            records.clear();
         }
 
         if (!hasCapacity(record.recordSize())) {
             return false;
         }
 
-        //uses data as temporary storage
-        //TODO check for readonly blocks
-        Key key = getOrAllocate(entries);
+        int recPos = records.position();
+        record.writeKey(block);
+        block.putInt(recPos);
 
-        key.offset = data.position();
-        key.write(record);
-
-        record.copy(data);
+        record.copyTo(records);
         entries++;
         return true;
     }
@@ -111,9 +115,9 @@ public class HeapBlock extends Pooled {
 
         //----- READ DECOMPRESSED ----
         if (decompress) {
-            codec.decompress(block, data);
-            data.flip();
-            assert data.remaining() == uncompressedSize;
+            codec.decompress(block, records);
+            records.flip();
+            assert records.remaining() == uncompressedSize;
             state = State.DECOMPRESSED;
             return;
         }
@@ -131,7 +135,7 @@ public class HeapBlock extends Pooled {
 
     private Key getOrAllocate(int idx) {
         while (idx >= keys.size()) {
-            keys.add(new Key(comparator, direct));
+            keys.add(new Key(rowKey, direct));
         }
         Key key = keys.get(idx);
         key.clear();
@@ -143,31 +147,31 @@ public class HeapBlock extends Pooled {
             throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
         }
 
-        data.flip();
-        uncompressedSize = data.remaining();
-        codec.compress(data, block);
+        records.flip();
+        uncompressedSize = records.remaining();
+        codec.compress(records, block);
         block.flip();
         compressedSize = block.remaining();
 
         state = State.COMPRESSED;
     }
 
-    public void write(Consumer<Records> writer) {
+    public void write(Consumer<Records> writer, RecordPool pool) {
         if (!State.CREATING.equals(state)) {
             throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
         }
 
         block.clear();
-        data.flip();
+        records.flip();
 
-        int uncompressedSize = data.remaining();
+        int uncompressedSize = records.remaining();
 
 
         //------------ COMPRESSED DATA
         int keysSectionSize = keyOverhead() * entryCount();
         int dataRegion = HEADER_BYTES + keysSectionSize;
         block.position(dataRegion);
-        codec.compress(data, block);
+        codec.compress(records, block);
 
         int blockEnd = block.position();
         int compressedSize = blockEnd - dataRegion;
@@ -190,10 +194,10 @@ public class HeapBlock extends Pooled {
         state = State.COMPRESSED;
 
         Key firstKey = keys.get(0);
-        data.clear();
+        records.clear();
 
-        try(BufferRecords records = RecordPool.get("BLOCK")) {
-            records.create(data, b -> b.put(firstKey.data));
+        try(BufferRecords records = pool.fromBuffer()) {
+            records.create(this.records, b -> b.put(firstKey.data));
             firstKey.data.clear();
             writer.accept(records);
         }
@@ -214,7 +218,7 @@ public class HeapBlock extends Pooled {
     }
 
     public void clear() {
-        data.clear();
+        records.clear();
         block.clear();
         uncompressedSize = 0;
         entries = 0;
@@ -225,11 +229,11 @@ public class HeapBlock extends Pooled {
         if (decompressed()) {
             return;
         }
-        data.clear();
-        codec.decompress(block, data);
-        data.flip();
+        records.clear();
+        codec.decompress(block, records);
+        records.flip();
 
-        assert uncompressedSize == data.remaining();
+        assert uncompressedSize == records.remaining();
 
         state = State.DECOMPRESSED;
     }
@@ -275,8 +279,8 @@ public class HeapBlock extends Pooled {
         }
 
         int offset = keys.get(idx).offset;
-        data.position(offset);
-        return Record.copyTo(data, dst);
+        records.position(offset);
+        return Record.copyTo(records, dst);
     }
 
 
@@ -289,7 +293,7 @@ public class HeapBlock extends Pooled {
     }
 
     public int uncompressedSize() {
-        return data.getInt(0);
+        return records.getInt(0);
     }
 
     public int entryCount() {
@@ -297,7 +301,7 @@ public class HeapBlock extends Pooled {
     }
 
     public ByteBuffer buffer() {
-        return data;
+        return records;
     }
 
     private static class Key implements Comparable<ByteBuffer> {
