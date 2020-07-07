@@ -8,15 +8,12 @@ import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-
-import static io.joshworks.ilog.record.HeapBlock.BlockCodec.DEFLATE;
-import static io.joshworks.ilog.record.HeapBlock.BlockCodec.NO_COMPRESSION;
-import static io.joshworks.ilog.record.HeapBlock.BlockCodec.SNAPPY;
 
 /**
  * -------- HEADER ---------
@@ -31,7 +28,7 @@ import static io.joshworks.ilog.record.HeapBlock.BlockCodec.SNAPPY;
  * COMPRESSED_BLOCK
  * ...
  */
-public class HeapBlock {
+public class HeapBlock implements Closeable {
 
     private final RowKey rowKey;
     private final Codec codec;
@@ -51,11 +48,11 @@ public class HeapBlock {
     private final RecordPool pool;
 
     public HeapBlock(RecordPool pool, int blockSize, RowKey rowKey, Codec codec) {
+        this.pool = pool;
         this.rowKey = rowKey;
         this.codec = codec;
         this.block = pool.allocate(blockSize);
         this.data = pool.allocate(blockSize);
-        this.pool = pool;
     }
 
     private boolean hasCapacity(int entrySize) {
@@ -102,36 +99,44 @@ public class HeapBlock {
         return true;
     }
 
-    public void from(ByteBuffer block, boolean decompress) {
+    public void from(Record2 rec, boolean decompress) {
         if (!State.EMPTY.equals(state)) {
             throw new IllegalStateException();
         }
-        uncompressedSize = block.getInt();
-        compressedSize = block.getInt();
-        entries = block.getInt();
 
-        for (int i = 0; i < entries; i++) {
-            Key key = getOrAllocate(i);
-            key.from(block);
+        ByteBuffer block = pool.allocate(rec.recordSize());
+        rec.copyValue(block);
+        try {
+            uncompressedSize = block.getInt();
+            compressedSize = block.getInt();
+            entries = block.getInt();
+
+            for (int i = 0; i < entries; i++) {
+                Key key = getOrAllocate(i);
+                key.from(block);
+            }
+
+            //----- READ DECOMPRESSED ----
+            if (decompress) {
+                codec.decompress(block, data);
+                data.flip();
+                assert data.remaining() == uncompressedSize;
+                state = State.DECOMPRESSED;
+                return;
+            }
+
+            //----- READ COMPRESSED ----
+            int copied = Buffers.copy(block, this.block);
+            assert copied == uncompressedSize;
+
+            this.block.flip();
+            Buffers.offsetPosition(block, copied);
+
+            state = State.COMPRESSED;
+
+        } finally {
+            pool.free(block);
         }
-
-        //----- READ DECOMPRESSED ----
-        if (decompress) {
-            codec.decompress(block, data);
-            data.flip();
-            assert data.remaining() == uncompressedSize;
-            state = State.DECOMPRESSED;
-            return;
-        }
-
-        //----- READ COMPRESSED ----
-        int copied = Buffers.copy(block, this.block);
-        assert copied == uncompressedSize;
-
-        this.block.flip();
-        Buffers.offsetPosition(block, copied);
-
-        state = State.COMPRESSED;
 
     }
 
@@ -198,8 +203,8 @@ public class HeapBlock {
         Key firstKey = keys.get(0);
         data.clear();
 
-        try(BufferRecords records = pool.) {
-            records.create(data, b -> b.put(firstKey.data));
+        try (BufferRecords records = pool.getBufferRecords()) {
+            records.create(0, data, b -> b.put(firstKey.data));
             firstKey.data.clear();
             writer.accept(records);
         }
@@ -216,7 +221,6 @@ public class HeapBlock {
     @Override
     public void close() {
         clear();
-        super.close();
     }
 
     public void clear() {

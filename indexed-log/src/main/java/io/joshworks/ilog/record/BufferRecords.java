@@ -2,6 +2,7 @@ package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.Index;
@@ -12,6 +13,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.function.Consumer;
 
 public class BufferRecords extends AbstractRecords {
 
@@ -62,36 +64,38 @@ public class BufferRecords extends AbstractRecords {
     }
 
     //TODO MOVE TO SOMEWHERE ELSE
-//    public void create(long sequence, ByteBuffer value, Consumer<ByteBuffer> keyWriter) {
-//        int rsize = Record2.HEADER_BYTES + Integer.BYTES + value.remaining();
-//        ByteBuffer recdata = pool.allocate(rsize);
-//        recdata.position(Record2.KEY_OFFSET);
-//        keyWriter.accept(recdata);
-//        if (recdata.position() - Record2.KEY_OFFSET != rowKey.keySize()) {
-//            throw new IllegalStateException("Invalid row key size");
-//        }
-//        int checksum = ByteBufferChecksum.crc32(value);
-//        int valLen = value.remaining();
-//        Buffers.copy(value, recdata);
-//
-//        int recLen = Record2.HEADER_BYTES + rowKey.keySize() + valLen;
-//
-//        writeHeader(recdata, sequence, value.remaining(), checksum, recLen);
-//
-//        add(recdata);
-//    }
-//
-//    private void writeHeader(ByteBuffer recdata, long sequence, int valueLen, int checksum, int recLen) {
-//        recdata.position(0);
-//        recdata.putInt(recLen); // RECORD_LEN
-//        recdata.putInt(valueLen); // VALUE_LEN
-//        recdata.putLong(sequence); // SEQUENCE
-//        recdata.putInt(checksum); // CHECKSUM
-//        recdata.putLong(System.currentTimeMillis()); // TIMESTAMP
-//        recdata.put((byte) 0); // ATTRIBUTES
-//
-//        recdata.limit(recLen).position(0);
-//    }
+    public void create(long sequence, ByteBuffer value, Consumer<ByteBuffer> keyWriter) {
+        int rsize = Record2.HEADER_BYTES + Integer.BYTES + value.remaining();
+        ByteBuffer recdata = pool.allocate(rsize);
+        recdata.position(Record2.KEY_OFFSET);
+        keyWriter.accept(recdata);
+        if (recdata.position() - Record2.KEY_OFFSET != rowKey.keySize()) {
+            throw new IllegalStateException("Invalid row key size");
+        }
+        int checksum = ByteBufferChecksum.crc32(value);
+        int valLen = value.remaining();
+        Buffers.copy(value, recdata);
+
+        recdata.position(0);
+        writeHeader(recdata, sequence, rowKey.keySize(), valLen, checksum);
+
+        add(recdata);
+    }
+
+    private static void writeHeader(ByteBuffer dst, long sequence, int keyLen, int valueLen, int checksum) {
+        int recLen = Record2.HEADER_BYTES + keyLen + valueLen;
+
+        int ppos = dst.position();
+
+        dst.putInt(recLen); // RECORD_LEN
+        dst.putInt(valueLen); // VALUE_LEN
+        dst.putLong(sequence); // SEQUENCE
+        dst.putInt(checksum); // CHECKSUM
+        dst.putLong(System.currentTimeMillis()); // TIMESTAMP
+        dst.put((byte) 0); // ATTRIBUTES
+
+        dst.limit(ppos + recLen).position(ppos);
+    }
 
     private Record2 checkValid(Record2 rec) {
         if (rec == null) {
