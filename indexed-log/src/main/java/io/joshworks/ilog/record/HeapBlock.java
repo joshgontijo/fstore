@@ -73,7 +73,7 @@ public class HeapBlock {
     }
 
     private int keyOverhead() {
-        return rowKey.keySize() + Integer.BYTES;
+        return rowKey.keySize();
     }
 
     public boolean add(Record2 record) {
@@ -91,11 +91,10 @@ public class HeapBlock {
             return false;
         }
 
-        int recPos = records.position();
+        //key region
         record.writeKey(block);
-        block.putInt(recPos);
-
         record.copyTo(records);
+
         entries++;
         return true;
     }
