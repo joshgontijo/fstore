@@ -1,5 +1,7 @@
 package io.joshworks.ilog.record;
 
+import io.joshworks.fstore.codec.snappy.LZ4Codec;
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.Record;
@@ -9,7 +11,12 @@ import io.joshworks.ilog.index.RowKey;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
+
+import static io.joshworks.ilog.record.HeapBlock.BlockCodec.DEFLATE;
+import static io.joshworks.ilog.record.HeapBlock.BlockCodec.NO_COMPRESSION;
+import static io.joshworks.ilog.record.HeapBlock.BlockCodec.SNAPPY;
 
 /**
  * -------- HEADER ---------
@@ -27,7 +34,6 @@ import java.util.function.Consumer;
 public class HeapBlock {
 
     private final RowKey rowKey;
-    private final boolean direct;
     private final Codec codec;
     private State state = State.EMPTY;
 
@@ -38,34 +44,27 @@ public class HeapBlock {
     private int entries;
 
     private final List<Key> keys = new ArrayList<>();
-    private final ByteBuffer block;
-    private final ByteBuffer records;
+
+    private ByteBuffer block;
+    private ByteBuffer data;
 
     private final RecordPool pool;
 
-    public HeapBlock(RecordPool pool, int blockSize, RowKey rowKey, boolean direct, Codec codec) {
-        this.pool = pool;
+    public HeapBlock(RecordPool pool, int blockSize, RowKey rowKey, Codec codec) {
         this.rowKey = rowKey;
-        this.direct = direct;
         this.codec = codec;
-        this.block = Buffers.allocate(blockSize, direct);
-        this.records = Buffers.allocate(blockSize, direct);
-
-        block.position(
-                Record.HEADER_BYTES + //record header
-                keyOverhead() + // first key
-                HEADER_BYTES // block info
-        );
+        this.block = pool.allocate(blockSize);
+        this.data = pool.allocate(blockSize);
+        this.pool = pool;
     }
 
     private boolean hasCapacity(int entrySize) {
-        return block.remaining() >= (records.position()) + (entrySize + keyOverhead());
-//        return records.remaining() >=
-//                Record.HEADER_BYTES +
-//                        keyOverhead() +
-//                        HEADER_BYTES +
-//                        (entrySize + keyOverhead()) +
-//                        keyRegionSize();
+        return data.remaining() >=
+                Record.HEADER_BYTES +
+                        keyOverhead() +
+                        HEADER_BYTES +
+                        (entrySize + keyOverhead()) +
+                        keyRegionSize();
     }
 
     private int keyRegionSize() {
@@ -84,17 +83,21 @@ public class HeapBlock {
         if (entries == 0) {
             //TODO implement all transition
             state = State.CREATING;
-            records.clear();
+            data.clear();
         }
 
         if (!hasCapacity(record.recordSize())) {
             return false;
         }
 
-        //key region
-        record.writeKey(block);
-        record.copyTo(records);
+        //uses data as temporary storage
+        //TODO check for readonly blocks
+        Key key = getOrAllocate(entries);
 
+        key.offset = data.position();
+        key.write(record);
+
+        record.copyTo(data);
         entries++;
         return true;
     }
@@ -114,9 +117,9 @@ public class HeapBlock {
 
         //----- READ DECOMPRESSED ----
         if (decompress) {
-            codec.decompress(block, records);
-            records.flip();
-            assert records.remaining() == uncompressedSize;
+            codec.decompress(block, data);
+            data.flip();
+            assert data.remaining() == uncompressedSize;
             state = State.DECOMPRESSED;
             return;
         }
@@ -134,7 +137,7 @@ public class HeapBlock {
 
     private Key getOrAllocate(int idx) {
         while (idx >= keys.size()) {
-            keys.add(new Key(rowKey, direct));
+            keys.add(new Key(rowKey));
         }
         Key key = keys.get(idx);
         key.clear();
@@ -146,34 +149,34 @@ public class HeapBlock {
             throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
         }
 
-        records.flip();
-        uncompressedSize = records.remaining();
-        codec.compress(records, block);
+        data.flip();
+        uncompressedSize = data.remaining();
+        codec.compress(data, block);
         block.flip();
         compressedSize = block.remaining();
 
         state = State.COMPRESSED;
     }
 
-    public void write(Consumer<Records> writer, RecordPool pool) {
+    public void write(Consumer<Records> writer) {
         if (!State.CREATING.equals(state)) {
             throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
         }
 
-        records.flip();
+        block.clear();
+        data.flip();
 
-        int uncompressedSize = records.remaining();
-        int compressedStart = block.position();
-        codec.compress(records, block);
-        long compressedSize = block.position() - compressedStart;
+        int uncompressedSize = data.remaining();
+
 
         //------------ COMPRESSED DATA
         int keysSectionSize = keyOverhead() * entryCount();
         int dataRegion = HEADER_BYTES + keysSectionSize;
         block.position(dataRegion);
-
+        codec.compress(data, block);
 
         int blockEnd = block.position();
+        int compressedSize = blockEnd - dataRegion;
 
         //------------ BLOCK START
         block.position(0);
@@ -193,10 +196,10 @@ public class HeapBlock {
         state = State.COMPRESSED;
 
         Key firstKey = keys.get(0);
-        records.clear();
+        data.clear();
 
-        try(BufferRecords records = pool.fromBuffer()) {
-            records.create(this.records, b -> b.put(firstKey.data));
+        try(BufferRecords records = pool.) {
+            records.create(data, b -> b.put(firstKey.data));
             firstKey.data.clear();
             writer.accept(records);
         }
@@ -217,7 +220,7 @@ public class HeapBlock {
     }
 
     public void clear() {
-        records.clear();
+        data.clear();
         block.clear();
         uncompressedSize = 0;
         entries = 0;
@@ -228,11 +231,11 @@ public class HeapBlock {
         if (decompressed()) {
             return;
         }
-        records.clear();
-        codec.decompress(block, records);
-        records.flip();
+        data.clear();
+        codec.decompress(block, data);
+        data.flip();
 
-        assert uncompressedSize == records.remaining();
+        assert uncompressedSize == data.remaining();
 
         state = State.DECOMPRESSED;
     }
@@ -278,8 +281,8 @@ public class HeapBlock {
         }
 
         int offset = keys.get(idx).offset;
-        records.position(offset);
-        return Record.copyTo(records, dst);
+        data.position(offset);
+        return Record.copyTo(data, dst);
     }
 
 
@@ -292,7 +295,7 @@ public class HeapBlock {
     }
 
     public int uncompressedSize() {
-        return records.getInt(0);
+        return data.getInt(0);
     }
 
     public int entryCount() {
@@ -300,7 +303,7 @@ public class HeapBlock {
     }
 
     public ByteBuffer buffer() {
-        return records;
+        return data;
     }
 
     private static class Key implements Comparable<ByteBuffer> {
@@ -308,8 +311,8 @@ public class HeapBlock {
         private final ByteBuffer data;
         private final RowKey comparator;
 
-        private Key(RowKey comparator, boolean direct) {
-            this.data = Buffers.allocate(comparator.keySize(), direct);
+        private Key(RowKey comparator) {
+            this.data = Buffers.allocate(comparator.keySize(), true);
             this.comparator = comparator;
         }
 
@@ -341,6 +344,40 @@ public class HeapBlock {
             return comparator.compare(data, o);
         }
     }
+
+    public enum BlockCodec {
+        NO_COMPRESSION(0),
+        SNAPPY(1),
+        LZ4_H(2),
+        LZ4_L(3),
+        DEFLATE(4);
+
+        private int i;
+
+        BlockCodec(int i) {
+            this.i = i;
+        }
+    }
+
+    private static class Codecs {
+
+        private static final Map<Integer, Codec> codecs = Map.of(
+                BlockCodec.NO_COMPRESSION.i, Codec.noCompression(),
+                BlockCodec.SNAPPY.i, new SnappyCodec(),
+                BlockCodec.LZ4_H.i, new LZ4Codec(true),
+                BlockCodec.LZ4_L.i, new LZ4Codec(false),
+                BlockCodec.DEFLATE.i, new LZ4Codec(false)
+        );
+
+        private static Codec get(int codecId) {
+            Codec codec = codecs.get(codecId);
+            if (codec == null) {
+                throw new IllegalArgumentException("Invalid codec: " + codecId);
+            }
+            return codec;
+        }
+    }
+
 
     private enum State {
         EMPTY, CREATING, COMPRESSED, DECOMPRESSED, READ_ONLY,

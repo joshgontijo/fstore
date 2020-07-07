@@ -94,6 +94,15 @@ public class Record2 implements Comparable<Record2>, Closeable {
         return recLen;
     }
 
+    public static void writeHeader(ByteBuffer dst, int keyLen, long sequence, int valLen, int checksum, int... attr) {
+        dst.putInt(HEADER_BYTES + keyLen + valLen); // RECORD_LEN (including this field)
+        dst.putInt(valLen); // VALUE_LEN
+        dst.putLong(sequence); // SEQUENCE
+        dst.putInt(checksum); // CHECKSUM
+        dst.putLong(System.currentTimeMillis()); // TIMESTAMP
+        dst.put(attribute(attr)); // ATTRIBUTES
+    }
+
     public int copyTo(ByteBuffer dst) {
         int recLen = recordSize();
         if (dst.remaining() < recLen) {
@@ -117,7 +126,7 @@ public class Record2 implements Comparable<Record2>, Closeable {
         return written;
     }
 
-    private byte attribute(int... attributes) {
+    private static byte attribute(int... attributes) {
         byte b = 0;
         for (int attr : attributes) {
             b = (byte) (b | 1 << attr);
@@ -152,5 +161,9 @@ public class Record2 implements Comparable<Record2>, Closeable {
     @Override
     public void close() {
         owner.free(this);
+    }
+
+    public void copyValue(ByteBuffer dst) {
+        Buffers.copy(data, valueOffset(), valueSize(), dst);
     }
 }

@@ -26,6 +26,12 @@
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>standard-serializer</artifactId>
         </dependency>
+
+        <!-- CODEC -->
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>standard-codec</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>snappy-codec</artifactId>

@@ -104,7 +104,7 @@ public class RecordPool {
         }
     }
 
-    BufferRecords getBufferRecords() {
+    private BufferRecords getBufferRecords() {
         BufferRecords records = bufferRecordsCache.poll();
         if (records == null) {
             return new BufferRecords(this, rowKey, batchSize);

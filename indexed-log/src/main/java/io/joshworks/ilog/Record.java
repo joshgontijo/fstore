@@ -10,14 +10,18 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
 /**
+ * <pre>
+ * ----- HEADER -----
  * RECORD_LEN (4 BYTES)
  * VALUE_LEN (4 BYTES)
  * CHECKSUM (4 BYTES)
  * TIMESTAMP (8 BYTES)
  * ATTR (1 BYTES)
- * <p>
+ *
+ * ----- KEY_VALUE -----
  * [KEY] (N BYTES)
  * [VALUE] (N BYTES)
+ * </pre>
  */
 public class Record {
 
