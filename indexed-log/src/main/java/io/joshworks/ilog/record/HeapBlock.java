@@ -160,20 +160,20 @@ public class HeapBlock {
             throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
         }
 
-        block.clear();
         records.flip();
 
         int uncompressedSize = records.remaining();
-
+        int compressedStart = block.position();
+        codec.compress(records, block);
+        long compressedSize = block.position() - compressedStart;
 
         //------------ COMPRESSED DATA
         int keysSectionSize = keyOverhead() * entryCount();
         int dataRegion = HEADER_BYTES + keysSectionSize;
         block.position(dataRegion);
-        codec.compress(records, block);
+
 
         int blockEnd = block.position();
-        int compressedSize = blockEnd - dataRegion;
 
         //------------ BLOCK START
         block.position(0);
