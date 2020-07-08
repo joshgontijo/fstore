@@ -13,9 +13,11 @@ import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.HeapBlock;
 import io.joshworks.ilog.pooled.ObjectPool;
 import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.HeapBlock;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
@@ -95,7 +97,7 @@ public class Lsm {
         tlog.append(records);
         while (copy.hasNext()) {
             memTable.add(copy);
-            if(memTable.isFull()) {
+            if (memTable.isFull()) {
                 flush();
             }
         }
@@ -118,22 +120,31 @@ public class Lsm {
                 return fromMem;
             }
 
+            RecordPool pool = null;
+
             try (HeapBlock block = blockPool.allocate()) {
                 for (IndexedSegment ssTable : sst) {
-                    record.clear();
                     if (!ssTable.readOnly()) {
                         block.clear();
                         continue;
                     }
-                    Index index = ssTable.index();
-                    int idx = index.find(key, IndexFunction.FLOOR);
-                    if (idx != Index.NONE) {
+
+                    Records records = pool.read(ssTable, key, IndexFunction.FLOOR);
+                    if (!records.hasNext()) {
+                        records.close();
+                        continue;
+                    }
+
+                    try (Record2 blockRec = records.poll()) {
+                        block.from(blockRec, true);
+
                         int entrySize = readFromBlock(key, block, record, dst, IndexFunction.EQUALS);
                         if (entrySize <= 0) {// not found in the block, continue
                             block.clear();
                             continue;
                         }
                         return entrySize;
+
                     }
                 }
                 return 0;

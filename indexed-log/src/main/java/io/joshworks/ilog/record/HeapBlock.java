@@ -149,20 +149,6 @@ public class HeapBlock implements Closeable {
         return key;
     }
 
-    public void compress() {
-        if (!State.CREATING.equals(state)) {
-            throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
-        }
-
-        data.flip();
-        uncompressedSize = data.remaining();
-        codec.compress(data, block);
-        block.flip();
-        compressedSize = block.remaining();
-
-        state = State.COMPRESSED;
-    }
-
     public void write(Consumer<Records> writer) {
         if (!State.CREATING.equals(state)) {
             throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
