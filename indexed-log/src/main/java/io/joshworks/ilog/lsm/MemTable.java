@@ -66,7 +66,7 @@ class MemTable {
         if (node == null) {
             return 0;
         }
-        return node.record().copy(dst);
+        return node.record().copyTo(dst);
     }
 
     public int size() {
