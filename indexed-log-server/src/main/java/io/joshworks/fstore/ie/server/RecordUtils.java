@@ -3,7 +3,6 @@ package io.joshworks.fstore.ie.server;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.ilog.Record;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -25,21 +24,21 @@ public class RecordUtils {
         vs.writeTo(value, vb);
         vb.flip();
 
-        Record.create(kb, vb, dst);
+        io.joshworks.ilog.record.RecordUtils.create(kb, vb, dst);
         dst.flip();
         return dst;
     }
 
     public static long readKey(ByteBuffer record) {
-        var dst = Buffers.allocate(Record.KEY_LEN.get(record), false);
-        Record.KEY_LEN.copyTo(record, dst);
+        var dst = Buffers.allocate(io.joshworks.ilog.record.RecordUtils.KEY_LEN.get(record), false);
+        io.joshworks.ilog.record.RecordUtils.KEY_LEN.copyTo(record, dst);
         dst.flip();
         return dst.getLong();
     }
 
     public static String readValue(ByteBuffer record) {
-        var dst = Buffers.allocate(Record.VALUE_LEN.get(record), false);
-        Record.VALUE.copyTo(record, dst);
+        var dst = Buffers.allocate(io.joshworks.ilog.record.RecordUtils.VALUE_LEN.get(record), false);
+        io.joshworks.ilog.record.RecordUtils.VALUE.copyTo(record, dst);
         dst.flip();
         return StandardCharsets.UTF_8.decode(dst).toString();
     }

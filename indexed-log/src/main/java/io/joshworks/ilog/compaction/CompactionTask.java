@@ -53,7 +53,7 @@ public class CompactionTask<T extends IndexedSegment> implements Runnable {
 
             long start = System.currentTimeMillis();
 
-            output = view.newSegment(level + 1, estimatedIndexSize);
+            output = view.newSegment(level + 1, estimatedEntries);
 
             combiner.merge(segments, output);
             output.flush();

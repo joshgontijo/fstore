@@ -32,12 +32,12 @@ public class Index implements Closeable {
 
     public static int MAX_SIZE = Integer.MAX_VALUE - 8;
 
-    public Index(File file, int size, RowKey comparator) {
+    public Index(File file, long maxEntries, RowKey comparator) {
         this.comparator = comparator;
         try {
             boolean newFile = file.createNewFile();
             if (newFile) {
-                int alignedSize = align(size);
+                long alignedSize = align(entrySize() * maxEntries);
                 this.mf = MappedFile.create(file, alignedSize);
             } else { //existing file
                 this.mf = MappedFile.open(file);
@@ -161,9 +161,9 @@ public class Index implements Closeable {
         return comparator.keySize();
     }
 
-    private int align(int size) {
+    private long align(long size) {
         int entrySize = entrySize();
-        int aligned = entrySize * (size / entrySize);
+        long aligned = entrySize * (size / entrySize);
         if (aligned <= 0) {
             throw new IllegalArgumentException("Invalid index size: " + size);
         }

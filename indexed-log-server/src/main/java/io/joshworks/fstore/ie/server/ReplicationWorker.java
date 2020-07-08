@@ -1,24 +1,20 @@
 package io.joshworks.fstore.ie.server;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.fstore.tcp.TcpEventClient;
 import io.joshworks.ilog.LogIterator;
-import io.joshworks.ilog.Record;
+import io.joshworks.ilog.record.RecordUtils;
 import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.lsm.Lsm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xnio.Options;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
@@ -113,13 +109,13 @@ class ReplicationWorker {
 
             int totalSize = 0;
             while (RecordBatch.hasNext(buffer)) {
-                assert Record.isValid(buffer);
+                assert RecordUtils.isValid(buffer);
 
-                long recordKey = buffer.getLong(buffer.position() + Record.KEY.offset(buffer));
+                long recordKey = buffer.getLong(buffer.position() + RecordUtils.KEY.offset(buffer));
                 if (!lastSentSequence.compareAndSet(recordKey - 1, recordKey)) {
                     throw new IllegalStateException("Non contiguous record replication entry: " + recordKey + " current: " + lastSentSequence.get());
                 }
-                totalSize += Record.sizeOf(buffer);
+                totalSize += RecordUtils.sizeOf(buffer);
                 RecordBatch.advance(buffer);
             }
 

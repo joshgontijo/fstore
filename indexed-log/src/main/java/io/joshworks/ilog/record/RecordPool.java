@@ -3,7 +3,6 @@ package io.joshworks.ilog.record;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.Record;
 import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
@@ -43,27 +42,29 @@ public class RecordPool {
         return rowKey;
     }
 
-    public Records fromBuffer(ByteBuffer data) {
-        if (!data.hasRemaining()) {
-            return Records.EMPTY;
-        }
+    public BufferRecords empty() {
+        return getBufferRecords();
+    }
+
+    public BufferRecords fromBuffer(ByteBuffer data) {
         BufferRecords records = getBufferRecords();
+        if (!data.hasRemaining()) {
+            return records;
+        }
 
         int i = 0;
-        int copied = 0;
         while (RecordBatch.hasNext(data) && i < batchSize) {
-            int rsize = Record.sizeOf(data);
+            int rsize = RecordUtils.sizeOf(data);
             ByteBuffer recData = pool.allocate(rsize);
-            copied += Buffers.copy(data, data.position(), rsize, recData);
+            Buffers.copy(data, data.position(), rsize, recData);
+            RecordBatch.advance(data);
 
+            recData.flip();
             records.add(recData);
+
             i++;
         }
-        if (i == 0) {
-            return Records.EMPTY;
-        }
 
-        Buffers.offsetPosition(data, copied);
         return records;
     }
 
@@ -150,6 +151,7 @@ public class RecordPool {
             throw new RuntimeException("Unknown type: " + records.getClass());
         }
     }
+
 
 
 }

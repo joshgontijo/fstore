@@ -3,7 +3,7 @@ package io.joshworks.fstore.ie.server;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.ie.server.protocol.Replication;
 import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.ilog.Record;
+import io.joshworks.ilog.record.RecordUtils;
 import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.Lsm;
@@ -67,14 +67,14 @@ public class Replica {
 
                 long lastSequence = -1;
                 while (RecordBatch.hasNext(buffer)) {
-                    int keyOffset = Record.KEY.offset(buffer);
+                    int keyOffset = RecordUtils.KEY.offset(buffer);
                     long recordSequence = buffer.getLong(buffer.position() + keyOffset);
 
                     replicateBuffer.clear();
-                    Record.VALUE.copyTo(buffer, replicateBuffer);
+                    RecordUtils.VALUE.copyTo(buffer, replicateBuffer);
                     replicateBuffer.flip();
 
-                    assert Record.isValid(replicateBuffer);
+                    assert RecordUtils.isValid(replicateBuffer);
                     long logSequence = lsm.replicate(replicateBuffer);
                     assert logSequence == recordSequence : logSequence + " != " + recordSequence;
                     lastSequence = logSequence;

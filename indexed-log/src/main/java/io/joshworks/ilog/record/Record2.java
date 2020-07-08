@@ -2,7 +2,6 @@ package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
-import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 
@@ -20,14 +19,14 @@ public class Record2 implements Comparable<Record2>, Closeable {
 
     public static final int HEADER_BYTES = (Integer.BYTES * 3) + (Long.BYTES * 2) + Byte.BYTES;
 
-    private static final int RECORD_LEN_OFFSET = 0;
-    static final int VALUE_LEN_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
-    static final int SEQUENCE_OFFSET = VALUE_LEN_OFFSET + Integer.BYTES;
-    private static final int CHECKSUM_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
-    private static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
-    private static final int ATTRIBUTE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
+    public static final int RECORD_LEN_OFFSET = 0;
+    public static final int VALUE_LEN_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
+    public static final int SEQUENCE_OFFSET = VALUE_LEN_OFFSET + Integer.BYTES;
+    public static final int CHECKSUM_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
+    public static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
+    public static final int ATTRIBUTE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
 
-    static final int KEY_OFFSET = ATTRIBUTE_OFFSET + Byte.BYTES;
+    public static final int KEY_OFFSET = ATTRIBUTE_OFFSET + Byte.BYTES;
 
     Record2(BufferRecords owner, RowKey rowKey) {
         this.owner = owner;
@@ -40,7 +39,7 @@ public class Record2 implements Comparable<Record2>, Closeable {
     }
 
     public int recordSize() {
-        return data.remaining();
+        return data.getInt(RECORD_LEN_OFFSET);
     }
 
     public int keySize() {
@@ -67,13 +66,14 @@ public class Record2 implements Comparable<Record2>, Closeable {
         return recSize - valSize;
     }
 
-    public int create(long sequence, ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
+    public static Record2 create(long sequence, RowKey rowKey, ByteBuffer key, ByteBuffer value, int... attr) {
+
         int checksum = ByteBufferChecksum.crc32(value);
+        int recordSize = HEADER_BYTES + key.remaining() + value.remaining();
 
-        int recordStart = dst.position();
+        ByteBuffer dst = Buffers.allocate(recordSize, false);
 
-        int recLen = 0;
-        dst.putInt(HEADER_BYTES + key.remaining() + value.remaining()); // RECORD_LEN (including this field)
+        dst.putInt(recordSize); // RECORD_LEN (including this field)
         dst.putInt(value.remaining()); // VALUE_LEN
         dst.putLong(sequence); // SEQUENCE
         dst.putInt(checksum); // CHECKSUM
@@ -82,16 +82,12 @@ public class Record2 implements Comparable<Record2>, Closeable {
 
         Buffers.copy(key, dst);
         Buffers.copy(value, dst);
+        dst.flip();
 
-        int recordEnd = dst.position();
+        Record2 rec = new Record2(null, rowKey);
+        rec.data = dst;
 
-        dst.position(recordStart);
-        if (!Record.isValid(dst)) {
-            throw new RuntimeException("Invalid record");
-        }
-        dst.position(recordEnd);
-
-        return recLen;
+        return rec;
     }
 
     public static void writeHeader(ByteBuffer dst, int keyLen, long sequence, int valLen, int checksum, int... attr) {
@@ -160,7 +156,9 @@ public class Record2 implements Comparable<Record2>, Closeable {
 
     @Override
     public void close() {
-        owner.free(this);
+        if (owner != null) {
+            owner.free(this);
+        }
     }
 
     public void copyValue(ByteBuffer dst) {

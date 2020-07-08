@@ -2,18 +2,14 @@ package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
-import io.joshworks.ilog.LogIterator;
-import io.joshworks.ilog.Record;
-import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.pooled.ObjectPool;
+import io.joshworks.ilog.polled.ObjectPool;
 import io.joshworks.ilog.record.BufferRecords;
 import io.joshworks.ilog.record.HeapBlock;
 import io.joshworks.ilog.record.Record2;
@@ -33,7 +29,7 @@ public class Lsm {
     private final MemTable memTable;
     private final Log<IndexedSegment> ssTables;
 
-    private final BufferPool recordPool;
+    private final RecordPool pool;
 
     private final long maxAge;
 
@@ -56,35 +52,28 @@ public class Lsm {
         this.maxAge = maxAge;
         this.rowKey = rowKey;
 
-        this.blockPool = new ObjectPool<>(100, p -> new HeapBlock(p, blockSize, rowKey, directBuffers, codec));
+        this.pool = RecordPool.create(rowKey).directBuffers(directBuffers).build();
+        this.blockPool = new ObjectPool<>(100, p -> new HeapBlock(pool, blockSize, rowKey, codec));
 
-//        int maxRecordSize = Record2.HEADER_BYTES + comparator.keySize() + blockSize;
-        int maxRecordSize = 36 + rowKey.keySize() + blockSize;
+        // FIXME index can hold up to Integer.MAX_VALUE which probably isn't enough for large dataset
 
-        this.recordPool = BufferPool.localCachePool(256, maxRecordSize, directBuffers);
-        BufferPool logRecordPool = BufferPool.localCachePool(256, maxRecordSize, directBuffers);
-
-//        int sstableIndexSize = memTableMaxEntries * (keySize + Long.BYTES); //key + pos
-        int sstableIndexSize = memTableMaxSizeInBytes; // FIXME this needs to be properly calculated
-        int tlogIndexSize = sstableIndexSize * 4;
-
-        this.memTable = new MemTable(memTableMaxEntries);
-
+        this.memTable = new MemTable(pool, memTableMaxEntries);
         this.tlog = new Log<>(
                 new File(root, LOG_DIR),
-                tlogIndexSize,
+                memTableMaxEntries, //
                 2,
                 1,
                 FlushMode.ON_ROLL,
-                RowKey.LONG,
+                pool,
                 IndexedSegment::new);
 
+        RecordPool sstablePool = RecordPool.create(rowKey).directBuffers(directBuffers).build();
         this.ssTables = new Log<>(new File(root, SSTABLES_DIR),
-                sstableIndexSize,
+                memTableMaxSizeInBytes,
                 compactionThreshold,
                 compactionThreads,
                 FlushMode.ON_ROLL,
-                rowKey,
+                sstablePool,
                 IndexedSegment::new);
     }
 
@@ -115,8 +104,8 @@ public class Lsm {
         }
         return ssTables.apply(Direction.BACKWARD, sst -> {
 
-            int fromMem = memTable.apply(key, dst, IndexFunction.EQUALS);
-            if (fromMem > 0) {
+            Records fromMem = memTable.apply(key, IndexFunction.EQUALS);
+            if (fromMem != null) {
                 return fromMem;
             }
 
@@ -135,49 +124,20 @@ public class Lsm {
                         continue;
                     }
 
+                    //TODO close block
                     try (Record2 blockRec = records.poll()) {
                         block.from(blockRec, true);
-
-                        int entrySize = readFromBlock(key, block, record, dst, IndexFunction.EQUALS);
-                        if (entrySize <= 0) {// not found in the block, continue
+                        Records recs = block.find(key, IndexFunction.EQUALS, pool);
+                        if (recs == null) {// not found in the block, continue
                             block.clear();
                             continue;
                         }
-                        return entrySize;
-
+                        return recs;
                     }
                 }
-                return 0;
-            } finally {
-                recordPool.free(record);
+                return null;
             }
         });
-    }
-
-    private int readFromBlock(ByteBuffer key, HeapBlock heapBlock, ByteBuffer record, ByteBuffer dst, IndexFunction func) {
-
-        assert Record.isValid(record);
-
-        int blockStart = Record.VALUE.offset(record);
-        int blockSize = Record.VALUE.len(record);
-
-        Buffers.offsetPosition(record, blockStart);
-        Buffers.offsetLimit(record, blockSize);
-        heapBlock.from(record, true);
-
-        return heapBlock.find(key, dst, func);
-    }
-
-    public int readLog(ByteBuffer dst, long id) {
-        return tlog.bulkRead(id, dst, IndexFunction.EQUALS);
-    }
-
-    public LogIterator logIterator() {
-        return tlog.iterator();
-    }
-
-    public LogIterator logIterator(long fromSequence) {
-        return tlog.iterator(fromSequence);
     }
 
     public synchronized void flush() {

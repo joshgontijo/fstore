@@ -3,8 +3,10 @@ package io.joshworks.ilog.lsm;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
+import io.joshworks.ilog.record.BufferRecords;
 import io.joshworks.ilog.record.HeapBlock;
 import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
@@ -19,8 +21,10 @@ class MemTable {
 
     private final StampedLock lock = new StampedLock();
     private final int maxEntries;
+    private final RecordPool pool;
 
-    MemTable(int maxEntries) {
+    MemTable(RecordPool pool, int maxEntries) {
+        this.pool = pool;
         this.maxEntries = maxEntries;
     }
 
@@ -42,31 +46,35 @@ class MemTable {
         }
     }
 
-    public int apply(ByteBuffer key, ByteBuffer dst, IndexFunction fn) {
+    public Records apply(ByteBuffer key, IndexFunction fn) {
 
         long stamp = lock.tryOptimisticRead();
-        int ppos = dst.position();
-        int read = tryRead(key, dst, fn);
+        Records read = tryRead(key, fn);
         if (lock.validate(stamp)) {
             return read;
         }
-
-        dst.position(ppos);//reset to previous position
+        if (read != null) {
+            read.close();
+        }
 
         stamp = lock.readLock();
         try {
-            return tryRead(key, dst, fn);
+            return tryRead(key, fn);
         } finally {
             lock.unlockRead(stamp);
         }
     }
 
-    private int tryRead(ByteBuffer key, ByteBuffer dst, IndexFunction fn) {
+    private Records tryRead(ByteBuffer key, IndexFunction fn) {
         Node node = table.apply(key, fn);
         if (node == null) {
-            return 0;
+            return null;
         }
-        return node.record().copyTo(dst);
+
+        BufferRecords recs = pool.empty();
+        recs.add(node.record());
+
+        return recs;
     }
 
     public int size() {

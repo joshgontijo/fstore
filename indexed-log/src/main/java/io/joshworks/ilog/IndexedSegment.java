@@ -35,19 +35,19 @@ public class IndexedSegment {
 
     private final SegmentLock lock = new SegmentLock();
 
-    public IndexedSegment(File file, int indexSize, RecordPool pool) {
+    public IndexedSegment(File file, long indexEntries, RecordPool pool) {
         this.file = file;
         this.pool = pool;
         this.rowKey = pool.rowKey();
-        this.index = openIndex(file, indexSize, rowKey);
+        this.index = openIndex(file, indexEntries, rowKey);
         this.id = LogUtil.segmentId(file.getName());
         this.channel = SegmentChannel.open(file);
         ;
     }
 
-    private Index openIndex(File file, int indexSize, RowKey comparator) {
+    private Index openIndex(File file, long indexEntries, RowKey comparator) {
         File indexFile = LogUtil.indexFile(file);
-        return new Index(indexFile, indexSize, comparator);
+        return new Index(indexFile, indexEntries, comparator);
     }
 
     public synchronized void reindex() {
@@ -170,6 +170,14 @@ public class IndexedSegment {
                 ", entries=" + index.entries() +
                 ", indexSize=" + index.size() +
                 '}';
+    }
+
+    public int entries() {
+        return index.entries();
+    }
+
+    public long indexSize() {
+        return index.size();
     }
 
     public static class SegmentLock implements Closeable {

@@ -1,9 +1,8 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.ilog.index.Index;
-import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.RecordPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,17 +38,17 @@ public class View<T extends IndexedSegment> {
     private final AtomicLong nextSegmentIdx = new AtomicLong();
     private final AtomicLong entries = new AtomicLong();
     private final File root;
-    private final RowKey rowKey;
-    private final int indexSize;
+    private final RecordPool pool;
+    private final long indexEntries;
     private final SegmentFactory<T> segmentFactory;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     //TODO remove BufferPool
-    View(File root, RowKey rowKey, int indexSize,  SegmentFactory<T> segmentFactory) throws IOException {
+    View(File root, RecordPool pool, long indexEntries, SegmentFactory<T> segmentFactory) throws IOException {
         this.root = root;
-        this.rowKey = rowKey;
-        this.indexSize = indexSize;
+        this.pool = pool;
+        this.indexEntries = indexEntries;
         this.segmentFactory = segmentFactory;
 
         List<T> segments = Files.list(root.toPath())
@@ -74,7 +73,7 @@ public class View<T extends IndexedSegment> {
     }
 
     private T createHead() {
-        return newSegment(0, indexSize);
+        return newSegment(0, indexEntries);
     }
 
 
@@ -95,19 +94,16 @@ public class View<T extends IndexedSegment> {
         return entries.get() + head().entries();
     }
 
-    public T newSegment(int level, long indexSize) {
-        if (indexSize > Index.MAX_SIZE) {
-            throw new IllegalArgumentException("Index cannot be greater than " + Index.MAX_SIZE);
-        }
+    public T newSegment(int level, long indexEntries) {
         long nextSegIdx = nextSegmentIdx.getAndIncrement();
         File segmentFile = segmentFile(root, nextSegIdx, level);
-        return segmentFactory.create(segmentFile, (int) indexSize, rowKey);
+        return segmentFactory.create(segmentFile, indexEntries, pool);
     }
 
     private T open(File segmentFile) {
         try {
             File indexFile = indexFile(segmentFile);
-            return segmentFactory.create(indexFile, indexSize, rowKey);
+            return segmentFactory.create(indexFile, indexEntries, pool);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment " + segmentFile.getName(), e);
         }
@@ -247,9 +243,6 @@ public class View<T extends IndexedSegment> {
                 source.delete();
             }
 
-
-        } catch (IOException e) {
-            throw new RuntimeIOException("Error while merging files", e);
         } finally {
             lock.unlock();
         }

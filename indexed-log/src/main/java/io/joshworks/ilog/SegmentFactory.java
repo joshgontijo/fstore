@@ -7,6 +7,6 @@ import java.io.File;
 @FunctionalInterface
 public interface SegmentFactory<T extends IndexedSegment> {
 
-    T create(File file, int indexSize, RecordPool pool);
+    T create(File file, long indexEntries, RecordPool pool);
 
 }

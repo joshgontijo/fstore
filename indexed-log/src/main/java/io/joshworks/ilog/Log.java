@@ -7,6 +7,7 @@ import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
@@ -23,26 +24,20 @@ public class Log<T extends IndexedSegment> {
     private final FlushMode flushMode;
     private final Compactor<T> compactor;
 
-    private final List<LogIterator> forwardIterators = new ArrayList<>();
-
     public Log(File root,
-               int indexSize,
+               long levelZeroIndexEntries,
                int compactionThreshold,
                int compactionThreads,
                FlushMode flushMode,
-               RowKey rowKey,
+               RecordPool pool,
                SegmentFactory<T> segmentFactory) throws IOException {
         FileUtils.createDir(root);
         this.flushMode = flushMode;
 
-        if (indexSize > Index.MAX_SIZE) {
-            throw new IllegalArgumentException("Index cannot be greater than " + Index.MAX_SIZE);
-        }
-
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
-        this.view = new View<>(root, rowKey, indexSize, segmentFactory);
+        this.view = new View<>(root, pool, levelZeroIndexEntries, segmentFactory);
         this.compactor = new Compactor<>(view, new ConcatenateCombiner(), compactionThreshold, compactionThreads);
     }
 
@@ -73,9 +68,6 @@ public class Log<T extends IndexedSegment> {
         if (FlushMode.ON_ROLL.equals(flushMode) || FlushMode.ALWAYS.equals(flushMode)) {
             head.flush();
         }
-        for (LogIterator iterator : forwardIterators) {
-            iterator.add(head.iterator(IndexedSegment.START, pool));
-        }
         head = rollInternal();
         return head;
     }
@@ -84,21 +76,6 @@ public class Log<T extends IndexedSegment> {
         return view.apply(direction, func);
     }
 
-    public LogIterator iterator() {
-        return view.apply(Direction.FORWARD, segs -> {
-            List<SegmentIterator> iterators = segs.stream()
-                    .map(seg -> seg.iterator(IndexedSegment.START, pool))
-                    .collect(Collectors.toCollection(CopyOnWriteArrayList::new));
-
-            return registerIterator(iterators);
-        });
-    }
-
-    public LogIterator registerIterator(List<SegmentIterator> iterators) {
-        LogIterator logIterator = new LogIterator(iterators);
-        this.forwardIterators.add(logIterator);
-        return logIterator;
-    }
 
     public void roll() {
         rollInternal();

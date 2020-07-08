@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -29,11 +30,15 @@ public class StripedBufferPool {
         this.maxSize = maxSize;
         this.direct = direct;
 
+        stripes = new HashSet<>(stripes);
         stripes.add(maxSize);
 
         for (int stripe : stripes) {
             pools.put(stripe, new ArrayDeque<>());
+
             count.put(stripe, new AtomicInteger());
+            allocated.put(stripe, new AtomicInteger());
+            inUse.put(stripe, new AtomicInteger());
         }
     }
 
@@ -48,7 +53,7 @@ public class StripedBufferPool {
 
 
         buffer = buffer == null ? allocateBuffer(stripeSize) : buffer;
-        inUse.get(size).incrementAndGet();
+        inUse.get(stripeSize).incrementAndGet();
         return buffer;
     }
 

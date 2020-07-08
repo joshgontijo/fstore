@@ -8,7 +8,7 @@
 //import io.joshworks.ilog.IndexedSegment;
 //import io.joshworks.ilog.LogUtil;
 //import io.joshworks.ilog.RecordBatchIterator;
-//import io.joshworks.ilog.RecordUtils;
+//import io.joshworks.ilog.record.RecordUtils;
 //import io.joshworks.ilog.index.KeyComparator;
 //import org.junit.After;
 //import org.junit.Test;

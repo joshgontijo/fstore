@@ -1,4 +1,4 @@
-package io.joshworks.ilog;
+package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
@@ -23,52 +23,38 @@ import java.nio.channels.WritableByteChannel;
  * [VALUE] (N BYTES)
  * </pre>
  */
-public class Record {
-
-    public static final int HEADER_BYTES = (Integer.BYTES * 3) + Long.BYTES + Byte.BYTES;
-
-    private static final int RECORD_LEN_OFFSET = 0;
-    private static final int VALUE_LEN_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
-    private static final int CHECKSUM_OFFSET = VALUE_LEN_OFFSET + Integer.BYTES;
-    private static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
-    private static final int ATTRIBUTE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
-
-    private static final int KEY_OFFSET = ATTRIBUTE_OFFSET + Byte.BYTES;
+public class RecordUtils {
 
     public static boolean hasAttribute(ByteBuffer buffer, int attribute) {
-        byte attr = buffer.get(buffer.position() + ATTRIBUTE_OFFSET);
+        byte attr = buffer.get(buffer.position() + Record2.ATTRIBUTE_OFFSET);
         return (attr & (1 << attribute)) == 1;
     }
 
-
     public static int compareRecordKeys(ByteBuffer r1, ByteBuffer r2, RowKey comparator) {
-        return comparator.compare(r1, KEY_OFFSET, r2, KEY_OFFSET);
+        return comparator.compare(r1, Record2.KEY_OFFSET, r2, Record2.KEY_OFFSET);
     }
 
     public static int compareToKey(ByteBuffer record, ByteBuffer key, RowKey comparator) {
-        return comparator.compare(record, KEY_OFFSET, key, key.position());
+        return comparator.compare(record, Record2.KEY_OFFSET, key, key.position());
     }
 
     public static int sizeOf(ByteBuffer record) {
-        return record.getInt(record.position() + RECORD_LEN_OFFSET);
+        return record.getInt(record.position() + Record2.RECORD_LEN_OFFSET);
     }
 
     public static int keySize(ByteBuffer record) {
-        if (isValid(record)) {
-            throw new RuntimeException("Invalid record");
-        }
         int recSize = sizeOf(record);
         int valSize = valueSize(record);
 
-        return recSize - HEADER_BYTES - valSize;
+        return recSize - Record2.HEADER_BYTES - valSize;
     }
 
     public static int valueSize(ByteBuffer record) {
-        return record.getInt(record.position() + VALUE_LEN_OFFSET);
+        return record.getInt(record.position() + Record2.VALUE_LEN_OFFSET);
     }
 
     public static int checksum(ByteBuffer record) {
-        return record.getInt(record.position() + CHECKSUM_OFFSET);
+        return record.getInt(record.position() + Record2.CHECKSUM_OFFSET);
     }
 
     private static int valueOffset(ByteBuffer record) {
@@ -77,30 +63,9 @@ public class Record {
         return recSize - valSize;
     }
 
+    @Deprecated
     public static int create(ByteBuffer key, ByteBuffer value, ByteBuffer dst, int... attr) {
-        int checksum = ByteBufferChecksum.crc32(value);
-
-        int recordStart = dst.position();
-
-        int recLen = 0;
-        dst.putInt(HEADER_BYTES + key.remaining() + value.remaining()); // RECORD_LEN
-        dst.putInt(value.remaining()); // VALUE_LEN
-        dst.putInt(checksum); // CHECKSUM
-        dst.putLong(System.currentTimeMillis()); // TIMESTAMP
-        dst.put(attribute(attr)); // ATTRIBUTES
-
-        Buffers.copy(key, dst);
-        Buffers.copy(value, dst);
-
-        int recordEnd = dst.position();
-
-        dst.position(recordStart);
-        if (!isValid(dst)) {
-            throw new RuntimeException("Invalid record");
-        }
-        dst.position(recordEnd);
-
-        return recLen;
+        throw new UnsupportedOperationException();
     }
 
     public static int copyTo(ByteBuffer record, ByteBuffer dst) {
@@ -121,14 +86,14 @@ public class Record {
 
     public static boolean isValid(ByteBuffer record) {
         int remaining = record.remaining();
-        if (remaining < HEADER_BYTES) {
+        if (remaining < Record2.HEADER_BYTES) {
             return false;
         }
         int recordSize = sizeOf(record);
         if (recordSize > remaining) {
             return false;
         }
-        if (recordSize <= HEADER_BYTES) {
+        if (recordSize <= Record2.HEADER_BYTES) {
             return false;
         }
 
@@ -139,7 +104,7 @@ public class Record {
             return false;
         }
 
-        if (sizeOf(record) != HEADER_BYTES + keySize + valueOffset(record)) {
+        if (sizeOf(record) != Record2.HEADER_BYTES + keySize + valueSize(record)) {
             return false;
         }
 
@@ -151,10 +116,10 @@ public class Record {
     }
 
     public static int writeTo(ByteBuffer record, WritableByteChannel channel) throws IOException {
-        if (!Record.isValid(record)) {
+        if (!RecordUtils.isValid(record)) {
             throw new IllegalStateException("Invalid record");
         }
-        int rsize = Record.sizeOf(record);
+        int rsize = RecordUtils.sizeOf(record);
         if (record.remaining() < rsize) {
             return 0;
         }

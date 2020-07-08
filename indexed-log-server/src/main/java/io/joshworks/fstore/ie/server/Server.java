@@ -3,7 +3,7 @@ package io.joshworks.fstore.ie.server;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.ie.server.protocol.Message;
 import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.ilog.Record;
+import io.joshworks.ilog.record.RecordUtils;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.Lsm;
 import org.slf4j.Logger;
@@ -51,7 +51,7 @@ public class Server implements Closeable {
     }
 
     public void append(ByteBuffer buffer, ReplicationLevel rlevel) {
-        assert Record.isValid(buffer);
+        assert RecordUtils.isValid(buffer);
 
         long logId = lsm.append(buffer);
         sequence.set(logId);

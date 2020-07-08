@@ -4,7 +4,6 @@ import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 
@@ -57,7 +56,7 @@ public class HeapBlock implements Closeable {
 
     private boolean hasCapacity(int entrySize) {
         return data.remaining() >=
-                Record.HEADER_BYTES +
+                Record2.HEADER_BYTES +
                         keyOverhead() +
                         HEADER_BYTES +
                         (entrySize + keyOverhead()) +
@@ -230,14 +229,14 @@ public class HeapBlock implements Closeable {
         state = State.DECOMPRESSED;
     }
 
-    public int find(ByteBuffer key, ByteBuffer dst, IndexFunction fn) {
+    public Records find(ByteBuffer key, IndexFunction fn, RecordPool pool) {
         int cmp = indexedBinarySearch(keys, key);
         int idx = fn.apply(cmp);
         if (idx < 0) {
-            return 0;
+            return null;
         }
 
-        return read(idx, dst);
+        return read(idx, pool);
     }
 
     private int indexedBinarySearch(List<? extends Comparable<? super ByteBuffer>> list, ByteBuffer key) {
@@ -259,7 +258,7 @@ public class HeapBlock implements Closeable {
         return -(low + 1);  // key not found
     }
 
-    public int read(int idx, ByteBuffer dst) {
+    public Records read(int idx, RecordPool pool) {
         if (!readable()) {
             throw new IllegalStateException();
         }
@@ -271,8 +270,11 @@ public class HeapBlock implements Closeable {
         }
 
         int offset = keys.get(idx).offset;
+        int entryLen = data.getInt(offset);
+
+        data.limit(offset + entryLen);
         data.position(offset);
-        return Record.copyTo(data, dst);
+        return pool.fromBuffer(data);
     }
 
 

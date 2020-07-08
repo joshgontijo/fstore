@@ -38,9 +38,9 @@ public class MappedRegion {
     /**
      * Copy data from this MappedFile into the destination buffer
      *
-     * @param dst   The destination buffer
-     * @param offset   the offset of the source (this MappedFile)
-     * @param count The number of bytes to be copied
+     * @param dst    The destination buffer
+     * @param offset the offset of the source (this MappedFile)
+     * @param count  The number of bytes to be copied
      * @return the number of bytes copied
      * @throws BufferOverflowException if the count is greater than the dst {@link ByteBuffer#remaining()}
      */
@@ -51,9 +51,9 @@ public class MappedRegion {
     /**
      * Copy data from this MappedFile into the destination buffer
      *
-     * @param src   The source buffer
-     * @param offset   the offset of the source
-     * @param count The number of bytes to be copied
+     * @param src    The source buffer
+     * @param offset the offset of the source
+     * @param count  The number of bytes to be copied
      * @return the number of bytes copied
      * @throws BufferOverflowException if the count is greater than the dst {@link ByteBuffer#remaining()}
      */
@@ -163,7 +163,7 @@ public class MappedRegion {
 
     static int safeCast(long size) {
         if (size > MAX_CAPACITY) {
-            throw new IllegalArgumentException("File size must be less than " + MAX_CAPACITY);
+            throw new IllegalArgumentException("File size must be less than " + MAX_CAPACITY + ", got " + size);
         }
         return (int) size;
     }

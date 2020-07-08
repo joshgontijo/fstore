@@ -5,49 +5,49 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
-import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.Lsm;
+import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 
 public class AppTest {
+
+    private static final int memTableSize = 1000;
+
+    private static RecordPool pool = RecordPool.create(RowKey.LONG).batchSize(memTableSize + 1).build();
+
     public static void main(String[] args) {
 
-        Threads.sleep(7000);
-        int items = 1000000000;
 
         final Lsm lsm = Lsm.create(TestUtils.testFolder(), RowKey.LONG)
-                .memTable(1000000, Size.MB.ofInt(50), true)
+                .memTable(memTableSize, Size.MB.ofInt(50), true)
                 .codec(new SnappyCodec())
                 .compactionThreads(1)
                 .compactionThreshold(5)
                 .open();
 
-        ByteBuffer record = create(0, "value-123");
-        ByteBuffer keyBuff = ByteBuffer.allocate(Long.BYTES);
-        int limit = record.limit();
-        long s = System.currentTimeMillis();
-        for (int i = 0; i < items; i++) {
-            keyBuff.clear().putLong(i).flip();
-            Record.KEY.set(record, keyBuff);
-            lsm.append(record);
-            record.limit(limit).position(0);
-            if (i % 1000000 == 0) {
-                System.out.println("-> " + i + ": " + (System.currentTimeMillis() - s));
-                s = System.currentTimeMillis();
-            }
+        BufferRecords records = pool.empty();
+        for (int i = 0; i < memTableSize + 1; i++) {
+            records.add(create(i, "value-" + i));
         }
+        lsm.append(records);
 
+        Records found = lsm.get(ByteBuffer.allocate(Long.BYTES).putLong(0).flip());
+
+        System.out.println(found);
 
     }
 
-    public static ByteBuffer create(long key, String val) {
-        return create(key, Serializers.LONG, val, Serializers.STRING);
+    public static Record2 create(long key, String val) {
+        return create(key, RowKey.LONG, Serializers.LONG, val, Serializers.STRING);
     }
 
-    public static <K, V> ByteBuffer create(K key, Serializer<K> ks, V value, Serializer<V> vs) {
+    public static <K, V> Record2 create(K key, RowKey rk, Serializer<K> ks, V value, Serializer<V> vs) {
         var kb = Buffers.allocate(128, false);
         var vb = Buffers.allocate(64, false);
         var dst = Buffers.allocate(256, false);
@@ -58,9 +58,7 @@ public class AppTest {
         vs.writeTo(value, vb);
         vb.flip();
 
-        Record.create(kb, vb, dst);
-        dst.flip();
-        return dst;
+        return Record2.create(0, rk, kb, vb);
     }
 
 

@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.Record;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 
@@ -30,32 +29,36 @@ public class BufferRecords extends AbstractRecords {
     private final ByteBuffer[] tmp;
 
     protected final RowKey rowKey;
+    private final int maxItems;
 
     BufferRecords(RecordPool pool, RowKey rowKey, int maxItems) {
         super(pool);
         this.tmp = new ByteBuffer[maxItems];
         this.rowKey = rowKey;
+        this.maxItems = maxItems;
     }
 
     //copied the record into this pool
-    int add(Record2 record) {
+    public boolean add(Record2 record) {
+        if(records.size() >= maxItems) {
+            return false;
+        }
         ByteBuffer recData = pool.allocate(record.recordSize());
-        int copied = Buffers.copy(record.data, recData);
+        int copied = record.copyTo(recData);
         if (copied > 0) {
+            recData.flip();
             add(recData);
         }
-        return copied;
+        return true;
     }
 
     void add(ByteBuffer data) {
-        Record2 record = allocateRecord();
-
-        data.flip();
-        if (!Record.isValid(data)) {
+        if (!RecordUtils.isValid(data)) {
             pool.free(data);
             throw new RuntimeException("Invalid record"); // should never happen
         }
 
+        Record2 record = allocateEmptyRecord();
         record.data = data;
         int recSize = data.remaining();
 
@@ -97,16 +100,6 @@ public class BufferRecords extends AbstractRecords {
         dst.limit(ppos + recLen).position(ppos);
     }
 
-    private Record2 checkValid(Record2 rec) {
-        if (rec == null) {
-            return null;
-        }
-        if (rec.data.position() > 0) {
-            throw new IllegalStateException("Invalid entry");
-        }
-        return rec;
-    }
-
     @Override
     public Record2 poll() {
         Record2 poll = records.poll();
@@ -117,12 +110,12 @@ public class BufferRecords extends AbstractRecords {
         if (poll.data != buff) {
             throw new IllegalStateException("Invalid buffer queue"); // should never happen
         }
-        return checkValid(poll);
+        return poll;
     }
 
     @Override
     public Record2 peek() {
-        return checkValid(records.peek());
+        return records.peek();
     }
 
     public boolean remove() {
@@ -140,7 +133,7 @@ public class BufferRecords extends AbstractRecords {
         return peek() != null;
     }
 
-    private Record2 allocateRecord() {
+    private Record2 allocateEmptyRecord() {
         Record2 poll = cache.poll();
         return poll == null ? new Record2(this, rowKey) : poll;
     }

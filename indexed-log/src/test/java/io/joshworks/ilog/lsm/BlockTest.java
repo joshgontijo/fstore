@@ -2,7 +2,7 @@
 //
 //import io.joshworks.fstore.codec.snappy.SnappyCodec;
 //import io.joshworks.fstore.core.io.buffers.Buffers;
-//import io.joshworks.ilog.RecordUtils;
+//import io.joshworks.ilog.record.RecordUtils;
 //import org.junit.Test;
 //
 //import java.nio.ByteBuffer;
