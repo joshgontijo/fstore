@@ -40,7 +40,7 @@ public class BufferRecords extends AbstractRecords {
 
     //copied the record into this pool
     public boolean add(Record2 record) {
-        if(records.size() >= maxItems) {
+        if (records.size() >= maxItems) {
             return false;
         }
         ByteBuffer recData = pool.allocate(record.recordSize());
@@ -140,10 +140,8 @@ public class BufferRecords extends AbstractRecords {
 
     @Override
     public void close() {
-        for (Record2 record : records) {
-            free(record);
-            pool.free(this);
-        }
+        clear();
+        pool.free(this);
         records.clear();
     }
 
@@ -165,6 +163,16 @@ public class BufferRecords extends AbstractRecords {
 
     public int size() {
         return records.size();
+    }
+
+    public boolean isFull() {
+        return records.size() >= maxItems;
+    }
+
+    public void clear() {
+        while (hasNext()) {
+            remove();
+        }
     }
 
     @Override

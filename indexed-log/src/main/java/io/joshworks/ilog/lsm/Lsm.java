@@ -109,8 +109,6 @@ public class Lsm {
                 return fromMem;
             }
 
-            RecordPool pool = null;
-
             try (HeapBlock block = blockPool.allocate()) {
                 for (IndexedSegment ssTable : sst) {
                     if (!ssTable.readOnly()) {

@@ -88,14 +88,20 @@ class MemTable {
 
         long inserted = 0;
 
+        BufferRecords records = pool.empty();
+
         for (Node node : table) {
 
             boolean added = block.add(node.record());
             if (!added) {
+                if (records.isFull()) {
+                    flushBlockRecords(writer, records);
+                }
+
                 inserted += block.entryCount();
-//                block.compress();
-                block.write(writer);
+                block.write(records);
                 block.clear();
+
 
                 added = block.add(node.record());
                 assert added;
@@ -104,10 +110,16 @@ class MemTable {
         }
         //compress and write
         if (block.entryCount() > 0) {
+            if (records.isFull()) {
+                flushBlockRecords(writer, records);
+            }
             inserted += block.entryCount();
-//            block.compress();
-            block.write(writer);
+            block.write(records);
             block.clear();
+        }
+
+        if (records.size() > 0) {
+            flushBlockRecords(writer, records);
         }
 
         assert inserted == table.size();
@@ -115,6 +127,11 @@ class MemTable {
         // TODO remove
         table.clear();
         return inserted;
+    }
+
+    private void flushBlockRecords(Consumer<Records> writer, BufferRecords records) {
+        writer.accept(records);
+        records.clear();
     }
 
     public boolean isFull() {

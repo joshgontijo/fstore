@@ -12,7 +12,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /**
  * -------- HEADER ---------
@@ -68,7 +67,7 @@ public class HeapBlock implements Closeable {
     }
 
     private int keyOverhead() {
-        return rowKey.keySize();
+        return rowKey.keySize() + Integer.BYTES;
     }
 
     public boolean add(Record2 record) {
@@ -148,7 +147,7 @@ public class HeapBlock implements Closeable {
         return key;
     }
 
-    public void write(Consumer<Records> writer) {
+    public void write(BufferRecords records) {
         if (!State.CREATING.equals(state)) {
             throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
         }
@@ -156,14 +155,23 @@ public class HeapBlock implements Closeable {
         block.clear();
         data.flip();
 
-        int uncompressedSize = data.remaining();
+        //------------ UNCOMPRESSED KEYS
+        block.position(HEADER_BYTES);
+        for (int i = 0; i < entries; i++) {
+            Key key = keys.get(i);
+            block.putInt(key.offset);
+            Buffers.copy(key.data, block);
+        }
+
+        assert block.position() == HEADER_BYTES + (keyOverhead() * entryCount());
 
 
         //------------ COMPRESSED DATA
-        int keysSectionSize = keyOverhead() * entryCount();
-        int dataRegion = HEADER_BYTES + keysSectionSize;
-        block.position(dataRegion);
+        int uncompressedSize = data.remaining();
+        int dataRegion = block.position();
+
         codec.compress(data, block);
+        data.clear();
 
         int blockEnd = block.position();
         int compressedSize = blockEnd - dataRegion;
@@ -174,25 +182,13 @@ public class HeapBlock implements Closeable {
         block.putInt(compressedSize);
         block.putInt(entries);
 
-        //------------ UNCOMPRESSED KEYS
-        for (int i = 0; i < entries; i++) {
-            Key key = keys.get(i);
-            block.putInt(key.offset);
-            Buffers.copy(key.data, block);
-        }
-
-        assert block.position() == dataRegion;
         block.limit(blockEnd).position(0);
         state = State.COMPRESSED;
 
         Key firstKey = keys.get(0);
-        data.clear();
 
-        try (BufferRecords records = pool.getBufferRecords()) {
-            records.create(0, data, b -> b.put(firstKey.data));
-            firstKey.data.clear();
-            writer.accept(records);
-        }
+        records.create(0, block, b -> b.put(firstKey.data));
+        firstKey.data.clear();
 
     }
 

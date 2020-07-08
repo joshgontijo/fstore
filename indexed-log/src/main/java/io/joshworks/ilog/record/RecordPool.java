@@ -94,6 +94,7 @@ public class RecordPool {
         int len = index.readEntrySize(idx);
 
         ByteBuffer buffer = allocate(len);
+        buffer.limit(len);
         try {
             segment.channel().read(buffer, pos);
             buffer.flip();
