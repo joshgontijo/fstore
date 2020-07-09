@@ -104,6 +104,7 @@ public class HeapBlock implements Closeable {
 
         ByteBuffer block = pool.allocate(rec.recordSize());
         rec.copyValue(block);
+        block.flip();
         try {
             uncompressedSize = block.getInt();
             compressedSize = block.getInt();

@@ -1,7 +1,6 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.Record2;
@@ -14,7 +13,6 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 

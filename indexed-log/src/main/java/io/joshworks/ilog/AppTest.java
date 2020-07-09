@@ -37,9 +37,15 @@ public class AppTest {
         }
         lsm.append(records);
 
-        Records found = lsm.get(ByteBuffer.allocate(Long.BYTES).putLong(0).flip());
 
-        System.out.println(found);
+        for (int i = 0; i < memTableSize + 1; i++) {
+            Records found = lsm.get(ByteBuffer.allocate(Long.BYTES).putLong(i).flip());
+            if (found == null) {
+                throw new RuntimeException("Failed: " + i);
+            }
+        }
+        System.out.println("Done");
+        lsm.close();
 
     }
 
