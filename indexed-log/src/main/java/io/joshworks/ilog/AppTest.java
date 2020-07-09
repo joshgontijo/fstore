@@ -8,10 +8,9 @@ import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.Lsm;
-import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.Records;
 import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 
@@ -33,7 +32,7 @@ public class AppTest {
                 .compactionThreshold(5)
                 .open();
 
-        BufferRecords records = pool.empty();
+        Records records = pool.empty();
         for (int i = 0; i < memTableSize + 1; i++) {
             records.add(create(i, "value-" + i));
         }

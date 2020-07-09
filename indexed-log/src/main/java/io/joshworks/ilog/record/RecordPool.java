@@ -18,7 +18,7 @@ import static io.joshworks.ilog.index.Index.NONE;
 public class RecordPool {
 
     //object cache
-    private final Queue<BufferRecords> bufferRecordsCache = new ArrayDeque<>();
+    private final Queue<Records> bufferRecordsCache = new ArrayDeque<>();
     private final Queue<ChannelRecords> channelRecordsCache = new ArrayDeque<>();
     private final Queue<SegmentRecords> segmentRecordsCache = new ArrayDeque<>();
 
@@ -42,12 +42,12 @@ public class RecordPool {
         return rowKey;
     }
 
-    public BufferRecords empty() {
+    public Records empty() {
         return getBufferRecords();
     }
 
-    public BufferRecords fromBuffer(ByteBuffer data) {
-        BufferRecords records = getBufferRecords();
+    public Records fromBuffer(ByteBuffer data) {
+        Records records = getBufferRecords();
         if (!data.hasRemaining()) {
             return records;
         }
@@ -106,10 +106,10 @@ public class RecordPool {
         }
     }
 
-    BufferRecords getBufferRecords() {
-        BufferRecords records = bufferRecordsCache.poll();
+    Records getBufferRecords() {
+        Records records = bufferRecordsCache.poll();
         if (records == null) {
-            return new BufferRecords(this, rowKey, batchSize);
+            return new Records(this, rowKey, batchSize);
         }
         return records;
     }
@@ -142,8 +142,8 @@ public class RecordPool {
         if (records == null) {
             return;
         }
-        if (records instanceof BufferRecords) {
-            bufferRecordsCache.offer((BufferRecords) records);
+        if (records instanceof Records) {
+            bufferRecordsCache.offer((Records) records);
         } else if (records instanceof ChannelRecords) {
             channelRecordsCache.offer((ChannelRecords) records);
         } else if (records instanceof SegmentRecords) {

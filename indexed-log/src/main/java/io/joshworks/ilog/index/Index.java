@@ -1,6 +1,7 @@
 package io.joshworks.ilog.index;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.ilog.record.Record2;
 
 import java.io.Closeable;
 import java.io.File;
@@ -53,10 +54,6 @@ public class Index implements Closeable {
         }
     }
 
-    public void write(ByteBuffer src, int recordSize, long position) {
-        write(src, src.position(), src.limit(), recordSize, position);
-    }
-
     /**
      * Writes an entry to this index
      *
@@ -65,16 +62,16 @@ public class Index implements Closeable {
      * @param kCount   The size of the key, must match Rowkey#keySize()
      * @param position The entry position in the log
      */
-    public void write(ByteBuffer src, int kOffset, int kCount, int recordSize, long position) {
+    public void write(Record2 rec, long recordPos) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
-        if (kCount != comparator.keySize()) {
-            throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + kCount);
+        if (rec.keySize() != comparator.keySize()) {
+            throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + rec.keySize());
         }
-        mf.put(src, kOffset, kCount);
-        mf.putLong(position);
-        mf.putInt(recordSize);
+        rec.copyKey(mf.buffer());
+        mf.putLong(recordPos);
+        mf.putInt(rec.recordSize());
     }
 
     public int find(ByteBuffer key, IndexFunction func) {
@@ -195,4 +192,5 @@ public class Index implements Closeable {
     public int remaining() {
         return mf.capacity() / entrySize();
     }
+
 }

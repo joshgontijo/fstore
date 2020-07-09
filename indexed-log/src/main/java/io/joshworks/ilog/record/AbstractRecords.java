@@ -1,6 +1,8 @@
 package io.joshworks.ilog.record;
 
-abstract class AbstractRecords implements Records {
+import java.io.Closeable;
+
+abstract class AbstractRecords implements Closeable {
 
     protected final RecordPool pool;
 

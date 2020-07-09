@@ -7,7 +7,7 @@ import java.nio.channels.GatheringByteChannel;
 class EmptyRecords implements Records {
 
     @Override
-    public Record2 poll() {
+    public Record2 next() {
         return null;
     }
 

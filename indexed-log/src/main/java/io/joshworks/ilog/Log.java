@@ -4,19 +4,13 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.compaction.Compactor;
 import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
-import io.joshworks.ilog.index.Index;
-import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.BufferRecords;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class Log<T extends IndexedSegment> {
 
@@ -43,9 +37,11 @@ public class Log<T extends IndexedSegment> {
 
     public void append(Records records) {
         try {
-            while (records.hasNext()) {
+            int size = records.size();
+            int inserted = 0;
+            while (inserted < size) {
                 IndexedSegment head = getHeadOrRoll();
-                records.writeTo(head);
+                inserted += head.write(records, inserted);
             }
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to append entry", e);

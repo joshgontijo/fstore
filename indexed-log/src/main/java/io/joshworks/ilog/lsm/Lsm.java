@@ -9,10 +9,9 @@ import io.joshworks.ilog.Log;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.polled.ObjectPool;
-import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.Records;
 import io.joshworks.ilog.record.HeapBlock;
 import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 
 import java.io.File;
 import java.io.IOException;
@@ -86,7 +85,7 @@ public class Lsm {
         return new Builder(root, comparator);
     }
 
-    public void append(BufferRecords records) {
+    public void append(Records records) {
         Records copy = records.copy(); //copy so it can be reused in memtable
         tlog.append(records);
         while (copy.hasNext()) {

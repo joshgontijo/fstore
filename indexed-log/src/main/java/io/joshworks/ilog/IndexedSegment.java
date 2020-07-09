@@ -3,9 +3,9 @@ package io.joshworks.ilog;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.Records;
 import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,13 +62,42 @@ public class IndexedSegment {
 
             long recordPos = 0;
             while (records.hasNext()) {
-                Record2 record = records.poll();
+                Record2 record = records.next();
                 recordPos += record.writeToIndex(index, recordPos);
                 processed++;
             }
             log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
         }
 
+    }
+
+    //return the number of written records
+    public int write(Records records, int offset) {
+        if (index.isFull()) {
+            throw new IllegalStateException("Index is full");
+        }
+        if (readOnly()) {
+            throw new IllegalStateException("Segment is read only");
+        }
+        if (records.size() == 0) {
+            return 0;
+        }
+
+        try {
+            int count = Math.min(index.remaining(), records.size() - offset);
+
+            long recordPos = channel.position();
+            records.writeTo(channel, offset, count);
+            for (int i = offset; i < count; i++) {
+                Record2 rec = records.get(i);
+                index.write(rec, recordPos);
+                recordPos += rec.recordSize();
+            }
+            return count;
+
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to write to segment");
+        }
     }
 
     public boolean readOnly() {

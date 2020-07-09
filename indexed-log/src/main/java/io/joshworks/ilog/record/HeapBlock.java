@@ -135,7 +135,7 @@ public class HeapBlock implements Closeable {
         return key;
     }
 
-    public void write(BufferRecords records) {
+    public void write(Records records) {
         if (!State.CREATING.equals(state)) {
             throw new IllegalStateException("Cannot compress block: Invalid block state: " + state);
         }
@@ -308,7 +308,7 @@ public class HeapBlock implements Closeable {
 
         private int write(Record2 record) {
             data.clear();
-            int keySize = record.writeKey(data);
+            int keySize = record.copyKey(data);
             assert keySize == comparator.keySize();
             data.flip();
             return keySize;

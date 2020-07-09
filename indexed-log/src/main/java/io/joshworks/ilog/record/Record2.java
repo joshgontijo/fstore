@@ -2,7 +2,6 @@ package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
-import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 
 import java.io.Closeable;
@@ -14,7 +13,7 @@ import java.nio.channels.WritableByteChannel;
 public class Record2 implements Comparable<Record2>, Closeable {
 
     ByteBuffer data;
-    final BufferRecords owner;
+    final Records owner;
     private final RowKey rowKey;
 
     public static final int HEADER_BYTES = (Integer.BYTES * 3) + (Long.BYTES * 2) + Byte.BYTES;
@@ -28,7 +27,7 @@ public class Record2 implements Comparable<Record2>, Closeable {
 
     public static final int KEY_OFFSET = ATTRIBUTE_OFFSET + Byte.BYTES;
 
-    Record2(BufferRecords owner, RowKey rowKey) {
+    Record2(Records owner, RowKey rowKey) {
         this.owner = owner;
         this.rowKey = rowKey;
     }
@@ -52,12 +51,6 @@ public class Record2 implements Comparable<Record2>, Closeable {
 
     public int checksum() {
         return data.getInt(data.position() + CHECKSUM_OFFSET);
-    }
-
-    public int writeToIndex(Index index, long recordPos) {
-        int recSize = recordSize();
-        index.write(data, Record2.KEY_OFFSET, keySize(), recSize, recordPos);
-        return recSize;
     }
 
     int valueOffset() {
@@ -130,7 +123,7 @@ public class Record2 implements Comparable<Record2>, Closeable {
         return b;
     }
 
-    public int writeKey(ByteBuffer dst) {
+    public int copyKey(ByteBuffer dst) {
         return Buffers.copy(data, KEY_OFFSET, keySize(), dst);
     }
 

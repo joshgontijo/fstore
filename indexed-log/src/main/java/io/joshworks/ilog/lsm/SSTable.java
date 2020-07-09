@@ -40,7 +40,7 @@ public class SSTable extends IndexedSegment {
 
     public HeapBlock readBlock(ByteBuffer key, IndexFunction func) {
         try (Records records = pool.read(this, key, func)) {
-            Record2 blockRec = records.poll();
+            Record2 blockRec = records.next();
             if (blockRec == null) {
                 return null;
             }

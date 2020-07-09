@@ -1,10 +1,9 @@
 package io.joshworks.ilog.compaction.combiner;
 
 import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.record.BufferRecords;
+import io.joshworks.ilog.record.Records;
 import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,7 +19,7 @@ import java.util.stream.Collectors;
 public class UniqueMergeCombiner implements SegmentCombiner {
 
     private final RecordPool pool;
-    private BufferRecords recordBuffer;
+    private Records recordBuffer;
 
     protected UniqueMergeCombiner(RecordPool pool) {
         this.pool = pool;
@@ -57,7 +56,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
             if (segmentIterators.size() == 1) {
                 Records it = segmentIterators.get(0);
                 while (it.hasNext()) {
-                    writeOut(output, it.poll());
+                    writeOut(output, it.next());
                 }
             } else {
                 Record2 nextEntry = getNextEntry(segmentIterators);
@@ -97,14 +96,14 @@ public class UniqueMergeCombiner implements SegmentCombiner {
             Record2 currItem = curr.peek();
             int c = compare(prevItem, currItem);
             if (c == 0) { //duplicate remove eldest entry
-                curr.poll();
+                curr.next();
             }
             if (c > 0) {
                 prev = curr;
             }
         }
         if (prev != null) {
-            return prev.poll();
+            return prev.next();
         }
         return null;
     }
