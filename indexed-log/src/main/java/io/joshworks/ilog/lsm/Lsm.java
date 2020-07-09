@@ -1,7 +1,6 @@
 package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.codec.Codec;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
@@ -90,11 +89,6 @@ public class Lsm {
                 flush();
             }
         }
-
-    }
-
-    private void writeToMemTable(Records records) {
-        int inserted = 0;
 
     }
 
