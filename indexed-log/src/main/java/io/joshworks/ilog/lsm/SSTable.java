@@ -1,6 +1,7 @@
 package io.joshworks.ilog.lsm;
 
 import io.joshworks.ilog.IndexedSegment;
+import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.polled.ObjectPool;
 import io.joshworks.ilog.record.HeapBlock;
@@ -29,7 +30,11 @@ public class SSTable extends IndexedSegment {
             if (block == null) {
                 return null;
             }
-            return block.find(key, IndexFunction.EQUALS);
+            int idx = block.indexOf(key, IndexFunction.EQUALS);
+            if (idx == Index.NONE) {
+                return null;
+            }
+            return block.read(idx);
         }
     }
 
@@ -40,7 +45,7 @@ public class SSTable extends IndexedSegment {
                 return null;
             }
             HeapBlock block = blockPool.allocate();
-            block.from(blockRec, true);
+            block.from(blockRec, false);
             return block;
         }
     }

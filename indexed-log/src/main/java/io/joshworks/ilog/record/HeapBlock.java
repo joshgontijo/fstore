@@ -4,6 +4,7 @@ import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 
@@ -40,8 +41,8 @@ public class HeapBlock implements Closeable {
 
     private final List<Key> keys = new ArrayList<>();
 
-    private ByteBuffer block;
-    private ByteBuffer data;
+    private final ByteBuffer block;
+    private final ByteBuffer data;
 
     private final RecordPool pool;
 
@@ -102,41 +103,27 @@ public class HeapBlock implements Closeable {
             throw new IllegalStateException();
         }
 
-        ByteBuffer block = pool.allocate(rec.recordSize());
+        block.clear();
+        data.clear();
         rec.copyValue(block);
         block.flip();
-        try {
-            uncompressedSize = block.getInt();
-            compressedSize = block.getInt();
-            entries = block.getInt();
+        state = State.COMPRESSED;
 
-            for (int i = 0; i < entries; i++) {
-                Key key = getOrAllocate(i);
-                key.from(block);
-            }
+        uncompressedSize = block.getInt();
+        compressedSize = block.getInt();
+        entries = block.getInt();
 
-            //----- READ DECOMPRESSED ----
-            if (decompress) {
-                codec.decompress(block, data);
-                data.flip();
-                assert data.remaining() == uncompressedSize;
-                state = State.DECOMPRESSED;
-                return;
-            }
-
-            //----- READ COMPRESSED ----
-            int copied = Buffers.copy(block, this.block);
-            assert copied == uncompressedSize;
-
-            this.block.flip();
-            Buffers.offsetPosition(block, copied);
-
-            state = State.COMPRESSED;
-
-        } finally {
-            pool.free(block);
+        for (int i = 0; i < entries; i++) {
+            Key key = getOrAllocate(i);
+            key.from(block);
         }
 
+        assert compressedSize == block.remaining();
+
+        //----- READ DECOMPRESSED ----
+        if (decompress) {
+            decompress();
+        }
     }
 
     private Key getOrAllocate(int idx) {
@@ -221,8 +208,11 @@ public class HeapBlock implements Closeable {
 
     public int indexOf(ByteBuffer key, IndexFunction fn) {
         int cmp = binarySearch(keys, key);
-        return fn.apply(cmp);
-
+        int idx = fn.apply(cmp);
+        if (checkBounds(idx)) {
+            return Index.NONE;
+        }
+        return idx;
     }
 
     public Records find(ByteBuffer key, IndexFunction fn) {
