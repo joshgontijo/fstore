@@ -19,7 +19,9 @@ public class AppTest {
 
     private static final int memTableSize = 1000;
 
-    private static RecordPool pool = RecordPool.create(RowKey.LONG).batchSize(memTableSize + 1).build();
+    private static RecordPool pool = RecordPool.create(RowKey.LONG)
+            .batchSize(memTableSize + 1)
+            .build();
 
     public static void main(String[] args) {
 

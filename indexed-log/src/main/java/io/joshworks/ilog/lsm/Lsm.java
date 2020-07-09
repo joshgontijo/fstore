@@ -39,7 +39,7 @@ public class Lsm {
         RowKey rowKey,
         int memTableMaxSizeInBytes,
         int memTableMaxEntries,
-        boolean directBuffers,
+        boolean memTableDirectBuffers,
         int blockSize,
         long maxAge,
         int compactionThreads,
@@ -50,7 +50,14 @@ public class Lsm {
         this.maxAge = maxAge;
         this.rowKey = rowKey;
 
-        this.pool = RecordPool.create(rowKey).directBuffers(directBuffers).build();
+        this.pool = RecordPool.create(rowKey)
+                .directBuffers(memTableDirectBuffers)
+                .build();
+
+        RecordPool sstablePool = RecordPool.create(rowKey)
+                .directBuffers(memTableDirectBuffers)
+                .build();
+
         this.blockPool = new ObjectPool<>(100, p -> new HeapBlock(pool, blockSize, rowKey, codec));
 
         // FIXME index can hold up to Integer.MAX_VALUE which probably isn't enough for large dataset
@@ -65,7 +72,7 @@ public class Lsm {
                 pool,
                 IndexedSegment::new);
 
-        RecordPool sstablePool = RecordPool.create(rowKey).directBuffers(directBuffers).build();
+
         this.ssTables = new Log<>(new File(root, SSTABLES_DIR),
                 memTableMaxSizeInBytes,
                 compactionThreshold,
