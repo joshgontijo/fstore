@@ -193,13 +193,6 @@ public class HeapBlock implements Closeable {
 
     }
 
-    private int blockSize() {
-        if (!State.COMPRESSED.equals(state)) {
-            throw new IllegalStateException();
-        }
-        return HEADER_BYTES + keyRegionSize() + compressedSize;
-    }
-
     @Override
     public void close() {
         clear();
@@ -226,17 +219,25 @@ public class HeapBlock implements Closeable {
         state = State.DECOMPRESSED;
     }
 
-    public Records find(ByteBuffer key, IndexFunction fn, RecordPool pool) {
-        int cmp = indexedBinarySearch(keys, key);
-        int idx = fn.apply(cmp);
-        if (idx < 0) {
-            return null;
-        }
+    public int indexOf(ByteBuffer key, IndexFunction fn) {
+        int cmp = binarySearch(keys, key);
+        return fn.apply(cmp);
 
-        return read(idx, pool);
     }
 
-    private int indexedBinarySearch(List<? extends Comparable<? super ByteBuffer>> list, ByteBuffer key) {
+    public Records find(ByteBuffer key, IndexFunction fn) {
+        int idx = indexOf(key, fn);
+        if (checkBounds(idx)) {
+            return null;
+        }
+        return read(idx);
+    }
+
+    private boolean checkBounds(int idx) {
+        return idx < 0 || idx >= entries;
+    }
+
+    private int binarySearch(List<? extends Comparable<? super ByteBuffer>> list, ByteBuffer key) {
         int low = 0;
         int high = entries;
 
@@ -255,15 +256,15 @@ public class HeapBlock implements Closeable {
         return -(low + 1);  // key not found
     }
 
-    public Records read(int idx, RecordPool pool) {
+    public Records read(int idx) {
         if (!readable()) {
             throw new IllegalStateException();
         }
-        if (idx < 0 || idx >= entries) {
-            throw new IndexOutOfBoundsException(idx);
-        }
         if (!decompressed()) {
             decompress();
+        }
+        if (checkBounds(idx)) {
+            throw new IndexOutOfBoundsException(idx);
         }
 
         int offset = keys.get(idx).offset;

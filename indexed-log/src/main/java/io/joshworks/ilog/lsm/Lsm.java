@@ -11,7 +11,6 @@ import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.polled.ObjectPool;
 import io.joshworks.ilog.record.BufferRecords;
 import io.joshworks.ilog.record.HeapBlock;
-import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
@@ -24,9 +23,9 @@ public class Lsm {
     public static final String LOG_DIR = "log";
     public static final String SSTABLES_DIR = "sstables";
 
-    public final Log<IndexedSegment> tlog;
+    private final Log<IndexedSegment> tlog;
     private final MemTable memTable;
-    private final Log<IndexedSegment> ssTables;
+    private final Log<SSTable> ssTables;
 
     private final RecordPool pool;
 
@@ -73,7 +72,7 @@ public class Lsm {
                 compactionThreads,
                 FlushMode.ON_ROLL,
                 sstablePool,
-                IndexedSegment::new);
+                (file, indexEntries, pool) -> new SSTable(file, indexEntries, pool, blockPool));
     }
 
     public static Builder create(File root, RowKey comparator) {
@@ -89,7 +88,6 @@ public class Lsm {
                 flush();
             }
         }
-
     }
 
     public Records get(ByteBuffer key) {
@@ -97,38 +95,18 @@ public class Lsm {
             throw new IllegalArgumentException("Invalid key size");
         }
         return ssTables.apply(Direction.BACKWARD, sst -> {
-
             Records fromMem = memTable.apply(key, IndexFunction.EQUALS);
             if (fromMem != null) {
                 return fromMem;
             }
 
-            try (HeapBlock block = blockPool.allocate()) {
-                for (IndexedSegment ssTable : sst) {
-                    if (!ssTable.readOnly()) {
-                        block.clear();
-                        continue;
-                    }
-
-                    Records records = pool.read(ssTable, key, IndexFunction.FLOOR);
-                    if (!records.hasNext()) {
-                        records.close();
-                        continue;
-                    }
-
-                    //TODO close block
-                    try (Record2 blockRec = records.poll()) {
-                        block.from(blockRec, true);
-                        Records recs = block.find(key, IndexFunction.EQUALS, pool);
-                        if (recs == null) {// not found in the block, continue
-                            block.clear();
-                            continue;
-                        }
-                        return recs;
-                    }
+            for (SSTable ssTable : sst) {
+                Records found = ssTable.find(key, IndexFunction.FLOOR);
+                if (found != null) {
+                    return found;
                 }
-                return null;
             }
+            return null;
         });
     }
 
@@ -150,6 +128,5 @@ public class Lsm {
         tlog.close();
         ssTables.close();
     }
-
 
 }

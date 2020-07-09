@@ -22,11 +22,11 @@ public class IndexedSegment {
 
     public static int START = 0;
 
-    private final File file;
-    private final RowKey rowKey;
-    private final RecordPool pool;
-    private final SegmentChannel channel;
-    private final long id;
+    protected final File file;
+    protected final RowKey rowKey;
+    protected final RecordPool pool;
+    protected final SegmentChannel channel;
+    protected final long id;
     protected Index index;
 
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
