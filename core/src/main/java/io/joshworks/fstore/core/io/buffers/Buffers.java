@@ -309,4 +309,25 @@ public class Buffers {
         return written;
     }
 
+    /**
+     * Compares two buffers by setting their range to the same size with their own offsets, then resets to the original positions
+     */
+    public static int compare(ByteBuffer b1, int b1Offset, ByteBuffer b2, int b2Offset, int len) {
+        int b1ppos = b1.position();
+        int b1plim = b1.limit();
+
+        int b2ppos = b2.position();
+        int b2plim = b2.limit();
+
+        b1.clear().position(b1Offset).limit(b1Offset + len);
+        b2.clear().position(b2Offset).limit(b2Offset + len);
+
+        int cmp = b1.compareTo(b2);
+
+        b1.clear().limit(b1plim).position(b1ppos);
+        b2.clear().limit(b2plim).position(b2ppos);
+
+        return cmp;
+    }
+
 }

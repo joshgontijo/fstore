@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.fstore.core.util.Iterators;
-import io.joshworks.ilog.IndexedSegment;
+import io.joshworks.ilog.RecordBatch;
 import io.joshworks.ilog.index.RowKey;
 
 import java.nio.ByteBuffer;
@@ -53,17 +53,30 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         return true;
     }
 
-    void add(ByteBuffer data) {
-        if (!RecordUtils.isValid(data)) {
-            pool.free(data);
-            throw new RuntimeException("Invalid record"); // should never happen
+    public int add(ByteBuffer data) {
+        if (!data.hasRemaining()) {
+            return 0;
         }
 
-        Record2 record = allocateEmptyRecord();
-        record.data = data;
+        int i = 0;
+        while (RecordBatch.hasNext(data) && !isFull()) {
+            int rsize = RecordUtils.sizeOf(data);
+            ByteBuffer recData = pool.allocate(rsize);
+            Buffers.copy(data, data.position(), rsize, recData);
+            RecordBatch.advance(data);
 
-        buffers[records.size()] = data;
-        records.add(record);
+            recData.flip();
+            if (!RecordUtils.isValid(recData)) {
+                throw new RuntimeException("Invalid record");
+            }
+            Record2 record = allocateEmptyRecord();
+            record.data = recData;
+            add(record);
+            i++;
+        }
+
+        return i;
+
     }
 
     //TODO MOVE TO SOMEWHERE ELSE
@@ -102,7 +115,7 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
 
     private Record2 allocateEmptyRecord() {
         Record2 poll = cache.poll();
-        return poll == null ? new Record2(this, rowKey) : poll;
+        return poll == null ? new Record2(this) : poll;
     }
 
     @Override
@@ -112,21 +125,6 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         records.clear();
     }
 
-    void free(Record2 record) {
-        if (record.owner != this) {
-            throw new IllegalArgumentException("Record pool not owner of this record");
-        }
-
-        Record2 first = records.peek();
-        //record was peeked and closed, remove from queue
-        if (first != null && first.equals(record)) {
-            records.poll();
-        }
-
-        pool.free(record.data);
-        record.data = null;
-        cache.add(record);
-    }
 
     public int size() {
         return records.size();
@@ -141,7 +139,7 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         for (int i = 0; i < size(); i++) {
             pool.free(buffers[i]);
             buffers[i] = null;
-            records.get(i).data = null;
+            records.get(i).free();
         }
         cache.addAll(records);
     }
@@ -161,60 +159,14 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         }
     }
 
-    @Override
-    public long writeTo(IndexedSegment segment) {
-
-    }
-
     private void checkClosed(long w) {
         if (w == -1) {
             throw new RuntimeIOException("Channel closed");
         }
     }
 
-    @Override
     public long writeTo(GatheringByteChannel channel) {
-        return writeTo(channel, buffers.size());
-    }
-
-    @Override
-    public long writeTo(GatheringByteChannel channel, int count) {
-        try {
-            long totalWritten = 0;
-            while (hasNext()) {
-                buffers.toArray(tmp);
-                count = Math.min(count, buffers.size());
-                long written = Buffers.writeFully(channel, tmp, 0, count);
-                checkClosed(written);
-                totalWritten += written;
-
-                removeWrittenEntries(written);
-            }
-            return totalWritten;
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to write to channel", e);
-        }
-    }
-
-    private void removeWrittenEntries(long written) {
-        //removes only fully written entries, leftovers will be retried next iteration
-        int bytesRemoved = 0;
-        while (bytesRemoved < written) {
-            Record2 rec = peek();
-            int recordSize = rec.recordSize();
-            if (bytesRemoved + recordSize <= written) {
-                remove();
-                bytesRemoved += recordSize;
-            }
-        }
-    }
-
-    public Records copy() {
-        Records copy = pool.getBufferRecords();
-        for (Record2 record : records) {
-            copy.add(record);
-        }
-        return copy;
+        return writeTo(channel, 0, size());
     }
 
     @Override
