@@ -112,7 +112,6 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
     public void close() {
         clear();
         pool.free(this);
-        records.clear();
     }
 
 
@@ -127,11 +126,13 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
     public void clear() {
         itIdx = 0;
         for (int i = 0; i < size(); i++) {
+            ByteBuffer recBuffer = records.get(i).free();
+            assert recBuffer == buffers[i];
             pool.free(buffers[i]);
             buffers[i] = null;
-            records.get(i).free();
         }
         cache.addAll(records);
+        records.clear();
     }
 
     public Record2 get(int idx) {
@@ -146,12 +147,6 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
             return Buffers.writeFully(channel, buffers, offset, count);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to transfer data", e);
-        }
-    }
-
-    private void checkClosed(long w) {
-        if (w == -1) {
-            throw new RuntimeIOException("Channel closed");
         }
     }
 

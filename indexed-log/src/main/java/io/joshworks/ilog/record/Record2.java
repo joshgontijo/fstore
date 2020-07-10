@@ -58,9 +58,11 @@ public class Record2 {
     Record2() {
     }
 
-    void free() {
+    ByteBuffer free() {
+        ByteBuffer tmp = data;
         this.data = null;
         this.active = false;
+        return tmp;
     }
 
     boolean parse(ByteBuffer data) {

@@ -27,14 +27,14 @@ import static java.util.Objects.requireNonNull;
 public class Index implements Closeable {
 
     private final MappedFile mf;
-    private final RowKey comparator;
+    private final int keySize;
     private final AtomicBoolean readOnly = new AtomicBoolean();
     public static final int NONE = -1;
 
     public static int MAX_SIZE = Integer.MAX_VALUE - 8;
 
-    public Index(File file, long maxEntries, RowKey comparator) {
-        this.comparator = comparator;
+    public Index(File file, long maxEntries, int keySize) {
+        this.keySize = keySize;
         try {
             boolean newFile = file.createNewFile();
             if (newFile) {
@@ -66,8 +66,8 @@ public class Index implements Closeable {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
-        if (rec.keySize() != comparator.keySize()) {
-            throw new RuntimeException("Invalid index key length, expected " + comparator.keySize() + ", got " + rec.keySize());
+        if (rec.keySize() != keySize) {
+            throw new RuntimeException("Invalid index key length, expected " + keySize + ", got " + rec.keySize());
         }
         rec.copyKey(mf.buffer());
         mf.putLong(recordPos);
@@ -98,7 +98,7 @@ public class Index implements Closeable {
             return NONE;
         }
         int startPos = idx * entrySize();
-        int positionOffset = startPos + comparator.keySize();
+        int positionOffset = startPos + keySize;
         return mf.getLong(positionOffset);
     }
 
@@ -107,7 +107,7 @@ public class Index implements Closeable {
             return NONE;
         }
         int startPos = idx * entrySize();
-        int positionOffset = startPos + comparator.keySize() + Long.BYTES;
+        int positionOffset = startPos + keySize + Long.BYTES;
         return mf.getInt(positionOffset);
     }
 
@@ -151,11 +151,11 @@ public class Index implements Closeable {
     }
 
     protected int entrySize() {
-        return comparator.keySize() + Long.BYTES + Integer.BYTES;
+        return keySize + Long.BYTES + Integer.BYTES;
     }
 
     public int keySize() {
-        return comparator.keySize();
+        return keySize;
     }
 
     private long align(long size) {

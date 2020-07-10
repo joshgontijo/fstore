@@ -69,11 +69,11 @@ public class RecordPool {
         return records;
     }
 
-    ByteBuffer allocate(int size) {
+    public ByteBuffer allocate(int size) {
         return pool.allocate(size);
     }
 
-    void free(ByteBuffer buffer) {
+    public void free(ByteBuffer buffer) {
         pool.free(buffer);
     }
 

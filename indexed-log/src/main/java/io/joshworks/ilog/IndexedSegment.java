@@ -10,13 +10,12 @@ import io.joshworks.ilog.record.Records;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.joshworks.ilog.index.Index.NONE;
 
@@ -24,18 +23,14 @@ public class IndexedSegment {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
-    public static int START = 0;
-
     protected final File file;
-    protected final RowKey rowKey;
     protected final RecordPool pool;
-    protected final SegmentChannel channel;
+    private final SegmentChannel channel;
     protected final long id;
     protected Index index;
 
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
-
-    private final SegmentLock lock = new SegmentLock();
+    private final Set<SegmentIterator> iterators = new HashSet<>();
 
     public IndexedSegment(File file, long indexEntries, RecordPool pool) {
         this.file = file;
@@ -75,7 +70,7 @@ public class IndexedSegment {
 
     }
 
-    public Records read(ByteBuffer key, IndexFunction func) {
+    public Records get(ByteBuffer key, IndexFunction func) {
         int idx = index.find(key, func);
         Records records = pool.empty();
         if (idx == NONE) {
@@ -88,6 +83,14 @@ public class IndexedSegment {
         assert read == len;
 
         return records;
+    }
+
+    int read(ByteBuffer dst, long offset) {
+        try {
+            return channel.read(dst, offset);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to read from " + name(), e);
+        }
     }
 
     //return the number of written records
@@ -123,6 +126,10 @@ public class IndexedSegment {
         return channel.readOnly();
     }
 
+    public long writePosition() {
+        return channel.position();
+    }
+
     public void forceRoll() {
         flush();
         channel.truncate();
@@ -153,10 +160,6 @@ public class IndexedSegment {
         }
     }
 
-    public FileChannel channel() {
-        return channel;
-    }
-
     public String name() {
         return channel.name();
     }
@@ -181,19 +184,17 @@ public class IndexedSegment {
         if (!markedForDeletion.compareAndSet(false, true)) {
             return;
         }
-        if (lock.counter.get() > 0) {
+        if (!iterators.isEmpty()) {
             log.info("Segment marked for deletion");
             return;
         }
         doDelete();
     }
 
-    public synchronized SegmentLock lock() {
-        if (markedForDeletion.get()) {
-            return null;
-        }
-        lock.counter.incrementAndGet();
-        return lock;
+    public synchronized SegmentIterator iterator(long pos, int bufferSize) {
+        SegmentIterator it = new SegmentIterator(this, pos, bufferSize, pool);
+        iterators.add(it);
+        return it;
     }
 
     private void doDelete() {
@@ -226,15 +227,14 @@ public class IndexedSegment {
         return index.size();
     }
 
-    public static class SegmentLock implements Closeable {
-
-        private final AtomicInteger counter = new AtomicInteger();
-
-        @Override
-        public void close() {
-            //make sure close is not called twice
-            counter.decrementAndGet();
+    void release(SegmentIterator iterator) {
+        iterators.remove(iterator);
+        if (markedForDeletion.get()) {
+            synchronized (this) {
+                doDelete();
+            }
         }
     }
+
 
 }
