@@ -36,7 +36,7 @@ public class Record2 {
 
     private ByteBuffer data;
 
-    private static final int HEADER_BYTES =
+    static final int HEADER_BYTES =
             Integer.BYTES +         //RECORD_LEN
                     Integer.BYTES + //CHECKSUM
                     Long.BYTES +    //TIMESTAMP
@@ -45,13 +45,13 @@ public class Record2 {
                     Short.BYTES +   //KEY_LEN
                     Integer.BYTES;  //VALUE_LEN
 
-    public static final int RECORD_LEN_OFFSET = 0;
-    public static final int CHECKSUM_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
-    public static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
-    public static final int SEQUENCE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
-    public static final int ATTRIBUTE_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
-    public static final int KEY_LEN_OFFSET = ATTRIBUTE_OFFSET + Short.BYTES;
-    public static final int KEY_OFFSET = KEY_LEN_OFFSET + Short.BYTES;
+    private static final int RECORD_LEN_OFFSET = 0;
+    private static final int CHECKSUM_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
+    private static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
+    private static final int SEQUENCE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
+    private static final int ATTRIBUTE_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
+    private static final int KEY_LEN_OFFSET = ATTRIBUTE_OFFSET + Short.BYTES;
+    private static final int KEY_OFFSET = KEY_LEN_OFFSET + Short.BYTES;
 
     boolean active;
 
@@ -124,23 +124,27 @@ public class Record2 {
         data.putLong(SEQUENCE_OFFSET, sequence);
     }
 
-    public static Record2 create(long sequence, ByteBuffer key, ByteBuffer value, int... attr) {
-        int recordSize =
-                (HEADER_BYTES - Integer.BYTES) //excludes RECORD_LEN
-                        + key.remaining()
-                        + value.remaining();
+    //internal only, dst must come from buffer pool
+    private void create(ByteBuffer dst, ByteBuffer key, ByteBuffer value, int... attr) {
+        create(dst, key, key.position(), key.remaining(), value, value.position(), value.remaining(), attr);
+    }
 
-        ByteBuffer dst = Buffers.allocate(recordSize, false);
+    //internal only, dst must come from buffer pool
+    void create(ByteBuffer dst, ByteBuffer key, int kOffset, int kLen, ByteBuffer value, int vOffset, int vLen, int... attr) {
+        int recordSize = getRecordSize(key.remaining(), value.remaining());
+        if (recordSize < dst.remaining()) {
+            throw new IllegalArgumentException("Not enough buffer space to create record");
+        }
 
         dst.putInt(recordSize);                     // RECORD_LEN
         dst.putInt(0);                              // CHECKSUM
         dst.putLong(System.currentTimeMillis());    // TIMESTAMP
-        dst.putLong(sequence);                      // SEQUENCE
+        dst.putLong(0);                             // SEQUENCE
         dst.putShort(attribute(attr));              // ATTRIBUTES
         dst.putShort((short) key.remaining());      // KEY_LEN
-        Buffers.copy(key, dst);                     // [KEY]
+        Buffers.copy(key, kOffset, kLen, dst);      // [KEY]
         dst.putInt(value.remaining());              // VALUE_LEN
-        Buffers.copy(value, dst);                   // [VALUE]
+        Buffers.copy(value, vOffset, vLen, dst);    // [VALUE]
 
         dst.flip();
 
@@ -149,10 +153,21 @@ public class Record2 {
         int checksum = ByteBufferChecksum.crc32(dst, TIMESTAMP_OFFSET, dst.remaining() - (Integer.BYTES * 2));
         dst.putInt(CHECKSUM_OFFSET, checksum);
 
-        Record2 rec = new Record2();
-        rec.data = dst;
+        data = dst;
+    }
 
+    public static Record2 create(ByteBuffer key, ByteBuffer value, int... attr) {
+        int recordSize = getRecordSize(key.remaining(), value.remaining());
+        ByteBuffer dst = Buffers.allocate(recordSize, false);
+        Record2 rec = new Record2();
+        rec.create(dst, key, value, attr);
         return rec;
+    }
+
+    static int getRecordSize(int kLen, int vLen) {
+        return (HEADER_BYTES - Integer.BYTES) //excludes RECORD_LEN
+                + kLen
+                + vLen;
     }
 
     public int copyTo(ByteBuffer dst) {

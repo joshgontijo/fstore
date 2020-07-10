@@ -2,19 +2,23 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Records;
 import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static io.joshworks.ilog.index.Index.NONE;
 
 public class IndexedSegment {
 
@@ -69,6 +73,21 @@ public class IndexedSegment {
             log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
         }
 
+    }
+
+    public Records read(ByteBuffer key, IndexFunction func) {
+        int idx = index.find(key, func);
+        Records records = pool.empty();
+        if (idx == NONE) {
+            return records;
+        }
+        long pos = index.readPosition(idx);
+        int len = index.readEntrySize(idx);
+
+        long read = records.from(channel, pos, len);
+        assert read == len;
+
+        return records;
     }
 
     //return the number of written records

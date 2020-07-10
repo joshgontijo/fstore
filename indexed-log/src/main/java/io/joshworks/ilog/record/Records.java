@@ -2,19 +2,17 @@ package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.ilog.RecordBatch;
-import io.joshworks.ilog.index.RowKey;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Queue;
-import java.util.function.Consumer;
 
 public class Records extends AbstractRecords implements Iterable<Record2> {
 
@@ -27,16 +25,13 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
     //the object cache where all instances should return to
     private final Queue<Record2> cache = new ArrayDeque<>();
 
-    protected final RowKey rowKey;
-
     //single, reusable, non thread-safe iterator
     private final RecordIterator iterator = new RecordIterator(new ArrayIt());
     private int itIdx;
 
-    Records(RecordPool pool, RowKey rowKey, int maxItems) {
+    Records(RecordPool pool, int maxItems) {
         super(pool);
         this.buffers = new ByteBuffer[maxItems];
-        this.rowKey = rowKey;
     }
 
     //copied the record into this pool
@@ -70,52 +65,47 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
                 throw new RuntimeException("Invalid record");
             }
             Record2 record = allocateEmptyRecord();
-            record.data = recData;
+            record.parse(recData);
             add(record);
             i++;
         }
 
         return i;
-
     }
 
-    //TODO MOVE TO SOMEWHERE ELSE
-    public void create(long sequence, ByteBuffer value, Consumer<ByteBuffer> keyWriter) {
-        int rsize = Record2.HEADER_BYTES + Integer.BYTES + value.remaining();
-        ByteBuffer recdata = pool.allocate(rsize);
-        recdata.position(Record2.KEY_OFFSET);
-        keyWriter.accept(recdata);
-        if (recdata.position() - Record2.KEY_OFFSET != rowKey.keySize()) {
-            throw new IllegalStateException("Invalid row key size");
+    public void add(ByteBuffer key, ByteBuffer value, int... attr) {
+        add(key, key.position(), key.remaining(), value, value.position(), value.remaining(), attr);
+    }
+
+    public void add(ByteBuffer key, int kOffset, int kLen, ByteBuffer value, int vOffset, int vLen, int... attr) {
+        int totalSize = Record2.getRecordSize(kLen, vLen);
+        ByteBuffer dst = pool.allocate(totalSize);
+
+        Record2 rec = allocateEmptyRecord();
+        rec.create(dst, key, kOffset, kLen, value, vOffset, vLen, attr);
+
+        rec.parse(dst);
+    }
+
+    public int from(FileChannel channel, long position, int count) {
+        try {
+            ByteBuffer dst = pool.allocate(count);
+            dst.limit(count);
+            int read = channel.read(dst, position);
+            dst.flip();
+
+            this.add(dst);
+
+            return read;
+
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to read entry: " + channel + ", position: " + position + ", count: " + count, e);
         }
-        int checksum = ByteBufferChecksum.crc32(value);
-        int valLen = value.remaining();
-        Buffers.copy(value, recdata);
-
-        recdata.position(0);
-        writeHeader(recdata, sequence, rowKey.keySize(), valLen, checksum);
-
-        add(recdata);
-    }
-
-    private static void writeHeader(ByteBuffer dst, long sequence, int keyLen, int valueLen, int checksum) {
-        int recLen = Record2.HEADER_BYTES + keyLen + valueLen;
-
-        int ppos = dst.position();
-
-        dst.putInt(recLen); // RECORD_LEN
-        dst.putInt(valueLen); // VALUE_LEN
-        dst.putLong(sequence); // SEQUENCE
-        dst.putInt(checksum); // CHECKSUM
-        dst.putLong(System.currentTimeMillis()); // TIMESTAMP
-        dst.put((byte) 0); // ATTRIBUTES
-
-        dst.limit(ppos + recLen).position(ppos);
     }
 
     private Record2 allocateEmptyRecord() {
         Record2 poll = cache.poll();
-        return poll == null ? new Record2(this) : poll;
+        return poll == null ? new Record2() : poll;
     }
 
     @Override

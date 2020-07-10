@@ -29,11 +29,11 @@ public class RecordPool {
         return new PoolConfig(rowKey);
     }
 
-    public Records empty(RowKey rowKey) {
-        return allocateRecords(rowKey);
+    public Records empty() {
+        return allocateRecords();
     }
 
-    public Records fromBuffer(RowKey rowKey, ByteBuffer data) {
+    public Records fromBuffer(ByteBuffer data) {
         Records records = allocateRecords();
         records.add(data);
         return records;
@@ -43,7 +43,7 @@ public class RecordPool {
         Index index = segment.index();
         int idx = index.find(key, func);
         if (idx == NONE) {
-            return Records.EMPTY;
+            return allocateRecords();
         }
         long pos = index.readPosition(idx);
         int len = index.readEntrySize(idx);
@@ -61,10 +61,10 @@ public class RecordPool {
         }
     }
 
-    Records allocateRecords(RowKey rowKey) {
+    Records allocateRecords() {
         Records records = bufferRecordsCache.poll();
         if (records == null) {
-            return new Records(this, rowKey, batchSize);
+            return new Records(this, batchSize);
         }
         return records;
     }

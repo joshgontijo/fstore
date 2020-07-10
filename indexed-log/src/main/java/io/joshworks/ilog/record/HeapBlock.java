@@ -175,7 +175,7 @@ public class HeapBlock implements Closeable {
 
         Key firstKey = keys.get(0);
 
-        records.create(0, block, b -> b.put(firstKey.data));
+        records.add(firstKey.data, block);
         firstKey.data.clear();
 
     }
