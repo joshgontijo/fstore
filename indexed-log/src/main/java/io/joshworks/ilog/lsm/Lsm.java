@@ -9,9 +9,10 @@ import io.joshworks.ilog.Log;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.polled.ObjectPool;
-import io.joshworks.ilog.record.Records;
 import io.joshworks.ilog.record.HeapBlock;
+import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,11 +50,11 @@ public class Lsm {
         this.maxAge = maxAge;
         this.rowKey = rowKey;
 
-        this.pool = RecordPool.create(rowKey)
+        this.pool = RecordPool.create()
                 .directBuffers(memTableDirectBuffers)
                 .build();
 
-        RecordPool sstablePool = RecordPool.create(rowKey)
+        RecordPool sstablePool = RecordPool.create()
                 .directBuffers(memTableDirectBuffers)
                 .build();
 
@@ -61,12 +62,13 @@ public class Lsm {
 
         // FIXME index can hold up to Integer.MAX_VALUE which probably isn't enough for large dataset
 
-        this.memTable = new MemTable(pool, memTableMaxEntries);
+        this.memTable = new MemTable(pool, rowKey, memTableMaxEntries);
         this.tlog = new Log<>(
                 new File(root, LOG_DIR),
                 memTableMaxEntries, //
                 2,
                 1,
+                rowKey,
                 FlushMode.ON_ROLL,
                 pool,
                 IndexedSegment::new);
@@ -76,9 +78,10 @@ public class Lsm {
                 memTableMaxSizeInBytes,
                 compactionThreshold,
                 compactionThreads,
+                rowKey,
                 FlushMode.ON_ROLL,
                 sstablePool,
-                (file, indexEntries, pool) -> new SSTable(file, indexEntries, pool, blockPool));
+                (file, indexEntries, rk, pool) -> new SSTable(file, indexEntries, rk, pool, blockPool));
     }
 
     public static Builder create(File root, RowKey comparator) {
@@ -86,10 +89,10 @@ public class Lsm {
     }
 
     public void append(Records records) {
-        Records copy = records.copy(); //copy so it can be reused in memtable
         tlog.append(records);
-        while (copy.hasNext()) {
-            memTable.add(copy);
+        RecordIterator it = records.iterator();
+        while (it.hasNext()) {
+            memTable.add(it);
             if (memTable.isFull()) {
                 flush();
             }

@@ -98,13 +98,16 @@ public class HeapBlock implements Closeable {
         return true;
     }
 
-    public void from(Record2 rec, boolean decompress) {
+    public void from(Record2 rec) {
         if (!State.EMPTY.equals(state)) {
             throw new IllegalStateException();
         }
 
         block.clear();
         data.clear();
+        if (rec.valueSize() > block.remaining()) {
+            throw new IllegalStateException("Block data is greater than block buffer");
+        }
         rec.copyValue(block);
         block.flip();
         state = State.COMPRESSED;
@@ -119,11 +122,6 @@ public class HeapBlock implements Closeable {
         }
 
         assert compressedSize == block.remaining();
-
-        //----- READ DECOMPRESSED ----
-        if (decompress) {
-            decompress();
-        }
     }
 
     private Key getOrAllocate(int idx) {
@@ -198,6 +196,9 @@ public class HeapBlock implements Closeable {
             return;
         }
         data.clear();
+        if (uncompressedSize > data.remaining()) {
+            throw new IllegalStateException("No space available to decompress block data, buffer size: " + data.remaining() + ", block size: " + uncompressedSize);
+        }
         codec.decompress(block, data);
         data.flip();
 
@@ -250,11 +251,11 @@ public class HeapBlock implements Closeable {
         if (!readable()) {
             throw new IllegalStateException();
         }
-        if (!decompressed()) {
-            decompress();
-        }
         if (checkBounds(idx)) {
             throw new IndexOutOfBoundsException(idx);
+        }
+        if (!decompressed()) {
+            decompress();
         }
 
         int offset = keys.get(idx).offset;
@@ -262,7 +263,7 @@ public class HeapBlock implements Closeable {
 
         data.limit(offset + entryLen);
         data.position(offset);
-        return pool.fromBuffer(data);
+        return pool.fromBuffer(data, offset, entryLen);
     }
 
 

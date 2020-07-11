@@ -1,9 +1,11 @@
 package io.joshworks.ilog.compaction.combiner;
 
 import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.record.Records;
+import io.joshworks.ilog.SegmentIterator;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.Record2;
 import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,52 +21,65 @@ import java.util.stream.Collectors;
 public class UniqueMergeCombiner implements SegmentCombiner {
 
     private final RecordPool pool;
-    private Records recordBuffer;
+    private final RowKey rowKey;
+    private Records records;
 
-    protected UniqueMergeCombiner(RecordPool pool) {
+    protected UniqueMergeCombiner(RecordPool pool, RowKey rowKey) {
         this.pool = pool;
-        this.recordBuffer = pool.empty();
+        this.records = pool.empty();
+        this.rowKey = rowKey;
     }
 
     @Override
     public void merge(List<? extends IndexedSegment> segments, IndexedSegment output) {
-        List<Records> iterators = segments.stream()
-                .map(pool::fromSegment)
+        List<SegmentIterator> iterators = segments.stream()
+                .map(IndexedSegment::iterator)
                 .collect(Collectors.toList());
 
         mergeItems(iterators, output);
     }
 
-    public void mergeItems(List<Records> items, IndexedSegment output) {
+    public void mergeItems(List<SegmentIterator> items, IndexedSegment output) {
 
         //reversed guarantees that the most recent data is kept when duplicate keys are found
         Collections.reverse(items);
 
-        while (!items.isEmpty()) {
-            List<Records> segmentIterators = new ArrayList<>();
-            Iterator<Records> itit = items.iterator();
-            while (itit.hasNext()) {
-                Records seg = itit.next();
-                if (!seg.hasNext()) {
-                    itit.remove();
-                    continue;
+        try {
+            while (!items.isEmpty()) {
+                List<SegmentIterator> segmentIterators = new ArrayList<>();
+                Iterator<SegmentIterator> itit = items.iterator();
+                while (itit.hasNext()) {
+                    SegmentIterator seg = itit.next();
+                    if (!seg.hasNext()) {
+                        itit.remove();
+                        continue;
+                    }
+                    segmentIterators.add(seg);
                 }
-                segmentIterators.add(seg);
-            }
 
-            //single segment, drain it
-            if (segmentIterators.size() == 1) {
-                Records it = segmentIterators.get(0);
-                while (it.hasNext()) {
-                    writeOut(output, it.next());
+                //single segment, drain it
+                if (segmentIterators.size() == 1) {
+                    SegmentIterator it = segmentIterators.get(0);
+                    while (it.hasNext()) {
+                        writeOut(output, it.next());
+                    }
+                } else {
+                    Record2 nextEntry = getNextEntry(segmentIterators);
+                    writeOut(output, nextEntry);
                 }
-            } else {
-                Record2 nextEntry = getNextEntry(segmentIterators);
-                writeOut(output, nextEntry);
             }
+            doWrite(output);
+        } finally {
+            records.close();
         }
-        recordBuffer.writeTo(output);
-//        output.append(recordBuffer, 0);
+    }
+
+    private void doWrite(IndexedSegment output) {
+        int copiedItems = output.write(records, 0);
+        if (copiedItems != records.size()) {
+            throw new IllegalStateException("Not enough space in destination segment");
+        }
+        records.clear();
     }
 
     private void writeOut(IndexedSegment output, Record2 nextEntry) {
@@ -75,19 +90,19 @@ public class UniqueMergeCombiner implements SegmentCombiner {
             throw new IllegalStateException("Insufficient output segment (" + output.name() + ") data space: " + output.size());
         }
 
-        if (!recordBuffer.add(nextEntry)) {
-            recordBuffer.writeTo(output);
-            recordBuffer.add(nextEntry);
+        if (!records.add(nextEntry)) {
+            doWrite(output);
+            records.add(nextEntry);
         }
 
     }
 
-    private Record2 getNextEntry(List<Records> segmentIterators) {
+    private Record2 getNextEntry(List<SegmentIterator> segmentIterators) {
         if (segmentIterators.isEmpty()) {
             return null;
         }
-        Records prev = null;
-        for (Records curr : segmentIterators) {
+        SegmentIterator prev = null;
+        for (SegmentIterator curr : segmentIterators) {
             if (prev == null) {
                 prev = curr;
                 continue;
@@ -109,7 +124,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
     }
 
     private int compare(Record2 r1, Record2 r2) {
-        return r1.compareTo(r2);
+        return r1.compare(rowKey, r2);
     }
 
     /**

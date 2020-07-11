@@ -27,14 +27,14 @@ import static java.util.Objects.requireNonNull;
 public class Index implements Closeable {
 
     private final MappedFile mf;
-    private final int keySize;
+    private final RowKey rowKey;
     private final AtomicBoolean readOnly = new AtomicBoolean();
     public static final int NONE = -1;
 
     public static int MAX_SIZE = Integer.MAX_VALUE - 8;
 
-    public Index(File file, long maxEntries, int keySize) {
-        this.keySize = keySize;
+    public Index(File file, long maxEntries, RowKey rowKey) {
+        this.rowKey = rowKey;
         try {
             boolean newFile = file.createNewFile();
             if (newFile) {
@@ -56,22 +56,21 @@ public class Index implements Closeable {
 
     /**
      * Writes an entry to this index
-     *
-     * @param src      The source buffer to get the key from
-     * @param kOffset  The key offset in the source buffer
-     * @param kCount   The size of the key, must match Rowkey#keySize()
-     * @param position The entry position in the log
      */
     public void write(Record2 rec, long recordPos) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
-        if (rec.keySize() != keySize) {
-            throw new RuntimeException("Invalid index key length, expected " + keySize + ", got " + rec.keySize());
+        if (rec.keySize() != keySize()) {
+            throw new RuntimeException("Invalid index key length, expected " + keySize() + ", got " + rec.keySize());
         }
+        int pos = mf.position();
+
         rec.copyKey(mf.buffer());
         mf.putLong(recordPos);
         mf.putInt(rec.recordSize());
+
+        assert entrySize() == (mf.position() - pos);
     }
 
     public int find(ByteBuffer key, IndexFunction func) {
@@ -90,15 +89,16 @@ public class Index implements Closeable {
 
 
     private int binarySearch(ByteBuffer key) {
-        return ByteBufferBinarySearch.binarySearch(key, mf.buffer(), 0, size(), entrySize(), comparator);
+        return ByteBufferBinarySearch.binarySearch(key, mf.buffer(), 0, size(), entrySize(), rowKey);
     }
+
 
     public long readPosition(int idx) {
         if (idx < 0 || idx >= entries()) {
             return NONE;
         }
         int startPos = idx * entrySize();
-        int positionOffset = startPos + keySize;
+        int positionOffset = startPos + keySize();
         return mf.getLong(positionOffset);
     }
 
@@ -107,7 +107,7 @@ public class Index implements Closeable {
             return NONE;
         }
         int startPos = idx * entrySize();
-        int positionOffset = startPos + keySize + Long.BYTES;
+        int positionOffset = startPos + keySize() + Long.BYTES;
         return mf.getInt(positionOffset);
     }
 
@@ -151,11 +151,11 @@ public class Index implements Closeable {
     }
 
     protected int entrySize() {
-        return keySize + Long.BYTES + Integer.BYTES;
+        return keySize() + Long.BYTES + Integer.BYTES;
     }
 
     public int keySize() {
-        return keySize;
+        return rowKey.keySize();
     }
 
     private long align(long size) {

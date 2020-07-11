@@ -1,17 +1,14 @@
 package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.ilog.index.RowKey;
 
 import java.util.Set;
 
 public class PoolConfig {
 
-    final RowKey rowKey;
     int pollMaxSizeInBytes = Size.MB.ofInt(20);
     int batchSize = 100;
     boolean directBuffers;
-    int readBufferSize = Size.KB.ofInt(8);
 
     Set<Integer> poolStripes = Set.of(
             Size.BYTE.ofInt(512),
@@ -27,8 +24,8 @@ public class PoolConfig {
             Size.MB.ofInt(1),
             Size.MB.ofInt(5));
 
-    PoolConfig(RowKey rowKey) {
-        this.rowKey = rowKey;
+    PoolConfig() {
+
     }
 
     public PoolConfig pollMaxSizeInBytes(int pollMaxSizeInBytes) {
@@ -38,11 +35,6 @@ public class PoolConfig {
 
     public PoolConfig batchSize(int batchSize) {
         this.batchSize = batchSize;
-        return this;
-    }
-
-    public PoolConfig readBufferSize(int readBufferSize) {
-        this.readBufferSize = readBufferSize;
         return this;
     }
 
@@ -61,7 +53,7 @@ public class PoolConfig {
 
     public RecordPool build() {
         StripedBufferPool pool = new StripedBufferPool(pollMaxSizeInBytes, directBuffers, poolStripes);
-        return new RecordPool(pool, rowKey, readBufferSize, batchSize);
+        return new RecordPool(pool, batchSize);
     }
 
 }

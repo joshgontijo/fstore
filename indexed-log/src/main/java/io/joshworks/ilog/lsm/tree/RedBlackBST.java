@@ -2,6 +2,7 @@ package io.joshworks.ilog.lsm.tree;
 
 import io.joshworks.fstore.core.util.Pool;
 import io.joshworks.ilog.index.IndexFunction;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.Record2;
 
 import java.nio.ByteBuffer;
@@ -18,6 +19,11 @@ public class RedBlackBST implements Iterable<Node> {
     private static final boolean BLACK = false;
     private Node root;
     private final NodePool nodePool = new NodePool();
+    private final RowKey rowKey;
+
+    public RedBlackBST(RowKey rowKey) {
+        this.rowKey = rowKey;
+    }
 
     private boolean isRed(Node x) {
         if (x == null) return false;
@@ -73,11 +79,11 @@ public class RedBlackBST implements Iterable<Node> {
     }
 
     private int compareRecord(Record2 record, Node node) {
-        return record.compareTo(node.key);
+        return record.compare(rowKey, node.key);
     }
 
     private int compareKeys(ByteBuffer k1, Node node) {
-        return node.key.compare(k1);
+        return node.key.compare(rowKey, k1);
     }
 
     public boolean contains(ByteBuffer key) {

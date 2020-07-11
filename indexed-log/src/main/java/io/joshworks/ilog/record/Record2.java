@@ -27,7 +27,7 @@ import java.nio.channels.WritableByteChannel;
  * <pre>
  * All records starts at position zero
  * Checksum covers from TIMESTAMP inclusive
- * RECORD_LEN excludes RECORD_LEN itself
+ * RECORD_LEN includes RECORD_LEN itself
  * KEY_LEN excludes KEY_LEN itself
  * VALUE_LEN excludes VALUE_LEN itself
  * </pre>
@@ -45,17 +45,26 @@ public class Record2 {
                     Short.BYTES +   //KEY_LEN
                     Integer.BYTES;  //VALUE_LEN
 
-    private static final int RECORD_LEN_OFFSET = 0;
-    private static final int CHECKSUM_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
-    private static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
-    private static final int SEQUENCE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
-    private static final int ATTRIBUTE_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
-    private static final int KEY_LEN_OFFSET = ATTRIBUTE_OFFSET + Short.BYTES;
-    private static final int KEY_OFFSET = KEY_LEN_OFFSET + Short.BYTES;
+    static final int RECORD_LEN_OFFSET = 0;
+    static final int CHECKSUM_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
+    static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
+    static final int SEQUENCE_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
+    static final int ATTRIBUTE_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
+    static final int KEY_LEN_OFFSET = ATTRIBUTE_OFFSET + Short.BYTES;
+    static final int KEY_OFFSET = KEY_LEN_OFFSET + Short.BYTES;
 
     boolean active;
 
     Record2() {
+    }
+
+    void init(ByteBuffer buffer) {
+        assert !active : "Record is active";
+        assert isValid(buffer);
+
+        this.data = buffer;
+        this.active = true;
+
     }
 
     ByteBuffer free() {
@@ -65,28 +74,35 @@ public class Record2 {
         return tmp;
     }
 
-    boolean parse(ByteBuffer data) {
-        assert !active : "Record is active";
+    //Returns the total size in bytes of this record, including RECORD_LEN field
+    static int recordSize(ByteBuffer recData) {
+        return recData.getInt(recData.position() + RECORD_LEN_OFFSET);
+    }
 
-        if (data.remaining() < HEADER_BYTES) {
+    public boolean isValid() {
+        return isValid(data);
+    }
+
+    static boolean isValid(ByteBuffer recData) {
+        if (recData.remaining() < Record2.HEADER_BYTES) {
             return false;
         }
 
-        int base = data.position();
 
-        int recLen = data.getInt(base + RECORD_LEN_OFFSET);
-        int checksum = data.getInt(base + CHECKSUM_OFFSET);
+        int base = recData.position();
+        int recSize = recordSize(recData);
+        int checksum = recData.getInt(base + Record2.CHECKSUM_OFFSET);
 
-        if (recLen < 0 || recLen > data.remaining()) {
+        if (recSize < 0 || recSize > recData.remaining()) {
             return false;
         }
 
-        int chksOffset = base + TIMESTAMP_OFFSET; //from TIMESTAMP
-        int chksLen = recLen - (Integer.BYTES * 2);
+        int chksOffset = base + Record2.TIMESTAMP_OFFSET; //from TIMESTAMP
+        int chksLen = recSize - (Integer.BYTES * 2);
 
-        int computed = ByteBufferChecksum.crc32(data, chksOffset, chksLen);
+        int computed = ByteBufferChecksum.crc32(recData, chksOffset, chksLen);
 
-        return active = computed == checksum;
+        return computed == checksum;
     }
 
     public boolean hasAttribute(ByteBuffer buffer, int attribute) {
@@ -95,19 +111,23 @@ public class Record2 {
     }
 
     public int recordSize() {
-        return data.getInt(RECORD_LEN_OFFSET);
+        return data.getInt(RECORD_LEN_OFFSET); //not the same as 'static int recordSize' due to relative position
     }
 
     public long sequence() {
-        return data.getInt(SEQUENCE_OFFSET);
+        return data.getLong(SEQUENCE_OFFSET);
     }
 
-    public int keySize() {
-        return data.getInt(KEY_LEN_OFFSET);
+    public long timestamp() {
+        return data.getLong(TIMESTAMP_OFFSET);
+    }
+
+    public short keySize() {
+        return data.getShort(KEY_LEN_OFFSET);
     }
 
     private int valueLenOffset() {
-        return KEY_LEN_OFFSET + keySize();
+        return KEY_OFFSET + keySize();
     }
 
     private int valueOffset() {
@@ -126,50 +146,53 @@ public class Record2 {
         data.putLong(SEQUENCE_OFFSET, sequence);
     }
 
-    //internal only, dst must come from buffer pool
     private void create(ByteBuffer dst, ByteBuffer key, ByteBuffer value, int... attr) {
         create(dst, key, key.position(), key.remaining(), value, value.position(), value.remaining(), attr);
     }
 
-    //internal only, dst must come from buffer pool
     void create(ByteBuffer dst, ByteBuffer key, int kOffset, int kLen, ByteBuffer value, int vOffset, int vLen, int... attr) {
-        int recordSize = getRecordSize(key.remaining(), value.remaining());
-        if (recordSize < dst.remaining()) {
+        int recordSize = computeRecordSize(key.remaining(), value.remaining()); //excludes the RECORD_LEN field
+        if (recordSize > dst.remaining()) {
             throw new IllegalArgumentException("Not enough buffer space to create record");
+        }
+        if (kLen > Short.MAX_VALUE) {
+            throw new IllegalArgumentException("Key length exceeds mac size of: " + Short.MAX_VALUE);
         }
 
         dst.putInt(recordSize);                     // RECORD_LEN
-        dst.putInt(0);                              // CHECKSUM
+        dst.putInt(0);                              // CHECKSUM (tmp)
         dst.putLong(System.currentTimeMillis());    // TIMESTAMP
-        dst.putLong(0);                             // SEQUENCE
+        dst.putLong(0);                             // SEQUENCE (tmp)
         dst.putShort(attribute(attr));              // ATTRIBUTES
-        dst.putShort((short) key.remaining());      // KEY_LEN
+        dst.putShort((short) kLen);                 // KEY_LEN
         Buffers.copy(key, kOffset, kLen, dst);      // [KEY]
-        dst.putInt(value.remaining());              // VALUE_LEN
+        dst.putInt(vLen);                           // VALUE_LEN
         Buffers.copy(value, vOffset, vLen, dst);    // [VALUE]
 
         dst.flip();
 
-        assert dst.remaining() == recordSize - Integer.BYTES;
+        assert dst.remaining() == recordSize;
+        assert recordSize(dst) == recordSize;
 
         int checksum = ByteBufferChecksum.crc32(dst, TIMESTAMP_OFFSET, dst.remaining() - (Integer.BYTES * 2));
         dst.putInt(CHECKSUM_OFFSET, checksum);
 
-        data = dst;
+        assert isValid(dst);
+
+        init(dst);
     }
 
     public static Record2 create(ByteBuffer key, ByteBuffer value, int... attr) {
-        int recordSize = getRecordSize(key.remaining(), value.remaining());
+        int recordSize = computeRecordSize(key.remaining(), value.remaining());
         ByteBuffer dst = Buffers.allocate(recordSize, false);
         Record2 rec = new Record2();
         rec.create(dst, key, value, attr);
         return rec;
     }
 
-    static int getRecordSize(int kLen, int vLen) {
-        return (HEADER_BYTES - Integer.BYTES) //excludes RECORD_LEN
-                + kLen
-                + vLen;
+    //computes the total record size including the RECORD_LEN field
+    static int computeRecordSize(int kLen, int vLen) {
+        return HEADER_BYTES + kLen + vLen;
     }
 
     public int copyTo(ByteBuffer dst) {
@@ -212,29 +235,12 @@ public class Record2 {
         Buffers.copy(data, valueOffset(), valueSize(), dst);
     }
 
-    //TODO remove RowKey ?
     public int compare(RowKey rowKey, ByteBuffer key) {
-        int keySize = rowKey.keySize();
-        int r1ks = keySize();
-        if (keySize != r1ks) {
-            throw new IllegalStateException("Invalid key size: " + r1ks + " expected: " + keySize);
-        }
-        return Buffers.compare(data, KEY_OFFSET, key, key.position(), rowKey.keySize());
+        return rowKey.compare(data, KEY_OFFSET, key, key.position());
     }
 
-    //TODO remove RowKey ?
-    public static int compare(RowKey rowKey, Record2 r1, Record2 r2) {
-        int keySize = rowKey.keySize();
-        int r1ks = r1.keySize();
-        int r2ks = r2.keySize();
-        if (keySize != r1ks) {
-            throw new IllegalStateException("Invalid key size: " + r1ks + " expected: " + keySize);
-        }
-        if (keySize != r2ks) {
-            throw new IllegalStateException("Invalid key size: " + r2ks + " expected: " + keySize);
-        }
-
-        return Buffers.compare(r1.data, KEY_OFFSET, r2.data, KEY_OFFSET, keySize);
+    public int compare(RowKey rowKey, Record2 rec) {
+        return rowKey.compare(data, KEY_OFFSET, rec.data, KEY_OFFSET);
     }
 
 }

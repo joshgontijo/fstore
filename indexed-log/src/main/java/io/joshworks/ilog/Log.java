@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.compaction.Compactor;
 import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
@@ -18,10 +19,13 @@ public class Log<T extends IndexedSegment> {
     private final FlushMode flushMode;
     private final Compactor<T> compactor;
 
+    public static final long START = 0;
+
     public Log(File root,
                long levelZeroIndexEntries,
                int compactionThreshold,
                int compactionThreads,
+               RowKey rowKey,
                FlushMode flushMode,
                RecordPool pool,
                SegmentFactory<T> segmentFactory) throws IOException {
@@ -31,7 +35,7 @@ public class Log<T extends IndexedSegment> {
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
-        this.view = new View<>(root, pool, levelZeroIndexEntries, segmentFactory);
+        this.view = new View<>(root, pool, rowKey, levelZeroIndexEntries, segmentFactory);
         this.compactor = new Compactor<>(view, new ConcatenateCombiner(), compactionThreshold, compactionThreads);
     }
 

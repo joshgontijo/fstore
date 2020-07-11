@@ -1,6 +1,8 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.Channels;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
@@ -13,29 +15,31 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.joshworks.ilog.index.Index.NONE;
 
-public class IndexedSegment {
+public class IndexedSegment implements Iterable<Record2> {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
     protected final File file;
     protected final RecordPool pool;
     private final SegmentChannel channel;
+    private final RowKey rowKey;
     protected final long id;
     protected Index index;
 
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
     private final Set<SegmentIterator> iterators = new HashSet<>();
 
-    public IndexedSegment(File file, long indexEntries, RecordPool pool) {
+    public IndexedSegment(File file, long indexEntries, RowKey rowKey, RecordPool pool) {
         this.file = file;
         this.pool = pool;
-        this.rowKey = pool.rowKey();
+        this.rowKey = rowKey;
         this.index = openIndex(file, indexEntries, rowKey);
         this.id = LogUtil.segmentId(file.getName());
         this.channel = SegmentChannel.open(file);
@@ -56,13 +60,14 @@ public class IndexedSegment {
 
         long start = System.currentTimeMillis();
 
-        try (Records records = pool.fromSegment(this)) {
+        try (SegmentIterator it = iterator(Size.KB.ofInt(8), Log.START)) {
             int processed = 0;
 
             long recordPos = 0;
-            while (records.hasNext()) {
-                Record2 record = records.next();
-                recordPos += record.writeToIndex(index, recordPos);
+            while (it.hasNext()) {
+                Record2 record = it.next();
+                index.write(record, recordPos);
+                recordPos += record.recordSize();
                 processed++;
             }
             log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
@@ -101,7 +106,7 @@ public class IndexedSegment {
         if (readOnly()) {
             throw new IllegalStateException("Segment is read only");
         }
-        if (records.size() == 0) {
+        if (records.isEmpty()) {
             return 0;
         }
 
@@ -110,15 +115,15 @@ public class IndexedSegment {
 
             long recordPos = channel.position();
             records.writeTo(channel, offset, count);
-            for (int i = offset; i < count; i++) {
-                Record2 rec = records.get(i);
+            for (int i = 0; i < count; i++) {
+                Record2 rec = records.get(offset + i);
                 index.write(rec, recordPos);
                 recordPos += rec.recordSize();
             }
             return count;
 
         } catch (Exception e) {
-            throw new RuntimeIOException("Failed to write to segment");
+            throw new RuntimeIOException("Failed to write to segment", e);
         }
     }
 
@@ -191,7 +196,16 @@ public class IndexedSegment {
         doDelete();
     }
 
-    public synchronized SegmentIterator iterator(long pos, int bufferSize) {
+    @Override
+    public SegmentIterator iterator() {
+        return iterator(Size.KB.ofInt(8), Log.START);
+    }
+
+    public SegmentIterator iterator(int bufferSize) {
+        return iterator(bufferSize, Log.START);
+    }
+
+    public synchronized SegmentIterator iterator(int bufferSize, long pos) {
         SegmentIterator it = new SegmentIterator(this, pos, bufferSize, pool);
         iterators.add(it);
         return it;
@@ -206,6 +220,14 @@ public class IndexedSegment {
     public void close() throws IOException {
         channel.close();
         index.close();
+    }
+
+    public long transferTo(IndexedSegment dst) {
+        return transferTo(dst.channel);
+    }
+
+    public long transferTo(WritableByteChannel dst) {
+        return Channels.transferFully(channel, dst);
     }
 
     @Override

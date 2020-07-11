@@ -1,7 +1,5 @@
 package io.joshworks.ilog.index;
 
-import io.joshworks.fstore.core.io.buffers.Buffers;
-
 import java.nio.ByteBuffer;
 
 public class ByteBufferBinarySearch {
@@ -9,7 +7,7 @@ public class ByteBufferBinarySearch {
     private ByteBufferBinarySearch() {
     }
 
-    public static int binarySearch(ByteBuffer key, ByteBuffer data, int dataStart, int dataCount, int entrySize, int keySize) {
+    public static int binarySearch(ByteBuffer key, ByteBuffer data, int dataStart, int dataCount, int entrySize, RowKey rowKey) {
         if (dataCount % entrySize != 0) {
             throw new IllegalArgumentException("Read buffer must be multiple of " + entrySize);
         }
@@ -24,8 +22,7 @@ public class ByteBufferBinarySearch {
             if (readPos < dataStart || readPos > dataStart + dataCount) {
                 throw new IndexOutOfBoundsException("Index out of bounds: " + readPos);
             }
-            int cmp = Buffers.compare(data, readPos, key, key.position(), keySize);
-//            int cmp = comparator.compare(data, readPos, key, key.position());
+            int cmp = rowKey.compare(data, readPos, key, key.position());
             if (cmp < 0)
                 low = mid + 1;
             else if (cmp > 0)

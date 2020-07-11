@@ -1,7 +1,7 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.ilog.index.Index;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.RecordPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,15 +39,17 @@ public class View<T extends IndexedSegment> {
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final RecordPool pool;
+    private final RowKey rowKey;
     private final long indexEntries;
     private final SegmentFactory<T> segmentFactory;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     //TODO remove BufferPool
-    View(File root, RecordPool pool, long indexEntries, SegmentFactory<T> segmentFactory) throws IOException {
+    View(File root, RecordPool pool, RowKey rowKey, long indexEntries, SegmentFactory<T> segmentFactory) throws IOException {
         this.root = root;
         this.pool = pool;
+        this.rowKey = rowKey;
         this.indexEntries = indexEntries;
         this.segmentFactory = segmentFactory;
 
@@ -97,13 +99,13 @@ public class View<T extends IndexedSegment> {
     public T newSegment(int level, long indexEntries) {
         long nextSegIdx = nextSegmentIdx.getAndIncrement();
         File segmentFile = segmentFile(root, nextSegIdx, level);
-        return segmentFactory.create(segmentFile, indexEntries, pool);
+        return segmentFactory.create(segmentFile, indexEntries, rowKey, pool);
     }
 
     private T open(File segmentFile) {
         try {
             File indexFile = indexFile(segmentFile);
-            return segmentFactory.create(indexFile, indexEntries, pool);
+            return segmentFactory.create(indexFile, indexEntries, rowKey, pool);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment " + segmentFile.getName(), e);
         }

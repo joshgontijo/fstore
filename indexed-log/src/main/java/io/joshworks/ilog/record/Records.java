@@ -3,7 +3,6 @@ package io.joshworks.ilog.record;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Iterators;
-import io.joshworks.ilog.RecordBatch;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -41,10 +40,9 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         }
         ByteBuffer recData = pool.allocate(record.recordSize());
         int copied = record.copyTo(recData);
-        if (copied > 0) {
-            recData.flip();
-            add(recData);
-        }
+        assert copied == record.recordSize();
+        recData.flip();
+        addInternal(recData);
         return true;
     }
 
@@ -54,37 +52,43 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         }
 
         int i = 0;
-        while (RecordBatch.hasNext(data) && !isFull()) {
-            int rsize = RecordUtils.sizeOf(data);
-            ByteBuffer recData = pool.allocate(rsize);
-            Buffers.copy(data, data.position(), rsize, recData);
-            RecordBatch.advance(data);
-
-            recData.flip();
-            if (!RecordUtils.isValid(recData)) {
-                throw new RuntimeException("Invalid record");
-            }
-            Record2 record = allocateEmptyRecord();
-            record.parse(recData);
-            add(record);
+        while (Record2.isValid(data)) {
+            int totalSize = Record2.recordSize(data);
+            ByteBuffer dst = pool.allocate(totalSize);
+            dst.limit(totalSize);
+            int copied = Buffers.copy(data, dst);
+            assert copied == totalSize;
+            Buffers.offsetPosition(data, copied);
+            dst.flip();
+            addInternal(dst);
             i++;
         }
-
         return i;
     }
+
+    private void addInternal(ByteBuffer recData) {
+        Record2 rec = allocateEmptyRecord();
+        rec.init(recData);
+        buffers[records.size()] = recData;
+        records.add(rec);
+    }
+
+    //parses into a record, copying to its own buffer
+
 
     public void add(ByteBuffer key, ByteBuffer value, int... attr) {
         add(key, key.position(), key.remaining(), value, value.position(), value.remaining(), attr);
     }
 
     public void add(ByteBuffer key, int kOffset, int kLen, ByteBuffer value, int vOffset, int vLen, int... attr) {
-        int totalSize = Record2.getRecordSize(kLen, vLen);
+        int totalSize = Record2.computeRecordSize(kLen, vLen);
         ByteBuffer dst = pool.allocate(totalSize);
 
         Record2 rec = allocateEmptyRecord();
         rec.create(dst, key, kOffset, kLen, value, vOffset, vLen, attr);
 
-        rec.parse(dst);
+        buffers[records.size()] = dst;
+        records.add(rec);
     }
 
     public int from(FileChannel channel, long position, int count) {
@@ -123,6 +127,10 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         return records.size() >= buffers.length;
     }
 
+    public boolean isEmpty() {
+        return records.size() == 0;
+    }
+
     public void clear() {
         itIdx = 0;
         for (int i = 0; i < size(); i++) {
@@ -140,7 +148,7 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
     }
 
     public long writeTo(GatheringByteChannel channel, int offset, int count) {
-        if (offset + count >= size()) {
+        if (offset + count > size()) {
             throw new IndexOutOfBoundsException();
         }
         try {

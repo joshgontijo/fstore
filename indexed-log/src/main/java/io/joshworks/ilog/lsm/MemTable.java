@@ -1,12 +1,14 @@
 package io.joshworks.ilog.lsm;
 
 import io.joshworks.ilog.index.IndexFunction;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
-import io.joshworks.ilog.record.Records;
 import io.joshworks.ilog.record.HeapBlock;
 import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.locks.StampedLock;
@@ -16,18 +18,19 @@ import static java.util.Objects.requireNonNull;
 
 class MemTable {
 
-    private final RedBlackBST table = new RedBlackBST();
+    private final RedBlackBST table;
 
     private final StampedLock lock = new StampedLock();
     private final int maxEntries;
     private final RecordPool pool;
 
-    MemTable(RecordPool pool, int maxEntries) {
+    MemTable(RecordPool pool, RowKey rowKey, int maxEntries) {
         this.pool = pool;
         this.maxEntries = maxEntries;
+        this.table = new RedBlackBST(rowKey);
     }
 
-    void add(Records records) {
+    void add(RecordIterator records) {
         requireNonNull(records, "Records must be provided");
         try {
             long stamp = lock.writeLock();

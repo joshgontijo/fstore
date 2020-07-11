@@ -3,6 +3,7 @@ package io.joshworks.ilog.lsm;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
+import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.polled.ObjectPool;
 import io.joshworks.ilog.record.HeapBlock;
 import io.joshworks.ilog.record.Record2;
@@ -16,8 +17,8 @@ public class SSTable extends IndexedSegment {
 
     private final ObjectPool<HeapBlock> blockPool;
 
-    public SSTable(File file, long indexEntries, RecordPool pool, ObjectPool<HeapBlock> blockPool) {
-        super(file, indexEntries, pool);
+    public SSTable(File file, long indexEntries, RowKey rowKey, RecordPool pool, ObjectPool<HeapBlock> blockPool) {
+        super(file, indexEntries, rowKey, pool);
         this.blockPool = blockPool;
     }
 
@@ -39,13 +40,13 @@ public class SSTable extends IndexedSegment {
     }
 
     public HeapBlock readBlock(ByteBuffer key, IndexFunction func) {
-        try (Records records = pool.read(this, key, func)) {
-            Record2 blockRec = records.next();
-            if (blockRec == null) {
+        try (Records records = super.get(key, func)) {
+            if (records.isEmpty()) {
                 return null;
             }
+            Record2 blockRec = records.get(0);
             HeapBlock block = blockPool.allocate();
-            block.from(blockRec, false);
+            block.from(blockRec);
             return block;
         }
     }

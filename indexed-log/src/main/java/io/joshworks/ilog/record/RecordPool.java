@@ -1,16 +1,8 @@
 package io.joshworks.ilog.record;
 
-import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.index.Index;
-import io.joshworks.ilog.index.IndexFunction;
-import io.joshworks.ilog.index.RowKey;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Queue;
-
-import static io.joshworks.ilog.index.Index.NONE;
 
 public class RecordPool {
 
@@ -25,40 +17,25 @@ public class RecordPool {
         this.batchSize = batchSize;
     }
 
-    public static PoolConfig create(RowKey rowKey) {
-        return new PoolConfig(rowKey);
+    public static PoolConfig create() {
+        return new PoolConfig();
     }
 
     public Records empty() {
         return allocateRecords();
     }
 
-    public Records fromBuffer(ByteBuffer data) {
+    public Records fromBuffer(ByteBuffer data, int offset, int count) {
         Records records = allocateRecords();
         records.add(data);
         return records;
     }
 
-    public Records read(IndexedSegment segment, ByteBuffer key, IndexFunction func) {
-        Index index = segment.index();
-        int idx = index.find(key, func);
-        if (idx == NONE) {
-            return allocateRecords();
-        }
-        long pos = index.readPosition(idx);
-        int len = index.readEntrySize(idx);
 
-        ByteBuffer buffer = allocate(len);
-        buffer.limit(len);
-        try {
-            segment.channel().read(buffer, pos);
-            buffer.flip();
-            return fromBuffer(buffer);
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to read entry", e);
-        } finally {
-            free(buffer);
-        }
+    public Records fromBuffer(ByteBuffer data) {
+        Records records = allocateRecords();
+        records.add(data);
+        return records;
     }
 
     Records allocateRecords() {

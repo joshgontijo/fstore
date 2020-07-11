@@ -8,7 +8,6 @@ import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
-import java.util.NoSuchElementException;
 
 public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
 
@@ -45,11 +44,11 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
         return recIt.next();
     }
 
-    public ByteBuffer peek() {
+    public Record2 peek() {
         if (!hasNext()) {
-            throw new NoSuchElementException();
+            return null;
         }
-        return readBuffer;
+        return recIt.peek();
     }
 
 
