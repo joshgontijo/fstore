@@ -56,7 +56,7 @@ public class HeapBlock implements Closeable {
 
     private boolean hasCapacity(int entrySize) {
         return data.remaining() >=
-                Record2.HEADER_BYTES +
+                Record.HEADER_BYTES +
                         keyOverhead() +
                         HEADER_BYTES +
                         (entrySize + keyOverhead()) +
@@ -71,7 +71,7 @@ public class HeapBlock implements Closeable {
         return rowKey.keySize() + Integer.BYTES;
     }
 
-    public boolean add(Record2 record) {
+    public boolean add(Record record) {
         //TODO set max uncompressed data size, resize data ByteBuffer
         if (!State.EMPTY.equals(state) && !State.CREATING.equals(state)) {
             throw new IllegalStateException();
@@ -98,7 +98,7 @@ public class HeapBlock implements Closeable {
         return true;
     }
 
-    public void from(Record2 rec) {
+    public void from(Record rec) {
         if (!State.EMPTY.equals(state)) {
             throw new IllegalStateException();
         }
@@ -307,7 +307,7 @@ public class HeapBlock implements Closeable {
             return copied;
         }
 
-        private int write(Record2 record) {
+        private int write(Record record) {
             data.clear();
             int keySize = record.copyKey(data);
             assert keySize == comparator.keySize();

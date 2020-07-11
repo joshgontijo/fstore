@@ -5,7 +5,7 @@ import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
 import io.joshworks.ilog.record.HeapBlock;
-import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
@@ -36,7 +36,7 @@ class MemTable {
             long stamp = lock.writeLock();
             try {
                 while (records.hasNext() && !isFull()) {
-                    Record2 record = records.next();
+                    Record record = records.next();
                     table.put(record);
                 }
             } finally {

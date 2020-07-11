@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 import org.slf4j.Logger;
@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.joshworks.ilog.index.Index.NONE;
 
-public class IndexedSegment implements Iterable<Record2> {
+public class IndexedSegment implements Iterable<Record> {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
@@ -65,7 +65,7 @@ public class IndexedSegment implements Iterable<Record2> {
 
             long recordPos = 0;
             while (it.hasNext()) {
-                Record2 record = it.next();
+                Record record = it.next();
                 index.write(record, recordPos);
                 recordPos += record.recordSize();
                 processed++;
@@ -116,7 +116,7 @@ public class IndexedSegment implements Iterable<Record2> {
             long recordPos = channel.position();
             records.writeTo(channel, offset, count);
             for (int i = 0; i < count; i++) {
-                Record2 rec = records.get(offset + i);
+                Record rec = records.get(offset + i);
                 index.write(rec, recordPos);
                 recordPos += rec.recordSize();
             }

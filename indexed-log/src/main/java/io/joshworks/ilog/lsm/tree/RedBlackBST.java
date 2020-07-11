@@ -3,7 +3,7 @@ package io.joshworks.ilog.lsm.tree;
 import io.joshworks.fstore.core.util.Pool;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Record;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
@@ -78,7 +78,7 @@ public class RedBlackBST implements Iterable<Node> {
         return null;
     }
 
-    private int compareRecord(Record2 record, Node node) {
+    private int compareRecord(Record record, Node node) {
         return record.compare(rowKey, node.key);
     }
 
@@ -90,12 +90,12 @@ public class RedBlackBST implements Iterable<Node> {
         return get(key) != null;
     }
 
-    public void put(Record2 record) {
+    public void put(Record record) {
         root = put(root, record);
         root.color = BLACK;
     }
 
-    private Node put(Node h, Record2 record) {
+    private Node put(Node h, Record record) {
         if (h == null) {
             Node node = allocateNode(record);
             node.color = RED;
@@ -283,7 +283,7 @@ public class RedBlackBST implements Iterable<Node> {
         else return x;
     }
 
-    public Record2 select(int k) {
+    public Record select(int k) {
         if (k < 0 || k >= size()) {
             throw new IllegalArgumentException("argument to select() is invalid: " + k);
         }
@@ -298,7 +298,7 @@ public class RedBlackBST implements Iterable<Node> {
         else return x;
     }
 
-    private Node allocateNode(Record2 record) {
+    private Node allocateNode(Record record) {
         Node node = nodePool.allocate();
         node.value = null;
         node.key = record;

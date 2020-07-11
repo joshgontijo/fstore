@@ -1,9 +1,9 @@
 package io.joshworks.ilog.lsm.tree;
 
-import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Record;
 
 public class Node {
-    Record2 key;
+    Record key;
     Object value;
 
     Node left;
@@ -11,7 +11,7 @@ public class Node {
     boolean color;
     int size;
 
-    public Record2 record() {
+    public Record record() {
         return key;
     }
 

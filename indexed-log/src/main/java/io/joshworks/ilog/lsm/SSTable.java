@@ -6,7 +6,7 @@ import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.polled.ObjectPool;
 import io.joshworks.ilog.record.HeapBlock;
-import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
@@ -44,7 +44,7 @@ public class SSTable extends IndexedSegment {
             if (records.isEmpty()) {
                 return null;
             }
-            Record2 blockRec = records.get(0);
+            Record blockRec = records.get(0);
             HeapBlock block = blockPool.allocate();
             block.from(blockRec);
             return block;

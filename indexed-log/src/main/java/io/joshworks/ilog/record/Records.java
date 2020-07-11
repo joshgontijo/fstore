@@ -13,16 +13,16 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 
-public class Records extends AbstractRecords implements Iterable<Record2> {
+public class Records extends AbstractRecords implements Iterable<Record> {
 
     //the active records
-    private final List<Record2> records = new ArrayList<>();
+    private final List<Record> records = new ArrayList<>();
 
     //the active record buffers
     private final ByteBuffer[] buffers;
 
     //the object cache where all instances should return to
-    private final Queue<Record2> cache = new ArrayDeque<>();
+    private final Queue<Record> cache = new ArrayDeque<>();
 
     //single, reusable, non thread-safe iterator
     private final RecordIterator iterator = new RecordIterator(new ArrayIt());
@@ -34,7 +34,7 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
     }
 
     //copied the record into this pool
-    public boolean add(Record2 record) {
+    public boolean add(Record record) {
         if (size() >= buffers.length) {
             return false;
         }
@@ -52,8 +52,8 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         }
 
         int i = 0;
-        while (Record2.isValid(data)) {
-            int totalSize = Record2.recordSize(data);
+        while (Record.isValid(data)) {
+            int totalSize = Record.recordSize(data);
             ByteBuffer dst = pool.allocate(totalSize);
             dst.limit(totalSize);
             int copied = Buffers.copy(data, dst);
@@ -67,7 +67,7 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
     }
 
     private void addInternal(ByteBuffer recData) {
-        Record2 rec = allocateEmptyRecord();
+        Record rec = allocateEmptyRecord();
         rec.init(recData);
         buffers[records.size()] = recData;
         records.add(rec);
@@ -81,10 +81,10 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
     }
 
     public void add(ByteBuffer key, int kOffset, int kLen, ByteBuffer value, int vOffset, int vLen, int... attr) {
-        int totalSize = Record2.computeRecordSize(kLen, vLen);
+        int totalSize = Record.computeRecordSize(kLen, vLen);
         ByteBuffer dst = pool.allocate(totalSize);
 
-        Record2 rec = allocateEmptyRecord();
+        Record rec = allocateEmptyRecord();
         rec.create(dst, key, kOffset, kLen, value, vOffset, vLen, attr);
 
         buffers[records.size()] = dst;
@@ -107,9 +107,9 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         }
     }
 
-    private Record2 allocateEmptyRecord() {
-        Record2 poll = cache.poll();
-        return poll == null ? new Record2() : poll;
+    private Record allocateEmptyRecord() {
+        Record poll = cache.poll();
+        return poll == null ? new Record() : poll;
     }
 
     @Override
@@ -143,7 +143,7 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         records.clear();
     }
 
-    public Record2 get(int idx) {
+    public Record get(int idx) {
         return records.get(idx);
     }
 
@@ -168,7 +168,7 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         return iterator;
     }
 
-    private class ArrayIt implements Iterators.CloseableIterator<Record2> {
+    private class ArrayIt implements Iterators.CloseableIterator<Record> {
 
         @Override
         public boolean hasNext() {
@@ -176,7 +176,7 @@ public class Records extends AbstractRecords implements Iterable<Record2> {
         }
 
         @Override
-        public Record2 next() {
+        public Record next() {
             if (!hasNext()) {
                 throw new NoSuchElementException();
             }

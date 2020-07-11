@@ -1,7 +1,7 @@
 package io.joshworks.ilog.index;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Record;
 
 import java.io.Closeable;
 import java.io.File;
@@ -57,12 +57,12 @@ public class Index implements Closeable {
     /**
      * Writes an entry to this index
      */
-    public void write(Record2 rec, long recordPos) {
+    public void write(Record rec, long recordPos) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
-        if (rec.keySize() != keySize()) {
-            throw new RuntimeException("Invalid index key length, expected " + keySize() + ", got " + rec.keySize());
+        if (rec.keyLen() != keySize()) {
+            throw new RuntimeException("Invalid index key length, expected " + keySize() + ", got " + rec.keyLen());
         }
         int pos = mf.position();
 

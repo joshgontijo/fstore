@@ -1,7 +1,7 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.util.Iterators;
-import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Record;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 
-public class LogIterator implements Iterators.CloseableIterator<Record2> {
+public class LogIterator implements Iterators.CloseableIterator<Record> {
 
     private final Queue<SegmentIterator> iterators = new ArrayDeque<>();
 
@@ -35,7 +35,7 @@ public class LogIterator implements Iterators.CloseableIterator<Record2> {
     }
 
     @Override
-    public Record2 next() {
+    public Record next() {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }

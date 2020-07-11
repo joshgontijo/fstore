@@ -32,7 +32,7 @@ import java.nio.channels.WritableByteChannel;
  * VALUE_LEN excludes VALUE_LEN itself
  * </pre>
  */
-public class Record2 {
+public class Record {
 
     private ByteBuffer data;
 
@@ -55,7 +55,7 @@ public class Record2 {
 
     boolean active;
 
-    Record2() {
+    Record() {
     }
 
     void init(ByteBuffer buffer) {
@@ -84,20 +84,19 @@ public class Record2 {
     }
 
     static boolean isValid(ByteBuffer recData) {
-        if (recData.remaining() < Record2.HEADER_BYTES) {
+        if (recData.remaining() < Record.HEADER_BYTES) {
             return false;
         }
 
-
         int base = recData.position();
         int recSize = recordSize(recData);
-        int checksum = recData.getInt(base + Record2.CHECKSUM_OFFSET);
+        int checksum = recData.getInt(base + Record.CHECKSUM_OFFSET);
 
         if (recSize < 0 || recSize > recData.remaining()) {
             return false;
         }
 
-        int chksOffset = base + Record2.TIMESTAMP_OFFSET; //from TIMESTAMP
+        int chksOffset = base + Record.TIMESTAMP_OFFSET; //from TIMESTAMP
         int chksLen = recSize - (Integer.BYTES * 2);
 
         int computed = ByteBufferChecksum.crc32(recData, chksOffset, chksLen);
@@ -106,8 +105,12 @@ public class Record2 {
     }
 
     public boolean hasAttribute(ByteBuffer buffer, int attribute) {
-        short attr = buffer.getShort(ATTRIBUTE_OFFSET);
+        short attr = attributes();
         return (attr & (1 << attribute)) == 1;
+    }
+
+    public short attributes() {
+        return data.getShort(ATTRIBUTE_OFFSET);
     }
 
     public int recordSize() {
@@ -122,12 +125,12 @@ public class Record2 {
         return data.getLong(TIMESTAMP_OFFSET);
     }
 
-    public short keySize() {
+    public short keyLen() {
         return data.getShort(KEY_LEN_OFFSET);
     }
 
     private int valueLenOffset() {
-        return KEY_OFFSET + keySize();
+        return KEY_OFFSET + keyLen();
     }
 
     private int valueOffset() {
@@ -151,6 +154,9 @@ public class Record2 {
     }
 
     void create(ByteBuffer dst, ByteBuffer key, int kOffset, int kLen, ByteBuffer value, int vOffset, int vLen, int... attr) {
+        if (data != null) {
+            throw new IllegalStateException("Cannot overwrite record");
+        }
         int recordSize = computeRecordSize(key.remaining(), value.remaining()); //excludes the RECORD_LEN field
         if (recordSize > dst.remaining()) {
             throw new IllegalArgumentException("Not enough buffer space to create record");
@@ -182,10 +188,10 @@ public class Record2 {
         init(dst);
     }
 
-    public static Record2 create(ByteBuffer key, ByteBuffer value, int... attr) {
+    public static Record create(ByteBuffer key, ByteBuffer value, int... attr) {
         int recordSize = computeRecordSize(key.remaining(), value.remaining());
         ByteBuffer dst = Buffers.allocate(recordSize, false);
-        Record2 rec = new Record2();
+        Record rec = new Record();
         rec.create(dst, key, value, attr);
         return rec;
     }
@@ -193,6 +199,22 @@ public class Record2 {
     //computes the total record size including the RECORD_LEN field
     static int computeRecordSize(int kLen, int vLen) {
         return HEADER_BYTES + kLen + vLen;
+    }
+
+    private static short attribute(int... attributes) {
+        short b = 0;
+        for (int attr : attributes) {
+            b = (short) (b | 1 << attr);
+        }
+        return b;
+    }
+
+    public int copyKey(ByteBuffer dst) {
+        return Buffers.copy(data, KEY_OFFSET, keyLen(), dst);
+    }
+
+    public void copyValue(ByteBuffer dst) {
+        Buffers.copy(data, valueOffset(), valueSize(), dst);
     }
 
     public int copyTo(ByteBuffer dst) {
@@ -207,39 +229,16 @@ public class Record2 {
     }
 
     public int writeTo(WritableByteChannel channel) throws IOException {
-        int rsize = recordSize();
-        if (data.remaining() < rsize) {
-            return 0;
-        }
-        data.position(0).limit(rsize);
-        return channel.write(data);
-    }
-
-    private static short attribute(int... attributes) {
-        short b = 0;
-        for (int attr : attributes) {
-            b = (short) (b | 1 << attr);
-        }
-        return b;
-    }
-
-    public int copyKey(ByteBuffer dst) {
-        return Buffers.copy(data, KEY_OFFSET, keySize(), dst);
-    }
-
-    public int writeValue(ByteBuffer dst) {
-        return Buffers.copy(data, valueOffset(), valueSize(), dst);
-    }
-
-    public void copyValue(ByteBuffer dst) {
-        Buffers.copy(data, valueOffset(), valueSize(), dst);
+        int written = Buffers.writeFully(channel, data);
+        data.position(0).limit(recordSize());
+        return written;
     }
 
     public int compare(RowKey rowKey, ByteBuffer key) {
         return rowKey.compare(data, KEY_OFFSET, key, key.position());
     }
 
-    public int compare(RowKey rowKey, Record2 rec) {
+    public int compare(RowKey rowKey, Record rec) {
         return rowKey.compare(data, KEY_OFFSET, rec.data, KEY_OFFSET);
     }
 

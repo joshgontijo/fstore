@@ -3,7 +3,7 @@ package io.joshworks.ilog.compaction.combiner;
 import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.SegmentIterator;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
@@ -64,7 +64,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
                         writeOut(output, it.next());
                     }
                 } else {
-                    Record2 nextEntry = getNextEntry(segmentIterators);
+                    Record nextEntry = getNextEntry(segmentIterators);
                     writeOut(output, nextEntry);
                 }
             }
@@ -82,7 +82,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         records.clear();
     }
 
-    private void writeOut(IndexedSegment output, Record2 nextEntry) {
+    private void writeOut(IndexedSegment output, Record nextEntry) {
         if (nextEntry == null || !filter(nextEntry)) {
             return;
         }
@@ -97,7 +97,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
 
     }
 
-    private Record2 getNextEntry(List<SegmentIterator> segmentIterators) {
+    private Record getNextEntry(List<SegmentIterator> segmentIterators) {
         if (segmentIterators.isEmpty()) {
             return null;
         }
@@ -107,8 +107,8 @@ public class UniqueMergeCombiner implements SegmentCombiner {
                 prev = curr;
                 continue;
             }
-            Record2 prevItem = prev.peek();
-            Record2 currItem = curr.peek();
+            Record prevItem = prev.peek();
+            Record currItem = curr.peek();
             int c = compare(prevItem, currItem);
             if (c == 0) { //duplicate remove eldest entry
                 curr.next();
@@ -123,14 +123,14 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         return null;
     }
 
-    private int compare(Record2 r1, Record2 r2) {
+    private int compare(Record r1, Record r2) {
         return r1.compare(rowKey, r2);
     }
 
     /**
      * Returns true if this entry should be appended to the new segment, false otherwise
      */
-    public boolean filter(Record2 entry) {
+    public boolean filter(Record entry) {
         return true;
     }
 }

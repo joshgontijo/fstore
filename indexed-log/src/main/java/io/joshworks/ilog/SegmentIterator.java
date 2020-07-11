@@ -2,14 +2,14 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Iterators;
-import io.joshworks.ilog.record.Record2;
+import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 
-public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
+public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
     private final ByteBuffer readBuffer;
     private final IndexedSegment segment;
@@ -37,14 +37,14 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record2> {
     }
 
     @Override
-    public Record2 next() {
+    public Record next() {
         if (!hasNext()) {
             return null;
         }
         return recIt.next();
     }
 
-    public Record2 peek() {
+    public Record peek() {
         if (!hasNext()) {
             return null;
         }

@@ -3,13 +3,13 @@ package io.joshworks.ilog.record;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.Iterators;
 
-public class RecordIterator implements Iterators.CloseableIterator<Record2> {
+public class RecordIterator implements Iterators.CloseableIterator<Record> {
 
-    private final Iterators.CloseableIterator<Record2> delegate;
+    private final Iterators.CloseableIterator<Record> delegate;
     private boolean hasPeeked;
-    private Record2 peekedElement;
+    private Record peekedElement;
 
-    public RecordIterator(Iterators.CloseableIterator<Record2> delegate) {
+    public RecordIterator(Iterators.CloseableIterator<Record> delegate) {
         this.delegate = delegate;
     }
 
@@ -19,17 +19,17 @@ public class RecordIterator implements Iterators.CloseableIterator<Record2> {
     }
 
     @Override
-    public Record2 next() {
+    public Record next() {
         if (!hasPeeked) {
             return delegate.next();
         }
-        Record2 result = peekedElement;
+        Record result = peekedElement;
         peekedElement = null;
         hasPeeked = false;
         return result;
     }
 
-    public Record2 peek() {
+    public Record peek() {
         if (!hasPeeked) {
             peekedElement = delegate.next();
             hasPeeked = true;
