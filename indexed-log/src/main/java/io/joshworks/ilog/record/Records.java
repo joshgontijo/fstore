@@ -56,7 +56,7 @@ public class Records extends AbstractRecords implements Iterable<Record> {
             int totalSize = Record.recordSize(data);
             ByteBuffer dst = pool.allocate(totalSize);
             dst.limit(totalSize);
-            int copied = Buffers.copy(data, dst);
+            int copied = Buffers.copy(data, data.position(), totalSize, dst);
             assert copied == totalSize;
             Buffers.offsetPosition(data, copied);
             dst.flip();

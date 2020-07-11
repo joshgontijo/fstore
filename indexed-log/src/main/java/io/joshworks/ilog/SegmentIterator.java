@@ -11,12 +11,13 @@ import java.nio.ByteBuffer;
 
 public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
-    private final ByteBuffer readBuffer;
+    private ByteBuffer readBuffer;
     private final IndexedSegment segment;
     private final RecordPool pool;
     private final Records records;
     private RecordIterator recIt;
     private long readPos;
+    private boolean closed;
 
     public SegmentIterator(IndexedSegment segment, long startPos, int bufferSize, RecordPool pool) {
         this.pool = pool;
@@ -29,11 +30,18 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
     @Override
     public boolean hasNext() {
+        if (closed) {
+            return false;
+        }
         if (recIt.hasNext()) {
             return true;
         }
         readBatch();
-        return recIt.hasNext();
+        boolean hasNext = recIt.hasNext();
+        if (!hasNext && endOfLog()) {
+            close();
+        }
+        return hasNext;
     }
 
     @Override
@@ -56,9 +64,7 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
         if (readPos >= segment.writePosition()) {
             return;
         }
-        long rpos = readPos;
-
-        int read = segment.read(readBuffer, rpos);
+        int read = segment.read(readBuffer, readPos);
         if (read == Storage.EOF) { //EOF or no more data
             throw new IllegalStateException("Unexpected EOF");
         }
@@ -71,13 +77,8 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
         recIt = records.iterator(); //clear already resets idx, but just to be explicit
     }
 
-    //internal
-    long position() {
-        return readPos;
-    }
-
     public boolean endOfLog() {
-        return segment.readOnly() && !hasReadableBytes() && !hasNext();
+        return segment.readOnly() && !hasReadableBytes();
     }
 
     private boolean hasReadableBytes() {
@@ -86,7 +87,9 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
     @Override
     public void close() {
+        closed = true;
         pool.free(readBuffer);
+        readBuffer = null;
         recIt = null;
         records.close();
         segment.release(this);
