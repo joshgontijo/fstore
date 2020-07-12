@@ -19,7 +19,7 @@ public class Log<T extends Segment> {
     private final Compactor<T> compactor;
 
     public Log(File root,
-               long levelZeroIndexEntries,
+               long maxLogSize,
                int compactionThreshold,
                int compactionThreads,
                FlushMode flushMode,
@@ -31,7 +31,7 @@ public class Log<T extends Segment> {
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
-        this.view = new View<>(root, pool, levelZeroIndexEntries, segmentFactory);
+        this.view = new View<>(root, pool, maxLogSize, segmentFactory);
         this.compactor = new Compactor<>(view, new ConcatenateCombiner(), compactionThreshold, compactionThreads);
     }
 
