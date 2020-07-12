@@ -257,6 +257,14 @@ public class Segment implements Iterable<Record> {
                 '}';
     }
 
+    /**
+     * <pre>
+     * ------ 4096 bytes -----
+     * ENTRIES (8 bytes)
+     * CREATED (8 bytes)
+     * ROLLED (8 bytes)
+     * </pre>
+     */
     private class Header {
 
         private static final int START = 0;
