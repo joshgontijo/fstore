@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -41,30 +40,35 @@ public class View<T extends Segment> {
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
-    View(File root, RecordPool pool, long maxLogSize, SegmentFactory<T> segmentFactory) throws IOException {
+    View(File root, RecordPool pool, long maxLogSize, SegmentFactory<T> segmentFactory) {
         this.root = root;
         this.pool = pool;
         this.maxLogSize = maxLogSize;
         this.segmentFactory = segmentFactory;
 
-        List<T> segments = Files.list(root.toPath())
-                .map(Path::toFile)
-                .filter(f -> f.getName().endsWith(EXT))
-                .map(this::open)
-                .sorted(compareSegments())
-                .collect(Collectors.toList());
+        try {
+            List<T> segments = Files.list(root.toPath())
+                    .map(Path::toFile)
+                    .filter(f -> f.getName().endsWith(EXT))
+                    .map(this::open)
+                    .sorted(compareSegments())
+                    .collect(Collectors.toList());
 
-        if (!segments.isEmpty()) {
-            T head = segments.get(segments.size() - 1);
-            head.restore();
-            head.forceRoll();
+            if (!segments.isEmpty()) {
+                T head = segments.get(segments.size() - 1);
+                head.restore();
+                head.forceRoll();
+            }
+
+            entries.set(segments.stream().mapToLong(T::entries).sum());
+
+            T head = createHead();
+            this.head = head;
+            this.segments.add(head);
+
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to load segments");
         }
-
-        entries.set(segments.stream().mapToLong(T::entries).sum());
-
-        T head = createHead();
-        this.head = head;
-        this.segments.add(head);
     }
 
     private T createHead() {

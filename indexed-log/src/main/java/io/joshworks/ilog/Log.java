@@ -8,7 +8,6 @@ import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -24,7 +23,7 @@ public class Log<T extends Segment> {
                int compactionThreads,
                FlushMode flushMode,
                RecordPool pool,
-               SegmentFactory<T> segmentFactory) throws IOException {
+               SegmentFactory<T> segmentFactory) {
         FileUtils.createDir(root);
         this.flushMode = flushMode;
 
