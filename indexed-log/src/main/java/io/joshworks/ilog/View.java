@@ -31,11 +31,9 @@ public class View<T extends IndexedSegment> {
 
     private static final Logger log = LoggerFactory.getLogger(View.class);
 
-
     public volatile List<T> segments = new CopyOnWriteArrayList<>();
     private volatile T head;
 
-    private final AtomicLong nextSegmentIdx = new AtomicLong();
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final RecordPool pool;
@@ -60,15 +58,14 @@ public class View<T extends IndexedSegment> {
                 .sorted(compareSegments())
                 .collect(Collectors.toList());
 
-        entries.set(segments.stream().mapToLong(T::entries).sum());
-
         if (!segments.isEmpty()) {
             T head = segments.get(segments.size() - 1);
             head.reindex();
             head.forceRoll();
-
-            nextSegmentIdx.set(head.segmentId() + 1);
         }
+
+        entries.set(segments.stream().mapToLong(T::entries).sum());
+
         T head = createHead();
         this.head = head;
         this.segments.add(head);
@@ -97,7 +94,7 @@ public class View<T extends IndexedSegment> {
     }
 
     public T newSegment(int level, long indexEntries) {
-        long nextSegIdx = nextSegmentIdx.getAndIncrement();
+        long nextSegIdx = nextSegmentIdx(level);
         File segmentFile = segmentFile(root, nextSegIdx, level);
         return segmentFactory.create(segmentFile, indexEntries, rowKey, pool);
     }
@@ -185,6 +182,10 @@ public class View<T extends IndexedSegment> {
 
     List<T> getSegments(int level) {
         return segments.stream().filter(seg -> seg.level() == level).collect(Collectors.toList());
+    }
+
+    private long nextSegmentIdx(int level) {
+        return segments.stream().filter(seg -> seg.level() == level).mapToLong(IndexedSegment::segmentIdx).max().orElse(0);
     }
 
     List<T> getSegments(Direction direction) {
