@@ -31,8 +31,6 @@ public class Index implements Closeable {
     private final AtomicBoolean readOnly = new AtomicBoolean();
     public static final int NONE = -1;
 
-    public static int MAX_SIZE = Integer.MAX_VALUE - 8;
-
     public Index(File file, long maxEntries, RowKey rowKey) {
         this.rowKey = rowKey;
         try {

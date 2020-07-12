@@ -5,11 +5,6 @@ import java.nio.ByteBuffer;
 class LongRowKey implements RowKey {
 
     @Override
-    public int compare(ByteBuffer k1, ByteBuffer k2) {
-        return compare(k1, k1.position(), k2, k2.position());
-    }
-
-    @Override
     public int compare(ByteBuffer k1, int k1Idx, ByteBuffer k2, int k2Idx) {
         return Long.compare(k1.getLong(k1Idx), k2.getLong(k2Idx));
     }
