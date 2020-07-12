@@ -58,7 +58,7 @@ public class Log<T extends IndexedSegment> {
 
     private IndexedSegment getHeadOrRoll() {
         IndexedSegment head = view.head();
-        if (head.index().isFull()) {
+        if (head.isFull()) {
             head = roll(head);
         }
         return head;

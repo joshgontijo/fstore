@@ -45,7 +45,7 @@ public class IndexedSegment implements Iterable<Record> {
         this.channel = SegmentChannel.open(file);
     }
 
-    private Index openIndex(File file, long indexEntries, RowKey comparator) {
+    protected Index openIndex(File file, long indexEntries, RowKey comparator) {
         File indexFile = LogUtil.indexFile(file);
         return new Index(indexFile, indexEntries, comparator);
     }
@@ -168,8 +168,8 @@ public class IndexedSegment implements Iterable<Record> {
         return channel.name();
     }
 
-    public Index index() {
-        return index;
+    public boolean isFull() {
+        return index.isFull();
     }
 
     public int level() {

@@ -86,7 +86,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         if (nextEntry == null || !filter(nextEntry)) {
             return;
         }
-        if (output.index().isFull()) {
+        if (output.isFull()) {
             throw new IllegalStateException("Insufficient output segment (" + output.name() + ") data space: " + output.size());
         }
 
