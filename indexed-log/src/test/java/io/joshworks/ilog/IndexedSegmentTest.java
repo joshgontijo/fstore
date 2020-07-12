@@ -21,7 +21,7 @@ public class IndexedSegmentTest extends SegmentTest {
     protected void getAll(int items) {
         IndexedSegment is = (IndexedSegment) segment;
         for (long i = 0; i < items; i++) {
-            Records rec = is.get(Buffers.wrap(i), IndexFunction.EQUALS);
+            Records rec = is.find(Buffers.wrap(i), IndexFunction.EQUALS);
             assertNotNull(rec);
             assertFalse(rec.isEmpty());
             assertEquals(i, RecordUtils.longKey(rec.get(0)));

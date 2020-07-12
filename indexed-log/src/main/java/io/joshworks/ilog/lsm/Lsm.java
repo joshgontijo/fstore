@@ -16,7 +16,6 @@ import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class Lsm {
@@ -45,7 +44,7 @@ public class Lsm {
         long maxAge,
         int compactionThreads,
         int compactionThreshold,
-        Codec codec) throws IOException {
+        Codec codec) {
 
         FileUtils.createDir(root);
         this.maxAge = maxAge;
@@ -103,7 +102,7 @@ public class Lsm {
             throw new IllegalArgumentException("Invalid key size");
         }
         return ssTables.apply(Direction.BACKWARD, sst -> {
-            Records fromMem = memTable.apply(key, IndexFunction.EQUALS);
+            Records fromMem = memTable.find(key, IndexFunction.EQUALS);
             if (fromMem != null) {
                 return fromMem;
             }

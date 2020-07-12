@@ -46,7 +46,7 @@ public class IndexedSegment extends Segment {
         index.write(record, recPos);
     }
 
-    public Records get(ByteBuffer key, IndexFunction func) {
+    public Records find(ByteBuffer key, IndexFunction func) {
         int idx = index.find(key, func);
         Records records = pool.empty();
         if (idx == NONE) {

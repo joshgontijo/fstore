@@ -22,6 +22,7 @@ public class SSTable extends IndexedSegment {
         this.blockPool = blockPool;
     }
 
+    @Override
     public Records find(ByteBuffer key, IndexFunction func) {
         if (!readOnly()) {
             return null;
@@ -40,7 +41,7 @@ public class SSTable extends IndexedSegment {
     }
 
     public Block readBlock(ByteBuffer key, IndexFunction func) {
-        try (Records records = super.get(key, func)) {
+        try (Records records = super.find(key, func)) {
             if (records.isEmpty()) {
                 return null;
             }

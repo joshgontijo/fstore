@@ -48,7 +48,7 @@ class MemTable {
         }
     }
 
-    public Records apply(ByteBuffer key, IndexFunction fn) {
+    public Records find(ByteBuffer key, IndexFunction fn) {
 
         long stamp = lock.tryOptimisticRead();
         Records read = tryRead(key, fn);
