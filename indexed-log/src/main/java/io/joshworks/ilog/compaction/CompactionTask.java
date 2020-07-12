@@ -1,6 +1,6 @@
 package io.joshworks.ilog.compaction;
 
-import io.joshworks.ilog.IndexedSegment;
+import io.joshworks.ilog.Segment;
 import io.joshworks.ilog.View;
 import io.joshworks.ilog.compaction.combiner.SegmentCombiner;
 import org.slf4j.Logger;
@@ -11,7 +11,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class CompactionTask<T extends IndexedSegment> implements Runnable {
+public class CompactionTask<T extends Segment> implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
 
@@ -35,16 +35,14 @@ public class CompactionTask<T extends IndexedSegment> implements Runnable {
         try {
             long newSegmentLogSize = segments.stream().mapToLong(T::size).sum();
             long estimatedEntries = segments.stream().mapToLong(T::entries).sum();
-            long estimatedIndexSize = segments.stream().mapToLong(T::indexSize).sum();
 
             String names = Arrays.toString(segments.stream().map(T::name).toArray());
-            logger.info("Compacting {} from level {} using {}, new segment computed size: {}, estimated entry count: {}, estimated index size: {}",
+            logger.info("Compacting {} from level {} using {}, new segment computed size: {}, estimated entry count: {}",
                     names,
                     level,
                     combiner.getClass().getSimpleName(),
                     newSegmentLogSize,
-                    estimatedEntries,
-                    estimatedIndexSize);
+                    estimatedEntries);
 
             for (int i = 0; i < segments.size(); i++) {
                 T segment = segments.get(i);

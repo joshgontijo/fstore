@@ -54,7 +54,7 @@ public class StripedBufferPool {
 
         buffer = buffer == null ? allocateBuffer(stripeSize) : buffer;
         inUse.get(stripeSize).incrementAndGet();
-        return buffer;
+        return buffer.clear().limit(size);
     }
 
     void free(ByteBuffer buffer) {

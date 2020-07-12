@@ -4,7 +4,6 @@ package io.joshworks.ilog.compaction.combiner;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.ilog.IndexedSegment;
-import io.joshworks.ilog.Log;
 import io.joshworks.ilog.LogUtil;
 import io.joshworks.ilog.RecordUtils;
 import io.joshworks.ilog.SegmentIterator;
@@ -275,13 +274,13 @@ public class UniqueMergeCombinerTest {
 
     private IndexedSegment createSegment() {
         File file = TestUtils.testFile(LogUtil.segmentFileName(System.nanoTime(), random.nextInt()));
-        IndexedSegment segment = new IndexedSegment(file, INDEX_LENGTH, rowKey, pool);
+        IndexedSegment segment = new IndexedSegment(file, pool, rowKey, INDEX_LENGTH);
         segments.add(segment);
         return segment;
     }
 
     private Records readAll(IndexedSegment segment) {
-        try (SegmentIterator it = new SegmentIterator(segment, Log.START, 4096, pool)) {
+        try (SegmentIterator it = segment.iterator()) {
             Records records = pool.empty();
             while (it.hasNext()) {
                 Record rec = it.next();

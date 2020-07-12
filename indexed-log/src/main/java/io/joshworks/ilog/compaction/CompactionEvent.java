@@ -1,13 +1,13 @@
 package io.joshworks.ilog.compaction;
 
-import io.joshworks.ilog.IndexedSegment;
+import io.joshworks.ilog.Segment;
 import io.joshworks.ilog.View;
 import io.joshworks.ilog.compaction.combiner.SegmentCombiner;
 
 import java.util.List;
 import java.util.function.Consumer;
 
-class CompactionEvent<T extends IndexedSegment> {
+class CompactionEvent<T extends Segment> {
     View<T> view;
     final List<T> segments;
     final int level;

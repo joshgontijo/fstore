@@ -1,8 +1,6 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.Channels;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
@@ -13,36 +11,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.joshworks.ilog.index.Index.NONE;
 
-public class IndexedSegment implements Iterable<Record> {
+public class IndexedSegment extends Segment {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
-    protected final File file;
-    protected final RecordPool pool;
-    private final SegmentChannel channel;
     private final RowKey rowKey;
-    protected final long id;
     protected Index index;
 
-    private final AtomicBoolean markedForDeletion = new AtomicBoolean();
-    private final Set<SegmentIterator> iterators = new HashSet<>();
-
-    public IndexedSegment(File file, long indexEntries, RowKey rowKey, RecordPool pool) {
-        this.file = file;
-        this.pool = pool;
+    public IndexedSegment(File file, RecordPool pool, RowKey rowKey, long indexEntries) {
+        super(file, pool, NO_MAX_SIZE);
         this.rowKey = rowKey;
         this.index = openIndex(file, indexEntries, rowKey);
-        this.id = LogUtil.segmentId(file.getName());
-        this.channel = SegmentChannel.open(file);
     }
 
     protected Index openIndex(File file, long indexEntries, RowKey comparator) {
@@ -50,27 +33,17 @@ public class IndexedSegment implements Iterable<Record> {
         return new Index(indexFile, indexEntries, comparator);
     }
 
-    public synchronized void reindex() {
-        log.info("Reindexing {}", index.name());
-
+    @Override
+    public synchronized void restore() {
         int indexCapacity = index.capacity();
         index.delete();
         this.index = openIndex(file, indexCapacity, rowKey);
+        super.restore();
+    }
 
-        long start = System.currentTimeMillis();
-
-        try (SegmentIterator it = iterator(Size.KB.ofInt(8), Log.START)) {
-            int processed = 0;
-
-            long recordPos = 0;
-            while (it.hasNext()) {
-                Record record = it.next();
-                index.write(record, recordPos);
-                recordPos += record.recordSize();
-                processed++;
-            }
-            log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
-        }
+    @Override
+    protected void onRecordRestored(Record record, long recPos) {
+        index.write(record, recPos);
     }
 
     public Records get(ByteBuffer key, IndexFunction func) {
@@ -88,31 +61,14 @@ public class IndexedSegment implements Iterable<Record> {
         return records;
     }
 
-    int read(ByteBuffer dst, long offset) {
-        try {
-            return channel.read(dst, offset);
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to read from " + name(), e);
-        }
-    }
-
-    //return the number of written records
-    public int append(Records records, int offset) {
+    @Override
+    protected long append(Records records, int offset, int count) {
         if (index.isFull()) {
             throw new IllegalStateException("Index is full");
         }
-        if (readOnly()) {
-            throw new IllegalStateException("Segment is read only");
-        }
-        if (records.isEmpty()) {
-            return 0;
-        }
-
+        long recordPos = super.append(records, offset, count);
+        ;
         try {
-            int count = Math.min(index.remaining(), records.size() - offset);
-
-            long recordPos = channel.position();
-            records.writeTo(channel, offset, count);
             for (int i = 0; i < count; i++) {
                 Record rec = records.get(offset + i);
                 index.write(rec, recordPos);
@@ -125,141 +81,41 @@ public class IndexedSegment implements Iterable<Record> {
         }
     }
 
-    public boolean readOnly() {
-        return channel.readOnly();
+    @Override
+    public int append(Records records, int offset) {
+        int count = Math.min(index.remaining(), records.size() - offset);
+        append(records, offset, count);
+        return count;
     }
 
-    public long writePosition() {
-        return channel.position();
-    }
-
+    @Override
     void forceRoll() {
-        flush();
-        channel.truncate();
+        super.forceRoll();
         index.complete();
-        channel.markAsReadOnly();
     }
 
-    public void roll() {
-        if (!channel.markAsReadOnly()) {
-            throw new IllegalStateException("Already read only: " + name());
-        }
-        forceRoll();
-    }
-
-    public long size() {
-        try {
-            return channel.size();
-        } catch (IOException e) {
-            throw new RuntimeIOException(e);
-        }
-    }
-
+    @Override
     public void flush() {
-        try {
-            channel.force(false);
-            index.flush();
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to flush segment", e);
-        }
+        super.flush();
+        index.flush();
     }
 
-    public String name() {
-        return channel.name();
-    }
-
+    @Override
     public boolean isFull() {
         return index.isFull();
     }
 
-    public int level() {
-        return LogUtil.levelOf(id);
-    }
-
-    public long segmentId() {
-        return id;
-    }
-
-    public long segmentIdx() {
-        return LogUtil.segmentIdx(id);
-    }
-
-    public synchronized void delete() {
-        if (!markedForDeletion.compareAndSet(false, true)) {
-            return;
-        }
-        if (!iterators.isEmpty()) {
-            log.info("Segment marked for deletion");
-            return;
-        }
-        doDelete();
-    }
-
     @Override
-    public SegmentIterator iterator() {
-        return iterator(Size.KB.ofInt(8), Log.START);
-    }
-
-    public SegmentIterator iterator(int bufferSize) {
-        return iterator(bufferSize, Log.START);
-    }
-
-    public synchronized SegmentIterator iterator(int bufferSize, long pos) {
-        SegmentIterator it = new SegmentIterator(this, pos, bufferSize, pool);
-        iterators.add(it);
-        return it;
-    }
-
-    private void doDelete() {
+    protected void doDelete() {
         log.info("Deleting {}", name());
         channel.delete();
         index.delete();
     }
 
-    public void close() {
-        try {
-            channel.close();
-            index.close();
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to close segment", e);
-        }
-    }
-
-    public long transferTo(IndexedSegment dst) {
-        return transferTo(dst.channel);
-    }
-
-    public long transferTo(WritableByteChannel dst) {
-        return Channels.transferFully(channel, dst);
-    }
-
     @Override
-    public String toString() {
-        return "IndexedSegment{" +
-                "name=" + name() +
-                ", writePosition=" + channel.position() +
-                ", size=" + size() +
-                ", entries=" + index.entries() +
-                ", indexSize=" + index.size() +
-                '}';
+    public void close() {
+        super.close();
+        index.close();
     }
-
-    public int entries() {
-        return index.entries();
-    }
-
-    public long indexSize() {
-        return index.size();
-    }
-
-    void release(SegmentIterator iterator) {
-        iterators.remove(iterator);
-        if (markedForDeletion.get()) {
-            synchronized (this) {
-                doDelete();
-            }
-        }
-    }
-
 
 }

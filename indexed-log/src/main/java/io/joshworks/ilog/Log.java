@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.compaction.Compactor;
 import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
-import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
@@ -13,19 +12,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
-public class Log<T extends IndexedSegment> {
+public class Log<T extends Segment> {
 
     protected final View<T> view;
     private final FlushMode flushMode;
     private final Compactor<T> compactor;
 
-    public static final long START = 0;
-
     public Log(File root,
                long levelZeroIndexEntries,
                int compactionThreshold,
                int compactionThreads,
-               RowKey rowKey,
                FlushMode flushMode,
                RecordPool pool,
                SegmentFactory<T> segmentFactory) throws IOException {
@@ -35,7 +31,7 @@ public class Log<T extends IndexedSegment> {
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
-        this.view = new View<>(root, pool, rowKey, levelZeroIndexEntries, segmentFactory);
+        this.view = new View<>(root, pool, levelZeroIndexEntries, segmentFactory);
         this.compactor = new Compactor<>(view, new ConcatenateCombiner(), compactionThreshold, compactionThreads);
     }
 
@@ -44,7 +40,7 @@ public class Log<T extends IndexedSegment> {
             int size = records.size();
             int inserted = 0;
             while (inserted < size) {
-                IndexedSegment head = getHeadOrRoll();
+                Segment head = getHeadOrRoll();
                 inserted += head.append(records, inserted);
             }
         } catch (Exception e) {
@@ -56,15 +52,15 @@ public class Log<T extends IndexedSegment> {
         }
     }
 
-    private IndexedSegment getHeadOrRoll() {
-        IndexedSegment head = view.head();
+    private Segment getHeadOrRoll() {
+        Segment head = view.head();
         if (head.isFull()) {
             head = roll(head);
         }
         return head;
     }
 
-    private IndexedSegment roll(IndexedSegment head) {
+    private Segment roll(Segment head) {
         if (FlushMode.ON_ROLL.equals(flushMode) || FlushMode.ALWAYS.equals(flushMode)) {
             head.flush();
         }
@@ -92,7 +88,7 @@ public class Log<T extends IndexedSegment> {
     }
 
     public void flush() {
-        IndexedSegment head = view.head();
+        Segment head = view.head();
         head.flush();
     }
 

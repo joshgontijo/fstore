@@ -1,6 +1,6 @@
 package io.joshworks.ilog.compaction.combiner;
 
-import io.joshworks.ilog.IndexedSegment;
+import io.joshworks.ilog.Segment;
 import io.joshworks.ilog.SegmentIterator;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.Record;
@@ -20,26 +20,24 @@ import java.util.stream.Collectors;
  */
 public class UniqueMergeCombiner implements SegmentCombiner {
 
-    private final RecordPool pool;
     private final RowKey rowKey;
-    private Records records;
+    private final Records records;
 
     protected UniqueMergeCombiner(RecordPool pool, RowKey rowKey) {
-        this.pool = pool;
         this.records = pool.empty();
         this.rowKey = rowKey;
     }
 
     @Override
-    public void merge(List<? extends IndexedSegment> segments, IndexedSegment output) {
+    public void merge(List<? extends Segment> segments, Segment output) {
         List<SegmentIterator> iterators = segments.stream()
-                .map(IndexedSegment::iterator)
+                .map(Segment::iterator)
                 .collect(Collectors.toList());
 
         mergeItems(iterators, output);
     }
 
-    public void mergeItems(List<SegmentIterator> items, IndexedSegment output) {
+    public void mergeItems(List<SegmentIterator> items, Segment output) {
 
         //reversed guarantees that the most recent data is kept when duplicate keys are found
         Collections.reverse(items);
@@ -74,7 +72,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         }
     }
 
-    private void doWrite(IndexedSegment output) {
+    private void doWrite(Segment output) {
         int copiedItems = output.append(records, 0);
         if (copiedItems != records.size()) {
             throw new IllegalStateException("Not enough space in destination segment");
@@ -82,7 +80,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         records.clear();
     }
 
-    private void writeOut(IndexedSegment output, Record nextEntry) {
+    private void writeOut(Segment output, Record nextEntry) {
         if (nextEntry == null || !filter(nextEntry)) {
             return;
         }

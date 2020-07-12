@@ -2,11 +2,9 @@ package io.joshworks.ilog.compaction;
 
 import io.joshworks.fstore.core.metrics.MonitoredThreadPool;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.ilog.Direction;
-import io.joshworks.ilog.IndexedSegment;
+import io.joshworks.ilog.Segment;
 import io.joshworks.ilog.View;
 import io.joshworks.ilog.compaction.combiner.SegmentCombiner;
-import io.joshworks.ilog.index.Index;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +19,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class Compactor<T extends IndexedSegment> {
+public class Compactor<T extends Segment> {
 
     private static final Logger logger = LoggerFactory.getLogger(Compactor.class);
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -141,11 +139,6 @@ public class Compactor<T extends IndexedSegment> {
                     return List.of();
                 }
             } else if (toBeCompacted.size() < compactionThreshold) {
-                return List.of();
-            }
-            long indexSize = toBeCompacted.stream().mapToLong(T::indexSize).sum();
-            if (indexSize > Index.MAX_SIZE) {
-                logger.info("New index size will be greater than {}, not compacting", Index.MAX_SIZE);
                 return List.of();
             }
 

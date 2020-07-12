@@ -53,9 +53,9 @@ class SegmentChannel extends FileChannel {
         }
     }
 
-    private long update(long written) {
+    private long update(long position, long written) {
         if (written > 0) {
-            writePosition.addAndGet(written);
+            writePosition.accumulateAndGet(written, (curr, add) -> Math.max(position + written, curr));
         }
         return written;
     }
@@ -79,13 +79,14 @@ class SegmentChannel extends FileChannel {
     @Override
     public int write(ByteBuffer src) throws IOException {
         checkReadOnly();
-        return (int) update(delegate.write(src));
+        return (int) update(writePosition.get(), delegate.write(src));
     }
 
     @Override
     public long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
         checkReadOnly();
-        return update(delegate.write(srcs, offset, length));
+        long written = delegate.write(srcs, offset, length);
+        return update(writePosition.get(), written);
     }
 
     @Override
@@ -94,10 +95,14 @@ class SegmentChannel extends FileChannel {
     }
 
     @Override
-    public FileChannel position(long newPosition) throws IOException {
+    public FileChannel position(long newPosition) {
         checkReadOnly();
-        writePosition.set(newPosition);
-        return delegate.position(newPosition);
+        try {
+            writePosition.set(newPosition);
+            return delegate.position(newPosition);
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to set position", e);
+        }
     }
 
     @Override
@@ -107,8 +112,14 @@ class SegmentChannel extends FileChannel {
 
     @Override
     public FileChannel truncate(long size) {
-        //internal method call only
-        throw new UnsupportedOperationException("Cannot truncate segment file");
+        try {
+            //sets the writePosition to the truncated size if greater than truncated size
+            writePosition.accumulateAndGet(size, Math::min);
+            delegate.truncate(size);
+            return this;
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to truncate file");
+        }
     }
 
     @Override
@@ -124,7 +135,7 @@ class SegmentChannel extends FileChannel {
     @Override
     public long transferFrom(ReadableByteChannel src, long position, long count) throws IOException {
         checkReadOnly();
-        return update(delegate.transferFrom(src, position, count));
+        return delegate.transferFrom(src, position, count);
     }
 
     @Override
@@ -135,7 +146,7 @@ class SegmentChannel extends FileChannel {
     @Override
     public int write(ByteBuffer src, long position) throws IOException {
         checkReadOnly();
-        return (int) update(delegate.write(src, position));
+        return delegate.write(src, position);
     }
 
     @Override
@@ -182,6 +193,10 @@ class SegmentChannel extends FileChannel {
 
     boolean markAsReadOnly() {
         return readOnly.compareAndSet(false, true);
+    }
+
+    void unmarkAsReadOnly() {
+        readOnly.set(false);
     }
 
     boolean readOnly() {

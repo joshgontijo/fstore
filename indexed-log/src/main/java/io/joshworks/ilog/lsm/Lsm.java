@@ -4,8 +4,9 @@ import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
-import io.joshworks.ilog.IndexedSegment;
 import io.joshworks.ilog.Log;
+import io.joshworks.ilog.Segment;
+import io.joshworks.ilog.SegmentFactory;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.polled.ObjectPool;
@@ -23,7 +24,7 @@ public class Lsm {
     public static final String LOG_DIR = "log";
     public static final String SSTABLES_DIR = "sstables";
 
-    private final Log<IndexedSegment> tlog;
+    private final Log<Segment> tlog;
     private final MemTable memTable;
     private final Log<SSTable> ssTables;
 
@@ -68,20 +69,18 @@ public class Lsm {
                 memTableMaxEntries, //
                 2,
                 1,
-                rowKey,
                 FlushMode.ON_ROLL,
                 pool,
-                IndexedSegment::new);
+                Segment::new);
 
 
         this.ssTables = new Log<>(new File(root, SSTABLES_DIR),
                 memTableMaxSizeInBytes,
                 compactionThreshold,
                 compactionThreads,
-                rowKey,
                 FlushMode.ON_ROLL,
                 sstablePool,
-                (file, indexEntries, rk, pool) -> new SSTable(file, indexEntries, rk, pool, blockPool));
+                SegmentFactory.sstable(rowKey, memTableMaxEntries, blockPool));
     }
 
     public static Builder create(File root, RowKey comparator) {

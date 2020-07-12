@@ -1,7 +1,6 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.RecordPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +26,7 @@ import static io.joshworks.ilog.LogUtil.compareSegments;
 import static io.joshworks.ilog.LogUtil.indexFile;
 import static io.joshworks.ilog.LogUtil.segmentFile;
 
-public class View<T extends IndexedSegment> {
+public class View<T extends Segment> {
 
     private static final Logger log = LoggerFactory.getLogger(View.class);
 
@@ -37,18 +36,15 @@ public class View<T extends IndexedSegment> {
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final RecordPool pool;
-    private final RowKey rowKey;
-    private final long indexEntries;
+    private final long maxLogSize;
     private final SegmentFactory<T> segmentFactory;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
-    //TODO remove BufferPool
-    View(File root, RecordPool pool, RowKey rowKey, long indexEntries, SegmentFactory<T> segmentFactory) throws IOException {
+    View(File root, RecordPool pool, long maxLogSize, SegmentFactory<T> segmentFactory) throws IOException {
         this.root = root;
         this.pool = pool;
-        this.rowKey = rowKey;
-        this.indexEntries = indexEntries;
+        this.maxLogSize = maxLogSize;
         this.segmentFactory = segmentFactory;
 
         List<T> segments = Files.list(root.toPath())
@@ -60,7 +56,7 @@ public class View<T extends IndexedSegment> {
 
         if (!segments.isEmpty()) {
             T head = segments.get(segments.size() - 1);
-            head.reindex();
+            head.restore();
             head.forceRoll();
         }
 
@@ -72,7 +68,7 @@ public class View<T extends IndexedSegment> {
     }
 
     private T createHead() {
-        return newSegment(0, indexEntries);
+        return newSegment(0, maxLogSize);
     }
 
 
@@ -93,16 +89,16 @@ public class View<T extends IndexedSegment> {
         return entries.get() + head().entries();
     }
 
-    public T newSegment(int level, long indexEntries) {
+    public T newSegment(int level, long maxLogSize) {
         long nextSegIdx = nextSegmentIdx(level);
         File segmentFile = segmentFile(root, nextSegIdx, level);
-        return segmentFactory.create(segmentFile, indexEntries, rowKey, pool);
+        return segmentFactory.create(segmentFile, pool, maxLogSize);
     }
 
     private T open(File segmentFile) {
         try {
             File indexFile = indexFile(segmentFile);
-            return segmentFactory.create(indexFile, indexEntries, rowKey, pool);
+            return segmentFactory.create(indexFile, pool, maxLogSize);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment " + segmentFile.getName(), e);
         }
@@ -128,7 +124,7 @@ public class View<T extends IndexedSegment> {
         }
     }
 
-    public void close() throws IOException {
+    public void close() {
         for (T segment : segments) {
             log.info("Closing segment {}", segment);
             segment.close();
@@ -185,7 +181,7 @@ public class View<T extends IndexedSegment> {
     }
 
     private long nextSegmentIdx(int level) {
-        return segments.stream().filter(seg -> seg.level() == level).mapToLong(IndexedSegment::segmentIdx).max().orElse(0);
+        return segments.stream().filter(seg -> seg.level() == level).mapToLong(Segment::segmentIdx).max().orElse(0);
     }
 
     List<T> getSegments(Direction direction) {

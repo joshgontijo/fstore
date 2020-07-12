@@ -12,14 +12,14 @@ import java.nio.ByteBuffer;
 public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
     private ByteBuffer readBuffer;
-    private final IndexedSegment segment;
+    private final Segment segment;
     private final RecordPool pool;
     private final Records records;
     private RecordIterator recIt;
     private long readPos;
     private boolean closed;
 
-    public SegmentIterator(IndexedSegment segment, long startPos, int bufferSize, RecordPool pool) {
+    SegmentIterator(Segment segment, long startPos, int bufferSize, RecordPool pool) {
         this.pool = pool;
         this.segment = segment;
         this.readPos = startPos;

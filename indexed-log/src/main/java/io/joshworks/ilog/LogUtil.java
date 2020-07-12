@@ -52,7 +52,7 @@ public class LogUtil {
         return fileName.split("\\.")[0];
     }
 
-    static Comparator<IndexedSegment> compareSegments() {
+    static Comparator<Segment> compareSegments() {
         return (o1, o2) -> {
             int levelDiff = o2.level() - o1.level();
             if (levelDiff == 0) {

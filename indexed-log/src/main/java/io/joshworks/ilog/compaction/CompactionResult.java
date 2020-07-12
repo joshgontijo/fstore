@@ -1,10 +1,10 @@
 package io.joshworks.ilog.compaction;
 
-import io.joshworks.ilog.IndexedSegment;
+import io.joshworks.ilog.Segment;
 
 import java.util.List;
 
-class CompactionResult<T extends IndexedSegment> {
+class CompactionResult<T extends Segment> {
 
     final Exception exception;
     final List<T> sources;
@@ -18,11 +18,11 @@ class CompactionResult<T extends IndexedSegment> {
         this.level = level;
     }
 
-    static <T extends IndexedSegment> CompactionResult<T> success(List<T> segments, T target, int level) {
+    static <T extends Segment> CompactionResult<T> success(List<T> segments, T target, int level) {
         return new CompactionResult<>(segments, target, level, null);
     }
 
-    static <T extends IndexedSegment> CompactionResult<T> failure(List<T> segments, T target, int level, Exception exception) {
+    static <T extends Segment> CompactionResult<T> failure(List<T> segments, T target, int level, Exception exception) {
         return new CompactionResult<>(segments, target, level, exception);
     }
 

@@ -17,8 +17,8 @@ public class SSTable extends IndexedSegment {
 
     private final ObjectPool<Block> blockPool;
 
-    public SSTable(File file, long indexEntries, RowKey rowKey, RecordPool pool, ObjectPool<Block> blockPool) {
-        super(file, indexEntries, rowKey, pool);
+    public SSTable(File file, RecordPool pool, RowKey rowKey, long indexEntries, ObjectPool<Block> blockPool) {
+        super(file, pool, rowKey, indexEntries);
         this.blockPool = blockPool;
     }
 
