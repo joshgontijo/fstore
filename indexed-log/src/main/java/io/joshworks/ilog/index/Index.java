@@ -112,7 +112,6 @@ public class Index implements Closeable {
         return ByteBufferBinarySearch.binarySearch(key, mf.buffer(), 0, size(), entrySize(), rowKey);
     }
 
-
     public long readPosition(int idx) {
         if (idx < 0 || idx >= entries()) {
             return NONE;
