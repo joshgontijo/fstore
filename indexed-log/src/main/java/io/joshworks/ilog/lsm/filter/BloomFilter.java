@@ -42,9 +42,8 @@ public class BloomFilter {
     }
 
     public long hash(int ki, ByteBuffer val) {
-        long hash64 = Murmur3.hash64(val);
-        long hash1 = hash64;
-        long hash2 = (hash64 >>> 32);
+        long hash1 = Murmur3.hash64(val);
+        long hash2 = (hash1 >>> 32);
 
         long combinedHash = hash1 + (ki * hash2);
         // Flip all the bits if it's negative (guaranteed positive number)

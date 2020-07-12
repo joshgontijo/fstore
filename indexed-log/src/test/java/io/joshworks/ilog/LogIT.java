@@ -17,7 +17,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
-public class AppTest {
+public class LogIT {
 
     private static final int memTableSize = 1000;
 
@@ -50,7 +50,7 @@ public class AppTest {
             assertFalse(found.isEmpty());
 
             Record rec = found.get(0);
-            System.out.println(RecordUtils.toString(rec));
+//            System.out.println(RecordUtils.toString(rec));
 
             int compare = rec.compare(RowKey.LONG, key);
             assertEquals(0, compare);

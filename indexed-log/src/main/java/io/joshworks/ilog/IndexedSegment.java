@@ -43,7 +43,6 @@ public class IndexedSegment implements Iterable<Record> {
         this.index = openIndex(file, indexEntries, rowKey);
         this.id = LogUtil.segmentId(file.getName());
         this.channel = SegmentChannel.open(file);
-        ;
     }
 
     private Index openIndex(File file, long indexEntries, RowKey comparator) {
@@ -72,7 +71,6 @@ public class IndexedSegment implements Iterable<Record> {
             }
             log.info("Restored {}: {} entries in {}ms", name(), processed, System.currentTimeMillis() - start);
         }
-
     }
 
     public Records get(ByteBuffer key, IndexFunction func) {
@@ -99,7 +97,7 @@ public class IndexedSegment implements Iterable<Record> {
     }
 
     //return the number of written records
-    public int write(Records records, int offset) {
+    public int append(Records records, int offset) {
         if (index.isFull()) {
             throw new IllegalStateException("Index is full");
         }
@@ -135,10 +133,11 @@ public class IndexedSegment implements Iterable<Record> {
         return channel.position();
     }
 
-    public void forceRoll() {
+    void forceRoll() {
         flush();
         channel.truncate();
         index.complete();
+        channel.markAsReadOnly();
     }
 
     public void roll() {
@@ -217,9 +216,13 @@ public class IndexedSegment implements Iterable<Record> {
         index.delete();
     }
 
-    public void close() throws IOException {
-        channel.close();
-        index.close();
+    public void close() {
+        try {
+            channel.close();
+            index.close();
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to close segment", e);
+        }
     }
 
     public long transferTo(IndexedSegment dst) {

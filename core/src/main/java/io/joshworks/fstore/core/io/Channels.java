@@ -10,6 +10,7 @@ import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.WritableByteChannel;
 
 public class Channels {
 
@@ -58,7 +59,7 @@ public class Channels {
         }
     }
 
-    public static void transferFully(FileChannel src, FileChannel dst) {
+    public static long transferFully(FileChannel src, WritableByteChannel dst) {
         try {
             long size = src.size();
             long transferred = 0;
@@ -70,6 +71,7 @@ public class Channels {
                 transferred += written;
             } while (transferred < size);
 
+            return transferred;
 
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to transfer data", e);

@@ -30,14 +30,13 @@ class SegmentChannel extends FileChannel {
 
     public static SegmentChannel open(File file) {
         try {
-            boolean newSegment = FileUtils.createIfNotExists(file);
+            boolean newFile = FileUtils.createIfNotExists(file);
             FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
             SegmentChannel segmentChannel = new SegmentChannel(file, channel);
-            segmentChannel.readOnly.set(!newSegment);
-
-            if (!newSegment) {
-                seekEndOfLog(channel);
+            if (!newFile) {
+                seekEndOfLog(segmentChannel);
             }
+            segmentChannel.readOnly.set(!newFile);
 
             return segmentChannel;
 
@@ -50,7 +49,7 @@ class SegmentChannel extends FileChannel {
         try {
             channel.position(channel.size());
         } catch (Exception e) {
-            throw new RuntimeIOException("Failed to set position at the of the log");
+            throw new RuntimeIOException("Failed to set position at the of the log", e);
         }
     }
 

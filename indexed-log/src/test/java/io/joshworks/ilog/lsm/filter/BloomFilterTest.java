@@ -10,8 +10,8 @@ import static org.junit.Assert.assertTrue;
 public class BloomFilterTest {
 
     @Test
-    public void name() {
-        int items = 20_000_000;
+    public void sample() {
+        int items = 5_000_000;
         var bf = new BloomFilter(items, 0.07);
 
         long s = System.currentTimeMillis();

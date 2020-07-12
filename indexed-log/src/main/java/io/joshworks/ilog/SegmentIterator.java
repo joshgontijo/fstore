@@ -87,6 +87,9 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
     @Override
     public void close() {
+        if (closed) {
+            return;
+        }
         closed = true;
         pool.free(readBuffer);
         readBuffer = null;

@@ -7,7 +7,7 @@ import static java.lang.String.format;
 
 public class LogUtil {
 
-    private static long BASE = 0x16345785D8A0000L;
+    private static final long BASE = 0x16345785D8A0000L; //100000000000000000
     static final String EXT = ".log";
     static final int SEG_IDX_DIGITS = (int) (Math.log10(Long.MAX_VALUE) + 1);
 

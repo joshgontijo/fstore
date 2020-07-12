@@ -278,8 +278,8 @@ public class Buffers {
 
     public static long remaining(ByteBuffer[] buffers, int offset, int count) {
         long remaining = 0;
-        for (int i = offset; i < count; i++) {
-            remaining = buffers[i].remaining();
+        for (int i = 0; i < count; i++) {
+            remaining += buffers[offset + i].remaining();
         }
         return remaining;
     }
@@ -309,25 +309,20 @@ public class Buffers {
         return written;
     }
 
-    /**
-     * Compares two buffers by setting their range to the same size with their own offsets, then resets to the original positions
-     */
-    public static int compare(ByteBuffer b1, int b1Offset, ByteBuffer b2, int b2Offset, int len) {
-        int b1ppos = b1.position();
-        int b1plim = b1.limit();
+    public static ByteBuffer wrap(long l) {
+        return ByteBuffer.allocate(Long.BYTES).putLong(l).flip();
+    }
 
-        int b2ppos = b2.position();
-        int b2plim = b2.limit();
+    public static ByteBuffer wrap(int i) {
+        return ByteBuffer.allocate(Integer.BYTES).putInt(i).flip();
+    }
 
-        b1.clear().position(b1Offset).limit(b1Offset + len);
-        b2.clear().position(b2Offset).limit(b2Offset + len);
+    public static ByteBuffer wrap(double d) {
+        return ByteBuffer.allocate(Double.BYTES).putDouble(d).flip();
+    }
 
-        int cmp = b1.compareTo(b2);
-
-        b1.clear().limit(b1plim).position(b1ppos);
-        b2.clear().limit(b2plim).position(b2ppos);
-
-        return cmp;
+    public static ByteBuffer wrap(short s) {
+        return ByteBuffer.allocate(Short.BYTES).putShort(s).flip();
     }
 
 }

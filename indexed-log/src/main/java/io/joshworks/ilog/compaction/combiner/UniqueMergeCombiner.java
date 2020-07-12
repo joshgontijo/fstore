@@ -75,7 +75,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
     }
 
     private void doWrite(IndexedSegment output) {
-        int copiedItems = output.write(records, 0);
+        int copiedItems = output.append(records, 0);
         if (copiedItems != records.size()) {
             throw new IllegalStateException("Not enough space in destination segment");
         }

@@ -45,7 +45,7 @@ public class Log<T extends IndexedSegment> {
             int inserted = 0;
             while (inserted < size) {
                 IndexedSegment head = getHeadOrRoll();
-                inserted += head.write(records, inserted);
+                inserted += head.append(records, inserted);
             }
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to append entry", e);
@@ -82,13 +82,9 @@ public class Log<T extends IndexedSegment> {
     }
 
     private T rollInternal() {
-        try {
-            T newHead = view.roll();
-            compactor.compact(false);
-            return newHead;
-        } catch (IOException e) {
-            throw new RuntimeIOException(e);
-        }
+        T newHead = view.roll();
+        compactor.compact(false);
+        return newHead;
     }
 
     public long entries() {

@@ -1,8 +1,7 @@
 package io.joshworks.fstore.ie.server;
 
 import io.joshworks.fstore.ie.server.protocol.Replication;
-import io.joshworks.ilog.record.RecordUtils;
-import io.joshworks.ilog.RecordBatch;
+import io.joshworks.ilog.record.RecordBatch;
 import io.joshworks.ilog.lsm.Lsm;
 
 import java.io.IOException;

@@ -73,6 +73,26 @@ public class Index implements Closeable {
         assert entrySize() == (mf.position() - pos);
     }
 
+    public int get(ByteBuffer key) {
+        return find(key, IndexFunction.EQUALS);
+    }
+
+    public int floor(ByteBuffer key) {
+        return find(key, IndexFunction.FLOOR);
+    }
+
+    public int ceiling(ByteBuffer key) {
+        return find(key, IndexFunction.CEILING);
+    }
+
+    public int lower(ByteBuffer key) {
+        return find(key, IndexFunction.LOWER);
+    }
+
+    public int higher(ByteBuffer key) {
+        return find(key, IndexFunction.HIGHER);
+    }
+
     public int find(ByteBuffer key, IndexFunction func) {
         requireNonNull(key, "Key must be provided");
         int remaining = key.remaining();

@@ -4,6 +4,8 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.record.Record;
+import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -22,6 +24,18 @@ public class RecordUtils {
 
     public static Record create(long key, String val) {
         return create(key, KS, val, VS);
+    }
+
+    public static Records createN(long startKey, int count, RecordPool pool) {
+        Records records = pool.empty();
+        for (int i = 0; i < count; i++) {
+            long key = startKey + i;
+            Record rec = create(key, KS, "value-" + key, VS);
+            if (!records.add(rec)) {
+                throw new IllegalArgumentException("Records full");
+            }
+        }
+        return records;
     }
 
     public static <K, V> Record create(K key, Serializer<K> ks, V value, Serializer<V> vs) {
@@ -56,7 +70,7 @@ public class RecordUtils {
     }
 
     public static String toString(Record rec) {
-        return  "RECORD_LEN: " + rec.recordSize() + ", " +
+        return "RECORD_LEN: " + rec.recordSize() + ", " +
                 "CHECKSUM: " + rec.checksum() + ", " +
                 "TIMESTAMP: " + rec.timestamp() + ", " +
                 "SEQUENCE: " + rec.sequence() + ", " +

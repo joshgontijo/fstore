@@ -245,7 +245,7 @@ public class UniqueMergeCombinerTest {
             }
 
             IndexedSegment segment = createSegment();
-            segment.write(records, 0);
+            segment.append(records, 0);
             segment.roll();
             return segment;
         } catch (Exception e) {
@@ -260,7 +260,7 @@ public class UniqueMergeCombinerTest {
             for (Record value : items) {
                 records.add(value);
             }
-            segment.write(records, 0);
+            segment.append(records, 0);
             segment.roll();
             return segment;
         } catch (Exception e) {

@@ -112,7 +112,7 @@ public class View<T extends IndexedSegment> {
     }
 
 
-    T roll() throws IOException {
+    T roll() {
         Lock lock = this.rwLock.writeLock();
         lock.lock();
         try {
