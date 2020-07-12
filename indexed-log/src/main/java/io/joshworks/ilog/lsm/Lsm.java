@@ -9,6 +9,7 @@ import io.joshworks.ilog.Segment;
 import io.joshworks.ilog.SegmentFactory;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.polled.ObjectPool;
 import io.joshworks.ilog.record.Block;
 import io.joshworks.ilog.record.RecordIterator;
@@ -118,12 +119,63 @@ public class Lsm {
     }
 
     public synchronized void flush() {
-        try (Block block = blockPool.allocate()) {
-            long entries = memTable.writeTo(ssTables::append, block);
-            if (entries > 0) {
-                ssTables.roll();
-            }
+        long entries = flushMemTable();
+        if (entries > 0) {
+            ssTables.roll();
         }
+    }
+
+    private long flushMemTable() {
+        if (memTable.isEmpty()) {
+            return 0;
+        }
+
+        long inserted = 0;
+
+        Records records = pool.empty();
+
+        try (Block block = blockPool.allocate()) {
+            for (Node node : memTable) {
+                boolean added = block.add(node.record());
+                if (!added) {
+                    if (records.isFull()) {
+                        flushBlockRecords(records);
+                    }
+
+                    inserted += block.entryCount();
+                    block.write(records);
+                    block.clear();
+
+
+                    added = block.add(node.record());
+                    assert added;
+                }
+
+            }
+            //compress and write
+            if (block.entryCount() > 0) {
+                if (records.isFull()) {
+                    flushBlockRecords(records);
+                }
+                inserted += block.entryCount();
+                block.write(records);
+                block.clear();
+            }
+
+            if (records.size() > 0) {
+                flushBlockRecords(records);
+            }
+
+            assert inserted == memTable.size();
+
+            memTable.clear();
+            return inserted;
+        }
+    }
+
+    private void flushBlockRecords(Records records) {
+        ssTables.append(records);
+        records.clear();
     }
 
     public void delete() {

@@ -4,19 +4,18 @@ import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
-import io.joshworks.ilog.record.Block;
 import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.concurrent.locks.StampedLock;
-import java.util.function.Consumer;
 
 import static java.util.Objects.requireNonNull;
 
-class MemTable {
+public class MemTable implements Iterable<Node> {
 
     private final RedBlackBST table;
 
@@ -24,13 +23,13 @@ class MemTable {
     private final int maxEntries;
     private final RecordPool pool;
 
-    MemTable(RecordPool pool, RowKey rowKey, int maxEntries) {
+    public MemTable(RecordPool pool, RowKey rowKey, int maxEntries) {
         this.pool = pool;
         this.maxEntries = maxEntries;
         this.table = new RedBlackBST(rowKey);
     }
 
-    void add(RecordIterator records) {
+    public void add(RecordIterator records) {
         requireNonNull(records, "Records must be provided");
         try {
             long stamp = lock.writeLock();
@@ -83,60 +82,20 @@ class MemTable {
         return table.size();
     }
 
-    long writeTo(Consumer<Records> writer, Block block) {
-        if (table.isEmpty()) {
-            return 0;
-        }
-
-        long inserted = 0;
-
-        Records records = pool.empty();
-
-        for (Node node : table) {
-
-            boolean added = block.add(node.record());
-            if (!added) {
-                if (records.isFull()) {
-                    flushBlockRecords(writer, records);
-                }
-
-                inserted += block.entryCount();
-                block.write(records);
-                block.clear();
-
-
-                added = block.add(node.record());
-                assert added;
-            }
-
-        }
-        //compress and write
-        if (block.entryCount() > 0) {
-            if (records.isFull()) {
-                flushBlockRecords(writer, records);
-            }
-            inserted += block.entryCount();
-            block.write(records);
-            block.clear();
-        }
-
-        if (records.size() > 0) {
-            flushBlockRecords(writer, records);
-        }
-
-        assert inserted == table.size();
-
-        // TODO remove
-        table.clear();
-        return inserted;
-    }
-
-    private void flushBlockRecords(Consumer<Records> writer, Records records) {
-        writer.accept(records);
-        records.clear();
-    }
-
     public boolean isFull() {
         return table.size() >= maxEntries;
+    }
+
+    @Override
+    public Iterator<Node> iterator() {
+        return table.iterator();
+    }
+
+    public boolean isEmpty() {
+        return table.isEmpty();
+    }
+
+    public void clear() {
+        table.clear();
     }
 }

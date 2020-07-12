@@ -67,7 +67,6 @@ public class IndexedSegment extends Segment {
             throw new IllegalStateException("Index is full");
         }
         long recordPos = super.append(records, offset, count);
-        ;
         try {
             for (int i = 0; i < count; i++) {
                 Record rec = records.get(offset + i);
