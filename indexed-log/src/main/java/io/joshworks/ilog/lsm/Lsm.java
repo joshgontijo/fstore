@@ -9,7 +9,7 @@ import io.joshworks.ilog.Log;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.polled.ObjectPool;
-import io.joshworks.ilog.record.HeapBlock;
+import io.joshworks.ilog.record.Block;
 import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
@@ -31,7 +31,7 @@ public class Lsm {
 
     private final long maxAge;
 
-    private final ObjectPool<HeapBlock> blockPool;
+    private final ObjectPool<Block> blockPool;
     private final RowKey rowKey;
 
 
@@ -58,7 +58,7 @@ public class Lsm {
                 .directBuffers(memTableDirectBuffers)
                 .build();
 
-        this.blockPool = new ObjectPool<>(100, p -> new HeapBlock(pool, blockSize, rowKey, codec));
+        this.blockPool = new ObjectPool<>(100, p -> new Block(pool, blockSize, rowKey, codec));
 
         // FIXME index can hold up to Integer.MAX_VALUE which probably isn't enough for large dataset
 
@@ -120,7 +120,7 @@ public class Lsm {
     }
 
     public synchronized void flush() {
-        try (HeapBlock block = blockPool.allocate()) {
+        try (Block block = blockPool.allocate()) {
             long entries = memTable.writeTo(ssTables::append, block);
             if (entries > 0) {
                 ssTables.roll();

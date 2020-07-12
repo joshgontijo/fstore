@@ -27,7 +27,7 @@ import java.util.Map;
  * COMPRESSED_BLOCK
  * ...
  */
-public class HeapBlock implements Closeable {
+public class Block implements Closeable {
 
     private final RowKey rowKey;
     private final Codec codec;
@@ -46,7 +46,7 @@ public class HeapBlock implements Closeable {
 
     private final RecordPool pool;
 
-    public HeapBlock(RecordPool pool, int blockSize, RowKey rowKey, Codec codec) {
+    public Block(RecordPool pool, int blockSize, RowKey rowKey, Codec codec) {
         this.pool = pool;
         this.rowKey = rowKey;
         this.codec = codec;

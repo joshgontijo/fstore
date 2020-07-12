@@ -4,7 +4,7 @@ import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
-import io.joshworks.ilog.record.HeapBlock;
+import io.joshworks.ilog.record.Block;
 import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
@@ -83,7 +83,7 @@ class MemTable {
         return table.size();
     }
 
-    long writeTo(Consumer<Records> writer, HeapBlock block) {
+    long writeTo(Consumer<Records> writer, Block block) {
         if (table.isEmpty()) {
             return 0;
         }
