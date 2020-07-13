@@ -1,6 +1,5 @@
 package io.joshworks.ilog.lsm;
 
-import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
@@ -10,8 +9,7 @@ import io.joshworks.ilog.SegmentFactory;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.tree.Node;
-import io.joshworks.ilog.polled.ObjectPool;
-import io.joshworks.ilog.record.Block;
+import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
@@ -24,42 +22,28 @@ public class Lsm {
     public static final String LOG_DIR = "log";
     public static final String SSTABLES_DIR = "sstables";
 
-    private final Log<Segment> tlog;
-    private final MemTable memTable;
-    private final Log<SSTable> ssTables;
+    protected final Log<Segment> tlog;
+    protected final MemTable memTable;
+    protected final Log<SSTable> ssTables;
 
-    private final RecordPool pool;
+    protected final RecordPool pool;
 
     private final long maxAge;
-
-    private final ObjectPool<Block> blockPool;
     private final RowKey rowKey;
 
-
     Lsm(File root,
+        RecordPool pool,
         RowKey rowKey,
         int memTableMaxSizeInBytes,
         int memTableMaxEntries,
-        boolean memTableDirectBuffers,
-        int blockSize,
         long maxAge,
         int compactionThreads,
-        int compactionThreshold,
-        Codec codec) {
+        int compactionThreshold) {
 
         FileUtils.createDir(root);
+        this.pool = pool;
         this.maxAge = maxAge;
         this.rowKey = rowKey;
-
-        this.pool = RecordPool.create()
-                .directBuffers(memTableDirectBuffers)
-                .build();
-
-        RecordPool sstablePool = RecordPool.create()
-                .directBuffers(memTableDirectBuffers)
-                .build();
-
-        this.blockPool = new ObjectPool<>(100, p -> new Block(pool, blockSize, rowKey, codec));
 
         // FIXME index can hold up to Integer.MAX_VALUE which probably isn't enough for large dataset
 
@@ -79,8 +63,8 @@ public class Lsm {
                 compactionThreshold,
                 compactionThreads,
                 FlushMode.ON_ROLL,
-                sstablePool,
-                SegmentFactory.sstable(rowKey, memTableMaxEntries, blockPool));
+                pool,
+                SegmentFactory.sstable(rowKey, memTableMaxEntries));
     }
 
     public static Builder create(File root, RowKey comparator) {
@@ -98,18 +82,21 @@ public class Lsm {
         }
     }
 
-    public Records get(ByteBuffer key) {
+    public Record get(ByteBuffer key) {
         if (rowKey.keySize() != key.remaining()) {
             throw new IllegalArgumentException("Invalid key size");
         }
         return ssTables.apply(Direction.BACKWARD, sst -> {
-            Records fromMem = memTable.find(key, IndexFunction.EQUALS);
+            Record fromMem = memTable.find(key, IndexFunction.EQUALS);
             if (fromMem != null) {
                 return fromMem;
             }
 
             for (SSTable ssTable : sst) {
-                Records found = ssTable.find(key, IndexFunction.FLOOR);
+                if (!ssTable.readOnly()) {
+                    continue;
+                }
+                Record found = searchSSTable(key, ssTable, IndexFunction.EQUALS);
                 if (found != null) {
                     return found;
                 }
@@ -118,62 +105,44 @@ public class Lsm {
         });
     }
 
+    protected Record searchSSTable(ByteBuffer key, SSTable ssTable, IndexFunction func) {
+        return ssTable.find(key, func);
+    }
+
     public synchronized void flush() {
-        long entries = flushMemTable();
-        if (entries > 0) {
+        if (memTable.isEmpty()) {
+            return;
+        }
+        int memTableSize = memTable.size();
+        long inserted = flushMemTable();
+        assert inserted == memTableSize;
+        if (inserted > 0) {
             ssTables.roll();
         }
     }
 
-    private long flushMemTable() {
-        if (memTable.isEmpty()) {
-            return 0;
-        }
-
+    protected long flushMemTable() {
         long inserted = 0;
 
         Records records = pool.empty();
-
-        try (Block block = blockPool.allocate()) {
-            for (Node node : memTable) {
-                boolean added = block.add(node.record());
-                if (!added) {
-                    if (records.isFull()) {
-                        flushBlockRecords(records);
-                    }
-
-                    inserted += block.entryCount();
-                    block.write(records);
-                    block.clear();
-
-
-                    added = block.add(node.record());
-                    assert added;
-                }
-
+        for (Node node : memTable) {
+            boolean added = records.add(node.record());
+            if (!added) {
+                inserted += records.size();
+                flushRecords(records);
+                records.add(node.record());
             }
-            //compress and write
-            if (block.entryCount() > 0) {
-                if (records.isFull()) {
-                    flushBlockRecords(records);
-                }
-                inserted += block.entryCount();
-                block.write(records);
-                block.clear();
-            }
-
-            if (records.size() > 0) {
-                flushBlockRecords(records);
-            }
-
-            assert inserted == memTable.size();
-
-            memTable.clear();
-            return inserted;
         }
+        if (!records.isEmpty()) {
+            inserted += records.size();
+            flushRecords(records);
+        }
+
+        memTable.clear();
+        return inserted;
     }
 
-    private void flushBlockRecords(Records records) {
+    protected void flushRecords(Records records) {
         ssTables.append(records);
         records.clear();
     }

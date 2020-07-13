@@ -47,10 +47,10 @@ public class MemTable implements Iterable<Node> {
         }
     }
 
-    public Records find(ByteBuffer key, IndexFunction fn) {
+    public Record find(ByteBuffer key, IndexFunction fn) {
 
         long stamp = lock.tryOptimisticRead();
-        Records read = tryRead(key, fn);
+        Record read = tryRead(key, fn);
         if (lock.validate(stamp)) {
             return read;
         }
@@ -66,16 +66,9 @@ public class MemTable implements Iterable<Node> {
         }
     }
 
-    private Records tryRead(ByteBuffer key, IndexFunction fn) {
+    private Record tryRead(ByteBuffer key, IndexFunction fn) {
         Node node = table.apply(key, fn);
-        if (node == null) {
-            return null;
-        }
-
-        Records recs = pool.empty();
-        recs.add(node.record());
-
-        return recs;
+        return node == null ? null : node.record();
     }
 
     public int size() {

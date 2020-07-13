@@ -268,12 +268,8 @@ public class Buffers {
         return buffer.position() + relativeOffset;
     }
 
-    public static int relativeRemaining(ByteBuffer buffer, int offset) {
-        return buffer.limit() - (buffer.position() + offset);
-    }
-
-    public static int remaining(ByteBuffer buffer, int absPos) {
-        return buffer.limit() - absPos;
+    public static int remaining(ByteBuffer buffer, int offset) {
+        return buffer.capacity() - offset;
     }
 
     public static long remaining(ByteBuffer[] buffers, int offset, int count) {

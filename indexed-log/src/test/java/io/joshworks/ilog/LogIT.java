@@ -1,6 +1,5 @@
 package io.joshworks.ilog;
 
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.ilog.index.RowKey;
@@ -30,8 +29,7 @@ public class LogIT {
     public void appTest() {
 
         final Lsm lsm = Lsm.create(TestUtils.testFolder(), RowKey.LONG)
-                .memTable(memTableSize, Size.MB.ofInt(50), false)
-                .codec(new SnappyCodec())
+                .memTable(memTableSize, Size.MB.ofInt(50))
                 .compactionThreads(1)
                 .compactionThreshold(5)
                 .open();
@@ -44,15 +42,11 @@ public class LogIT {
 
         for (long i = 0; i < memTableSize + 1; i++) {
             ByteBuffer key = wrap(i);
-            Records found = lsm.get(key);
+            Record found = lsm.get(key);
 
             assertNotNull(found);
-            assertFalse(found.isEmpty());
 
-            Record rec = found.get(0);
-//            System.out.println(RecordUtils.toString(rec));
-
-            int compare = rec.compare(RowKey.LONG, key);
+            int compare = found.compare(RowKey.LONG, key);
             assertEquals(0, compare);
         }
         lsm.close();

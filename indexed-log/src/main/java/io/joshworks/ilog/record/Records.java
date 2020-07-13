@@ -7,11 +7,9 @@ import io.joshworks.fstore.core.util.Iterators;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Queue;
 
 public class Records extends AbstractRecords implements Iterable<Record> {
 
@@ -20,9 +18,6 @@ public class Records extends AbstractRecords implements Iterable<Record> {
 
     //the active record buffers
     private final ByteBuffer[] buffers;
-
-    //the object cache where all instances should return to
-    private final Queue<Record> cache = new ArrayDeque<>();
 
     //single, reusable, non thread-safe iterator
     private final RecordIterator iterator = new RecordIterator(new ArrayIt());
@@ -46,35 +41,41 @@ public class Records extends AbstractRecords implements Iterable<Record> {
         return true;
     }
 
-    public int add(ByteBuffer data) {
-        if (!data.hasRemaining()) {
+    public int add(ByteBuffer data, int offset, int count) {
+        if (count == 0) {
             return 0;
         }
 
-        int i = 0;
-        while (Record.isValid(data)) {
+        int bytes = 0;
+        while (Record.isValid(data, offset)) {
             int totalSize = Record.recordSize(data);
+            if (bytes + totalSize > count) { //count reached stop parsing
+                break;
+            }
             ByteBuffer dst = pool.allocate(totalSize);
             dst.limit(totalSize);
             int copied = Buffers.copy(data, data.position(), totalSize, dst);
             assert copied == totalSize;
-            Buffers.offsetPosition(data, copied);
+            offset += copied;
+            bytes += copied;
             dst.flip();
             addInternal(dst);
-            i++;
         }
-        return i;
+        return bytes;
+    }
+
+    public int add(ByteBuffer data) {
+        int bytes = add(data, data.position(), data.remaining());
+        Buffers.offsetPosition(data, bytes);
+        return bytes;
     }
 
     private void addInternal(ByteBuffer recData) {
-        Record rec = allocateEmptyRecord();
+        Record rec = pool.allocateRecord();
         rec.init(recData);
         buffers[records.size()] = recData;
         records.add(rec);
     }
-
-    //parses into a record, copying to its own buffer
-
 
     public void add(ByteBuffer key, ByteBuffer value, int... attr) {
         add(key, key.position(), key.remaining(), value, value.position(), value.remaining(), attr);
@@ -84,32 +85,11 @@ public class Records extends AbstractRecords implements Iterable<Record> {
         int totalSize = Record.computeRecordSize(kLen, vLen);
         ByteBuffer dst = pool.allocate(totalSize);
 
-        Record rec = allocateEmptyRecord();
+        Record rec = pool.allocateRecord();
         rec.create(dst, key, kOffset, kLen, value, vOffset, vLen, attr);
 
         buffers[records.size()] = dst;
         records.add(rec);
-    }
-
-    public int from(FileChannel channel, long position, int count) {
-        try {
-            ByteBuffer dst = pool.allocate(count);
-            dst.limit(count);
-            int read = channel.read(dst, position);
-            dst.flip();
-
-            this.add(dst);
-
-            return read;
-
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to read entry: " + channel + ", position: " + position + ", count: " + count, e);
-        }
-    }
-
-    private Record allocateEmptyRecord() {
-        Record poll = cache.poll();
-        return poll == null ? new Record() : poll;
     }
 
     @Override
@@ -134,12 +114,10 @@ public class Records extends AbstractRecords implements Iterable<Record> {
     public void clear() {
         itIdx = 0;
         for (int i = 0; i < size(); i++) {
-            ByteBuffer recBuffer = records.get(i).free();
-            assert recBuffer == buffers[i];
-            pool.free(buffers[i]);
+            Record record = records.get(i);
+            record.close();
             buffers[i] = null;
         }
-        cache.addAll(records);
         records.clear();
     }
 

@@ -46,19 +46,15 @@ public class IndexedSegment extends Segment {
         index.write(record, recPos);
     }
 
-    public Records find(ByteBuffer key, IndexFunction func) {
+    public Record find(ByteBuffer key, IndexFunction func) {
         int idx = index.find(key, func);
-        Records records = pool.empty();
         if (idx == NONE) {
-            return records;
+            return null;
         }
         long pos = index.readPosition(idx);
         int len = index.readEntrySize(idx);
 
-        long read = records.from(channel, pos, len);
-        assert read == len;
-
-        return records;
+        return pool.get(channel, pos, len);
     }
 
     @Override

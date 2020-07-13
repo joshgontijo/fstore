@@ -148,7 +148,6 @@ public class Compactor<T extends Segment> {
     }
 
 
-
     public synchronized void close() {
         if (closed.compareAndSet(false, true)) {
             logger.info("Closing compactor");

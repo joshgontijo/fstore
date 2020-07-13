@@ -88,4 +88,7 @@ public class StripedBufferPool {
         return buffer;
     }
 
+    public void close() {
+        pools.clear();
+    }
 }

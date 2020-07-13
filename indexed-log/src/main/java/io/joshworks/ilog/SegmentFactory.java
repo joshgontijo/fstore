@@ -2,8 +2,6 @@ package io.joshworks.ilog;
 
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.SSTable;
-import io.joshworks.ilog.polled.ObjectPool;
-import io.joshworks.ilog.record.Block;
 import io.joshworks.ilog.record.RecordPool;
 
 import java.io.File;
@@ -17,8 +15,8 @@ public interface SegmentFactory<T extends Segment> {
         return (file, pool, maxSize) -> new IndexedSegment(file, pool, rowKey, indexEntries);
     }
 
-    static SegmentFactory<SSTable> sstable(RowKey rowKey, long indexEntries, ObjectPool<Block> blockPool) {
-        return (file, pool, maxSize) -> new SSTable(file, pool, rowKey, indexEntries, blockPool);
+    static SegmentFactory<SSTable> sstable(RowKey rowKey, long indexEntries) {
+        return (file, pool, maxSize) -> new SSTable(file, pool, rowKey, indexEntries);
     }
 
 

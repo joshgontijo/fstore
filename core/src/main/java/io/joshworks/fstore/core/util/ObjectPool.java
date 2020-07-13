@@ -1,15 +1,14 @@
-package io.joshworks.ilog.polled;
+package io.joshworks.fstore.core.util;
 
+import java.util.ArrayDeque;
 import java.util.Queue;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.function.Function;
 
 public class ObjectPool<T> {
-    private final Queue<T> items;
+    private final Queue<T> items = new ArrayDeque<>();
     private final Function<ObjectPool<T>, T> supplier;
 
-    public ObjectPool(int items, Function<ObjectPool<T>, T> supplier) {
-        this.items = new ArrayBlockingQueue<>(items);
+    public ObjectPool(Function<ObjectPool<T>, T> supplier) {
         this.supplier = supplier;
     }
 
@@ -22,8 +21,12 @@ public class ObjectPool<T> {
     }
 
     public void release(T pooled) {
-        items.offer(pooled);
+        if (pooled != null) {
+            items.offer(pooled);
+        }
     }
 
-
+    public void clear() {
+        items.clear();
+    }
 }

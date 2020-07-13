@@ -4,10 +4,9 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Records;
+import io.joshworks.ilog.record.Record;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 public class IndexedSegmentTest extends SegmentTest {
@@ -21,10 +20,9 @@ public class IndexedSegmentTest extends SegmentTest {
     protected void getAll(int items) {
         IndexedSegment is = (IndexedSegment) segment;
         for (long i = 0; i < items; i++) {
-            Records rec = is.find(Buffers.wrap(i), IndexFunction.EQUALS);
+            Record rec = is.find(Buffers.wrap(i), IndexFunction.EQUALS);
             assertNotNull(rec);
-            assertFalse(rec.isEmpty());
-            assertEquals(i, RecordUtils.longKey(rec.get(0)));
+            assertEquals(i, RecordUtils.longKey(rec));
         }
     }
 

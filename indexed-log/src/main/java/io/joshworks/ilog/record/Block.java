@@ -216,7 +216,7 @@ public class Block implements Closeable {
         return idx;
     }
 
-    public Records find(ByteBuffer key, IndexFunction fn) {
+    public Record find(ByteBuffer key, IndexFunction fn) {
         int idx = indexOf(key, fn);
         if (checkBounds(idx)) {
             return null;
@@ -247,7 +247,7 @@ public class Block implements Closeable {
         return -(low + 1);  // key not found
     }
 
-    public Records read(int idx) {
+    public Record read(int idx) {
         if (!readable()) {
             throw new IllegalStateException();
         }
@@ -259,11 +259,7 @@ public class Block implements Closeable {
         }
 
         int offset = keys.get(idx).offset;
-        int entryLen = data.getInt(offset);
-
-        data.limit(offset + entryLen);
-        data.position(offset);
-        return pool.fromBuffer(data, offset, entryLen);
+        return pool.from(data, offset);
     }
 
 

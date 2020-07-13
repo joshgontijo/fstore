@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.index.RowKey;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
@@ -32,7 +33,7 @@ import java.nio.channels.WritableByteChannel;
  * VALUE_LEN excludes VALUE_LEN itself
  * </pre>
  */
-public class Record {
+public class Record implements Closeable {
 
     private ByteBuffer data;
 
@@ -54,8 +55,10 @@ public class Record {
     static final int KEY_OFFSET = KEY_LEN_OFFSET + Short.BYTES;
 
     boolean active;
+    private final RecordPool owner;
 
-    Record() {
+    Record(RecordPool owner) {
+        this.owner = owner;
     }
 
     void init(ByteBuffer buffer) {
@@ -67,20 +70,47 @@ public class Record {
 
     }
 
-    ByteBuffer free() {
-        ByteBuffer tmp = data;
+    @Override
+    public void close() {
+        if (owner != null) {
+            owner.free(data);
+            owner.free(this);
+        }
         this.data = null;
         this.active = false;
-        return tmp;
     }
 
     //Returns the total size in bytes of this record, including RECORD_LEN field
     static int recordSize(ByteBuffer recData) {
-        return recData.getInt(recData.position() + RECORD_LEN_OFFSET);
+        return recordSize(recData, recData.position());
+    }
+
+    static int recordSize(ByteBuffer recData, int offset) {
+        return recData.getInt(offset + RECORD_LEN_OFFSET);
     }
 
     public boolean isValid() {
         return isValid(data);
+    }
+
+    static boolean isValid(ByteBuffer recData, int offset) {
+        if (Buffers.remaining(recData, offset) < Record.HEADER_BYTES) {
+            return false;
+        }
+
+        int recSize = recordSize(recData, offset);
+        int checksum = recData.getInt(offset + Record.CHECKSUM_OFFSET);
+
+        if (recSize < 0 || recSize > Buffers.remaining(recData, offset)) {
+            return false;
+        }
+
+        int chksOffset = offset + Record.TIMESTAMP_OFFSET; //from TIMESTAMP
+        int chksLen = recSize - (Integer.BYTES * 2);
+
+        int computed = ByteBufferChecksum.crc32(recData, chksOffset, chksLen);
+
+        return computed == checksum;
     }
 
     static boolean isValid(ByteBuffer recData) {
@@ -104,7 +134,7 @@ public class Record {
         return computed == checksum;
     }
 
-    public boolean hasAttribute(ByteBuffer buffer, int attribute) {
+    public boolean hasAttribute(int attribute) {
         short attr = attributes();
         return (attr & (1 << attribute)) == 1;
     }
@@ -191,7 +221,7 @@ public class Record {
     public static Record create(ByteBuffer key, ByteBuffer value, int... attr) {
         int recordSize = computeRecordSize(key.remaining(), value.remaining());
         ByteBuffer dst = Buffers.allocate(recordSize, false);
-        Record rec = new Record();
+        Record rec = new Record(null);
         rec.create(dst, key, value, attr);
         return rec;
     }

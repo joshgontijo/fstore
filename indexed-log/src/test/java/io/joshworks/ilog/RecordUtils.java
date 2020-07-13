@@ -40,12 +40,14 @@ public class RecordUtils {
 
     public static <K, V> Record create(K key, Serializer<K> ks, V value, Serializer<V> vs) {
         var kb = Buffers.allocate(128, false);
-        var vb = Buffers.allocate(64, false);
+        var vb = Buffers.allocate(128, false);
 
         ks.writeTo(key, kb);
         kb.flip();
 
-        vs.writeTo(value, vb);
+        if (value != null) {
+            vs.writeTo(value, vb);
+        }
         vb.flip();
 
         return Record.create(kb, vb);
