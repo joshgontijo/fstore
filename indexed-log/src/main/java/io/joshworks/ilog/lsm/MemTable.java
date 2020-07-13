@@ -36,6 +36,7 @@ public class MemTable implements Iterable<Node> {
             try {
                 while (records.hasNext() && !isFull()) {
                     Record record = records.next();
+                    //TODO copy record ? caller of lsm must make sure Records is not closed otherwise it might cause issues
                     table.put(record);
                 }
             } finally {
