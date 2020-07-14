@@ -28,7 +28,6 @@ public class Segment implements Iterable<Record> {
     protected final long maxSize;
     protected final RecordPool pool;
     protected final SegmentChannel channel;
-    protected final long id;
 
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
     private final Set<SegmentIterator> iterators = new HashSet<>();
@@ -39,7 +38,6 @@ public class Segment implements Iterable<Record> {
         this.file = file;
         this.maxSize = maxSize;
         this.pool = pool;
-        this.id = LogUtil.segmentId(file.getName());
         this.channel = SegmentChannel.open(file);
         this.header.read();
         if (!channel.readOnly()) {
@@ -174,15 +172,15 @@ public class Segment implements Iterable<Record> {
     }
 
     public int level() {
-        return LogUtil.levelOf(id);
+        return LogUtil.levelOf(name());
     }
 
     public long segmentId() {
-        return id;
+        return LogUtil.segmentId(name());
     }
 
     public long segmentIdx() {
-        return LogUtil.segmentIdx(id);
+        return LogUtil.segmentIdx(name());
     }
 
     @Override

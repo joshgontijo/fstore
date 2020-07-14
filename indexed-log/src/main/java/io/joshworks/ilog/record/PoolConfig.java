@@ -11,6 +11,8 @@ public class PoolConfig {
     boolean directBuffers;
 
     Set<Integer> poolStripes = Set.of(
+            Size.BYTE.ofInt(64),
+            Size.BYTE.ofInt(128),
             Size.BYTE.ofInt(512),
             Size.KB.ofInt(1),
             Size.KB.ofInt(2),

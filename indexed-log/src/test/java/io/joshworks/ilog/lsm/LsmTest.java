@@ -5,9 +5,9 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.ilog.RecordUtils;
 import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
-import io.joshworks.ilog.record.Record;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,18 +15,17 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class LsmTest {
 
     public static final RowKey RK = RowKey.LONG;
+    public static final int BATCH_SIZE = 1000;
     private Lsm lsm;
     private static final int MEM_TABLE_SIZE = 500000;
     private final RecordPool pool = RecordPool.create()
-            .batchSize(MEM_TABLE_SIZE * 2)
+            .batchSize(BATCH_SIZE)
             .build();
 
     @Before
@@ -57,6 +56,23 @@ public class LsmTest {
             assertEquals(i, RecordUtils.longKey(found));
         }
     }
+
+    @Test
+    public void append_MANY_TEST() {
+        long inserted = 0;
+        long time = System.currentTimeMillis();
+        while (true) {
+            Records records = RecordUtils.createN(0, BATCH_SIZE, pool);
+            lsm.append(records);
+            inserted += records.size();
+            if (inserted % 1000000 == 0) {
+                long now = System.currentTimeMillis();
+                System.out.println(inserted + " - " + (now - time) + "ms");
+                time = now;
+            }
+        }
+    }
+
 
 //    @Test
 //    public void iterate() {

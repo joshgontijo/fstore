@@ -269,7 +269,7 @@ public class Buffers {
     }
 
     public static int remaining(ByteBuffer buffer, int offset) {
-        return buffer.capacity() - offset;
+        return buffer.limit() - offset;
     }
 
     public static long remaining(ByteBuffer[] buffers, int offset, int count) {

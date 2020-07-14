@@ -5,7 +5,6 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Iterators;
 
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,14 +47,14 @@ public class Records extends AbstractRecords implements Iterable<Record> {
 
         int bytes = 0;
         while (Record.isValid(data, offset)) {
-            int totalSize = Record.recordSize(data);
-            if (bytes + totalSize > count) { //count reached stop parsing
+            int recSize = Record.recordSize(data, offset);
+            if (bytes + recSize > count) { //count reached stop parsing
                 break;
             }
-            ByteBuffer dst = pool.allocate(totalSize);
-            dst.limit(totalSize);
-            int copied = Buffers.copy(data, data.position(), totalSize, dst);
-            assert copied == totalSize;
+            ByteBuffer dst = pool.allocate(recSize);
+            dst.limit(recSize);
+            int copied = Buffers.copy(data, offset, recSize, dst);
+            assert copied == recSize;
             offset += copied;
             bytes += copied;
             dst.flip();

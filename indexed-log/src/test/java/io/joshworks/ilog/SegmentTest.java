@@ -153,7 +153,7 @@ public class SegmentTest {
         while (recordIterator.hasNext()) {
             Record rec = recordIterator.next();
             assertEquals(Long.BYTES, rec.keyLen());
-            assertEquals(idx, longKey(rec));
+            assertEquals("Failed on " + idx, idx, longKey(rec));
             idx++;
         }
 

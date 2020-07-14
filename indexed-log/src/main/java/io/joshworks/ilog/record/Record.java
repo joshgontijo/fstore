@@ -99,15 +99,14 @@ public class Record implements Closeable {
         }
 
         int recSize = recordSize(recData, offset);
-        int checksum = recData.getInt(offset + Record.CHECKSUM_OFFSET);
-
-        if (recSize < 0 || recSize > Buffers.remaining(recData, offset)) {
-            return false;
+        if (recSize <= 0 || recSize > Buffers.remaining(recData, offset)) {
+            return false; SOMETHING WRONG WITH SEGMENTITERATORHERE - PUT A BP AND TEST append_MANY_TEST
         }
 
         int chksOffset = offset + Record.TIMESTAMP_OFFSET; //from TIMESTAMP
         int chksLen = recSize - (Integer.BYTES * 2);
 
+        int checksum = recData.getInt(offset + Record.CHECKSUM_OFFSET);
         int computed = ByteBufferChecksum.crc32(recData, chksOffset, chksLen);
 
         return computed == checksum;

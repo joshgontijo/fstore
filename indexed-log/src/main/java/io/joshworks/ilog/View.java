@@ -96,6 +96,13 @@ public class View<T extends Segment> {
     public T newSegment(int level, long maxLogSize) {
         long nextSegIdx = nextSegmentIdx(level);
         File segmentFile = segmentFile(root, nextSegIdx, level);
+        for (T segment : segments) {
+            if (segment.name().equals(segmentFile.getName())) {
+                throw new IllegalStateException("Duplicate segment name");
+            }
+        }
+
+
         return segmentFactory.create(segmentFile, pool, maxLogSize);
     }
 
@@ -184,8 +191,12 @@ public class View<T extends Segment> {
         return segments.stream().filter(seg -> seg.level() == level).collect(Collectors.toList());
     }
 
-    private long nextSegmentIdx(int level) {
-        return segments.stream().filter(seg -> seg.level() == level).mapToLong(Segment::segmentIdx).max().orElse(0);
+    private synchronized long nextSegmentIdx(int level) {
+        return segments.stream()
+                .filter(seg -> seg.level() == level)
+                .mapToLong(Segment::segmentIdx)
+                .max()
+                .orElse(-1) + 1;
     }
 
     List<T> getSegments(Direction direction) {

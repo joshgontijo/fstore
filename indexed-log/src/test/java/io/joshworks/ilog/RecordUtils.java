@@ -72,6 +72,9 @@ public class RecordUtils {
     }
 
     public static String toString(Record rec) {
+        if (rec == null) {
+            return "null";
+        }
         return "RECORD_LEN: " + rec.recordSize() + ", " +
                 "CHECKSUM: " + rec.checksum() + ", " +
                 "TIMESTAMP: " + rec.timestamp() + ", " +
