@@ -21,14 +21,12 @@ class SparseLsm extends Lsm {
     SparseLsm(File root,
               RecordPool pool,
               RowKey rowKey,
-              int memTableMaxSizeInBytes,
               int memTableMaxEntries,
               long maxAge,
-              int compactionThreads,
               int compactionThreshold,
               int blockSize,
               Codec codec) {
-        super(root, pool, rowKey, memTableMaxSizeInBytes, memTableMaxEntries, maxAge, compactionThreads, compactionThreshold);
+        super(root, pool, rowKey, memTableMaxEntries, maxAge, compactionThreshold);
         this.blockPool = new ObjectPool<>(p -> new Block(pool, blockSize, rowKey, codec));
     }
 

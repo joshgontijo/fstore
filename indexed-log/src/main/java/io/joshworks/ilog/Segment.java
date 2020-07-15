@@ -23,27 +23,29 @@ public class Segment implements Iterable<Record> {
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
     public static final int NO_MAX_SIZE = -1;
+    public static final int NO_MAX_ENTRIES = -1;
 
     protected final File file;
     protected final long maxSize;
+    protected final long maxEntries;
     protected final RecordPool pool;
     protected final SegmentChannel channel;
 
-    private final AtomicBoolean markedForDeletion = new AtomicBoolean();
     private final Set<SegmentIterator> iterators = new HashSet<>();
 
     private final Header header = new Header();
 
-    public Segment(File file, RecordPool pool, long maxSize) {
+    public Segment(File file, RecordPool pool, long maxSize, long maxEntries) {
         this.file = file;
         this.maxSize = maxSize;
+        this.maxEntries = maxEntries;
         this.pool = pool;
         this.channel = SegmentChannel.open(file);
         this.header.read();
         if (!channel.readOnly()) {
             this.channel.position(Header.BYTES);
             this.header.created = System.currentTimeMillis();
-            this.header.write();
+            writeHeader();
         }
     }
 
@@ -85,11 +87,7 @@ public class Segment implements Iterable<Record> {
 
     int read(ByteBuffer dst, long position) {
         checkPosition(position);
-        try {
-            return channel.read(dst, position);
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to read from " + name(), e);
-        }
+        return Channels.read(channel, position, dst);
     }
 
     //return the number of written records
@@ -131,12 +129,18 @@ public class Segment implements Iterable<Record> {
         flush();
         channel.truncate();
 
+        header.rolled = System.currentTimeMillis();
+        writeHeader();
+    }
+
+    private void writeHeader() {
+        boolean unmarked = channel.unmarkAsReadOnly();
         try {
-            channel.unmarkAsReadOnly();
-            header.rolled = System.currentTimeMillis();
             header.write();
         } finally {
-            channel.markAsReadOnly();
+            if (unmarked) {
+                channel.markAsReadOnly();
+            }
         }
     }
 
@@ -168,7 +172,7 @@ public class Segment implements Iterable<Record> {
     }
 
     public boolean isFull() {
-        return maxSize != NO_MAX_SIZE && size() > maxSize;
+        return (maxSize != NO_MAX_SIZE && size() > maxSize) || (maxEntries != NO_MAX_ENTRIES && entries() >= maxEntries);
     }
 
     public int level() {
@@ -200,9 +204,10 @@ public class Segment implements Iterable<Record> {
     }
 
     public synchronized void delete() {
-        if (!markedForDeletion.compareAndSet(false, true)) {
+        if (!header.markedForDeletion.compareAndSet(false, true)) {
             return;
         }
+        writeHeader();
         if (!iterators.isEmpty()) {
             log.info("Segment marked for deletion");
             return;
@@ -228,7 +233,7 @@ public class Segment implements Iterable<Record> {
     }
 
     public long transferTo(WritableByteChannel dst) {
-        return Channels.transferFully(channel, dst);
+        return Channels.transferFully(channel, Header.BYTES, dst);
     }
 
 
@@ -238,7 +243,7 @@ public class Segment implements Iterable<Record> {
 
     protected synchronized void release(SegmentIterator iterator) {
         iterators.remove(iterator);
-        if (markedForDeletion.get()) {
+        if (header.markedForDeletion.get()) {
             synchronized (this) {
                 doDelete();
             }
@@ -247,11 +252,16 @@ public class Segment implements Iterable<Record> {
 
     @Override
     public String toString() {
-        return "IndexedSegment{" +
-                "name=" + name() +
+        return "{" +
+                "level=" + level() +
+                ", idx=" + segmentIdx() +
+                ", id=" + segmentId() +
+                ", name=" + name() +
                 ", writePosition=" + channel.position() +
                 ", size=" + size() +
                 ", entries=" + entries() +
+                ", readOnly=" + readOnly() +
+                ", Header=" + header +
                 '}';
     }
 
@@ -261,6 +271,7 @@ public class Segment implements Iterable<Record> {
      * ENTRIES (8 bytes)
      * CREATED (8 bytes)
      * ROLLED (8 bytes)
+     * MARKED_FOR_DELETION (1 byte)
      * </pre>
      */
     private class Header {
@@ -271,6 +282,7 @@ public class Segment implements Iterable<Record> {
         private final AtomicLong entries = new AtomicLong();
         private long created;
         private long rolled;
+        private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
         private void read() {
             ByteBuffer buffer = pool.allocate(BYTES);
@@ -284,6 +296,7 @@ public class Segment implements Iterable<Record> {
                 entries.set(buffer.getLong());
                 created = buffer.getLong();
                 rolled = buffer.getLong();
+                markedForDeletion.set(buffer.get() == 1);
             } catch (IOException e) {
                 throw new RuntimeIOException("Failed to read header");
             } finally {
@@ -297,6 +310,7 @@ public class Segment implements Iterable<Record> {
                 buffer.putLong(entries.get());
                 buffer.putLong(created);
                 buffer.putLong(rolled);
+                buffer.put((byte) (markedForDeletion.get() ? 1 : 0));
 
                 buffer.flip();
 
@@ -309,6 +323,15 @@ public class Segment implements Iterable<Record> {
             }
         }
 
+        @Override
+        public String toString() {
+            return "{" +
+                    "entries=" + entries.get() +
+                    ", created=" + created +
+                    ", rolled=" + rolled +
+                    ", markedForDeletion=" + markedForDeletion.get() +
+                    '}';
+        }
     }
 
 }

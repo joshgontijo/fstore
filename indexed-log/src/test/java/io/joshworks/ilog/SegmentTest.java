@@ -31,7 +31,7 @@ public class SegmentTest {
     }
 
     protected Segment open(String fileName) {
-        return new Segment(TestUtils.testFile(fileName), pool, Segment.NO_MAX_SIZE);
+        return new Segment(TestUtils.testFile(fileName), pool, Segment.NO_MAX_SIZE, Segment.NO_MAX_ENTRIES);
     }
 
     @After

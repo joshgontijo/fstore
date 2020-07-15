@@ -6,6 +6,6 @@ import java.util.List;
 
 public interface SegmentCombiner {
 
-    void merge(List<? extends Segment> segments, Segment output);
+    void merge(List<Segment> segments, Segment output);
 
 }

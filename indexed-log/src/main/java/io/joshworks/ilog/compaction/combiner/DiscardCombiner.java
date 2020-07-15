@@ -10,7 +10,7 @@ import java.util.List;
 public class DiscardCombiner implements SegmentCombiner {
 
     @Override
-    public void merge(List<? extends Segment> segments, Segment output) {
+    public void merge(List<Segment> segments, Segment output) {
 
     }
 }

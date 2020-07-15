@@ -1,12 +1,14 @@
 package io.joshworks.ilog.record;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.Channels;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Iterators;
 
 import java.nio.ByteBuffer;
 import java.nio.channels.GatheringByteChannel;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -19,7 +21,7 @@ public class Records extends AbstractRecords implements Iterable<Record> {
     private final ByteBuffer[] buffers;
 
     //single, reusable, non thread-safe iterator
-    private final RecordIterator iterator = new RecordIterator(new ArrayIt());
+    private final RecordIterator iterator = new RecordIterator();
     private int itIdx;
 
     Records(RecordPool pool, int maxItems) {
@@ -46,13 +48,12 @@ public class Records extends AbstractRecords implements Iterable<Record> {
         }
 
         int bytes = 0;
-        while (Record.isValid(data, offset)) {
+        while (Record.isValid(data, offset) && records.size() < buffers.length) {
             int recSize = Record.recordSize(data, offset);
             if (bytes + recSize > count) { //count reached stop parsing
                 break;
             }
             ByteBuffer dst = pool.allocate(recSize);
-            dst.limit(recSize);
             int copied = Buffers.copy(data, offset, recSize, dst);
             assert copied == recSize;
             offset += copied;
@@ -129,7 +130,7 @@ public class Records extends AbstractRecords implements Iterable<Record> {
             throw new IndexOutOfBoundsException();
         }
         try {
-            return Buffers.writeFully(channel, buffers, offset, count);
+            return Channels.writeFully(channel, buffers, offset, count);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to transfer data", e);
         }
@@ -145,7 +146,7 @@ public class Records extends AbstractRecords implements Iterable<Record> {
         return iterator;
     }
 
-    private class ArrayIt implements Iterators.CloseableIterator<Record> {
+    public class RecordIterator implements Iterators.CloseableIterator<Record> {
 
         @Override
         public boolean hasNext() {
@@ -157,7 +158,18 @@ public class Records extends AbstractRecords implements Iterable<Record> {
             if (!hasNext()) {
                 throw new NoSuchElementException();
             }
-            return records.get(itIdx++);
+            Record record = records.get(itIdx);
+            if (record != null) {
+                itIdx++;
+            }
+            return record;
+        }
+
+        public Record peek() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            return records.get(itIdx);
         }
 
         @Override

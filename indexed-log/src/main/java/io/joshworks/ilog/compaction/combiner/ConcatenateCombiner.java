@@ -7,7 +7,7 @@ import java.util.List;
 public class ConcatenateCombiner implements SegmentCombiner {
 
     @Override
-    public void merge(List<? extends Segment> segments, Segment output) {
+    public void merge(List<Segment> segments, Segment output) {
         segments.forEach(c -> c.transferTo(output));
         output.restore();
     }

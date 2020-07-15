@@ -1,11 +1,12 @@
 package io.joshworks.fstore.core.util;
 
-import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Function;
 
 public class ObjectPool<T> {
-    private final Queue<T> items = new ArrayDeque<>();
+    private final Queue<T> items = new ConcurrentLinkedQueue<>();
     private final Function<ObjectPool<T>, T> supplier;
 
     public ObjectPool(Function<ObjectPool<T>, T> supplier) {
@@ -15,7 +16,7 @@ public class ObjectPool<T> {
     public T allocate() {
         T poll = items.poll();
         if (poll == null) {
-            return supplier.apply(this);
+            poll =  supplier.apply(this);
         }
         return poll;
     }

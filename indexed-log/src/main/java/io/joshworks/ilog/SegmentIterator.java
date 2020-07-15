@@ -1,21 +1,21 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.ilog.record.Record;
-import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
+import java.util.Queue;
 
 public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
     private ByteBuffer readBuffer;
     private final Segment segment;
     private final RecordPool pool;
-    private final Records records;
-    private RecordIterator recIt;
+    private final Queue<Record> records = new ArrayDeque<>();
     private long readPos;
     private boolean closed;
 
@@ -24,8 +24,6 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
         this.segment = segment;
         this.readPos = startPos;
         this.readBuffer = pool.allocate(bufferSize);
-        this.records = pool.empty();
-        this.recIt = records.iterator();
     }
 
     @Override
@@ -33,11 +31,11 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
         if (closed) {
             return false;
         }
-        if (recIt.hasNext()) {
+        if (!records.isEmpty()) {
             return true;
         }
         readBatch();
-        boolean hasNext = recIt.hasNext();
+        boolean hasNext = !records.isEmpty();
         if (!hasNext && endOfLog()) {
             close();
         }
@@ -49,18 +47,20 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
         if (!hasNext()) {
             return null;
         }
-        return recIt.next();
+        return records.poll();
     }
 
     public Record peek() {
         if (!hasNext()) {
             return null;
         }
-        return recIt.peek();
+        return records.peek();
     }
 
 
     private void readBatch() {
+        assert records.isEmpty();
+
         if (readPos >= segment.writePosition()) {
             return;
         }
@@ -70,11 +70,26 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
         }
         readBuffer.flip();
 
-        records.clear();
-        records.add(readBuffer);
+        int copied = parseRecords(readBuffer);
+        if (copied == 0 && Record.hasHeaderData(readBuffer) && Record.recordSize(readBuffer) > readBuffer.capacity()) {
+            Record largeRec = readLargeEntry();
+            records.add(largeRec);
+        }
         readBuffer.compact();
         readPos += read;
-        recIt = records.iterator(); //clear already resets idx, but just to be explicit
+    }
+
+    private int parseRecords(ByteBuffer src) {
+        int copied = 0;
+        Record rec;
+        do {
+            rec = pool.from(src);
+            if (rec != null) {
+                records.add(rec);
+                copied += rec.recordSize();
+            }
+        } while (rec != null);
+        return copied;
     }
 
     public boolean endOfLog() {
@@ -85,6 +100,27 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
         return segment.writePosition() - readPos > 0;
     }
 
+    private Record readLargeEntry() {
+        assert Record.hasHeaderData(readBuffer);
+
+        int recSize = Record.recordSize(readBuffer);
+        assert recSize > readBuffer.capacity();
+
+        ByteBuffer recBuffer = pool.allocate(recSize);
+        Buffers.copy(readBuffer, recBuffer); //copy data to bigger buffer to avoid re-reading
+        try {
+            int read = segment.read(recBuffer, readPos); //read remaining recordSize
+            assert read == recBuffer.limit();
+            recBuffer.flip();
+
+            Record rec = pool.from(recBuffer, recBuffer.position());
+            assert rec != null;
+            return rec;
+        } finally {
+            pool.free(recBuffer);
+        }
+    }
+
     @Override
     public void close() {
         if (closed) {
@@ -93,8 +129,6 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
         closed = true;
         pool.free(readBuffer);
         readBuffer = null;
-        recIt = null;
-        records.close();
         segment.release(this);
     }
 }

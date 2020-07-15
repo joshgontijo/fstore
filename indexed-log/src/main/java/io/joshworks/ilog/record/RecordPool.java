@@ -42,21 +42,44 @@ public class RecordPool {
         return records;
     }
 
-    public Record from(ByteBuffer data, int offset) {
-        Record rec = allocateRecord();
-        if (Record.isValid(data, offset)) {
-            int recSize = Record.recordSize(data, offset);
-            ByteBuffer buffer = pool.allocate(recSize);
-            try {
-                int copied = Buffers.copy(data, offset, recSize, buffer);
-                assert copied == recSize;
-                rec.init(buffer.flip());
-            } catch (Exception e) {
-                pool.free(buffer);
-                throw e;
-            }
+    public Record from(ByteBuffer data) {
+        if (!Record.isValid(data)) {
+            return null;
         }
-        return rec;
+        int recSize = Record.recordSize(data);
+        ByteBuffer buffer = pool.allocate(recSize);
+        try {
+            int copied = Buffers.copy(data, data.position(), recSize, buffer);
+            assert copied == recSize;
+            Buffers.offsetPosition(data, copied);
+
+            Record rec = allocateRecord();
+            rec.init(buffer.flip());
+            return rec;
+        } catch (Exception e) {
+            pool.free(buffer);
+            throw e;
+        }
+    }
+
+    public Record from(ByteBuffer data, int offset) {
+        if (!Record.isValid(data, offset)) {
+            return null;
+        }
+
+        int recSize = Record.recordSize(data, offset);
+        ByteBuffer buffer = pool.allocate(recSize);
+        try {
+            int copied = Buffers.copy(data, offset, recSize, buffer);
+            assert copied == recSize;
+
+            Record rec = allocateRecord();
+            rec.init(buffer.flip());
+            return rec;
+        } catch (Exception e) {
+            pool.free(buffer);
+            throw e;
+        }
     }
 
     Records allocateRecords() {
@@ -80,7 +103,9 @@ public class RecordPool {
     }
 
     void free(Records records) {
+        assert records.isEmpty();
         cache.release(records);
+
     }
 
     public void close() {

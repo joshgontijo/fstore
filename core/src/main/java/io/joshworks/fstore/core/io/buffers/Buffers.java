@@ -1,11 +1,8 @@
 package io.joshworks.fstore.core.io.buffers;
 
-import java.io.IOException;
 import java.nio.Buffer;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
-import java.nio.channels.GatheringByteChannel;
-import java.nio.channels.WritableByteChannel;
 
 public class Buffers {
 
@@ -37,14 +34,14 @@ public class Buffers {
      *
      * @throws BufferOverflowException if the count is greater than the dst {@link ByteBuffer#remaining()}
      */
-    public static int copy(ByteBuffer src, int srcStart, int count, ByteBuffer dst) {
+    public static int copy(ByteBuffer src, int srcOffset, int count, ByteBuffer dst) {
         if (count == 0) {
             return 0;
         }
-        if (srcStart < 0 || srcStart > src.capacity()) {
-            throw new IndexOutOfBoundsException(srcStart);
+        if (srcOffset < 0 || srcOffset > src.capacity()) {
+            throw new IndexOutOfBoundsException(srcOffset);
         }
-        if (count > src.capacity() - srcStart) {
+        if (count > src.capacity() - srcOffset) {
             throw new IndexOutOfBoundsException("count bytes is more than available from srcStart position");
         }
 
@@ -54,22 +51,23 @@ public class Buffers {
 
         int i = 0;
         while ((count - i) >= Long.BYTES) {
-            dst.putLong(src.getLong(srcStart + i));
+            dst.putLong(src.getLong(srcOffset + i));
             i += Long.BYTES;
         }
         while ((count - i) >= Integer.BYTES) {
-            dst.putInt(src.getInt(srcStart + i));
+            dst.putInt(src.getInt(srcOffset + i));
             i += Integer.BYTES;
         }
         while ((count - i) >= Short.BYTES) {
-            dst.putShort(src.getShort(srcStart + i));
+            dst.putShort(src.getShort(srcOffset + i));
             i += Short.BYTES;
         }
         while ((count - i) >= Byte.BYTES) {
-            dst.put(src.get(srcStart + i));
+            dst.put(src.get(srcOffset + i));
             i += Byte.BYTES;
         }
 
+        assert i == count;
         return i;
     }
 
@@ -278,31 +276,6 @@ public class Buffers {
             remaining += buffers[offset + i].remaining();
         }
         return remaining;
-    }
-
-    public static int writeFully(WritableByteChannel dst, ByteBuffer buffer) throws IOException {
-        int total = 0;
-        while (buffer.hasRemaining()) {
-            total += dst.write(buffer);
-        }
-        return total;
-    }
-
-    public static long writeFully(GatheringByteChannel dst, ByteBuffer[] buffers, int offset, int count) throws IOException {
-        long remaining = remaining(buffers, offset, count);
-        if (remaining == 0) {
-            return 0;
-        }
-
-        long written = 0;
-        while (written < remaining) {
-            long w = dst.write(buffers, offset, count);
-            if (w == -1) {
-                return -1;
-            }
-            written += w;
-        }
-        return written;
     }
 
     public static ByteBuffer wrap(long l) {

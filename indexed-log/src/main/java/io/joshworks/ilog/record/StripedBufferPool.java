@@ -3,13 +3,14 @@ package io.joshworks.ilog.record;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -34,7 +35,7 @@ public class StripedBufferPool {
         stripes.add(maxSize);
 
         for (int stripe : stripes) {
-            pools.put(stripe, new ArrayDeque<>());
+            pools.put(stripe, new ConcurrentLinkedQueue<>());
 
             count.put(stripe, new AtomicInteger());
             allocated.put(stripe, new AtomicInteger());
@@ -44,9 +45,7 @@ public class StripedBufferPool {
 
     ByteBuffer allocate(int size) {
         var entry = pools.ceilingEntry(size);
-        if (entry == null) {
-            throw new IllegalArgumentException("Requested buffer size: " + size + " is greater than allowed: " + pools.lastKey());
-        }
+        assert entry != null;
         var queue = entry.getValue();
         int stripeSize = entry.getKey();
         ByteBuffer buffer = queue.poll();
@@ -58,16 +57,14 @@ public class StripedBufferPool {
     }
 
     void free(ByteBuffer buffer) {
-        if (buffer == null) {
-            throw new IllegalArgumentException("Buffer must not be null");
-        }
+        assert buffer != null;
         buffer.clear();
 
         int bufferSize = buffer.capacity();
         var entry = pools.ceilingEntry(bufferSize);
-        if (entry == null || entry.getKey() != bufferSize) {
-            throw new IllegalArgumentException("Invalid buffer");
-        }
+
+        assert entry != null;
+        assert entry.getKey() == bufferSize;
 
         entry.getValue().offer(buffer);
 
@@ -77,7 +74,7 @@ public class StripedBufferPool {
 
     private ByteBuffer allocateBuffer(int size) {
         if (totalAllocated.get() + size > maxSize) {
-            System.err.println("BUFFER POOL CAPACITY EXCEEDED: " + totalAllocated.get() + ", CAPACITY: " + maxSize);
+//            System.err.println("BUFFER POOL CAPACITY EXCEEDED: " + totalAllocated.get() + ", CAPACITY: " + maxSize);
         }
         ByteBuffer buffer = Buffers.allocate(size, direct);
 

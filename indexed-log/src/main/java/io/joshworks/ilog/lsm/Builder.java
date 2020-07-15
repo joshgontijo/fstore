@@ -14,10 +14,8 @@ public class Builder {
     private final RowKey comparator;
     private long maxAge = -1;
 
-    private int compactionThreads = 1;
     private int compactionThreshold = 2;
 
-    private int memTableMaxSizeInBytes = Size.MB.ofInt(5);
     private int memTableMaxEntries = 500000;
     private final PoolConfig pool = RecordPool.create();
 
@@ -26,25 +24,16 @@ public class Builder {
         this.comparator = comparator;
     }
 
-    public Builder memTable(int maxEntries, int maxSize) {
+    public Builder memTable(int maxEntries) {
         if (maxEntries <= 0) {
             throw new IllegalArgumentException("maxEntries must be a positive number");
         }
-        this.memTableMaxSizeInBytes = maxSize;
         this.memTableMaxEntries = maxEntries;
         return this;
     }
 
     public Builder compactionThreshold(int compactionThreshold) {
         this.compactionThreshold = compactionThreshold;
-        return this;
-    }
-
-    public Builder compactionThreads(int compactionThreads) {
-        if (compactionThreads < 1) {
-            throw new IllegalArgumentException("Value must equals or greater than 1");
-        }
-        this.compactionThreads = compactionThreads;
         return this;
     }
 
@@ -61,10 +50,8 @@ public class Builder {
                 root,
                 pool.build(),
                 comparator,
-                memTableMaxSizeInBytes,
                 memTableMaxEntries,
                 maxAge,
-                compactionThreads,
                 compactionThreshold,
                 blockSize,
                 codec);
@@ -79,10 +66,8 @@ public class Builder {
                     root,
                     pool.build(),
                     comparator,
-                    memTableMaxSizeInBytes,
                     memTableMaxEntries,
                     maxAge,
-                    compactionThreads,
                     compactionThreshold);
 
         } catch (Exception e) {

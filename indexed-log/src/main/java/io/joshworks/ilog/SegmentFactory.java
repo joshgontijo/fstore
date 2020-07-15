@@ -9,14 +9,14 @@ import java.io.File;
 @FunctionalInterface
 public interface SegmentFactory<T extends Segment> {
 
-    T create(File file, RecordPool pool, long maxSize);
+    T create(File file, RecordPool pool, long maxSize, long maxEntries);
 
-    static SegmentFactory<IndexedSegment> indexed(RowKey rowKey, long indexEntries) {
-        return (file, pool, maxSize) -> new IndexedSegment(file, pool, rowKey, indexEntries);
+    static SegmentFactory<IndexedSegment> indexed(RowKey rowKey) {
+        return (file, pool, maxSize, maxEntries) -> new IndexedSegment(file, pool, rowKey, maxEntries);
     }
 
-    static SegmentFactory<SSTable> sstable(RowKey rowKey, long indexEntries) {
-        return (file, pool, maxSize) -> new SSTable(file, pool, rowKey, indexEntries);
+    static SegmentFactory<SSTable> sstable(RowKey rowKey) {
+        return (file, pool, maxSize, maxEntries) -> new SSTable(file, pool, rowKey, maxEntries);
     }
 
 

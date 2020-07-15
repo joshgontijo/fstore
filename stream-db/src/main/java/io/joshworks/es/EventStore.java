@@ -7,7 +7,6 @@ import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.MemTable;
 import io.joshworks.ilog.lsm.tree.Node;
-import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
@@ -41,7 +40,6 @@ public class EventStore {
                 pool,
                 Segment::new);
     }
-
 
 
     public void append(Records records) {

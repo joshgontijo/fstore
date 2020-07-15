@@ -29,8 +29,7 @@ public class LogIT {
     public void appTest() {
 
         final Lsm lsm = Lsm.create(TestUtils.testFolder(), RowKey.LONG)
-                .memTable(memTableSize, Size.MB.ofInt(50))
-                .compactionThreads(1)
+                .memTable(memTableSize)
                 .compactionThreshold(5)
                 .open();
 

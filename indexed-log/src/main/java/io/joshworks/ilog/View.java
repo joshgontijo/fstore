@@ -11,7 +11,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -25,29 +27,32 @@ import static io.joshworks.ilog.LogUtil.compareSegments;
 import static io.joshworks.ilog.LogUtil.indexFile;
 import static io.joshworks.ilog.LogUtil.segmentFile;
 
-public class View<T extends Segment> {
+public class View {
 
     private static final Logger log = LoggerFactory.getLogger(View.class);
 
-    public volatile List<T> segments = new CopyOnWriteArrayList<>();
-    private volatile T head;
+    private volatile List<Segment> segments = new CopyOnWriteArrayList<>();
+    private final Set<Segment> compacting = new CopyOnWriteArraySet<>();
+    private volatile Segment head;
 
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final RecordPool pool;
     private final long maxLogSize;
-    private final SegmentFactory<T> segmentFactory;
+    private final long maxLogEntries;
+    private final SegmentFactory<?> segmentFactory;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
-    View(File root, RecordPool pool, long maxLogSize, SegmentFactory<T> segmentFactory) {
+    View(File root, RecordPool pool, long maxLogSize, long maxLogEntries, SegmentFactory<?> segmentFactory) {
         this.root = root;
         this.pool = pool;
         this.maxLogSize = maxLogSize;
+        this.maxLogEntries = maxLogEntries;
         this.segmentFactory = segmentFactory;
 
         try {
-            List<T> segments = Files.list(root.toPath())
+            List<Segment> segments = Files.list(root.toPath())
                     .map(Path::toFile)
                     .filter(f -> f.getName().endsWith(EXT))
                     .map(this::open)
@@ -55,14 +60,14 @@ public class View<T extends Segment> {
                     .collect(Collectors.toList());
 
             if (!segments.isEmpty()) {
-                T head = segments.get(segments.size() - 1);
+                Segment head = segments.get(segments.size() - 1);
                 head.restore();
                 head.forceRoll();
             }
 
-            entries.set(segments.stream().mapToLong(T::entries).sum());
+            entries.set(segments.stream().mapToLong(Segment::entries).sum());
 
-            T head = createHead();
+            Segment head = createHead();
             this.head = head;
             this.segments.add(head);
 
@@ -71,18 +76,18 @@ public class View<T extends Segment> {
         }
     }
 
-    private T createHead() {
-        return newSegment(0, maxLogSize);
+    private Segment createHead() {
+        return newSegment(0, maxLogSize, maxLogEntries);
     }
 
 
-    T head() {
+    Segment head() {
         return head;
     }
 
     void delete() {
         lock(() -> {
-            for (T segment : segments) {
+            for (Segment segment : segments) {
                 segment.delete();
             }
             segments.clear();
@@ -93,30 +98,29 @@ public class View<T extends Segment> {
         return entries.get() + head().entries();
     }
 
-    public T newSegment(int level, long maxLogSize) {
-        long nextSegIdx = nextSegmentIdx(level);
-        File segmentFile = segmentFile(root, nextSegIdx, level);
-        for (T segment : segments) {
-            if (segment.name().equals(segmentFile.getName())) {
-                throw new IllegalStateException("Duplicate segment name");
+    public Segment newSegment(int level, long maxLogSize, long maxEntries) {
+        return apply(level, segs -> {
+            long nextSegIdx = nextSegmentIdx(segs, level);
+            File segmentFile = segmentFile(root, nextSegIdx, level);
+            for (Segment segment : segs) {
+                if (segment.name().equals(segmentFile.getName())) {
+                    throw new IllegalStateException("Duplicate segment name");
+                }
             }
-        }
-
-
-        return segmentFactory.create(segmentFile, pool, maxLogSize);
+            return segmentFactory.create(segmentFile, pool, maxLogSize, maxEntries);
+        });
     }
 
-    private T open(File segmentFile) {
+    private Segment open(File segmentFile) {
         try {
             File indexFile = indexFile(segmentFile);
-            return segmentFactory.create(indexFile, pool, maxLogSize);
+            return segmentFactory.create(indexFile, pool, maxLogSize, maxLogEntries);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment " + segmentFile.getName(), e);
         }
     }
 
-
-    T roll() {
+    Segment roll() {
         Lock lock = this.rwLock.writeLock();
         lock.lock();
         try {
@@ -125,7 +129,7 @@ public class View<T extends Segment> {
             head.roll();
             log.info("Segment {} rolled in {}ms", head, System.currentTimeMillis() - start);
             entries.addAndGet(head.entries());
-            T newHead = createHead();
+            Segment newHead = createHead();
 
             segments.add(newHead);
             head = newHead;
@@ -136,7 +140,7 @@ public class View<T extends Segment> {
     }
 
     public void close() {
-        for (T segment : segments) {
+        for (Segment segment : segments) {
             log.info("Closing segment {}", segment);
             segment.close();
         }
@@ -144,7 +148,7 @@ public class View<T extends Segment> {
 
     //----------------------------------
 
-    public <R> R apply(Direction direction, Function<List<T>, R> function) {
+    public <T extends Segment, R> R apply(Direction direction, Function<List<T>, R> function) {
         Lock lock = this.rwLock.readLock();
         lock.lock();
         try {
@@ -165,7 +169,7 @@ public class View<T extends Segment> {
         }
     }
 
-    public void acquire(Direction direction, Consumer<List<T>> function) {
+    public <T extends Segment> void acquire(Direction direction, Consumer<List<T>> function) {
         Lock lock = this.rwLock.readLock();
         lock.lock();
         try {
@@ -176,7 +180,7 @@ public class View<T extends Segment> {
         }
     }
 
-    public <R> R apply(int level, Function<List<T>, R> function) {
+    public <T extends Segment, R> R apply(int level, Function<List<T>, R> function) {
         Lock lock = this.rwLock.readLock();
         lock.lock();
         try {
@@ -187,11 +191,17 @@ public class View<T extends Segment> {
         }
     }
 
-    List<T> getSegments(int level) {
-        return segments.stream().filter(seg -> seg.level() == level).collect(Collectors.toList());
+    <T extends Segment> List<T> getSegments(int level) {
+        List<T> copy = new ArrayList<>();
+        for (Segment segment : segments) {
+            if (segment.level() == level) {
+                copy.add((T) segment);
+            }
+        }
+        return copy;
     }
 
-    private synchronized long nextSegmentIdx(int level) {
+    private static long nextSegmentIdx(List<Segment> segments, int level) {
         return segments.stream()
                 .filter(seg -> seg.level() == level)
                 .mapToLong(Segment::segmentIdx)
@@ -199,26 +209,26 @@ public class View<T extends Segment> {
                 .orElse(-1) + 1;
     }
 
-    List<T> getSegments(Direction direction) {
-        ArrayList<T> copy = new ArrayList<>(segments);
+    <T extends Segment> List<T> getSegments(Direction direction) {
+        List<Segment> copy = new ArrayList<>(segments);
         if (Direction.BACKWARD.equals(direction)) {
             Collections.reverse(copy);
         }
-        return copy;
+        return (List<T>) copy;
     }
 
-    public void remove(List<T> segments) {
+    public void remove(List<Segment> segments) {
         Lock lock = this.rwLock.writeLock();
         lock.lock();
         try {
             validateDeletion(segments);
-            List<T> copy = new ArrayList<>(this.segments);
-            for (T seg : segments) {
+            List<Segment> copy = new ArrayList<>(this.segments);
+            for (Segment seg : segments) {
                 copy.remove(seg);
             }
             this.segments = copy;
 
-            for (T seg : segments) {
+            for (Segment seg : segments) {
                 seg.delete();
             }
 
@@ -227,22 +237,22 @@ public class View<T extends Segment> {
         }
     }
 
-    public void merge(List<T> sources, T merged) {
+    public void merge(List<Segment> sources, Segment output) {
         Lock lock = this.rwLock.writeLock();
         lock.lock();
         try {
-            if (sources.isEmpty() || merged == null) {
+            if (sources.isEmpty() || output == null) {
                 return;
             }
 
-            List<T> copy = new ArrayList<>(this.segments);
+            List<Segment> copy = new ArrayList<>(this.segments);
             validateDeletion(sources);
 
-            T first = sources.get(0);
+            Segment first = sources.get(0);
             int level = first.level(); //safe to assume that there is a segment and all of them are the same level
             int nextLevel = level + 1;
             int firstIdx = copy.indexOf(first);
-            copy.set(firstIdx, merged);
+            copy.set(firstIdx, output);
             for (int i = 1; i < sources.size(); i++) {
                 copy.remove(firstIdx + 1);
             }
@@ -250,10 +260,10 @@ public class View<T extends Segment> {
             //ideally target would have the sources in their header to flag where they're were created from.
             //on startup read all the source from the header and if there's an existing segment, then delete, either the sources
             //or the target segment
-            merged.roll();
+            output.roll();
             this.segments = copy;
 
-            for (T source : sources) {
+            for (Segment source : sources) {
                 source.delete();
             }
 
@@ -262,9 +272,9 @@ public class View<T extends Segment> {
         }
     }
 
-    private void validateDeletion(List<T> segments) {
+    private void validateDeletion(List<Segment> segments) {
         int latestIndex = -1;
-        for (T seg : segments) {
+        for (Segment seg : segments) {
             int i = segments.indexOf(seg);
             if (i < 0) {
                 throw new IllegalStateException("Segment not found: " + seg.name());
@@ -274,5 +284,17 @@ public class View<T extends Segment> {
             }
             latestIndex = i;
         }
+    }
+
+    public boolean isCompacting(Segment segment) {
+        return compacting.contains(segment);
+    }
+
+    public void addToCompacting(List<Segment> toBeCompacted) {
+        compacting.addAll(toBeCompacted);
+    }
+
+    public void removeFromCompacting(List<Segment> toBeCompacted) {
+        compacting.removeAll(toBeCompacted);
     }
 }

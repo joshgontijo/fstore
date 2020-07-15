@@ -62,7 +62,7 @@ class SegmentChannel extends FileChannel {
 
     private void checkReadOnly() {
         if (readOnly()) {
-            throw new IllegalStateException("Segment is read only");
+            throw new IllegalStateException("Segment " + name() + "is read only");
         }
     }
 
@@ -195,8 +195,8 @@ class SegmentChannel extends FileChannel {
         return readOnly.compareAndSet(false, true);
     }
 
-    void unmarkAsReadOnly() {
-        readOnly.set(false);
+    boolean unmarkAsReadOnly() {
+        return readOnly.compareAndSet(true, false);
     }
 
     boolean readOnly() {

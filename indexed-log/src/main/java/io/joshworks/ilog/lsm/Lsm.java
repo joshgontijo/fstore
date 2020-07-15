@@ -1,21 +1,24 @@
 package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
 import io.joshworks.ilog.Log;
 import io.joshworks.ilog.Segment;
 import io.joshworks.ilog.SegmentFactory;
+import io.joshworks.ilog.compaction.combiner.DiscardCombiner;
+import io.joshworks.ilog.compaction.combiner.UniqueMergeCombiner;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.record.Record;
-import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 
 public class Lsm {
 
@@ -34,10 +37,8 @@ public class Lsm {
     Lsm(File root,
         RecordPool pool,
         RowKey rowKey,
-        int memTableMaxSizeInBytes,
         int memTableMaxEntries,
         long maxAge,
-        int compactionThreads,
         int compactionThreshold) {
 
         FileUtils.createDir(root);
@@ -50,21 +51,24 @@ public class Lsm {
         this.memTable = new MemTable(pool, rowKey, memTableMaxEntries);
         this.tlog = new Log<>(
                 new File(root, LOG_DIR),
-                memTableMaxEntries, //
-                2,
-                1,
+                Size.MB.of(20),
+                Segment.NO_MAX_ENTRIES,
+                -1,
+                new DiscardCombiner(),
                 FlushMode.ON_ROLL,
                 pool,
                 Segment::new);
 
 
-        this.ssTables = new Log<>(new File(root, SSTABLES_DIR),
-                memTableMaxSizeInBytes,
+        this.ssTables = new Log<>(
+                new File(root, SSTABLES_DIR),
+                Segment.NO_MAX_SIZE,
+                memTableMaxEntries,
                 compactionThreshold,
-                compactionThreads,
+                new UniqueMergeCombiner(pool, rowKey),
                 FlushMode.ON_ROLL,
                 pool,
-                SegmentFactory.sstable(rowKey, memTableMaxEntries));
+                SegmentFactory.sstable(rowKey));
     }
 
     public static Builder create(File root, RowKey comparator) {
@@ -73,7 +77,7 @@ public class Lsm {
 
     public void append(Records records) {
         tlog.append(records);
-        RecordIterator it = records.iterator();
+        Iterator<Record> it = records.iterator();
         while (it.hasNext()) {
             memTable.add(it);
             if (memTable.isFull()) {
@@ -124,25 +128,27 @@ public class Lsm {
     protected long flushMemTable() {
         long inserted = 0;
 
-        Records records = pool.empty();
-        for (Node node : memTable) {
-            boolean added = records.add(node.record());
-            if (!added) {
+        try(Records records = pool.empty()) {
+            for (Node node : memTable) {
+                boolean added = records.add(node.record());
+                if (!added) {
+                    inserted += records.size();
+                    flushRecords(records);
+                    records.add(node.record());
+                }
+            }
+            if (!records.isEmpty()) {
                 inserted += records.size();
                 flushRecords(records);
-                records.add(node.record());
             }
-        }
-        if (!records.isEmpty()) {
-            inserted += records.size();
-            flushRecords(records);
-        }
 
-        memTable.clear();
-        return inserted;
+            memTable.clear();
+            return inserted;
+        }
     }
 
     protected void flushRecords(Records records) {
+        assert !records.isEmpty();
         ssTables.append(records);
         records.clear();
     }

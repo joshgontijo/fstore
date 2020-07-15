@@ -23,13 +23,13 @@ public class UniqueMergeCombiner implements SegmentCombiner {
     private final RowKey rowKey;
     private final Records records;
 
-    protected UniqueMergeCombiner(RecordPool pool, RowKey rowKey) {
+    public UniqueMergeCombiner(RecordPool pool, RowKey rowKey) {
         this.records = pool.empty();
         this.rowKey = rowKey;
     }
 
     @Override
-    public void merge(List<? extends Segment> segments, Segment output) {
+    public void merge(List<Segment> segments, Segment output) {
         List<SegmentIterator> iterators = segments.stream()
                 .map(Segment::iterator)
                 .collect(Collectors.toList());
@@ -74,9 +74,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
 
     private void doWrite(Segment output) {
         int copiedItems = output.append(records, 0);
-        if (copiedItems != records.size()) {
-            throw new IllegalStateException("Not enough space in destination segment");
-        }
+        assert copiedItems == records.size();
         records.clear();
     }
 

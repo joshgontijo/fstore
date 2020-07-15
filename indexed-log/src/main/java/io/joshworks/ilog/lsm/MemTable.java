@@ -5,9 +5,7 @@ import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
 import io.joshworks.ilog.record.Record;
-import io.joshworks.ilog.record.RecordIterator;
 import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -29,7 +27,7 @@ public class MemTable implements Iterable<Node> {
         this.table = new RedBlackBST(rowKey);
     }
 
-    public void add(RecordIterator records) {
+    public void add(Iterator<Record> records) {
         requireNonNull(records, "Records must be provided");
         try {
             long stamp = lock.writeLock();

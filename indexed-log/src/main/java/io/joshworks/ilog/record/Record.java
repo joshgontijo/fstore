@@ -1,12 +1,12 @@
 package io.joshworks.ilog.record;
 
+import io.joshworks.fstore.core.io.Channels;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.index.RowKey;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
@@ -62,12 +62,12 @@ public class Record implements Closeable {
     }
 
     void init(ByteBuffer buffer) {
+        assert buffer != null;
         assert !active : "Record is active";
         assert isValid(buffer);
 
         this.data = buffer;
         this.active = true;
-
     }
 
     @Override
@@ -76,16 +76,16 @@ public class Record implements Closeable {
             owner.free(data);
             owner.free(this);
         }
-        this.data = null;
-        this.active = false;
+        active = false;
+        data = null;
     }
 
     //Returns the total size in bytes of this record, including RECORD_LEN field
-    static int recordSize(ByteBuffer recData) {
+    public static int recordSize(ByteBuffer recData) {
         return recordSize(recData, recData.position());
     }
 
-    static int recordSize(ByteBuffer recData, int offset) {
+    public static int recordSize(ByteBuffer recData, int offset) {
         return recData.getInt(offset + RECORD_LEN_OFFSET);
     }
 
@@ -93,14 +93,23 @@ public class Record implements Closeable {
         return isValid(data);
     }
 
+    public static boolean hasHeaderData(ByteBuffer recData) {
+        return hasHeaderData(recData, recData.position());
+    }
+
+    public static boolean hasHeaderData(ByteBuffer recData, int offset) {
+        return Buffers.remaining(recData, offset) >= Record.HEADER_BYTES;
+    }
+
     static boolean isValid(ByteBuffer recData, int offset) {
-        if (Buffers.remaining(recData, offset) < Record.HEADER_BYTES) {
+        if (!hasHeaderData(recData, offset)) {
             return false;
         }
 
         int recSize = recordSize(recData, offset);
         if (recSize <= 0 || recSize > Buffers.remaining(recData, offset)) {
-            return false; SOMETHING WRONG WITH SEGMENTITERATORHERE - PUT A BP AND TEST append_MANY_TEST
+            return false;
+//            SOMETHING WRONG WITH SEGMENTITERATORHERE -PUT A BP AND TEST append_MANY_TEST
         }
 
         int chksOffset = offset + Record.TIMESTAMP_OFFSET; //from TIMESTAMP
@@ -121,7 +130,7 @@ public class Record implements Closeable {
         int recSize = recordSize(recData);
         int checksum = recData.getInt(base + Record.CHECKSUM_OFFSET);
 
-        if (recSize < 0 || recSize > recData.remaining()) {
+        if (recSize <= 0 || recSize > recData.remaining()) {
             return false;
         }
 
@@ -186,7 +195,7 @@ public class Record implements Closeable {
         if (data != null) {
             throw new IllegalStateException("Cannot overwrite record");
         }
-        int recordSize = computeRecordSize(key.remaining(), value.remaining()); //excludes the RECORD_LEN field
+        int recordSize = computeRecordSize(key.remaining(), value.remaining()); //includes the RECORD_LEN field
         if (recordSize > dst.remaining()) {
             throw new IllegalArgumentException("Not enough buffer space to create record");
         }
@@ -211,8 +220,6 @@ public class Record implements Closeable {
 
         int checksum = ByteBufferChecksum.crc32(dst, TIMESTAMP_OFFSET, dst.remaining() - (Integer.BYTES * 2));
         dst.putInt(CHECKSUM_OFFSET, checksum);
-
-        assert isValid(dst);
 
         init(dst);
     }
@@ -248,19 +255,9 @@ public class Record implements Closeable {
 
     public int copyTo(ByteBuffer dst) {
         int recLen = recordSize();
-        if (dst.remaining() < recLen) {
-            throw new BufferOverflowException();
-        }
-
         int copied = Buffers.copy(data, 0, recLen, dst);
         assert copied == recLen;
         return copied;
-    }
-
-    public int writeTo(WritableByteChannel channel) throws IOException {
-        int written = Buffers.writeFully(channel, data);
-        data.position(0).limit(recordSize());
-        return written;
     }
 
     public int compare(RowKey rowKey, ByteBuffer key) {
@@ -271,4 +268,9 @@ public class Record implements Closeable {
         return rowKey.compare(data, KEY_OFFSET, rec.data, KEY_OFFSET);
     }
 
+    public void reset() {
+        int recSize = recordSize();
+        data.position(0).limit(recSize);
+
+    }
 }

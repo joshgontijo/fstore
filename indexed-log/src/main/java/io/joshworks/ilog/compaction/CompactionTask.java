@@ -9,34 +9,34 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.concurrent.Callable;
 
-public class CompactionTask<T extends Segment> implements Runnable {
+public class CompactionTask  {
 
     private static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
 
     private final int level;
     private final SegmentCombiner combiner;
-    private final List<T> segments;
-    private final Consumer<CompactionResult<T>> onComplete;
-    private final View<T> view;
+    private final List<Segment> segments;
+    private final View view;
 
-    public CompactionTask(CompactionEvent<T> event) {
-        this.level = event.level;
-        this.combiner = event.combiner;
-        this.segments = new ArrayList<>(event.segments);
-        this.onComplete = event.onComplete;
-        this.view = event.view;
+    public CompactionTask(View view, List<Segment> segments, SegmentCombiner combiner, int level) {
+        this.level = level;
+        this.combiner = combiner;
+        this.segments = new ArrayList<>(segments);
+        this.view = view;
     }
 
-    @Override
-    public void run() {
-        T output = null;
+    CompactionResult compact() {
+        if (CompactionRunner.closed.get()) {
+            return CompactionResult.aborted(view, segments, level);
+        }
+        Segment output = null;
         try {
-            long newSegmentLogSize = segments.stream().mapToLong(T::size).sum();
-            long estimatedEntries = segments.stream().mapToLong(T::entries).sum();
+            long newSegmentLogSize = segments.stream().mapToLong(Segment::size).sum();
+            long estimatedEntries = segments.stream().mapToLong(Segment::entries).sum();
 
-            String names = Arrays.toString(segments.stream().map(T::name).toArray());
+            String names = Arrays.toString(segments.stream().map(Segment::name).toArray());
             logger.info("Compacting {} from level {} using {}, new segment computed size: {}, estimated entry count: {}",
                     names,
                     level,
@@ -45,13 +45,14 @@ public class CompactionTask<T extends Segment> implements Runnable {
                     estimatedEntries);
 
             for (int i = 0; i < segments.size(); i++) {
-                T segment = segments.get(i);
+                Segment segment = segments.get(i);
                 logger.info("Segment[{}] {}", i, segment);
             }
 
             long start = System.currentTimeMillis();
 
-            output = view.newSegment(level + 1, estimatedEntries);
+            //no max size for output segments
+            output = view.newSegment(level + 1, Segment.NO_MAX_SIZE, estimatedEntries);
 
             combiner.merge(segments, output);
             output.flush();
@@ -59,11 +60,11 @@ public class CompactionTask<T extends Segment> implements Runnable {
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
             logger.info("Result segment {}", output);
 
-            onComplete.accept(CompactionResult.success(segments, output, level));
+            return CompactionResult.success(view, segments, output, level);
 
         } catch (Exception e) {
             logger.error("Failed to compact", e);
-            onComplete.accept(CompactionResult.failure(segments, output, level, e));
+            return CompactionResult.failure(view, segments, output, level, e);
         }
     }
 }

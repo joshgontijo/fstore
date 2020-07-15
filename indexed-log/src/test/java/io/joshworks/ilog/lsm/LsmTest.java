@@ -31,11 +31,9 @@ public class LsmTest {
     @Before
     public void setUp() {
         lsm = Lsm.create(TestUtils.testFolder(), RK)
-                .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(5))
+                .memTable(MEM_TABLE_SIZE)
                 .compactionThreshold(2)
-                .compactionThreads(1)
                 .open();
-
     }
 
     @After
@@ -62,7 +60,7 @@ public class LsmTest {
         long inserted = 0;
         long time = System.currentTimeMillis();
         while (true) {
-            Records records = RecordUtils.createN(0, BATCH_SIZE, pool);
+            Records records = RecordUtils.createN(inserted, BATCH_SIZE, pool);
             lsm.append(records);
             inserted += records.size();
             if (inserted % 1000000 == 0) {

@@ -22,10 +22,10 @@ public class IndexedSegment extends Segment {
     private final RowKey rowKey;
     protected Index index;
 
-    public IndexedSegment(File file, RecordPool pool, RowKey rowKey, long indexEntries) {
-        super(file, pool, NO_MAX_SIZE);
+    public IndexedSegment(File file, RecordPool pool, RowKey rowKey, long maxEntries) {
+        super(file, pool, NO_MAX_SIZE, NO_MAX_ENTRIES);
         this.rowKey = rowKey;
-        this.index = openIndex(file, indexEntries, rowKey);
+        this.index = openIndex(file, maxEntries, rowKey);
     }
 
     protected Index openIndex(File file, long indexEntries, RowKey comparator) {

@@ -2,8 +2,8 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.FileUtils;
-import io.joshworks.ilog.compaction.Compactor;
-import io.joshworks.ilog.compaction.combiner.ConcatenateCombiner;
+import io.joshworks.ilog.compaction.CompactionRunner;
+import io.joshworks.ilog.compaction.combiner.SegmentCombiner;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
@@ -13,14 +13,15 @@ import java.util.function.Function;
 
 public class Log<T extends Segment> {
 
-    protected final View<T> view;
+    protected final View view;
     private final FlushMode flushMode;
-    private final Compactor<T> compactor;
+    private final CompactionRunner compactionRunner;
 
     public Log(File root,
                long maxLogSize,
+               long maxLogEntries,
                int compactionThreshold,
-               int compactionThreads,
+               SegmentCombiner combiner,
                FlushMode flushMode,
                RecordPool pool,
                SegmentFactory<T> segmentFactory) {
@@ -30,8 +31,8 @@ public class Log<T extends Segment> {
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory: " + root.getAbsoluteFile());
         }
-        this.view = new View<>(root, pool, maxLogSize, segmentFactory);
-        this.compactor = new Compactor<>(view, new ConcatenateCombiner(), compactionThreshold, compactionThreads);
+        this.view = new View(root, pool, maxLogSize, maxLogEntries, segmentFactory);
+        this.compactionRunner = new CompactionRunner(compactionThreshold, combiner);
     }
 
     public void append(Records records) {
@@ -76,9 +77,9 @@ public class Log<T extends Segment> {
         rollInternal();
     }
 
-    private T rollInternal() {
-        T newHead = view.roll();
-        compactor.compact(false);
+    private Segment rollInternal() {
+        Segment newHead = view.roll();
+        compactionRunner.compact(view, false);
         return newHead;
     }
 
