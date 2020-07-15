@@ -87,7 +87,7 @@ public class CompactionRunner {
         if (CompactionResult.State.FAILED.equals(result.state())) {
             //TODO
             logger.error("Compaction error", result.exception);
-            logger.info("Deleting failed merge result segment");
+            logger.info("Deleting failed merge result segment {}", result.target.name());
             target.delete();
             return;
         }
