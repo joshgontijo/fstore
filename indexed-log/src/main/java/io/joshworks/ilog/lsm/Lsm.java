@@ -122,7 +122,11 @@ public class Lsm {
         }
         int memTableSize = memTable.size();
         long inserted = flushMemTable();
+
         assert inserted == memTableSize;
+        assert memTable.isEmpty();
+        assert memTable.size() == 0;
+
         if (inserted > 0) {
             ssTables.roll();
         }

@@ -1,9 +1,6 @@
 package io.joshworks.ilog.lsm;
 
-import io.joshworks.fstore.codec.snappy.LZ4Codec;
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.ilog.RecordUtils;
 import io.joshworks.ilog.index.RowKey;
@@ -34,7 +31,7 @@ public class LsmTest {
     public void setUp() {
         lsm = Lsm.create(TestUtils.testFolder(), RK)
                 .memTable(MEM_TABLE_SIZE)
-                .compactionThreshold(2)
+                .compactionThreshold(-1)
                 .open();
     }
 
@@ -61,9 +58,6 @@ public class LsmTest {
             lsm.append(records);
             inserted += records.size();
         }
-
-        ByteBuffer key = keyOf(1000000);
-        Record found = lsm.get(key);
 
         System.out.println("READING");
         long s = System.currentTimeMillis();

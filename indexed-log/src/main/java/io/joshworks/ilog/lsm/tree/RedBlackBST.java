@@ -83,7 +83,8 @@ public class RedBlackBST implements Iterable<Node> {
     }
 
     private int compareKeys(ByteBuffer k1, Node node) {
-        return node.key.compare(rowKey, k1);
+        //invert because semantics of RECORD, causes
+        return node.key.compare(rowKey, k1) * -1;
     }
 
     public boolean contains(ByteBuffer key) {
