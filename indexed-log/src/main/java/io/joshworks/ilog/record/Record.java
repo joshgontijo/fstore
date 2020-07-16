@@ -59,8 +59,9 @@ public class Record implements Closeable {
     }
 
     void init(ByteBuffer buffer) {
-        assert buffer != null;
-        assert !active : "Record is active";
+        if(active) {
+            throw new RuntimeException("Record is active");
+        }
         assert isValid(buffer);
 
         this.data = buffer;
@@ -69,12 +70,14 @@ public class Record implements Closeable {
 
     @Override
     public void close() {
+        ByteBuffer tmp = data;
+        data = null;
+        active = false;
         if (owner != null) {
-            owner.free(data);
+            owner.free(tmp);
             owner.free(this);
         }
-        active = false;
-        data = null;
+
     }
 
     //Returns the total size in bytes of this record, including RECORD_LEN field

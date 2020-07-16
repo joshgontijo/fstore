@@ -104,6 +104,7 @@ public class View {
         try {
             long nextSegIdx = nextSegmentIdx(segments, level);
             File segmentFile = segmentFile(root, nextSegIdx, level);
+            System.out.println(level + " - " + nextSegIdx + " -> " + segmentFile.getName());
             for (Segment segment : segments) {
                 if (segment.name().equals(segmentFile.getName())) {
                     throw new IllegalStateException("Duplicate segment name");
