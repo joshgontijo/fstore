@@ -175,7 +175,6 @@ public class Block implements Closeable {
 
         records.add(firstKey.data, block);
         firstKey.data.clear();
-
     }
 
     @Override

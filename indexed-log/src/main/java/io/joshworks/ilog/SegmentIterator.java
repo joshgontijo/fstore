@@ -108,17 +108,16 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
         ByteBuffer recBuffer = pool.allocate(recSize);
         Buffers.copy(readBuffer, recBuffer); //copy data to bigger buffer to avoid re-reading
-        try {
-            int read = segment.read(recBuffer, readPos); //read remaining recordSize
-            assert read == recBuffer.limit();
-            recBuffer.flip();
+        pool.free(readBuffer);
+        readBuffer = recBuffer; //use as the new buffer
 
-            Record rec = pool.from(recBuffer, recBuffer.position());
-            assert rec != null;
-            return rec;
-        } finally {
-            pool.free(recBuffer);
-        }
+        segment.read(recBuffer, readPos); //read remaining recordSize
+        assert recBuffer.position() == recSize;
+        recBuffer.flip();
+
+        Record rec = pool.from(recBuffer, recBuffer.position());
+        assert rec != null;
+        return rec;
     }
 
     @Override

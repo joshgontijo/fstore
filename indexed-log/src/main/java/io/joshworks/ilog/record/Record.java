@@ -109,7 +109,6 @@ public class Record implements Closeable {
         int recSize = recordSize(recData, offset);
         if (recSize <= 0 || recSize > Buffers.remaining(recData, offset)) {
             return false;
-//            SOMETHING WRONG WITH SEGMENTITERATORHERE -PUT A BP AND TEST append_MANY_TEST
         }
 
         int chksOffset = offset + Record.TIMESTAMP_OFFSET; //from TIMESTAMP

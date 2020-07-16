@@ -1,5 +1,6 @@
 package io.joshworks.ilog.lsm;
 
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
@@ -33,7 +34,7 @@ public class LsmTest {
         lsm = Lsm.create(TestUtils.testFolder(), RK)
                 .memTable(MEM_TABLE_SIZE)
                 .compactionThreshold(2)
-                .open();
+                .sparse(new SnappyCodec(), Size.KB.ofInt(64));
     }
 
     @After

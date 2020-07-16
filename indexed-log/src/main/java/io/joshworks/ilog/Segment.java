@@ -185,16 +185,12 @@ public class Segment implements Iterable<Record> {
 
     @Override
     public SegmentIterator iterator() {
-        return iterator(Size.KB.ofInt(8), Header.BYTES);
+        return iterator(Header.BYTES);
     }
 
-    public SegmentIterator iterator(int bufferSize) {
-        return iterator(bufferSize, Header.BYTES);
-    }
-
-    public synchronized SegmentIterator iterator(int bufferSize, long pos) {
+    public synchronized SegmentIterator iterator(long pos) {
         checkPosition(pos);
-        SegmentIterator it = new SegmentIterator(this, pos, bufferSize, pool);
+        SegmentIterator it = new SegmentIterator(this, pos, Size.KB.ofInt(4), pool);
         iterators.add(it);
         return it;
     }
