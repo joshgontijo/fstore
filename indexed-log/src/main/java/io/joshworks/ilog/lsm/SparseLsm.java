@@ -62,6 +62,8 @@ class SparseLsm extends Lsm {
 
         try (Block block = blockPool.allocate()) {
             for (Node node : memTable) {
+
+                ALWAYS RETURNING FALSE PROBABLY BECAUSE BLOCK IS NOT LARGE ENOUGH
                 boolean added = block.add(node.record());
                 if (!added) {
                     if (records.isFull()) {
