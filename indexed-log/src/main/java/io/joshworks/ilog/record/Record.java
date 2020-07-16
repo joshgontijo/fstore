@@ -1,14 +1,11 @@
 package io.joshworks.ilog.record;
 
-import io.joshworks.fstore.core.io.Channels;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.ilog.index.RowKey;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
 
 /**
  * <pre>

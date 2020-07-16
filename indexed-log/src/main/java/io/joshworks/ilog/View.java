@@ -72,7 +72,7 @@ public class View {
             this.segments.add(head);
 
         } catch (Exception e) {
-            throw new RuntimeIOException("Failed to load segments");
+            throw new RuntimeIOException("Failed to load segments", e);
         }
     }
 
@@ -99,16 +99,20 @@ public class View {
     }
 
     public Segment newSegment(int level, long maxLogSize, long maxEntries) {
-        return apply(level, segs -> {
-            long nextSegIdx = nextSegmentIdx(segs, level);
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            long nextSegIdx = nextSegmentIdx(segments, level);
             File segmentFile = segmentFile(root, nextSegIdx, level);
-            for (Segment segment : segs) {
+            for (Segment segment : segments) {
                 if (segment.name().equals(segmentFile.getName())) {
                     throw new IllegalStateException("Duplicate segment name");
                 }
             }
             return segmentFactory.create(segmentFile, pool, maxLogSize, maxEntries);
-        });
+        } finally {
+            lock.unlock();
+        }
     }
 
     private Segment open(File segmentFile) {

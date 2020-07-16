@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Callable;
 
 public class CompactionTask  {
 
@@ -53,12 +52,13 @@ public class CompactionTask  {
 
             //no max size for output segments
             output = view.newSegment(level + 1, Segment.NO_MAX_SIZE, estimatedEntries);
+            logger.info("Output segment {}", output);
 
             combiner.merge(segments, output);
             output.flush();
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
-            logger.info("Result segment {}", output);
+
 
             return CompactionResult.success(view, segments, output, level);
 

@@ -20,11 +20,11 @@ import java.util.stream.Collectors;
  */
 public class UniqueMergeCombiner implements SegmentCombiner {
 
+    private final RecordPool pool;
     private final RowKey rowKey;
-    private final Records records;
 
     public UniqueMergeCombiner(RecordPool pool, RowKey rowKey) {
-        this.records = pool.empty();
+        this.pool = pool;
         this.rowKey = rowKey;
     }
 
@@ -42,7 +42,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         //reversed guarantees that the most recent data is kept when duplicate keys are found
         Collections.reverse(items);
 
-        try {
+        try (Records records = pool.empty()) {
             while (!items.isEmpty()) {
                 List<SegmentIterator> segmentIterators = new ArrayList<>();
                 Iterator<SegmentIterator> itit = items.iterator();
@@ -59,26 +59,24 @@ public class UniqueMergeCombiner implements SegmentCombiner {
                 if (segmentIterators.size() == 1) {
                     SegmentIterator it = segmentIterators.get(0);
                     while (it.hasNext()) {
-                        writeOut(output, it.next());
+                        writeOut(records, output, it.next());
                     }
                 } else {
                     Record nextEntry = getNextEntry(segmentIterators);
-                    writeOut(output, nextEntry);
+                    writeOut(records, output, nextEntry);
                 }
             }
-            doWrite(output);
-        } finally {
-            records.close();
+            doWrite(records, output);
         }
     }
 
-    private void doWrite(Segment output) {
+    private void doWrite(Records records, Segment output) {
         int copiedItems = output.append(records, 0);
         assert copiedItems == records.size();
         records.clear();
     }
 
-    private void writeOut(Segment output, Record nextEntry) {
+    private void writeOut(Records records, Segment output, Record nextEntry) {
         if (nextEntry == null || !filter(nextEntry)) {
             return;
         }
@@ -87,7 +85,7 @@ public class UniqueMergeCombiner implements SegmentCombiner {
         }
 
         if (!records.add(nextEntry)) {
-            doWrite(output);
+            doWrite(records, output);
             records.add(nextEntry);
         }
 
