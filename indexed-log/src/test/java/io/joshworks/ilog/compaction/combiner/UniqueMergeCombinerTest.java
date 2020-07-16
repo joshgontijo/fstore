@@ -18,7 +18,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static io.joshworks.ilog.RecordUtils.create;
 import static org.junit.Assert.assertEquals;
@@ -30,7 +30,6 @@ public class UniqueMergeCombinerTest {
     private static final RowKey rowKey = RowKey.LONG;
     private final List<IndexedSegment> segments = new ArrayList<>();
 
-    private final Random random = new Random(123L);
 
     @After
     public void tearDown() {
@@ -273,7 +272,7 @@ public class UniqueMergeCombinerTest {
     }
 
     private IndexedSegment createSegment() {
-        File file = TestUtils.testFile(LogUtil.segmentFileName(System.nanoTime(), random.nextInt()));
+        File file = TestUtils.testFile(LogUtil.segmentFileName(System.nanoTime(), ThreadLocalRandom.current().nextInt(0, 99)));
         IndexedSegment segment = new IndexedSegment(file, pool, rowKey, INDEX_LENGTH);
         segments.add(segment);
         return segment;
