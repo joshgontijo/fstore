@@ -10,7 +10,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -35,6 +34,7 @@ public class StripedBufferPool {
         stripes.add(maxSize);
 
         for (int stripe : stripes) {
+            //TODO replace with ArrayBlockingQueue
             pools.put(stripe, new ConcurrentLinkedQueue<>());
 
             count.put(stripe, new AtomicInteger());

@@ -13,15 +13,15 @@ import java.nio.ByteBuffer;
 
 import static io.joshworks.fstore.core.io.buffers.Buffers.wrap;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 public class LogIT {
 
-    private static final int memTableSize = 1000;
+    private static final int MEM_TABLE_ENTRIES = 1000;
+    private static final int MEM_TABLE_SIZE = Size.MB.ofInt(20);
 
     private static RecordPool pool = RecordPool.create()
-            .batchSize(memTableSize + 1)
+            .batchSize(MEM_TABLE_ENTRIES + 1)
             .build();
 
 
@@ -29,17 +29,17 @@ public class LogIT {
     public void appTest() {
 
         final Lsm lsm = Lsm.create(TestUtils.testFolder(), RowKey.LONG)
-                .memTable(memTableSize)
+                .memTable(MEM_TABLE_ENTRIES, MEM_TABLE_SIZE, false)
                 .compactionThreshold(5)
                 .open();
 
         Records records = pool.empty();
-        for (int i = 0; i < memTableSize + 1; i++) {
+        for (int i = 0; i < MEM_TABLE_ENTRIES + 1; i++) {
             records.add(RecordUtils.create(i, "value-" + i));
         }
         lsm.append(records);
 
-        for (long i = 0; i < memTableSize + 1; i++) {
+        for (long i = 0; i < MEM_TABLE_ENTRIES + 1; i++) {
             ByteBuffer key = wrap(i);
             Record found = lsm.get(key);
 

@@ -2,10 +2,10 @@ package io.joshworks.fstore.core.util;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Function;
 
 public class ObjectPool<T> {
+    //TODO replace with ArrayBlockingQueue
     private final Queue<T> items = new ConcurrentLinkedQueue<>();
     private final Function<ObjectPool<T>, T> supplier;
 

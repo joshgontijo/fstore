@@ -1,5 +1,6 @@
 package io.joshworks.ilog.lsm.tree;
 
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Pool;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
@@ -18,11 +19,14 @@ public class RedBlackBST implements Iterable<Node> {
     private static final boolean RED = true;
     private static final boolean BLACK = false;
     private Node root;
-    private final NodePool nodePool = new NodePool();
     private final RowKey rowKey;
+    private final int maxEntries;
+    private final NodePool nodePool;
 
-    public RedBlackBST(RowKey rowKey) {
+    public RedBlackBST(RowKey rowKey, int maxEntries, boolean direct) {
         this.rowKey = rowKey;
+        this.maxEntries = maxEntries;
+        this.nodePool = new NodePool(rowKey.keySize(), maxEntries, direct);
     }
 
     private boolean isRed(Node x) {
@@ -50,27 +54,31 @@ public class RedBlackBST implements Iterable<Node> {
         return root == null;
     }
 
-    public Node get(ByteBuffer key) {
-        return get(root, key);
-    }
-
     public Node apply(ByteBuffer key, IndexFunction fn) {
         if (IndexFunction.CEILING.equals(fn)) {
-            return ceiling(key);
+            return ceiling(key, 0);
         }
         if (IndexFunction.EQUALS.equals(fn)) {
-            return get(key);
+            return get(key, 0);
         }
         if (IndexFunction.FLOOR.equals(fn)) {
-            return floor(key);
+            return floor(key, 0);
         }
         //TODO ADD LOWER AND HIGHER
         throw new UnsupportedOperationException("FUNCTION NOT SUPPORTED");
     }
 
-    private Node get(Node x, ByteBuffer key) {
+    public Node get(ByteBuffer key) {
+        return get(root, key, 0);
+    }
+
+    public Node get(ByteBuffer key, int keyOffset) {
+        return get(root, key, keyOffset);
+    }
+
+    private Node get(Node x, ByteBuffer key, int kOffset) {
         while (x != null) {
-            int cmp = compareKeys(key, x);
+            int cmp = compareKeys(key, kOffset, x);
             if (cmp < 0) x = x.left;
             else if (cmp > 0) x = x.right;
             else return x;
@@ -79,43 +87,42 @@ public class RedBlackBST implements Iterable<Node> {
     }
 
     private int compareRecord(Record record, Node node) {
-        return record.compare(rowKey, node.key);
+        return record.compare(rowKey, node.key, node.keyOffset);
     }
 
-    private int compareKeys(ByteBuffer k1, Node node) {
-        //invert because semantics of RECORD, causes
-        return node.key.compare(rowKey, k1) * -1;
+    private int compareKeys(ByteBuffer k1, int k1Offset, Node node) {
+        return rowKey.compare(k1, k1Offset, node.key, node.keyOffset);
     }
 
-    public boolean contains(ByteBuffer key) {
-        return get(key) != null;
+    public boolean contains(ByteBuffer key, int keyOffset) {
+        return get(key, keyOffset) != null;
     }
 
-    public void put(Record record) {
-        root = put(root, record);
+    public void put(Record record, int offset) {
+        if (isFull()) {
+            throw new IllegalStateException("Table is full");
+        }
+        root = put(root, record, offset);
         root.color = BLACK;
     }
 
-    private Node put(Node h, Record record) {
+    private Node put(Node h, Record record, int offset) {
         if (h == null) {
-            Node node = allocateNode(record);
+            Node node = allocateNode(record, offset);
             node.color = RED;
             node.size = 1;
             return node;
         }
-
         int cmp = compareRecord(record, h);
-        if (cmp < 0)
-            h.left = put(h.left, record);
+        if (cmp < 0) h.left = put(h.left, record, offset);
         else if (cmp > 0) {
-            h.right = put(h.right, record);
+            h.right = put(h.right, record, offset);
         } else { //equals, replace
-            h.key = record;
+            h.value = offset;
+            h.len = record.recordSize();
         }
 
-        if (isRed(h.right) && !isRed(h.left))
-            h = rotateLeft(h);
-
+        if (isRed(h.right) && !isRed(h.left)) h = rotateLeft(h);
         return checkRotateOrFlip(h);
     }
 
@@ -254,37 +261,37 @@ public class RedBlackBST implements Iterable<Node> {
         else return max(x.right);
     }
 
-    public Node floor(ByteBuffer key) {
+    public Node floor(ByteBuffer key, int keyOffset) {
         if (isEmpty()) return null;
-        return floor(root, key);
+        return floor(root, key, keyOffset);
     }
 
-    private Node floor(Node x, ByteBuffer key) {
+    private Node floor(Node x, ByteBuffer key, int keyOffset) {
         if (x == null) return null;
-        int cmp = compareKeys(key, x);
+        int cmp = compareKeys(key, keyOffset, x);
         if (cmp == 0) return x;
-        if (cmp < 0) return floor(x.left, key);
-        Node t = floor(x.right, key);
+        if (cmp < 0) return floor(x.left, key, keyOffset);
+        Node t = floor(x.right, key, keyOffset);
         if (t != null) return t;
         else return x;
     }
 
-    public Node ceiling(ByteBuffer key) {
+    public Node ceiling(ByteBuffer key, int keyOffset) {
         if (isEmpty()) return null;
-        return ceiling(root, key);
+        return ceiling(root, key, keyOffset);
     }
 
-    private Node ceiling(Node x, ByteBuffer key) {
+    private Node ceiling(Node x, ByteBuffer key, int keyOffset) {
         if (x == null) return null;
-        int cmp = compareKeys(key, x);
+        int cmp = compareKeys(key, keyOffset, x);
         if (cmp == 0) return x;
-        if (cmp > 0) return ceiling(x.right, key);
-        Node t = ceiling(x.left, key);
+        if (cmp > 0) return ceiling(x.right, key, keyOffset);
+        Node t = ceiling(x.left, key, keyOffset);
         if (t != null) return t;
         else return x;
     }
 
-    public Record select(int k) {
+    public ByteBuffer select(int k) {
         if (k < 0 || k >= size()) {
             throw new IllegalArgumentException("argument to select() is invalid: " + k);
         }
@@ -299,28 +306,52 @@ public class RedBlackBST implements Iterable<Node> {
         else return x;
     }
 
-    private Node allocateNode(Record record) {
+    private Node allocateNode(Record record, int offset) {
         Node node = nodePool.allocate();
-        node.value = null;
-        node.key = record;
+        record.copyKey(node.key, node.keyOffset);
+        node.value = offset;
+        node.len = record.recordSize();
         return node;
+    }
+
+    public boolean isFull() {
+        return size() >= maxEntries;
     }
 
     private static class NodePool implements Pool<Node> {
 
-        private final Queue<Node> pool = new ArrayDeque<>(1000);
+        private static final int INTERNAL_EXTRA = 2;
+
+        private final Queue<Node> pool;
+        private final ByteBuffer backingBuffer;
+        private final int keySize;
+
+        private NodePool(int keySize, int maxEntries, boolean direct) {
+            this.keySize = keySize;
+            this.pool = new ArrayDeque<>(maxEntries + INTERNAL_EXTRA);
+            this.backingBuffer = Buffers.allocate(keySize * (maxEntries + INTERNAL_EXTRA), direct);
+        }
 
         @Override
         public Node allocate() {
             Node instance = pool.poll();
-            return instance == null ? new Node() : instance;
+            if (instance == null) {
+                if (!backingBuffer.hasRemaining()) {
+                    throw new IllegalStateException("No remaining key space");
+                }
+                int offset = backingBuffer.position();
+                instance = new Node(backingBuffer, offset);
+                Buffers.offsetPosition(backingBuffer, keySize);
+            } else {
+                clearNode(instance);
+            }
+            return instance;
         }
 
         @Override
         public void free(Node node) {
             pool.offer(node);
             node.size = 0;
-            clearNode(node);
         }
 
         private void clearNode(Node node) {

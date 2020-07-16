@@ -1,11 +1,13 @@
 package io.joshworks.ilog.lsm;
 
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.lsm.tree.RedBlackBST;
 import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -13,7 +15,7 @@ import java.util.concurrent.locks.StampedLock;
 
 import static java.util.Objects.requireNonNull;
 
-public class MemTable implements Iterable<Node> {
+public class MemTable implements Iterable<Record> {
 
     private final RedBlackBST table;
 
@@ -21,22 +23,33 @@ public class MemTable implements Iterable<Node> {
     private final int maxEntries;
     private final RecordPool pool;
 
-    public MemTable(RecordPool pool, RowKey rowKey, int maxEntries) {
+    private final ByteBuffer data;
+
+    public MemTable(RecordPool pool, RowKey rowKey, int maxEntries, int maxSize, boolean direct) {
         this.pool = pool;
         this.maxEntries = maxEntries;
-        this.table = new RedBlackBST(rowKey);
+        this.table = new RedBlackBST(rowKey, maxEntries, direct);
+        this.data = Buffers.allocate(maxSize, direct);
     }
 
-    public void add(Iterator<Record> records) {
+    //returns true if all added or records iterator has exhausted
+    //false if not all records elements couldn't be added
+    public boolean add(Records.RecordIterator records) {
         requireNonNull(records, "Records must be provided");
         try {
             long stamp = lock.writeLock();
             try {
-                while (records.hasNext() && !isFull()) {
-                    Record record = records.next();
-                    //TODO copy record ? caller of lsm must make sure Records is not closed otherwise it might cause issues
-                    table.put(record);
+                while (records.hasNext() && !table.isFull()) {
+                    Record record = records.peek();
+                    if (record.recordSize() > data.remaining()) {
+                        return false;
+                    }
+                    int pos = data.position();
+                    record.copyTo(data);
+                    records.next(); //advance
+                    table.put(record, pos);
                 }
+                return true;
             } finally {
                 lock.unlockWrite(stamp);
             }
@@ -67,20 +80,19 @@ public class MemTable implements Iterable<Node> {
 
     private Record tryRead(ByteBuffer key, IndexFunction fn) {
         Node node = table.apply(key, fn);
-        return node == null ? null : node.record();
+        if (node == null) {
+            return null;
+        }
+        return pool.from(data, node.offset());
     }
 
     public int size() {
         return table.size();
     }
 
-    public boolean isFull() {
-        return table.size() >= maxEntries;
-    }
-
     @Override
-    public Iterator<Node> iterator() {
-        return table.iterator();
+    public Iterator<Record> iterator() {
+        return new MemTableIterator(table.iterator());
     }
 
     public boolean isEmpty() {
@@ -89,5 +101,27 @@ public class MemTable implements Iterable<Node> {
 
     public void clear() {
         table.clear();
+        data.clear();
     }
+
+    private class MemTableIterator implements Iterator<Record> {
+
+        private final Iterator<Node> tableIterator;
+
+        private MemTableIterator(Iterator<Node> tableIterator) {
+            this.tableIterator = tableIterator;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return tableIterator.hasNext();
+        }
+
+        @Override
+        public Record next() {
+            Node node = tableIterator.next();
+            return pool.from(data, node.offset());
+        }
+    }
+
 }

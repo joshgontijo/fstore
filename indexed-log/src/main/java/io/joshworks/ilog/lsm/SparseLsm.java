@@ -5,7 +5,6 @@ import io.joshworks.fstore.core.util.ObjectPool;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.record.Block;
 import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
@@ -22,11 +21,13 @@ class SparseLsm extends Lsm {
               RecordPool pool,
               RowKey rowKey,
               int memTableMaxEntries,
+              int memTableMaxSize,
+              boolean memTableDirectBuffer,
               long maxAge,
               int compactionThreshold,
               int blockSize,
               Codec codec) {
-        super(root, pool, rowKey, memTableMaxEntries, maxAge, compactionThreshold);
+        super(root, pool, rowKey, memTableMaxEntries, memTableMaxSize, memTableDirectBuffer, maxAge, compactionThreshold);
         this.blockPool = new ObjectPool<>(p -> new Block(p, pool, blockSize, rowKey, codec));
     }
 
@@ -59,22 +60,22 @@ class SparseLsm extends Lsm {
         long inserted = 0;
 
         try (Block block = blockPool.allocate(); Records records = pool.empty()) {
-            for (Node node : memTable) {
-                boolean added = block.add(node.record());
-                if (!added) {
-                    if (records.isFull()) {
-                        flushRecords(records);
+            for (Record record : memTable) {
+                try(record) {
+                    boolean added = block.add(record);
+                    if (!added) {
+                        if (records.isFull()) {
+                            flushRecords(records);
+                        }
+
+                        inserted += block.entryCount();
+                        block.write(records);
+                        block.clear();
+
+                        added = block.add(record);
+                        assert added;
                     }
-
-                    inserted += block.entryCount();
-                    block.write(records);
-                    block.clear();
-
-
-                    added = block.add(node.record());
-                    assert added;
                 }
-
             }
             //compress and write
             if (block.entryCount() > 0) {

@@ -59,7 +59,7 @@ public class Record implements Closeable {
     }
 
     void init(ByteBuffer buffer) {
-        if(active) {
+        if (active) {
             throw new RuntimeException("Record is active");
         }
         assert isValid(buffer);
@@ -248,6 +248,10 @@ public class Record implements Closeable {
         return Buffers.copy(data, KEY_OFFSET, keyLen(), dst);
     }
 
+    public int copyKey(ByteBuffer dst, int offset) {
+        return Buffers.copy(data, KEY_OFFSET, keyLen(), dst, offset);
+    }
+
     public void copyValue(ByteBuffer dst) {
         Buffers.copy(data, valueOffset(), valueSize(), dst);
     }
@@ -260,7 +264,11 @@ public class Record implements Closeable {
     }
 
     public int compare(RowKey rowKey, ByteBuffer key) {
-        return rowKey.compare(data, KEY_OFFSET, key, key.position());
+        return compare(rowKey, key, key.position());
+    }
+
+    public int compare(RowKey rowKey, ByteBuffer key, int keyOffset) {
+        return rowKey.compare(data, KEY_OFFSET, key, keyOffset);
     }
 
     public int compare(RowKey rowKey, Record rec) {

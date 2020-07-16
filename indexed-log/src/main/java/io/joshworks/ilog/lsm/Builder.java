@@ -17,6 +17,8 @@ public class Builder {
     private int compactionThreshold = 2;
 
     private int memTableMaxEntries = 500000;
+    private int memTableMaxSize = Size.MB.ofInt(20);
+    private boolean memTableDirectBuffers = false;
     private final PoolConfig pool = RecordPool.create();
 
     public Builder(File root, RowKey comparator) {
@@ -24,11 +26,10 @@ public class Builder {
         this.comparator = comparator;
     }
 
-    public Builder memTable(int maxEntries) {
-        if (maxEntries <= 0) {
-            throw new IllegalArgumentException("maxEntries must be a positive number");
-        }
+    public Builder memTable(int maxEntries, int maxSize, boolean direct) {
+        this.memTableMaxSize = maxSize;
         this.memTableMaxEntries = maxEntries;
+        this.memTableDirectBuffers = direct;
         return this;
     }
 
@@ -51,6 +52,8 @@ public class Builder {
                 pool.build(),
                 comparator,
                 memTableMaxEntries,
+                memTableMaxSize,
+                memTableDirectBuffers,
                 maxAge,
                 compactionThreshold,
                 blockSize,
@@ -67,6 +70,8 @@ public class Builder {
                     pool.build(),
                     comparator,
                     memTableMaxEntries,
+                    memTableMaxSize,
+                    memTableDirectBuffers,
                     maxAge,
                     compactionThreshold);
 

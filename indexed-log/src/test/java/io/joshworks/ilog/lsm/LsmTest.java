@@ -1,6 +1,7 @@
 package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.ilog.RecordUtils;
 import io.joshworks.ilog.index.RowKey;
@@ -30,8 +31,8 @@ public class LsmTest {
     @Before
     public void setUp() {
         lsm = Lsm.create(TestUtils.testFolder(), RK)
-                .memTable(MEM_TABLE_SIZE)
-                .compactionThreshold(-1)
+                .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(20), false)
+                .compactionThreshold(2)
                 .open();
     }
 
@@ -53,7 +54,7 @@ public class LsmTest {
     @Test
     public void append_MANY_TEST() {
         int inserted = 0;
-        while (inserted < MEM_TABLE_SIZE * 2.5) {
+        while (inserted < MEM_TABLE_SIZE * 5.5) {
             Records records = RecordUtils.createN(inserted, BATCH_SIZE, pool);
             lsm.append(records);
             inserted += records.size();

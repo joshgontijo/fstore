@@ -12,13 +12,15 @@ import static org.junit.Assert.assertNotNull;
 
 public class RedBlackBSTTest {
 
+    private static int MAX_ENTRIES = 1500000;
+
     @Test
     public void iterator() {
-        int items = 1500000;
-        RedBlackBST tree = new RedBlackBST(RowKey.LONG);
+        int items = MAX_ENTRIES;
+        RedBlackBST tree = new RedBlackBST(RowKey.LONG, MAX_ENTRIES, false);
 
-        for (long i = 0; i < items; i++) {
-            tree.put(RecordUtils.create(i, "value-" + i));
+        for (int i = 0; i < items; i++) {
+            tree.put(RecordUtils.create(i, "value-" + i), i);
         }
 
         int count = 0;
@@ -32,18 +34,18 @@ public class RedBlackBSTTest {
 
     @Test
     public void test() {
-        RedBlackBST tree = new RedBlackBST(RowKey.LONG);
+        RedBlackBST tree = new RedBlackBST(RowKey.LONG, MAX_ENTRIES, false);
 
         int items = 10000;
         for (int i = 0; i < items; i++) {
-            tree.put(RecordUtils.create(i, "value-" + i));
+            tree.put(RecordUtils.create(i, "value-" + i), i);
         }
 
         for (long i = 0; i < items; i++) {
             ByteBuffer key = Buffers.wrap(i);
             Node node = tree.get(key);
             assertNotNull("Failed on " + i, node);
-            assertEquals("Failed on " + i, i, RecordUtils.longKey(node.record()));
+            assertEquals("Failed on " + i, i, node.key.getLong(0));
         }
     }
 }

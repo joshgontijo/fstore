@@ -11,14 +11,12 @@ import io.joshworks.ilog.compaction.combiner.DiscardCombiner;
 import io.joshworks.ilog.compaction.combiner.UniqueMergeCombiner;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.lsm.tree.Node;
 import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 
 public class Lsm {
 
@@ -38,6 +36,8 @@ public class Lsm {
         RecordPool pool,
         RowKey rowKey,
         int memTableMaxEntries,
+        int memTableMaxSize,
+        boolean memTableDirectBuffer,
         long maxAge,
         int compactionThreshold) {
 
@@ -47,8 +47,7 @@ public class Lsm {
         this.rowKey = rowKey;
 
         // FIXME index can hold up to Integer.MAX_VALUE which probably isn't enough for large dataset
-
-        this.memTable = new MemTable(pool, rowKey, memTableMaxEntries);
+        this.memTable = new MemTable(pool, rowKey, memTableMaxEntries, memTableMaxSize, memTableDirectBuffer);
         this.tlog = new Log<>(
                 new File(root, LOG_DIR),
                 Size.MB.of(20),
@@ -77,12 +76,9 @@ public class Lsm {
 
     public void append(Records records) {
         tlog.append(records);
-        Iterator<Record> it = records.iterator();
-        while (it.hasNext()) {
-            memTable.add(it);
-            if (memTable.isFull()) {
-                flush();
-            }
+        Records.RecordIterator it = records.iterator();
+        while (!memTable.add(it)) {
+            flush();
         }
     }
 
@@ -136,12 +132,14 @@ public class Lsm {
         long inserted = 0;
 
         try (Records records = pool.empty()) {
-            for (Node node : memTable) {
-                boolean added = records.add(node.record());
-                if (!added) {
-                    inserted += records.size();
-                    flushRecords(records);
-                    records.add(node.record());
+            for (Record record : memTable) {
+                try (record) {
+                    boolean added = records.add(record);
+                    if (!added) {
+                        inserted += records.size();
+                        flushRecords(records);
+                        records.add(record);
+                    }
                 }
             }
             if (!records.isEmpty()) {

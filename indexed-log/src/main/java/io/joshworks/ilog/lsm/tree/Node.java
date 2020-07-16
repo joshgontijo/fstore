@@ -1,18 +1,29 @@
 package io.joshworks.ilog.lsm.tree;
 
-import io.joshworks.ilog.record.Record;
+import java.nio.ByteBuffer;
 
 public class Node {
-    Record key;
-    Object value;
+    final ByteBuffer key;
+    final int keyOffset;
+    int value;
+    int len;
 
     Node left;
     Node right;
     boolean color;
     int size;
 
-    public Record record() {
-        return key;
+    Node(ByteBuffer dataRef, int keyOffset) {
+        this.key = dataRef;
+        this.keyOffset = keyOffset;
+    }
+
+    public int offset() {
+        return value;
+    }
+
+    public int recordLen() {
+        return len;
     }
 
 }
