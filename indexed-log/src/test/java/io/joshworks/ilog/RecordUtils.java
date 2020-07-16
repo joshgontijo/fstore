@@ -38,9 +38,9 @@ public class RecordUtils {
         return records;
     }
 
-    public static <K, V> Record create(K key, Serializer<K> ks, V value, Serializer<V> vs) {
+    public static <K, V> Record create(K key, Serializer<K> ks, V value, int valLen, Serializer<V> vs) {
         var kb = Buffers.allocate(128, false);
-        var vb = Buffers.allocate(128, false);
+        var vb = Buffers.allocate(valLen, false);
 
         ks.writeTo(key, kb);
         kb.flip();
@@ -51,6 +51,10 @@ public class RecordUtils {
         vb.flip();
 
         return Record.create(kb, vb);
+    }
+
+    public static <K, V> Record create(K key, Serializer<K> ks, V value, Serializer<V> vs) {
+        return create(key, ks, value, 4096, vs);
     }
 
     public static long longKey(Record record) {

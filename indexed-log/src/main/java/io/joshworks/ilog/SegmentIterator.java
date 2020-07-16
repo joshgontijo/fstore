@@ -72,8 +72,9 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
         int copied = parseRecords(readBuffer);
         if (copied == 0 && Record.hasHeaderData(readBuffer) && Record.recordSize(readBuffer) > readBuffer.capacity()) {
-            Record largeRec = readLargeEntry();
-            records.add(largeRec);
+            expandBuffer();
+            readBatch();
+            return;
         }
         readBuffer.compact();
         readPos += read;
@@ -100,24 +101,17 @@ public class SegmentIterator implements Iterators.CloseableIterator<Record> {
         return segment.writePosition() - readPos > 0;
     }
 
-    private Record readLargeEntry() {
+    private void expandBuffer() {
         assert Record.hasHeaderData(readBuffer);
 
         int recSize = Record.recordSize(readBuffer);
         assert recSize > readBuffer.capacity();
 
         ByteBuffer recBuffer = pool.allocate(recSize);
-        Buffers.copy(readBuffer, recBuffer); //copy data to bigger buffer to avoid re-reading
+        int copied = Buffers.copy(readBuffer, recBuffer);//copy data to bigger buffer to avoid re-reading
         pool.free(readBuffer);
         readBuffer = recBuffer; //use as the new buffer
-
-        segment.read(recBuffer, readPos); //read remaining recordSize
-        assert recBuffer.position() == recSize;
-        recBuffer.flip();
-
-        Record rec = pool.from(recBuffer, recBuffer.position());
-        assert rec != null;
-        return rec;
+        readPos += copied;
     }
 
     @Override

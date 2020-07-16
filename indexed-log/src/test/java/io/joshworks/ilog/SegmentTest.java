@@ -1,6 +1,8 @@
 package io.joshworks.ilog;
 
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
+import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
@@ -8,6 +10,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static io.joshworks.ilog.RecordUtils.longKey;
@@ -143,6 +147,18 @@ public class SegmentTest {
         assertTrue(segment.readOnly());
     }
 
+    @Test
+    public void iterator_expand_buffer() {
+        int size = Size.KB.ofInt(16);
+        String largeString = largeString(size);
+        Record largeRecord = RecordUtils.create(0L, Serializers.LONG, largeString, size, Serializers.STRING);
+        Records recs = pool.empty();
+        recs.add(largeRecord);
+        int appended = segment.append(recs, 0);
+
+        iterateAll(1);
+    }
+
     protected void getAll(int items) {
         //do nothing
     }
@@ -158,6 +174,12 @@ public class SegmentTest {
         }
 
         assertEquals(items, idx);
+    }
+
+    private static String largeString(int bytes) {
+        byte[] data = new byte[bytes];
+        Arrays.fill(data, (byte) 65);
+        return new String(data, StandardCharsets.UTF_8);
     }
 
 }
