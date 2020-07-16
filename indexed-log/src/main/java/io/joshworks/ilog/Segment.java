@@ -61,7 +61,7 @@ public class Segment implements Iterable<Record> {
 
         long start = System.currentTimeMillis();
 
-        try (SegmentIterator it = iterator(Size.KB.ofInt(8))) {
+        try (SegmentIterator it = iterator()) {
             int processed = 0;
 
             long recordPos = Header.BYTES;
