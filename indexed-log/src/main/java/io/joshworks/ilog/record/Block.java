@@ -4,6 +4,7 @@ import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.ObjectPool;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
@@ -44,9 +45,11 @@ public class Block implements Closeable {
     private final ByteBuffer block;
     private final ByteBuffer data;
 
+    private ObjectPool<Block> objectPool;
     private final RecordPool pool;
 
-    public Block(RecordPool pool, int blockSize, RowKey rowKey, Codec codec) {
+    public Block(ObjectPool<Block> objectPool, RecordPool pool, int blockSize, RowKey rowKey, Codec codec) {
+        this.objectPool = objectPool;
         this.pool = pool;
         this.rowKey = rowKey;
         this.codec = codec;
@@ -180,6 +183,7 @@ public class Block implements Closeable {
     @Override
     public void close() {
         clear();
+        objectPool.release(this);
     }
 
     public void clear() {
@@ -229,7 +233,7 @@ public class Block implements Closeable {
 
     private int binarySearch(List<? extends Comparable<? super ByteBuffer>> list, ByteBuffer key) {
         int low = 0;
-        int high = entries;
+        int high = entries - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
@@ -288,7 +292,7 @@ public class Block implements Closeable {
         private final RowKey comparator;
 
         private Key(RowKey comparator) {
-            this.data = Buffers.allocate(comparator.keySize(), true);
+            this.data = Buffers.allocate(comparator.keySize(), false);
             this.comparator = comparator;
         }
 

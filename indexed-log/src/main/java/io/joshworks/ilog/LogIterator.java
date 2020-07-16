@@ -8,17 +8,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Queue;
+import java.util.function.Consumer;
 
 public class LogIterator implements Iterators.CloseableIterator<Record> {
 
     private final Queue<SegmentIterator> iterators = new ArrayDeque<>();
+    private final Consumer<LogIterator> onClose;
 
-    public LogIterator(List<SegmentIterator> iterators) {
+    public LogIterator(List<SegmentIterator> iterators, Consumer<LogIterator> onClose) {
         this.iterators.addAll(iterators);
-    }
-
-    public static LogIterator empty() {
-        return new LogIterator(new ArrayList<>());
+        this.onClose = onClose;
     }
 
     @Override
@@ -48,9 +47,10 @@ public class LogIterator implements Iterators.CloseableIterator<Record> {
         for (SegmentIterator iterator : iterators) {
             iterator.close();
         }
+        onClose.accept(this);
     }
 
-    public void add(SegmentIterator iterator) {
+    void add(SegmentIterator iterator) {
         iterators.add(iterator);
     }
 }

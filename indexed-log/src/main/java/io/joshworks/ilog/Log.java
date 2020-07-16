@@ -4,18 +4,24 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.compaction.CompactionRunner;
 import io.joshworks.ilog.compaction.combiner.SegmentCombiner;
+import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
-public class Log<T extends Segment> {
+public class Log<T extends Segment> implements Iterable<Record> {
 
     protected final View view;
     private final FlushMode flushMode;
     private final CompactionRunner compactionRunner;
+    private final Set<LogIterator> forwardIterators = new HashSet<>();
 
     public Log(File root,
                long maxLogSize,
@@ -52,6 +58,14 @@ public class Log<T extends Segment> {
         }
     }
 
+    @Override
+    public Iterator<Record> iterator() {
+        return view.apply(Direction.FORWARD, segments -> {
+            List<SegmentIterator> iterators = segments.stream().map(Segment::iterator).collect(Collectors.toList());
+            return createIterator(iterators);
+        });
+    }
+
     private Segment getHeadOrRoll() {
         Segment head = view.head();
         if (head.isFull()) {
@@ -65,6 +79,12 @@ public class Log<T extends Segment> {
             head.flush();
         }
         head = rollInternal();
+
+        //add new segment to iterators
+        for (LogIterator it : forwardIterators) {
+            it.add(head.iterator());
+        }
+
         return head;
     }
 
@@ -94,8 +114,10 @@ public class Log<T extends Segment> {
 
     public void close() {
         try {
+            closeIterators();
             flush();
             view.close();
+
         } catch (Exception e) {
             throw new RuntimeIOException("Error while closing segment", e);
         }
@@ -103,5 +125,22 @@ public class Log<T extends Segment> {
 
     public void delete() {
         view.delete();
+    }
+
+    private Iterator<Record> createIterator(List<SegmentIterator> segIterators) {
+        LogIterator iterator = new LogIterator(segIterators, this::removeIterator);
+        forwardIterators.add(iterator);
+        return iterator;
+    }
+
+    void removeIterator(LogIterator logIterator) {
+        forwardIterators.remove(logIterator);
+    }
+
+    private void closeIterators() {
+        for (LogIterator it : forwardIterators) {
+            it.close();
+        }
+        forwardIterators.clear();
     }
 }

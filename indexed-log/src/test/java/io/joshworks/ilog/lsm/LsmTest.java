@@ -1,5 +1,6 @@
 package io.joshworks.ilog.lsm;
 
+import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
@@ -34,7 +35,7 @@ public class LsmTest {
         lsm = Lsm.create(TestUtils.testFolder(), RK)
                 .memTable(MEM_TABLE_SIZE)
                 .compactionThreshold(2)
-                .sparse(new SnappyCodec(), Size.KB.ofInt(64));
+                .open();
     }
 
     @After
@@ -49,27 +50,25 @@ public class LsmTest {
         Records records = RecordUtils.createN(0, items, pool);
         lsm.append(records);
 
-        for (int i = 0; i < items; i++) {
-            Record found = lsm.get(keyOf(i));
-            assertNotNull(found);
-            assertEquals(i, RecordUtils.longKey(found));
-        }
+        getAll(items);
     }
 
     @Test
     public void append_MANY_TEST() {
-        long inserted = 0;
-        long time = System.currentTimeMillis();
-        while (true) {
+        int inserted = 0;
+        while (inserted < MEM_TABLE_SIZE * 2.5) {
             Records records = RecordUtils.createN(inserted, BATCH_SIZE, pool);
             lsm.append(records);
             inserted += records.size();
-            if (inserted % 1000000 == 0) {
-                long now = System.currentTimeMillis();
-                System.out.println(inserted + " - " + (now - time) + "ms");
-                time = now;
-            }
         }
+
+        ByteBuffer key = keyOf(1000000);
+        Record found = lsm.get(key);
+
+        System.out.println("READING");
+        long s = System.currentTimeMillis();
+        getAll(inserted);
+        System.out.println(System.currentTimeMillis() - s);
     }
 
 
@@ -104,14 +103,7 @@ public class LsmTest {
         Records records = RecordUtils.createN(0, items, pool);
         lsm.append(records);
 
-        for (int i = 0; i < items; i++) {
-            ByteBuffer key = keyOf(i);
-            Record found = lsm.get(key);
-            assertNotNull("Failed on " + i, found);
-
-            int compare = found.compare(RK, key);
-            assertEquals("Keys are not equals", 0, compare);
-        }
+        getAll(items);
     }
 
     @Test
@@ -161,6 +153,17 @@ public class LsmTest {
 
     private static ByteBuffer keyOf(long key) {
         return Buffers.wrap(key);
+    }
+
+    private void getAll(int items) {
+        for (int i = 0; i < items; i++) {
+            ByteBuffer key = keyOf(i);
+            Record found = lsm.get(key);
+            assertNotNull("Failed on " + i, found);
+
+            int compare = found.compare(RK, key);
+            assertEquals("Keys are not equals", 0, compare);
+        }
     }
 
 }

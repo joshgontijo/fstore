@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -33,6 +34,7 @@ public class View {
 
     private volatile List<Segment> segments = new CopyOnWriteArrayList<>();
     private final Set<Segment> compacting = new CopyOnWriteArraySet<>();
+
     private volatile Segment head;
 
     private final AtomicLong entries = new AtomicLong();
@@ -205,14 +207,6 @@ public class View {
         return copy;
     }
 
-    private static long nextSegmentIdx(List<Segment> segments, int level) {
-        return segments.stream()
-                .filter(seg -> seg.level() == level)
-                .mapToLong(Segment::segmentIdx)
-                .max()
-                .orElse(-1) + 1;
-    }
-
     <T extends Segment> List<T> getSegments(Direction direction) {
         List<Segment> copy = new ArrayList<>(segments);
         if (Direction.BACKWARD.equals(direction)) {
@@ -288,6 +282,14 @@ public class View {
             }
             latestIndex = i;
         }
+    }
+
+    private static long nextSegmentIdx(List<Segment> segments, int level) {
+        return segments.stream()
+                .filter(seg -> seg.level() == level)
+                .mapToLong(Segment::segmentIdx)
+                .max()
+                .orElse(-1) + 1;
     }
 
     public boolean isCompacting(Segment segment) {

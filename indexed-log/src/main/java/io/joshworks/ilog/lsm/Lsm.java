@@ -113,6 +113,9 @@ public class Lsm {
         return ssTable.find(key, func);
     }
 
+    //TODO implement iterator, after adding the data block to memtable
+    //then track the position on the memtable, once is flushed, fallback to disk by using offset
+
     public synchronized void flush() {
         if (memTable.isEmpty()) {
             return;
@@ -128,7 +131,7 @@ public class Lsm {
     protected long flushMemTable() {
         long inserted = 0;
 
-        try(Records records = pool.empty()) {
+        try (Records records = pool.empty()) {
             for (Node node : memTable) {
                 boolean added = records.add(node.record());
                 if (!added) {

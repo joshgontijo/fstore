@@ -27,7 +27,7 @@ class SparseLsm extends Lsm {
               int blockSize,
               Codec codec) {
         super(root, pool, rowKey, memTableMaxEntries, maxAge, compactionThreshold);
-        this.blockPool = new ObjectPool<>(p -> new Block(pool, blockSize, rowKey, codec));
+        this.blockPool = new ObjectPool<>(p -> new Block(p, pool, blockSize, rowKey, codec));
     }
 
     @Override
@@ -58,9 +58,7 @@ class SparseLsm extends Lsm {
     protected long flushMemTable() {
         long inserted = 0;
 
-        Records records = pool.empty();
-
-        try (Block block = blockPool.allocate()) {
+        try (Block block = blockPool.allocate(); Records records = pool.empty()) {
             for (Node node : memTable) {
                 boolean added = block.add(node.record());
                 if (!added) {

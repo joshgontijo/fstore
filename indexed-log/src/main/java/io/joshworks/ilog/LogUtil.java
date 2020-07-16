@@ -17,7 +17,7 @@ public class LogUtil {
 
     public static String segmentFileName(long segmentIdx, int level) {
         if (segmentIdx < 0 || level < 0) {
-            throw new RuntimeException("Invalid segment values");
+            throw new RuntimeException("Invalid segment values, level: " + level + ", idx: " + segmentIdx);
         }
         return String.format("%02d", level) + "-" + String.format("%0" + SEG_IDX_DIGITS + "d", segmentIdx) + EXT;
     }
