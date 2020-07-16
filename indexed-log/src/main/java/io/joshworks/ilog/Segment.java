@@ -179,10 +179,6 @@ public class Segment implements Iterable<Record> {
         return LogUtil.levelOf(name());
     }
 
-    public long segmentId() {
-        return LogUtil.segmentId(name());
-    }
-
     public long segmentIdx() {
         return LogUtil.segmentIdx(name());
     }
@@ -255,7 +251,6 @@ public class Segment implements Iterable<Record> {
         return "{" +
                 "level=" + level() +
                 ", idx=" + segmentIdx() +
-                ", id=" + segmentId() +
                 ", name=" + name() +
                 ", writePosition=" + channel.position() +
                 ", size=" + size() +
