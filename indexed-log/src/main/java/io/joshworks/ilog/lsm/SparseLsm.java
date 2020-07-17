@@ -18,15 +18,15 @@ public class SparseLsm extends Lsm {
     private final ObjectPool<Block> blockPool;
 
     protected SparseLsm(File root,
-              RecordPool pool,
-              RowKey rowKey,
-              int memTableMaxEntries,
-              int memTableMaxSize,
-              boolean memTableDirectBuffer,
-              long maxAge,
-              int compactionThreshold,
-              int blockSize,
-              Codec codec) {
+                        RecordPool pool,
+                        RowKey rowKey,
+                        int memTableMaxEntries,
+                        int memTableMaxSize,
+                        boolean memTableDirectBuffer,
+                        long maxAge,
+                        int compactionThreshold,
+                        int blockSize,
+                        Codec codec) {
         super(root, pool, rowKey, memTableMaxEntries, memTableMaxSize, memTableDirectBuffer, maxAge, compactionThreshold);
         this.blockPool = new ObjectPool<>(p -> new Block(p, pool, blockSize, rowKey, codec));
     }
@@ -46,14 +46,14 @@ public class SparseLsm extends Lsm {
     }
 
     protected Block readBlock(SSTable ssTable, ByteBuffer key) {
-        try (Record blockRec = ssTable.find(key, IndexFunction.FLOOR)) {
-            if (blockRec == null) {
-                return null;
-            }
-            Block block = blockPool.allocate();
-            block.from(blockRec);
-            return block;
+        Record blockRec = ssTable.find(key, IndexFunction.FLOOR);
+        if (blockRec == null) {
+            return null;
         }
+        Block block = blockPool.allocate();
+        block.from(blockRec);
+        return block;
+
     }
 
     protected long flushMemTable() {

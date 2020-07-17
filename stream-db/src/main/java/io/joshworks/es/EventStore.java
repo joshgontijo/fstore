@@ -1,126 +1,56 @@
 package io.joshworks.es;
 
-import io.joshworks.fstore.core.codec.Codec;
-import io.joshworks.ilog.Direction;
-import io.joshworks.ilog.index.Index;
-import io.joshworks.ilog.index.IndexFunction;
-import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.lsm.SSTable;
-import io.joshworks.ilog.lsm.SparseLsm;
-import io.joshworks.ilog.lsm.tree.Node;
-import io.joshworks.ilog.record.Block;
-import io.joshworks.ilog.record.Record;
-import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
+import io.joshworks.es.index.Index;
+import io.joshworks.es.index.IndexFunction;
+import io.joshworks.es.index.IndexSegment;
+import io.joshworks.es.log.Log;
 
-import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class EventStore extends SparseLsm {
+public class EventStore {
 
-    private static final int BLOCK_SIZE = 4096;
-    private final RecordPool pool = RecordPool.create().build();
-    private final RowKey rowKey = new StreamKey();
+    private final Index index = new Index();
+    private final Log log = new Log();
 
-    protected EventStore(File root, RecordPool pool, RowKey rowKey, int memTableMaxEntries, int memTableMaxSize, boolean memTableDirectBuffer, long maxAge, int compactionThreshold, int blockSize, Codec codec) {
-        super(root, pool, rowKey, memTableMaxEntries, memTableMaxSize, memTableDirectBuffer, maxAge, compactionThreshold, blockSize, codec);
-    }
+    private final AtomicLong sequence = new AtomicLong();
 
-    private ByteBuffer of(long stream, int version) {
-        ByteBuffer bb = pool.allocate(rowKey.keySize());
-        bb.putLong(stream);
-        bb.putInt(version);
-        return bb.flip();
-    }
-
-    private static void incrementVersion(ByteBuffer bb) {
-        bb.putInt(Long.BYTES, bb.getInt(Long.BYTES) + 1);
-    }
-
-
-    public Records fromStream(long stream, int startVersion) {
-        ByteBuffer key = of(stream, startVersion);
-
-        return ssTables.apply(Direction.FORWARD, sst -> {
-            Records records = pool.empty();
-
-            for (SSTable ssTable : sst) {
-                if (!ssTable.readOnly()) {
-                    continue;
-                }
-
-                if (records.isFull()) {
-                    return records;
-                }
-
-                while(milkSegment(key, records, ssTable)) {
-
-                }
-            }
-
-            //now memtable
-            fromMemTable(key, records);
-            if (records.isFull()) {
-                return records;
-            }
-
-
-            return records;
-        });
-    }
-
-    public boolean milkSegment(ByteBuffer key, Records records, SSTable ssTable) {
-        Block block = super.readBlock(ssTable, key);
-        if (block == null) { //block not found keep searching
-            return false;
+    public int version(long stream) {
+        long address = index.find(stream, Integer.MAX_VALUE, IndexFunction.FLOOR);
+        long foundStream = index.stream(address);
+        if (stream != foundStream) {
+            return -1;
         }
-        int idx = block.indexOf(key, IndexFunction.EQUALS);
-        if (idx == Index.NONE) { //false positive
-            return false;
-        }
-        Record rec = block.read(idx);
-
-        //read block forward for possible next version of the stream
-        while (idx < block.entryCount() && rec != null && !records.isFull()) {
-            records.add(rec);
-
-            incrementVersion(key);
-            int compare = block.compare(idx++, key);
-            if (compare == 0) {
-                rec = block.read(idx);
-            }
-        }
-        return true;
+        return index.version(address);
     }
 
-    public void fromMemTable(ByteBuffer key, Records records) {
-        Record found;
-        do {
-            found = memTable.find(key, IndexFunction.EQUALS);
-            if (found != null) {
-                records.add(found);
-                incrementVersion(key);
-            }
-        } while (found != null);
-    }
-
-
-    public void append(Records records) {
-        log.append(records);
-        RecordIterator it = records.iterator();
-        while (it.hasNext()) {
-            memTable.add(it);
-            if (memTable.isFull()) {
-                flush();
-            }
+    public void append(long stream, int expectedVersion, ByteBuffer data) {
+        int streamVersion = version(stream);
+        if (expectedVersion >= 0 && expectedVersion != streamVersion) {
+            throw new IllegalStateException("Version mismatch");
         }
+        long seq = sequence.get() + 1;
+        int version = streamVersion + 1;
+        ByteBuffer eventData = Event.create(seq, stream, version, data);
+        int eventSize = eventData.remaining();
+        long logPos = log.append(eventData);
+        index.append(stream, version, eventSize, logPos);
+        sequence.addAndGet(1);
     }
 
-    public synchronized void flush() {
-        for (Node node : memTable) {
-            index.write();
+    public Event get(long stream, int version) {
+        long address = index.find(stream, version, IndexFunction.EQUALS);
+        if (address == IndexSegment.NONE) {
+            return null;
         }
+        int size = index.size(address);
+        long logAddress = index.logAddress(address);
 
+        ByteBuffer buffer = null;
+
+        log.read(buffer, logAddress);
+        return new Event();
     }
+
 
 }

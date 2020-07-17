@@ -18,10 +18,10 @@
     </properties>
 
     <dependencies>
+
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
-            <artifactId>indexed-log</artifactId>
+            <artifactId>core</artifactId>
         </dependency>
     </dependencies>
-
 </project>

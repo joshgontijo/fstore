@@ -1,6 +1,7 @@
 package io.joshworks.ilog.index;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.mmap.MappedFile;
 import io.joshworks.ilog.record.Record;
 
 import java.io.Closeable;
