@@ -30,7 +30,7 @@ public class Lsm {
     protected final RecordPool pool;
 
     private final long maxAge;
-    private final RowKey rowKey;
+    protected final RowKey rowKey;
 
     Lsm(File root,
         RecordPool pool,

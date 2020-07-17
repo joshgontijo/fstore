@@ -13,11 +13,11 @@ import io.joshworks.ilog.record.Records;
 import java.io.File;
 import java.nio.ByteBuffer;
 
-class SparseLsm extends Lsm {
+public class SparseLsm extends Lsm {
 
     private final ObjectPool<Block> blockPool;
 
-    SparseLsm(File root,
+    protected SparseLsm(File root,
               RecordPool pool,
               RowKey rowKey,
               int memTableMaxEntries,
@@ -45,7 +45,7 @@ class SparseLsm extends Lsm {
         }
     }
 
-    public Block readBlock(SSTable ssTable, ByteBuffer key) {
+    protected Block readBlock(SSTable ssTable, ByteBuffer key) {
         try (Record blockRec = ssTable.find(key, IndexFunction.FLOOR)) {
             if (blockRec == null) {
                 return null;
@@ -61,7 +61,7 @@ class SparseLsm extends Lsm {
 
         try (Block block = blockPool.allocate(); Records records = pool.empty()) {
             for (Record record : memTable) {
-                try(record) {
+                try (record) {
                     boolean added = block.add(record);
                     if (!added) {
                         if (records.isFull()) {

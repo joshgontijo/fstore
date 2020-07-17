@@ -46,7 +46,7 @@ public class Builder {
     /**
      * Create a new sparse LSMTree
      */
-    public Lsm sparse(Codec codec, int blockSize) {
+    public SparseLsm sparse(Codec codec, int blockSize) {
         return new SparseLsm(
                 root,
                 pool.build(),

@@ -211,7 +211,7 @@ public class Block implements Closeable {
     }
 
     public int indexOf(ByteBuffer key, IndexFunction fn) {
-        int cmp = binarySearch(keys, key);
+        int cmp = binarySearch(key);
         int idx = fn.apply(cmp);
         if (checkBounds(idx)) {
             return Index.NONE;
@@ -231,14 +231,13 @@ public class Block implements Closeable {
         return idx < 0 || idx >= entries;
     }
 
-    private int binarySearch(List<? extends Comparable<? super ByteBuffer>> list, ByteBuffer key) {
+    private int binarySearch(ByteBuffer key) {
         int low = 0;
         int high = entries - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;
-            Comparable<? super ByteBuffer> midVal = list.get(mid);
-            int cmp = midVal.compareTo(key);
+            int cmp = compare(mid, key);
 
             if (cmp < 0)
                 low = mid + 1;
@@ -248,6 +247,11 @@ public class Block implements Closeable {
                 return mid; // key found
         }
         return -(low + 1);  // key not found
+    }
+
+    public int compare(int idx, ByteBuffer key) {
+        Comparable<? super ByteBuffer> midVal = keys.get(idx);
+        return midVal.compareTo(key);
     }
 
     public Record read(int idx) {
