@@ -45,7 +45,7 @@ public class RedBlackBSTTest {
             ByteBuffer key = Buffers.wrap(i);
             Node node = tree.get(key);
             assertNotNull("Failed on " + i, node);
-            assertEquals("Failed on " + i, i, node.key.getLong(0));
+            assertEquals("Failed on " + i, i, node.key.getLong(node.keyOffset));
         }
     }
 }
