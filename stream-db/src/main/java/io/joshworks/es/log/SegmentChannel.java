@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.util.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -26,6 +27,21 @@ class SegmentChannel extends FileChannel {
     private SegmentChannel(File file, FileChannel delegate) {
         this.file = file;
         this.delegate = delegate;
+    }
+
+    public static SegmentChannel create(File file, long size) {
+        try {
+            boolean newFile = FileUtils.createIfNotExists(file);
+            if (!newFile) {
+                throw new RuntimeIOException("Failed already exists " + file.getAbsolutePath());
+            }
+            RandomAccessFile raf = new RandomAccessFile(file, "rw");
+            raf.setLength(size);
+            FileChannel channel = raf.getChannel();
+            return new SegmentChannel(file, channel);
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to open segment", e);
+        }
     }
 
     public static SegmentChannel open(File file) {

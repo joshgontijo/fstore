@@ -42,7 +42,7 @@ public class EventStore {
     public void append(long stream, int expectedVersion, ByteBuffer data) {
         int streamVersion = version(stream);
         if (expectedVersion >= 0 && expectedVersion != streamVersion) {
-            throw new IllegalStateException("Version mismatch");
+            throw new IllegalStateException("Version mismatch, expected " + expectedVersion + " got: " + streamVersion);
         }
         long seq = sequence.get();
         int version = streamVersion + 1;

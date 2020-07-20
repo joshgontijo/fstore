@@ -36,13 +36,13 @@ public class RedBlackBST implements Iterable<Node> {
         root = null;
     }
 
-    private int size(Node x) {
+    private int entries(Node x) {
         if (x == null) return 0;
         return x.size;
     }
 
-    public int size() {
-        return size(root);
+    public int entries() {
+        return entries(root);
     }
 
     public boolean isEmpty() {
@@ -116,7 +116,7 @@ public class RedBlackBST implements Iterable<Node> {
     private Node checkRotateOrFlip(Node h) {
         if (isRed(h.left) && isRed(h.left.left)) h = rotateRight(h);
         if (isRed(h.left) && isRed(h.right)) flipColors(h);
-        h.size = size(h.left) + size(h.right) + 1;
+        h.size = entries(h.left) + entries(h.right) + 1;
         return h;
     }
 
@@ -165,7 +165,7 @@ public class RedBlackBST implements Iterable<Node> {
         x.color = x.right.color;
         x.right.color = RED;
         x.size = h.size;
-        h.size = size(h.left) + size(h.right) + 1;
+        h.size = entries(h.left) + entries(h.right) + 1;
         return x;
     }
 
@@ -176,7 +176,7 @@ public class RedBlackBST implements Iterable<Node> {
         x.color = x.left.color;
         x.left.color = RED;
         x.size = h.size;
-        h.size = size(h.left) + size(h.right) + 1;
+        h.size = entries(h.left) + entries(h.right) + 1;
         return x;
     }
 
@@ -281,7 +281,7 @@ public class RedBlackBST implements Iterable<Node> {
     }
 
     public boolean isFull() {
-        return size() >= maxEntries;
+        return entries() >= maxEntries;
     }
 
 }

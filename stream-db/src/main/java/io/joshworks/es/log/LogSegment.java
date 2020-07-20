@@ -34,11 +34,11 @@ public class LogSegment implements SegmentFile {
     private final int idx;
 
     public static LogSegment create(File file, long initialSize) {
-        LogSegment segment = new LogSegment(file);
+        SegmentChannel channel = SegmentChannel.create(file, initialSize);
+        LogSegment segment = new LogSegment(file, channel);
         if (segment.readOnly()) {
             throw new IllegalStateException("Segment already exist");
         }
-        segment.channel.truncate(initialSize);
         segment.channel.position(Header.BYTES);
         segment.header.created = System.currentTimeMillis();
         segment.writeHeader();
@@ -46,7 +46,8 @@ public class LogSegment implements SegmentFile {
     }
 
     public static LogSegment open(File file) {
-        LogSegment segment = new LogSegment(file);
+        SegmentChannel channel = SegmentChannel.open(file);
+        LogSegment segment = new LogSegment(file, channel);
         if (!segment.readOnly()) {
             segment.delete();
             throw new IllegalStateException("Segment does not exist");
@@ -54,9 +55,9 @@ public class LogSegment implements SegmentFile {
         return segment;
     }
 
-    private LogSegment(File file) {
+    private LogSegment(File file, SegmentChannel channel) {
         this.file = file;
-        this.channel = SegmentChannel.open(file);
+        this.channel = channel;
         this.header.read();
         this.idx = SegmentDirectory.segmentIdx(this);
     }

@@ -3,7 +3,7 @@ package io.joshworks.es.index;
 public record IndexKey(long stream, int version) {
 
     public static IndexKey maxOf(long stream) {
-        return new IndexKey(stream, Integer.BYTES);
+        return new IndexKey(stream, Integer.MAX_VALUE);
     }
 
     public static int compare(IndexKey key, long stream, int version) {

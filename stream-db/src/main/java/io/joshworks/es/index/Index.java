@@ -18,7 +18,7 @@ public class Index extends SegmentDirectory<IndexSegment> {
 
     public Index(File root, int maxEntries, int midPointFactor) {
         super(root, EXT);
-        memTable = new RedBlackBST(maxEntries);
+        this.memTable = new RedBlackBST(maxEntries);
         this.maxEntries = maxEntries;
         this.midPointFactor = midPointFactor;
         super.loadSegments(f -> new IndexSegment(f, -1, midPointFactor));
@@ -48,7 +48,13 @@ public class Index extends SegmentDirectory<IndexSegment> {
         return null;
     }
 
+    public long entries() {
+        return segments.stream().mapToLong(IndexSegment::entries).sum() + memTable.entries();
+    }
+
     public void flush() {
+        System.out.println("Flushing memtable: " + memTable.entries());
+        long start = System.currentTimeMillis();
         if (memTable.isEmpty()) {
             return;
         }
@@ -63,6 +69,8 @@ public class Index extends SegmentDirectory<IndexSegment> {
         segments.add(index);
         makeHead(index);
         memTable.clear();
+
+        System.out.println("Memtable flush complete in " + (System.currentTimeMillis() - start) + "ms");
     }
 
 }
