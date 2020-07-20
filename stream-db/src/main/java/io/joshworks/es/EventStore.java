@@ -28,7 +28,15 @@ public class EventStore {
         if (ie == null) {
             return -1;
         }
-        return ie.version;
+        return ie.version();
+    }
+
+    public void linkTo(long srcStream, int srcVersion, long dstStream, int expectedVersion) {
+        IndexEntry ie = index.find(new IndexKey(srcStream, srcVersion), IndexFunction.EQUALS);
+        if (ie == null) {
+            throw new IllegalArgumentException("No such event " + Event.toString(srcStream, srcVersion));
+        }
+
     }
 
     public void append(long stream, int expectedVersion, ByteBuffer data) {
@@ -51,14 +59,14 @@ public class EventStore {
             return 0;
         }
 
-        if (dst.remaining() < ie.size) {
+        if (dst.remaining() < ie.size()) {
             throw new IllegalArgumentException("Not enough buffer space");
         }
 
         int plim = dst.limit();
-        Buffers.offsetLimit(dst, ie.size);
-        int read = log.read(ie.logAddress, dst);
-        assert ie.size == read;
+        Buffers.offsetLimit(dst, ie.size());
+        int read = log.read(ie.logAddress(), dst);
+        assert ie.size() == read;
         dst.limit(plim);
         return read;
     }

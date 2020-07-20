@@ -37,10 +37,10 @@ public class IndexTest {
             IndexEntry entry = index.find(new IndexKey(stream, i), IndexFunction.EQUALS);
             assertNotNull(entry);
 
-            assertEquals(stream, entry.stream);
-            assertEquals(i, entry.version);
-            assertEquals(111, entry.size);
-            assertEquals(222, entry.logAddress);
+            assertEquals(stream, entry.stream());
+            assertEquals(i, entry.version());
+            assertEquals(111, entry.size());
+            assertEquals(222, entry.logAddress());
         }
     }
 
@@ -56,10 +56,10 @@ public class IndexTest {
             IndexEntry entry = index.find(new IndexKey(stream, i), IndexFunction.EQUALS);
             assertNotNull(entry);
 
-            assertEquals(stream, entry.stream);
-            assertEquals(i, entry.version);
-            assertEquals(111, entry.size);
-            assertEquals(222, entry.logAddress);
+            assertEquals(stream, entry.stream());
+            assertEquals(i, entry.version());
+            assertEquals(111, entry.size());
+            assertEquals(222, entry.logAddress());
         }
     }
 
@@ -77,10 +77,10 @@ public class IndexTest {
             IndexEntry entry = index.find(new IndexKey(stream, i), IndexFunction.EQUALS);
             assertNotNull(entry);
 
-            assertEquals(stream, entry.stream);
-            assertEquals(i, entry.version);
-            assertEquals(111, entry.size);
-            assertEquals(222, entry.logAddress);
+            assertEquals(stream, entry.stream());
+            assertEquals(i, entry.version());
+            assertEquals(111, entry.size());
+            assertEquals(222, entry.logAddress());
         }
     }
 
@@ -99,10 +99,10 @@ public class IndexTest {
             IndexEntry entry = index.find(new IndexKey(stream, i), IndexFunction.EQUALS);
             assertNotNull(entry);
 
-            assertEquals(stream, entry.stream);
-            assertEquals(i, entry.version);
-            assertEquals(111, entry.size);
-            assertEquals(222, entry.logAddress);
+            assertEquals(stream, entry.stream());
+            assertEquals(i, entry.version());
+            assertEquals(111, entry.size());
+            assertEquals(222, entry.logAddress());
         }
     }
 }

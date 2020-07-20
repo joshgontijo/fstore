@@ -90,6 +90,10 @@ public class RedBlackBST implements Iterable<Node> {
         return IndexKey.compare(key, node.stream, node.version);
     }
 
+    private int compare(Node node, IndexEntry key) {
+        return IndexEntry.compare(key, node.stream, node.version);
+    }
+
     private Node put(Node h, IndexEntry ie) {
         if (h == null) {
             Node node = allocateNode(ie);

@@ -23,15 +23,15 @@ public class Node {
     }
 
     void init(IndexEntry ie) {
-        this.stream = ie.stream;
-        this.version = ie.version;
-        this.recordSize = ie.size;
-        this.logAddress = ie.logAddress;
+        this.stream = ie.stream();
+        this.version = ie.version();
+        this.recordSize = ie.size();
+        this.logAddress = ie.logAddress();
     }
 
     void update(IndexEntry ie) {
-        this.recordSize = ie.size;
-        this.logAddress = ie.logAddress;
+        this.recordSize = ie.size();
+        this.logAddress = ie.logAddress();
     }
 
 }

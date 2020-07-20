@@ -61,6 +61,10 @@ public class Event {
         return data.getLong(data.position() + TIMESTAMP_OFFSET);
     }
 
+    public static int checksum(ByteBuffer data) {
+        return data.getInt(data.position() + CHECKSUM_OFFSET);
+    }
+
     public static boolean hasAttribute(ByteBuffer data, int attribute) {
         short attr = attributes(data);
         return (attr & (1 << attribute)) == 1;
@@ -131,6 +135,23 @@ public class Event {
 
     private static int sizeOf(ByteBuffer data, int offset) {
         return data.getInt(offset + SIZE_OFFSET);
+    }
+
+    public static String toString(long stream, int version) {
+        return stream + "@" + version;
+    }
+
+    public static String toString(ByteBuffer data) {
+        if (!isValid(data)) {
+            throw new IllegalArgumentException("Invalid event data");
+        }
+        return stream(data) + "@" + version(data) + " [" +
+                "size=" + sizeOf(data) + ", " +
+                "sequence=" + sequence(data) + ", " +
+                "timestamp=" + timestamp(data) + ", " +
+                "checksum=" + checksum(data) + ", " +
+                "attributes=" + attributes(data) +
+                "]";
     }
 
 }
