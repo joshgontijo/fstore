@@ -1,9 +1,12 @@
 package io.joshworks.es.log;
 
+import io.joshworks.es.Event;
+import io.joshworks.es.SegmentDirectory;
+import io.joshworks.es.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.Channels;
-import io.joshworks.fstore.core.util.Size;
-import io.joshworks.ilog.LogUtil;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,12 +19,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class LogSegment implements Iterable<Record> {
+public class LogSegment implements SegmentFile {
 
     private static final Logger log = LoggerFactory.getLogger(LogSegment.class);
 
-    public static final int NO_MAX_SIZE = -1;
-    public static final int NO_MAX_ENTRIES = -1;
+    private static final ThreadLocal<ByteBuffer> headerBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Header.BYTES, false));
 
     protected final File file;
     protected final SegmentChannel channel;
@@ -29,17 +31,34 @@ public class LogSegment implements Iterable<Record> {
     private final Set<SegmentIterator> iterators = new HashSet<>();
 
     private final Header header = new Header();
+    private final int idx;
 
-    public LogSegment(File file, long initialSize) {
+    public static LogSegment create(File file, long initialSize) {
+        LogSegment segment = new LogSegment(file);
+        if (segment.readOnly()) {
+            throw new IllegalStateException("Segment already exist");
+        }
+        segment.channel.truncate(initialSize);
+        segment.channel.position(Header.BYTES);
+        segment.header.created = System.currentTimeMillis();
+        segment.writeHeader();
+        return segment;
+    }
+
+    public static LogSegment open(File file) {
+        LogSegment segment = new LogSegment(file);
+        if (!segment.readOnly()) {
+            segment.delete();
+            throw new IllegalStateException("Segment does not exist");
+        }
+        return segment;
+    }
+
+    private LogSegment(File file) {
         this.file = file;
         this.channel = SegmentChannel.open(file);
         this.header.read();
-        if (!channel.readOnly()) {
-            channel.truncate(initialSize);
-            channel.position(Header.BYTES);
-            header.created = System.currentTimeMillis();
-            writeHeader();
-        }
+        this.idx = SegmentDirectory.segmentIdx(this);
     }
 
     private void checkPosition(long pos) {
@@ -48,19 +67,19 @@ public class LogSegment implements Iterable<Record> {
         }
     }
 
-    public synchronized void restore() {
+    public synchronized void restore(BufferPool pool) {
         log.info("Restoring {}", name());
 
         long start = System.currentTimeMillis();
 
-        try (SegmentIterator it = iterator()) {
+        try (SegmentIterator it = iterator(pool)) {
             int processed = 0;
 
             long recordPos = Header.BYTES;
             while (it.hasNext()) {
-                Record record = it.next();
+                ByteBuffer record = it.next();
                 onRecordRestored(record, recordPos);
-                recordPos += record.recordSize();
+                recordPos += Event.sizeOf(record);
                 processed++;
             }
             long truncated = channel.position() - recordPos;
@@ -72,7 +91,7 @@ public class LogSegment implements Iterable<Record> {
         }
     }
 
-    protected void onRecordRestored(Record record, long recPos) {
+    protected void onRecordRestored(ByteBuffer record, long recPos) {
         //do nothing
     }
 
@@ -82,17 +101,14 @@ public class LogSegment implements Iterable<Record> {
         return Channels.read(channel, position, dst);
     }
 
-    //return the number of written records
-    public long append(ByteBuffer records) {
+    public long append(ByteBuffer record) {
         if (readOnly()) {
             throw new IllegalStateException("Segment is read only");
         }
-
         try {
-            int entries = Event.entries(records);
             long startPos = channel.position();
-            Channels.writeFully(channel, records);
-            header.entries.addAndGet(entries);
+            Channels.writeFully(channel, record);
+            header.entries.addAndGet(1);
             return startPos;
 
         } catch (Exception e) {
@@ -155,26 +171,13 @@ public class LogSegment implements Iterable<Record> {
         return channel.name();
     }
 
-    public boolean isFull() {
-        return (maxSize != NO_MAX_SIZE && size() > maxSize) || (maxEntries != NO_MAX_ENTRIES && entries() >= maxEntries);
+    public SegmentIterator iterator(BufferPool pool) {
+        return iterator(Header.BYTES, pool);
     }
 
-    public int level() {
-        return LogUtil.levelOf(name());
-    }
-
-    public long segmentIdx() {
-        return LogUtil.segmentIdx(name());
-    }
-
-    @Override
-    public SegmentIterator iterator() {
-        return iterator(Header.BYTES);
-    }
-
-    public synchronized SegmentIterator iterator(long pos) {
+    public synchronized SegmentIterator iterator(long pos, BufferPool pool) {
         checkPosition(pos);
-        SegmentIterator it = new SegmentIterator(this, pos, Size.KB.ofInt(4), pool);
+        SegmentIterator it = new SegmentIterator(this, pos, pool);
         iterators.add(it);
         return it;
     }
@@ -189,6 +192,11 @@ public class LogSegment implements Iterable<Record> {
             return;
         }
         doDelete();
+    }
+
+    @Override
+    public File file() {
+        return file;
     }
 
     protected void doDelete() {
@@ -229,8 +237,8 @@ public class LogSegment implements Iterable<Record> {
     @Override
     public String toString() {
         return "{" +
-                "level=" + level() +
-                ", idx=" + segmentIdx() +
+//                "level=" + level() +
+//                ", idx=" + segmentIdx() +
                 ", name=" + name() +
                 ", writePosition=" + channel.position() +
                 ", size=" + size() +
@@ -238,6 +246,10 @@ public class LogSegment implements Iterable<Record> {
                 ", readOnly=" + readOnly() +
                 ", Header=" + header +
                 '}';
+    }
+
+    public int segmentIdx() {
+        return idx;
     }
 
     /**
@@ -260,7 +272,7 @@ public class LogSegment implements Iterable<Record> {
         private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
         private void read() {
-            ByteBuffer buffer = pool.allocate(BYTES);
+            ByteBuffer buffer = headerBuffer.get().clear();
             try {
                 int read = channel.read(buffer, START);
                 if (read < BYTES) {
@@ -274,13 +286,11 @@ public class LogSegment implements Iterable<Record> {
                 markedForDeletion.set(buffer.get() == 1);
             } catch (IOException e) {
                 throw new RuntimeIOException("Failed to read header");
-            } finally {
-                pool.free(buffer);
             }
         }
 
         private void write() {
-            ByteBuffer buffer = pool.allocate(BYTES);
+            ByteBuffer buffer = headerBuffer.get().clear();
             try {
                 buffer.putLong(entries.get());
                 buffer.putLong(created);
@@ -293,8 +303,6 @@ public class LogSegment implements Iterable<Record> {
 
             } catch (IOException e) {
                 throw new RuntimeIOException("Failed to read header");
-            } finally {
-                pool.free(buffer);
             }
         }
 

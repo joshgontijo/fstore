@@ -1,125 +1,110 @@
 package io.joshworks.es.log;
 
-import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.es.Event;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.Iterators;
 
-import javax.swing.text.Segment;
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.Queue;
+import java.util.NoSuchElementException;
 
-public class SegmentIterator implements Iterators.CloseableIterator<Record> {
+import static io.joshworks.es.Event.HEADER_BYTES;
 
-    private ByteBuffer readBuffer;
-    private final Segment segment;
-    private final Queue<Record> records = new ArrayDeque<>();
+public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> {
+
+    private final ByteBuffer readBuffer;
+    private final LogSegment segment;
+    private final BufferPool pool;
     private long readPos;
-    private boolean closed;
+    private int bufferPos;
+    private int bufferLimit;
 
-    SegmentIterator(Segment segment, long startPos, int bufferSize) {
+    public SegmentIterator(LogSegment segment, long startPos, BufferPool pool) {
         this.pool = pool;
         this.segment = segment;
         this.readPos = startPos;
-        this.readBuffer = pool.allocate(bufferSize);
+        this.readBuffer = pool.allocate();
+        this.bufferLimit = readBuffer.limit();
+        if (readBuffer.capacity() < HEADER_BYTES) {
+            pool.free(readBuffer);
+            throw new IllegalArgumentException("Read buffer must be at least " + HEADER_BYTES);
+        }
     }
 
     @Override
     public boolean hasNext() {
-        if (closed) {
-            return false;
-        }
-        if (!records.isEmpty()) {
+        readBuffer.limit(bufferLimit).position(bufferPos);
+        if (hasNext(readBuffer)) {
             return true;
         }
         readBatch();
-        boolean hasNext = !records.isEmpty();
-        if (!hasNext && endOfLog()) {
-            close();
-        }
-        return hasNext;
+        return hasNext(readBuffer);
     }
 
     @Override
-    public Record next() {
-        if (!hasNext()) {
-            return null;
+    public ByteBuffer next() {
+        readBuffer.limit(bufferLimit).position(bufferPos);
+        if (!hasNext(readBuffer)) {
+            throw new NoSuchElementException();
         }
-        return records.poll();
+
+        assert Event.isValid(readBuffer);
+
+        bufferPos += Event.sizeOf(readBuffer);
+        return readBuffer;
     }
 
-    public Record peek() {
+    public ByteBuffer peek() {
         if (!hasNext()) {
-            return null;
+            throw new NoSuchElementException();
         }
-        return records.peek();
+        return readBuffer;
     }
 
+    private boolean hasNext(ByteBuffer record) {
+        int remaining = record.remaining();
+        if (remaining < HEADER_BYTES) {
+            return false;
+        }
+        int rsize = Event.sizeOf(record);
+        return rsize <= remaining && rsize > HEADER_BYTES;
+    }
 
     private void readBatch() {
-        assert records.isEmpty();
-
-        if (readPos >= segment.writePosition()) {
+        if (readPos + bufferPos >= segment.writePosition()) {
             return;
         }
-        int read = segment.read(readBuffer, readPos);
-        if (read == Storage.EOF) { //EOF or no more data
-            throw new IllegalStateException("Unexpected EOF");
+        readPos += bufferPos;
+        long rpos = readPos;
+        if (readBuffer.position() > 0) {
+            readBuffer.compact();
+            rpos += readBuffer.position();
+        }
+
+        int read = segment.read(readBuffer, rpos);
+        if (read <= 0) { //EOF or no more data
+            throw new IllegalStateException("Expected data to be read");
         }
         readBuffer.flip();
-
-        int copied = parseRecords(readBuffer);
-        if (copied == 0 && Record.hasHeaderData(readBuffer) && Record.recordSize(readBuffer) > readBuffer.capacity()) {
-            expandBuffer();
-            readBatch();
-            return;
-        }
-        readBuffer.compact();
-        readPos += read;
+        bufferPos = 0;
+        bufferLimit = readBuffer.limit();
     }
 
-    private int parseRecords(ByteBuffer src) {
-        int copied = 0;
-        Record rec;
-        do {
-            rec = pool.from(src);
-            if (rec != null) {
-                records.add(rec);
-                copied += rec.recordSize();
-            }
-        } while (rec != null);
-        return copied;
+    //internal
+    long position() {
+        return readPos;
     }
 
     public boolean endOfLog() {
-        return segment.readOnly() && !hasReadableBytes();
+        return segment.readOnly() && !hasReadableBytes() && !hasNext();
     }
 
     private boolean hasReadableBytes() {
         return segment.writePosition() - readPos > 0;
     }
 
-    private void expandBuffer() {
-        assert Record.hasHeaderData(readBuffer);
-
-        int recSize = Record.recordSize(readBuffer);
-        assert recSize > readBuffer.capacity();
-
-        ByteBuffer recBuffer = pool.allocate(recSize);
-        int copied = Buffers.copy(readBuffer, recBuffer);//copy data to bigger buffer to avoid re-reading
-        pool.free(readBuffer);
-        readBuffer = recBuffer; //use as the new buffer
-        readPos += copied;
-    }
-
     @Override
     public void close() {
-        if (closed) {
-            return;
-        }
-        closed = true;
         pool.free(readBuffer);
-        readBuffer = null;
         segment.release(this);
     }
 }

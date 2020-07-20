@@ -1,29 +1,37 @@
 package io.joshworks.es.index.tree;
 
-import java.nio.ByteBuffer;
+import io.joshworks.es.index.IndexEntry;
+import io.joshworks.fstore.core.util.ObjectPool;
 
 public class Node {
-    final ByteBuffer key;
-    final int keyOffset;
-    int value;
-    int len;
+
+    public long stream;
+    public int version;
+    public int recordSize;
+    public long logAddress;
 
     Node left;
     Node right;
     boolean color;
     int size;
 
-    Node(ByteBuffer dataRef, int keyOffset) {
-        this.key = dataRef;
-        this.keyOffset = keyOffset;
+
+    final ObjectPool<Node> ref;
+
+    public Node(ObjectPool<Node> ref) {
+        this.ref = ref;
     }
 
-    public int offset() {
-        return value;
+    void init(IndexEntry ie) {
+        this.stream = ie.stream;
+        this.version = ie.version;
+        this.recordSize = ie.size;
+        this.logAddress = ie.logAddress;
     }
 
-    public int recordLen() {
-        return len;
+    void update(IndexEntry ie) {
+        this.recordSize = ie.size;
+        this.logAddress = ie.logAddress;
     }
 
 }

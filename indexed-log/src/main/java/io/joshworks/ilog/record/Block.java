@@ -183,7 +183,7 @@ public class Block implements Closeable {
     @Override
     public void close() {
         clear();
-        objectPool.release(this);
+        objectPool.free(this);
     }
 
     public void clear() {

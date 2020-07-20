@@ -99,12 +99,12 @@ public class RecordPool {
     }
 
     void free(Record record) {
-        recordCache.release(record);
+        recordCache.free(record);
     }
 
     void free(Records records) {
         assert records.isEmpty();
-        cache.release(records);
+        cache.free(records);
 
     }
 

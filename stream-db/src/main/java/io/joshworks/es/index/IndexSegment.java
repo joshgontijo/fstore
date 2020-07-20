@@ -1,13 +1,15 @@
 package io.joshworks.es.index;
 
+import io.joshworks.es.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static io.joshworks.es.index.Index.NONE;
 
 /**
  * A NON-CLUSTERED, UNIQUE, ORDERED index that uses binary search to read elements
@@ -22,7 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * KEY (N bytes)
  * LOG_POS (8 bytes)
  */
-public class IndexSegment implements Closeable {
+public class IndexSegment implements SegmentFile {
 
     private static final int ENTRY_SIZE =
             Long.BYTES + //stream
@@ -37,7 +39,6 @@ public class IndexSegment implements Closeable {
 
     private final MappedFile mf;
     private final AtomicBoolean readOnly = new AtomicBoolean();
-    public static final int NONE = -1;
 
     public IndexSegment(File file, long maxEntries) {
         try {
@@ -72,16 +73,26 @@ public class IndexSegment implements Closeable {
         mf.putLong(logPos);
     }
 
-    public int find(long stream, int version, IndexFunction func) {
+    public IndexEntry find(IndexKey key, IndexFunction func) {
         if (entries() == 0) {
-            return NONE;
+            return null;
         }
         //TODO add midpoints and start b-search from chunks
-        int idx = binarySearch(0, mf.position(), stream, version);
-        return func.apply(idx);
+        int idx = binarySearch(0, mf.position(), key);
+        idx = func.apply(idx);
+        if (idx == NONE) {
+            return null;
+        }
+
+        long stream = mf.getLong(idx * ENTRY_SIZE + STREAM_OFFSET);
+        int version = mf.getInt(idx * ENTRY_SIZE + VERSION_OFFSET);
+        int size = mf.getInt(idx * ENTRY_SIZE + SIZE_OFFSET);
+        long logAddress = mf.getLong(idx * ENTRY_SIZE + LOGPOS_OFFSET);
+
+        return new IndexEntry(stream, version, size, logAddress);
     }
 
-    public int binarySearch(int chunkStart, int chunkLength, long stream, int version) {
+    public int binarySearch(int chunkStart, int chunkLength, IndexKey key) {
         int low = 0;
         int high = entries() - 1;
 
@@ -91,7 +102,7 @@ public class IndexSegment implements Closeable {
             if (readPos < chunkStart || readPos > chunkStart + chunkLength) {
                 throw new IndexOutOfBoundsException("Index out of bounds: " + readPos);
             }
-            int cmp = compare(readPos, stream, version);
+            int cmp = compare(readPos, key);
             if (cmp < 0)
                 low = mid + 1;
             else if (cmp > 0)
@@ -102,42 +113,14 @@ public class IndexSegment implements Closeable {
         return -(low + 1);
     }
 
-    private int compare(int bufferPos, long stream, int version) {
+    private int compare(int bufferPos, IndexKey key) {
         MappedByteBuffer buffer = mf.buffer();
         long bstream = buffer.getLong(bufferPos + STREAM_OFFSET);
         int bversion = buffer.getInt(bufferPos + VERSION_OFFSET);
-        int compare = Long.compare(bstream, stream);
-        if (compare != 0) {
-            return compare;
-        }
-        return Integer.compare(bversion, version);
+
+        return IndexKey.compare(key, bstream, bversion) * -1;
     }
 
-    public int version(int idx) {
-        checkBounds(idx);
-        return mf.getInt(idx * ENTRY_SIZE + VERSION_OFFSET);
-    }
-
-    public long stream(int idx) {
-        checkBounds(idx);
-        return mf.getLong(idx * ENTRY_SIZE + STREAM_OFFSET);
-    }
-
-    public int size(int idx) {
-        checkBounds(idx);
-        return mf.getInt(idx * ENTRY_SIZE + SIZE_OFFSET);
-    }
-
-    public long logPos(int idx) {
-        checkBounds(idx);
-        return mf.getLong(idx * ENTRY_SIZE + LOGPOS_OFFSET);
-    }
-
-    private void checkBounds(int idx) {
-        if (idx < 0 || idx >= entries()) {
-            throw new IndexOutOfBoundsException(idx);
-        }
-    }
 
     public boolean isFull() {
         return mf.position() >= mf.capacity();
@@ -154,6 +137,11 @@ public class IndexSegment implements Closeable {
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to delete index");
         }
+    }
+
+    @Override
+    public File file() {
+        return mf.file();
     }
 
     public void truncate() {

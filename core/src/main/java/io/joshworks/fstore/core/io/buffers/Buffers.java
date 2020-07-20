@@ -3,6 +3,7 @@ package io.joshworks.fstore.core.io.buffers;
 import java.nio.Buffer;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 public class Buffers {
 
@@ -292,6 +293,10 @@ public class Buffers {
 
     public static ByteBuffer wrap(short s) {
         return ByteBuffer.allocate(Short.BYTES).putShort(s).flip();
+    }
+
+    public static ByteBuffer wrap(String s) {
+        return ByteBuffer.wrap(s.getBytes(StandardCharsets.UTF_8));
     }
 
 }

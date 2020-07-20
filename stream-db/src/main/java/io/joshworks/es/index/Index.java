@@ -1,85 +1,66 @@
 package io.joshworks.es.index;
 
+import io.joshworks.es.SegmentDirectory;
+import io.joshworks.es.index.tree.Node;
 import io.joshworks.es.index.tree.RedBlackBST;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.io.File;
 
-public class Index {
+public class Index extends SegmentDirectory<IndexSegment> {
 
-    private final List<IndexSegment> indexes = new CopyOnWriteArrayList<>();
-
-    //index has address like log
-    //X bytes for index idx
-    //64-X bytes for idx inside index
-
-    //TODO add memtable
     private final RedBlackBST memTable;
     private final int maxEntries;
 
-    public Index(int maxEntries) {
-        this.maxEntries = maxEntries;
+    static final String EXT = "idx";
+
+    public static final int NONE = -1;
+
+    public Index(File root, int maxEntries) {
+        super(root, EXT);
         memTable = new RedBlackBST(maxEntries);
+        this.maxEntries = maxEntries;
+        super.loadSegments(f -> new IndexSegment(f, -1));
     }
 
     public void append(long stream, int version, int size, long logPos) {
-        if(memTable.isFull()) {
-            roll();
+        if (memTable.isFull()) {
+            flush();
         }
-        memTable.put(stream, version, size, logPos);
-
+        memTable.put(new IndexEntry(stream, version, size, logPos));
     }
 
-    private void roll() {
-        IndexSegment head = new IndexSegment();
-        head.append(stream, version, size, logPos);
-    }
+    public IndexEntry find(IndexKey key, IndexFunction fn) {
+        Node found = memTable.apply(key, fn);
+        if (found != null) {
+            return new IndexEntry(found.stream, found.version, found.recordSize, found.logAddress);
+        }
 
-    public long find(long stream, int version, IndexFunction fn) {
-        for (int i = indexes.size() - 1; i >= 0; i--) {
-            IndexSegment index = indexes.get(i);
-            int entryIdx = index.find(stream, version, fn);
-            if (entryIdx != IndexSegment.NONE) {
-                return toIndexAddress(i, entryIdx);
+        //TODO support sparse segmentIdx
+        for (int i = segments.size() - 1; i >= 0; i--) {
+            IndexSegment index = segments.get(i);
+            IndexEntry ie = index.find(key, fn);
+            if (ie != null) {
+                return ie;
             }
         }
-        return IndexSegment.NONE;
+        return null;
     }
 
-    private long toIndexAddress(int segIdx, int entryIdx) {
-        return 0; //todo
-    }
+    public void flush() {
+        if (memTable.isEmpty()) {
+            return;
+        }
+        IndexSegment index = new IndexSegment(newSegmentFile(0), maxEntries);
+        for (Node node : memTable) {
+            index.append(node.stream, node.version, node.recordSize, node.logAddress);
+        }
 
-    private int segmentIdx(long address) {
-        return 0; //todo
-    }
+        index.flush();
+        index.complete();
 
-    private int entryIdx(long address) {
-        return 0; //todo
-    }
-
-    public int version(long address) {
-        int segIdx = segmentIdx(address);
-        int entryIdx = entryIdx(address);
-        return indexes.get(segIdx).version(entryIdx);
-    }
-
-    public long stream(long address) {
-        int segIdx = segmentIdx(address);
-        int entryIdx = entryIdx(address);
-        return indexes.get(segIdx).stream(entryIdx);
-    }
-
-    public int size(long address) {
-        int segIdx = segmentIdx(address);
-        int entryIdx = entryIdx(address);
-        return indexes.get(segIdx).size(entryIdx);
-    }
-
-    public long logAddress(long address) {
-        int segIdx = segmentIdx(address);
-        int entryIdx = entryIdx(address);
-        return indexes.get(segIdx).logPos(entryIdx);
+        segments.add(index);
+        makeHead(index);
+        memTable.clear();
     }
 
 }

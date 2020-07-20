@@ -9,12 +9,17 @@ public class BitUtil {
 
     }
 
-    public static long maxValueForBits(int numBits) {
+    public static long maxValueForBits(long numBits) {
         return (long) Math.pow(2, numBits) - 1;
     }
 
     public static long maxBitsForNumber(long number) {
         return (long) (Math.log(number) / Math.log(2)) + 1;
+    }
+
+    public static int decimalUnitsForBits(long numBits) {
+        long maxValue = maxValueForBits(numBits);
+        return (int) (Math.log10(maxValue) + 1);
     }
 
     /**

@@ -1,5 +1,7 @@
 package io.joshworks.es.index;
 
+import static io.joshworks.es.index.Index.NONE;
+
 public abstract class IndexFunction {
 
 
@@ -15,7 +17,7 @@ public abstract class IndexFunction {
 
         @Override
         public int apply(int idx) {
-            return Math.max(idx, IndexSegment.NONE);
+            return Math.max(idx, NONE);
         }
     }
 

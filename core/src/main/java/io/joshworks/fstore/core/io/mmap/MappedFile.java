@@ -79,5 +79,8 @@ public class MappedFile extends MappedRegion {
         return file.getName();
     }
 
+    public File file() {
+        return file;
+    }
 
 }
