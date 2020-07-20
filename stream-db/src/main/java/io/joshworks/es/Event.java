@@ -28,6 +28,10 @@ public class Event {
                     Integer.BYTES + //VERSION
                     Short.BYTES; //ATTRIBUTES
 
+    private Event() {
+
+    }
+
     private static int SIZE_OFFSET = 0;
     private static int CHECKSUM_OFFSET = SIZE_OFFSET + Integer.BYTES;
     private static int SEQUENCE_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;

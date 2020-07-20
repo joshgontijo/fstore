@@ -45,15 +45,22 @@ public class EventStore {
         sequence.addAndGet(1);
     }
 
-    public Event get(long stream, int version) {
+    public int get(long stream, int version, ByteBuffer dst) {
         IndexEntry ie = index.find(new IndexKey(stream, version), IndexFunction.EQUALS);
         if (ie == null) {
-            return null;
+            return 0;
         }
-        ByteBuffer buffer = Buffers.allocate(ie.size, false);
 
-        log.read(buffer, ie.logAddress);
-        return new Event();
+        if (dst.remaining() < ie.size) {
+            throw new IllegalArgumentException("Not enough buffer space");
+        }
+
+        int plim = dst.limit();
+        Buffers.offsetLimit(dst, ie.size);
+        int read = log.read(ie.logAddress, dst);
+        assert ie.size == read;
+        dst.limit(plim);
+        return read;
     }
 
 

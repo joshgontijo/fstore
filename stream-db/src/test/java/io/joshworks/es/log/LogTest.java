@@ -65,7 +65,7 @@ public class LogTest {
 
     private void assertEvent(long stream, int version, long sequence, long address) {
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
-        int read = log.read(readBuffer, address);
+        int read = log.read(address, readBuffer);
 
         assertTrue(read > 0);
 

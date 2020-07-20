@@ -51,7 +51,7 @@ public class Log extends SegmentDirectory<LogSegment> {
         return toSegmentedPosition(logIdx, logPos);
     }
 
-    public int read(ByteBuffer dst, long address) {
+    public int read(long address, ByteBuffer dst) {
         int segIdx = segmentIdx(address);
         long logPos = positionOnSegment(address);
         LogSegment segment = segments.get(segIdx);
