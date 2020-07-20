@@ -25,7 +25,7 @@ public class EventStoreTest {
     }
 
     private EventStore open() {
-        return new EventStore(root, Size.MB.ofInt(1), 100);
+        return new EventStore(root, Size.MB.ofInt(1), 100, 0);
     }
 
     @Test

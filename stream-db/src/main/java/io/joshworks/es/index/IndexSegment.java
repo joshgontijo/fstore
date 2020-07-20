@@ -7,6 +7,8 @@ import io.joshworks.fstore.core.io.mmap.MappedFile;
 import java.io.File;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.joshworks.es.index.Index.NONE;
@@ -39,8 +41,12 @@ public class IndexSegment implements SegmentFile {
 
     private final MappedFile mf;
     private final AtomicBoolean readOnly = new AtomicBoolean();
+    private final int midpointFactor;
 
-    public IndexSegment(File file, long maxEntries) {
+    private final List<IndexEntry> midpoints = new ArrayList<>();
+
+    public IndexSegment(File file, long maxEntries, int midpointFactor) {
+        this.midpointFactor = midpointFactor;
         try {
             boolean newFile = file.createNewFile();
             if (newFile) {
@@ -53,11 +59,17 @@ public class IndexSegment implements SegmentFile {
                     throw new IllegalStateException("Invalid index file length: " + fileSize);
                 }
                 readOnly.set(true);
+                loadMidpoints();
             }
 
         } catch (IOException ioex) {
             throw new RuntimeException("Failed to create index", ioex);
         }
+    }
+
+    private void loadMidpoints() {
+        midpoints.clear();
+        //TODO
     }
 
     /**
@@ -154,6 +166,7 @@ public class IndexSegment implements SegmentFile {
     public void complete() {
         truncate();
         readOnly.set(true);
+        loadMidpoints();
     }
 
     public void flush() {

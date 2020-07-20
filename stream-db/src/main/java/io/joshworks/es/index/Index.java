@@ -10,16 +10,18 @@ public class Index extends SegmentDirectory<IndexSegment> {
 
     private final RedBlackBST memTable;
     private final int maxEntries;
+    private final int midPointFactor;
 
     static final String EXT = "idx";
 
     public static final int NONE = -1;
 
-    public Index(File root, int maxEntries) {
+    public Index(File root, int maxEntries, int midPointFactor) {
         super(root, EXT);
         memTable = new RedBlackBST(maxEntries);
         this.maxEntries = maxEntries;
-        super.loadSegments(f -> new IndexSegment(f, -1));
+        this.midPointFactor = midPointFactor;
+        super.loadSegments(f -> new IndexSegment(f, -1, midPointFactor));
     }
 
     public void append(long stream, int version, int size, long logPos) {
@@ -50,7 +52,7 @@ public class Index extends SegmentDirectory<IndexSegment> {
         if (memTable.isEmpty()) {
             return;
         }
-        IndexSegment index = new IndexSegment(newSegmentFile(0), maxEntries);
+        IndexSegment index = new IndexSegment(newSegmentFile(0), maxEntries, midPointFactor);
         for (Node node : memTable) {
             index.append(node.stream, node.version, node.recordSize, node.logAddress);
         }
