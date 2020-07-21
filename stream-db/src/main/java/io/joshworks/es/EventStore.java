@@ -18,9 +18,9 @@ public class EventStore {
 
     private final AtomicLong sequence = new AtomicLong();
 
-    public EventStore(File root, int logSize, int indexEntries, int midpointFactor) {
+    public EventStore(File root, int logSize, int indexEntries, double bfFP, int blockSize) {
         this.log = new Log(root, logSize);
-        this.index = new Index(root, indexEntries, midpointFactor);
+        this.index = new Index(root, indexEntries, bfFP, blockSize);
     }
 
     public int version(long stream) {

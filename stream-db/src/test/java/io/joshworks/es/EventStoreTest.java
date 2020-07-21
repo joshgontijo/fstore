@@ -26,7 +26,7 @@ public class EventStoreTest {
     }
 
     private EventStore open() {
-        return new EventStore(root, Size.MB.ofInt(100), MEMTABLE_SIZE, 0);
+        return new EventStore(root, Size.MB.ofInt(100), MEMTABLE_SIZE, 0.1, 4096);
     }
 
     @Test
@@ -76,7 +76,7 @@ public class EventStoreTest {
 
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            if(i % 500000 == 0) {
+            if (i % 500000 == 0) {
                 System.out.println();
             }
             store.append(stream, i - 1, data.clear());

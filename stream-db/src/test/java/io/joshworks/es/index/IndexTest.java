@@ -23,7 +23,7 @@ public class IndexTest {
     }
 
     public Index open() {
-        return new Index(root, MAX_ENTRIES, 0);
+        return new Index(root, MAX_ENTRIES, 0.1, 0);
     }
 
     @Test

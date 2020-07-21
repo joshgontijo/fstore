@@ -2,6 +2,8 @@ package io.joshworks.es.index;
 
 public record IndexKey(long stream, int version) {
 
+    public static int BYTES = Long.BYTES + Integer.BYTES;
+
     public static IndexKey maxOf(long stream) {
         return new IndexKey(stream, Integer.MAX_VALUE);
     }

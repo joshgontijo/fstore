@@ -11,18 +11,20 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
     private final RedBlackBST memTable;
     private final int maxEntries;
+    private final double bfFP;
     private final int blockSize;
 
     static final String EXT = "idx";
 
     public static final int NONE = -1;
 
-    public Index(File root, int maxEntries, int blockSize) {
+    public Index(File root, int maxEntries, double bfFP, int blockSize) {
         super(root, EXT);
         this.memTable = new RedBlackBST(maxEntries);
         this.maxEntries = maxEntries;
+        this.bfFP = bfFP;
         this.blockSize = blockSize;
-        super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, blockSize));
+        super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, bfFP, blockSize));
     }
 
     public void append(long stream, int version, int size, long logPos) {
@@ -59,7 +61,7 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         if (memTable.isEmpty()) {
             return;
         }
-        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), maxEntries, blockSize);
+        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), maxEntries, bfFP, blockSize);
         for (Node node : memTable) {
             index.append(node.stream, node.version, node.recordSize, node.logAddress);
         }

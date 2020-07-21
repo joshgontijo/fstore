@@ -21,7 +21,7 @@ public class BTreeIndexSegmentTest {
     @Before
     public void setUp() {
         testFile = TestUtils.testFile();
-        index = new BTreeIndexSegment(testFile, MAX_ENTRIES, Memory.PAGE_SIZE);
+        index = new BTreeIndexSegment(testFile, MAX_ENTRIES, 0.1, Memory.PAGE_SIZE);
     }
 
     @After
