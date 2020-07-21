@@ -164,20 +164,16 @@ public class IndexSegment implements SegmentFile {
      * Complete this index and mark it as read only.
      */
     public void complete() {
+        mf.flush();
         truncate();
         readOnly.set(true);
         loadMidpoints();
-    }
-
-    public void flush() {
-        mf.flush();
     }
 
     @Override
     public void close() {
         mf.close();
     }
-
 
     private long align(long size) {
         int entrySize = ENTRY_SIZE;

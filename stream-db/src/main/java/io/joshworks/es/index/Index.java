@@ -1,13 +1,15 @@
 package io.joshworks.es.index;
 
 import io.joshworks.es.SegmentDirectory;
+import io.joshworks.es.index.btree.BTreeIndexSegment;
 import io.joshworks.es.index.tree.Node;
 import io.joshworks.es.index.tree.RedBlackBST;
 
 import java.io.File;
 
-public class Index extends SegmentDirectory<IndexSegment> {
+public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
+    public static final int BLOCK_SIZE = 4096;
     private final RedBlackBST memTable;
     private final int maxEntries;
     private final int midPointFactor;
@@ -21,7 +23,8 @@ public class Index extends SegmentDirectory<IndexSegment> {
         this.memTable = new RedBlackBST(maxEntries);
         this.maxEntries = maxEntries;
         this.midPointFactor = midPointFactor;
-        super.loadSegments(f -> new IndexSegment(f, -1, midPointFactor));
+//        super.loadSegments(f -> new IndexSegment(f, -1, midPointFactor));
+        super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, BLOCK_SIZE));
     }
 
     public void append(long stream, int version, int size, long logPos) {
@@ -39,7 +42,7 @@ public class Index extends SegmentDirectory<IndexSegment> {
 
         //TODO support sparse segmentIdx
         for (int i = segments.size() - 1; i >= 0; i--) {
-            IndexSegment index = segments.get(i);
+            BTreeIndexSegment index = segments.get(i);
             IndexEntry ie = index.find(key, fn);
             if (ie != null) {
                 return ie;
@@ -49,7 +52,7 @@ public class Index extends SegmentDirectory<IndexSegment> {
     }
 
     public long entries() {
-        return segments.stream().mapToLong(IndexSegment::entries).sum() + memTable.entries();
+        return segments.stream().mapToLong(BTreeIndexSegment::entries).sum() + memTable.entries();
     }
 
     public void flush() {
@@ -58,12 +61,11 @@ public class Index extends SegmentDirectory<IndexSegment> {
         if (memTable.isEmpty()) {
             return;
         }
-        IndexSegment index = new IndexSegment(newSegmentFile(0), maxEntries, midPointFactor);
+        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), maxEntries, BLOCK_SIZE);
         for (Node node : memTable) {
             index.append(node.stream, node.version, node.recordSize, node.logAddress);
         }
 
-        index.flush();
         index.complete();
 
         segments.add(index);
