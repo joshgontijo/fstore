@@ -5,7 +5,6 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.MappedByteBuffers;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -50,9 +49,13 @@ public class MappedFile extends MappedRegion {
         return mbb;
     }
 
-    public void delete() throws IOException {
-        close();
-        Files.deleteIfExists(file.toPath());
+    public void delete() {
+        try {
+            close();
+            Files.deleteIfExists(file.toPath());
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to delete " + file.getAbsolutePath(), e);
+        }
     }
 
     public void close() {
