@@ -8,11 +8,11 @@ import java.nio.ByteBuffer;
 /**
  * <pre>
  * RECORD_SIZE (4 BYTES)
+ * STREAM (8 BYTES)
+ * VERSION (4 BYTES)
  * CHECKSUM (4 BYTES)
  * SEQUENCE (8 BYTES)
  * TIMESTAMP (8 BYTES)
- * STREAM (8 BYTES)
- * VERSION (4 BYTES)
  * ATTRIBUTES (2 BYTES)
  * DATA (N BYTES)
  * </pre>
@@ -21,11 +21,11 @@ public class Event {
 
     public static final int HEADER_BYTES =
             Integer.BYTES +  //RECORD_SIZE
+                    Long.BYTES + //STREAM
+                    Integer.BYTES + //VERSION
                     Integer.BYTES +  //CHECKSUM
                     Long.BYTES + // SEQUENCE
                     Long.BYTES + // TIMESTAMP
-                    Long.BYTES + //STREAM
-                    Integer.BYTES + //VERSION
                     Short.BYTES; //ATTRIBUTES
 
     private Event() {
@@ -33,12 +33,12 @@ public class Event {
     }
 
     private static int SIZE_OFFSET = 0;
-    private static int CHECKSUM_OFFSET = SIZE_OFFSET + Integer.BYTES;
+    private static int STREAM_OFFSET = SIZE_OFFSET + Integer.BYTES;
+    private static int VERSION_OFFSET = STREAM_OFFSET + Long.BYTES;
+    private static int CHECKSUM_OFFSET = VERSION_OFFSET + Integer.BYTES;
     private static int SEQUENCE_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
     private static int TIMESTAMP_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
-    private static int STREAM_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
-    private static int VERSION_OFFSET = STREAM_OFFSET + Long.BYTES;
-    private static int ATTRIBUTES_OFFSET = VERSION_OFFSET + Integer.BYTES;
+    private static int ATTRIBUTES_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
     private static int DATA_OFFSET = ATTRIBUTES_OFFSET + Short.BYTES;
 
     public static int sizeOf(ByteBuffer data) {
@@ -87,22 +87,21 @@ public class Event {
         int recSize = HEADER_BYTES + data.remaining();
         ByteBuffer dst = Buffers.allocate(recSize, false);
         dst.putInt(recSize);
+        dst.putLong(stream);
+        dst.putInt(version);
         dst.putInt(0); //tmp checksum
         dst.putLong(sequence);
         dst.putLong(System.currentTimeMillis());
-        dst.putLong(stream);
-        dst.putInt(version);
         dst.putShort(attribute(attr));
         Buffers.copy(data, dst);
 
-        //from
-        int checksumStart = Integer.BYTES * 2;
+        int checksumStart = SEQUENCE_OFFSET;
         int checksum = ByteBufferChecksum.crc32(dst, checksumStart, recSize - checksumStart);
-        dst.putInt(Integer.BYTES, checksum);
+        dst.putInt(CHECKSUM_OFFSET, checksum);
 
         dst.flip();
         assert dst.remaining() == recSize;
-
+        assert Event.isValid(dst);
         return dst;
     }
 
@@ -121,7 +120,7 @@ public class Event {
         }
 
         int chksOffset = offset + SEQUENCE_OFFSET; //from TIMESTAMP
-        int chksLen = recSize - (Integer.BYTES * 2);
+        int chksLen = recSize - (chksOffset);
 
         int checksum = recData.getInt(offset + CHECKSUM_OFFSET);
         int computed = ByteBufferChecksum.crc32(recData, chksOffset, chksLen);
@@ -137,10 +136,6 @@ public class Event {
         return data.getInt(offset + SIZE_OFFSET);
     }
 
-    public static String toString(long stream, int version) {
-        return stream + "@" + version;
-    }
-
     public static String toString(ByteBuffer data) {
         if (!isValid(data)) {
             throw new IllegalArgumentException("Invalid event data");
@@ -154,4 +149,10 @@ public class Event {
                 "]";
     }
 
+    public static void rewrite(ByteBuffer data, int offset, long stream, int version) {
+        data.putLong(offset + STREAM_OFFSET, stream);
+        data.putInt(offset + VERSION_OFFSET, version);
+
+        assert Event.isValid(data, offset);
+    }
 }

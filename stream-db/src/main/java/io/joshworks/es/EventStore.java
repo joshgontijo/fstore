@@ -25,32 +25,46 @@ public class EventStore {
 
     public int version(long stream) {
         IndexEntry ie = index.find(IndexKey.maxOf(stream), IndexFunction.FLOOR);
-        if (ie == null) {
+        if (ie == null || ie.stream() != stream) {
             return -1;
         }
         return ie.version();
     }
 
-    public void linkTo(long srcStream, int srcVersion, long dstStream, int expectedVersion) {
+    public synchronized void linkTo(long srcStream, int srcVersion, long dstStream, int expectedVersion) {
         IndexEntry ie = index.find(new IndexKey(srcStream, srcVersion), IndexFunction.EQUALS);
         if (ie == null) {
-            throw new IllegalArgumentException("No such event " + Event.toString(srcStream, srcVersion));
+            throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStream, srcVersion));
         }
+        int dstVersion = version(dstStream);
+        checkVersion(expectedVersion, dstVersion);
+
+        long seq = sequence.getAndIncrement();
+        int version = dstVersion + 1;
+
+        String data = IndexKey.toString(srcStream, srcVersion);
+        ByteBuffer linkToData = Event.create(seq, dstStream, version, Buffers.wrap(data), 1); //TODO add linkto attribute
+
+        log.append(linkToData);
+        index.append(dstStream, dstVersion + 1, ie.size(), ie.logAddress());
 
     }
 
-    public void append(long stream, int expectedVersion, ByteBuffer data) {
+    public synchronized void append(long stream, int expectedVersion, ByteBuffer data) {
         int streamVersion = version(stream);
-        if (expectedVersion >= 0 && expectedVersion != streamVersion) {
-            throw new IllegalStateException("Version mismatch, expected " + expectedVersion + " got: " + streamVersion);
-        }
-        long seq = sequence.get();
+        checkVersion(expectedVersion, streamVersion);
+        long seq = sequence.getAndIncrement();
         int version = streamVersion + 1;
         ByteBuffer eventData = Event.create(seq, stream, version, data);
         int eventSize = Event.sizeOf(eventData);
         long logPos = log.append(eventData);
         index.append(stream, version, eventSize, logPos);
-        sequence.addAndGet(1);
+    }
+
+    private void checkVersion(int expectedVersion, int streamVersion) {
+        if (expectedVersion >= 0 && expectedVersion != streamVersion) {
+            throw new IllegalStateException("Version mismatch, expected " + expectedVersion + " got: " + streamVersion);
+        }
     }
 
     public int get(long stream, int version, ByteBuffer dst) {
@@ -60,7 +74,7 @@ public class EventStore {
         }
 
         if (dst.remaining() < ie.size()) {
-            throw new IllegalArgumentException("Not enough buffer space");
+            throw new IllegalArgumentException("Not enough destination buffer space");
         }
 
         int plim = dst.limit();
@@ -68,6 +82,12 @@ public class EventStore {
         int read = log.read(ie.logAddress(), dst);
         assert ie.size() == read;
         dst.limit(plim);
+
+
+
+        int evOffset = dst.position() - ie.size();
+        Event.rewrite(dst, evOffset, stream, version);
+
         return read;
     }
 

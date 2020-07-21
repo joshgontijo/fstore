@@ -46,19 +46,19 @@ public class BloomFilterTest {
     @Test
     public void sample() {
         int items = 5_000_000;
-        var bf = BloomFilter.createOrOpen(items, 0.07, testFile);
+        var bf = BloomFilter.createOrOpen(items, 0.05, testFile);
 
         long s = System.currentTimeMillis();
-        var key = ByteBuffer.allocate(Integer.BYTES);
+        var key = ByteBuffer.allocate(Long.BYTES + Integer.BYTES);
         for (int i = 0; i < items; i++) {
-            key.clear().putInt(i).flip();
+            key.clear().putLong(123).putInt(i).flip();
             bf.add(key);
             assertTrue(bf.contains(key));
         }
         System.out.println("ADD: " + (System.currentTimeMillis() - s));
         s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            key.clear().putInt(i).flip();
+            key.clear().putLong(123).putInt(i).flip();
             assertTrue(bf.contains(key));
         }
         System.out.println("Contains: " + (System.currentTimeMillis() - s));

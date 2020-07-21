@@ -68,6 +68,23 @@ public class EventStoreTest {
     }
 
     @Test
+    public void linkTo() {
+        long srcStream = 123;
+        long dstStream = 456;
+
+        store.append(srcStream, -1, wrap("abc"));
+        store.linkTo(srcStream, 0, dstStream, -1);
+
+        ByteBuffer readBuffer = Buffers.allocate(4096, false);
+        store.get(dstStream, 0, readBuffer);
+
+        readBuffer.flip();
+        assertTrue(Event.isValid(readBuffer));
+        assertEquals(dstStream, Event.stream(readBuffer));
+        assertEquals(0, Event.version(readBuffer));
+    }
+
+    @Test
     public void append_MANY_SAME_STREAM_TEST() {
         long stream = 123;
         int items = 20000000;

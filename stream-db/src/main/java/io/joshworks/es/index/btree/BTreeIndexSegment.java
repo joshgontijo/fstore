@@ -1,10 +1,11 @@
 package io.joshworks.es.index.btree;
 
+import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnels;
 import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;
 import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.index.IndexSegment;
-import io.joshworks.es.index.filter.BloomFilter;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
 
@@ -25,11 +26,10 @@ public class BTreeIndexSegment implements IndexSegment {
 
     //read path
     private Block root;
-    private final BloomFilter filter;
 
     //write path
     private final Map<Integer, Block> nodeBlocks = new HashMap<>();
-    private ByteBuffer bfEntry = Buffers.allocate(IndexKey.BYTES, false);
+    private ByteBuffer bfEntry = Buffers.allocate(12, false);
 
     public BTreeIndexSegment(File file, long numEntries, double bfFP, int blockSize) {
         this.blockSize = blockSize;
@@ -47,7 +47,6 @@ public class BTreeIndexSegment implements IndexSegment {
                 readOnly.set(true);
                 this.root = readRoot();
             }
-            this.filter = BloomFilter.createOrOpen(numEntries, bfFP, filterFile(file));
 
         } catch (IOException ioex) {
             throw new RuntimeException("Failed to create index", ioex);
@@ -64,8 +63,6 @@ public class BTreeIndexSegment implements IndexSegment {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
-
-        filter.add(bfEntry.putLong(stream).putInt(version).flip());
 
         Block node = getOrAllocate(0);
         if (!node.add(stream, version, size, logPos)) {
@@ -95,9 +92,6 @@ public class BTreeIndexSegment implements IndexSegment {
     public IndexEntry find(IndexKey key, IndexFunction fn) {
         ByteBuffer kb = Buffers.allocate(IndexKey.BYTES, false);
         kb.putLong(key.stream()).putInt(key.version()).flip();
-        if (!filter.contains(kb)) {
-            return null;
-        }
 
         Block block = root;
         while (true) {
@@ -150,7 +144,7 @@ public class BTreeIndexSegment implements IndexSegment {
     @Override
     public void delete() {
         mf.delete();
-        filter.delete();
+//        filter.delete();
     }
 
     @Override
@@ -177,7 +171,7 @@ public class BTreeIndexSegment implements IndexSegment {
                 .forEach(this::writeNode);
 
         mf.flush();
-        filter.flush();
+//        filter.flush();
         truncate();
         readOnly.set(true);
         this.root = readRoot();

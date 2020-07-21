@@ -24,4 +24,12 @@ public record IndexKey(long stream, int version) {
         return compare;
     }
 
+    public static String toString(long stream, int version) {
+        return stream + "@" + version;
+    }
+
+    @Override
+    public String toString() {
+        return toString(stream, version);
+    }
 }
