@@ -12,7 +12,7 @@ import static org.junit.Assert.assertNotNull;
 
 public class IndexTest {
 
-    private static int MAX_ENTRIES = 100;
+    private static int MAX_ENTRIES = 1000000;
     private Index index;
     private File root;
 
@@ -24,6 +24,17 @@ public class IndexTest {
 
     public Index open() {
         return new Index(root, MAX_ENTRIES, 0);
+    }
+
+    @Test
+    public void entries() {
+        long stream = 123;
+        int items = MAX_ENTRIES;
+        for (int i = 0; i < items; i++) {
+            index.append(stream, i, 111, 222);
+        }
+
+        assertEquals(items, index.entries());
     }
 
     @Test

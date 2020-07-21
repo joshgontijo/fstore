@@ -1,23 +1,22 @@
 package io.joshworks.es.index.btree;
 
-import io.joshworks.es.SegmentFile;
 import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;
 import io.joshworks.es.index.IndexKey;
+import io.joshworks.es.index.IndexSegment;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
-public class BTreeIndexSegment implements SegmentFile {
+public class BTreeIndexSegment implements IndexSegment {
 
     private final MappedFile mf;
     private final AtomicBoolean readOnly = new AtomicBoolean();
@@ -52,9 +51,7 @@ public class BTreeIndexSegment implements SegmentFile {
     }
 
 
-    /**
-     * Writes an entry to this index
-     */
+    @Override
     public void append(long stream, int version, int size, long logPos) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
@@ -69,7 +66,6 @@ public class BTreeIndexSegment implements SegmentFile {
 
     public void writeNode(Block node) {
         int idx = node.writeTo(mf);
-//        System.out.println(idx + " -> " + node);
         addNodeLink(node, idx);
     }
 
@@ -85,10 +81,8 @@ public class BTreeIndexSegment implements SegmentFile {
         return nodeBlocks.compute(level, (k, v) -> v == null ? new Block(blockSize, k) : v);
     }
 
+    @Override
     public IndexEntry find(IndexKey key, IndexFunction fn) {
-//        if (entries() == 0) {
-//            return null;
-//        }
         Block block = root;
         while (true) {
             if (block.level() > 0) { //internal node use floor
@@ -96,25 +90,24 @@ public class BTreeIndexSegment implements SegmentFile {
                 if (i == -1) {
                     return null;
                 }
-                long stream = block.getLong(i, 0);
-                int version = block.getInt(i, 8);
-                int blockIdx = block.getInt(i, 12);
+                long stream = block.stream(i);
+                int version = block.version(i);
+                int blockIdx = block.blockIndex(i);
                 block = loadBlock(blockIdx);
             } else { //leaf node
                 int i = block.find(key, fn);
                 if (i == -1) {
                     return null;
                 }
-                long stream = block.getLong(i, 0);
-                int version = block.getInt(i, 8);
-                int size = block.getInt(i, 12);
-                long logPos = block.getLong(i, 12 + Integer.BYTES);
+                long stream = block.stream(i);
+                int version = block.version(i);
+                int size = block.recordSize(i);
+                long logPos = block.logPos(i);
 
                 return new IndexEntry(stream, version, size, logPos);
             }
         }
     }
-
 
     private Block loadBlock(int idx) {
         if (!readOnly.get()) {
@@ -123,25 +116,22 @@ public class BTreeIndexSegment implements SegmentFile {
         if (idx < 0 || idx >= numBlocks()) {
             throw new IndexOutOfBoundsException(idx);
         }
-//        ByteBuffer data = Buffers.allocate(blockSize, false);
         int offset = idx * blockSize;
-//        mf.get(data, offset, blockSize);
-        MappedByteBuffer buffer = mf.buffer();
-        buffer.position(offset).limit(offset + blockSize);
-        ByteBuffer readBuffer = buffer.asReadOnlyBuffer().slice();
-        buffer.clear().position(buffer.capacity());
+        ByteBuffer readBuffer = mf.buffer().slice(offset, blockSize);
         return Block.from(readBuffer);
     }
 
+    @Override
     public boolean isFull() {
         return mf.position() >= mf.capacity();
     }
 
+    @Override
     public int entries() {
-//        return (mf.position() / ENTRY_SIZE);
-        return 0;
+        return root.entries();
     }
 
+    @Override
     public void delete() {
         try {
             mf.delete();
@@ -155,6 +145,7 @@ public class BTreeIndexSegment implements SegmentFile {
         return mf.file();
     }
 
+    @Override
     public void truncate() {
         mf.truncate(mf.position());
     }
@@ -162,6 +153,7 @@ public class BTreeIndexSegment implements SegmentFile {
     /**
      * Complete this index and mark it as read only.
      */
+    @Override
     public void complete() {
         //higher levels will always be at the end
         //root will always be last
@@ -186,7 +178,6 @@ public class BTreeIndexSegment implements SegmentFile {
     public void close() {
         mf.close();
     }
-
 
     private long align(long maxEntries, int blockSize) {
         int leafBlocks = numberOfBlocks(maxEntries, blockSize, Block.LEAF_ENTRY_BYTES);
@@ -214,7 +205,7 @@ public class BTreeIndexSegment implements SegmentFile {
     }
 
     public int size() {
-        return 0;
+        return mf.capacity();
     }
 
 

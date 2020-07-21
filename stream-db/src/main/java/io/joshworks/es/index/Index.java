@@ -9,22 +9,20 @@ import java.io.File;
 
 public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
-    public static final int BLOCK_SIZE = 4096;
     private final RedBlackBST memTable;
     private final int maxEntries;
-    private final int midPointFactor;
+    private final int blockSize;
 
     static final String EXT = "idx";
 
     public static final int NONE = -1;
 
-    public Index(File root, int maxEntries, int midPointFactor) {
+    public Index(File root, int maxEntries, int blockSize) {
         super(root, EXT);
         this.memTable = new RedBlackBST(maxEntries);
         this.maxEntries = maxEntries;
-        this.midPointFactor = midPointFactor;
-//        super.loadSegments(f -> new IndexSegment(f, -1, midPointFactor));
-        super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, BLOCK_SIZE));
+        this.blockSize = blockSize;
+        super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, blockSize));
     }
 
     public void append(long stream, int version, int size, long logPos) {
@@ -61,7 +59,7 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         if (memTable.isEmpty()) {
             return;
         }
-        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), maxEntries, BLOCK_SIZE);
+        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), maxEntries, blockSize);
         for (Node node : memTable) {
             index.append(node.stream, node.version, node.recordSize, node.logAddress);
         }

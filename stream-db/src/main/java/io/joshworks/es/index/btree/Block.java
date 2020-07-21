@@ -46,6 +46,10 @@ class Block {
                     Integer.BYTES; //BLOCK_IDX
 
 
+    static final int KEY_BYTES =
+                    Long.BYTES + //STREAM
+                    Integer.BYTES; //VERSION
+
     protected final ByteBuffer data;
     private int tmpEntries;
     private static final int LEVEL_OFFSET = 0;
@@ -165,14 +169,34 @@ class Block {
         return fn.apply(idx);
     }
 
-    int getInt(int idx, int offset) {
+    //entry key
+    long stream(int idx) {
         int pos = offset(idx);
-        return data.getInt(pos + offset);
+        return data.getLong(pos);
     }
 
-    long getLong(int idx, int offset) {
+    //entry key
+    int version(int idx) {
         int pos = offset(idx);
-        return data.getLong(pos + offset);
+        return data.getInt(pos + Long.BYTES);
+    }
+
+    //internal only
+    int blockIndex(int idx) {
+        int pos = offset(idx);
+        return data.getInt(pos + KEY_BYTES);
+    }
+
+    //leaf only
+    int recordSize(int idx) {
+        int pos = offset(idx);
+        return data.getInt(pos + KEY_BYTES);
+    }
+
+    //leaf only
+    long logPos(int idx) {
+        int pos = offset(idx);
+        return data.getLong(pos + KEY_BYTES + Integer.BYTES);
     }
 
     private int offset(int idx) {
