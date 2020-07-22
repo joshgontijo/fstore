@@ -52,16 +52,6 @@ public class QueryPlanner {
         return totalRead;
     }
 
-    private void rewriteEntries(ByteBuffer dst, int startPos, ReadChunk chunk) {
-        int evOffset = startPos;
-        int version = chunk.startVersion;
-        for (int i = 0; i < chunk.entries; i++) {
-            Event.rewrite(dst, evOffset, chunk.stream, version);
-            evOffset += Event.sizeOf(dst, evOffset);
-            version++;
-        }
-    }
-
     private List<IndexEntry> readKeys(Index index, IndexKey key, int count) {
         List<IndexEntry> entries = new ArrayList<>();
         int version = key.version();
@@ -102,6 +92,16 @@ public class QueryPlanner {
         chunks.add(chunk);
 
         return chunks;
+    }
+
+    private void rewriteEntries(ByteBuffer dst, int startPos, ReadChunk chunk) {
+        int evOffset = startPos;
+        int version = chunk.startVersion;
+        for (int i = 0; i < chunk.entries; i++) {
+            Event.rewrite(dst, evOffset, chunk.stream, version);
+            evOffset += Event.sizeOf(dst, evOffset);
+            version++;
+        }
     }
 
     private static class ReadChunk {
