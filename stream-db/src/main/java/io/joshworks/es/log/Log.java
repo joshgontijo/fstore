@@ -55,6 +55,14 @@ public class Log extends SegmentDirectory<LogSegment> {
         return toSegmentedPosition(logIdx, logPos);
     }
 
+    public int segmentIdx() {
+        return head().segmentIdx();
+    }
+
+    public long segmentPosition() {
+        return head().writePosition();
+    }
+
     public int read(long address, ByteBuffer dst) {
         int segIdx = segmentIdx(address);
         long logPos = positionOnSegment(address);
@@ -77,7 +85,7 @@ public class Log extends SegmentDirectory<LogSegment> {
         return (int) segmentIdx;
     }
 
-    private static long toSegmentedPosition(long segmentIdx, long position) {
+    public static long toSegmentedPosition(long segmentIdx, long position) {
         if (segmentIdx < 0) {
             throw new IllegalArgumentException("Segment index must be greater than zero");
         }

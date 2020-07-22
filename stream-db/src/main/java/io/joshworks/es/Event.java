@@ -8,12 +8,14 @@ import java.nio.ByteBuffer;
 /**
  * <pre>
  * RECORD_SIZE (4 BYTES)
- * STREAM (8 BYTES)
+ * STREAM_HASH (8 BYTES)
  * VERSION (4 BYTES)
  * CHECKSUM (4 BYTES)
  * SEQUENCE (8 BYTES)
  * TIMESTAMP (8 BYTES)
  * ATTRIBUTES (2 BYTES)
+ * TYPE_LENGTH (2 BYTES)
+ * EVENT_TYPE (N BYTES)
  * DATA (N BYTES)
  * </pre>
  */
@@ -26,7 +28,8 @@ public class Event {
                     Integer.BYTES +  //CHECKSUM
                     Long.BYTES + // SEQUENCE
                     Long.BYTES + // TIMESTAMP
-                    Short.BYTES; //ATTRIBUTES
+                    Short.BYTES + //ATTRIBUTES
+                    Short.BYTES; //TYPE_LENGTH
 
     private Event() {
 
@@ -39,7 +42,7 @@ public class Event {
     private static int SEQUENCE_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
     private static int TIMESTAMP_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
     private static int ATTRIBUTES_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
-    private static int DATA_OFFSET = ATTRIBUTES_OFFSET + Short.BYTES;
+    private static int TYPE_LENGTH_OFFSET = ATTRIBUTES_OFFSET + Short.BYTES;
 
     public static int sizeOf(ByteBuffer data) {
         return sizeOf(data, data.position());
@@ -49,7 +52,7 @@ public class Event {
         return data.getLong(data.position() + STREAM_OFFSET);
     }
 
-    public static long version(ByteBuffer data) {
+    public static int version(ByteBuffer data) {
         return data.getInt(data.position() + VERSION_OFFSET);
     }
 
@@ -149,10 +152,17 @@ public class Event {
                 "]";
     }
 
+    public static void writeSequence(ByteBuffer data, int offset, long sequence) {
+        data.putLong(offset + SEQUENCE_OFFSET, sequence);
+    }
+
+    public static void writeVersion(ByteBuffer data, int offset, int version) {
+        data.putInt(offset + VERSION_OFFSET, version);
+    }
+
     public static void rewrite(ByteBuffer data, int offset, long stream, int version) {
         data.putLong(offset + STREAM_OFFSET, stream);
-        data.putInt(offset + VERSION_OFFSET, version);
-
+        writeVersion(data, offset, version);
         assert Event.isValid(data, offset);
     }
 }

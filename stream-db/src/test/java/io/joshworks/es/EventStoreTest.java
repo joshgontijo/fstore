@@ -3,6 +3,7 @@ package io.joshworks.es;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
+import io.joshworks.fstore.core.util.Threads;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -103,6 +104,8 @@ public class EventStoreTest {
                 s = now;
             }
         }
+
+        Threads.sleep(50000);
 
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
         for (int i = 0; i < items; i++) {

@@ -1,5 +1,6 @@
 package io.joshworks.es;
 
+import io.joshworks.es.async.WriterThread;
 import io.joshworks.es.index.Index;
 import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;
@@ -15,12 +16,14 @@ public class EventStore {
 
     private final Log log;
     private final Index index;
+    private final WriterThread writer;
 
     private final AtomicLong sequence = new AtomicLong();
 
     public EventStore(File root, int logSize, int indexEntries, double bfFP, int blockSize) {
         this.log = new Log(root, logSize);
         this.index = new Index(root, indexEntries, bfFP, blockSize);
+        this.writer = new WriterThread(log);
     }
 
     public int version(long stream) {
@@ -36,8 +39,7 @@ public class EventStore {
         if (ie == null) {
             throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStream, srcVersion));
         }
-        int dstVersion = version(dstStream);
-        checkVersion(expectedVersion, dstVersion);
+        int dstVersion = fetchVersion(dstStream, expectedVersion);
 
         long seq = sequence.getAndIncrement();
         int version = dstVersion + 1;
@@ -50,21 +52,30 @@ public class EventStore {
 
     }
 
-    public synchronized void append(long stream, int expectedVersion, ByteBuffer data) {
-        int streamVersion = version(stream);
-        checkVersion(expectedVersion, streamVersion);
+
+    public synchronized void append(ByteBuffer event) {
+        assert Event.isValid(event);
+        long stream = Event.stream(event);
+        int expectedVersion = Event.version(event); //version is used to denote 'expected version'
+        int streamVersion = fetchVersion(stream, expectedVersion);
+        Event.writeVersion(event, event.position(), streamVersion);
+
+        var future = writer.submit(event);
+
+
         long seq = sequence.getAndIncrement();
         int version = streamVersion + 1;
-        ByteBuffer eventData = Event.create(seq, stream, version, data);
-        int eventSize = Event.sizeOf(eventData);
-        long logPos = log.append(eventData);
-        index.append(stream, version, eventSize, logPos);
+
+
     }
 
-    private void checkVersion(int expectedVersion, int streamVersion) {
+
+    private int fetchVersion(long stream, int expectedVersion) {
+        int streamVersion = version(stream);
         if (expectedVersion >= 0 && expectedVersion != streamVersion) {
             throw new IllegalStateException("Version mismatch, expected " + expectedVersion + " got: " + streamVersion);
         }
+        return streamVersion;
     }
 
     public int get(long stream, int version, ByteBuffer dst) {
@@ -82,7 +93,6 @@ public class EventStore {
         int read = log.read(ie.logAddress(), dst);
         assert ie.size() == read;
         dst.limit(plim);
-
 
 
         int evOffset = dst.position() - ie.size();
