@@ -46,13 +46,13 @@ public class Log extends SegmentDirectory<LogSegment> {
     //TODO append should just go in EventStore when moving to appendMany because each entry needs its own address
     public long append(ByteBuffer data) {
         LogSegment head = head();
-        if (head.writePosition() >= logSize) {
-            roll();
-            head = head();
-        }
         int logIdx = head.segmentIdx();
         long logPos = head.append(data);
         return toSegmentedPosition(logIdx, logPos);
+    }
+
+    public boolean full() {
+        return head().writePosition() >= logSize;
     }
 
     public int segmentIdx() {
@@ -70,7 +70,7 @@ public class Log extends SegmentDirectory<LogSegment> {
         return segment.read(dst, logPos);
     }
 
-    void roll() {
+    public void roll() {
         LogSegment head = head();
         head.roll();
         createNewHead();

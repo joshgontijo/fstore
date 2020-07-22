@@ -1,5 +1,6 @@
 package io.joshworks.es;
 
+import io.joshworks.es.async.WriteEvent;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
@@ -16,16 +17,21 @@ import java.nio.charset.StandardCharsets;
  * SEQUENCE (8 BYTES)
  * TIMESTAMP (8 BYTES)
  * ATTRIBUTES (2 BYTES)
- * TYPE_LENGTH (2 BYTES)
  *
+ * TYPE_LENGTH (2 BYTES)
  * EVENT_TYPE (N BYTES)
+ *
+ * DATA_LENGTH (4 BYTES)
  * DATA (N BYTES)
+ *
+ * METADATA_LENGTH (4 BYTES)
+ * METADATA (N BYTES)
  *
  * </pre>
  */
 public class Event {
 
-    public static final int HEADER_BYTES =
+    public static final int OVERHEAD =
             Integer.BYTES +  //RECORD_SIZE
                     Long.BYTES + //STREAM_HASH
                     Integer.BYTES + //VERSION
@@ -33,7 +39,9 @@ public class Event {
                     Long.BYTES + // SEQUENCE
                     Long.BYTES + // TIMESTAMP
                     Short.BYTES + //ATTRIBUTES
-                    Short.BYTES; //TYPE_LENGTH
+                    Short.BYTES + //TYPE_LENGTH
+                    Integer.BYTES + //DATA_LENGTH
+                    Integer.BYTES; //METADATA_LENGTH
 
     private Event() {
 
@@ -96,7 +104,7 @@ public class Event {
 
     public static ByteBuffer create(long sequence, long stream, int version, String evType, ByteBuffer data, int... attr) {
         byte[] evTypeBytes = evType.getBytes(StandardCharsets.UTF_8);
-        int recSize = HEADER_BYTES + evTypeBytes.length + data.remaining();
+        int recSize = OVERHEAD + evTypeBytes.length + data.remaining();
         ByteBuffer dst = Buffers.allocate(recSize, false);
         dst.putInt(recSize);
         dst.putLong(stream);
@@ -122,7 +130,7 @@ public class Event {
     }
 
     static boolean isValid(ByteBuffer recData, int offset) {
-        if (!hasHeaderData(recData, offset)) {
+        if (!canReadRecordSize(recData, offset)) {
             return false;
         }
 
@@ -150,8 +158,8 @@ public class Event {
 
     }
 
-    private static boolean hasHeaderData(ByteBuffer recData, int offset) {
-        return Buffers.remaining(recData, offset) >= HEADER_BYTES;
+    private static boolean canReadRecordSize(ByteBuffer recData, int offset) {
+        return Buffers.remaining(recData, offset) >= Integer.BYTES;
     }
 
     private static int sizeOf(ByteBuffer data, int offset) {
@@ -183,5 +191,52 @@ public class Event {
         data.putLong(offset + STREAM_OFFSET, stream);
         writeVersion(data, offset, version);
         assert Event.isValid(data, offset);
+    }
+
+    public static int sizeOf(WriteEvent event) {
+        return OVERHEAD +
+                event.type.getBytes(StandardCharsets.UTF_8).length + //TODO better way ?
+                event.data.length +
+                event.metadata.length;
+    }
+
+    public static int serialize(WriteEvent event, long sequence, ByteBuffer dst) {
+        int recSize = sizeOf(event);
+        if (recSize > dst.remaining()) {
+            return 0;
+        }
+
+        int bpos = dst.position();
+
+        long streamHash = StreamHasher.hash(event.stream);
+
+        byte[] evTypeBytes = event.type.getBytes(StandardCharsets.UTF_8);
+        dst.putInt(recSize);
+        dst.putLong(streamHash);
+        dst.putInt(event.version);
+        dst.putInt(0); //tmp checksum
+        dst.putLong(sequence);
+        dst.putLong(System.currentTimeMillis());
+        dst.putShort(event.attributes);
+
+        //event type
+        dst.putShort((short) evTypeBytes.length);
+        dst.put(evTypeBytes);
+
+        //data
+        dst.putInt(event.data.length);
+        dst.put(event.data);
+
+        //metadata
+        dst.putInt(event.metadata.length);
+        dst.put(event.metadata);
+
+        writeChecksum(dst, bpos);
+
+        int copied = (dst.position() - bpos);
+
+        assert copied == recSize;
+        assert Event.isValid(dst, bpos);
+        return copied;
     }
 }

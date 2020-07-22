@@ -2,15 +2,13 @@ package io.joshworks.es.async;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
-public class WriteTask extends CompletableFuture<TaskResult> {
+public class WriteTask extends CompletableFuture<Void> {
 
-    final ByteBuffer data;
+    final Consumer<StoreWriter> handler;
 
-    TaskResult result;
-
-
-    public WriteTask(ByteBuffer data) {
-        this.data = data;
+    public WriteTask(Consumer<StoreWriter> handler) {
+        this.handler = handler;
     }
 }

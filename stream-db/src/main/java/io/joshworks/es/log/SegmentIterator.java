@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.util.Iterators;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
-import static io.joshworks.es.Event.HEADER_BYTES;
+import static io.joshworks.es.Event.OVERHEAD;
 
 public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> {
 
@@ -24,9 +24,9 @@ public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> 
         this.readPos = startPos;
         this.readBuffer = pool.allocate();
         this.bufferLimit = readBuffer.limit();
-        if (readBuffer.capacity() < HEADER_BYTES) {
+        if (readBuffer.capacity() < OVERHEAD) {
             pool.free(readBuffer);
-            throw new IllegalArgumentException("Read buffer must be at least " + HEADER_BYTES);
+            throw new IllegalArgumentException("Read buffer must be at least " + OVERHEAD);
         }
     }
 
@@ -62,11 +62,11 @@ public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> 
 
     private boolean hasNext(ByteBuffer record) {
         int remaining = record.remaining();
-        if (remaining < HEADER_BYTES) {
+        if (remaining < OVERHEAD) {
             return false;
         }
         int rsize = Event.sizeOf(record);
-        return rsize <= remaining && rsize > HEADER_BYTES;
+        return rsize <= remaining && rsize > OVERHEAD;
     }
 
     private void readBatch() {

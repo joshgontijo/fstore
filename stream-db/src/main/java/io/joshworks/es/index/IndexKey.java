@@ -1,11 +1,17 @@
 package io.joshworks.es.index;
 
+import io.joshworks.es.StreamHasher;
+
 public record IndexKey(long stream, int version) {
 
     public static int BYTES = Long.BYTES + Integer.BYTES;
 
     public static IndexKey maxOf(long stream) {
         return new IndexKey(stream, Integer.MAX_VALUE);
+    }
+
+    public static IndexKey of(String stream, int version) {
+        return new IndexKey(StreamHasher.hash(stream), version);
     }
 
     public static int compare(IndexKey key, long stream, int version) {

@@ -27,11 +27,11 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, bfFP, blockSize));
     }
 
-    public void append(long stream, int version, int size, long logPos) {
+    public void append(IndexEntry entry) {
         if (memTable.isFull()) {
             flush();
         }
-        memTable.put(new IndexEntry(stream, version, size, logPos));
+        memTable.put(entry);
     }
 
     public IndexEntry find(IndexKey key, IndexFunction fn) {

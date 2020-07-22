@@ -1,5 +1,7 @@
 package io.joshworks.es;
 
+import io.joshworks.es.async.WriteEvent;
+import io.joshworks.es.index.IndexKey;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
@@ -9,8 +11,8 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
-import static io.joshworks.fstore.core.io.buffers.Buffers.wrap;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -32,7 +34,7 @@ public class EventStoreTest {
 
     @Test
     public void append_get() {
-        long stream = 123;
+        String stream = "abc-123";
 
         store.append(create(stream, -1, "CREATE", "abc"));
         store.append(create(stream, -1, "UPDATE", "123"));
@@ -53,18 +55,26 @@ public class EventStoreTest {
         Threads.sleep(5000);
 
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
-        int read = store.get(stream, 0, readBuffer);
+        int read = store.get(IndexKey.of(stream, 0), readBuffer);
         readBuffer.flip();
 
 
         assertTrue(read > 0);
         assertTrue(Event.isValid(readBuffer));
-        assertEquals(stream, Event.stream(readBuffer));
+        assertEquals(StreamHasher.hash(stream), Event.stream(readBuffer));
         assertEquals(0, Event.version(readBuffer));
     }
 
-    private static ByteBuffer create(long stream, int expectedVersion, String evType, String data) {
-        return Event.create(-1, stream, expectedVersion, evType, wrap(data));
+    private static WriteEvent create(String stream, int expectedVersion, String evType, String data) {
+        WriteEvent event = new WriteEvent();
+        event.stream = stream;
+        event.expectedVersion = expectedVersion;
+        event.type = evType;
+        event.data = data.getBytes(StandardCharsets.UTF_8);
+        event.metadata = new byte[0];
+
+        return event;
+
     }
 
 //    @Test
@@ -107,46 +117,44 @@ public class EventStoreTest {
 //        assertEquals(0, Event.version(readBuffer));
 //    }
 //
-//    @Test
-//    public void append_MANY_SAME_STREAM_TEST() {
-//        long stream = 123;
-//        int items = 20000000;
-//
-//        ByteBuffer data = wrap("abc");
-//
-//        long s = System.currentTimeMillis();
-//        for (int i = 0; i < items; i++) {
-//            if (i % 500000 == 0) {
-//                System.out.println();
-//            }
-//            store.append(stream, i - 1, data.clear());
-//            if (i % 1000000 == 0) {
-//                long now = System.currentTimeMillis();
-//                System.out.println("WRITE: " + i + " -> " + (now - s));
-//                s = now;
-//            }
-//        }
-//
-//        Threads.sleep(50000);
-//
-//        ByteBuffer readBuffer = Buffers.allocate(4096, false);
-//        for (int i = 0; i < items; i++) {
-//            int read = store.get(stream, i, readBuffer.clear());
-//            readBuffer.flip();
-//
-//            assertTrue("Failed on " + i, read > 0);
-//            assertTrue(Event.isValid(readBuffer));
-//            assertEquals(stream, Event.stream(readBuffer));
-//            assertEquals(i, Event.version(readBuffer));
-//            if (i % 1000000 == 0) {
-//                long now = System.currentTimeMillis();
-//                System.out.println("READ: " + i + " -> " + (now - s));
-//                s = now;
-//            }
-//        }
-//
-//
-//    }
+    @Test
+    public void append_MANY_SAME_STREAM_TEST() {
+        String stream = "stream-1";
+        int items = 20000000;
+
+        long s = System.currentTimeMillis();
+        for (int i = 0; i < items; i++) {
+            if (i % 500000 == 0) {
+                System.out.println();
+            }
+            store.append(create(stream, i - 1, "TEST", "abc"));
+            if (i % 1000000 == 0) {
+                long now = System.currentTimeMillis();
+                System.out.println("WRITE: " + i + " -> " + (now - s));
+                s = now;
+            }
+        }
+
+        Threads.sleep(50000);
+
+        ByteBuffer readBuffer = Buffers.allocate(4096, false);
+        for (int i = 0; i < items; i++) {
+            int read = store.get(IndexKey.of(stream, i), readBuffer.clear());
+            readBuffer.flip();
+
+            assertTrue("Failed on " + i, read > 0);
+            assertTrue(Event.isValid(readBuffer));
+            assertEquals(StreamHasher.hash(stream), Event.stream(readBuffer));
+            assertEquals(i, Event.version(readBuffer));
+            if (i % 1000000 == 0) {
+                long now = System.currentTimeMillis();
+                System.out.println("READ: " + i + " -> " + (now - s));
+                s = now;
+            }
+        }
+
+
+    }
 
 
 }

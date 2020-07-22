@@ -17,7 +17,7 @@ public class IndexTest {
     private File root;
 
     @Before
-    public void setUp()  {
+    public void setUp() {
         root = TestUtils.testFolder();
         index = open();
     }
@@ -31,7 +31,7 @@ public class IndexTest {
         long stream = 123;
         int items = MAX_ENTRIES;
         for (int i = 0; i < items; i++) {
-            index.append(stream, i, 111, 222);
+            index.append(new IndexEntry(stream, i, 111, 222));
         }
 
         assertEquals(items, index.entries());
@@ -41,7 +41,7 @@ public class IndexTest {
     public void findFromMemTable() {
         long stream = 123;
         for (int i = 0; i < MAX_ENTRIES; i++) {
-            index.append(stream, i, 111, 222);
+            index.append(new IndexEntry(stream, i, 111, 222));
         }
 
         for (int i = 0; i < MAX_ENTRIES; i++) {
@@ -59,7 +59,7 @@ public class IndexTest {
     public void findFromSegment() {
         long stream = 123;
         for (int i = 0; i < MAX_ENTRIES; i++) {
-            index.append(stream, i, 111, 222);
+            index.append(new IndexEntry(stream, i, 111, 222));
         }
         index.flush();
 
@@ -78,7 +78,7 @@ public class IndexTest {
     public void reopenFind() {
         long stream = 123;
         for (int i = 0; i < MAX_ENTRIES; i++) {
-            index.append(stream, i, 111, 222);
+            index.append(new IndexEntry(stream, i, 111, 222));
         }
         index.flush();
         index.close();
@@ -102,7 +102,7 @@ public class IndexTest {
         int items = MAX_ENTRIES * segments;
 
         for (int i = 0; i < items; i++) {
-            index.append(stream, i, 111, 222);
+            index.append(new IndexEntry(stream, i, 111, 222));
         }
         index.flush();
 

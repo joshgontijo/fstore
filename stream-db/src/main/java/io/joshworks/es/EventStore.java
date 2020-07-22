@@ -1,6 +1,5 @@
 package io.joshworks.es;
 
-import io.joshworks.es.async.TaskResult;
 import io.joshworks.es.async.WriteEvent;
 import io.joshworks.es.async.WriterThread;
 import io.joshworks.es.index.Index;
@@ -12,21 +11,19 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.PriorityQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.nio.charset.StandardCharsets;
 
 public class EventStore implements IEventStore {
 
     private final Log log;
     private final Index index;
-    private final WriterThread writer;
+    private final WriterThread writerThread;
 
     public EventStore(File root, int logSize, int indexEntries, double bfFP, int blockSize) {
         this.log = new Log(root, logSize);
         this.index = new Index(root, indexEntries, bfFP, blockSize);
-        this.writer = new WriterThread(log, 10, 4096, 3000);
-        this.writer.start();
+        this.writerThread = new WriterThread(log, index, 100, 4096, 3000);
+        this.writerThread.start();
     }
 
     @Override
@@ -39,55 +36,58 @@ public class EventStore implements IEventStore {
     }
 
     @Override
-    public synchronized void linkTo(long srcStream, int srcVersion, long dstStream, int expectedVersion) {
-//        IndexEntry ie = index.find(new IndexKey(srcStream, srcVersion), IndexFunction.EQUALS);
-//        if (ie == null) {
-//            throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStream, srcVersion));
-//        }
-//        int dstVersion = fetchVersion(dstStream, expectedVersion);
-//
-//        long seq = sequence.getAndIncrement();
-//        int version = dstVersion + 1;
-//
-//        String data = IndexKey.toString(srcStream, srcVersion);
-//        ByteBuffer linkToData = Event.create(seq, dstStream, version, Buffers.wrap(data), 1); //TODO add linkto attribute
-//
-//        log.append(linkToData);
-//        index.append(dstStream, dstVersion + 1, ie.size(), ie.logAddress());
+    public synchronized void linkTo(String srcStream, int srcVersion, String dstStream, int expectedVersion) {
+        writerThread.submit(writer -> {
 
+            long srcStreamHash = StreamHasher.hash(srcStream);
+            long dstStreamHash = StreamHasher.hash(dstStream);
+
+            IndexEntry ie = writer.findEquals(new IndexKey(srcStreamHash, srcVersion));
+            if (ie == null) {
+                throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStreamHash, srcVersion));
+            }
+            int dstVersion = writer.nextVersion(dstStreamHash, expectedVersion);
+
+            WriteEvent linkToEvent = createLinkToEvent(srcVersion, dstStream, expectedVersion, srcStreamHash);
+
+            long logAddress = writer.appendToLog(linkToEvent);
+            int eventSize = Event.sizeOf(linkToEvent);
+
+            writer.adToIndex(new IndexEntry(dstStreamHash, dstVersion, eventSize, logAddress));
+        });
     }
 
-    private final ExecutorService indexer = Executors.newSingleThreadExecutor();
-
-    @Override
-    public synchronized void append(WriteEvent event) {
-        long stream = StreamHasher.hash(event.stream);
-        int expectedVersion = event.expectedVersion;
-        event.version = fetchVersion(stream, expectedVersion) + 1;
-
-
-        var future = writer.submit(event)
-                .thenAcceptAsync(this::writeToIndex, indexer);
-
-
-    }
-
-    private void writeToIndex(TaskResult result) {
-        System.out.println(result);
-        index.append(result.stream(), result.version(), result.size(), result.logAddress());
-    }
-
-    private int fetchVersion(long stream, int expectedVersion) {
-        int streamVersion = version(stream);
-        if (expectedVersion >= 0 && expectedVersion != streamVersion) {
-            throw new IllegalStateException("Version mismatch, expected " + expectedVersion + " got: " + streamVersion);
-        }
-        return streamVersion;
+    private WriteEvent createLinkToEvent(int srcVersion, String dstStream, int expectedVersion, long srcStreamHash) {
+        WriteEvent linktoEv = new WriteEvent();
+        linktoEv.stream = dstStream;
+        linktoEv.type = "LINK_TO";
+        linktoEv.timestamp = System.currentTimeMillis();
+        linktoEv.expectedVersion = expectedVersion;
+        linktoEv.metadata = new byte[0];
+        linktoEv.data = IndexKey.toString(srcStreamHash, srcVersion).getBytes(StandardCharsets.UTF_8);
+        //TODO add linkTo attribute ?
+        return linktoEv;
     }
 
     @Override
-    public int get(long stream, int version, ByteBuffer dst) {
-        IndexEntry ie = index.find(new IndexKey(stream, version), IndexFunction.EQUALS);
+    public void append(WriteEvent event) {
+        var result = writerThread.submit(writer -> {
+            long stream = StreamHasher.hash(event.stream);
+            int version = writer.nextVersion(stream, event.expectedVersion);
+            event.version = version;
+
+            //this is critical, event size must be always the same otherwise logPos will be wrong
+            int eventSize = Event.sizeOf(event);
+            long logAddress = writer.appendToLog(event);
+            writer.adToIndex(new IndexEntry(stream, version, eventSize, logAddress));
+        });
+
+    }
+
+
+    @Override
+    public int get(IndexKey key, ByteBuffer dst) {
+        IndexEntry ie = index.find(key, IndexFunction.EQUALS);
         if (ie == null) {
             return 0;
         }
@@ -104,7 +104,7 @@ public class EventStore implements IEventStore {
 
 
         int evOffset = dst.position() - ie.size();
-        Event.rewrite(dst, evOffset, stream, version);
+        Event.rewrite(dst, evOffset, key.stream(), key.version());
 
         return read;
     }

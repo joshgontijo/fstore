@@ -1,10 +1,8 @@
 package io.joshworks.es.async;
 
-import io.joshworks.es.Event;
+import io.joshworks.es.index.Index;
 import io.joshworks.es.log.Log;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -12,33 +10,29 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 public class WriterThread {
 
     private final Thread thread = new Thread(this::process, "writer");
-    private final BlockingQueue<WriteTask> tasks = new ArrayBlockingQueue<>(100);
     private final AtomicBoolean closed = new AtomicBoolean();
 
-    private final Log log;
-    private final ByteBuffer writeBuffer;
+    private final BlockingQueue<WriteTask> tasks;
+    private final List<WriteTask> staging;
+
     private final long poolWait;
-    private final int maxEntries;
-    private final List<WriteTask> processing = new ArrayList<>();
+    private final StoreWriter writer;
 
-    private final AtomicLong sequence = new AtomicLong();
-
-
-    public WriterThread(Log log, int maxEntries, int bufferSize, long poolWait) {
-        this.log = log;
-        this.maxEntries = maxEntries;
-        this.writeBuffer = ByteBuffer.allocate(bufferSize);
+    public WriterThread(Log log, Index index, int maxEntries, int bufferSize, long poolWait) {
         this.poolWait = poolWait;
+        this.writer = new StoreWriter(log, index, maxEntries, bufferSize);
+        this.tasks = new ArrayBlockingQueue<>(maxEntries);
+        this.staging = new ArrayList<>(maxEntries);
     }
 
-    public CompletableFuture<TaskResult> submit(ByteBuffer rec) {
+    public CompletableFuture<Void> submit(Consumer<StoreWriter> handler) {
         try {
-            WriteTask task = new WriteTask(rec);
+            WriteTask task = new WriteTask(handler);
             tasks.put(task);
             return task;
         } catch (InterruptedException e) {
@@ -54,73 +48,49 @@ public class WriterThread {
                     continue;
                 }
 
-                long seq = sequence.get();
-                int segIdx = log.segmentIdx();
-                long logPos = log.segmentPosition();
                 do {
-                    ByteBuffer data = task.data;
-
-                    int eventSize = Event.sizeOf(data);
-                    long stream = Event.stream(data);
-                    int version = Event.version(data);
-                    Event.writeSequence(data, data.position(), seq);
-                    Event.writeChecksum(data, data.position());
-
-                    if (eventSize > writeBuffer.capacity()) {
-                        System.err.println("Event too large");
+                    try {
+                        //TODO pass handler to writer or something so it can report completion
+                        writer.prepare();
+                        task.handler.accept(writer);
+                        writer.complete();
+                        staging.add(task);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        writer.rollback();
+                        task.completeExceptionally(e);
                     }
-                    if (eventSize > writeBuffer.remaining() || processing.size() >= maxEntries) {
-                        write(seq);
-                        segIdx = log.segmentIdx();
-                        logPos = log.segmentPosition();
+                    if (writer.isFull()) {
+                        commit();
                     }
-                    int copied = Buffers.copy(data, writeBuffer);
-                    assert copied == eventSize;
-                    task.result = prepare(seq, segIdx, logPos, eventSize, stream, version);
-
-                    logPos += eventSize;
-                    seq++;
-
-                    processing.add(task);
-
-                    task = tasks.poll(poolWait, TimeUnit.MILLISECONDS);
+                    task = poolNext();
 
                 } while (task != null);
 
-                if (!processing.isEmpty()) {
-                    write(seq);
+                if (!writer.isEmpty()) {
+                    commit();
                 }
-
             } catch (Exception e) {
                 e.printStackTrace();
                 closed.set(true);
             }
-
-            System.out.println("Write thread closed");
-
         }
+        System.out.println("Write thread closed");
     }
 
-    private TaskResult prepare(long seq, int segIdx, long logPos, int eventSize, long stream, int version) {
-        long logAddress = Log.toSegmentedPosition(segIdx, logPos);
-        return new TaskResult(logAddress, eventSize, stream, version, seq);
-    }
-
-    private void write(long seq) {
-        writeBuffer.flip();
-        log.append(writeBuffer);
-        writeBuffer.compact();
-        sequence.set(seq);
-        complete();
-    }
-
-    private void complete() {
-        System.out.println("Completing: " + processing.size() + " tasks");
-        for (WriteTask task : processing) {
-            task.complete(task.result);
+    private WriteTask poolNext() throws InterruptedException {
+        if (poolWait <= 0) {
+            return tasks.poll();
         }
-        processing.clear();
+        return tasks.poll(poolWait, TimeUnit.MILLISECONDS);
+    }
 
+    private void commit() {
+        writer.commit();
+        for (WriteTask task : staging) {
+            task.complete(null);
+        }
+        staging.clear();
     }
 
     public void start() {
@@ -128,6 +98,7 @@ public class WriterThread {
     }
 
     public void shutdown() {
+        commit();
         closed.set(true);
     }
 
