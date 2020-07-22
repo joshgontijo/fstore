@@ -17,6 +17,13 @@ public class QueryPlanner {
     private List<ReadChunk> chunks;
 
     public boolean prepare(Index index, IndexKey key, int maxEntries, int maxBytes) {
+        if (maxEntries <= 0) {
+            throw new IllegalArgumentException("Entry must be greater than zero");
+        }
+        if (maxBytes <= 0) {
+            throw new IllegalArgumentException("Max bytes must be greater than zero");
+        }
+
         List<IndexEntry> entries = readKeys(index, key, maxEntries);
 
         if (entries.isEmpty()) {
