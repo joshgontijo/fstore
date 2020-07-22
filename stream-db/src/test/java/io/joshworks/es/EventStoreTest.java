@@ -19,7 +19,7 @@ import static org.junit.Assert.assertTrue;
 public class EventStoreTest {
 
     public static final int MEMTABLE_SIZE = 500000;
-    private IEventStore store;
+    private EventStore store;
     private File root;
 
     @Before
@@ -28,7 +28,7 @@ public class EventStoreTest {
         store = open();
     }
 
-    private IEventStore open() {
+    private EventStore open() {
         return new EventStore(root, Size.MB.ofInt(100), MEMTABLE_SIZE, 0.1, 4096);
     }
 
@@ -135,7 +135,7 @@ public class EventStoreTest {
             }
         }
 
-        Threads.sleep(50000);
+        Threads.sleep(5000);
 
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
         for (int i = 0; i < items; i++) {

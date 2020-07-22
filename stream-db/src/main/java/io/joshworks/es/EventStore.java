@@ -13,7 +13,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public class EventStore implements IEventStore {
+public class EventStore {
 
     private final Log log;
     private final Index index;
@@ -26,7 +26,6 @@ public class EventStore implements IEventStore {
         this.writerThread.start();
     }
 
-    @Override
     public int version(long stream) {
         IndexEntry ie = index.find(IndexKey.maxOf(stream), IndexFunction.FLOOR);
         if (ie == null || ie.stream() != stream) {
@@ -35,7 +34,6 @@ public class EventStore implements IEventStore {
         return ie.version();
     }
 
-    @Override
     public synchronized void linkTo(String srcStream, int srcVersion, String dstStream, int expectedVersion) {
         writerThread.submit(writer -> {
 
@@ -69,7 +67,6 @@ public class EventStore implements IEventStore {
         return linktoEv;
     }
 
-    @Override
     public void append(WriteEvent event) {
         var result = writerThread.submit(writer -> {
             long stream = StreamHasher.hash(event.stream);
@@ -84,8 +81,6 @@ public class EventStore implements IEventStore {
 
     }
 
-
-    @Override
     public int get(IndexKey key, ByteBuffer dst) {
         IndexEntry ie = index.find(key, IndexFunction.EQUALS);
         if (ie == null) {
