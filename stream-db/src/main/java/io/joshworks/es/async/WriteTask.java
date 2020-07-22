@@ -7,6 +7,9 @@ public class WriteTask extends CompletableFuture<TaskResult> {
 
     final ByteBuffer data;
 
+    TaskResult result;
+
+
     public WriteTask(ByteBuffer data) {
         this.data = data;
     }

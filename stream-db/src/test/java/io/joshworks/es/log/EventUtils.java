@@ -9,7 +9,7 @@ public class EventUtils {
 
     public static ByteBuffer create(long sequence, long stream, int version, String data) {
         byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
-        return Event.create(sequence, stream, version, ByteBuffer.wrap(bytes));
+        return Event.create(sequence, stream, version, "TODO", ByteBuffer.wrap(bytes));
     }
 
 }

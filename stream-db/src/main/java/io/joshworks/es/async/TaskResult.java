@@ -1,12 +1,10 @@
 package io.joshworks.es.async;
 
-public class TaskResult {
+public record TaskResult(
+        long logAddress,
+        int size,
+        long stream,
+        int version,
+        long sequence) {
 
-    private final boolean success;
-    private final String message;
-
-    public TaskResult(boolean success, String message) {
-        this.success = success;
-        this.message = message;
-    }
 }

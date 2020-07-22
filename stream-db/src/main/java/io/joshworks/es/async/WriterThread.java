@@ -1,13 +1,12 @@
 package io.joshworks.es.async;
 
 import io.joshworks.es.Event;
-import io.joshworks.es.StreamHasher;
-import io.joshworks.es.index.Index;
 import io.joshworks.es.log.Log;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -22,24 +21,18 @@ public class WriterThread {
     private final AtomicBoolean closed = new AtomicBoolean();
 
     private final Log log;
-    private final Index index;
     private final ByteBuffer writeBuffer;
-    private final long[] logPositions;
-    private final WriteTask[] processingTasks;
     private final long poolWait;
     private final int maxEntries;
-    private int entries;
+    private final List<WriteTask> processing = new ArrayList<>();
 
     private final AtomicLong sequence = new AtomicLong();
 
 
-    public WriterThread(Log log, Index index, int maxEntries, int bufferSize, long poolWait) {
+    public WriterThread(Log log, int maxEntries, int bufferSize, long poolWait) {
         this.log = log;
-        this.index = index;
         this.maxEntries = maxEntries;
         this.writeBuffer = ByteBuffer.allocate(bufferSize);
-        this.logPositions = new long[maxEntries];
-        this.processingTasks = new WriteTask[maxEntries];
         this.poolWait = poolWait;
     }
 
@@ -68,50 +61,70 @@ public class WriterThread {
                     ByteBuffer data = task.data;
 
                     int eventSize = Event.sizeOf(data);
+                    long stream = Event.stream(data);
+                    int version = Event.version(data);
+                    Event.writeSequence(data, data.position(), seq);
+                    Event.writeChecksum(data, data.position());
+
                     if (eventSize > writeBuffer.capacity()) {
                         System.err.println("Event too large");
                     }
-                    if (eventSize > writeBuffer.remaining() || entries >= maxEntries) {
-                        writeBuffer.flip();
-                        long logPos = log.append(eventData);
-
-                        entries = 0;
-
-                        Arrays.fill(logPositions, 0);
-                        Arrays.fill(processingTasks, null);
+                    if (eventSize > writeBuffer.remaining() || processing.size() >= maxEntries) {
+                        write(seq);
+                        segIdx = log.segmentIdx();
+                        logPos = log.segmentPosition();
                     }
-                    Buffers.copy(data, writeBuffer);
-                    logPositions[entries] = Log.toSegmentedPosition(segIdx, logPos);
-                    entries++;
+                    int copied = Buffers.copy(data, writeBuffer);
+                    assert copied == eventSize;
+                    task.result = prepare(seq, segIdx, logPos, eventSize, stream, version);
+
                     logPos += eventSize;
+                    seq++;
 
-
-                    index.append(stream, version, eventSize, logPos);
+                    processing.add(task);
 
                     task = tasks.poll(poolWait, TimeUnit.MILLISECONDS);
 
                 } while (task != null);
 
-
-                writeBuffer.flip();
-                log.append(writeBuffer);
-                task.complete(new TaskResult(true, "completed"));
+                if (!processing.isEmpty()) {
+                    write(seq);
+                }
 
             } catch (Exception e) {
                 e.printStackTrace();
                 closed.set(true);
             }
+
+            System.out.println("Write thread closed");
+
         }
     }
 
-    private void serialize(WriteEvent rec) {
-        long seq = sequence.incrementAndGet();
-        ByteBuffer evData = Event.create(seq, StreamHasher.hash(rec.stream), rec.version, ByteBuffer.wrap(rec.data));
-        Buffers.copy(evData, writeBuffer);
+    private TaskResult prepare(long seq, int segIdx, long logPos, int eventSize, long stream, int version) {
+        long logAddress = Log.toSegmentedPosition(segIdx, logPos);
+        return new TaskResult(logAddress, eventSize, stream, version, seq);
+    }
+
+    private void write(long seq) {
+        writeBuffer.flip();
+        log.append(writeBuffer);
+        writeBuffer.compact();
+        sequence.set(seq);
+        complete();
+    }
+
+    private void complete() {
+        System.out.println("Completing: " + processing.size() + " tasks");
+        for (WriteTask task : processing) {
+            task.complete(task.result);
+        }
+        processing.clear();
+
     }
 
     public void start() {
-
+        thread.start();
     }
 
     public void shutdown() {

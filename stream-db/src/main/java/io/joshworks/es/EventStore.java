@@ -1,5 +1,7 @@
 package io.joshworks.es;
 
+import io.joshworks.es.async.TaskResult;
+import io.joshworks.es.async.WriteEvent;
 import io.joshworks.es.async.WriterThread;
 import io.joshworks.es.index.Index;
 import io.joshworks.es.index.IndexEntry;
@@ -10,22 +12,24 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.PriorityQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-public class EventStore {
+public class EventStore implements IEventStore {
 
     private final Log log;
     private final Index index;
     private final WriterThread writer;
 
-    private final AtomicLong sequence = new AtomicLong();
-
     public EventStore(File root, int logSize, int indexEntries, double bfFP, int blockSize) {
         this.log = new Log(root, logSize);
         this.index = new Index(root, indexEntries, bfFP, blockSize);
-        this.writer = new WriterThread(log);
+        this.writer = new WriterThread(log, 10, 4096, 3000);
+        this.writer.start();
     }
 
+    @Override
     public int version(long stream) {
         IndexEntry ie = index.find(IndexKey.maxOf(stream), IndexFunction.FLOOR);
         if (ie == null || ie.stream() != stream) {
@@ -34,41 +38,44 @@ public class EventStore {
         return ie.version();
     }
 
+    @Override
     public synchronized void linkTo(long srcStream, int srcVersion, long dstStream, int expectedVersion) {
-        IndexEntry ie = index.find(new IndexKey(srcStream, srcVersion), IndexFunction.EQUALS);
-        if (ie == null) {
-            throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStream, srcVersion));
-        }
-        int dstVersion = fetchVersion(dstStream, expectedVersion);
-
-        long seq = sequence.getAndIncrement();
-        int version = dstVersion + 1;
-
-        String data = IndexKey.toString(srcStream, srcVersion);
-        ByteBuffer linkToData = Event.create(seq, dstStream, version, Buffers.wrap(data), 1); //TODO add linkto attribute
-
-        log.append(linkToData);
-        index.append(dstStream, dstVersion + 1, ie.size(), ie.logAddress());
-
-    }
-
-
-    public synchronized void append(ByteBuffer event) {
-        assert Event.isValid(event);
-        long stream = Event.stream(event);
-        int expectedVersion = Event.version(event); //version is used to denote 'expected version'
-        int streamVersion = fetchVersion(stream, expectedVersion);
-        Event.writeVersion(event, event.position(), streamVersion);
-
-        var future = writer.submit(event);
-
-
-        long seq = sequence.getAndIncrement();
-        int version = streamVersion + 1;
-
+//        IndexEntry ie = index.find(new IndexKey(srcStream, srcVersion), IndexFunction.EQUALS);
+//        if (ie == null) {
+//            throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStream, srcVersion));
+//        }
+//        int dstVersion = fetchVersion(dstStream, expectedVersion);
+//
+//        long seq = sequence.getAndIncrement();
+//        int version = dstVersion + 1;
+//
+//        String data = IndexKey.toString(srcStream, srcVersion);
+//        ByteBuffer linkToData = Event.create(seq, dstStream, version, Buffers.wrap(data), 1); //TODO add linkto attribute
+//
+//        log.append(linkToData);
+//        index.append(dstStream, dstVersion + 1, ie.size(), ie.logAddress());
 
     }
 
+    private final ExecutorService indexer = Executors.newSingleThreadExecutor();
+
+    @Override
+    public synchronized void append(WriteEvent event) {
+        long stream = StreamHasher.hash(event.stream);
+        int expectedVersion = event.expectedVersion;
+        event.version = fetchVersion(stream, expectedVersion) + 1;
+
+
+        var future = writer.submit(event)
+                .thenAcceptAsync(this::writeToIndex, indexer);
+
+
+    }
+
+    private void writeToIndex(TaskResult result) {
+        System.out.println(result);
+        index.append(result.stream(), result.version(), result.size(), result.logAddress());
+    }
 
     private int fetchVersion(long stream, int expectedVersion) {
         int streamVersion = version(stream);
@@ -78,6 +85,7 @@ public class EventStore {
         return streamVersion;
     }
 
+    @Override
     public int get(long stream, int version, ByteBuffer dst) {
         IndexEntry ie = index.find(new IndexKey(stream, version), IndexFunction.EQUALS);
         if (ie == null) {

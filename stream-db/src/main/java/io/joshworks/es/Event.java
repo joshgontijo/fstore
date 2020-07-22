@@ -4,9 +4,11 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * <pre>
+ *
  * RECORD_SIZE (4 BYTES)
  * STREAM_HASH (8 BYTES)
  * VERSION (4 BYTES)
@@ -15,15 +17,17 @@ import java.nio.ByteBuffer;
  * TIMESTAMP (8 BYTES)
  * ATTRIBUTES (2 BYTES)
  * TYPE_LENGTH (2 BYTES)
+ *
  * EVENT_TYPE (N BYTES)
  * DATA (N BYTES)
+ *
  * </pre>
  */
 public class Event {
 
     public static final int HEADER_BYTES =
             Integer.BYTES +  //RECORD_SIZE
-                    Long.BYTES + //STREAM
+                    Long.BYTES + //STREAM_HASH
                     Integer.BYTES + //VERSION
                     Integer.BYTES +  //CHECKSUM
                     Long.BYTES + // SEQUENCE
@@ -35,14 +39,14 @@ public class Event {
 
     }
 
-    private static int SIZE_OFFSET = 0;
-    private static int STREAM_OFFSET = SIZE_OFFSET + Integer.BYTES;
-    private static int VERSION_OFFSET = STREAM_OFFSET + Long.BYTES;
-    private static int CHECKSUM_OFFSET = VERSION_OFFSET + Integer.BYTES;
-    private static int SEQUENCE_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
-    private static int TIMESTAMP_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
-    private static int ATTRIBUTES_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
-    private static int TYPE_LENGTH_OFFSET = ATTRIBUTES_OFFSET + Short.BYTES;
+    private static final int SIZE_OFFSET = 0;
+    private static final int STREAM_OFFSET = SIZE_OFFSET + Integer.BYTES;
+    private static final int VERSION_OFFSET = STREAM_OFFSET + Long.BYTES;
+    private static final int CHECKSUM_OFFSET = VERSION_OFFSET + Integer.BYTES;
+    private static final int SEQUENCE_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
+    private static final int TIMESTAMP_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
+    private static final int ATTRIBUTES_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
+    private static final int TYPE_LENGTH_OFFSET = ATTRIBUTES_OFFSET + Short.BYTES;
 
     public static int sizeOf(ByteBuffer data) {
         return sizeOf(data, data.position());
@@ -65,7 +69,11 @@ public class Event {
     }
 
     public static int checksum(ByteBuffer data) {
-        return data.getInt(data.position() + CHECKSUM_OFFSET);
+        return checksum(data, data.position());
+    }
+
+    public static int checksum(ByteBuffer data, int offset) {
+        return data.getInt(offset + CHECKSUM_OFFSET);
     }
 
     public static boolean hasAttribute(ByteBuffer data, int attribute) {
@@ -86,8 +94,9 @@ public class Event {
     }
 
 
-    public static ByteBuffer create(long sequence, long stream, int version, ByteBuffer data, int... attr) {
-        int recSize = HEADER_BYTES + data.remaining();
+    public static ByteBuffer create(long sequence, long stream, int version, String evType, ByteBuffer data, int... attr) {
+        byte[] evTypeBytes = evType.getBytes(StandardCharsets.UTF_8);
+        int recSize = HEADER_BYTES + evTypeBytes.length + data.remaining();
         ByteBuffer dst = Buffers.allocate(recSize, false);
         dst.putInt(recSize);
         dst.putLong(stream);
@@ -96,11 +105,11 @@ public class Event {
         dst.putLong(sequence);
         dst.putLong(System.currentTimeMillis());
         dst.putShort(attribute(attr));
+        dst.putShort((short) evTypeBytes.length);
+        dst.put(evTypeBytes);
         Buffers.copy(data, dst);
 
-        int checksumStart = SEQUENCE_OFFSET;
-        int checksum = ByteBufferChecksum.crc32(dst, checksumStart, recSize - checksumStart);
-        dst.putInt(CHECKSUM_OFFSET, checksum);
+        writeChecksum(dst, 0);
 
         dst.flip();
         assert dst.remaining() == recSize;
@@ -122,13 +131,23 @@ public class Event {
             return false;
         }
 
-        int chksOffset = offset + SEQUENCE_OFFSET; //from TIMESTAMP
-        int chksLen = recSize - (chksOffset);
-
-        int checksum = recData.getInt(offset + CHECKSUM_OFFSET);
-        int computed = ByteBufferChecksum.crc32(recData, chksOffset, chksLen);
+        int checksum = checksum(recData, offset);
+        int computed = computeChecksum(recData, offset, recSize);
 
         return computed == checksum;
+    }
+
+    private static int computeChecksum(ByteBuffer data, int offset, int recSize) {
+        int chksOffset = offset + SEQUENCE_OFFSET;
+        int chksLen = recSize - (chksOffset - offset);
+        return ByteBufferChecksum.crc32(data, chksOffset, chksLen);
+    }
+
+    public static void writeChecksum(ByteBuffer data, int offset) {
+        int recSize = Event.sizeOf(data, offset);
+        int checksum = computeChecksum(data, offset, recSize);
+        data.putInt(offset + CHECKSUM_OFFSET, checksum);
+
     }
 
     private static boolean hasHeaderData(ByteBuffer recData, int offset) {
