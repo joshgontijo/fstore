@@ -7,7 +7,6 @@ import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;
 import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.log.Log;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -22,7 +21,7 @@ public class EventStore {
     public EventStore(File root, int logSize, int indexEntries, double bfFP, int blockSize) {
         this.log = new Log(root, logSize);
         this.index = new Index(root, indexEntries, bfFP, blockSize);
-        this.writerThread = new WriterThread(log, index, 100, 4096, 3000);
+        this.writerThread = new WriterThread(log, index, 100, 4096, 100);
         this.writerThread.start();
     }
 
@@ -81,28 +80,15 @@ public class EventStore {
 
     }
 
-    public int get(IndexKey key, ByteBuffer dst) {
-        IndexEntry ie = index.find(key, IndexFunction.EQUALS);
-        if (ie == null) {
+    public int get(IndexKey key, int count, ByteBuffer dst) {
+
+        QueryPlanner planner = new QueryPlanner();
+        boolean success = planner.prepare(index, key, count, dst.remaining());
+        if (!success) {
             return 0;
         }
 
-        if (dst.remaining() < ie.size()) {
-            throw new IllegalArgumentException("Not enough destination buffer space");
-        }
-
-        int plim = dst.limit();
-        Buffers.offsetLimit(dst, ie.size());
-        int read = log.read(ie.logAddress(), dst);
-        assert ie.size() == read;
-        dst.limit(plim);
-
-
-        int evOffset = dst.position() - ie.size();
-        Event.rewrite(dst, evOffset, key.stream(), key.version());
-
-        return read;
+        return planner.execute(log, dst);
     }
-
 
 }

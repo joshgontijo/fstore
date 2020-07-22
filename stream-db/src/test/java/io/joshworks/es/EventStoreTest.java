@@ -43,26 +43,24 @@ public class EventStoreTest {
         store.append(create(stream, -1, "UPDATE", "123"));
         store.append(create(stream, -1, "UPDATE", "123"));
 
-        Threads.sleep(5000);
+        Threads.sleep(2000);
 
-        store.append(create(stream, -1, "CREATE", "abc"));
-        store.append(create(stream, -1, "UPDATE", "123"));
-        store.append(create(stream, -1, "UPDATE", "123"));
-        store.append(create(stream, -1, "UPDATE", "123"));
-        store.append(create(stream, -1, "UPDATE", "123"));
-        store.append(create(stream, -1, "UPDATE", "123"));
-
-        Threads.sleep(5000);
 
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
-        int read = store.get(IndexKey.of(stream, 0), readBuffer);
+        int read = store.get(IndexKey.of(stream, 0), 10, readBuffer);
         readBuffer.flip();
 
+        while (Event.isValid(readBuffer)) {
+            int size = Event.sizeOf(readBuffer);
+            assertTrue(read > 0);
+            assertTrue(Event.isValid(readBuffer));
+            assertEquals(StreamHasher.hash(stream), Event.stream(readBuffer));
+            assertEquals(0, Event.version(readBuffer));
 
-        assertTrue(read > 0);
-        assertTrue(Event.isValid(readBuffer));
-        assertEquals(StreamHasher.hash(stream), Event.stream(readBuffer));
-        assertEquals(0, Event.version(readBuffer));
+            Buffers.offsetPosition(readBuffer, size);
+        }
+
+
     }
 
     private static WriteEvent create(String stream, int expectedVersion, String evType, String data) {
@@ -77,7 +75,7 @@ public class EventStoreTest {
 
     }
 
-//    @Test
+    //    @Test
 //    public void append_expected_version() {
 //        long stream = 123;
 //        int entries = (int) (MEMTABLE_SIZE * 1.5);
@@ -120,7 +118,7 @@ public class EventStoreTest {
     @Test
     public void append_MANY_SAME_STREAM_TEST() {
         String stream = "stream-1";
-        int items = 20000000;
+        int items = 30000000;
 
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
@@ -136,23 +134,34 @@ public class EventStoreTest {
         }
 
         Threads.sleep(5000);
+        s = System.currentTimeMillis();
 
+
+        int totalItems = 0;
+        int read;
+        int lastReadVersion = -1;
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
-        for (int i = 0; i < items; i++) {
-            int read = store.get(IndexKey.of(stream, i), readBuffer.clear());
+        do {
+            readBuffer.clear();
+            read = store.get(IndexKey.of(stream, lastReadVersion + 1), 10, readBuffer);
             readBuffer.flip();
 
-            assertTrue("Failed on " + i, read > 0);
-            assertTrue(Event.isValid(readBuffer));
-            assertEquals(StreamHasher.hash(stream), Event.stream(readBuffer));
-            assertEquals(i, Event.version(readBuffer));
-            if (i % 1000000 == 0) {
-                long now = System.currentTimeMillis();
-                System.out.println("READ: " + i + " -> " + (now - s));
-                s = now;
-            }
-        }
+            while (Event.isValid(readBuffer)) {
+                int size = Event.sizeOf(readBuffer);
+                assertTrue(Event.isValid(readBuffer));
+                assertEquals(StreamHasher.hash(stream), Event.stream(readBuffer));
+                assertEquals(lastReadVersion + 1, Event.version(readBuffer));
+                lastReadVersion++;
+                totalItems++;
+                Buffers.offsetPosition(readBuffer, size);
 
+                if (totalItems % 1000000 == 0) {
+                    long now = System.currentTimeMillis();
+                    System.out.println("READ: " + totalItems + " -> " + (now - s));
+                    s = now;
+                }
+            }
+        } while (read > 0);
 
     }
 

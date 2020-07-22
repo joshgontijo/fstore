@@ -162,7 +162,7 @@ public class Event {
         return Buffers.remaining(recData, offset) >= Integer.BYTES;
     }
 
-    private static int sizeOf(ByteBuffer data, int offset) {
+    public static int sizeOf(ByteBuffer data, int offset) {
         return data.getInt(offset + SIZE_OFFSET);
     }
 
