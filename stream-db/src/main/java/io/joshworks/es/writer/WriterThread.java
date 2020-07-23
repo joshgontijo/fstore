@@ -1,4 +1,4 @@
-package io.joshworks.es.async;
+package io.joshworks.es.writer;
 
 import io.joshworks.es.index.Index;
 import io.joshworks.es.log.Log;

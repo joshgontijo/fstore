@@ -1,7 +1,7 @@
 package io.joshworks.es;
 
-import io.joshworks.es.async.WriteEvent;
-import io.joshworks.es.async.WriterThread;
+import io.joshworks.es.writer.WriteEvent;
+import io.joshworks.es.writer.WriterThread;
 import io.joshworks.es.index.Index;
 import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;

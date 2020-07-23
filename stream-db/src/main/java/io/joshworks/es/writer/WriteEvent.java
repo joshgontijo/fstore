@@ -1,4 +1,4 @@
-package io.joshworks.es.async;
+package io.joshworks.es.writer;
 
 public class WriteEvent {
 

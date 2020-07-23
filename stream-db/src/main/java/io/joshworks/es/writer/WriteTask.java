@@ -1,6 +1,5 @@
-package io.joshworks.es.async;
+package io.joshworks.es.writer;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 

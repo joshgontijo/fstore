@@ -1,4 +1,4 @@
-package io.joshworks.es.async;
+package io.joshworks.es.writer;
 
 import io.joshworks.es.Event;
 import io.joshworks.es.index.Index;
