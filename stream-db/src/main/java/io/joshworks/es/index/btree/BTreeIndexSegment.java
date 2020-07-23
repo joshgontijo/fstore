@@ -10,10 +10,9 @@ import io.joshworks.fstore.core.io.mmap.MappedFile;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -28,9 +27,7 @@ public class BTreeIndexSegment implements IndexSegment {
     private Block root;
 
     //write path
-    private final Map<Integer, Block> nodeBlocks = new HashMap<>();
-    private int blocks;
-    private int depth;
+    private final List<Block> nodeBlocks = new ArrayList<>();
 
     public BTreeIndexSegment(File file, long numEntries, int blockSize) {
         this.blockSize = blockSize;
@@ -74,18 +71,19 @@ public class BTreeIndexSegment implements IndexSegment {
             writeNode(parent);
             parent.addLink(node, idx);
         }
-        blocks++;
     }
 
-    //write not without linking node to the parent, used only for root
+    //write not without linking node to the parent, used only for root when completig segment
     public void writeNodeFinal(Block node) {
         int idx = node.writeTo(mf);
-        blocks++;
     }
 
 
     private Block getOrAllocate(int level) {
-        return nodeBlocks.compute(level, (k, v) -> v == null ? new Block(blockSize, k) : v);
+        if (level >= nodeBlocks.size()) {
+            nodeBlocks.add(level, new Block(blockSize, level));
+        }
+        return nodeBlocks.get(level);
     }
 
     @Override
@@ -100,8 +98,8 @@ public class BTreeIndexSegment implements IndexSegment {
                 if (i == -1) {
                     return null;
                 }
-                long stream = block.stream(i);
-                int version = block.version(i);
+//                long stream = block.stream(i);
+//                int version = block.version(i);
                 int blockIdx = block.blockIndex(i);
                 block = loadBlock(blockIdx);
             } else { //leaf node
@@ -162,45 +160,35 @@ public class BTreeIndexSegment implements IndexSegment {
      */
     @Override
     public void complete() {
-        //higher levels will always be at the end
-        //root will always be last
-        nodeBlocks.values()
-                .stream()
-                .filter(Block::hasData)
-                .sorted(Comparator.comparingInt(Block::level))
-                .forEach(this::writeNode);
-
-
-        //FIXME logic is wrong, root can still create another root without needing it
-        //FIXME after writing all nodes, a new root can still be created
-        //FIXME total segment size is still broken
-        List<Block> nodes;
-        do {
-            nodes = getRemainingNodes();
-            if (nodes.size() == 1) { //root node, write without creating a parent
-                Block root = nodes.get(0);
-                writeNodeFinal(root);
-                break; //done
+        //flush remaining nodes
+        for (int i = 0; i < nodeBlocks.size() - 1; i++) {
+            Block block = nodeBlocks.get(i);
+            if (block.hasData()) {
+                writeNode(block);
             }
-            for (Block node : nodes) {
-                writeNode(node);
-            }
-        } while (!nodes.isEmpty());
+        }
+        //flush root
+        Block root = nodeBlocks.get(nodeBlocks.size() - 1);
+        if (root.hasData()) {
+            writeNodeFinal(root);
+        }
 
-        assert getRemainingNodes().isEmpty() : "Not all nodes were flushed";
+        for (Block block : nodeBlocks) {
+            assert !block.hasData();
+        }
+
+        assert mf.position() == mf.capacity() : "Block count was not correct";
 
         mf.flush();
-//        filter.flush();
         truncate();
         readOnly.set(true);
         this.root = readRoot();
         nodeBlocks.clear();
     }
 
-    private List<Block> getRemainingNodes() {
-        return nodeBlocks.values()
+    private List<Block> sortedNodes() {
+        return nodeBlocks
                 .stream()
-                .filter(Block::hasData)
                 .sorted(Comparator.comparingInt(Block::level))
                 .collect(Collectors.toList());
     }
@@ -215,24 +203,29 @@ public class BTreeIndexSegment implements IndexSegment {
     }
 
     private long align(long maxEntries, int blockSize) {
-        int leafBlocks = numberOfBlocks(maxEntries, blockSize, Block.LEAF_ENTRY_BYTES);
+        List<Long> levelAllocations = new ArrayList<>();
+        int totalBlocks = 0;
+        long lastLevelItems = maxEntries;
+        int level = 0;
+        do {
+            lastLevelItems = numberOfNodesPerLevel(lastLevelItems, level, blockSize);
+            levelAllocations.add(lastLevelItems);
+            level++;
+            totalBlocks += lastLevelItems;
+        } while (lastLevelItems > 1);
 
-        int internalBlocks = numberOfBlocks(leafBlocks, blockSize, Block.INTERNAL_ENTRY_BYTES);
+        assert lastLevelItems == 1 : "Root must always have one node";
 
-        int totalNumberOfBlocks = leafBlocks + internalBlocks;
-        long alignedSize = totalNumberOfBlocks * blockSize;
-        System.out.println("Blocks: " + totalNumberOfBlocks + " alignedSize: " + alignedSize);
+        long alignedSize = totalBlocks * blockSize;
+
+        System.out.println("Blocks: " + totalBlocks + " alignedSize: " + alignedSize);
+        System.out.println(levelAllocations);
+
         return alignedSize;
     }
 
-    private int numberOfInternalBlocks(long leafBlocks, int blockSize, int blockEntrySize) {
-        int entriesPerBlock = (blockSize - Block.HEADER) / blockEntrySize;
-        int blocks = (int) (numEntries / entriesPerBlock);
-        blocks += numEntries % entriesPerBlock > 0 ? 1 : 0;
-        return blocks;
-    }
-
-    private int numberOfBlocks(long numEntries, int blockSize, int blockEntrySize) {
+    private int numberOfNodesPerLevel(long numEntries, int level, int blockSize) {
+        int blockEntrySize = level == 0 ? Block.LEAF_ENTRY_BYTES : Block.INTERNAL_ENTRY_BYTES;
         int entriesPerBlock = (blockSize - Block.HEADER) / blockEntrySize;
         int blocks = (int) (numEntries / entriesPerBlock);
         blocks += numEntries % entriesPerBlock > 0 ? 1 : 0;

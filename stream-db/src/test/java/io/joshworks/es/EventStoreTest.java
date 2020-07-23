@@ -29,7 +29,7 @@ public class EventStoreTest {
     }
 
     private EventStore open() {
-        return new EventStore(root, Size.MB.ofInt(100), MEMTABLE_SIZE, 1024, 1000);
+        return new EventStore(root, Size.MB.ofInt(100), MEMTABLE_SIZE, 4096, 1000);
     }
 
     @Test

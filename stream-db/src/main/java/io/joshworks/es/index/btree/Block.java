@@ -104,7 +104,7 @@ class Block {
     }
 
     int writeTo(MappedRegion mf) {
-        assert mf.remaining() > data.capacity() : "Not enough index space";
+        assert mf.remaining() >= data.capacity()  : "Not enough index space";
 
         data.putInt(ENTRIES_OFFSET, tmpEntries);
         data.putShort(BLOCK_SIZE, (short) data.position());
