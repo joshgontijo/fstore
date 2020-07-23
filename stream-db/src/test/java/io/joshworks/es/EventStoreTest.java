@@ -98,23 +98,26 @@ public class EventStoreTest {
 //        }
 //    }
 //
-//    @Test
-//    public void linkTo() {
-//        long srcStream = 123;
-//        long dstStream = 456;
-//
-//        store.append(srcStream, -1, wrap("abc"));
-//        store.linkTo(srcStream, 0, dstStream, -1);
-//
-//        ByteBuffer readBuffer = Buffers.allocate(4096, false);
-//        store.get(dstStream, 0, readBuffer);
-//
-//        readBuffer.flip();
-//        assertTrue(Event.isValid(readBuffer));
-//        assertEquals(dstStream, Event.stream(readBuffer));
-//        assertEquals(0, Event.version(readBuffer));
-//    }
-//
+    @Test
+    public void linkTo() {
+        String srcStream = "stream-1";
+        String dstStream = "stream-2";
+
+        store.append(create(srcStream, -1, "TEST", "abc"));
+        store.linkTo(srcStream, 0, dstStream, -1);
+
+        Threads.sleep(2000);
+
+        ByteBuffer readBuffer = Buffers.allocate(4096, false);
+        store.get(IndexKey.of(dstStream, 0), 10, readBuffer);
+
+        readBuffer.flip();
+        assertTrue(Event.isValid(readBuffer));
+        assertEquals(StreamHasher.hash(dstStream), Event.stream(readBuffer));
+        assertEquals(0, Event.version(readBuffer));
+    }
+
+    //
     @Test
     public void append_MANY_SAME_STREAM_TEST() {
         String stream = "stream-1";

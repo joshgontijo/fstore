@@ -41,7 +41,7 @@ public class EventStore {
 
             IndexEntry ie = writer.findEquals(new IndexKey(srcStreamHash, srcVersion));
             if (ie == null) {
-                throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStreamHash, srcVersion));
+                throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStream, srcVersion));
             }
             int dstVersion = writer.nextVersion(dstStreamHash, expectedVersion);
 
@@ -61,7 +61,7 @@ public class EventStore {
         linktoEv.timestamp = System.currentTimeMillis();
         linktoEv.expectedVersion = expectedVersion;
         linktoEv.metadata = new byte[0];
-        linktoEv.data = IndexKey.toString(srcStreamHash, srcVersion).getBytes(StandardCharsets.UTF_8);
+        linktoEv.data = IndexKey.toString(dstStream, srcVersion).getBytes(StandardCharsets.UTF_8);
         //TODO add linkTo attribute ?
         return linktoEv;
     }
