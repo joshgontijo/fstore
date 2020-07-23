@@ -1,7 +1,5 @@
 package io.joshworks.es.index.btree;
 
-import com.google.common.hash.BloomFilter;
-import com.google.common.hash.Funnels;
 import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;
 import io.joshworks.es.index.IndexKey;
@@ -14,8 +12,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 
 public class BTreeIndexSegment implements IndexSegment {
@@ -29,9 +29,10 @@ public class BTreeIndexSegment implements IndexSegment {
 
     //write path
     private final Map<Integer, Block> nodeBlocks = new HashMap<>();
-    private ByteBuffer bfEntry = Buffers.allocate(12, false);
+    private int blocks;
+    private int depth;
 
-    public BTreeIndexSegment(File file, long numEntries, double bfFP, int blockSize) {
+    public BTreeIndexSegment(File file, long numEntries, int blockSize) {
         this.blockSize = blockSize;
         try {
             boolean newFile = file.createNewFile();
@@ -53,16 +54,9 @@ public class BTreeIndexSegment implements IndexSegment {
         }
     }
 
-    private static File filterFile(File indexFile) {
-        String name = indexFile.getName().split("\\.")[0] + ".bf";
-        return new File(indexFile.toPath().getParent().toFile(), name);
-    }
-
     @Override
     public void append(long stream, int version, int size, long logPos) {
-        if (isFull()) {
-            throw new IllegalStateException("Index is full");
-        }
+        assert !isFull() : "Index is full";
 
         Block node = getOrAllocate(0);
         if (!node.add(stream, version, size, logPos)) {
@@ -73,16 +67,22 @@ public class BTreeIndexSegment implements IndexSegment {
 
     public void writeNode(Block node) {
         int idx = node.writeTo(mf);
-        addNodeLink(node, idx);
+
+        //link node to the parent
+        Block parent = getOrAllocate(node.level() + 1);
+        if (!parent.addLink(node, idx)) {
+            writeNode(parent);
+            parent.addLink(node, idx);
+        }
+        blocks++;
     }
 
-    private void addNodeLink(Block node, int blockIdx) {
-        Block parent = getOrAllocate(node.level() + 1);
-        if (!parent.addLink(node, blockIdx)) {
-            writeNode(parent);
-            parent.addLink(node, blockIdx);
-        }
+    //write not without linking node to the parent, used only for root
+    public void writeNodeFinal(Block node) {
+        int idx = node.writeTo(mf);
+        blocks++;
     }
+
 
     private Block getOrAllocate(int level) {
         return nodeBlocks.compute(level, (k, v) -> v == null ? new Block(blockSize, k) : v);
@@ -170,13 +170,39 @@ public class BTreeIndexSegment implements IndexSegment {
                 .sorted(Comparator.comparingInt(Block::level))
                 .forEach(this::writeNode);
 
+
+        //FIXME logic is wrong, root can still create another root without needing it
+        //FIXME after writing all nodes, a new root can still be created
+        //FIXME total segment size is still broken
+        List<Block> nodes;
+        do {
+            nodes = getRemainingNodes();
+            if (nodes.size() == 1) { //root node, write without creating a parent
+                Block root = nodes.get(0);
+                writeNodeFinal(root);
+                break; //done
+            }
+            for (Block node : nodes) {
+                writeNode(node);
+            }
+        } while (!nodes.isEmpty());
+
+        assert getRemainingNodes().isEmpty() : "Not all nodes were flushed";
+
         mf.flush();
 //        filter.flush();
         truncate();
         readOnly.set(true);
         this.root = readRoot();
         nodeBlocks.clear();
-        bfEntry = null;
+    }
+
+    private List<Block> getRemainingNodes() {
+        return nodeBlocks.values()
+                .stream()
+                .filter(Block::hasData)
+                .sorted(Comparator.comparingInt(Block::level))
+                .collect(Collectors.toList());
     }
 
     private Block readRoot() {
@@ -190,12 +216,20 @@ public class BTreeIndexSegment implements IndexSegment {
 
     private long align(long maxEntries, int blockSize) {
         int leafBlocks = numberOfBlocks(maxEntries, blockSize, Block.LEAF_ENTRY_BYTES);
+
         int internalBlocks = numberOfBlocks(leafBlocks, blockSize, Block.INTERNAL_ENTRY_BYTES);
 
-        int totalNumberOfBlocks = leafBlocks + internalBlocks + 1; // +1 is for the root
+        int totalNumberOfBlocks = leafBlocks + internalBlocks;
         long alignedSize = totalNumberOfBlocks * blockSize;
         System.out.println("Blocks: " + totalNumberOfBlocks + " alignedSize: " + alignedSize);
         return alignedSize;
+    }
+
+    private int numberOfInternalBlocks(long leafBlocks, int blockSize, int blockEntrySize) {
+        int entriesPerBlock = (blockSize - Block.HEADER) / blockEntrySize;
+        int blocks = (int) (numEntries / entriesPerBlock);
+        blocks += numEntries % entriesPerBlock > 0 ? 1 : 0;
+        return blocks;
     }
 
     private int numberOfBlocks(long numEntries, int blockSize, int blockEntrySize) {
@@ -216,6 +250,5 @@ public class BTreeIndexSegment implements IndexSegment {
     public int size() {
         return mf.capacity();
     }
-
 
 }

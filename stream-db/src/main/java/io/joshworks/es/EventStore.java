@@ -1,12 +1,11 @@
 package io.joshworks.es;
 
-import io.joshworks.es.writer.WriteEvent;
-import io.joshworks.es.writer.WriterThread;
 import io.joshworks.es.index.Index;
 import io.joshworks.es.index.IndexEntry;
-import io.joshworks.es.index.IndexFunction;
 import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.log.Log;
+import io.joshworks.es.writer.WriteEvent;
+import io.joshworks.es.writer.WriterThread;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -18,19 +17,15 @@ public class EventStore {
     private final Index index;
     private final WriterThread writerThread;
 
-    public EventStore(File root, int logSize, int indexEntries, double bfFP, int blockSize) {
+    public EventStore(File root, int logSize, int indexEntries, int blockSize, int versionCacheSize) {
         this.log = new Log(root, logSize);
-        this.index = new Index(root, indexEntries, bfFP, blockSize);
+        this.index = new Index(root, indexEntries, blockSize, versionCacheSize);
         this.writerThread = new WriterThread(log, index, 100, 4096, 100);
         this.writerThread.start();
     }
 
     public int version(long stream) {
-        IndexEntry ie = index.find(IndexKey.maxOf(stream), IndexFunction.FLOOR);
-        if (ie == null || ie.stream() != stream) {
-            return -1;
-        }
-        return ie.version();
+        return index.version(stream);
     }
 
     public synchronized void linkTo(String srcStream, int srcVersion, String dstStream, int expectedVersion) {

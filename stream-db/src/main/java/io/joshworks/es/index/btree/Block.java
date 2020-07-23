@@ -33,22 +33,21 @@ import java.nio.ByteBuffer;
  */
 class Block {
 
-    static final int LEAF_ENTRY_BYTES =
+
+    static final int KEY_BYTES =
             Long.BYTES + //STREAM
-                    Integer.BYTES + //VERSION
+                    Integer.BYTES; //VERSION
+
+    static final int LEAF_ENTRY_BYTES =
+            KEY_BYTES +
                     Integer.BYTES + //SIZE
                     Long.BYTES; // LOG_POS
 
 
     static final int INTERNAL_ENTRY_BYTES =
-            Long.BYTES + //FIRST_STREAM
-                    Integer.BYTES + //FIRST_VERSION
+            KEY_BYTES +
                     Integer.BYTES; //BLOCK_IDX
 
-
-    static final int KEY_BYTES =
-                    Long.BYTES + //STREAM
-                    Integer.BYTES; //VERSION
 
     protected final ByteBuffer data;
     private int tmpEntries;
@@ -61,9 +60,7 @@ class Block {
 
 
     Block(int size, int level) {
-        if (size > Short.MAX_VALUE) {
-            throw new IllegalArgumentException("Block must not exceed " + Short.MAX_VALUE);
-        }
+        assert size <= Short.MAX_VALUE : "Block must not exceed " + Short.MAX_VALUE;
         this.data = Buffers.allocate(size, false);
         data.putShort((short) level);
         data.position(HEADER);
@@ -78,9 +75,7 @@ class Block {
     }
 
     boolean add(long stream, int version, int size, long logPos) {
-        if (level() != 0) {
-            throw new IllegalStateException("Node is not leaf");
-        }
+        assert level() == 0 : "Not a leaf node";
         if (data.remaining() < LEAF_ENTRY_BYTES) {
             return false;
         }
@@ -95,9 +90,7 @@ class Block {
     }
 
     boolean addLink(Block ref, int idx) {
-        if (level() == 0) {
-            throw new IllegalStateException("Node is leaf");
-        }
+        assert level() != 0 : "Not an internal node";
         if (data.remaining() < INTERNAL_ENTRY_BYTES) {
             return false;
         }
@@ -111,9 +104,8 @@ class Block {
     }
 
     int writeTo(MappedRegion mf) {
-        if (mf.remaining() < data.capacity()) {
-            throw new IllegalStateException("Not enough index space");
-        }
+        assert mf.remaining() > data.capacity() : "Not enough index space";
+
         data.putInt(ENTRIES_OFFSET, tmpEntries);
         data.putShort(BLOCK_SIZE, (short) data.position());
 
@@ -212,9 +204,7 @@ class Block {
         while (low <= high) {
             int mid = (low + high) >>> 1;
             int readPos = chunkStart + (mid * entrySize);
-            if (readPos < chunkStart || readPos > chunkStart + chunkLength) {
-                throw new IndexOutOfBoundsException("Index out of bounds: " + readPos);
-            }
+            assert readPos >= chunkStart && readPos <= chunkStart + chunkLength : "Index out of bounds: " + readPos;
             int cmp = compare(readPos, data, key);
             if (cmp < 0)
                 low = mid + 1;

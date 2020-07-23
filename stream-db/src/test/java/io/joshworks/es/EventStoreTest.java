@@ -29,7 +29,7 @@ public class EventStoreTest {
     }
 
     private EventStore open() {
-        return new EventStore(root, Size.MB.ofInt(100), MEMTABLE_SIZE, 0.1, 4096);
+        return new EventStore(root, Size.MB.ofInt(100), MEMTABLE_SIZE, 1024, 1000);
     }
 
     @Test
@@ -135,7 +135,7 @@ public class EventStoreTest {
             }
         }
 
-        Threads.sleep(5000);
+        Threads.sleep(500000);
         s = System.currentTimeMillis();
 
 

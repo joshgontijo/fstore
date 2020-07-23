@@ -4,6 +4,7 @@ import io.joshworks.es.SegmentDirectory;
 import io.joshworks.es.index.btree.BTreeIndexSegment;
 import io.joshworks.es.index.tree.Node;
 import io.joshworks.es.index.tree.RedBlackBST;
+import io.joshworks.fstore.core.cache.Cache;
 
 import java.io.File;
 
@@ -11,20 +12,27 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
     private final RedBlackBST memTable;
     private final int maxEntries;
-    private final double bfFP;
     private final int blockSize;
 
     static final String EXT = "idx";
 
     public static final int NONE = -1;
 
-    public Index(File root, int maxEntries, double bfFP, int blockSize) {
+    private final Cache<Long, Integer> versionCache;
+
+    public Index(File root, int maxEntries, int blockSize, int versionCacheSize) {
         super(root, EXT);
+        if (blockSize % 2 != 0) {
+            throw new IllegalArgumentException("Block size must be power of two, got " + blockSize);
+        }
+        if (blockSize > Short.MAX_VALUE) { //block uses short for BLOCK_SIZE
+            throw new IllegalArgumentException("Block size must cannot be greater than " + Short.MAX_VALUE);
+        }
         this.memTable = new RedBlackBST(maxEntries);
         this.maxEntries = maxEntries;
-        this.bfFP = bfFP;
         this.blockSize = blockSize;
-        super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, bfFP, blockSize));
+        this.versionCache = Cache.lruCache(versionCacheSize, -1);
+        super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, blockSize));
     }
 
     public void append(IndexEntry entry) {
@@ -32,6 +40,20 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
             flush();
         }
         memTable.put(entry);
+    }
+
+    public int version(long stream) {
+        Integer cached = versionCache.get(stream);
+        if (cached != null) {
+            return cached;
+        }
+        IndexEntry ie = find(IndexKey.maxOf(stream), IndexFunction.FLOOR);
+        if (ie == null || ie.stream() != stream) {
+            return -1;
+        }
+        int version = ie.version();
+        versionCache.add(stream, version);
+        return version;
     }
 
     public IndexEntry find(IndexKey key, IndexFunction fn) {
@@ -61,7 +83,7 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         if (memTable.isEmpty()) {
             return;
         }
-        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), maxEntries, bfFP, blockSize);
+        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), maxEntries, blockSize);
         for (Node node : memTable) {
             index.append(node.stream, node.version, node.recordSize, node.logAddress);
         }
