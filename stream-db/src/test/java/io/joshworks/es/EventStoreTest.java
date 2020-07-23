@@ -135,7 +135,7 @@ public class EventStoreTest {
             }
         }
 
-        Threads.sleep(500000);
+        Threads.sleep(5000);
         s = System.currentTimeMillis();
 
 

@@ -64,7 +64,7 @@ public class QueryPlanner {
         int version = key.version();
         IndexEntry ie;
         do {
-            ie = index.find(new IndexKey(key.stream(), version), IndexFunction.EQUALS);
+            ie = index.get(new IndexKey(key.stream(), version));
             if (ie != null) {
                 entries.add(ie);
                 version++;

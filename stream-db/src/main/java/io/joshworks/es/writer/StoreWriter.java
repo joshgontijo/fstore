@@ -155,7 +155,7 @@ public class StoreWriter {
                 return entry;
             }
         }
-        return index.find(key, IndexFunction.EQUALS);
+        return index.get(key);
     }
 
     private static class Transaction {

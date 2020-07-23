@@ -45,7 +45,7 @@ public class IndexTest {
         }
 
         for (int i = 0; i < MAX_ENTRIES; i++) {
-            IndexEntry entry = index.find(new IndexKey(stream, i), IndexFunction.EQUALS);
+            IndexEntry entry = index.get(new IndexKey(stream, i));
             assertNotNull(entry);
 
             assertEquals(stream, entry.stream());
@@ -64,7 +64,7 @@ public class IndexTest {
         index.flush();
 
         for (int i = 0; i < MAX_ENTRIES; i++) {
-            IndexEntry entry = index.find(new IndexKey(stream, i), IndexFunction.EQUALS);
+            IndexEntry entry = index.get(new IndexKey(stream, i));
             assertNotNull(entry);
 
             assertEquals(stream, entry.stream());
@@ -85,7 +85,7 @@ public class IndexTest {
         index = open();
 
         for (int i = 0; i < MAX_ENTRIES; i++) {
-            IndexEntry entry = index.find(new IndexKey(stream, i), IndexFunction.EQUALS);
+            IndexEntry entry = index.get(new IndexKey(stream, i));
             assertNotNull(entry);
 
             assertEquals(stream, entry.stream());
@@ -107,7 +107,7 @@ public class IndexTest {
         index.flush();
 
         for (int i = 0; i < items; i++) {
-            IndexEntry entry = index.find(new IndexKey(stream, i), IndexFunction.EQUALS);
+            IndexEntry entry = index.get(new IndexKey(stream, i));
             assertNotNull(entry);
 
             assertEquals(stream, entry.stream());
