@@ -50,11 +50,7 @@ public class StoreWriter {
                 return entry.version();
             }
         }
-        IndexEntry ie = index.find(IndexKey.maxOf(stream), IndexFunction.FLOOR);
-        if (ie == null || ie.stream() != stream) {
-            return -1;
-        }
-        return ie.version();
+        return index.version(stream);
     }
 
     public int nextVersion(long stream, int expectedVersion) {
