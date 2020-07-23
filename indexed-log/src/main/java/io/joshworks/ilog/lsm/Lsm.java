@@ -1,6 +1,8 @@
 package io.joshworks.ilog.lsm;
 
+import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.util.FileUtils;
+import io.joshworks.fstore.core.util.ObjectPool;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.ilog.Direction;
 import io.joshworks.ilog.FlushMode;
@@ -9,8 +11,10 @@ import io.joshworks.ilog.Segment;
 import io.joshworks.ilog.SegmentFactory;
 import io.joshworks.ilog.compaction.combiner.DiscardCombiner;
 import io.joshworks.ilog.compaction.combiner.UniqueMergeCombiner;
+import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.Block;
 import io.joshworks.ilog.record.Record;
 import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
@@ -32,6 +36,8 @@ public class Lsm {
     private final long maxAge;
     protected final RowKey rowKey;
 
+    private final ObjectPool<Block> blockPool;
+
     Lsm(File root,
         RecordPool pool,
         RowKey rowKey,
@@ -39,7 +45,9 @@ public class Lsm {
         int memTableMaxSize,
         boolean memTableDirectBuffer,
         long maxAge,
-        int compactionThreshold) {
+        int compactionThreshold,
+        int blockSize,
+        Codec codec) {
 
         FileUtils.createDir(root);
         this.pool = pool;
@@ -68,6 +76,8 @@ public class Lsm {
                 FlushMode.ON_ROLL,
                 pool,
                 SegmentFactory.sstable(rowKey));
+
+        this.blockPool = new ObjectPool<>(p -> new Block(p, pool, blockSize, rowKey, codec));
     }
 
     public static Builder create(File root, RowKey comparator) {
@@ -105,8 +115,17 @@ public class Lsm {
         });
     }
 
-    protected Record searchSSTable(ByteBuffer key, SSTable ssTable, IndexFunction func) {
-        return ssTable.find(key, func);
+    private Record searchSSTable(ByteBuffer key, SSTable ssTable, IndexFunction func) {
+        try (Block block = readBlock(ssTable, key)) {
+            if (block == null) {
+                return null;
+            }
+            int idx = block.indexOf(key, func);
+            if (idx == Index.NONE) {
+                return null;
+            }
+            return block.read(idx);
+        }
     }
 
     //TODO implement iterator, after adding the data block to memtable
@@ -128,22 +147,49 @@ public class Lsm {
         }
     }
 
+    protected Block readBlock(SSTable ssTable, ByteBuffer key) {
+        Record blockRec = ssTable.find(key, IndexFunction.FLOOR);
+        if (blockRec == null) {
+            return null;
+        }
+        Block block = blockPool.allocate();
+        block.from(blockRec);
+        return block;
+
+    }
+
     protected long flushMemTable() {
         long inserted = 0;
 
-        try (Records records = pool.empty()) {
+        try (Block block = blockPool.allocate(); Records records = pool.empty()) {
             for (Record record : memTable) {
                 try (record) {
-                    boolean added = records.add(record);
+                    boolean added = block.add(record);
                     if (!added) {
-                        inserted += records.size();
-                        flushRecords(records);
-                        records.add(record);
+                        if (records.isFull()) {
+                            flushRecords(records);
+                        }
+
+                        inserted += block.entryCount();
+                        block.write(records);
+                        block.clear();
+
+                        added = block.add(record);
+                        assert added;
                     }
                 }
             }
+            //compress and write
+            if (block.entryCount() > 0) {
+                if (records.isFull()) {
+                    flushRecords(records);
+                }
+                inserted += block.entryCount();
+                block.write(records);
+                block.clear();
+            }
+
             if (!records.isEmpty()) {
-                inserted += records.size();
                 flushRecords(records);
             }
 

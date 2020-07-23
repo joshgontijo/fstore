@@ -33,8 +33,8 @@ public class LsmTest {
     public void setUp() {
         lsm = Lsm.create(TestUtils.testFolder(), RK)
                 .memTable(MEM_TABLE_SIZE, Size.MB.ofInt(20), false)
-                .compactionThreshold(-1)
-                .sparse(new SnappyCodec(), 4096);
+                .compactionThreshold(2)
+                .open();
     }
 
     @After
@@ -55,7 +55,7 @@ public class LsmTest {
     @Test
     public void append_MANY_TEST() {
         int inserted = 0;
-        while (inserted < MEM_TABLE_SIZE * 5.5) {
+        while (inserted < MEM_TABLE_SIZE * 50.5) {
             Records records = RecordUtils.createN(inserted, BATCH_SIZE, pool);
             lsm.append(records);
             inserted += records.size();
