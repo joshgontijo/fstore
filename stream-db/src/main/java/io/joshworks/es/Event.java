@@ -16,15 +16,14 @@ import java.nio.charset.StandardCharsets;
  * CHECKSUM (4 BYTES)
  * SEQUENCE (8 BYTES)
  * TIMESTAMP (8 BYTES)
- * ATTRIBUTES (2 BYTES)
+ * ATTRIBUTES (1 BYTE)
  *
  * TYPE_LENGTH (2 BYTES)
- * EVENT_TYPE (N BYTES)
- *
  * DATA_LENGTH (4 BYTES)
- * DATA (N BYTES)
+ * METADATA_LENGTH (2 BYTES)
  *
- * METADATA_LENGTH (4 BYTES)
+ * EVENT_TYPE (N BYTES)
+ * DATA (N BYTES)
  * METADATA (N BYTES)
  *
  * </pre>
@@ -38,10 +37,10 @@ public class Event {
                     Integer.BYTES +  //CHECKSUM
                     Long.BYTES + // SEQUENCE
                     Long.BYTES + // TIMESTAMP
-                    Short.BYTES + //ATTRIBUTES
+                    Byte.BYTES + //ATTRIBUTES
                     Short.BYTES + //TYPE_LENGTH
                     Integer.BYTES + //DATA_LENGTH
-                    Integer.BYTES; //METADATA_LENGTH
+                    Short.BYTES; //METADATA_LENGTH
 
     private Event() {
 
@@ -54,10 +53,17 @@ public class Event {
     private static final int SEQUENCE_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
     private static final int TIMESTAMP_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
     private static final int ATTRIBUTES_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
-    private static final int TYPE_LENGTH_OFFSET = ATTRIBUTES_OFFSET + Short.BYTES;
+    private static final int TYPE_LENGTH_OFFSET = ATTRIBUTES_OFFSET + Byte.BYTES;
+    private static final int DATA_LENGTH_OFFSET = TYPE_LENGTH_OFFSET + Short.BYTES;
+    private static final int METADATA_LENGTH_OFFSET = DATA_LENGTH_OFFSET + Integer.BYTES;
+    private static final int EVENT_TYPE_OFFSET = METADATA_LENGTH_OFFSET + Short.BYTES;
 
     public static int sizeOf(ByteBuffer data) {
         return sizeOf(data, data.position());
+    }
+
+    public static int sizeOf(ByteBuffer data, int offset) {
+        return data.getInt(offset + SIZE_OFFSET);
     }
 
     public static long stream(ByteBuffer data) {
@@ -84,19 +90,44 @@ public class Event {
         return data.getInt(offset + CHECKSUM_OFFSET);
     }
 
+    public static byte attributes(ByteBuffer data) {
+        return data.get(data.position() + ATTRIBUTES_OFFSET);
+    }
+
+    public static int eventTypeLen(ByteBuffer data) {
+        return data.getInt(data.position() + EVENT_TYPE_OFFSET);
+    }
+
+    public static int dataLen(ByteBuffer data) {
+        return data.getInt(data.position() + DATA_LENGTH_OFFSET);
+    }
+
+    public static int metadataLen(ByteBuffer data) {
+        return data.getInt(data.position() + METADATA_LENGTH_OFFSET);
+    }
+
+    public static String eventType(ByteBuffer data) {
+        int evTypeLen = eventTypeLen(data);
+        int offset = data.position() + EVENT_TYPE_OFFSET;
+        if (data.hasArray()) {
+            int arrayPos = Buffers.absoluteArrayPosition(data, offset);
+            return new String(data.array(), arrayPos, evTypeLen, StandardCharsets.UTF_8);
+        }
+        byte[] bytes = new byte[evTypeLen];
+        data.get(offset, bytes, 0, evTypeLen);
+        return new String(bytes, StandardCharsets.UTF_8);
+    }
+
     public static boolean hasAttribute(ByteBuffer data, int attribute) {
         short attr = attributes(data);
         return (attr & (1 << attribute)) == 1;
     }
 
-    public static short attributes(ByteBuffer data) {
-        return data.getShort(data.position() + ATTRIBUTES_OFFSET);
-    }
 
-    private static short attribute(int... attributes) {
-        short b = 0;
+    private static byte attribute(int... attributes) {
+        byte b = 0;
         for (int attr : attributes) {
-            b = (short) (b | 1 << attr);
+            b = (byte) (b | 1 << attr);
         }
         return b;
     }
@@ -162,23 +193,6 @@ public class Event {
         return Buffers.remaining(recData, offset) >= Integer.BYTES;
     }
 
-    public static int sizeOf(ByteBuffer data, int offset) {
-        return data.getInt(offset + SIZE_OFFSET);
-    }
-
-    public static String toString(ByteBuffer data) {
-        if (!isValid(data)) {
-            throw new IllegalArgumentException("Invalid event data");
-        }
-        return stream(data) + "@" + version(data) + " [" +
-                "size=" + sizeOf(data) + ", " +
-                "sequence=" + sequence(data) + ", " +
-                "timestamp=" + timestamp(data) + ", " +
-                "checksum=" + checksum(data) + ", " +
-                "attributes=" + attributes(data) +
-                "]";
-    }
-
     public static void writeSequence(ByteBuffer data, int offset, long sequence) {
         data.putLong(offset + SEQUENCE_OFFSET, sequence);
     }
@@ -239,4 +253,22 @@ public class Event {
         assert Event.isValid(dst, bpos);
         return copied;
     }
+
+    public static String toString(ByteBuffer data) {
+        if (!isValid(data)) {
+            throw new IllegalArgumentException("Invalid event data");
+        }
+        return "RECORD_SIZE=" + sizeOf(data) + ", " +
+                "STREAM_HASH=" + stream(data) + ", " +
+                "VERSION=" + version(data) + ", " +
+                "EVENT_TYPE=" + eventType(data) + ", " +
+                "CHECKSUM=" + checksum(data) + ", " +
+                "SEQUENCE=" + sequence(data) + ", " +
+                "TIMESTAMP=" + timestamp(data) + ", " +
+                "ATTRIBUTES=" + attributes(data) + ", " +
+                "TYPE_LENGTH=" + eventTypeLen(data) + ", " +
+                "DATA_LENGTH=" + dataLen(data) + ", " +
+                "METADATA_LENGTH=" + metadataLen(data);
+    }
+
 }
