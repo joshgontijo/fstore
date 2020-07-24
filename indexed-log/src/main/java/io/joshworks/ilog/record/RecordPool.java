@@ -3,6 +3,7 @@ package io.joshworks.ilog.record;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.io.buffers.StripedBufferPool;
 import io.joshworks.fstore.core.util.ObjectPool;
 
 import java.nio.ByteBuffer;

@@ -1,5 +1,6 @@
 package io.joshworks.ilog.record;
 
+import io.joshworks.fstore.core.io.buffers.StripedBufferPool;
 import io.joshworks.fstore.core.util.Size;
 
 import java.util.Set;
@@ -54,7 +55,7 @@ public class PoolConfig {
     }
 
     public RecordPool build() {
-        StripedBufferPool pool = new StripedBufferPool(pollMaxSizeInBytes, directBuffers, poolStripes);
+        StripedBufferPool pool = StripedBufferPool.create(pollMaxSizeInBytes, directBuffers, poolStripes);
         return new RecordPool(pool, batchSize);
     }
 

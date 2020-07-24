@@ -3,9 +3,7 @@ package io.joshworks.fstore.core.io.buffers;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -30,8 +28,8 @@ public class StripedBufferPool implements Closeable {
     private final Map<Integer, AtomicInteger> allocated = new HashMap<>();
     private final Map<Integer, AtomicInteger> inUse = new HashMap<>();
 
-    public static StripedBufferPool create(int capacityInBytes, boolean direct, Integer... stripes) {
-        return new StripedBufferPool(capacityInBytes, direct, new HashSet<>(Arrays.asList(stripes)));
+    public static StripedBufferPool create(int capacityInBytes, boolean direct, Set<Integer> stripes) {
+        return new StripedBufferPool(capacityInBytes, direct, stripes);
     }
 
     private StripedBufferPool(int capacityInBytes, boolean direct, Set<Integer> stripes) {
