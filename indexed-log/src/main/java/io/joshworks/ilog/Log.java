@@ -1,14 +1,14 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.ilog.compaction.CompactionRunner;
 import io.joshworks.ilog.compaction.combiner.SegmentCombiner;
 import io.joshworks.ilog.record.Record;
-import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -29,7 +29,7 @@ public class Log<T extends Segment> implements Iterable<Record> {
                int compactionThreshold,
                SegmentCombiner combiner,
                FlushMode flushMode,
-               RecordPool pool,
+               BufferPool pool,
                SegmentFactory<T> segmentFactory) {
         FileUtils.createDir(root);
         this.flushMode = flushMode;
@@ -41,13 +41,11 @@ public class Log<T extends Segment> implements Iterable<Record> {
         this.compactionRunner = new CompactionRunner(compactionThreshold, combiner);
     }
 
-    public void append(Records records) {
+    public void append(ByteBuffer records) {
         try {
-            int size = records.size();
-            int inserted = 0;
-            while (inserted < size) {
+            while (Record.isValid(records)) {
                 Segment head = getHeadOrRoll();
-                inserted += head.append(records, inserted);
+                head.append(records);
             }
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to append entry", e);

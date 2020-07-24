@@ -25,7 +25,7 @@ public class MemTable implements Iterable<Record> {
 
     private final ByteBuffer data;
 
-    public MemTable(RecordPool pool, RowKey rowKey, int maxEntries, int maxSize, boolean direct) {
+    public MemTable(RowKey rowKey, int maxEntries, int maxSize, boolean direct) {
         this.pool = pool;
         this.maxEntries = maxEntries;
         this.table = new RedBlackBST(rowKey, maxEntries, direct);
@@ -34,12 +34,13 @@ public class MemTable implements Iterable<Record> {
 
     //returns true if all added or records iterator has exhausted
     //false if not all records elements couldn't be added
-    public boolean add(Records.RecordIterator records) {
+    public boolean add(ByteBuffer records) {
         requireNonNull(records, "Records must be provided");
         try {
             long stamp = lock.writeLock();
             try {
-                while (records.hasNext() && !table.isFull()) {
+
+                while (Record.isValid(records) && !table.isFull()) {
                     Record record = records.peek();
                     if (record.recordSize() > data.remaining()) {
                         return false;

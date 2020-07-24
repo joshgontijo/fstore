@@ -4,8 +4,6 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.record.Record;
-import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -15,32 +13,30 @@ public class RecordUtils {
     public static final Serializer<Long> KS = Serializers.LONG;
     public static final Serializer<String> VS = Serializers.STRING;
 
-    public static ByteBuffer recordBuffer(long key, String val) {
-        Record record = create(key, val);
-        ByteBuffer buffer = Buffers.allocate(record.recordSize(), false);
-        record.copyTo(buffer);
-        return buffer.flip();
+
+    public static ByteBuffer create(long key, String val) {
+        var dst = Buffers.allocate(4096, false);
+        int recSize = create(key, KS, val, VS, dst);
+        dst.flip();
+        return dst;
     }
 
-    public static Record create(long key, String val) {
-        return create(key, KS, val, VS);
+    public static ByteBuffer createN(long startKey) {
+        var dst = Buffers.allocate(4096, false);
+
+        int recSize = 0;
+        do {
+            recSize = create(startKey, "value-" + startKey);
+            startKey++;
+        } while (recSize > 0);
+
+        dst.flip();
+        return dst;
     }
 
-    public static Records createN(long startKey, int count, RecordPool pool) {
-        Records records = pool.empty();
-        for (int i = 0; i < count; i++) {
-            long key = startKey + i;
-            Record rec = create(key, KS, "value-" + key, VS);
-            if (!records.add(rec)) {
-                throw new IllegalArgumentException("Records full");
-            }
-        }
-        return records;
-    }
-
-    public static <K, V> Record create(K key, Serializer<K> ks, V value, int valLen, Serializer<V> vs) {
+    public static <K, V> int create(K key, Serializer<K> ks, V value, Serializer<V> vs, ByteBuffer dst) {
         var kb = Buffers.allocate(128, false);
-        var vb = Buffers.allocate(valLen, false);
+        var vb = Buffers.allocate(128, false);
 
         ks.writeTo(key, kb);
         kb.flip();
@@ -50,43 +46,43 @@ public class RecordUtils {
         }
         vb.flip();
 
-        return Record.create(kb, vb);
+        if (Record.computeRecordSize(kb.remaining(), vb.remaining()) < dst.remaining()) {
+            return 0;
+        }
+
+        return Record.create(dst, kb, vb);
     }
 
-    public static <K, V> Record create(K key, Serializer<K> ks, V value, Serializer<V> vs) {
-        return create(key, ks, value, 4096, vs);
-    }
-
-    public static long longKey(Record record) {
-        short ks = record.keyLen();
+    public static long longKey(ByteBuffer record) {
+        short ks = Record.keyLen(record);
         if (ks != Long.BYTES) {
             throw new RuntimeException("Invalid key length");
         }
         var dst = Buffers.allocate(ks, false);
-        record.copyKey(dst);
+        Record.copyKey(record, dst);
         dst.flip();
         return dst.getLong();
     }
 
-    public static String stringValue(Record record) {
-        var dst = Buffers.allocate(record.valueSize(), false);
-        record.copyValue(dst);
+    public static String stringValue(ByteBuffer record) {
+        var dst = Buffers.allocate(Record.valueLen(record), false);
+        Record.copyValue(record, dst);
         dst.flip();
         return StandardCharsets.UTF_8.decode(dst).toString();
     }
 
-    public static String toString(Record rec) {
+    public static String toString(ByteBuffer rec) {
         if (rec == null) {
             return "null";
         }
-        return "RECORD_LEN: " + rec.recordSize() + ", " +
-                "CHECKSUM: " + rec.checksum() + ", " +
-                "TIMESTAMP: " + rec.timestamp() + ", " +
-                "SEQUENCE: " + rec.sequence() + ", " +
-                "ATTRIBUTES: " + rec.attributes() + ", " +
-                "KEY_LEN: " + rec.keyLen() + ", " +
+        return "RECORD_LEN: " + Record.size(rec) + ", " +
+                "CHECKSUM: " + Record.checksum(rec) + ", " +
+                "TIMESTAMP: " + Record.timestamp(rec) + ", " +
+                "SEQUENCE: " + Record.sequence(rec) + ", " +
+                "ATTRIBUTES: " + Record.attributes(rec) + ", " +
+                "KEY_LEN: " + Record.keyLen(rec) + ", " +
                 "KEY: " + longKey(rec) + ", " +
-                "VALUE_LEN: " + rec.valueSize() + ", " +
+                "VALUE_LEN: " + Record.valueLen(rec) + ", " +
                 "VALUE: " + stringValue(rec);
     }
 

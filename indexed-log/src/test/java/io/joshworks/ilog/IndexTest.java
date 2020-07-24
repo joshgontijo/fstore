@@ -5,6 +5,7 @@ import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
+import io.joshworks.ilog.record.Record;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -31,23 +32,23 @@ public class IndexTest {
         index.delete();
     }
 
-    private int get(long key) {
+    private long get(long key) {
         return index.find(wrap(key), IndexFunction.EQUALS);
     }
 
-    private int lower(long key) {
+    private long lower(long key) {
         return index.find(wrap(key), IndexFunction.LOWER);
     }
 
-    private int higher(long key) {
+    private long higher(long key) {
         return index.find(wrap(key), IndexFunction.HIGHER);
     }
 
-    private int ceiling(long key) {
+    private long ceiling(long key) {
         return index.find(wrap(key), IndexFunction.CEILING);
     }
 
-    private int floor(long key) {
+    private long floor(long key) {
         return index.find(wrap(key), IndexFunction.FLOOR);
     }
 
@@ -60,19 +61,6 @@ public class IndexTest {
         for (int i = 0; i < ITEMS; i++) {
             assertIndexPosition("Failed on " + i, i, get(i));
         }
-    }
-
-    @Test
-    public void read_entry_size() {
-        long key = 111;
-        var record = RecordUtils.create(key, Serializers.LONG, "value-" + 123, Serializers.VSTRING);
-        int expectedSize = record.recordSize();
-        index.write(record, 123);
-
-        int idx = get(key);
-        assertEquals(0, idx);
-        assertEquals(expectedSize, index.readEntrySize(idx));
-
     }
 
     @Test

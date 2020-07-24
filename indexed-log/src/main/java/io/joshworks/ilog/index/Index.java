@@ -27,9 +27,9 @@ import static java.util.Objects.requireNonNull;
  */
 public class Index implements Closeable {
 
-    private final MappedFile mf;
-    private final RowKey rowKey;
-    private final AtomicBoolean readOnly = new AtomicBoolean();
+    protected final MappedFile mf;
+    protected final RowKey rowKey;
+    protected final AtomicBoolean readOnly = new AtomicBoolean();
     public static final int NONE = -1;
 
     public Index(File file, long maxEntries, RowKey rowKey) {
@@ -56,18 +56,18 @@ public class Index implements Closeable {
     /**
      * Writes an entry to this index
      */
-    public void write(Record rec, long recordPos) {
+    public void write(ByteBuffer rec, long recordPos) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
-        if (rec.keyLen() != keySize()) {
-            throw new RuntimeException("Invalid index key length, expected " + keySize() + ", got " + rec.keyLen());
+        short keyLen = Record.keyLen(rec);
+        if (keyLen != keySize()) {
+            throw new RuntimeException("Invalid index key length, expected " + keySize() + ", got " + keyLen);
         }
         int pos = mf.position();
 
-        rec.copyKey(mf.buffer());
+        Record.copyKey(rec, mf.buffer());
         mf.putLong(recordPos);
-        mf.putInt(rec.recordSize());
 
         assert entrySize() == (mf.position() - pos);
     }
@@ -100,14 +100,15 @@ public class Index implements Closeable {
         return mf.getLong(positionOffset);
     }
 
-    public int readEntrySize(int idx) {
-        if (idx < 0 || idx >= entries()) {
-            return NONE;
-        }
-        int startPos = idx * entrySize();
-        int positionOffset = startPos + keySize() + Long.BYTES;
-        return mf.getInt(positionOffset);
-    }
+    //TODO remove
+//    public int readEntrySize(int idx) {
+//        if (idx < 0 || idx >= entries()) {
+//            return NONE;
+//        }
+//        int startPos = idx * entrySize();
+//        int positionOffset = startPos + keySize() + Long.BYTES;
+//        return mf.getInt(positionOffset);
+//    }
 
     public boolean isFull() {
         return mf.position() >= mf.capacity();
@@ -149,7 +150,7 @@ public class Index implements Closeable {
     }
 
     protected int entrySize() {
-        return keySize() + Long.BYTES + Integer.BYTES;
+        return keySize() + Long.BYTES;
     }
 
     public int keySize() {

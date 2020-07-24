@@ -1,8 +1,8 @@
 package io.joshworks.fstore.core.io.buffers;
 
 import java.nio.ByteBuffer;
+import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 
 /**
  * Queue based cache, cache up to maxItems, thread safe
@@ -10,7 +10,7 @@ import java.util.concurrent.BlockingQueue;
  */
 class BasicBufferPool implements BufferPool {
 
-    private final BlockingQueue<ByteBuffer> pool;
+    private final Queue<ByteBuffer> pool;
     private final int bufferSize;
     private final boolean direct;
 

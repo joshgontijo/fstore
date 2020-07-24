@@ -1,7 +1,7 @@
 package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.ilog.record.RecordPool;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,14 +38,14 @@ public class View {
 
     private final AtomicLong entries = new AtomicLong();
     private final File root;
-    private final RecordPool pool;
+    private final BufferPool pool;
     private final long maxLogSize;
     private final long maxLogEntries;
     private final SegmentFactory<?> segmentFactory;
 
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
-    View(File root, RecordPool pool, long maxLogSize, long maxLogEntries, SegmentFactory<?> segmentFactory) {
+    View(File root, BufferPool pool, long maxLogSize, long maxLogEntries, SegmentFactory<?> segmentFactory) {
         this.root = root;
         this.pool = pool;
         this.maxLogSize = maxLogSize;

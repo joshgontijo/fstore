@@ -1,6 +1,7 @@
 package io.joshworks.ilog.lsm;
 
 import io.joshworks.fstore.core.codec.Codec;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.FileUtils;
 import io.joshworks.fstore.core.util.ObjectPool;
 import io.joshworks.fstore.core.util.Size;
@@ -16,7 +17,6 @@ import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
 import io.joshworks.ilog.record.Block;
 import io.joshworks.ilog.record.Record;
-import io.joshworks.ilog.record.RecordPool;
 import io.joshworks.ilog.record.Records;
 
 import java.io.File;
@@ -31,7 +31,7 @@ public class Lsm {
     protected final MemTable memTable;
     protected final Log<SSTable> ssTables;
 
-    protected final RecordPool pool;
+    protected final BufferPool pool;
 
     private final long maxAge;
     protected final RowKey rowKey;
@@ -39,7 +39,7 @@ public class Lsm {
     private final ObjectPool<Block> blockPool;
 
     Lsm(File root,
-        RecordPool pool,
+        BufferPool pool,
         RowKey rowKey,
         int memTableMaxEntries,
         int memTableMaxSize,
@@ -84,11 +84,15 @@ public class Lsm {
         return new Builder(root, comparator);
     }
 
-    public void append(Records records) {
+    public void append(ByteBuffer records) {
+        int ppos = records.position();
         tlog.append(records);
-        Records.RecordIterator it = records.iterator();
-        while (!memTable.add(it)) {
-            flush();
+        records.position(ppos);
+        while (Record.isValid(records)) {
+            if(!memTable.add(records)) {
+                flush();
+            }
+
         }
     }
 

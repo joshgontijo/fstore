@@ -1,12 +1,9 @@
 package io.joshworks.ilog;
 
-import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.ilog.index.Index;
 import io.joshworks.ilog.index.IndexFunction;
 import io.joshworks.ilog.index.RowKey;
-import io.joshworks.ilog.record.Record;
-import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +19,7 @@ public class IndexedSegment extends Segment {
     private final RowKey rowKey;
     protected Index index;
 
-    public IndexedSegment(File file, RecordPool pool, RowKey rowKey, long maxEntries) {
+    public IndexedSegment(File file, BufferPool pool, RowKey rowKey, long maxEntries) {
         super(file, pool, NO_MAX_SIZE, NO_MAX_ENTRIES);
         this.rowKey = rowKey;
         this.index = openIndex(file, maxEntries, rowKey);
@@ -42,45 +39,22 @@ public class IndexedSegment extends Segment {
     }
 
     @Override
-    protected void onRecordRestored(Record record, long recPos) {
+    protected void onRecordRestored(ByteBuffer record, long recPos) {
         index.write(record, recPos);
     }
 
-    public Record find(ByteBuffer key, IndexFunction func) {
+    public int find(ByteBuffer key, IndexFunction func, ByteBuffer dst) {
         int idx = index.find(key, func);
         if (idx == NONE) {
-            return null;
+            return 0;
         }
         long pos = index.readPosition(idx);
-        int len = index.readEntrySize(idx);
-
-        return pool.get(channel, pos, len);
+        return read(dst, pos);
     }
 
     @Override
-    protected long append(Records records, int offset, int count) {
-        if (index.isFull()) {
-            throw new IllegalStateException("Index is full");
-        }
-        long recordPos = super.append(records, offset, count);
-        try {
-            for (int i = 0; i < count; i++) {
-                Record rec = records.get(offset + i);
-                index.write(rec, recordPos);
-                recordPos += rec.recordSize();
-            }
-            return count;
-
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to write to segment", e);
-        }
-    }
-
-    @Override
-    public int append(Records records, int offset) {
-        int count = Math.min(index.remaining(), records.size() - offset);
-        append(records, offset, count);
-        return count;
+    public long append(ByteBuffer records) {
+        return append(records, index.remaining());
     }
 
     @Override
@@ -103,7 +77,7 @@ public class IndexedSegment extends Segment {
     @Override
     protected void doDelete() {
         log.info("Deleting {}", name());
-        channel.delete();
+        super.delete();
         index.delete();
     }
 

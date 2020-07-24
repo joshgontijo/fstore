@@ -2,10 +2,10 @@ package io.joshworks.ilog;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.Channels;
+import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.ilog.record.Record;
-import io.joshworks.ilog.record.RecordPool;
-import io.joshworks.ilog.record.Records;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class Segment implements Iterable<Record> {
+public class Segment implements Iterable<ByteBuffer> {
 
     private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
 
@@ -26,20 +26,20 @@ public class Segment implements Iterable<Record> {
     public static final int NO_MAX_ENTRIES = -1;
 
     protected final File file;
+    private final BufferPool pool;
     protected final long maxSize;
     protected final long maxEntries;
-    protected final RecordPool pool;
-    protected final SegmentChannel channel;
+    private final SegmentChannel channel;
 
     private final Set<SegmentIterator> iterators = new HashSet<>();
 
     private final Header header = new Header();
 
-    public Segment(File file, RecordPool pool, long maxSize, long maxEntries) {
+    public Segment(File file, BufferPool pool, long maxSize, long maxEntries) {
         this.file = file;
+        this.pool = pool;
         this.maxSize = maxSize;
         this.maxEntries = maxEntries;
-        this.pool = pool;
         this.channel = SegmentChannel.open(file);
         this.header.read();
         if (!channel.readOnly()) {
@@ -66,9 +66,9 @@ public class Segment implements Iterable<Record> {
 
             long recordPos = Header.BYTES;
             while (it.hasNext()) {
-                Record record = it.next();
+                ByteBuffer record = it.next();
                 onRecordRestored(record, recordPos);
-                recordPos += record.recordSize();
+                recordPos += Record.size(record);
                 processed++;
             }
             long truncated = channel.position() - recordPos;
@@ -80,41 +80,29 @@ public class Segment implements Iterable<Record> {
         }
     }
 
-    protected void onRecordRestored(Record record, long recPos) {
+    protected void onRecordRestored(ByteBuffer record, long recPos) {
         //do nothing
     }
 
+    //return the number of written records
+    public long append(ByteBuffer records) {
+        int entries = Record.entries(records);
+        return append(records, entries);
+    }
 
-    int read(ByteBuffer dst, long position) {
+    protected final long append(ByteBuffer records, int entries) {
+        int writeSize = Record.totalSize(records, records.position(), entries);
+        int plim = Buffers.offsetLimit(records, writeSize);
+        long startPos = channel.position();
+        Channels.writeFully(channel, records);
+        header.entries.addAndGet(entries);
+        records.limit(plim);
+        return startPos;
+    }
+
+    public int read(ByteBuffer dst, long position) {
         checkPosition(position);
         return Channels.read(channel, position, dst);
-    }
-
-    //return the number of written records
-    public int append(Records records, int offset) {
-        if (readOnly()) {
-            throw new IllegalStateException("Segment is read only");
-        }
-        if (records.isEmpty()) {
-            return 0;
-        }
-
-        int count = records.size() - offset;
-        append(records, offset, count);
-        return count;
-    }
-
-    protected long append(Records records, int offset, int count) {
-        if (readOnly()) {
-            throw new IllegalStateException("Segment is read only");
-        }
-        if (records.isEmpty()) {
-            return 0;
-        }
-        long startPos = channel.position();
-        records.writeTo(channel, offset, count);
-        header.entries.addAndGet(count);
-        return startPos;
     }
 
     public boolean readOnly() {
@@ -190,7 +178,7 @@ public class Segment implements Iterable<Record> {
 
     public synchronized SegmentIterator iterator(long pos) {
         checkPosition(pos);
-        SegmentIterator it = new SegmentIterator(this, pos, Size.KB.ofInt(4), pool);
+        SegmentIterator it = new SegmentIterator(this, pos, pool);
         iterators.add(it);
         return it;
     }
