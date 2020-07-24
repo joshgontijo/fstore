@@ -40,7 +40,7 @@ public class BTreeIndexSegmentTest {
         index.complete();
 
         for (int i = 0; i < items; i++) {
-            IndexEntry found = index.find(new IndexKey(stream, i), IndexFunction.EQUALS);
+            IndexEntry found = index.find(stream, i, IndexFunction.EQUALS);
             assertNotNull("Failed on " + i, found);
             assertEquals("Failed on " + i, stream, found.stream());
             assertEquals("Failed on " + i, i, found.version());

@@ -83,22 +83,22 @@ public class BinaryIndexSegment implements IndexSegment {
     }
 
     @Override
-    public IndexEntry find(IndexKey key, IndexFunction func) {
+    public IndexEntry find(long stream, int version, IndexFunction func) {
         if (entries() == 0) {
             return null;
         }
         //TODO add midpoints and start b-search from chunks
-        int idx = binarySearch(0, mf.position(), key);
+        int idx = binarySearch(0, mf.position(), new IndexKey(stream, version));
         idx = func.apply(idx);
         if (idx == NONE) {
             return null;
         }
 
-        long stream = mf.getLong(idx * ENTRY_SIZE + STREAM_OFFSET);
-        int version = mf.getInt(idx * ENTRY_SIZE + VERSION_OFFSET);
+        long foundStream = mf.getLong(idx * ENTRY_SIZE + STREAM_OFFSET);
+        int foundVersion = mf.getInt(idx * ENTRY_SIZE + VERSION_OFFSET);
         long logAddress = mf.getLong(idx * ENTRY_SIZE + LOGPOS_OFFSET);
 
-        return new IndexEntry(stream, version, logAddress);
+        return new IndexEntry(foundStream, foundVersion, logAddress);
     }
 
     public int binarySearch(int chunkStart, int chunkLength, IndexKey key) {

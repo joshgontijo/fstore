@@ -2,7 +2,6 @@ package io.joshworks.es.index.btree;
 
 import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;
-import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.index.IndexSegment;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
 
@@ -83,12 +82,49 @@ public class BTreeIndexSegment implements IndexSegment {
         return nodeBlocks.get(level);
     }
 
+    //only works with equals
+    public List<IndexEntry> findBatch(long stream, int version, int maxItems) {
+        List<IndexEntry> entries = new ArrayList<>();
+        Block block = root;
+        while (entries.size() < maxItems) {
+            if (block.level() > 0) { //internal node use floor
+                int i = block.find(stream, version, IndexFunction.FLOOR);
+                if (i == -1) {
+                    return entries;
+                }
+                int blockIdx = block.blockIndex(i);
+                block = loadBlock(blockIdx);
+            } else { //leaf node
+                int i = block.find(stream, version, IndexFunction.EQUALS);
+                if (i == -1) {
+                    return entries;
+                }
+                long foundStream = block.stream(i);
+                version = block.version(i);
+                long logPos = block.logPos(i);
+
+                entries.add(new IndexEntry(foundStream, version, logPos));
+
+                for (int j = i + 1; j < block.entries() && entries.size() < maxItems; j++) {
+                    long nextStream = block.stream(j);
+                    int nextVersion = block.version(j);
+                    if (nextStream != stream || nextVersion != version + 1) {
+                        break;
+                    }
+                    entries.add(block.toIndexEntry(j));
+                    version++;
+                }
+            }
+        }
+        return entries;
+    }
+
     @Override
-    public IndexEntry find(IndexKey key, IndexFunction fn) {
+    public IndexEntry find(long stream, int version, IndexFunction fn) {
         Block block = root;
         while (true) {
             if (block.level() > 0) { //internal node use floor
-                int i = block.find(key, IndexFunction.FLOOR);
+                int i = block.find(stream, version, IndexFunction.FLOOR);
                 if (i == -1) {
                     return null;
                 }
@@ -97,15 +133,11 @@ public class BTreeIndexSegment implements IndexSegment {
                 int blockIdx = block.blockIndex(i);
                 block = loadBlock(blockIdx);
             } else { //leaf node
-                int i = block.find(key, fn);
+                int i = block.find(stream, version, fn);
                 if (i == -1) {
                     return null;
                 }
-                long stream = block.stream(i);
-                int version = block.version(i);
-                long logPos = block.logPos(i);
-
-                return new IndexEntry(stream, version, logPos);
+                return block.toIndexEntry(i);
             }
         }
     }
@@ -169,8 +201,6 @@ public class BTreeIndexSegment implements IndexSegment {
         for (Block block : nodeBlocks) {
             assert !block.hasData();
         }
-
-        assert mf.position() == mf.capacity() : "Block count was not correct";
 
         mf.flush();
         truncate();

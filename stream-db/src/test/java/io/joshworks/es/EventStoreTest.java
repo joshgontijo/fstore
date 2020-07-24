@@ -18,7 +18,7 @@ import static org.junit.Assert.assertTrue;
 
 public class EventStoreTest {
 
-    public static final int MEMTABLE_SIZE = 500000;
+    public static final int MEMTABLE_SIZE = 1000000;
     private EventStore store;
     private File root;
 
@@ -29,7 +29,7 @@ public class EventStoreTest {
     }
 
     private EventStore open() {
-        return new EventStore(root, Size.MB.ofInt(100), MEMTABLE_SIZE, 4096, 1000);
+        return new EventStore(root, Size.MB.ofInt(512), MEMTABLE_SIZE, 4096, 1000);
     }
 
     @Test
@@ -39,6 +39,13 @@ public class EventStoreTest {
         store.append(create(stream, -1, "CREATE", "abc"));
         store.append(create(stream, -1, "UPDATE", "123"));
         store.append(create(stream, -1, "UPDATE", "123"));
+        store.append(create(stream, -1, "UPDATE", "123"));
+        store.append(create(stream, -1, "UPDATE", "123"));
+        store.append(create(stream, -1, "UPDATE", "123"));
+
+        Threads.sleep(2000);
+        store.flush();
+
         store.append(create(stream, -1, "UPDATE", "123"));
         store.append(create(stream, -1, "UPDATE", "123"));
         store.append(create(stream, -1, "UPDATE", "123"));
@@ -125,9 +132,6 @@ public class EventStoreTest {
 
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            if (i % 500000 == 0) {
-                System.out.println();
-            }
             store.append(create(stream, i - 1, "TEST", "abc"));
             if (i % 1000000 == 0) {
                 long now = System.currentTimeMillis();

@@ -43,7 +43,7 @@ public class EventStore {
             }
             int dstVersion = writer.nextVersion(dstStreamHash, expectedVersion);
 
-            WriteEvent linkToEvent = createLinkToEvent(srcVersion, dstStream, expectedVersion, srcStreamHash);
+            WriteEvent linkToEvent = createLinkToEvent(srcStream, srcVersion, dstStream, dstVersion);
 
             long logAddress = writer.appendToLog(linkToEvent);
 
@@ -51,14 +51,14 @@ public class EventStore {
         });
     }
 
-    private WriteEvent createLinkToEvent(int srcVersion, String dstStream, int expectedVersion, long srcStreamHash) {
+    private WriteEvent createLinkToEvent(String srcStream, int srcVersion, String dstStream, int dstVersion) {
         WriteEvent linktoEv = new WriteEvent();
         linktoEv.stream = dstStream;
+        linktoEv.version = dstVersion;
         linktoEv.type = "LINK_TO";
         linktoEv.timestamp = System.currentTimeMillis();
-        linktoEv.expectedVersion = expectedVersion;
         linktoEv.metadata = new byte[0];
-        linktoEv.data = IndexKey.toString(dstStream, srcVersion).getBytes(StandardCharsets.UTF_8);
+        linktoEv.data = IndexKey.toString(srcStream, srcVersion).getBytes(StandardCharsets.UTF_8);
         //TODO add linkTo attribute ?
         return linktoEv;
     }
@@ -86,4 +86,7 @@ public class EventStore {
         return planner.execute(log, dst);
     }
 
+    public void flush() {
+        index.flush();
+    }
 }

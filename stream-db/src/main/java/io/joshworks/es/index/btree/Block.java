@@ -1,5 +1,6 @@
 package io.joshworks.es.index.btree;
 
+import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;
 import io.joshworks.es.index.IndexKey;
 import io.joshworks.fstore.core.io.buffers.Buffers;
@@ -151,11 +152,18 @@ class Block {
         return data.position() > HEADER;
     }
 
-    int find(IndexKey key, IndexFunction fn) {
+    int find(long stream, int version, IndexFunction fn) {
         int dataSize = dataSize();
         int entrySize = level() == 0 ? LEAF_ENTRY_BYTES : INTERNAL_ENTRY_BYTES;
-        int idx = binarySearch(HEADER, dataSize, entrySize, key);
+        int idx = binarySearch(HEADER, dataSize, entrySize, stream, version);
         return fn.apply(idx);
+    }
+
+    IndexEntry toIndexEntry(int idx) {
+        long stream = stream(idx);
+        int version = version(idx);
+        long logPos = logPos(idx);
+        return new IndexEntry(stream, version, logPos);
     }
 
     //entry key
@@ -194,7 +202,7 @@ class Block {
     }
 
 
-    private int binarySearch(int chunkStart, int chunkLength, int entrySize, IndexKey key) {
+    private int binarySearch(int chunkStart, int chunkLength, int entrySize, long stream, int version) {
         int low = 0;
         int high = blockEntries() - 1;
 
@@ -202,7 +210,7 @@ class Block {
             int mid = (low + high) >>> 1;
             int readPos = chunkStart + (mid * entrySize);
             assert readPos >= chunkStart && readPos <= chunkStart + chunkLength : "Index out of bounds: " + readPos;
-            int cmp = compare(readPos, data, key);
+            int cmp = compare(readPos, data, stream, version);
             if (cmp < 0)
                 low = mid + 1;
             else if (cmp > 0)
@@ -213,11 +221,11 @@ class Block {
         return -(low + 1);
     }
 
-    private int compare(int bufferPos, ByteBuffer buffer, IndexKey key) {
+    private int compare(int bufferPos, ByteBuffer buffer, long keyStream, int keyVersion) {
         long stream = buffer.getLong(bufferPos);
         int version = buffer.getInt(bufferPos + Long.BYTES);
 
-        return IndexKey.compare(stream, version, key.stream(), key.version());
+        return IndexKey.compare(stream, version, keyStream, keyVersion);
     }
 
     @Override

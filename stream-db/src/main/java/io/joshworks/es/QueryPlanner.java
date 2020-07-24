@@ -58,26 +58,24 @@ public class QueryPlanner {
     private List<PageEntry> readKeys(Index index, IndexKey key, int maxItems, int readSize) {
         List<PageEntry> entries = new ArrayList<>();
 
-        IndexEntry ie = index.get(key);
-        if (ie == null) {
-            return entries;
-        }
-        entries.add(new PageEntry(ie, 0));
-
-        long startAddress = ie.logAddress();
-
+        long startAddress = Long.MAX_VALUE;
         int version = key.version();
         do {
-            version++;
-            IndexEntry next = index.get(new IndexKey(key.stream(), version));
-            if (next == null) {
+            List<IndexEntry> keyBatch = index.get(new IndexKey(key.stream(), version), maxItems - entries.size());
+            if (keyBatch.isEmpty()) {
                 return entries;
             }
-            long diff = posDiff(startAddress, next.logAddress());
-            if (diff == -1 || diff > readSize) {
-                return entries;
+            for (IndexEntry entry : keyBatch) {
+                startAddress = Math.min(startAddress, entry.logAddress());
+                long diff = posDiff(startAddress, entry.logAddress());
+                if (diff == -1 || diff > readSize) {
+                    return entries;
+                }
+                entries.add(new PageEntry(entry, diff));
+                version++;
             }
-            entries.add(new PageEntry(next, diff));
+
+
         } while (entries.size() < maxItems);
 
         return entries;

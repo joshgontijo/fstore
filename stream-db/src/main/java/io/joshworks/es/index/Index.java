@@ -5,6 +5,7 @@ import io.joshworks.es.index.btree.BTreeIndexSegment;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -60,8 +61,37 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         return ie.version();
     }
 
+    public List<IndexEntry> get(IndexKey start, int count) {
+        int version = start.version();
+
+        List<IndexEntry> fromMemTable = new ArrayList<>();
+        IndexEntry found;
+        while ((found = getFromMemTable(start.stream(), version++)) != null && fromMemTable.size() < count) {
+            fromMemTable.add(found);
+        }
+        if (!fromMemTable.isEmpty()) {
+            return fromMemTable; //startVersion is in memtable, definitely nothing in disk
+        }
+        return readBatchFromDisk(start.stream(), version, count);
+    }
+
+
+    private List<IndexEntry> readBatchFromDisk(long stream, int version, int count) {
+        if (count <= 0) {
+            return Collections.emptyList();
+        }
+        for (int i = segments.size() - 1; i >= 0; i--) {
+            BTreeIndexSegment index = segments.get(i);
+            List<IndexEntry> entries = index.findBatch(stream, version, count);
+            if (!entries.isEmpty()) {
+                return entries;
+            }
+        }
+        return Collections.emptyList();
+    }
+
     public IndexEntry get(IndexKey key) {
-        IndexEntry fromMemTable = getFromMemTable(key);
+        IndexEntry fromMemTable = getFromMemTable(key.stream(), key.version());
         if (fromMemTable != null) {
             return fromMemTable;
         }
@@ -72,7 +102,7 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
     private IndexEntry readFromDisk(IndexKey key, IndexFunction fn) {
         for (int i = segments.size() - 1; i >= 0; i--) {
             BTreeIndexSegment index = segments.get(i);
-            IndexEntry ie = index.find(key, fn);
+            IndexEntry ie = index.find(key.stream(), key.version(), fn);
             if (ie != null) {
                 return ie;
             }
@@ -80,17 +110,17 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         return null;
     }
 
-    private IndexEntry getFromMemTable(IndexKey key) {
-        List<IndexEntry> entries = table.get(key.stream());
+    private IndexEntry getFromMemTable(long stream, int version) {
+        List<IndexEntry> entries = table.get(stream);
         if (entries == null) {
             return null;
         }
         int firstVersion = entries.get(0).version();
         int lastVersion = entries.get(entries.size() - 1).version();
-        if (key.version() < firstVersion || key.version() > lastVersion) {
+        if (version < firstVersion || version > lastVersion) {
             return null;
         }
-        int pos = key.version() - firstVersion;
+        int pos = version - firstVersion;
         return entries.get(pos);
     }
 

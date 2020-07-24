@@ -5,7 +5,7 @@ import io.joshworks.es.SegmentFile;
 public interface IndexSegment extends SegmentFile {
     void append(long stream, int version, long logPos);
 
-    IndexEntry find(IndexKey key, IndexFunction func);
+    IndexEntry find(long stream, int version, IndexFunction func);
 
     boolean isFull();
 
