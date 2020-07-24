@@ -35,7 +35,7 @@ public class BTreeIndexSegmentTest {
         long stream = 123;
 
         for (int i = 0; i < items; i++) {
-            index.append(stream, i, 1, 1);
+            index.append(stream, i, 1);
         }
         index.complete();
 

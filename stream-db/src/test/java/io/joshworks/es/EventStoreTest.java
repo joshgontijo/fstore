@@ -47,15 +47,16 @@ public class EventStoreTest {
 
 
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
-        int read = store.get(IndexKey.of(stream, 0), 10, readBuffer);
+        int read = store.get(IndexKey.of(stream, 0), readBuffer);
         readBuffer.flip();
 
+        int version = 0;
         while (Event.isValid(readBuffer)) {
             int size = Event.sizeOf(readBuffer);
             assertTrue(read > 0);
             assertTrue(Event.isValid(readBuffer));
             assertEquals(StreamHasher.hash(stream), Event.stream(readBuffer));
-            assertEquals(0, Event.version(readBuffer));
+            assertEquals(version++, Event.version(readBuffer));
 
             Buffers.offsetPosition(readBuffer, size);
         }
@@ -109,7 +110,7 @@ public class EventStoreTest {
         Threads.sleep(2000);
 
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
-        store.get(IndexKey.of(dstStream, 0), 10, readBuffer);
+        store.get(IndexKey.of(dstStream, 0), readBuffer);
 
         readBuffer.flip();
         assertTrue(Event.isValid(readBuffer));
@@ -145,7 +146,7 @@ public class EventStoreTest {
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
         do {
             readBuffer.clear();
-            read = store.get(IndexKey.of(stream, lastReadVersion + 1), 10, readBuffer);
+            read = store.get(IndexKey.of(stream, lastReadVersion + 1), readBuffer);
             readBuffer.flip();
 
             while (Event.isValid(readBuffer)) {

@@ -30,13 +30,11 @@ public class BinaryIndexSegment implements IndexSegment {
     private static final int ENTRY_SIZE =
             Long.BYTES + //stream
                     Integer.BYTES + //version
-                    Integer.BYTES + //size
                     Long.BYTES; // logPos
 
     private static int STREAM_OFFSET = 0;
     private static int VERSION_OFFSET = STREAM_OFFSET + Long.BYTES;
-    private static int SIZE_OFFSET = VERSION_OFFSET + Integer.BYTES;
-    private static int LOGPOS_OFFSET = SIZE_OFFSET + Integer.BYTES;
+    private static int LOGPOS_OFFSET = VERSION_OFFSET + Integer.BYTES;
 
     private final MappedFile mf;
     private final AtomicBoolean readOnly = new AtomicBoolean();
@@ -75,13 +73,12 @@ public class BinaryIndexSegment implements IndexSegment {
      * Writes an entry to this index
      */
     @Override
-    public void append(long stream, int version, int size, long logPos) {
+    public void append(long stream, int version, long logPos) {
         if (isFull()) {
             throw new IllegalStateException("Index is full");
         }
         mf.putLong(stream);
         mf.putInt(version);
-        mf.putInt(size);
         mf.putLong(logPos);
     }
 
@@ -99,10 +96,9 @@ public class BinaryIndexSegment implements IndexSegment {
 
         long stream = mf.getLong(idx * ENTRY_SIZE + STREAM_OFFSET);
         int version = mf.getInt(idx * ENTRY_SIZE + VERSION_OFFSET);
-        int size = mf.getInt(idx * ENTRY_SIZE + SIZE_OFFSET);
         long logAddress = mf.getLong(idx * ENTRY_SIZE + LOGPOS_OFFSET);
 
-        return new IndexEntry(stream, version, size, logAddress);
+        return new IndexEntry(stream, version, logAddress);
     }
 
     public int binarySearch(int chunkStart, int chunkLength, IndexKey key) {

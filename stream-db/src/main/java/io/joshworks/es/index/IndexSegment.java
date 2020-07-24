@@ -3,7 +3,7 @@ package io.joshworks.es.index;
 import io.joshworks.es.SegmentFile;
 
 public interface IndexSegment extends SegmentFile {
-    void append(long stream, int version, int size, long logPos);
+    void append(long stream, int version, long logPos);
 
     IndexEntry find(IndexKey key, IndexFunction func);
 

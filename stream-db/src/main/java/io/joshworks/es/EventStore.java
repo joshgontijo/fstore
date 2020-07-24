@@ -6,6 +6,7 @@ import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.log.Log;
 import io.joshworks.es.writer.WriteEvent;
 import io.joshworks.es.writer.WriterThread;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -16,6 +17,8 @@ public class EventStore {
     private final Log log;
     private final Index index;
     private final WriterThread writerThread;
+
+    private static ThreadLocal<ByteBuffer> pageBufferCache = ThreadLocal.withInitial(() -> Buffers.allocate(4096, false));
 
     public EventStore(File root, int logSize, int indexEntries, int blockSize, int versionCacheSize) {
         this.log = new Log(root, logSize);
@@ -43,9 +46,8 @@ public class EventStore {
             WriteEvent linkToEvent = createLinkToEvent(srcVersion, dstStream, expectedVersion, srcStreamHash);
 
             long logAddress = writer.appendToLog(linkToEvent);
-            int eventSize = Event.sizeOf(linkToEvent);
 
-            writer.adToIndex(new IndexEntry(dstStreamHash, dstVersion, eventSize, logAddress));
+            writer.adToIndex(new IndexEntry(dstStreamHash, dstVersion, logAddress));
         });
     }
 
@@ -67,18 +69,16 @@ public class EventStore {
             int version = writer.nextVersion(stream, event.expectedVersion);
             event.version = version;
 
-            //this is critical, event size must be always the same otherwise logPos will be wrong
-            int eventSize = Event.sizeOf(event);
             long logAddress = writer.appendToLog(event);
-            writer.adToIndex(new IndexEntry(stream, version, eventSize, logAddress));
+            writer.adToIndex(new IndexEntry(stream, version, logAddress));
         });
 
     }
 
-    public int get(IndexKey key, int count, ByteBuffer dst) {
-
+    public int get(IndexKey key, ByteBuffer dst) {
+        ByteBuffer pageBuffer = pageBufferCache.get().clear();
         QueryPlanner planner = new QueryPlanner();
-        boolean success = planner.prepare(index, key, count, dst.remaining());
+        boolean success = planner.prepare(index, key, 100, pageBuffer);
         if (!success) {
             return 0;
         }

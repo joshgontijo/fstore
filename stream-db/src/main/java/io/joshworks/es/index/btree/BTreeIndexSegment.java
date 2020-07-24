@@ -4,17 +4,14 @@ import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;
 import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.index.IndexSegment;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 
 
 public class BTreeIndexSegment implements IndexSegment {
@@ -52,13 +49,13 @@ public class BTreeIndexSegment implements IndexSegment {
     }
 
     @Override
-    public void append(long stream, int version, int size, long logPos) {
+    public void append(long stream, int version, long logPos) {
         assert !isFull() : "Index is full";
 
         Block node = getOrAllocate(0);
-        if (!node.add(stream, version, size, logPos)) {
+        if (!node.add(stream, version, logPos)) {
             writeNode(node);
-            node.add(stream, version, size, logPos);
+            node.add(stream, version, logPos);
         }
     }
 
@@ -75,7 +72,7 @@ public class BTreeIndexSegment implements IndexSegment {
 
     //write not without linking node to the parent, used only for root when completig segment
     public void writeNodeFinal(Block node) {
-        int idx = node.writeTo(mf);
+        node.writeTo(mf);
     }
 
 
@@ -88,9 +85,6 @@ public class BTreeIndexSegment implements IndexSegment {
 
     @Override
     public IndexEntry find(IndexKey key, IndexFunction fn) {
-        ByteBuffer kb = Buffers.allocate(IndexKey.BYTES, false);
-        kb.putLong(key.stream()).putInt(key.version()).flip();
-
         Block block = root;
         while (true) {
             if (block.level() > 0) { //internal node use floor
@@ -109,10 +103,9 @@ public class BTreeIndexSegment implements IndexSegment {
                 }
                 long stream = block.stream(i);
                 int version = block.version(i);
-                int size = block.recordSize(i);
                 long logPos = block.logPos(i);
 
-                return new IndexEntry(stream, version, size, logPos);
+                return new IndexEntry(stream, version, logPos);
             }
         }
     }
@@ -184,13 +177,6 @@ public class BTreeIndexSegment implements IndexSegment {
         readOnly.set(true);
         this.root = readRoot();
         nodeBlocks.clear();
-    }
-
-    private List<Block> sortedNodes() {
-        return nodeBlocks
-                .stream()
-                .sorted(Comparator.comparingInt(Block::level))
-                .collect(Collectors.toList());
     }
 
     private Block readRoot() {

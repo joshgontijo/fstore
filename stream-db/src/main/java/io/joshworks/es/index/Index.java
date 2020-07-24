@@ -110,7 +110,7 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
                 .sorted()
                 .forEach(entry -> {
                     for (IndexEntry ie : entry.getValue()) {
-                        index.append(ie.stream(), ie.version(), ie.size(), ie.logAddress());
+                        index.append(ie.stream(), ie.version(), ie.logAddress());
                     }
                 });
 

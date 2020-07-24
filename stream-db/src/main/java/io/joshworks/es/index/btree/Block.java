@@ -19,7 +19,6 @@ import java.nio.ByteBuffer;
  * ---------
  * STREAM (8 BYTES)
  * VERSION (4 BYTES)
- * SIZE (4 BYTES)
  * LOG_POS (8 BYTES)
  *
  * ==============
@@ -35,17 +34,16 @@ class Block {
 
 
     static final int KEY_BYTES =
-            Long.BYTES + //STREAM
+                Long.BYTES + //STREAM
                     Integer.BYTES; //VERSION
 
     static final int LEAF_ENTRY_BYTES =
-            KEY_BYTES +
-                    Integer.BYTES + //SIZE
+                    KEY_BYTES +
                     Long.BYTES; // LOG_POS
 
 
     static final int INTERNAL_ENTRY_BYTES =
-            KEY_BYTES +
+                    KEY_BYTES +
                     Integer.BYTES; //BLOCK_IDX
 
 
@@ -74,14 +72,13 @@ class Block {
         return new Block(buffer);
     }
 
-    boolean add(long stream, int version, int size, long logPos) {
+    boolean add(long stream, int version, long logPos) {
         assert level() == 0 : "Not a leaf node";
         if (data.remaining() < LEAF_ENTRY_BYTES) {
             return false;
         }
         data.putLong(stream);
         data.putInt(version);
-        data.putInt(size);
         data.putLong(logPos);
 
         tmpEntries++;
@@ -188,7 +185,7 @@ class Block {
     //leaf only
     long logPos(int idx) {
         int pos = offset(idx);
-        return data.getLong(pos + KEY_BYTES + Integer.BYTES);
+        return data.getLong(pos + KEY_BYTES);
     }
 
     private int offset(int idx) {

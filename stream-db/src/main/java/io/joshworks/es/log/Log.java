@@ -66,6 +66,7 @@ public class Log extends SegmentDirectory<LogSegment> {
     public int read(long address, ByteBuffer dst) {
         int segIdx = segmentIdx(address);
         long logPos = positionOnSegment(address);
+        assert segIdx < segments.size();
         LogSegment segment = segments.get(segIdx);
         return segment.read(dst, logPos);
     }
@@ -76,7 +77,7 @@ public class Log extends SegmentDirectory<LogSegment> {
         createNewHead();
     }
 
-    private static int segmentIdx(long address) {
+    public static int segmentIdx(long address) {
         long segmentIdx = (address >>> SEGMENT_ADDRESS_BITS);
         if (segmentIdx > MAX_SEGMENTS) {
             throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + MAX_SEGMENTS);
@@ -95,7 +96,7 @@ public class Log extends SegmentDirectory<LogSegment> {
         return (segmentIdx << SEGMENT_ADDRESS_BITS) | position;
     }
 
-    private static long positionOnSegment(long address) {
+    public static long positionOnSegment(long address) {
         long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
         return (address & mask);
     }

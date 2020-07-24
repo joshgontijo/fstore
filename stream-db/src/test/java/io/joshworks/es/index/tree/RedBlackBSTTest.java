@@ -47,7 +47,7 @@ public class RedBlackBSTTest {
     }
 
     private IndexEntry create(int version) {
-        return new IndexEntry(DEFAULT_STREAM, version, 1, 1);
+        return new IndexEntry(DEFAULT_STREAM, version, 1);
     }
 
     private IndexKey key(int version) {

@@ -2,138 +2,108 @@ package io.joshworks.es;
 
 import io.joshworks.es.index.Index;
 import io.joshworks.es.index.IndexEntry;
-import io.joshworks.es.index.IndexFunction;
 import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.log.Log;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class QueryPlanner {
 
-    private List<ReadChunk> chunks;
+    private List<PageEntry> entries;
+    private long stream;
+    private int startVersion;
+    private ByteBuffer pageBuffer;
 
-    public boolean prepare(Index index, IndexKey key, int maxEntries, int maxBytes) {
-        if (maxEntries <= 0) {
-            throw new IllegalArgumentException("Entry must be greater than zero");
-        }
-        if (maxBytes <= 0) {
-            throw new IllegalArgumentException("Max bytes must be greater than zero");
-        }
+    public boolean prepare(Index index, IndexKey key, int maxItems, ByteBuffer pageBuffer) {
+        this.pageBuffer = pageBuffer.clear();
+        this.stream = key.stream();
+        this.startVersion = key.version();
 
-        List<IndexEntry> entries = readKeys(index, key, maxEntries);
-
-        if (entries.isEmpty()) {
-            return false;
-        }
-
-        if (entries.get(0).size() > maxBytes) {
-            throw new IllegalStateException("Not enough destination buffer space");
-        }
-
-        this.chunks = computeReadChunks(entries, maxBytes);
-        assert chunks.size() > 0 : "no data chunk to be read";
-        return true;
+        this.entries = readKeys(index, key, maxItems, pageBuffer.remaining());
+        return !entries.isEmpty();
     }
 
     public int execute(Log log, ByteBuffer dst) {
-        int plim = dst.limit();
-        int ppos = dst.position();
 
-        for (ReadChunk chunk : chunks) {
-            int bufferChunkStart = dst.position();
-            Buffers.offsetLimit(dst, chunk.size);
-            int read = log.read(chunk.startPos, dst);
-            assert chunk.size == read;
-            rewriteEntries(dst, bufferChunkStart, chunk);
+        PageEntry first = entries.get(0);
+        int read = log.read(first.entry.logAddress(), pageBuffer);
+        pageBuffer.flip();
+
+        int idx = 0;
+        int version = startVersion;
+        int totalRead = 0;
+        while (Event.isValid(pageBuffer)) {
+            int size = Event.sizeOf(pageBuffer);
+            PageEntry entry = entries.get(idx);
+            if (entry.offsetInPage != pageBuffer.position()) {
+                Buffers.offsetPosition(pageBuffer, size);
+                continue;
+            }
+            if (dst.remaining() < size) {
+                return totalRead;
+            }
+            Event.rewrite(pageBuffer, pageBuffer.position(), stream, version);
+            totalRead += Buffers.copy(pageBuffer, pageBuffer.position(), size, dst);
+            Buffers.offsetPosition(pageBuffer, size);
+            version++;
+            idx++;
         }
-
-        dst.limit(plim);
-
-        int totalRead = dst.position() - ppos;
-        assert totalRead == chunks.stream().mapToInt(c -> c.size).sum();
 
         return totalRead;
     }
 
-    private List<IndexEntry> readKeys(Index index, IndexKey key, int count) {
-        List<IndexEntry> entries = new ArrayList<>();
+    private List<PageEntry> readKeys(Index index, IndexKey key, int maxItems, int readSize) {
+        List<PageEntry> entries = new ArrayList<>();
+
+        IndexEntry ie = index.get(key);
+        if (ie == null) {
+            return entries;
+        }
+        entries.add(new PageEntry(ie, 0));
+
+        long startAddress = ie.logAddress();
+
         int version = key.version();
-        IndexEntry ie;
         do {
-            ie = index.get(new IndexKey(key.stream(), version));
-            if (ie != null) {
-                entries.add(ie);
-                version++;
+            version++;
+            IndexEntry next = index.get(new IndexKey(key.stream(), version));
+            if (next == null) {
+                return entries;
             }
-        } while (ie != null && entries.size() < count);
+            long diff = posDiff(startAddress, next.logAddress());
+            if (diff == -1 || diff > readSize) {
+                return entries;
+            }
+            entries.add(new PageEntry(next, diff));
+        } while (entries.size() < maxItems);
 
         return entries;
     }
 
-    private List<ReadChunk> computeReadChunks(List<IndexEntry> entries, int dstAvailable) {
-        if (entries.isEmpty()) {
-            return Collections.emptyList();
+    private static long posDiff(long startAddress, long nextAddress) {
+        int idx1 = Log.segmentIdx(startAddress);
+        int idx2 = Log.segmentIdx(nextAddress);
+        if (idx1 != idx2) { //different segments
+            return -1;
         }
-        int readTotal = 0;
-        List<ReadChunk> chunks = new ArrayList<>();
-        ReadChunk chunk = null;
-        for (IndexEntry entry : entries) {
-            if (readTotal + entry.size() > dstAvailable) {
-                break;
-            }
-            readTotal += entry.size();
-            if (chunk == null) {
-                chunk = new ReadChunk(entry);
-                continue;
-            }
-            if (!chunk.add(entry)) {
-                chunks.add(chunk);
-                chunk = null;
-            }
-        }
-        assert chunk != null;
-        chunks.add(chunk);
 
-        return chunks;
+        long segPos1 = Log.positionOnSegment(startAddress);
+        long segPos2 = Log.positionOnSegment(nextAddress);
+
+        return segPos2 - segPos1;
     }
 
-    private void rewriteEntries(ByteBuffer dst, int startPos, ReadChunk chunk) {
-        int evOffset = startPos;
-        int version = chunk.startVersion;
-        for (int i = 0; i < chunk.entries; i++) {
-            Event.rewrite(dst, evOffset, chunk.stream, version);
-            evOffset += Event.sizeOf(dst, evOffset);
-            version++;
+    private static class PageEntry {
+        private final IndexEntry entry;
+        private final long offsetInPage;
+
+        private PageEntry(IndexEntry entry, long offsetInPage) {
+            this.entry = entry;
+            this.offsetInPage = offsetInPage;
         }
     }
-
-    private static class ReadChunk {
-        private final long stream;
-        private final long startPos;
-        private final int startVersion;
-        private int size;
-        private int entries = 1;
-
-        private ReadChunk(IndexEntry entry) {
-            this.stream = entry.stream();
-            this.startPos = entry.logAddress();
-            this.startVersion = entry.version();
-            this.size = entry.size();
-        }
-
-        public boolean add(IndexEntry entry) {
-            if (startPos + size != entry.logAddress()) {
-                return false;
-            }
-            this.size += entry.size();
-            entries++;
-            return true;
-        }
-    }
-
 
 }
