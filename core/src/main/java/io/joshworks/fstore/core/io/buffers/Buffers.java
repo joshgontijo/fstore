@@ -279,6 +279,19 @@ public class Buffers {
         return remaining;
     }
 
+    public static String toString(ByteBuffer buffer, int offset, int count) {
+        if (remaining(buffer, offset) < count) {
+            throw new IndexOutOfBoundsException(count);
+        }
+        if (buffer.hasArray()) {
+            int arrayPos = Buffers.absoluteArrayPosition(buffer, offset);
+            return new String(buffer.array(), arrayPos, count, StandardCharsets.UTF_8);
+        }
+        byte[] bytes = new byte[count];
+        buffer.get(offset, bytes, 0, count);
+        return new String(bytes, StandardCharsets.UTF_8);
+    }
+
     public static ByteBuffer wrap(long l) {
         return ByteBuffer.allocate(Long.BYTES).putLong(l).flip();
     }

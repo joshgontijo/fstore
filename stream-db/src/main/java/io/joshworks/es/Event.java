@@ -58,6 +58,7 @@ public class Event {
     private static final int METADATA_LENGTH_OFFSET = DATA_LENGTH_OFFSET + Integer.BYTES;
     private static final int EVENT_TYPE_OFFSET = METADATA_LENGTH_OFFSET + Short.BYTES;
 
+
     public static int sizeOf(ByteBuffer data) {
         return sizeOf(data, data.position());
     }
@@ -109,20 +110,13 @@ public class Event {
     public static String eventType(ByteBuffer data) {
         int evTypeLen = eventTypeLen(data);
         int offset = data.position() + EVENT_TYPE_OFFSET;
-        if (data.hasArray()) {
-            int arrayPos = Buffers.absoluteArrayPosition(data, offset);
-            return new String(data.array(), arrayPos, evTypeLen, StandardCharsets.UTF_8);
-        }
-        byte[] bytes = new byte[evTypeLen];
-        data.get(offset, bytes, 0, evTypeLen);
-        return new String(bytes, StandardCharsets.UTF_8);
+        return Buffers.toString(data, offset, evTypeLen);
     }
 
     public static boolean hasAttribute(ByteBuffer data, int attribute) {
         short attr = attributes(data);
         return (attr & (1 << attribute)) == 1;
     }
-
 
     private static byte attribute(int... attributes) {
         byte b = 0;
