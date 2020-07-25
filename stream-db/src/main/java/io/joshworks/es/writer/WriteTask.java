@@ -5,9 +5,9 @@ import java.util.function.Consumer;
 
 public class WriteTask extends CompletableFuture<Void> {
 
-    final Consumer<StoreWriter> handler;
+    final Consumer<BatchingWriter> handler;
 
-    public WriteTask(Consumer<StoreWriter> handler) {
+    WriteTask(Consumer<BatchingWriter> handler) {
         this.handler = handler;
     }
 }

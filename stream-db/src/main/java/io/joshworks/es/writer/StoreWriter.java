@@ -1,199 +1,95 @@
 package io.joshworks.es.writer;
 
-import io.joshworks.es.Event;
 import io.joshworks.es.index.Index;
-import io.joshworks.es.index.IndexEntry;
-import io.joshworks.es.index.IndexFunction;
-import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.log.Log;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public class StoreWriter {
 
-    private final Log log;
-    private final Index index;
+    private final Thread thread = new Thread(this::process, "writer");
+    private final AtomicBoolean closed = new AtomicBoolean();
 
-    private final int maxTransactions;
-    private final int bufferSize; // suggestive, just used to limit writes to log
-    private ByteBuffer writeBuffer; //resizable
+    private final BlockingQueue<WriteTask> tasks;
 
-    private final List<IndexEntry> indexEntries = new ArrayList<>();
+    private final long poolWait;
+    private final BatchingWriter writer;
 
-    private final List<Transaction> transactions = new ArrayList<>();
-
-    //state
-    private int segmentIdx;
-    private long logPos;
-    private long sequence;
-    private Transaction current;
-
-    public StoreWriter(Log log, Index index, int maxTransactions, int bufferSize) {
-        this.log = log;
-        this.index = index;
-        this.bufferSize = bufferSize;
-        this.maxTransactions = maxTransactions;
-        this.writeBuffer = Buffers.allocate(bufferSize, false);
-
-        this.segmentIdx = log.segmentIdx();
-        this.logPos = log.segmentPosition();
-        this.sequence = 0; //TODO
+    public StoreWriter(Log log, Index index, int maxEntries, int bufferSize, long poolWait) {
+        this.poolWait = poolWait;
+        this.writer = new BatchingWriter(log, index, maxEntries, bufferSize);
+        this.tasks = new ArrayBlockingQueue<>(maxEntries);
     }
 
-    public int version(long stream) {
-        for (int i = indexEntries.size() - 1; i >= 0; i--) {
-            IndexEntry entry = indexEntries.get(i);
-            if (entry.stream() == stream) {
-                return entry.version();
+    public WriteTask submit(Consumer<BatchingWriter> handler) {
+        try {
+            WriteTask task = new WriteTask(handler);
+            tasks.put(task);
+            return task;
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void process() {
+        while (!closed.get()) {
+            try {
+                WriteTask task = tasks.poll(200, TimeUnit.MILLISECONDS);
+                if (task == null || task.isCancelled()) {
+                    continue;
+                }
+
+                do {
+                    try {
+                        writer.prepare(task);
+                        task.handler.accept(writer);
+                        writer.complete();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        writer.rollback(e);
+                    }
+                    if (writer.isFull()) {
+                        writer.commit();
+                    }
+                    task = poolNext();
+
+                } while (task != null);
+
+                if (!writer.isEmpty()) {
+                    writer.commit();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                closed.set(true);
             }
         }
-        return index.version(stream);
+        System.out.println("Write thread closed");
     }
 
-    public int nextVersion(long stream, int expectedVersion) {
-        int streamVersion = version(stream);
-        if (expectedVersion >= 0 && expectedVersion != streamVersion) {
-            throw new IllegalStateException("Version mismatch, expected " + expectedVersion + " got: " + streamVersion);
+    private WriteTask poolNext() throws InterruptedException {
+        if (poolWait <= 0) {
+            return tasks.poll();
         }
-        return streamVersion + 1;
+        return tasks.poll(poolWait, TimeUnit.MILLISECONDS);
     }
 
-    public long appendToLog(WriteEvent event) {
-        long logAddress = Log.toSegmentedPosition(segmentIdx, logPos);
-
-        int entrySize = serialize(event, sequence);
-
-        //------ STATE CHANGE -----
-        this.logPos += entrySize;
-        this.sequence++;
-        current.add(new WriteToLog(entrySize));
-        //-----------------------
-
-        return logAddress;
+    //API only, not to be used internally
+    public void commit() {
+        WriteTask task = submit(BatchingWriter::commit);
+        task.join();
     }
 
-    private int serialize(WriteEvent event, long sequence) {
-        int entrySize = Event.sizeOf(event);
-        if (entrySize > writeBuffer.remaining()) {
-            ByteBuffer newBuffer = Buffers.allocate(writeBuffer.capacity() + entrySize, false);
-            writeBuffer.flip();
-            Buffers.copy(writeBuffer, newBuffer);
-            writeBuffer = newBuffer;
-        }
-        int copied = Event.serialize(event, sequence, writeBuffer);
-        assert copied == entrySize;
-        return copied;
+    public void start() {
+        thread.start();
     }
 
-    public void adToIndex(IndexEntry entry) {
-        indexEntries.add(entry);
-        current.add(new WriteToIndex());
-    }
-
-
-    boolean isFull() {
-        return writeBuffer.position() >= bufferSize || transactions.size() >= maxTransactions;
-    }
-
-    boolean isEmpty() {
-        return writeBuffer.position() == 0 && transactions.isEmpty();
-    }
-
-    public void prepare() {
-        assert current == null : "Active transaction";
-        this.current = new Transaction();
-    }
-
-    //complete transaction unit
-    public void complete() {
-        assert current != null : "No active transaction";
-        if (!current.units.isEmpty()) {
-            transactions.add(current);
-        }
-        current = null;
-    }
-
-    //flush changes to disk
-    void commit() {
-//        System.out.println("Committing " + transactions.size() + " transactions");
-        writeBuffer.flip();
-        log.append(writeBuffer);
-        writeBuffer.compact();
-        assert writeBuffer.position() == 0;
-        for (IndexEntry indexEntry : indexEntries) {
-            index.append(indexEntry);
-        }
-        indexEntries.clear();
-        transactions.clear();
-
-        assert this.segmentIdx == log.segmentIdx() && logPos == log.segmentPosition() : "Log position mismatch";
-
-        //rolls only after writing all transactions
-        if (log.full()) {
-            log.roll();
-            this.segmentIdx = log.segmentIdx();
-            this.logPos = log.segmentPosition();
-        }
-    }
-
-    //rolls back the last attempt to write to either the index or log
-    void rollback() {
-        assert current != null : "No active transaction";
-        for (WorkUnit unit : current.units) {
-            unit.rollback();
-        }
-        this.current = null;
-    }
-
-    //TODO only works for EQUALS, maybe a bst here would work
-    public IndexEntry findEquals(IndexKey key) {
-        for (IndexEntry entry : indexEntries) {
-            if (key.stream() == entry.stream() && key.version() == entry.version()) {
-                return entry;
-            }
-        }
-        return index.get(key);
-    }
-
-    private static class Transaction {
-        private final List<WorkUnit> units = new ArrayList<>();
-
-        private void add(WorkUnit unit) {
-            units.add(unit);
-        }
-    }
-
-    private interface WorkUnit {
-
-        void rollback();
-    }
-
-    private class WriteToIndex implements WorkUnit {
-
-        @Override
-        public void rollback() {
-            indexEntries.remove(indexEntries.size() - 1);
-        }
-    }
-
-    private class WriteToLog implements WorkUnit {
-
-        final int entrySize;
-
-        private WriteToLog(int entrySize) {
-            this.entrySize = entrySize;
-        }
-
-
-        @Override
-        public void rollback() {
-            Buffers.offsetPosition(writeBuffer, -entrySize);
-            logPos -= entrySize;
-            sequence--;
-        }
+    public void shutdown() {
+        closed.set(true);
+        commit();
     }
 
 }

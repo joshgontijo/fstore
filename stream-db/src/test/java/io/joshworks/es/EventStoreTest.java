@@ -1,7 +1,6 @@
 package io.joshworks.es;
 
 import io.joshworks.es.writer.WriteEvent;
-import io.joshworks.es.index.IndexKey;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
@@ -54,7 +53,7 @@ public class EventStoreTest {
 
 
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
-        int read = store.get(IndexKey.of(stream, 0), readBuffer);
+        int read = store.get(stream, 0, readBuffer);
         readBuffer.flip();
 
         int version = 0;
@@ -117,7 +116,7 @@ public class EventStoreTest {
         Threads.sleep(2000);
 
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
-        store.get(IndexKey.of(dstStream, 0), readBuffer);
+        store.get(dstStream, 0, readBuffer);
 
         readBuffer.flip();
         assertTrue(Event.isValid(readBuffer));
@@ -150,7 +149,7 @@ public class EventStoreTest {
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
         do {
             readBuffer.clear();
-            read = store.get(IndexKey.of(stream, lastReadVersion + 1), readBuffer);
+            read = store.get(stream, lastReadVersion + 1, readBuffer);
             readBuffer.flip();
 
             while (Event.isValid(readBuffer)) {

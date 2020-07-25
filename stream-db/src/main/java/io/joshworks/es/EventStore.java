@@ -1,30 +1,37 @@
 package io.joshworks.es;
 
+import io.joshworks.es.events.SystemStreams;
 import io.joshworks.es.index.Index;
 import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.log.Log;
+import io.joshworks.es.reader.StoreReader;
+import io.joshworks.es.writer.StoreWriter;
 import io.joshworks.es.writer.WriteEvent;
-import io.joshworks.es.writer.WriterThread;
-import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.es.writer.WriteTask;
+import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 public class EventStore {
 
     private final Log log;
     private final Index index;
-    private final WriterThread writerThread;
+    private final StoreWriter writer;
+    private final StoreReader reader;
 
-    private static ThreadLocal<ByteBuffer> pageBufferCache = ThreadLocal.withInitial(() -> Buffers.allocate(4096, false));
+    private static final int READ_MAX_ITEMS = 50;
+    private static final int WRITE_MAX_ITEMS = 100;
+    private static final int WRITE_BUFFER_SIZE = Memory.PAGE_SIZE;
+    private static final int WRITE_POOL_WAIT = 50;
 
     public EventStore(File root, int logSize, int indexEntries, int blockSize, int versionCacheSize) {
         this.log = new Log(root, logSize);
         this.index = new Index(root, indexEntries, blockSize, versionCacheSize);
-        this.writerThread = new WriterThread(log, index, 100, 4096, 100);
-        this.writerThread.start();
+        this.writer = new StoreWriter(log, index, WRITE_MAX_ITEMS, WRITE_BUFFER_SIZE, WRITE_POOL_WAIT);
+        this.reader = new StoreReader(log, index);
+        this.writer.start();
     }
 
     public int version(long stream) {
@@ -32,7 +39,7 @@ public class EventStore {
     }
 
     public synchronized void linkTo(String srcStream, int srcVersion, String dstStream, int expectedVersion) {
-        writerThread.submit(writer -> {
+        writer.submit(writer -> {
 
             long srcStreamHash = StreamHasher.hash(srcStream);
             long dstStreamHash = StreamHasher.hash(dstStream);
@@ -43,28 +50,16 @@ public class EventStore {
             }
             int dstVersion = writer.nextVersion(dstStreamHash, expectedVersion);
 
-            WriteEvent linkToEvent = createLinkToEvent(srcStream, srcVersion, dstStream, dstVersion);
+            WriteEvent linkTo = SystemStreams.linkTo(srcStream, srcVersion, dstStream, dstVersion);
 
-            long logAddress = writer.appendToLog(linkToEvent);
+            long logAddress = writer.appendToLog(linkTo);
 
             writer.adToIndex(new IndexEntry(dstStreamHash, dstVersion, logAddress));
         });
     }
 
-    private WriteEvent createLinkToEvent(String srcStream, int srcVersion, String dstStream, int dstVersion) {
-        WriteEvent linktoEv = new WriteEvent();
-        linktoEv.stream = dstStream;
-        linktoEv.version = dstVersion;
-        linktoEv.type = "LINK_TO";
-        linktoEv.timestamp = System.currentTimeMillis();
-        linktoEv.metadata = new byte[0];
-        linktoEv.data = IndexKey.toString(srcStream, srcVersion).getBytes(StandardCharsets.UTF_8);
-        //TODO add linkTo attribute ?
-        return linktoEv;
-    }
-
-    public void append(WriteEvent event) {
-        var result = writerThread.submit(writer -> {
+    public WriteTask append(WriteEvent event) {
+        return writer.submit(writer -> {
             long stream = StreamHasher.hash(event.stream);
             int version = writer.nextVersion(stream, event.expectedVersion);
             event.version = version;
@@ -72,21 +67,18 @@ public class EventStore {
             long logAddress = writer.appendToLog(event);
             writer.adToIndex(new IndexEntry(stream, version, logAddress));
         });
-
     }
 
-    public int get(IndexKey key, ByteBuffer dst) {
-        ByteBuffer pageBuffer = pageBufferCache.get().clear();
-        QueryPlanner planner = new QueryPlanner();
-        boolean success = planner.prepare(index, key, 100, pageBuffer);
-        if (!success) {
-            return 0;
-        }
+    public int get(long stream, int version, ByteBuffer dst) {
+        return reader.get(stream, version, READ_MAX_ITEMS, dst);
+    }
 
-        return planner.execute(log, dst);
+    public int get(String stream, int version, ByteBuffer dst) {
+        return get(StreamHasher.hash(stream), version, dst);
     }
 
     public void flush() {
+        writer.commit();
         index.flush();
     }
 }

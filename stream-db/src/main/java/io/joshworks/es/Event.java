@@ -126,30 +126,6 @@ public class Event {
         return b;
     }
 
-
-    public static ByteBuffer create(long sequence, long stream, int version, String evType, ByteBuffer data, int... attr) {
-        byte[] evTypeBytes = evType.getBytes(StandardCharsets.UTF_8);
-        int recSize = OVERHEAD + evTypeBytes.length + data.remaining();
-        ByteBuffer dst = Buffers.allocate(recSize, false);
-        dst.putInt(recSize);
-        dst.putLong(stream);
-        dst.putInt(version);
-        dst.putInt(0); //tmp checksum
-        dst.putLong(sequence);
-        dst.putLong(System.currentTimeMillis());
-        dst.putShort(attribute(attr));
-        dst.putShort((short) evTypeBytes.length);
-        dst.put(evTypeBytes);
-        Buffers.copy(data, dst);
-
-        writeChecksum(dst, 0);
-
-        dst.flip();
-        assert dst.remaining() == recSize;
-        assert Event.isValid(dst);
-        return dst;
-    }
-
     public static boolean isValid(ByteBuffer data) {
         return isValid(data, data.position());
     }
@@ -225,18 +201,14 @@ public class Event {
         dst.putInt(0); //tmp checksum
         dst.putLong(sequence);
         dst.putLong(System.currentTimeMillis());
-        dst.putShort(event.attributes);
+        dst.put(event.attributes);
 
-        //event type
         dst.putShort((short) evTypeBytes.length);
-        dst.put(evTypeBytes);
-
-        //data
         dst.putInt(event.data.length);
-        dst.put(event.data);
+        dst.putShort((short) event.metadata.length);
 
-        //metadata
-        dst.putInt(event.metadata.length);
+        dst.put(evTypeBytes);
+        dst.put(event.data);
         dst.put(event.metadata);
 
         writeChecksum(dst, bpos);

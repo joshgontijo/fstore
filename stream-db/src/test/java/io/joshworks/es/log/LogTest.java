@@ -31,19 +31,19 @@ public class LogTest {
     @Test
     public void append_reopen() {
 
-        ByteBuffer data = EventUtils.create(1, 1, 1, "value-123");
+        ByteBuffer data = EventUtils.create(1, "stream-1", 1, "value-123");
         long address = log.append(data);
 
         log.close();
         log = open();
 
-        assertEvent(1, 1, 1, address);
+        assertEvent("stream-1", 1, 1, address);
     }
 
     @Test
     public void append_read() {
 
-        long stream = 123;
+        String stream = "stream-1";
         int version = 111;
         long sequence = 222;
         ByteBuffer data = EventUtils.create(sequence, stream, version, "value-" + 0);
@@ -55,15 +55,15 @@ public class LogTest {
     @Test
     public void append_multiple_segments_read() {
 
-        long address1 = log.append(EventUtils.create(1, 1, 1, "segment-1"));
+        long address1 = log.append(EventUtils.create(1, "stream-1", 1, "segment-1"));
         log.roll();
-        long address2 = log.append(EventUtils.create(2, 2, 2, "segment-1"));
+        long address2 = log.append(EventUtils.create(2, "stream-2", 2, "segment-1"));
 
-        assertEvent(1, 1, 1, address1);
-        assertEvent(2, 2, 2, address2);
+        assertEvent("stream-1", 1, 1, address1);
+        assertEvent("stream-2", 2, 2, address2);
     }
 
-    private void assertEvent(long stream, int version, long sequence, long address) {
+    private void assertEvent(String stream, int version, long sequence, long address) {
         ByteBuffer readBuffer = Buffers.allocate(4096, false);
         int read = log.read(address, readBuffer);
 

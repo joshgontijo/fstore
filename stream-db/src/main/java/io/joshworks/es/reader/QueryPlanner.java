@@ -1,5 +1,6 @@
-package io.joshworks.es;
+package io.joshworks.es.reader;
 
+import io.joshworks.es.Event;
 import io.joshworks.es.index.Index;
 import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexKey;
@@ -12,33 +13,33 @@ import java.util.List;
 
 public class QueryPlanner {
 
-    private List<PageEntry> entries;
+    private List<PageEntry> entries = new ArrayList<>();
     private long stream;
     private int startVersion;
     private ByteBuffer pageBuffer;
 
-    public boolean prepare(Index index, IndexKey key, int maxItems, ByteBuffer pageBuffer) {
+    public boolean prepare(Index index, long stream, int version, int maxItems, ByteBuffer pageBuffer) {
         this.pageBuffer = pageBuffer.clear();
-        this.stream = key.stream();
-        this.startVersion = key.version();
+        this.stream = stream;
+        this.startVersion = version;
 
-        this.entries = readKeys(index, key, maxItems, pageBuffer.remaining());
+        this.entries = readKeys(index, stream, version, maxItems, pageBuffer.remaining());
         return !entries.isEmpty();
     }
 
     public int execute(Log log, ByteBuffer dst) {
 
         PageEntry first = entries.get(0);
-        int read = log.read(first.entry.logAddress(), pageBuffer);
+        log.read(first.entry.logAddress(), pageBuffer);
         pageBuffer.flip();
 
         int idx = 0;
         int version = startVersion;
         int totalRead = 0;
-        while (Event.isValid(pageBuffer)) {
+        while (Event.isValid(pageBuffer) && idx < entries.size()) {
             int size = Event.sizeOf(pageBuffer);
             PageEntry entry = entries.get(idx);
-            if (entry.offsetInPage != pageBuffer.position()) {
+            if (!expectedEvent(version) || !matchesOffset(entry.offsetInPage, pageBuffer.position())) {
                 Buffers.offsetPosition(pageBuffer, size);
                 continue;
             }
@@ -55,13 +56,20 @@ public class QueryPlanner {
         return totalRead;
     }
 
-    private List<PageEntry> readKeys(Index index, IndexKey key, int maxItems, int readSize) {
+    private boolean matchesOffset(long offsetInPage, int position) {
+        return offsetInPage == position;
+    }
+
+    private boolean expectedEvent(int version) {
+        return Event.stream(pageBuffer) == stream && Event.version(pageBuffer) == version;
+    }
+
+    private List<PageEntry> readKeys(Index index, long stream, int version, int maxItems, int readSize) {
         List<PageEntry> entries = new ArrayList<>();
 
         long startAddress = Long.MAX_VALUE;
-        int version = key.version();
         do {
-            List<IndexEntry> keyBatch = index.get(new IndexKey(key.stream(), version), maxItems - entries.size());
+            List<IndexEntry> keyBatch = index.get(new IndexKey(stream, version), maxItems - entries.size());
             if (keyBatch.isEmpty()) {
                 return entries;
             }
