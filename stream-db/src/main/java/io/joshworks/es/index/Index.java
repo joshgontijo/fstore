@@ -6,6 +6,7 @@ import io.joshworks.es.index.btree.BTreeIndexSegment;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,7 +24,7 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
     public static final int NONE = -1;
 
-    public Index(File root, int maxEntries, int blockSize, int versionCacheSize) {
+    public Index(File root, int maxEntries, int blockSize, int versionCacheSize) { //TODO version cache ? (has to update on writes)
         super(root, EXT);
         if (blockSize % 2 != 0) {
             throw new IllegalArgumentException("Block size must be power of two, got " + blockSize);
@@ -31,16 +32,12 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         if (blockSize > Short.MAX_VALUE) { //block uses short for BLOCK_SIZE
             throw new IllegalArgumentException("Block size must cannot be greater than " + Short.MAX_VALUE);
         }
-//        this.memTable = new RedBlackBST(maxEntries);
         this.maxEntries = maxEntries;
         this.blockSize = blockSize;
         super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, blockSize));
     }
 
     public void append(IndexEntry entry) {
-        if (entries.get() >= maxEntries) {
-            flush();
-        }
         table.compute(entry.stream(), (k, v) -> {
             if (v == null) v = new ArrayList<>();
             v.add(entry);
@@ -66,8 +63,9 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
         List<IndexEntry> fromMemTable = new ArrayList<>();
         IndexEntry found;
-        while ((found = getFromMemTable(start.stream(), version++)) != null && fromMemTable.size() < count) {
+        while ((found = getFromMemTable(start.stream(), version)) != null && fromMemTable.size() < count) {
             fromMemTable.add(found);
+            version++;
         }
         if (!fromMemTable.isEmpty()) {
             return fromMemTable; //startVersion is in memtable, definitely nothing in disk
@@ -128,6 +126,10 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         return segments.stream().mapToLong(BTreeIndexSegment::entries).sum() + entries.get();
     }
 
+    public boolean isFull() {
+        return entries.get() >= maxEntries;
+    }
+
     public void flush() {
         int entries = this.entries.get();
         System.out.println("Flushing memtable: " + entries);
@@ -135,9 +137,9 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         if (entries == 0) {
             return;
         }
-        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), maxEntries, blockSize);
+        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), entries, blockSize);
         table.entrySet().stream()
-                .sorted()
+                .sorted(Comparator.comparingLong(Map.Entry::getKey))
                 .forEach(entry -> {
                     for (IndexEntry ie : entry.getValue()) {
                         index.append(ie.stream(), ie.version(), ie.logAddress());

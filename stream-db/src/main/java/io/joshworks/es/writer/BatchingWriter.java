@@ -1,6 +1,9 @@
 package io.joshworks.es.writer;
 
 import io.joshworks.es.Event;
+import io.joshworks.es.StreamHasher;
+import io.joshworks.es.events.SystemStreams;
+import io.joshworks.es.events.WriteEvent;
 import io.joshworks.es.index.Index;
 import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexKey;
@@ -21,7 +24,6 @@ public class BatchingWriter {
     private ByteBuffer writeBuffer; //resizable
 
     private final List<IndexEntry> indexEntries = new ArrayList<>();
-
     private final List<Transaction> batch = new ArrayList<>();
 
     //state
@@ -42,7 +44,7 @@ public class BatchingWriter {
         this.sequence = 0; //TODO fetch from store
     }
 
-    public int version(long stream) {
+    private int version(long stream) {
         for (int i = indexEntries.size() - 1; i >= 0; i--) {
             IndexEntry entry = indexEntries.get(i);
             if (entry.stream() == stream) {
@@ -52,7 +54,7 @@ public class BatchingWriter {
         return index.version(stream);
     }
 
-    public int nextVersion(long stream, int expectedVersion) {
+    private int nextVersion(long stream, int expectedVersion) {
         int streamVersion = version(stream);
         if (expectedVersion >= 0 && expectedVersion != streamVersion) {
             throw new IllegalStateException("Version mismatch, expected " + expectedVersion + " got: " + streamVersion);
@@ -60,21 +62,25 @@ public class BatchingWriter {
         return streamVersion + 1;
     }
 
-    public long appendToLog(WriteEvent event) {
+    public long append(WriteEvent event) {
+        assert current != null;
         long logAddress = Log.toSegmentedPosition(segmentIdx, logPos);
 
-        int entrySize = serialize(event, sequence);
+        long stream = StreamHasher.hash(event.stream);
+        int version = nextVersion(stream, event.expectedVersion);
+        int entrySize = serialize(event, version, sequence);
 
         //------ STATE CHANGE -----
         this.logPos += entrySize;
         this.sequence++;
         current.add(new WriteToLog(entrySize));
+        adToIndex(new IndexEntry(stream, version, logAddress));
         //-----------------------
 
         return logAddress;
     }
 
-    private int serialize(WriteEvent event, long sequence) {
+    private int serialize(WriteEvent event, int version, long sequence) {
         int entrySize = Event.sizeOf(event);
         if (entrySize > writeBuffer.remaining()) {
             ByteBuffer newBuffer = Buffers.allocate(writeBuffer.capacity() + entrySize, false);
@@ -82,12 +88,13 @@ public class BatchingWriter {
             Buffers.copy(writeBuffer, newBuffer);
             writeBuffer = newBuffer;
         }
-        int copied = Event.serialize(event, sequence, writeBuffer);
+        int copied = Event.serialize(event, version, sequence, writeBuffer);
         assert copied == entrySize;
         return copied;
     }
 
-    public void adToIndex(IndexEntry entry) {
+    private void adToIndex(IndexEntry entry) {
+        assert current != null;
         indexEntries.add(entry);
         current.add(new WriteToIndex());
     }
@@ -117,28 +124,60 @@ public class BatchingWriter {
     //flush changes to disk
     public void commit() {
 //        System.out.println("Committing " + transactions.size() + " transactions");
-        writeBuffer.flip();
-        log.append(writeBuffer);
-        writeBuffer.compact();
-        assert writeBuffer.position() == 0;
-        for (IndexEntry indexEntry : indexEntries) {
-            index.append(indexEntry);
+        if (batch.isEmpty()) {
+            return;
         }
-        indexEntries.clear();
+        try {
+            writeBuffer.flip();
+            log.append(writeBuffer);
+            writeBuffer.compact();
+            assert writeBuffer.position() == 0;
 
-        assert this.segmentIdx == log.segmentIdx() && logPos == log.segmentPosition() : "Log position mismatch";
+            //flush entries to index
+            boolean indexFlushed = false;
+            for (IndexEntry indexEntry : indexEntries) {
+                if (index.isFull()) {
+                    index.flush();
+                    indexFlushed = true;
+                }
+                index.append(indexEntry);
+            }
+            indexEntries.clear();
 
-        //rolls only after writing all transactions
-        if (log.full()) {
-            log.roll();
-            this.segmentIdx = log.segmentIdx();
-            this.logPos = log.segmentPosition();
+            assert this.segmentIdx == log.segmentIdx() && logPos == log.segmentPosition() : "Log position mismatch";
+
+            //rolls only after writing all transactions
+            if (log.full()) {
+                log.roll();
+                this.segmentIdx = log.segmentIdx();
+                this.logPos = log.segmentPosition();
+            }
+
+            for (Transaction transaction : batch) {
+                transaction.commit();
+            }
+
+            //append and flush it now
+            if (indexFlushed) {
+                prepare(new WriteTask(a -> {})); //NO_OP task
+                append(SystemStreams.indexFlush());
+                complete();
+                commit();
+            }
+
+            batch.clear();
+        } catch (Exception e) {
+            System.err.println("Commit failed due to rolling back" + e.getMessage());
+            try {
+                for (Transaction transaction : batch) {
+                    transaction.rollback(e);
+                }
+                throw e;
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
         }
-
-        for (Transaction transaction : batch) {
-            transaction.commit();
-        }
-        batch.clear();
 
     }
 

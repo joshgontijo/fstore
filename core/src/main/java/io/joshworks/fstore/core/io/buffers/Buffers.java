@@ -9,6 +9,9 @@ public class Buffers {
 
     public static final int MAX_CAPACITY = Integer.MAX_VALUE - 8;
 
+    public static final ByteBuffer EMPTY = allocate(0, false);
+    public static final byte[] EMPTY_BYTES = new byte[0];
+
     public static ByteBuffer allocate(int size, boolean direct) {
         if (size >= MAX_CAPACITY) {
             throw new IllegalArgumentException("Buffer too large: Max allowed size is: " + MAX_CAPACITY);

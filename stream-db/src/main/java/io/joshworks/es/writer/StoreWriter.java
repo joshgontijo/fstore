@@ -1,5 +1,6 @@
 package io.joshworks.es.writer;
 
+import io.joshworks.es.events.WriteEvent;
 import io.joshworks.es.index.Index;
 import io.joshworks.es.log.Log;
 
@@ -25,7 +26,11 @@ public class StoreWriter {
         this.tasks = new ArrayBlockingQueue<>(maxEntries);
     }
 
-    public WriteTask submit(Consumer<BatchingWriter> handler) {
+    public WriteTask enqueue(WriteEvent event) {
+        return enqueue(w -> w.append(event));
+    }
+
+    public WriteTask enqueue(Consumer<BatchingWriter> handler) {
         try {
             WriteTask task = new WriteTask(handler);
             tasks.put(task);
@@ -38,7 +43,7 @@ public class StoreWriter {
     private void process() {
         while (!closed.get()) {
             try {
-                WriteTask task = tasks.poll(200, TimeUnit.MILLISECONDS);
+                WriteTask task = tasks.poll(1, TimeUnit.SECONDS);
                 if (task == null || task.isCancelled()) {
                     continue;
                 }
@@ -53,14 +58,14 @@ public class StoreWriter {
                         writer.rollback(e);
                     }
                     if (writer.isFull()) {
-                        writer.commit();
+                        commitInternal();
                     }
                     task = poolNext();
 
                 } while (task != null);
 
                 if (!writer.isEmpty()) {
-                    writer.commit();
+                    commitInternal();
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -68,6 +73,17 @@ public class StoreWriter {
             }
         }
         System.out.println("Write thread closed");
+    }
+
+    private void commitInternal() {
+        try {
+            writer.commit();
+        } catch (Exception e) {
+            //TODO need to have some sort of abort that will notify all tasks otherwise they might hang forever
+            System.err.println("[FATAL] Failed to commit transactions, stopping writer thread");
+            e.printStackTrace();
+            closed.set(true);
+        }
     }
 
     private WriteTask poolNext() throws InterruptedException {
@@ -79,7 +95,7 @@ public class StoreWriter {
 
     //API only, not to be used internally
     public void commit() {
-        WriteTask task = submit(BatchingWriter::commit);
+        WriteTask task = enqueue(BatchingWriter::commit);
         task.join();
     }
 

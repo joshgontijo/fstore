@@ -1,7 +1,7 @@
 package io.joshworks.es.events;
 
 import io.joshworks.es.index.IndexKey;
-import io.joshworks.es.writer.WriteEvent;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.charset.StandardCharsets;
 
@@ -12,15 +12,25 @@ public class SystemStreams {
     }
 
     private static final String LINKTO_TYPE = ">";
+    private static final String INDEX_FLUSH = "$INDEX_FLUSH";
 
-    public static WriteEvent linkTo(String srcStream, int srcVersion, String dstStream, int dstVersion) {
+    private static final String INDEX_STREAM = "$INDEX";
+
+    public static WriteEvent linkTo(String srcStream, int srcVersion, String dstStream) {
         WriteEvent event = new WriteEvent();
         event.stream = dstStream;
-        event.version = dstVersion;
         event.type = LINKTO_TYPE;
-        event.timestamp = System.currentTimeMillis();
-        event.metadata = new byte[0];
+        event.metadata = Buffers.EMPTY_BYTES;
         event.data = IndexKey.toString(srcStream, srcVersion).getBytes(StandardCharsets.UTF_8);
+        return event;
+    }
+
+    public static WriteEvent indexFlush() {
+        WriteEvent event = new WriteEvent();
+        event.stream = INDEX_STREAM;
+        event.type = INDEX_FLUSH;
+        event.metadata = Buffers.EMPTY_BYTES;
+        event.data = Buffers.EMPTY_BYTES;
         return event;
     }
 

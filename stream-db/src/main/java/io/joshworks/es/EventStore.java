@@ -7,7 +7,7 @@ import io.joshworks.es.index.IndexKey;
 import io.joshworks.es.log.Log;
 import io.joshworks.es.reader.StoreReader;
 import io.joshworks.es.writer.StoreWriter;
-import io.joshworks.es.writer.WriteEvent;
+import io.joshworks.es.events.WriteEvent;
 import io.joshworks.es.writer.WriteTask;
 import io.joshworks.fstore.core.util.Memory;
 
@@ -39,34 +39,21 @@ public class EventStore {
     }
 
     public synchronized void linkTo(String srcStream, int srcVersion, String dstStream, int expectedVersion) {
-        writer.submit(writer -> {
-
+        writer.enqueue(writer -> {
             long srcStreamHash = StreamHasher.hash(srcStream);
-            long dstStreamHash = StreamHasher.hash(dstStream);
 
             IndexEntry ie = writer.findEquals(new IndexKey(srcStreamHash, srcVersion));
             if (ie == null) {
                 throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStream, srcVersion));
             }
-            int dstVersion = writer.nextVersion(dstStreamHash, expectedVersion);
 
-            WriteEvent linkTo = SystemStreams.linkTo(srcStream, srcVersion, dstStream, dstVersion);
-
-            long logAddress = writer.appendToLog(linkTo);
-
-            writer.adToIndex(new IndexEntry(dstStreamHash, dstVersion, logAddress));
+            WriteEvent linkTo = SystemStreams.linkTo(srcStream, srcVersion, dstStream);
+            writer.append(linkTo);
         });
     }
 
     public WriteTask append(WriteEvent event) {
-        return writer.submit(writer -> {
-            long stream = StreamHasher.hash(event.stream);
-            int version = writer.nextVersion(stream, event.expectedVersion);
-            event.version = version;
-
-            long logAddress = writer.appendToLog(event);
-            writer.adToIndex(new IndexEntry(stream, version, logAddress));
-        });
+        return writer.enqueue(event);
     }
 
     public int get(long stream, int version, ByteBuffer dst) {

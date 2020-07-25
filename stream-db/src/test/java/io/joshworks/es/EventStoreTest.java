@@ -1,6 +1,6 @@
 package io.joshworks.es;
 
-import io.joshworks.es.writer.WriteEvent;
+import io.joshworks.es.events.WriteEvent;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;

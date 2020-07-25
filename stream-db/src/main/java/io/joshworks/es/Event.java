@@ -1,6 +1,6 @@
 package io.joshworks.es;
 
-import io.joshworks.es.writer.WriteEvent;
+import io.joshworks.es.events.WriteEvent;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
@@ -184,7 +184,7 @@ public class Event {
                 event.metadata.length;
     }
 
-    public static int serialize(WriteEvent event, long sequence, ByteBuffer dst) {
+    public static int serialize(WriteEvent event, int version, long sequence, ByteBuffer dst) {
         int recSize = sizeOf(event);
         if (recSize > dst.remaining()) {
             return 0;
@@ -197,7 +197,7 @@ public class Event {
         byte[] evTypeBytes = event.type.getBytes(StandardCharsets.UTF_8);
         dst.putInt(recSize);
         dst.putLong(streamHash);
-        dst.putInt(event.version);
+        dst.putInt(version);
         dst.putInt(0); //tmp checksum
         dst.putLong(sequence);
         dst.putLong(System.currentTimeMillis());
