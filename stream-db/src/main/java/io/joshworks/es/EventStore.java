@@ -59,9 +59,10 @@ public class EventStore implements Closeable {
                 throw new IllegalStateException("Invalid event found at " + pos);
             }
             if (SystemStreams.isIndexFlush(bb)) {
-                if (pos == logAddress) {//not the start event, something is wrong
-                    return; //ignore this event
+                if (pos == logAddress) {//first event which should be an indexFlush
+                    return; //ignore
                 }
+                //not the start event, something is wrong
                 throw new IllegalStateException("Unexpected Index flush event");
             }
             index.append(new IndexEntry(Event.stream(bb), Event.version(bb), pos));
