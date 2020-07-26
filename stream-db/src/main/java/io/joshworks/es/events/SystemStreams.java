@@ -3,9 +3,9 @@ package io.joshworks.es.events;
 import io.joshworks.es.Event;
 import io.joshworks.es.index.IndexKey;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.StringUtils;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 public class SystemStreams {
 
@@ -26,23 +26,23 @@ public class SystemStreams {
         return INDEX_FLUSH_TYPE.equals(Event.eventType(buffer));
     }
 
-    public static WriteEvent linkTo(String srcStream, int srcVersion, String dstStream, int expectedVersion) {
-        WriteEvent event = new WriteEvent();
-        event.stream = dstStream;
-        event.type = LINKTO_TYPE;
-        event.metadata = Buffers.EMPTY_BYTES;
-        event.expectedVersion = expectedVersion;
-        event.data = IndexKey.toString(srcStream, srcVersion).getBytes(StandardCharsets.UTF_8);
-        return event;
+    public static WriteEvent linkTo(LinkToEvent ev) {
+        String data = IndexKey.toString(ev.srcStream(), ev.srcVersion());
+        return new WriteEvent(
+                ev.dstStream(),
+                LINKTO_TYPE,
+                ev.expectedVersion(),
+                StringUtils.toUtf8Bytes(data),
+                Buffers.EMPTY_BYTES);
     }
 
     public static WriteEvent indexFlush() {
-        WriteEvent event = new WriteEvent();
-        event.stream = INDEX_STREAM;
-        event.type = INDEX_FLUSH_TYPE;
-        event.metadata = Buffers.EMPTY_BYTES;
-        event.data = Buffers.EMPTY_BYTES;
-        return event;
+        return new WriteEvent(
+                INDEX_STREAM,
+                INDEX_FLUSH_TYPE,
+                -1,
+                Buffers.EMPTY_BYTES,
+                Buffers.EMPTY_BYTES);
     }
 
 }

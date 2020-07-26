@@ -1,11 +1,10 @@
 package io.joshworks.es.log;
 
 import io.joshworks.es.Event;
+import io.joshworks.es.EventHelper;
 import io.joshworks.es.SegmentDirectory;
-import io.joshworks.es.events.WriteEvent;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.core.util.StringUtils;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -104,14 +103,7 @@ public class LogSegmentTest {
     }
 
     private static ByteBuffer create(long seq) {
-        WriteEvent ev = new WriteEvent();
-        ev.data = StringUtils.toUtf8Bytes("abc");
-        ev.metadata = StringUtils.toUtf8Bytes("metadata-1");
-        ev.stream = "stream-123";
-        ev.type = "type-1";
-        ByteBuffer bb = Buffers.allocate(Event.sizeOf(ev), false);
-        Event.serialize(ev, 1, seq, bb);
-        return bb.flip();
+        return EventHelper.evOf(seq, "stream-1", 1, "test");
     }
 
 }

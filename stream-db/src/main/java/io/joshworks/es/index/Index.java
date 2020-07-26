@@ -2,6 +2,8 @@ package io.joshworks.es.index;
 
 import io.joshworks.es.SegmentDirectory;
 import io.joshworks.es.index.btree.BTreeIndexSegment;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -13,6 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Index extends SegmentDirectory<BTreeIndexSegment> {
+
+    private static final Logger log = LoggerFactory.getLogger(Index.class);
 
     private final Map<Long, List<IndexEntry>> table = new ConcurrentHashMap<>();
     private final AtomicInteger entries = new AtomicInteger();
@@ -139,34 +143,37 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         return diskEntries + this.entries.get();
     }
 
-    public boolean isFull() {
-        return entries.get() >= maxEntries;
+    public int memTableSize() {
+        return entries.get();
+    }
+
+    public int memTableCapacity() {
+        return maxEntries;
     }
 
     public void flush() {
         int entries = this.entries.get();
-        System.out.println("Flushing memtable: " + entries);
         long start = System.currentTimeMillis();
         if (entries == 0) {
             return;
         }
         File headFile = newHeadFile();
-        BTreeIndexSegment index = new BTreeIndexSegment(headFile, entries, blockSize);
+        BTreeIndexSegment segment = new BTreeIndexSegment(headFile, entries, blockSize);
         table.entrySet().stream()
                 .sorted(Comparator.comparingLong(Map.Entry::getKey))
                 .forEach(entry -> {
                     for (IndexEntry ie : entry.getValue()) {
-                        index.append(ie.stream(), ie.version(), ie.logAddress());
+                        segment.append(ie.stream(), ie.version(), ie.logAddress());
                     }
                 });
 
-        index.complete();
+        segment.complete();
 
-        super.add(index);
+        super.add(segment);
         this.entries.set(0);
         table.clear();
 
-        System.out.println("Memtable flush complete in " + (System.currentTimeMillis() - start) + "ms");
+        log.info("Memtable flush complete: {} entries in {}ms. Segment size: {}", entries, (System.currentTimeMillis() - start), segment.size());
     }
 
 }

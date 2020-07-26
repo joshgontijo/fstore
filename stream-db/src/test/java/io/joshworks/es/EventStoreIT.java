@@ -1,23 +1,21 @@
 package io.joshworks.es;
 
-import io.joshworks.es.events.WriteEvent;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
-import io.joshworks.fstore.core.util.Threads;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
+import static io.joshworks.es.EventHelper.evOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class EventStoreIT {
 
-    public static final int MEMTABLE_SIZE = 100;
+    public static final int MEMTABLE_SIZE = 500000;
     private EventStore store;
     private File root;
 
@@ -34,11 +32,11 @@ public class EventStoreIT {
     @Test
     public void append_read() {
         String stream = "stream-1";
-        int items = 3000000;
+        int items = 30000000;
 
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            store.append(create(stream, i - 1, "TEST", "abc"));
+            store.append(evOf(stream, i - 1, "TEST", "abc"));
             if (i % 1000000 == 0) {
                 long now = System.currentTimeMillis();
                 System.out.println("WRITE: " + i + " -> " + (now - s));
@@ -46,7 +44,7 @@ public class EventStoreIT {
             }
         }
 
-        Threads.sleep(5000);
+        System.out.println("Reading");
         s = System.currentTimeMillis();
 
 
@@ -75,19 +73,6 @@ public class EventStoreIT {
                 }
             }
         } while (read > 0);
-
-    }
-
-
-    private static WriteEvent create(String stream, int expectedVersion, String evType, String data) {
-        WriteEvent event = new WriteEvent();
-        event.stream = stream;
-        event.expectedVersion = expectedVersion;
-        event.type = evType;
-        event.data = data.getBytes(StandardCharsets.UTF_8);
-        event.metadata = new byte[0];
-
-        return event;
 
     }
 

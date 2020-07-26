@@ -1,13 +1,12 @@
 package io.joshworks.es.writer;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 public class WriteTask extends CompletableFuture<Void> {
 
-    final Consumer<BatchingWriter> handler;
+    final Runnable handler;
 
-    WriteTask(Consumer<BatchingWriter> handler) {
+    WriteTask(Runnable handler) {
         this.handler = handler;
     }
 }

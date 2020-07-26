@@ -1,6 +1,6 @@
 package io.joshworks.es;
 
-import io.joshworks.es.events.WriteEvent;
+import io.joshworks.es.events.LinkToEvent;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
@@ -9,8 +9,8 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
+import static io.joshworks.es.EventHelper.evOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -36,7 +36,7 @@ public class EventStoreTest {
         int items = (int) (MEMTABLE_SIZE * 1.5);
 
         for (int i = 0; i < items; i++) {
-            store.append(create(stream, i - 1, "TEST", "abc"));
+            store.append(evOf(stream, i - 1, "TEST", "abc"));
         }
 
         store.flushWrites();
@@ -49,7 +49,7 @@ public class EventStoreTest {
         int entries = (int) (MEMTABLE_SIZE * 1.5);
 
         for (int i = 0; i < entries; i++) {
-            store.append(create(stream, i - 1, "TEST", "abc"));
+            store.append(evOf(stream, i - 1, "TEST", "abc"));
         }
     }
 
@@ -61,7 +61,7 @@ public class EventStoreTest {
         assertEquals(-1, store.version(stream));
 
         for (int i = 0; i < entries; i++) {
-            store.append(create(stream, i - 1, "TEST", "abc"));
+            store.append(evOf(stream, i - 1, "TEST", "abc"));
             store.flushWrites();
             assertEquals(i, store.version(stream));
         }
@@ -72,8 +72,8 @@ public class EventStoreTest {
         String srcStream = "stream-1";
         String dstStream = "stream-2";
 
-        store.append(create(srcStream, -1, "TEST", "abc"));
-        store.linkTo(srcStream, 0, dstStream, -1);
+        store.append(evOf(srcStream, -1, "TEST", "abc"));
+        store.linkTo(new LinkToEvent(srcStream, 0, dstStream, -1));
 
         store.flushWrites();
 
@@ -92,7 +92,7 @@ public class EventStoreTest {
         int items = (int) (MEMTABLE_SIZE * 1.5);
 
         for (int i = 0; i < items; i++) {
-            store.append(create(stream, -1, "CREATE", "abc"));
+            store.append(evOf(stream, -1, "CREATE", "abc"));
         }
         store.flushWrites();
 
@@ -128,16 +128,5 @@ public class EventStoreTest {
 
     }
 
-    private static WriteEvent create(String stream, int expectedVersion, String evType, String data) {
-        WriteEvent event = new WriteEvent();
-        event.stream = stream;
-        event.expectedVersion = expectedVersion;
-        event.type = evType;
-        event.data = data.getBytes(StandardCharsets.UTF_8);
-        event.metadata = new byte[0];
-
-        return event;
-
-    }
 
 }

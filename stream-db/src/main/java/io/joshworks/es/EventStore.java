@@ -1,5 +1,6 @@
 package io.joshworks.es;
 
+import io.joshworks.es.events.LinkToEvent;
 import io.joshworks.es.events.SystemStreams;
 import io.joshworks.es.events.WriteEvent;
 import io.joshworks.es.index.Index;
@@ -28,7 +29,8 @@ public class EventStore implements Closeable {
     private final StoreLock storeLock = new StoreLock();
 
     private static final int READ_MAX_ITEMS = 50;
-    private static final int WRITE_MAX_ITEMS = 100;
+    private static final int WRITE_BATCH_MAX_ITEMS = 100;
+    private static final int WRITE_QUEUE_SIZE = 200;
     private static final int WRITE_BUFFER_SIZE = Memory.PAGE_SIZE;
     private static final int READ_BUFFER_SIZE = Memory.PAGE_SIZE;
     private static final int WRITE_POOL_WAIT = 50;
@@ -36,7 +38,7 @@ public class EventStore implements Closeable {
     public EventStore(File root, int logSize, int indexEntries, int blockSize) {
         this.log = new Log(root, logSize);
         this.index = new Index(root, indexEntries, blockSize);
-        this.writer = new StoreWriter(log, index, WRITE_MAX_ITEMS, WRITE_BUFFER_SIZE, WRITE_POOL_WAIT);
+        this.writer = new StoreWriter(log, index, WRITE_QUEUE_SIZE, WRITE_BATCH_MAX_ITEMS, WRITE_BUFFER_SIZE, WRITE_POOL_WAIT);
         this.reader = new StoreReader(log, index, storeLock, READ_MAX_ITEMS, READ_BUFFER_SIZE);
 
         this.restore();
@@ -77,15 +79,8 @@ public class EventStore implements Closeable {
         return index.version(stream);
     }
 
-    public void linkTo(String srcStream, int srcVersion, String dstStream, int expectedVersion) {
-        writer.enqueue(writer -> {
-            IndexEntry ie = writer.findEquals(IndexKey.of(srcStream, srcVersion));
-            if (ie == null) {
-                throw new IllegalArgumentException("No such event " + IndexKey.toString(srcStream, srcVersion));
-            }
-            WriteEvent linkTo = SystemStreams.linkTo(srcStream, srcVersion, dstStream, expectedVersion);
-            writer.append(linkTo);
-        });
+    public void linkTo(LinkToEvent linkTo) {
+        writer.enqueue(linkTo);
     }
 
     public WriteTask append(WriteEvent event) {

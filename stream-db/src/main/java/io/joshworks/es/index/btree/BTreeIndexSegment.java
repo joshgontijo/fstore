@@ -4,6 +4,8 @@ import io.joshworks.es.index.IndexEntry;
 import io.joshworks.es.index.IndexFunction;
 import io.joshworks.es.index.IndexSegment;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,6 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 
 public class BTreeIndexSegment implements IndexSegment {
+
+    private static final Logger log = LoggerFactory.getLogger(BTreeIndexSegment.class);
 
     private final MappedFile mf;
     private final AtomicBoolean readOnly = new AtomicBoolean();
@@ -234,9 +238,7 @@ public class BTreeIndexSegment implements IndexSegment {
 
         long alignedSize = totalBlocks * blockSize;
 
-        System.out.println("Blocks: " + totalBlocks + " alignedSize: " + alignedSize);
-        System.out.println(levelAllocations);
-
+        log.info("Blocks: {}, alignedSize: {}, level blocks: {}", totalBlocks, alignedSize, levelAllocations);
         return alignedSize;
     }
 

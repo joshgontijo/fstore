@@ -3,9 +3,9 @@ package io.joshworks.es;
 import io.joshworks.es.events.WriteEvent;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
+import io.joshworks.fstore.core.util.StringUtils;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 
 /**
  * <pre>
@@ -179,9 +179,9 @@ public class Event {
 
     public static int sizeOf(WriteEvent event) {
         return OVERHEAD +
-                event.type.getBytes(StandardCharsets.UTF_8).length + //TODO better way ?
-                event.data.length +
-                event.metadata.length;
+                StringUtils.utf8Length(event.type()) +
+                event.data().length +
+                event.metadata().length;
     }
 
     public static int serialize(WriteEvent event, int version, long sequence, ByteBuffer dst) {
@@ -192,24 +192,24 @@ public class Event {
 
         int bpos = dst.position();
 
-        long streamHash = StreamHasher.hash(event.stream);
+        long streamHash = StreamHasher.hash(event.stream());
 
-        byte[] evTypeBytes = event.type.getBytes(StandardCharsets.UTF_8);
+        byte[] evTypeBytes = StringUtils.toUtf8Bytes(event.type());
         dst.putInt(recSize);
         dst.putLong(streamHash);
         dst.putInt(version);
         dst.putInt(0); //tmp checksum
         dst.putLong(sequence);
         dst.putLong(System.currentTimeMillis());
-        dst.put(event.attributes);
+        dst.put((byte) 0); //TODO not in use (useful for tombstones) ?
 
         dst.putShort((short) evTypeBytes.length);
-        dst.putInt(event.data.length);
-        dst.putShort((short) event.metadata.length);
+        dst.putInt(event.data().length);
+        dst.putShort((short) event.metadata().length);
 
         dst.put(evTypeBytes);
-        dst.put(event.data);
-        dst.put(event.metadata);
+        dst.put(event.data());
+        dst.put(event.metadata());
 
         writeChecksum(dst, bpos);
 
