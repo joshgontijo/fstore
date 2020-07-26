@@ -1,6 +1,5 @@
 package io.joshworks.es.index;
 
-import io.joshworks.es.index.btree.BTreeIndexSegment;
 import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;

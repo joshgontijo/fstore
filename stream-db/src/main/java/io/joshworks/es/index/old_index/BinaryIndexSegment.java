@@ -1,5 +1,9 @@
-package io.joshworks.es.index;
+package io.joshworks.es.index.old_index;
 
+import io.joshworks.es.index.IndexEntry;
+import io.joshworks.es.index.IndexFunction;
+import io.joshworks.es.index.IndexKey;
+import io.joshworks.es.index.IndexSegment;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
 
@@ -25,6 +29,7 @@ import static io.joshworks.es.index.Index.NONE;
  * KEY (N bytes)
  * LOG_POS (8 bytes)
  */
+@Deprecated
 public class BinaryIndexSegment implements IndexSegment {
 
     private static final int ENTRY_SIZE =

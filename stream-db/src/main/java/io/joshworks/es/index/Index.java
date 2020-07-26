@@ -1,7 +1,6 @@
 package io.joshworks.es.index;
 
 import io.joshworks.es.SegmentDirectory;
-import io.joshworks.es.index.btree.BTreeIndexSegment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

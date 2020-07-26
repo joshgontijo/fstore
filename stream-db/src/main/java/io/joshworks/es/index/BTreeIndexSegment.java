@@ -1,8 +1,5 @@
-package io.joshworks.es.index.btree;
+package io.joshworks.es.index;
 
-import io.joshworks.es.index.IndexEntry;
-import io.joshworks.es.index.IndexFunction;
-import io.joshworks.es.index.IndexSegment;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

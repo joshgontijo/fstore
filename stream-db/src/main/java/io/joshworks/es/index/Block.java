@@ -1,8 +1,5 @@
-package io.joshworks.es.index.btree;
+package io.joshworks.es.index;
 
-import io.joshworks.es.index.IndexEntry;
-import io.joshworks.es.index.IndexFunction;
-import io.joshworks.es.index.IndexKey;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.io.mmap.MappedRegion;
 
