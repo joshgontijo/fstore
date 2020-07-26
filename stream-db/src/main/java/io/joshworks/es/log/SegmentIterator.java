@@ -1,8 +1,9 @@
 package io.joshworks.es.log;
 
 import io.joshworks.es.Event;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Iterators;
+import io.joshworks.fstore.core.util.Memory;
 
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
@@ -11,27 +12,25 @@ import static io.joshworks.es.Event.OVERHEAD;
 
 public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> {
 
-    private final ByteBuffer readBuffer;
+    private ByteBuffer readBuffer;
+    private final int bufferSize;
     private final LogSegment segment;
-    private final BufferPool pool;
     private long readPos;
     private int bufferPos;
     private int bufferLimit;
 
-    public SegmentIterator(LogSegment segment, long startPos, BufferPool pool) {
-        this.pool = pool;
+    SegmentIterator(LogSegment segment, long startPos, int bufferSize) {
+        if (bufferSize < Memory.PAGE_SIZE) {
+            throw new IllegalArgumentException("Buffer size must be at least " + Memory.PAGE_SIZE);
+        }
         this.segment = segment;
         this.readPos = startPos;
-        this.readBuffer = pool.allocate();
-        this.bufferLimit = readBuffer.limit();
-        if (readBuffer.capacity() < OVERHEAD) {
-            pool.free(readBuffer);
-            throw new IllegalArgumentException("Read buffer must be at least " + OVERHEAD);
-        }
+        this.bufferSize = bufferSize;
     }
 
     @Override
     public boolean hasNext() {
+        tryAllocateBuffer();
         readBuffer.limit(bufferLimit).position(bufferPos);
         if (hasNext(readBuffer)) {
             return true;
@@ -42,6 +41,7 @@ public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> 
 
     @Override
     public ByteBuffer next() {
+        tryAllocateBuffer();
         readBuffer.limit(bufferLimit).position(bufferPos);
         if (!hasNext(readBuffer)) {
             throw new NoSuchElementException();
@@ -94,6 +94,12 @@ public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> 
         return readPos;
     }
 
+    public long address() {
+        long segIdx = segment.segmentIdx();
+        long logPos = readPos + bufferPos;
+        return Log.toSegmentedPosition(segIdx, logPos);
+    }
+
     public boolean endOfLog() {
         return segment.readOnly() && !hasReadableBytes() && !hasNext();
     }
@@ -102,9 +108,15 @@ public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> 
         return segment.writePosition() - readPos > 0;
     }
 
+    private void tryAllocateBuffer() {
+        if (readBuffer == null) {
+            readBuffer = Buffers.allocate(bufferSize, false);
+            this.bufferLimit = readBuffer.limit();
+        }
+    }
+
     @Override
     public void close() {
-        pool.free(readBuffer);
-        segment.release(this);
+        //do nothing
     }
 }

@@ -1,13 +1,17 @@
 package io.joshworks.es.log;
 
+import io.joshworks.es.Event;
 import io.joshworks.es.SegmentDirectory;
-import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.util.BitUtil;
+import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.function.BiConsumer;
 
 public class Log extends SegmentDirectory<LogSegment> {
+
+    public static final int START = 0;
 
     private static final int SEGMENT_BITS = 24;
     private static final int SEGMENT_ADDRESS_BITS = Long.SIZE - SEGMENT_BITS;
@@ -18,18 +22,47 @@ public class Log extends SegmentDirectory<LogSegment> {
     private final long logSize;
 
     public Log(File root, long logSize) {
-        super(root, EXTENSION);
+        super(root, EXTENSION, MAX_SEGMENTS);
+        System.out.println("MAX_SEGMENTS: " + MAX_SEGMENTS);
+        System.out.println("MAX_SEGMENT_ADDRESS: " + MAX_SEGMENT_ADDRESS);
         this.logSize = logSize;
-        openLogs();
+        this.openLogs();
     }
 
-    public void openLogs() {
+    public long restore(long address, BiConsumer<Long, ByteBuffer> handler) {
+        long segIdx = segmentIdx(address);
+        long logPos = positionOnSegment(address);
+
+        LogSegment first = getSegment(segIdx);
+        SegmentIterator it = first.iterator(Memory.PAGE_SIZE, logPos);
+        long entries = processEntries(handler, it);
+
+        for (long idx = segIdx + 1; idx < headIdx(); idx++) {
+            LogSegment segment = tryGet(idx);
+            if (segment == null) {
+                continue;
+            }
+            entries += processEntries(handler, segment.iterator());
+        }
+        return entries;
+    }
+
+    public long processEntries(BiConsumer<Long, ByteBuffer> handler, SegmentIterator it) {
+        long count = 0;
+        while (it.hasNext()) {
+            long recAddress = it.address();
+            ByteBuffer bb = it.next();
+            handler.accept(recAddress, bb);
+            count++;
+        }
+        return count;
+    }
+
+    private synchronized void openLogs() {
         loadSegments(LogSegment::open);
-        if (!segments.isEmpty()) {
-            LogSegment head = segments.get(segments.size() - 1);
-            //TODO merged segment with higher idx will be used as head here, which is wrong
-            //need to read header and check which one needs to be restored
-            head.restore(BufferPool.unpooled(8192, false));
+        if (!super.isEmpty()) {
+            LogSegment head = head();
+            head.restore(Event::isValid);
             head.forceRoll();
         }
 
@@ -37,16 +70,14 @@ public class Log extends SegmentDirectory<LogSegment> {
     }
 
     public void createNewHead() {
-        File file = newSegmentFile(0);
+        File file = newHeadFile();
         LogSegment segment = LogSegment.create(file, logSize);
-        segments.add(segment);
-        makeHead(segment);
+        super.add(segment);
     }
 
-    //TODO append should just go in EventStore when moving to appendMany because each entry needs its own address
     public long append(ByteBuffer data) {
         LogSegment head = head();
-        int logIdx = head.segmentIdx();
+        long logIdx = head.segmentIdx();
         long logPos = head.append(data);
         return toSegmentedPosition(logIdx, logPos);
     }
@@ -55,7 +86,7 @@ public class Log extends SegmentDirectory<LogSegment> {
         return head().writePosition() >= logSize;
     }
 
-    public int segmentIdx() {
+    public long segmentIdx() {
         return head().segmentIdx();
     }
 
@@ -66,8 +97,8 @@ public class Log extends SegmentDirectory<LogSegment> {
     public int read(long address, ByteBuffer dst) {
         int segIdx = segmentIdx(address);
         long logPos = positionOnSegment(address);
-        assert segIdx < segments.size();
-        LogSegment segment = segments.get(segIdx);
+
+        LogSegment segment = getSegment(segIdx);
         return segment.read(dst, logPos);
     }
 
@@ -76,6 +107,8 @@ public class Log extends SegmentDirectory<LogSegment> {
         head.roll();
         createNewHead();
     }
+
+    //---------
 
     public static int segmentIdx(long address) {
         long segmentIdx = (address >>> SEGMENT_ADDRESS_BITS);
@@ -100,4 +133,6 @@ public class Log extends SegmentDirectory<LogSegment> {
         long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
         return (address & mask);
     }
+
+
 }

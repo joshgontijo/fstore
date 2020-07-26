@@ -1,5 +1,6 @@
 package io.joshworks.es.writer;
 
+import io.joshworks.es.events.SystemStreams;
 import io.joshworks.es.events.WriteEvent;
 import io.joshworks.es.index.Index;
 import io.joshworks.es.log.Log;
@@ -17,19 +18,25 @@ public class StoreWriter {
 
     private final BlockingQueue<WriteTask> tasks;
 
+    private final Log log;
+    private final Index index;
     private final long poolWait;
     private final BatchingWriter writer;
 
     public StoreWriter(Log log, Index index, int maxEntries, int bufferSize, long poolWait) {
+        this.log = log;
+        this.index = index;
         this.poolWait = poolWait;
         this.writer = new BatchingWriter(log, index, maxEntries, bufferSize);
         this.tasks = new ArrayBlockingQueue<>(maxEntries);
     }
 
+    //No need for StoreLock here as it will always be appending to the head
     public WriteTask enqueue(WriteEvent event) {
         return enqueue(w -> w.append(event));
     }
 
+    //No need for StoreLock here as it will always be appending to the head
     public WriteTask enqueue(Consumer<BatchingWriter> handler) {
         try {
             WriteTask task = new WriteTask(handler);
@@ -50,9 +57,7 @@ public class StoreWriter {
 
                 do {
                     try {
-                        writer.prepare(task);
-                        task.handler.accept(writer);
-                        writer.complete();
+                        handleTask(task);
                     } catch (Exception e) {
                         e.printStackTrace();
                         writer.rollback(e);
@@ -73,6 +78,19 @@ public class StoreWriter {
             }
         }
         System.out.println("Write thread closed");
+    }
+
+    private void handleTask(WriteTask task) {
+        writer.prepare(task);
+        task.handler.accept(writer);
+        writer.complete();
+    }
+
+    private void tryFlush() {
+        if(index.isFull()) {
+            writer.append(SystemStreams.indexFlush());
+            writer.commit();
+        }
     }
 
     private void commitInternal() {

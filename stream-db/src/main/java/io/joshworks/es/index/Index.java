@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
-    //    private final RedBlackBST memTable;
     private final Map<Long, List<IndexEntry>> table = new ConcurrentHashMap<>();
     private final AtomicInteger entries = new AtomicInteger();
     private final int maxEntries;
@@ -24,8 +23,8 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
     public static final int NONE = -1;
 
-    public Index(File root, int maxEntries, int blockSize, int versionCacheSize) { //TODO version cache ? (has to update on writes)
-        super(root, EXT);
+    public Index(File root, int maxEntries, int blockSize) {
+        super(root, EXT, Long.MAX_VALUE);
         if (blockSize % 2 != 0) {
             throw new IllegalArgumentException("Block size must be power of two, got " + blockSize);
         }
@@ -73,13 +72,16 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         return readBatchFromDisk(start.stream(), version, count);
     }
 
-
     private List<IndexEntry> readBatchFromDisk(long stream, int version, int count) {
         if (count <= 0) {
             return Collections.emptyList();
         }
-        for (int i = segments.size() - 1; i >= 0; i--) {
-            BTreeIndexSegment index = segments.get(i);
+
+        for (long segIdx = headIdx(); segIdx >= 0; segIdx--) {
+            BTreeIndexSegment index = super.tryGet(segIdx);
+            if (index == null) { //gap, skip
+                continue;
+            }
             List<IndexEntry> entries = index.findBatch(stream, version, count);
             if (!entries.isEmpty()) {
                 return entries;
@@ -98,8 +100,11 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
     }
 
     private IndexEntry readFromDisk(IndexKey key, IndexFunction fn) {
-        for (int i = segments.size() - 1; i >= 0; i--) {
-            BTreeIndexSegment index = segments.get(i);
+        for (long segIdx = headIdx(); segIdx >= 0; segIdx--) {
+            BTreeIndexSegment index = super.tryGet(segIdx);
+            if (index == null) {
+                continue;
+            }
             IndexEntry ie = index.find(key.stream(), key.version(), fn);
             if (ie != null) {
                 return ie;
@@ -123,7 +128,15 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
     }
 
     public long entries() {
-        return segments.stream().mapToLong(BTreeIndexSegment::entries).sum() + entries.get();
+        long diskEntries = 0;
+        for (int idx = 0; idx < headIdx(); idx++) {
+            BTreeIndexSegment index = super.tryGet(idx);
+            if (index == null) {
+                continue;
+            }
+            diskEntries += index.entries();
+        }
+        return diskEntries + this.entries.get();
     }
 
     public boolean isFull() {
@@ -137,7 +150,8 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
         if (entries == 0) {
             return;
         }
-        BTreeIndexSegment index = new BTreeIndexSegment(newSegmentFile(0), entries, blockSize);
+        File headFile = newHeadFile();
+        BTreeIndexSegment index = new BTreeIndexSegment(headFile, entries, blockSize);
         table.entrySet().stream()
                 .sorted(Comparator.comparingLong(Map.Entry::getKey))
                 .forEach(entry -> {
@@ -148,8 +162,7 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
         index.complete();
 
-        segments.add(index);
-        makeHead(index);
+        super.add(index);
         this.entries.set(0);
         table.clear();
 

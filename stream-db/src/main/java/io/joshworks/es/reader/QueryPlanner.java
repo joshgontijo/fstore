@@ -13,13 +13,25 @@ import java.util.List;
 
 public class QueryPlanner {
 
+    //not static
+    private final ThreadLocal<ByteBuffer> pageBufferCache;
+
+    private final Index index;
+    private final Log log;
+
     private List<PageEntry> entries = new ArrayList<>();
     private long stream;
     private int startVersion;
     private ByteBuffer pageBuffer;
 
-    public boolean prepare(Index index, long stream, int version, int maxItems, ByteBuffer pageBuffer) {
-        this.pageBuffer = pageBuffer.clear();
+    QueryPlanner(Index index, Log log, int pageBufferSize) {
+        this.index = index;
+        this.log = log;
+        this.pageBufferCache = ThreadLocal.withInitial(() -> Buffers.allocate(pageBufferSize, false));
+    }
+
+    public boolean prepare(long stream, int version, int maxItems) {
+        this.pageBuffer = pageBufferCache.get().clear();
         this.stream = stream;
         this.startVersion = version;
 
@@ -27,8 +39,7 @@ public class QueryPlanner {
         return !entries.isEmpty();
     }
 
-    public int execute(Log log, ByteBuffer dst) {
-
+    public int execute(ByteBuffer dst) {
         PageEntry first = entries.get(0);
         log.read(first.entry.logAddress(), pageBuffer);
         pageBuffer.flip();

@@ -19,7 +19,11 @@ public class BitUtil {
 
     public static int decimalUnitsForBits(long numBits) {
         long maxValue = maxValueForBits(numBits);
-        return (int) (Math.log10(maxValue) + 1);
+        return decimalUnitsForDecimal(maxValue);
+    }
+
+    public static int decimalUnitsForDecimal(long decimalValue) {
+        return (int) (Math.log10(decimalValue) + 1);
     }
 
     /**

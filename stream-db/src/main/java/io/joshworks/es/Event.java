@@ -53,8 +53,8 @@ public class Event {
     private static final int SEQUENCE_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
     private static final int TIMESTAMP_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
     private static final int ATTRIBUTES_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
-    private static final int TYPE_LENGTH_OFFSET = ATTRIBUTES_OFFSET + Byte.BYTES;
-    private static final int DATA_LENGTH_OFFSET = TYPE_LENGTH_OFFSET + Short.BYTES;
+    private static final int EVENT_TYPE_LENGTH_OFFSET = ATTRIBUTES_OFFSET + Byte.BYTES;
+    private static final int DATA_LENGTH_OFFSET = EVENT_TYPE_LENGTH_OFFSET + Short.BYTES;
     private static final int METADATA_LENGTH_OFFSET = DATA_LENGTH_OFFSET + Integer.BYTES;
     private static final int EVENT_TYPE_OFFSET = METADATA_LENGTH_OFFSET + Short.BYTES;
 
@@ -95,8 +95,8 @@ public class Event {
         return data.get(data.position() + ATTRIBUTES_OFFSET);
     }
 
-    public static int eventTypeLen(ByteBuffer data) {
-        return data.getInt(data.position() + EVENT_TYPE_OFFSET);
+    public static short eventTypeLen(ByteBuffer data) {
+        return data.getShort(data.position() + EVENT_TYPE_LENGTH_OFFSET);
     }
 
     public static int dataLen(ByteBuffer data) {

@@ -16,6 +16,10 @@ import java.util.List;
 
 public class BatchingWriter {
 
+    private static WriteTask DUMMY_TASK = new WriteTask(a -> {
+
+    });
+
     private final Log log;
     private final Index index;
 
@@ -27,7 +31,7 @@ public class BatchingWriter {
     private final List<Transaction> batch = new ArrayList<>();
 
     //state
-    private int segmentIdx;
+    private long segmentIdx;
     private long logPos;
     private long sequence;
     private Transaction current;
@@ -117,6 +121,10 @@ public class BatchingWriter {
         assert current != null : "No active transaction";
         if (!current.units.isEmpty()) {
             batch.add(current);
+        } else {
+            //nothing to do for this transaction, complete immediately
+            //used for StoreWrite#commit API that doesn't modify disk
+            current.commit();
         }
         current = null;
     }
@@ -128,44 +136,24 @@ public class BatchingWriter {
             return;
         }
         try {
-            writeBuffer.flip();
-            log.append(writeBuffer);
-            writeBuffer.compact();
-            assert writeBuffer.position() == 0;
-
-            //flush entries to index
-            boolean indexFlushed = false;
-            for (IndexEntry indexEntry : indexEntries) {
-                if (index.isFull()) {
-                    index.flush();
-                    indexFlushed = true;
-                }
-                index.append(indexEntry);
-            }
-            indexEntries.clear();
-
-            assert this.segmentIdx == log.segmentIdx() && logPos == log.segmentPosition() : "Log position mismatch";
+            flushLogBuffer();
+            writeToIndex();
 
             //rolls only after writing all transactions
             if (log.full()) {
-                log.roll();
-                this.segmentIdx = log.segmentIdx();
-                this.logPos = log.segmentPosition();
+                rollLog();
+            }
+
+            //append and flush it now
+            if (index.isFull()) {
+                flushIndex();
             }
 
             for (Transaction transaction : batch) {
                 transaction.commit();
             }
-
-            //append and flush it now
-            if (indexFlushed) {
-                prepare(new WriteTask(a -> {})); //NO_OP task
-                append(SystemStreams.indexFlush());
-                complete();
-                commit();
-            }
-
             batch.clear();
+
         } catch (Exception e) {
             System.err.println("Commit failed due to rolling back" + e.getMessage());
             try {
@@ -179,6 +167,49 @@ public class BatchingWriter {
             throw e;
         }
 
+    }
+
+    public void rollLog() {
+        log.roll();
+        this.segmentIdx = log.segmentIdx();
+        this.logPos = log.segmentPosition();
+    }
+
+    public void writeToIndex() {
+        //flush entries to index
+        for (IndexEntry indexEntry : indexEntries) {
+            //index can tolerate more than the defined capacity
+            //checks are made at the end, so INDEX_FLUSH event can be included
+            index.append(indexEntry);
+        }
+        indexEntries.clear();
+    }
+
+    public void flushLogBuffer() {
+        writeBuffer.flip();
+        assert writeBuffer.hasRemaining();
+
+        log.append(writeBuffer);
+
+        assert !writeBuffer.hasRemaining();
+        writeBuffer.compact();
+
+        assert this.segmentIdx == log.segmentIdx() && logPos == log.segmentPosition() : "Log position mismatch";
+    }
+
+    private void flushIndex() {
+        //swap
+        Transaction tmp = current;
+        current = null;
+        try {
+            prepare(DUMMY_TASK); //NO_OP task
+            append(SystemStreams.indexFlush());
+            flushLogBuffer();
+            writeToIndex();
+            index.flush();
+        } finally {
+            current = tmp; //swap back
+        }
     }
 
     //rolls back the last attempt to write to either the index or log
