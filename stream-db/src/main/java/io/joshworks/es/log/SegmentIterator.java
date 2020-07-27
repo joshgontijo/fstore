@@ -96,8 +96,12 @@ public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> 
 
     public long address() {
         long segIdx = segment.segmentIdx();
-        long logPos = readPos + bufferPos;
+        long logPos = offset();
         return Log.toSegmentedPosition(segIdx, logPos);
+    }
+
+    public long offset() {
+        return readPos + bufferPos;
     }
 
     public boolean endOfLog() {

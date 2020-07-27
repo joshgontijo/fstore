@@ -8,13 +8,16 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.reducing;
@@ -105,7 +108,8 @@ public class SegmentDirectory<T extends SegmentFile> {
         headIdx.set(computeHeadIx());
     }
 
-    public void merge(T replacement, Set<T> files) {
+    public void merge(T replacement, Collection<T> items) {
+        Set<T> files = new HashSet<>(items);
 
         validateMergeFiles(files);
         int expectedNextLevel = computeNextLevel(files);
@@ -122,14 +126,26 @@ public class SegmentDirectory<T extends SegmentFile> {
 
         for (T file : files) {
             long idx = segmentIdx(file);
-            segments.remove(idx);
+            this.segments.remove(idx);
             file.delete();
         }
-        segments.put(replacementIdx, replacement);
+        this.segments.put(replacementIdx, replacement);
     }
 
     public int computeNextLevel(Set<T> files) {
         return files.stream().mapToInt(SegmentDirectory::level).max().getAsInt() + 1;
+    }
+
+    public int segments() {
+        return segments.size();
+    }
+
+    public List<String> segmentsNames() {
+        return segments.values().stream().map(s -> s.file().getName()).collect(Collectors.toList());
+    }
+
+    public File root() {
+        return root;
     }
 
     protected long headIdx() {
@@ -140,11 +156,16 @@ public class SegmentDirectory<T extends SegmentFile> {
         return segments.get(headIdx());
     }
 
-    protected File newMergeFile(Set<T> files) {
-        validateMergeFiles(files);
-        int nextLevel = computeNextLevel(files);
+    public int depth() {
+        return segments.values().stream().mapToInt(SegmentDirectory::level).max().orElse(0);
+    }
 
-        long baseSegmentIdx = validateSequentialFiles(files);
+    public File newMergeFile(Collection<T> items) {
+        Set<T> segments = new HashSet<>(items);
+        validateMergeFiles(segments);
+        int nextLevel = computeNextLevel(segments);
+
+        long baseSegmentIdx = validateSequentialFiles(segments);
         return newSegmentFile(baseSegmentIdx, nextLevel);
     }
 

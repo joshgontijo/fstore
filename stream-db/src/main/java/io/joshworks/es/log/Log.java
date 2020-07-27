@@ -7,6 +7,8 @@ import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 public class Log extends SegmentDirectory<LogSegment> {
@@ -106,6 +108,19 @@ public class Log extends SegmentDirectory<LogSegment> {
         LogSegment head = head();
         head.roll();
         createNewHead();
+    }
+
+    public List<LogSegment> compactionSegments(int level) {
+        List<LogSegment> segments = new ArrayList<>();
+        //everything except head, needs to be changed to add replicated position
+        for (long idx = 0; idx < headIdx(); idx++) {
+            LogSegment segment = tryGet(idx);
+            if (segment == null || segment.level() != level) {
+                continue;
+            }
+            segments.add(segment);
+        }
+        return segments;
     }
 
     //---------

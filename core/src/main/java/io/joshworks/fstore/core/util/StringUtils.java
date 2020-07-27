@@ -24,6 +24,10 @@ public final class StringUtils {
         return val;
     }
 
+    public static int utf8Length(String val) {
+        return toUtf8Bytes(val).length;
+    }
+
     public static byte[] toUtf8Bytes(String val) {
         if (val == null) {
             return new byte[0];

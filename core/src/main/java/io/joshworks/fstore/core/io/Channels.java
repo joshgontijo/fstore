@@ -115,29 +115,39 @@ public class Channels {
         }
     }
 
-    public static int writeFully(WritableByteChannel dst, ByteBuffer buffer) throws IOException {
-        int total = 0;
-        while (buffer.hasRemaining()) {
-            int written = dst.write(buffer);
-            checkClosed(written);
-            total += written;
+    public static int writeFully(WritableByteChannel dst, ByteBuffer buffer) {
+        try {
+            int total = 0;
+            while (buffer.hasRemaining()) {
+                int written = dst.write(buffer);
+                checkClosed(written);
+                total += written;
+            }
+            return total;
+
+        } catch (Exception e) {
+            throw new RuntimeIOException(e);
         }
-        return total;
     }
 
-    public static long writeFully(GatheringByteChannel dst, ByteBuffer[] buffers, int offset, int count) throws IOException {
-        long remaining = Buffers.remaining(buffers, offset, count);
-        if (remaining == 0) {
-            return 0;
+    public static long writeFully(GatheringByteChannel dst, ByteBuffer[] buffers, int offset, int count) {
+        try {
+            long remaining = Buffers.remaining(buffers, offset, count);
+            if (remaining == 0) {
+                return 0;
+            }
+
+            long written = 0;
+            while (written < remaining) {
+                long w = dst.write(buffers, offset, count);
+                checkClosed(w);
+                written += w;
+            }
+            return written;
+        } catch (Exception e) {
+            throw new RuntimeIOException(e);
         }
 
-        long written = 0;
-        while (written < remaining) {
-            long w = dst.write(buffers, offset, count);
-            checkClosed(w);
-            written += w;
-        }
-        return written;
     }
 
     private static void checkClosed(long written) {

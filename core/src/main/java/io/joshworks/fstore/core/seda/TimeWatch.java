@@ -3,7 +3,7 @@ package io.joshworks.fstore.core.seda;
 import java.util.concurrent.TimeUnit;
 
 public class TimeWatch {
-    long starts;
+    long start;
 
     public static TimeWatch start() {
         return new TimeWatch();
@@ -14,13 +14,12 @@ public class TimeWatch {
     }
 
     public TimeWatch reset() {
-        starts = System.currentTimeMillis();
+        start = System.currentTimeMillis();
         return this;
     }
 
     public long time() {
-        long ends = System.currentTimeMillis();
-        return ends - starts;
+        return System.currentTimeMillis() - start;
     }
 
     public long time(TimeUnit unit) {

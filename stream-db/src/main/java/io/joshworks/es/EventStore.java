@@ -42,7 +42,6 @@ public class EventStore implements Closeable {
         this.reader = new StoreReader(log, index, storeLock, READ_MAX_ITEMS, READ_BUFFER_SIZE);
 
         this.restore();
-
         this.writer.start();
     }
 

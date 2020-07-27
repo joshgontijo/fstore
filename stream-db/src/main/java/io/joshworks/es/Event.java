@@ -1,6 +1,7 @@
 package io.joshworks.es;
 
 import io.joshworks.es.events.WriteEvent;
+import io.joshworks.es.index.IndexKey;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import io.joshworks.fstore.core.util.StringUtils;
@@ -218,6 +219,10 @@ public class Event {
         assert copied == recSize;
         assert Event.isValid(dst, bpos);
         return copied;
+    }
+
+    public static int compare(ByteBuffer ev1, ByteBuffer ev2) {
+        return IndexKey.compare(stream(ev1), version(ev1), stream(ev2), version(ev2));
     }
 
     public static String toString(ByteBuffer data) {
