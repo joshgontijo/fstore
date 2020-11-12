@@ -9,8 +9,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class IOUtilsTest {
 
@@ -26,7 +25,7 @@ public class IOUtilsTest {
         IOUtils.writeFully(channel, bb, data);
 
         assertEquals(dataSize, channel.received.size());
-        assertTrue(Arrays.equals(data, channel.received.toByteArray()));
+        assertArrayEquals(data, channel.received.toByteArray());
 
     }
 
@@ -40,7 +39,7 @@ public class IOUtilsTest {
         IOUtils.writeFully(channel, bb);
 
         assertEquals(data.length, channel.received.size());
-        assertTrue(Arrays.equals(data, channel.received.toByteArray()));
+        assertArrayEquals(data, channel.received.toByteArray());
     }
 
     @Test
@@ -53,7 +52,7 @@ public class IOUtilsTest {
         ByteBuffer dst = ByteBuffer.allocate(50);
         IOUtils.readFully(channel, dst);
 
-        assertTrue(Arrays.equals(testData, dst.array()));
+        assertArrayEquals(testData, dst.array());
     }
 
     @Test
