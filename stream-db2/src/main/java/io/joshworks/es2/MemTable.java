@@ -1,8 +1,10 @@
 package io.joshworks.es2;
 
+import io.joshworks.fstore.core.io.Channels;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,7 +57,7 @@ public class MemTable {
         if (events == null) {
             return 0;
         }
-        return events.sentTo(channel, version);
+        return events.transferTo(channel, version);
     }
 
     public int version(long stream) {
@@ -144,7 +146,7 @@ public class MemTable {
             }
         }
 
-        private long sentTo(SegmentChannel channel, int version) {
+        private long transferTo(WritableByteChannel channel, int version) {
             Lock lock = rwLock.readLock();
             lock.lock();
             try {
@@ -159,7 +161,7 @@ public class MemTable {
                 long written = 0;
                 for (int i = startIdx; i < entries.size(); i++) {
                     EventEntry entry = entries.get(i);
-                    written += channel.append(data.slice(entry.offset, entry.length));
+                    written += Channels.writeFully(channel, data.slice(entry.offset, entry.length));
                 }
                 return written;
             } finally {

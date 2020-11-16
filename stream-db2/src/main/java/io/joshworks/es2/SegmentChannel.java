@@ -21,7 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicLong;
 
-class SegmentChannel implements Closeable {
+public class SegmentChannel implements Closeable {
 
     private final File handle;
     private final FileChannel channel;

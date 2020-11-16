@@ -30,6 +30,7 @@
 <!--        <module>indexed-log-server</module>-->
 <!--        <module>log-server-test</module>-->
         <module>stream-db</module>
+        <module>stream-db2</module>
     </modules>
 
     <properties>

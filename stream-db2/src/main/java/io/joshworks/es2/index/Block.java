@@ -1,5 +1,6 @@
-package io.joshworks.es.index;
+package io.joshworks.es2.index;
 
+import io.joshworks.es2.IndexKey;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.io.mmap.MappedRegion;
 
@@ -29,6 +30,7 @@ import java.nio.ByteBuffer;
  * </pre>
  */
 class Block {
+
 
     static final int KEY_BYTES =
                 Long.BYTES + //STREAM
