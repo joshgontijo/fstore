@@ -11,13 +11,16 @@ import java.nio.ByteBuffer;
  * HEADER
  * --------
  * LEVEL (2 BYTES)
- * ENTRIES (4 BYTES)
+ * BLOCK_ENTRIES (4 BYTES)
  * BLOCK_SIZE (2 BYTES)
  *
  * LEAF NODE
  * ---------
  * STREAM (8 BYTES)
  * VERSION (4 BYTES)
+ *
+ * CHUNK_SIZE (4 BYTES)
+ * CHUNK_ENTRIES (4 BYTES)
  * LOG_POS (8 BYTES)
  *
  * ==============
@@ -26,6 +29,7 @@ import java.nio.ByteBuffer;
  * ---------
  * STREAM (8 BYTES)
  * VERSION (4 BYTES)
+ *
  * BLOCK_IDX (4 BYTES)
  * </pre>
  */
@@ -33,16 +37,18 @@ class Block {
 
 
     static final int KEY_BYTES =
-                Long.BYTES + //STREAM
+            Long.BYTES + //STREAM
                     Integer.BYTES; //VERSION
 
     static final int LEAF_ENTRY_BYTES =
-                    KEY_BYTES +
+            KEY_BYTES +
+                    Integer.BYTES + //CHUNK_SIZE
+                    Integer.BYTES + //CHUNK_ENTRIES
                     Long.BYTES; // LOG_POS
 
 
     static final int INTERNAL_ENTRY_BYTES =
-                    KEY_BYTES +
+            KEY_BYTES +
                     Integer.BYTES; //BLOCK_IDX
 
 
@@ -71,7 +77,7 @@ class Block {
         return new Block(buffer);
     }
 
-    boolean add(long stream, int version, long logPos) {
+    boolean add(long stream, int version, int long logPos) {
         assert level() == 0 : "Not a leaf node";
         if (data.remaining() < LEAF_ENTRY_BYTES) {
             return false;
@@ -100,7 +106,7 @@ class Block {
     }
 
     int writeTo(MappedRegion mf) {
-        assert mf.remaining() >= data.capacity()  : "Not enough index space";
+        assert mf.remaining() >= data.capacity() : "Not enough index space";
 
         data.putInt(ENTRIES_OFFSET, tmpEntries);
         data.putShort(BLOCK_SIZE, (short) data.position());
@@ -160,8 +166,10 @@ class Block {
     IndexEntry toIndexEntry(int idx) {
         long stream = stream(idx);
         int version = version(idx);
+        int recordSize = chunkSize(idx);
+        int chunkEntries = chunkEntries(idx);
         long logPos = logPos(idx);
-        return new IndexEntry(stream, version, logPos);
+        return new IndexEntry(stream, version, recordSize, chunkEntries, logPos);
     }
 
     //entry key
@@ -183,15 +191,21 @@ class Block {
     }
 
     //leaf only
-    int recordSize(int idx) {
+    int chunkSize(int idx) {
         int pos = offset(idx);
         return data.getInt(pos + KEY_BYTES);
     }
 
     //leaf only
+    int chunkEntries(int idx) {
+        int pos = offset(idx);
+        return data.getInt(pos + KEY_BYTES + Integer.BYTES); //after chunkSize
+    }
+
+    //leaf only
     long logPos(int idx) {
         int pos = offset(idx);
-        return data.getLong(pos + KEY_BYTES);
+        return data.getLong(pos + KEY_BYTES + Integer.BYTES + Integer.BYTES); //after chunkSize + chunkEntries
     }
 
     private int offset(int idx) {

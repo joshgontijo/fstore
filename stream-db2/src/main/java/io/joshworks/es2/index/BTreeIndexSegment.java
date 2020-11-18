@@ -49,7 +49,7 @@ public class BTreeIndexSegment {
     }
 
 
-    public void append(long stream, int version, long logPos) {
+    public void add(long stream, int version, long logPos) {
         assert !isFull() : "Index is full";
 
         Block node = getOrAllocate(0);
@@ -70,7 +70,7 @@ public class BTreeIndexSegment {
         }
     }
 
-    //write not without linking node to the parent, used only for root when completig segment
+    //write not without linking node to the parent, used only for root when completing segment
     public void writeNodeFinal(Block node) {
         node.writeTo(mf);
     }
@@ -82,44 +82,6 @@ public class BTreeIndexSegment {
         }
         return nodeBlocks.get(level);
     }
-
-    //only works with equals
-    public List<IndexEntry> findBatch(long stream, int version, int maxItems) {
-        List<IndexEntry> entries = new ArrayList<>();
-        Block block = root;
-        while (entries.size() < maxItems) {
-            if (block.level() > 0) { //internal node use floor
-                int i = block.find(stream, version, IndexFunction.FLOOR);
-                if (i == -1) {
-                    return entries;
-                }
-                int blockIdx = block.blockIndex(i);
-                block = loadBlock(blockIdx);
-            } else { //leaf node
-                int i = block.find(stream, version, IndexFunction.EQUALS);
-                if (i == -1) {
-                    return entries;
-                }
-                long foundStream = block.stream(i);
-                version = block.version(i);
-                long logPos = block.logPos(i);
-
-                entries.add(new IndexEntry(foundStream, version, logPos));
-
-                for (int j = i + 1; j < block.entries() && entries.size() < maxItems; j++) {
-                    long nextStream = block.stream(j);
-                    int nextVersion = block.version(j);
-                    if (nextStream != stream || nextVersion != version + 1) {
-                        break;
-                    }
-                    entries.add(block.toIndexEntry(j));
-                    version++;
-                }
-            }
-        }
-        return entries;
-    }
-
 
     public IndexEntry find(long stream, int version, IndexFunction fn) {
         Block block = root;

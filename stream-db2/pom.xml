@@ -15,6 +15,11 @@
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>snappy-codec</artifactId>
+        </dependency>
+
     </dependencies>
 
 
