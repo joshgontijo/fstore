@@ -1,8 +1,8 @@
 package io.joshworks.es2.index;
 
 import io.joshworks.es2.IndexKey;
+import io.joshworks.es2.SegmentChannel;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.io.mmap.MappedRegion;
 
 import java.nio.ByteBuffer;
 
@@ -19,8 +19,8 @@ import java.nio.ByteBuffer;
  * STREAM (8 BYTES)
  * VERSION (4 BYTES)
  *
- * CHUNK_SIZE (4 BYTES)
- * CHUNK_ENTRIES (4 BYTES)
+ * RECORD_SIZE (4 BYTES)
+ * RECORD_ENTRIES (4 BYTES)
  * LOG_POS (8 BYTES)
  *
  * ==============
@@ -42,8 +42,8 @@ class Block {
 
     static final int LEAF_ENTRY_BYTES =
             KEY_BYTES +
-                    Integer.BYTES + //CHUNK_SIZE
-                    Integer.BYTES + //CHUNK_ENTRIES
+                    Integer.BYTES + //RECORD_SIZE
+                    Integer.BYTES + //RECORD_ENTRIES
                     Long.BYTES; // LOG_POS
 
 
@@ -69,21 +69,20 @@ class Block {
         data.position(HEADER);
     }
 
-    private Block(ByteBuffer buffer) {
+    Block(ByteBuffer buffer) {
         this.data = buffer;
     }
 
-    static Block from(ByteBuffer buffer) {
-        return new Block(buffer);
-    }
-
-    boolean add(long stream, int version, int long logPos) {
+    boolean add(long stream, int version, int recordSize, int recordEntries, long logPos) {
         assert level() == 0 : "Not a leaf node";
         if (data.remaining() < LEAF_ENTRY_BYTES) {
             return false;
         }
         data.putLong(stream);
         data.putInt(version);
+
+        data.putInt(recordSize);
+        data.putInt(recordEntries);
         data.putLong(logPos);
 
         tmpEntries++;
@@ -105,18 +104,16 @@ class Block {
         return true;
     }
 
-    int writeTo(MappedRegion mf) {
-        assert mf.remaining() >= data.capacity() : "Not enough index space";
-
+    int writeTo(SegmentChannel channel) {
         data.putInt(ENTRIES_OFFSET, tmpEntries);
         data.putShort(BLOCK_SIZE, (short) data.position());
 
         data.clear();
-        int position = mf.position();
-        mf.put(data);
+        long position = channel.position();
+        channel.append(data);
         data.clear().position(HEADER);
         tmpEntries = 0;
-        return position / data.capacity();
+        return (int) (position / data.capacity());
     }
 
     int level() {

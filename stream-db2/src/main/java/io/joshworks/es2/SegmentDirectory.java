@@ -1,4 +1,4 @@
-package io.joshworks.es;
+package io.joshworks.es2;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.BitUtil;
@@ -9,13 +9,17 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,22 +31,20 @@ import static java.util.stream.Collectors.reducing;
  * Mainly because EventStore needs to sync on both Log and Index a the same time, adding here would just be unecessary overhead
  * head() does not need sync as it does not change
  */
-public class SegmentDirectory<T extends SegmentFile> {
+public class SegmentDirectory {
 
     private static final Logger log = LoggerFactory.getLogger(SegmentDirectory.class);
     private static final String SEPARATOR = "-";
 
-    private final Map<Long, T> segments = new ConcurrentHashMap<>();
+    private final ConcurrentSkipListSet<File> files = new ConcurrentSkipListSet<>(Comparator.comparingInt(SegmentDirectory::level).thenComparingLong(SegmentDirectory::segmentIdx));
     private final AtomicLong headIdx = new AtomicLong(-1);
 
     private final File root;
     private final String extension;
-    private final long maxFiles;
 
-    protected SegmentDirectory(File root, String extension, long maxFiles) {
+    protected SegmentDirectory(File root, String extension) {
         this.root = root;
         this.extension = extension;
-        this.maxFiles = maxFiles;
 
         initDirectory(root);
     }
@@ -60,19 +62,13 @@ public class SegmentDirectory<T extends SegmentFile> {
         }
     }
 
-    protected void loadSegments(Function<File, T> fn) {
+    public void loadSegments() {
         try {
-            Map<Long, Optional<T>> items = Files.list(root.toPath())
+            files.clear();
+            Files.list(root.toPath())
                     .map(Path::toFile)
                     .filter(this::matchExtension)
-                    .map(fn)
-                    .collect(groupingBy(SegmentDirectory::segmentIdx,
-                            reducing(SegmentDirectory::removeHigherLevel)));
-
-            items.values().stream()
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .forEach(this::add);
+                    .forEach(files::add);
 
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to load segments", e);
@@ -83,7 +79,7 @@ public class SegmentDirectory<T extends SegmentFile> {
         return segments.keySet().stream().mapToLong(k -> k).max().orElse(-1);
     }
 
-    private static <T extends SegmentFile> T removeHigherLevel(T t1, T t2) {
+    private static File removeHigherLevel(File t1, File t2) {
         if (SegmentDirectory.level(t1) > SegmentDirectory.level(t2)) {
             delete(t2);
             return t1;
@@ -92,9 +88,11 @@ public class SegmentDirectory<T extends SegmentFile> {
         return t2;
     }
 
-    private static <T extends SegmentFile> void delete(T sf) {
+    private static void delete(File sf) {
         log.info("REMOVING [" + sf + "]");
-        sf.delete();
+        if (sf.delete()) {
+            log.error("Failed to delete " + sf.getName());
+        }
     }
 
     //add to the head
@@ -236,16 +234,16 @@ public class SegmentDirectory<T extends SegmentFile> {
 
     //------------------------
 
-    public static long segmentIdx(SegmentFile sf) {
-        return Long.parseLong(name(sf.file()).split(SEPARATOR)[1]);
+    public static long segmentIdx(File file) {
+        return Long.parseLong(name(file).split(SEPARATOR)[1]);
     }
 
     private static String name(File file) {
         return file.getName().split("\\.")[0];
     }
 
-    public static int level(SegmentFile sf) {
-        return Integer.parseInt(name(sf.file()).split(SEPARATOR)[0]);
+    public static int level(File file) {
+        return Integer.parseInt(name(file).split(SEPARATOR)[0]);
     }
 
     protected T tryGet(long segmentIdx) {

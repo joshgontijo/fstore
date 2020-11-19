@@ -1,86 +1,45 @@
 package io.joshworks.es2.index;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
+import io.joshworks.fstore.core.util.Memory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.nio.channels.FileChannel;
 
 
 public class BTreeIndexSegment {
 
     private static final Logger log = LoggerFactory.getLogger(BTreeIndexSegment.class);
 
+    static final int BLOCK_SIZE = Memory.PAGE_SIZE;
+
     private final MappedFile mf;
-    private final AtomicBoolean readOnly = new AtomicBoolean();
-    private final int blockSize;
+    private final Block root;
 
-    //read path
-    private Block root;
-
-    //write path
-    private final List<Block> nodeBlocks = new ArrayList<>();
-
-    public BTreeIndexSegment(File file, long numEntries, int blockSize) {
-        this.blockSize = blockSize;
+    public static BTreeIndexSegment open(File file) {
         try {
-            boolean newFile = file.createNewFile();
-            if (newFile) {
-                long alignedSize = align(numEntries, blockSize);
-                this.mf = MappedFile.create(file, alignedSize);
-            } else { //existing file
-                this.mf = MappedFile.open(file);
-                long fileSize = mf.capacity();
-                if (fileSize % blockSize != 0) {
-                    throw new IllegalStateException("Invalid index file length: " + fileSize);
-                }
-                readOnly.set(true);
-                this.root = readRoot();
+            if (!file.exists()) {
+                throw new RuntimeIOException("File does not exist");
+            }
+            MappedFile mf = MappedFile.open(file, FileChannel.MapMode.READ_ONLY);
+            long fileSize = mf.capacity();
+            if (fileSize % BLOCK_SIZE != 0) {
+                throw new IllegalStateException("Invalid index file length: " + fileSize);
             }
 
-        } catch (IOException ioex) {
-            throw new RuntimeException("Failed to create index", ioex);
+            return new BTreeIndexSegment(mf);
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to initialize index");
         }
     }
 
-
-    public void add(long stream, int version, long logPos) {
-        assert !isFull() : "Index is full";
-
-        Block node = getOrAllocate(0);
-        if (!node.add(stream, version, logPos)) {
-            writeNode(node);
-            node.add(stream, version, logPos);
-        }
-    }
-
-    public void writeNode(Block node) {
-        int idx = node.writeTo(mf);
-
-        //link node to the parent
-        Block parent = getOrAllocate(node.level() + 1);
-        if (!parent.addLink(node, idx)) {
-            writeNode(parent);
-            parent.addLink(node, idx);
-        }
-    }
-
-    //write not without linking node to the parent, used only for root when completing segment
-    public void writeNodeFinal(Block node) {
-        node.writeTo(mf);
-    }
-
-
-    private Block getOrAllocate(int level) {
-        if (level >= nodeBlocks.size()) {
-            nodeBlocks.add(level, new Block(blockSize, level));
-        }
-        return nodeBlocks.get(level);
+    private BTreeIndexSegment(MappedFile mf) {
+        this.mf = mf;
+        this.root = readRoot();
     }
 
     public IndexEntry find(long stream, int version, IndexFunction fn) {
@@ -91,8 +50,6 @@ public class BTreeIndexSegment {
                 if (i == -1) {
                     return null;
                 }
-//                long stream = block.stream(i);
-//                int version = block.version(i);
                 int blockIdx = block.blockIndex(i);
                 block = loadBlock(blockIdx);
             } else { //leaf node
@@ -106,115 +63,32 @@ public class BTreeIndexSegment {
     }
 
     private Block loadBlock(int idx) {
-        if (!readOnly.get()) {
-            throw new RuntimeException("Not read only");
-        }
         if (idx < 0 || idx >= numBlocks()) {
             throw new IndexOutOfBoundsException(idx);
         }
-        int offset = idx * blockSize;
-        ByteBuffer readBuffer = mf.buffer().slice(offset, blockSize);
-        return Block.from(readBuffer);
+        int offset = idx * BLOCK_SIZE;
+        ByteBuffer readBuffer = mf.slice(offset, BLOCK_SIZE);
+        return new Block(readBuffer);
     }
-
-
-    public boolean isFull() {
-        return mf.position() >= mf.capacity();
-    }
-
 
     public int entries() {
         return root.entries();
     }
 
-
     public void delete() {
         mf.delete();
-//        filter.delete();
-    }
-
-
-    public File file() {
-        return mf.file();
-    }
-
-
-    public void truncate() {
-        mf.truncate(mf.position());
-    }
-
-    /**
-     * Complete this index and mark it as read only.
-     */
-
-    public void complete() {
-        //flush remaining nodes
-        for (int i = 0; i < nodeBlocks.size() - 1; i++) {
-            Block block = nodeBlocks.get(i);
-            if (block.hasData()) {
-                writeNode(block);
-            }
-        }
-        //flush root
-        Block root = nodeBlocks.get(nodeBlocks.size() - 1);
-        if (root.hasData()) {
-            writeNodeFinal(root);
-        }
-
-        for (Block block : nodeBlocks) {
-            assert !block.hasData();
-        }
-
-        mf.flush();
-        truncate();
-        readOnly.set(true);
-        this.root = readRoot();
-        nodeBlocks.clear();
     }
 
     private Block readRoot() {
         return loadBlock(numBlocks() - 1);
     }
 
-
     public void close() {
         mf.close();
     }
 
-    private long align(long maxEntries, int blockSize) {
-        List<Long> levelAllocations = new ArrayList<>();
-        int totalBlocks = 0;
-        long lastLevelItems = maxEntries;
-        int level = 0;
-        do {
-            lastLevelItems = numberOfNodesPerLevel(lastLevelItems, level, blockSize);
-            levelAllocations.add(lastLevelItems);
-            level++;
-            totalBlocks += lastLevelItems;
-        } while (lastLevelItems > 1);
-
-        assert lastLevelItems == 1 : "Root must always have one node";
-
-        long alignedSize = totalBlocks * blockSize;
-
-        log.info("Blocks: {}, alignedSize: {}, level blocks: {}", totalBlocks, alignedSize, levelAllocations);
-        return alignedSize;
-    }
-
-    private int numberOfNodesPerLevel(long numEntries, int level, int blockSize) {
-        int blockEntrySize = level == 0 ? Block.LEAF_ENTRY_BYTES : Block.INTERNAL_ENTRY_BYTES;
-        int entriesPerBlock = (blockSize - Block.HEADER) / blockEntrySize;
-        int blocks = (int) (numEntries / entriesPerBlock);
-        blocks += numEntries % entriesPerBlock > 0 ? 1 : 0;
-        return blocks;
-    }
-
-    public String name() {
-        return mf.name();
-    }
-
     public int numBlocks() {
-        return mf.position() / blockSize;
+        return mf.position() / BLOCK_SIZE;
     }
 
     public int size() {

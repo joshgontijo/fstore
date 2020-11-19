@@ -21,18 +21,20 @@ public class MappedRegion {
 
     protected MappedByteBuffer mbb;
     protected final long regionStart;
+    protected final FileChannel.MapMode mode;
 
-    public MappedRegion(FileChannel channel, long regionStart, long size) {
+    public MappedRegion(FileChannel channel, long regionStart, long size, FileChannel.MapMode mode) {
         this.regionStart = regionStart;
+        this.mode = mode;
         try {
-            map(channel, size);
+            map(channel, size, mode);
         } catch (Exception e) {
             throw new RuntimeIOException("Could not open mapped file", e);
         }
     }
 
-    protected void map(FileChannel channel, long size) throws IOException {
-        this.mbb = channel.map(FileChannel.MapMode.READ_WRITE, regionStart, safeCast(size));
+    protected void map(FileChannel channel, long size, FileChannel.MapMode mode) throws IOException {
+        this.mbb = channel.map(mode, regionStart, safeCast(size));
     }
 
     /**
@@ -131,6 +133,18 @@ public class MappedRegion {
 
     public void position(long position) {
         mbb.position(safeCast(position));
+    }
+
+    public ByteBuffer slice() {
+        return mbb.slice();
+    }
+
+    public ByteBuffer slice(int index, int length) {
+        return mbb.slice(index, length);
+    }
+
+    public FileChannel.MapMode mode() {
+        return mode;
     }
 
     /**
