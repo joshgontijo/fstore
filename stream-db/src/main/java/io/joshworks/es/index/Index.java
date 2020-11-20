@@ -28,12 +28,9 @@ public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
     public Index(File root, int maxEntries, int blockSize) {
         super(root, EXT, Long.MAX_VALUE);
-        if (blockSize % 2 != 0) {
-            throw new IllegalArgumentException("Block size must be power of two, got " + blockSize);
-        }
-        if (blockSize > Short.MAX_VALUE) { //block uses short for BLOCK_SIZE
-            throw new IllegalArgumentException("Block size must cannot be greater than " + Short.MAX_VALUE);
-        }
+        assert blockSize % 2 == 0 : "Block size must be power of two, got " + blockSize;
+        assert blockSize <= Short.MAX_VALUE : "Block size must cannot be greater than " + Short.MAX_VALUE;
+
         this.maxEntries = maxEntries;
         this.blockSize = blockSize;
         super.loadSegments(f -> new BTreeIndexSegment(f, maxEntries, blockSize));

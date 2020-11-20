@@ -4,6 +4,8 @@ import io.joshworks.es.Event;
 import io.joshworks.es.SegmentDirectory;
 import io.joshworks.fstore.core.util.BitUtil;
 import io.joshworks.fstore.core.util.Memory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -12,6 +14,8 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 public class Log extends SegmentDirectory<LogSegment> {
+
+    private static final Logger logger = LoggerFactory.getLogger(Log.class);
 
     public static final int START = 0;
 
@@ -25,8 +29,8 @@ public class Log extends SegmentDirectory<LogSegment> {
 
     public Log(File root, long logSize) {
         super(root, EXTENSION, MAX_SEGMENTS);
-        System.out.println("MAX_SEGMENTS: " + MAX_SEGMENTS);
-        System.out.println("MAX_SEGMENT_ADDRESS: " + MAX_SEGMENT_ADDRESS);
+        logger.info("MAX_SEGMENTS: {}", MAX_SEGMENTS);
+        logger.info("MAX_SEGMENT_ADDRESS: {}", MAX_SEGMENT_ADDRESS);
         this.logSize = logSize;
         this.openLogs();
     }

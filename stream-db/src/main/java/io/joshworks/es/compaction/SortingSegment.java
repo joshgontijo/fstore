@@ -64,7 +64,7 @@ public class SortingSegment {
         entries.sort(IndexEntry::compare);
 
         int size = entries.size();
-        mf = MappedFile.create(tmpFile, size * Long.BYTES);
+        mf = MappedFile.create(tmpFile, (long) size * Long.BYTES);
 
         for (IndexEntry entry : entries) {
             mf.putLong(entry.logAddress());

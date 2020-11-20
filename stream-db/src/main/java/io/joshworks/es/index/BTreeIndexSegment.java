@@ -59,7 +59,7 @@ public class BTreeIndexSegment implements IndexSegment {
         }
     }
 
-    public void writeNode(Block node) {
+    private void writeNode(Block node) {
         int idx = node.writeTo(mf);
 
         //link node to the parent
@@ -233,7 +233,7 @@ public class BTreeIndexSegment implements IndexSegment {
 
         assert lastLevelItems == 1 : "Root must always have one node";
 
-        long alignedSize = totalBlocks * blockSize;
+        long alignedSize = (long) totalBlocks * blockSize;
 
         log.info("Blocks: {}, alignedSize: {}, level blocks: {}", totalBlocks, alignedSize, levelAllocations);
         return alignedSize;

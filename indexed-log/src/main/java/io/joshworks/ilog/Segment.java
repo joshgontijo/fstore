@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class Segment implements Iterable<Record> {
 
-    private static final Logger log = LoggerFactory.getLogger(IndexedSegment.class);
+    private static final Logger log = LoggerFactory.getLogger(Segment.class);
 
     public static final int NO_MAX_SIZE = -1;
     public static final int NO_MAX_ENTRIES = -1;

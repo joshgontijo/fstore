@@ -1,10 +1,10 @@
 package io.joshworks.es;
 
-import io.joshworks.es.conduit.Sink;
 import io.joshworks.fstore.core.io.Channels;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +52,7 @@ public class MemTable {
         return true;
     }
 
-    public long get(long stream, int version, Sink sink) {
+    public long get(long stream, int version, WritableByteChannel sink) {
         StreamEvents events = table.get(stream);
         if (events == null) {
             return 0;
@@ -68,7 +68,7 @@ public class MemTable {
         return events.version();
     }
 
-    public long flush(Sink dst) {
+    public long flush(WritableByteChannel dst) {
         Set<Long> streams = new TreeSet<>(table.keySet());
 
         long written = 0;
@@ -132,7 +132,7 @@ public class MemTable {
             }
         }
 
-        private long flush(Sink sink) {
+        private long flush(WritableByteChannel sink) {
             Lock lock = rwLock.readLock();
             lock.lock();
             try {
@@ -146,7 +146,7 @@ public class MemTable {
             }
         }
 
-        private long sentTo(Sink sink, int version) {
+        private long sentTo(WritableByteChannel sink, int version) {
             Lock lock = rwLock.readLock();
             lock.lock();
             try {

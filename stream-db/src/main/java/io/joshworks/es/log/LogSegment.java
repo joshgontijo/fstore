@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class LogSegment implements SegmentFile {
 
@@ -52,7 +53,7 @@ public class LogSegment implements SegmentFile {
         this.level = SegmentDirectory.level(this);
     }
 
-    public synchronized long restore(Function<ByteBuffer, Boolean> onRecord) {
+    public synchronized long restore(Predicate<ByteBuffer> onRecord) {
         log.info("Restoring {}", name());
 
         long start = System.currentTimeMillis();
@@ -64,7 +65,7 @@ public class LogSegment implements SegmentFile {
             boolean valid = true;
             while (it.hasNext() && valid) {
                 ByteBuffer record = it.next();
-                valid = onRecord.apply(record);
+                valid = onRecord.test(record);
                 if (valid) {
                     recordPos += Event.sizeOf(record);
                     processed++;

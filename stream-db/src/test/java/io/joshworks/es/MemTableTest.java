@@ -1,12 +1,12 @@
 package io.joshworks.es;
 
-import io.joshworks.es.conduit.Sink;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Size;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -86,7 +86,7 @@ public class MemTableTest {
         assertEquals(0, table.size());
     }
 
-    private static class BufferSink implements Sink {
+    private static class BufferSink implements WritableByteChannel {
 
         private final List<ByteBuffer> buffers = new ArrayList<>();
 

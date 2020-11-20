@@ -8,36 +8,24 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.SortedSet;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.reducing;
 
 /**
  * Not Thread safe, synchronization must be done outside
  * Mainly because EventStore needs to sync on both Log and Index a the same time, adding here would just be unecessary overhead
  * head() does not need sync as it does not change
  */
-public class SegmentDirectory {
+public class SegmentDirectory<T extends SegmentFile> {
 
     private static final Logger log = LoggerFactory.getLogger(SegmentDirectory.class);
     private static final String SEPARATOR = "-";
 
-    private final ConcurrentSkipListSet<File> files = new ConcurrentSkipListSet<>(Comparator.comparingInt(SegmentDirectory::level).thenComparingLong(SegmentDirectory::segmentIdx));
-    private final AtomicLong headIdx = new AtomicLong(-1);
+    private final ConcurrentSkipListSet<T> segments = new ConcurrentSkipListSet<>();
 
     private final File root;
     private final String extension;
@@ -49,65 +37,49 @@ public class SegmentDirectory {
         initDirectory(root);
     }
 
+    public SegmentFile addHead(Function<File, T> create) {
+        long segIdx = 0;
+        if (!segments.isEmpty()) {
+            T currentHead = segments.first();
+            int headLevel = level(currentHead);
+            if (headLevel == 0) {
+                segIdx = segmentIdx(currentHead) + 1;
+            }
+        }
+        File file = newSegmentFile(segIdx, 0);
+        T segment = create.apply(file);
+        segments.add(segment);
+        assert segments.first().equals(segment);
+        return segment;
+    }
+
     private static void initDirectory(File root) {
         try {
-            if (!Files.exists(root.toPath())) {
-                Files.createDirectory(root.toPath());
-            }
             if (!root.isDirectory()) {
                 throw new IllegalArgumentException("Not a directory " + root.getAbsolutePath());
             }
+            Files.createDirectories(root.toPath());
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to initialize segment directory", e);
         }
     }
 
-    public void loadSegments() {
+    public void loadSegments(Function<File, T> fn) {
         try {
-            files.clear();
             Files.list(root.toPath())
                     .map(Path::toFile)
                     .filter(this::matchExtension)
-                    .forEach(files::add);
+                    .map(fn)
+                    .forEach(segments::add);
 
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to load segments", e);
         }
     }
 
-    private long computeHeadIx() {
-        return segments.keySet().stream().mapToLong(k -> k).max().orElse(-1);
-    }
-
-    private static File removeHigherLevel(File t1, File t2) {
-        if (SegmentDirectory.level(t1) > SegmentDirectory.level(t2)) {
-            delete(t2);
-            return t1;
-        }
-        delete(t1);
-        return t2;
-    }
-
-    private static void delete(File sf) {
-        log.info("REMOVING [" + sf + "]");
-        if (sf.delete()) {
-            log.error("Failed to delete " + sf.getName());
-        }
-    }
-
-    //add to the head
-    public void add(T segment) {
-        long idx = SegmentDirectory.segmentIdx(segment);
-        long expected = headIdx() + 1;
-        if (expected != idx) {
-            throw new IllegalStateException("Expected segmentIdx: " + expected + " got " + idx);
-        }
-        segments.put(idx, segment);
-        headIdx.set(computeHeadIx());
-    }
-
-    public void merge(T replacement, Collection<T> items) {
-        Set<T> files = new HashSet<>(items);
+    private synchronized void merge(MergeFile<T> merge) {
+        Set<T> files = new HashSet<>(merge.sources);
+        T replacement = merge.replacement;
 
         validateMergeFiles(files);
         int expectedNextLevel = computeNextLevel(files);
@@ -123,11 +95,10 @@ public class SegmentDirectory {
         }
 
         for (T file : files) {
-            long idx = segmentIdx(file);
-            this.segments.remove(idx);
+            this.segments.remove(file);
             file.delete();
         }
-        this.segments.put(replacementIdx, replacement);
+        this.segments.add(replacement);
     }
 
     public int computeNextLevel(Set<T> files) {
@@ -138,27 +109,15 @@ public class SegmentDirectory {
         return segments.size();
     }
 
-    public List<String> segmentsNames() {
-        return segments.values().stream().map(s -> s.file().getName()).collect(Collectors.toList());
-    }
-
     public File root() {
         return root;
     }
 
-    protected long headIdx() {
-        return headIdx.get();
-    }
-
     protected T head() {
-        return segments.get(headIdx());
+        return segments.first();
     }
 
-    public int depth() {
-        return segments.values().stream().mapToInt(SegmentDirectory::level).max().orElse(0);
-    }
-
-    public File newMergeFile(Collection<T> items) {
+    public MergeFile<T> createMerge(int level) {
         Set<T> segments = new HashSet<>(items);
         validateMergeFiles(segments);
         int nextLevel = computeNextLevel(segments);
@@ -167,11 +126,15 @@ public class SegmentDirectory {
         return newSegmentFile(baseSegmentIdx, nextLevel);
     }
 
+    private static <T extends SegmentFile> int compare(T s1, T s2) {
+        return s1.file().getName().compareTo(s2.file().getName());
+    }
+
     private void validateMergeFiles(Set<T> files) {
         if (files.contains(head())) {
             throw new IllegalArgumentException("Cannot merge head file");
         }
-        if (!new HashSet<>(segments.values()).containsAll(files)) {
+        if (!segments.containsAll(files)) {
             throw new IllegalArgumentException("Invalid segment files");
         }
     }
@@ -190,6 +153,11 @@ public class SegmentDirectory {
         return startIdx;
     }
 
+    private SortedSet<T> fromLevel(int level) {
+
+        segments.subSet()
+    }
+
     protected File newHeadFile() {
         long nextSegIdx = headIdx() + 1;
         if (nextSegIdx > maxFiles) {
@@ -201,7 +169,7 @@ public class SegmentDirectory {
     }
 
     private void ensureNoDuplicates(File segmentFile) {
-        for (var segment : segments.values()) {
+        for (var segment : segments) {
             if (name(segment.file()).equals(name(segmentFile))) {
                 throw new IllegalStateException("Duplicate segment name");
             }
@@ -209,11 +177,10 @@ public class SegmentDirectory {
     }
 
     public void close() {
-        for (var entry : segments.values()) {
+        for (var entry : segments) {
             entry.close();
         }
         segments.clear();
-        headIdx.set(-1);
     }
 
     private File newSegmentFile(long segmentIdx, int level) {
@@ -221,11 +188,17 @@ public class SegmentDirectory {
         return new File(root, name);
     }
 
-    public static String segmentFileName(long segmentIdx, int level, String ext, long maxFiles) {
+    public static String segmentFileName(long segmentIdx, int level, String ext) {
         if (segmentIdx < 0 || level < 0) {
             throw new RuntimeException("Invalid segment values, level: " + level + ", idx: " + segmentIdx);
         }
-        return String.format("%02d", level) + "-" + String.format("%0" + BitUtil.decimalUnitsForDecimal(maxFiles) + "d", segmentIdx) + "." + ext;
+        String fileLevel = toLevelString(level);
+        String fileLevelIdx = String.format("%0" + BitUtil.decimalUnitsForDecimal(Long.MAX_VALUE) + "d", segmentIdx);
+        return fileLevel + "-" + fileLevelIdx + "." + ext;
+    }
+
+    private static String toLevelString(int level) {
+        return String.format("%0" + BitUtil.decimalUnitsForDecimal(Integer.MAX_VALUE) + "d", level);
     }
 
     private boolean matchExtension(File file) {
@@ -234,37 +207,31 @@ public class SegmentDirectory {
 
     //------------------------
 
-    public static long segmentIdx(File file) {
-        return Long.parseLong(name(file).split(SEPARATOR)[1]);
+    private static <T extends SegmentFile> long segmentIdx(T sf) {
+        return Long.parseLong(name(sf.file()).split(SEPARATOR)[1]);
     }
 
     private static String name(File file) {
         return file.getName().split("\\.")[0];
     }
 
-    public static int level(File file) {
-        return Integer.parseInt(name(file).split(SEPARATOR)[0]);
+    private static <T extends SegmentFile> int level(T sf) {
+        return Integer.parseInt(name(sf.file()).split(SEPARATOR)[0]);
     }
 
-    protected T tryGet(long segmentIdx) {
-        return segments.get(segmentIdx);
-    }
+    public static class MergeFile<T extends SegmentFile> {
+        private final T replacement;
+        private final List<T> sources;
 
-    //throw exception if segment does not exist
-    protected T getSegment(long segmentIdx) {
-        T seg = tryGet(segmentIdx);
-        if (seg == null) {
-            throw new IllegalStateException("No segment for index " + segmentIdx);
+        private MergeFile(T replacement, List<T> sources) {
+            this.replacement = replacement;
+            this.sources = sources;
         }
-        return seg;
-    }
 
-    protected int size() {
-        return segments.size();
-    }
+        public void discard() {
 
-    protected boolean isEmpty() {
-        return segments.isEmpty();
+        }
+
     }
 
 }

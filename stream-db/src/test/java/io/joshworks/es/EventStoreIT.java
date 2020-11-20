@@ -8,6 +8,8 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static io.joshworks.es.EventHelper.evOf;
 import static org.junit.Assert.assertEquals;
@@ -31,12 +33,13 @@ public class EventStoreIT {
 
     @Test
     public void append_read() {
-        String stream = "stream-1";
+        ThreadLocalRandom rand = ThreadLocalRandom.current();
+        String stream = "stream-";
         int items = 30000000;
 
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            store.append(evOf(stream, i - 1, "TEST", "abc"));
+            store.append(evOf(stream + rand.nextInt(0, 20), - 1, "TEST", "abc"));
             if (i % 1000000 == 0) {
                 long now = System.currentTimeMillis();
                 System.out.println("WRITE: " + i + " -> " + (now - s));
@@ -48,6 +51,7 @@ public class EventStoreIT {
         s = System.currentTimeMillis();
 
 
+        stream = "stream-1";
         int totalItems = 0;
         int read;
         int lastReadVersion = -1;

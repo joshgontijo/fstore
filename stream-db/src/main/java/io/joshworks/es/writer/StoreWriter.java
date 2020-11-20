@@ -54,6 +54,7 @@ public class StoreWriter {
             tasks.put(task);
             return task;
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
     }
