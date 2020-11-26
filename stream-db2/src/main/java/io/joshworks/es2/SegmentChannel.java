@@ -34,12 +34,21 @@ public class SegmentChannel implements Closeable {
         this.lock = lock;
     }
 
+    public static SegmentChannel create(File file) {
+        try {
+            checkFileExist(file);
+            var channel = FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
+            FileLock lock = channel.lock();
+
+            return new SegmentChannel(file, channel, lock);
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to open segment", e);
+        }
+    }
+
     public static SegmentChannel create(File file, long size) {
         try {
-            boolean newFile = FileUtils.createIfNotExists(file);
-            if (!newFile) {
-                throw new RuntimeIOException("Failed already exists " + file.getAbsolutePath());
-            }
+            checkFileExist(file);
             RandomAccessFile raf = new RandomAccessFile(file, "rw");
             raf.setLength(size);
             FileChannel channel = raf.getChannel();
@@ -53,16 +62,19 @@ public class SegmentChannel implements Closeable {
 
     public static SegmentChannel open(File file) {
         try {
-            boolean newFile = FileUtils.createIfNotExists(file);
             FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
             FileLock lock = channel.lock();
-            SegmentChannel segmentChannel = new SegmentChannel(file, channel, lock);
-            if (!newFile) {
-                channel.position(channel.size());
-            }
-            return segmentChannel;
+            channel.position(channel.size());
+            return new SegmentChannel(file, channel, lock);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment", e);
+        }
+    }
+
+    private static void checkFileExist(File file) {
+        boolean newFile = FileUtils.createIfNotExists(file);
+        if (!newFile) {
+            throw new RuntimeIOException("Failed already exists " + file.getAbsolutePath());
         }
     }
 

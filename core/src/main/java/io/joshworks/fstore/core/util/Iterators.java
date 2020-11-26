@@ -4,7 +4,9 @@ import io.joshworks.fstore.core.io.IOUtils;
 
 import java.io.Closeable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Spliterator;
@@ -52,6 +54,10 @@ public class Iterators {
 
     public static <T> Stream<T> stream(Iterator<T> iterator) {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+    }
+
+    public static <T> Iterator<T> of(T... items) {
+        return Arrays.asList(items).iterator();
     }
 
     public interface CloseableIterator<T> extends Iterator<T>, Closeable {

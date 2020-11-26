@@ -57,7 +57,8 @@ public class MemTable {
         if (events == null) {
             return 0;
         }
-        return events.transferTo(channel, version);
+//        return events.transferTo(channel, version);
+        throw new UnsupportedOperationException("TODO");
     }
 
     public int version(long stream) {

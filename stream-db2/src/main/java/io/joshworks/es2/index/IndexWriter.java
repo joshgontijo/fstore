@@ -10,7 +10,7 @@ import java.util.List;
 
 public class IndexWriter {
 
-    private static final ThreadLocal<TreeBuffers> indexWriter = ThreadLocal.withInitial(TreeBuffers::new);
+    private static final ThreadLocal<TreeBuffers> buffer = ThreadLocal.withInitial(TreeBuffers::new);
     private final SegmentChannel channel;
 
     public IndexWriter(SegmentChannel channel) {
@@ -18,7 +18,7 @@ public class IndexWriter {
     }
 
     public void add(long stream, int version, int recordSize, int recordEntries, long logPos) {
-        Block node = indexWriter.get().getOrAllocate(0);
+        Block node = buffer.get().getOrAllocate(0);
         if (!node.add(stream, version, recordSize, recordEntries, logPos)) {
             writeNode(node);
             node.add(stream, version, recordSize, recordEntries, logPos);
@@ -29,7 +29,7 @@ public class IndexWriter {
         int idx = node.writeTo(channel);
 
         //link node to the parent
-        Block parent = indexWriter.get().getOrAllocate(node.level() + 1);
+        Block parent = buffer.get().getOrAllocate(node.level() + 1);
         if (!parent.addLink(node, idx)) {
             writeNode(parent);
             parent.addLink(node, idx);
@@ -44,7 +44,7 @@ public class IndexWriter {
     public void complete() {
         try {
             //flush remaining nodes
-            List<Block> nodeBlocks = indexWriter.get().nodeBlocks;
+            List<Block> nodeBlocks = buffer.get().nodeBlocks;
             for (int i = 0; i < nodeBlocks.size() - 1; i++) {
                 Block block = nodeBlocks.get(i);
                 if (block.hasData()) {

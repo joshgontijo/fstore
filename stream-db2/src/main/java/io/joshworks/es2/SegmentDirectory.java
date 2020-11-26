@@ -117,14 +117,14 @@ public class SegmentDirectory<T extends SegmentFile> {
         return segments.first();
     }
 
-    public MergeFile<T> createMerge(int level) {
-        Set<T> segments = new HashSet<>(items);
-        validateMergeFiles(segments);
-        int nextLevel = computeNextLevel(segments);
-
-        long baseSegmentIdx = validateSequentialFiles(segments);
-        return newSegmentFile(baseSegmentIdx, nextLevel);
-    }
+//    public MergeFile<T> createMerge(int level) {
+//        Set<T> segments = new HashSet<>(items);
+//        validateMergeFiles(segments);
+//        int nextLevel = computeNextLevel(segments);
+//
+//        long baseSegmentIdx = validateSequentialFiles(segments);
+//        return newSegmentFile(baseSegmentIdx, nextLevel);
+//    }
 
     private static <T extends SegmentFile> int compare(T s1, T s2) {
         return s1.file().getName().compareTo(s2.file().getName());
@@ -143,30 +143,30 @@ public class SegmentDirectory<T extends SegmentFile> {
         long startIdx = files.stream().mapToLong(SegmentDirectory::segmentIdx).min().getAsLong();
         long endIdx = files.stream().mapToLong(SegmentDirectory::segmentIdx).max().getAsLong();
 
-        for (long i = startIdx; i <= endIdx; i++) {
-            T seg = segments.get(i);
-            if (seg != null && !files.contains(seg)) {
-                throw new IllegalArgumentException("Non sequential segment files");
-            }
-        }
+//        for (long i = startIdx; i <= endIdx; i++) {
+//            T seg = segments.get(i);
+//            if (seg != null && !files.contains(seg)) {
+//                throw new IllegalArgumentException("Non sequential segment files");
+//            }
+//        }
 
         return startIdx;
     }
 
-    private SortedSet<T> fromLevel(int level) {
+//    private SortedSet<T> fromLevel(int level) {
+//
+////        segments.subSet()
+//    }
 
-        segments.subSet()
-    }
-
-    protected File newHeadFile() {
-        long nextSegIdx = headIdx() + 1;
-        if (nextSegIdx > maxFiles) {
-            throw new RuntimeException("Segment files limit reached " + maxFiles);
-        }
-        File segmentFile = newSegmentFile(nextSegIdx, 0);
-        ensureNoDuplicates(segmentFile);
-        return segmentFile;
-    }
+//    protected File newHeadFile() {
+//        long nextSegIdx = headIdx() + 1;
+//        if (nextSegIdx > maxFiles) {
+//            throw new RuntimeException("Segment files limit reached " + maxFiles);
+//        }
+//        File segmentFile = newSegmentFile(nextSegIdx, 0);
+//        ensureNoDuplicates(segmentFile);
+//        return segmentFile;
+//    }
 
     private void ensureNoDuplicates(File segmentFile) {
         for (var segment : segments) {
@@ -184,7 +184,7 @@ public class SegmentDirectory<T extends SegmentFile> {
     }
 
     private File newSegmentFile(long segmentIdx, int level) {
-        String name = segmentFileName(segmentIdx, level, extension, maxFiles);
+        String name = segmentFileName(segmentIdx, level, extension);
         return new File(root, name);
     }
 
