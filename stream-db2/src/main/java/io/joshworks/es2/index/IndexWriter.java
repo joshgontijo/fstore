@@ -2,7 +2,7 @@ package io.joshworks.es2.index;
 
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.Memory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ public class IndexWriter {
 
         private Block getOrAllocate(int level) {
             if (level >= nodeBlocks.size()) {
-                nodeBlocks.add(level, new Block(Buffers.allocate(BTreeIndexSegment.BLOCK_SIZE, false)));
+                nodeBlocks.add(level, Block.create(Memory.PAGE_SIZE, level));
             }
             return nodeBlocks.get(level);
         }

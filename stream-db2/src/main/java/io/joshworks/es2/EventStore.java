@@ -18,10 +18,6 @@ public class EventStore {
     }
 
     public void append(ByteBuffer event) {
-        if (!Event.isValid(event)) {
-            throw new IllegalArgumentException("Invalid event");
-        }
-
         int eventSize = Event.sizeOf(event);
         int expectedVersion = Event.version(event);
 

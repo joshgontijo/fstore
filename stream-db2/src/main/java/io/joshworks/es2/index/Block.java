@@ -62,15 +62,20 @@ class Block {
     static final int HEADER = Short.BYTES + Integer.BYTES + Short.BYTES;
 
 
-    Block(int size, int level) {
-        assert size <= Short.MAX_VALUE : "Block must not exceed " + Short.MAX_VALUE;
-        this.data = Buffers.allocate(size, false);
-        data.putShort((short) level);
-        data.position(HEADER);
+    private Block(ByteBuffer buffer) {
+        this.data = buffer;
     }
 
-    Block(ByteBuffer buffer) {
-        this.data = buffer;
+    static Block create(int size, int level) {
+        assert size <= Short.MAX_VALUE : "Block must not exceed " + Short.MAX_VALUE;
+        ByteBuffer data = Buffers.allocate(size, false);
+        data.putShort((short) level);
+        data.position(HEADER);
+        return new Block(data);
+    }
+
+    static Block from(ByteBuffer data) {
+        return new Block(data);
     }
 
     boolean add(long stream, int version, int recordSize, int recordEntries, long logPos) {

@@ -16,13 +16,23 @@
             <artifactId>core</artifactId>
         </dependency>
         <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- CODEC -->
+        <dependency>
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>snappy-codec</artifactId>
         </dependency>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>standard-codec</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>lz4-codec</artifactId>
         </dependency>
 
 

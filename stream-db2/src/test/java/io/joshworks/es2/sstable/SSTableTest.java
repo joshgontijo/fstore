@@ -10,6 +10,9 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -31,9 +34,8 @@ public class SSTableTest {
         TestUtils.deleteRecursively(indexFile);
     }
 
-
     @Test
-    public void version() {
+    public void version_single() {
         String stream = "stream-1";
         int version = 0;
         ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data", 0);
@@ -44,10 +46,29 @@ public class SSTableTest {
         assertNotNull(ie);
         assertEquals(streamHash, ie.stream());
         assertEquals(version, ie.version());
-
     }
+
 
     @Test
-    public void get() {
+    public void version_many() {
+        String stream = "stream-1";
+        int items = 10000;
+
+        List<ByteBuffer> events = IntStream.range(0, items)
+                .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data", 0))
+                .collect(Collectors.toList());
+
+        SSTable sstable = SSTable.create(dataFile, indexFile, events.iterator());
+
+        for (int version = 0; version < items; version++) {
+            long streamHash = StreamHasher.hash(stream);
+            IndexEntry ie = sstable.get(streamHash, version);
+            assertNotNull("Failed on " + version, ie);
+            assertEquals(streamHash, ie.stream());
+            assertEquals(0, ie.version());
+        }
+
+
     }
+
 }

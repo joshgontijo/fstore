@@ -3,8 +3,6 @@ package io.joshworks.es2.index;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
 import io.joshworks.fstore.core.util.Memory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -12,8 +10,6 @@ import java.nio.channels.FileChannel;
 
 
 public class BTreeIndexSegment {
-
-    private static final Logger log = LoggerFactory.getLogger(BTreeIndexSegment.class);
 
     static final int BLOCK_SIZE = Memory.PAGE_SIZE;
 
@@ -33,7 +29,7 @@ public class BTreeIndexSegment {
 
             return new BTreeIndexSegment(mf);
         } catch (Exception e) {
-            throw new RuntimeIOException("Failed to initialize index");
+            throw new RuntimeIOException("Failed to initialize index", e);
         }
     }
 
@@ -68,7 +64,7 @@ public class BTreeIndexSegment {
         }
         int offset = idx * BLOCK_SIZE;
         ByteBuffer readBuffer = mf.slice(offset, BLOCK_SIZE);
-        return new Block(readBuffer);
+        return Block.from(readBuffer);
     }
 
     public int entries() {
