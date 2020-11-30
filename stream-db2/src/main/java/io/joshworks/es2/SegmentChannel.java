@@ -138,11 +138,7 @@ public class SegmentChannel implements Closeable {
     }
 
     public long transferTo(long position, long count, WritableByteChannel target) {
-        try {
-            return channel.transferTo(position, count, target);
-        } catch (IOException e) {
-            throw new RuntimeIOException(e);
-        }
+        return Channels.transferFully(channel, position, count, target);
     }
 
     public long transferFrom(ReadableByteChannel src, long position, long count) {

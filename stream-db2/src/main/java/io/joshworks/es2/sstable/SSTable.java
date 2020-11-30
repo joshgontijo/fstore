@@ -5,6 +5,7 @@ import io.joshworks.es2.index.BTreeIndexSegment;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
 import io.joshworks.es2.index.IndexWriter;
+import io.joshworks.es2.sink.Sink;
 import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
@@ -14,6 +15,9 @@ import java.util.Iterator;
 import static io.joshworks.es2.Event.NO_VERSION;
 
 class SSTable {
+
+    public static final int NO_DATA = -1;
+    public static final int VERSION_TOO_HIGH = -2;
 
     private final SegmentChannel data;
     private final BTreeIndexSegment index;
@@ -32,6 +36,26 @@ class SSTable {
     public int version(long stream) {
         IndexEntry ie = index.find(stream, Integer.MAX_VALUE, IndexFunction.FLOOR);
         return ie == null ? NO_VERSION : ie.version();
+    }
+
+    public long get(long stream, int version, Sink sink) {
+        IndexEntry ie = index.find(stream, version, IndexFunction.FLOOR);
+        if (ie == null) {
+            return NO_DATA;
+        }
+
+        int recSize = ie.recordSize();
+        long logAddress = ie.logAddress();
+        int startVersion = ie.version();
+        int entries = ie.entries();
+
+        assert startVersion <= version;
+
+        //end version is greater than latest version from index, sstable should not continue searching (considering sstable lookup is older to newer)
+        if (version > startVersion + entries - 1) {
+            return VERSION_TOO_HIGH;
+        }
+        return data.transferTo(logAddress, recSize, sink);
     }
 
     public IndexEntry get(long stream, int version) {

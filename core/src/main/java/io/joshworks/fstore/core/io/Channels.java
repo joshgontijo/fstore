@@ -88,18 +88,21 @@ public class Channels {
     }
 
     public static long transferFully(FileChannel src, WritableByteChannel dst) {
-        return transferFully(src, 0, dst);
+        try {
+            return transferFully(src, 0, src.size(), dst);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to transfer data", e);
+        }
     }
 
-    public static long transferFully(FileChannel src, long startPos, WritableByteChannel dst) {
+    public static long transferFully(FileChannel src, long startPos, long count, WritableByteChannel dst) {
         try {
-            long size = src.size() - startPos;
             long transferred = 0;
             do {
-                long written = src.transferTo(startPos + transferred, size - transferred, dst);
+                long written = src.transferTo(startPos + transferred, count - transferred, dst);
                 checkClosed(written);
                 transferred += written;
-            } while (transferred < size);
+            } while (transferred < count);
 
             return transferred;
 
