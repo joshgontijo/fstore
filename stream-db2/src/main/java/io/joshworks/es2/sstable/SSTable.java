@@ -8,13 +8,14 @@ import io.joshworks.es2.index.IndexWriter;
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.fstore.core.util.Memory;
 
+import java.io.Closeable;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 import static io.joshworks.es2.Event.NO_VERSION;
 
-class SSTable {
+class SSTable implements Closeable {
 
     public static final int NO_DATA = -1;
     public static final int VERSION_TOO_HIGH = -2;
@@ -81,4 +82,10 @@ class SSTable {
         return new SSTable(dataChannel, BTreeIndexSegment.open(indexFile));
     }
 
+
+    @Override
+    public void close() {
+        data.close();
+        index.close();
+    }
 }

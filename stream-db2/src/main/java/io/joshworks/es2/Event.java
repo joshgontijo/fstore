@@ -3,6 +3,7 @@ package io.joshworks.es2;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * <pre>
@@ -79,6 +80,21 @@ public class Event {
         int evTypeLen = eventTypeLen(data);
         int offset = data.position() + EVENT_TYPE_OFFSET;
         return Buffers.toString(data, offset, evTypeLen);
+    }
+
+    public static String dataString(ByteBuffer data) {
+        return new String(data(data), StandardCharsets.UTF_8);
+    }
+
+    public static byte[] data(ByteBuffer data) {
+        int evTypeLen = eventTypeLen(data);
+        int dataLen = dataLen(data);
+        int offset = data.position() + EVENT_TYPE_OFFSET + evTypeLen;
+
+        byte[] dataBytes = new byte[dataLen];
+        data.slice(offset, dataLen).get(dataBytes);
+
+        return dataBytes;
     }
 
     public static int compare(ByteBuffer ev1, ByteBuffer ev2) {

@@ -12,6 +12,7 @@ import java.nio.ByteBuffer;
  * START_VERSION (4 BYTES)
  * ENTRIES (4 BYTES)
  * CHECKSUM (4 BYTES)
+ * UNCOMPRESSED_SIZE (4 BYTES)
  * CODEC (1 BYTES)
  *
  * DATA [{@link Event}] (N BYTES)
@@ -26,6 +27,7 @@ public class StreamBlock {
                     Integer.BYTES + //START_VERSION
                     Integer.BYTES + // ENTRIES
                     Integer.BYTES +// CHECKSUM
+                    Integer.BYTES +// UNCOMPRESSED_SIZE
                     Byte.BYTES;// CHECKSUM
 
 
@@ -34,7 +36,8 @@ public class StreamBlock {
     static final int START_VERSION_OFFSET = STREAM_OFFSET + Long.BYTES;
     static final int ENTRIES_OFFSET = START_VERSION_OFFSET + Integer.BYTES;
     static final int CHECKSUM_OFFSET = ENTRIES_OFFSET + Integer.BYTES;
-    static final int CODEC_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
+    static final int UNCOMPRESSED_SIZE_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
+    static final int CODEC_OFFSET = UNCOMPRESSED_SIZE_OFFSET + Integer.BYTES;
 
 
     public static int sizeOf(ByteBuffer rec) {
@@ -53,12 +56,16 @@ public class StreamBlock {
         return rec.getInt(rec.position() + ENTRIES_OFFSET);
     }
 
+    public static int uncompressedSize(ByteBuffer rec) {
+        return rec.getInt(rec.position() + UNCOMPRESSED_SIZE_OFFSET);
+    }
+
     public static int checksum(ByteBuffer rec) {
         return rec.getInt(rec.position() + CHECKSUM_OFFSET);
     }
 
-    public static int codec(ByteBuffer rec) {
-        return rec.getInt(rec.position() + CODEC_OFFSET);
+    public static byte codec(ByteBuffer rec) {
+        return rec.get(rec.position() + CODEC_OFFSET);
     }
 
     public static boolean isValid(ByteBuffer chunk) {
@@ -67,25 +74,23 @@ public class StreamBlock {
             return false;
         }
         int checksum = checksum(chunk);
-        int computed = computeChecksum(chunk, recSize - HEADER_BYTES);
+        int computed = computeChecksum(chunk, recSize);
         return computed == checksum;
     }
 
     //expects compressed data already present,starting at position HEADER_BYTES, fills header fields,
     //limit must the end of the compressed data.
     //position must be zero
-    public static void writeHeader(ByteBuffer chunkData, long stream, int entries, int startVersion, byte codec) {
+    public static void writeHeader(ByteBuffer chunkData, long stream, int startVersion, int entries, int uncompressedSize, byte codec) {
         assert chunkData.position() == 0;
 
         chunkData.putInt(SIZE_OFFSET, chunkData.remaining()); //RECORD_SIZE (HEADER + compressed data)
         chunkData.putLong(STREAM_OFFSET, stream); //STREAM_HASH
         chunkData.putInt(START_VERSION_OFFSET, startVersion); //START_VERSION
         chunkData.putInt(ENTRIES_OFFSET, entries); //ENTRIES
-
-        int checksum = computeChecksum(chunkData, chunkData.remaining());
-        chunkData.putInt(CHECKSUM_OFFSET, checksum);
-        chunkData.put(CODEC_OFFSET, codec);
-
+        chunkData.putInt(CHECKSUM_OFFSET, computeChecksum(chunkData, chunkData.remaining())); //CHECKSUM
+        chunkData.putInt(UNCOMPRESSED_SIZE_OFFSET, uncompressedSize); //UNCOMPRESSED_SIZE
+        chunkData.put(CODEC_OFFSET, codec); //CODEC
     }
 
     private static int computeChecksum(ByteBuffer chunkData, int recSize) {
@@ -98,6 +103,7 @@ public class StreamBlock {
                 "START_VERSION=" + startVersion(data) + ", " +
                 "ENTRIES=" + entries(data) + ", " +
                 "CHECKSUM=" + checksum(data) + ", " +
+                "UNCOMPRESSED_SIZE=" + uncompressedSize(data) + ", " +
                 "CODEC=" + codec(data);
     }
 

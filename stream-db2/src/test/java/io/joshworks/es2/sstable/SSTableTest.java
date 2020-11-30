@@ -23,6 +23,7 @@ public class SSTableTest {
 
     private File dataFile;
     private File indexFile;
+    private SSTable sstable;
 
     @Before
     public void open() {
@@ -32,6 +33,9 @@ public class SSTableTest {
 
     @After
     public void tearDown() {
+        if (sstable != null) {
+            sstable.close();
+        }
         TestUtils.deleteRecursively(dataFile);
         TestUtils.deleteRecursively(indexFile);
     }
@@ -41,7 +45,7 @@ public class SSTableTest {
         String stream = "stream-1";
         int version = 0;
         ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data", 0);
-        SSTable sstable = SSTable.create(dataFile, indexFile, Iterators.of(data));
+        sstable = SSTable.create(dataFile, indexFile, Iterators.of(data));
 
         long streamHash = StreamHasher.hash(stream);
         IndexEntry ie = sstable.get(streamHash, version);
@@ -60,7 +64,7 @@ public class SSTableTest {
                 .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data", 0))
                 .collect(Collectors.toList());
 
-        SSTable sstable = SSTable.create(dataFile, indexFile, events.iterator());
+        sstable = SSTable.create(dataFile, indexFile, events.iterator());
 
         for (int version = 0; version < items; version++) {
             Sink.Memory sink = new Sink.Memory();
@@ -76,11 +80,31 @@ public class SSTableTest {
         String stream = "stream-1";
         int version = 0;
         ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data", 0);
-        SSTable sstable = SSTable.create(dataFile, indexFile, Iterators.of(data));
+        sstable = SSTable.create(dataFile, indexFile, Iterators.of(data));
 
         long streamHash = StreamHasher.hash(stream);
         long res = sstable.get(streamHash, version + 1, new Sink.Memory());
         assertEquals(SSTable.VERSION_TOO_HIGH, res);
+    }
+
+    @Test
+    public void readEvents() {
+        String stream = "stream-1";
+        int version = 0;
+        TestEvent first = TestEvent.create(stream, 0, 0, "type-1", "data1");
+        TestEvent second = TestEvent.create(stream, 1, 0, "type-1", "data2");
+        sstable = SSTable.create(dataFile, indexFile, Iterators.of(first.serialize(), second.serialize()));
+
+        long streamHash = StreamHasher.hash(stream);
+        Sink.Memory memory = new Sink.Memory();
+        long res = sstable.get(streamHash, version + 1, memory);
+        assertTrue(res > 0);
+
+        List<TestEvent> events = StreamBlockDeserializer.deserialize(ByteBuffer.wrap(memory.data()));
+        assertEquals(2, events.size());
+        assertEquals(first, events.get(0));
+        assertEquals(second, events.get(1));
+
     }
 
 }

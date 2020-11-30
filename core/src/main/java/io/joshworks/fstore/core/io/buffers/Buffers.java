@@ -248,6 +248,12 @@ public class Buffers {
         return data;
     }
 
+    public static byte[] copyArray(ByteBuffer bb, int offset, int length) {
+        byte[] data = new byte[length];
+        bb.slice(offset, length).get(data);
+        return data;
+    }
+
     /**
      * Determine whether any of the buffers has remaining data.
      *
