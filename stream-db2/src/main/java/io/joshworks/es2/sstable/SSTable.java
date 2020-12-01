@@ -1,6 +1,7 @@
 package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.SegmentChannel;
+import io.joshworks.es2.SegmentFile;
 import io.joshworks.es2.index.BTreeIndexSegment;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
@@ -8,14 +9,16 @@ import io.joshworks.es2.index.IndexWriter;
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.fstore.core.util.Memory;
 
-import java.io.Closeable;
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Iterator;
 
 import static io.joshworks.es2.Event.NO_VERSION;
 
-class SSTable implements Closeable {
+class SSTable implements SegmentFile {
+
+    private static final String INDEX_EXT = "idx";
 
     public static final int NO_DATA = -1;
     public static final int VERSION_TOO_HIGH = -2;
@@ -28,7 +31,8 @@ class SSTable implements Closeable {
         this.index = index;
     }
 
-    static SSTable open(File dataFile, File indexFile) {
+    static SSTable open(File dataFile) {
+        File indexFile = indexFile(dataFile);
         var data = SegmentChannel.open(dataFile);
         var index = BTreeIndexSegment.open(indexFile);
         return new SSTable(data, index);
@@ -63,7 +67,9 @@ class SSTable implements Closeable {
         return index.find(stream, version, IndexFunction.FLOOR);
     }
 
-    static SSTable create(File dataFile, File indexFile, Iterator<ByteBuffer> items) {
+    static SSTable create(File dataFile, Iterator<ByteBuffer> items) {
+        File indexFile = indexFile(dataFile);
+
         SegmentChannel dataChannel = SegmentChannel.create(dataFile);
         SegmentChannel indexChannel = SegmentChannel.create(indexFile);
         IndexWriter indexWriter = new IndexWriter(indexChannel);
@@ -82,10 +88,26 @@ class SSTable implements Closeable {
         return new SSTable(dataChannel, BTreeIndexSegment.open(indexFile));
     }
 
+    private static File indexFile(File dataFile) {
+        Path parent = dataFile.toPath().getParent();
+        String indexFileName = dataFile.getName().split("\\.")[0] + "." + INDEX_EXT;
+        return parent.resolve(indexFileName).toFile();
+    }
 
     @Override
     public void close() {
         data.close();
         index.close();
+    }
+
+    @Override
+    public void delete() {
+        data.delete();
+        index.delete();
+    }
+
+    @Override
+    public File file() {
+        return null;
     }
 }
