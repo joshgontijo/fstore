@@ -4,6 +4,7 @@ import io.joshworks.es2.directory.SegmentDirectory;
 import io.joshworks.es2.directory.View;
 import io.joshworks.es2.index.IndexEntry;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
@@ -13,24 +14,11 @@ import static io.joshworks.es2.Event.NO_VERSION;
 public class SSTables {
 
     private static final String DATA_EXT = "sst";
-    private final Path folder;
     private final SegmentDirectory<SSTable> sstables;
 
     public SSTables(Path folder) {
-        this.folder = folder;
         sstables = new SegmentDirectory<>(folder.toFile(), DATA_EXT);
         sstables.loadSegments(SSTable::open);
-    }
-
-    private void openFiles() {
-//        for (File file : requireNonNull(folder.toFile().listFiles())) {
-//            if (!file.getName().endsWith(DATA_EXT)) {
-//                continue;
-//            }
-//
-//
-//            SSTable.open(file);
-//        }
     }
 
     public IndexEntry get(long stream, int fromVersionInclusive) {
@@ -59,8 +47,9 @@ public class SSTables {
 
 
     public void flush(Iterator<ByteBuffer> iterator) {
-
-
+        File headFile = sstables.newHead();
+        SSTable sstable = SSTable.create(headFile, iterator);
+        sstables.append(sstable);
     }
 
 

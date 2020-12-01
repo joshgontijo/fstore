@@ -22,22 +22,18 @@ import static org.junit.Assert.assertTrue;
 public class SSTableTest {
 
     private File dataFile;
-    private File indexFile;
     private SSTable sstable;
 
     @Before
     public void open() {
         dataFile = TestUtils.testFile();
-        indexFile = TestUtils.testFile();
     }
 
     @After
     public void tearDown() {
         if (sstable != null) {
-            sstable.close();
+            sstable.delete();
         }
-        TestUtils.deleteRecursively(dataFile);
-        TestUtils.deleteRecursively(indexFile);
     }
 
     @Test
@@ -45,7 +41,7 @@ public class SSTableTest {
         String stream = "stream-1";
         int version = 0;
         ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data", 0);
-        sstable = SSTable.create(dataFile, indexFile, Iterators.of(data));
+        sstable = SSTable.create(dataFile, Iterators.of(data));
 
         long streamHash = StreamHasher.hash(stream);
         IndexEntry ie = sstable.get(streamHash, version);
@@ -53,7 +49,6 @@ public class SSTableTest {
         assertEquals(streamHash, ie.stream());
         assertEquals(version, ie.version());
     }
-
 
     @Test
     public void version_many() {
@@ -64,7 +59,7 @@ public class SSTableTest {
                 .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data", 0))
                 .collect(Collectors.toList());
 
-        sstable = SSTable.create(dataFile, indexFile, events.iterator());
+        sstable = SSTable.create(dataFile, events.iterator());
 
         for (int version = 0; version < items; version++) {
             Sink.Memory sink = new Sink.Memory();
@@ -80,7 +75,7 @@ public class SSTableTest {
         String stream = "stream-1";
         int version = 0;
         ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data", 0);
-        sstable = SSTable.create(dataFile, indexFile, Iterators.of(data));
+        sstable = SSTable.create(dataFile, Iterators.of(data));
 
         long streamHash = StreamHasher.hash(stream);
         long res = sstable.get(streamHash, version + 1, new Sink.Memory());
@@ -93,7 +88,7 @@ public class SSTableTest {
         int version = 0;
         TestEvent first = TestEvent.create(stream, 0, 0, "type-1", "data1");
         TestEvent second = TestEvent.create(stream, 1, 0, "type-1", "data2");
-        sstable = SSTable.create(dataFile, indexFile, Iterators.of(first.serialize(), second.serialize()));
+        sstable = SSTable.create(dataFile, Iterators.of(first.serialize(), second.serialize()));
 
         long streamHash = StreamHasher.hash(stream);
         Sink.Memory memory = new Sink.Memory();

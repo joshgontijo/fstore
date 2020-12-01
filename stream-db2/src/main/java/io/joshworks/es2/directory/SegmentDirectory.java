@@ -2,8 +2,6 @@ package io.joshworks.es2.directory;
 
 import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -11,11 +9,10 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static io.joshworks.es2.directory.DirectoryUtils.level;
-import static io.joshworks.es2.directory.DirectoryUtils.name;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentIdx;
 
@@ -26,8 +23,6 @@ import static io.joshworks.es2.directory.DirectoryUtils.segmentIdx;
  */
 public class SegmentDirectory<T extends SegmentFile> {
 
-    private static final Logger log = LoggerFactory.getLogger(SegmentDirectory.class);
-
     private volatile View<T> view = new View<>();
 
     private final File root;
@@ -36,12 +31,7 @@ public class SegmentDirectory<T extends SegmentFile> {
     public SegmentDirectory(File root, String extension) {
         this.root = root;
         this.extension = extension;
-
         initDirectory(root);
-    }
-
-    public View<T> view() {
-        return view.acquire();
     }
 
     private synchronized void replaceView(View<T> newView) {
@@ -50,25 +40,32 @@ public class SegmentDirectory<T extends SegmentFile> {
         current.close();
     }
 
-    public SegmentFile addHead(Function<File, T> create) {
+    public synchronized File newHead() {
         try (View<T> view = this.view.acquire()) {
-            ConcurrentSkipListSet<T> segments = view.segments;
-
             long segIdx = 0;
-            if (!segments.isEmpty()) {
-                T currentHead = segments.first();
+            if (!view.isEmpty()) {
+                T currentHead = view.head();
                 int headLevel = level(currentHead);
                 if (headLevel == 0) {
                     segIdx = segmentIdx(currentHead) + 1;
                 }
             }
-            File file = newSegmentFile(segIdx, 0);
-            T segment = create.apply(file);
-            segments.add(segment);
-            assert segments.first().equals(segment);
-            return segment;
+            return newSegmentFile(segIdx, 0);
         }
+    }
 
+    //modifications must be synchronized
+    public synchronized void append(T newSegmentHead) {
+        try (View<T> view = this.view.acquire()) {
+            if (view.head().compareTo(newSegmentHead) <= 0) {
+                throw new IllegalStateException("New segment won't be new head");
+            }
+
+            View<T> newView = view.append(newSegmentHead);
+            assert newView.head().equals(newSegmentHead);
+
+            replaceView(newView);
+        }
     }
 
     private static void initDirectory(File root) {
@@ -83,16 +80,14 @@ public class SegmentDirectory<T extends SegmentFile> {
     }
 
     public void loadSegments(Function<File, T> fn) {
-        View<T> newView = new View<>();
         try {
-            ConcurrentSkipListSet<T> segments = newView.segments;
-            Files.list(root.toPath())
+            List<T> items = Files.list(root.toPath())
                     .map(Path::toFile)
                     .filter(this::matchExtension)
                     .map(fn)
-                    .forEach(segments::add);
+                    .collect(Collectors.toList());
 
-            replaceView(newView);
+            replaceView(new View<>(items));
 
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to load segments", e);
@@ -101,18 +96,14 @@ public class SegmentDirectory<T extends SegmentFile> {
     }
 
     //TODO close View create new one
-    private synchronized void merge(MergeFile<T> merge) {
+    private synchronized void merge(MergeHandle<T> merge) {
         try (View<T> view = this.view.acquire()) {
-            View<T> newView = new View<>();
-
-            ConcurrentSkipListSet<T> segments = view.segments;
 
             Set<T> files = new HashSet<>(merge.sources);
             T replacement = merge.replacement;
 
-            validateMergeFiles(files);
             int expectedNextLevel = computeNextLevel(files);
-            long expectedSegmentIdx = validateSequentialFiles(files);
+            long expectedSegmentIdx = files.stream().mapToLong(DirectoryUtils::segmentIdx).min().getAsLong();
 
             int replacementLevel = level(replacement);
             long replacementIdx = segmentIdx(replacement);
@@ -123,12 +114,9 @@ public class SegmentDirectory<T extends SegmentFile> {
                 throw new IllegalArgumentException("Expected segmentIdx " + expectedSegmentIdx + ", got " + replacementIdx);
             }
 
-            for (T item : files) {
-                view.markForDeletion(item);
-            }
-            segments.add(replacement);
+            View<T> newView = view.merge(merge);
+            replaceView(newView);
         }
-
     }
 
     public int computeNextLevel(Set<T> files) {
@@ -139,87 +127,21 @@ public class SegmentDirectory<T extends SegmentFile> {
         return root;
     }
 
-//    public MergeFile<T> createMerge(int level) {
-//        Set<T> segments = new HashSet<>(items);
-//        validateMergeFiles(segments);
-//        int nextLevel = computeNextLevel(segments);
-//
-//        long baseSegmentIdx = validateSequentialFiles(segments);
-//        return newSegmentFile(baseSegmentIdx, nextLevel);
-//    }
-
-    private static <T extends SegmentFile> int compare(T s1, T s2) {
-        return s1.file().getName().compareTo(s2.file().getName());
-    }
-
-    private void validateMergeFiles(Set<T> files) {
+    public synchronized MergeHandle<T> createMerge(int level, int maxItems) {
         try (View<T> view = this.view.acquire()) {
-            ConcurrentSkipListSet<T> segments = view.segments;
+            view.createMerge()
 
-            if (files.contains(view.head())) {
-                throw new IllegalArgumentException("Cannot merge head file");
-            }
-            if (!segments.containsAll(files)) {
-                throw new IllegalArgumentException("Invalid segment files");
-            }
         }
-
     }
-
-    private long validateSequentialFiles(Set<T> files) {
-        long startIdx = files.stream().mapToLong(DirectoryUtils::segmentIdx).min().getAsLong();
-        long endIdx = files.stream().mapToLong(DirectoryUtils::segmentIdx).max().getAsLong();
-
-//        for (long i = startIdx; i <= endIdx; i++) {
-//            T seg = segments.get(i);
-//            if (seg != null && !files.contains(seg)) {
-//                throw new IllegalArgumentException("Non sequential segment files");
-//            }
-//        }
-
-        return startIdx;
-    }
-
-//    private SortedSet<T> fromLevel(int level) {
-//
-////        segments.subSet()
-//    }
-
-//    protected File newHeadFile() {
-//        long nextSegIdx = headIdx() + 1;
-//        if (nextSegIdx > maxFiles) {
-//            throw new RuntimeException("Segment files limit reached " + maxFiles);
-//        }
-//        File segmentFile = newSegmentFile(nextSegIdx, 0);
-//        ensureNoDuplicates(segmentFile);
-//        return segmentFile;
-//    }
 
     private boolean matchExtension(File file) {
         return file.getName().endsWith(extension);
     }
 
-    private void ensureNoDuplicates(File segmentFile) {
-        try (View<T> view = this.view.acquire()) {
-            ConcurrentSkipListSet<T> segments = view.segments;
-            for (var segment : segments) {
-                if (name(segment.file()).equals(name(segmentFile))) {
-                    throw new IllegalStateException("Duplicate segment name");
-                }
-            }
-        }
-
-    }
-
     public void close() {
-        //TODO wait for all operation to complete before closing view
         try (View<T> view = this.view.acquire()) {
-            for (var entry : view.segments) {
-                entry.close();
-            }
-            //view.clear(); ???
+            replaceView(new View<>());
         }
-
     }
 
     private File newSegmentFile(long segmentIdx, int level) {
@@ -227,20 +149,5 @@ public class SegmentDirectory<T extends SegmentFile> {
         return new File(root, name);
     }
 
-
-    public static class MergeFile<T extends SegmentFile> {
-        private final T replacement;
-        private final List<T> sources;
-
-        private MergeFile(T replacement, List<T> sources) {
-            this.replacement = replacement;
-            this.sources = sources;
-        }
-
-        public void discard() {
-
-        }
-
-    }
 
 }

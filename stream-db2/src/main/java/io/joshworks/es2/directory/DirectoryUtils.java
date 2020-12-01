@@ -26,7 +26,7 @@ class DirectoryUtils {
     //------------------------
 
     static <T extends SegmentFile> long segmentIdx(T sf) {
-        return Long.parseLong(name(sf.file()).split(SEPARATOR)[1]);
+        return Long.parseLong(name(sf.name()).split(SEPARATOR)[1]);
     }
 
     static String name(File file) {
@@ -34,7 +34,7 @@ class DirectoryUtils {
     }
 
     static <T extends SegmentFile> int level(T sf) {
-        return Integer.parseInt(name(sf.file()).split(SEPARATOR)[0]);
+        return Integer.parseInt(name(sf.name()).split(SEPARATOR)[0]);
     }
 
 }

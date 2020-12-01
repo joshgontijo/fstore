@@ -10,10 +10,10 @@ public interface SegmentFile extends Closeable, Comparable<SegmentFile> {
 
     void delete();
 
-    File file();
+    String name();
 
     @Override
     default int compareTo(SegmentFile o) {
-        return file().getName().compareTo(o.file().getName());
+        return name().compareTo(o.name());
     }
 }

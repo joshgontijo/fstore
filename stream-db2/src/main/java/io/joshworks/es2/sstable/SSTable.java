@@ -107,7 +107,7 @@ class SSTable implements SegmentFile {
     }
 
     @Override
-    public File file() {
+    public File name() {
         return null;
     }
 }
