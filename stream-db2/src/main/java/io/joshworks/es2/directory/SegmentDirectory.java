@@ -2,16 +2,24 @@ package io.joshworks.es2.directory;
 
 import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.util.Iterators;
 
+import java.io.Closeable;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
+import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
 import static io.joshworks.es2.directory.DirectoryUtils.level;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentIdx;
@@ -21,9 +29,11 @@ import static io.joshworks.es2.directory.DirectoryUtils.segmentIdx;
  * Mainly because EventStore needs to sync on both Log and Index a the same time, adding here would just be unecessary overhead
  * head() does not need sync as it does not change
  */
-public class SegmentDirectory<T extends SegmentFile> {
+public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Closeable {
 
-    private volatile View<T> view = new View<>();
+    private final TreeSet<T> segments = new TreeSet<>();
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
+    private final Set<T> merging = new HashSet<>();
 
     private final File root;
     private final String extension;
@@ -34,120 +44,132 @@ public class SegmentDirectory<T extends SegmentFile> {
         initDirectory(root);
     }
 
-    private synchronized void replaceView(View<T> newView) {
-        View<T> current = this.view;
-        this.view = newView;
-        current.close();
-    }
-
-    public synchronized File newHead() {
-        try (View<T> view = this.view.acquire()) {
+    public File newHead() {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
             long segIdx = 0;
-            if (!view.isEmpty()) {
-                T currentHead = view.head();
+            if (!segments.isEmpty()) {
+                T currentHead = segments.first();
                 int headLevel = level(currentHead);
                 if (headLevel == 0) {
                     segIdx = segmentIdx(currentHead) + 1;
                 }
             }
-            return newSegmentFile(segIdx, 0);
+            String name = segmentFileName(segIdx, 0, extension);
+            return new File(root, name);
+        } finally {
+            lock.unlock();
         }
     }
 
     //modifications must be synchronized
-    public synchronized void append(T newSegmentHead) {
-        try (View<T> view = this.view.acquire()) {
-            if (view.head().compareTo(newSegmentHead) <= 0) {
+    public void append(T newSegmentHead) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            if (segments.first().compareTo(newSegmentHead) <= 0) {
                 throw new IllegalStateException("New segment won't be new head");
             }
-
-            View<T> newView = view.append(newSegmentHead);
-            assert newView.head().equals(newSegmentHead);
-
-            replaceView(newView);
-        }
-    }
-
-    private static void initDirectory(File root) {
-        try {
-            if (!root.isDirectory()) {
-                throw new IllegalArgumentException("Not a directory " + root.getAbsolutePath());
-            }
-            Files.createDirectories(root.toPath());
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to initialize segment directory", e);
+            segments.add(newSegmentHead);
+            assert segments.first().equals(newSegmentHead);
+        } finally {
+            lock.unlock();
         }
     }
 
     public void loadSegments(Function<File, T> fn) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
         try {
-            List<T> items = Files.list(root.toPath())
+            Files.list(root.toPath())
                     .map(Path::toFile)
                     .filter(this::matchExtension)
                     .map(fn)
-                    .collect(Collectors.toList());
-
-            replaceView(new View<>(items));
+                    .forEach(segments::add);
 
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to load segments", e);
+        } finally {
+            lock.unlock();
         }
 
     }
 
-    //TODO close View create new one
-    private synchronized void merge(MergeHandle<T> merge) {
-        try (View<T> view = this.view.acquire()) {
-
-            Set<T> files = new HashSet<>(merge.sources);
-            T replacement = merge.replacement;
-
-            int expectedNextLevel = computeNextLevel(files);
-            long expectedSegmentIdx = files.stream().mapToLong(DirectoryUtils::segmentIdx).min().getAsLong();
-
-            int replacementLevel = level(replacement);
-            long replacementIdx = segmentIdx(replacement);
-            if (replacementLevel != expectedNextLevel) {
-                throw new IllegalArgumentException("Expected level " + expectedNextLevel + ", got " + replacementLevel);
+    public MergeHandle<T> createMerge(int level, int minItems, int maxItems, File result) {
+        List<T> items = new ArrayList<>();
+        for (T segment : segments) {
+            if (items.size() >= maxItems) {
+                break;
             }
-            if (replacementIdx != expectedSegmentIdx) {
-                throw new IllegalArgumentException("Expected segmentIdx " + expectedSegmentIdx + ", got " + replacementIdx);
+            if (DirectoryUtils.level(segment) == level) {
+                items.add(segment);
             }
-
-            View<T> newView = view.merge(merge);
-            replaceView(newView);
         }
-    }
-
-    public int computeNextLevel(Set<T> files) {
-        return files.stream().mapToInt(DirectoryUtils::level).max().getAsInt() + 1;
-    }
-
-    public File root() {
-        return root;
-    }
-
-    public synchronized MergeHandle<T> createMerge(int level, int maxItems) {
-        try (View<T> view = this.view.acquire()) {
-            view.createMerge()
-
+        if (items.size() < minItems) {
+            return null;
         }
+        merging.addAll(items);
+        return new MergeHandle<>(result, items, rwLock, merging, segments);
     }
+
 
     private boolean matchExtension(File file) {
         return file.getName().endsWith(extension);
     }
 
+    @Override
     public void close() {
-        try (View<T> view = this.view.acquire()) {
-            replaceView(new View<>());
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            for (T segment : segments) {
+                segment.close();
+            }
+            segments.clear();
+        } finally {
+            lock.unlock();
         }
     }
 
-    private File newSegmentFile(long segmentIdx, int level) {
-        String name = segmentFileName(segmentIdx, level, extension);
-        return new File(root, name);
+    @Override
+    public Iterators.CloseableIterator<T> iterator() {
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        return new SegmentIterator(lock, segments.iterator());
     }
 
+    public Iterators.CloseableIterator<T> reverse() {
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        return new SegmentIterator(lock, segments.descendingIterator());
+    }
+
+
+    private class SegmentIterator implements Iterators.CloseableIterator<T> {
+
+        private final Lock lock;
+        private final Iterator<T> delegate;
+
+        private SegmentIterator(Lock lock, Iterator<T> delegate) {
+            this.lock = lock;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void close() {
+            lock.unlock();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return delegate.next();
+        }
+    }
 
 }

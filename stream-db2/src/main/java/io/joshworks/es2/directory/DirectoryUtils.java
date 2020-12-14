@@ -1,13 +1,26 @@
 package io.joshworks.es2.directory;
 
 import io.joshworks.es2.SegmentFile;
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.BitUtil;
 
 import java.io.File;
+import java.nio.file.Files;
 
 class DirectoryUtils {
 
     private static final String SEPARATOR = "-";
+
+    static void initDirectory(File root) {
+        try {
+            if (!root.isDirectory()) {
+                throw new IllegalArgumentException("Not a directory " + root.getAbsolutePath());
+            }
+            Files.createDirectories(root.toPath());
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to initialize segment directory", e);
+        }
+    }
 
     public static String segmentFileName(long segmentIdx, int level, String ext) {
         if (segmentIdx < 0 || level < 0) {
@@ -26,15 +39,11 @@ class DirectoryUtils {
     //------------------------
 
     static <T extends SegmentFile> long segmentIdx(T sf) {
-        return Long.parseLong(name(sf.name()).split(SEPARATOR)[1]);
-    }
-
-    static String name(File file) {
-        return file.getName().split("\\.")[0];
+        return Long.parseLong(sf.name().split(SEPARATOR)[1]);
     }
 
     static <T extends SegmentFile> int level(T sf) {
-        return Integer.parseInt(name(sf.name()).split(SEPARATOR)[0]);
+        return Integer.parseInt(sf.name().split(SEPARATOR)[0]);
     }
 
 }

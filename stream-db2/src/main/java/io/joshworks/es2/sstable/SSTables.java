@@ -1,7 +1,6 @@
 package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.directory.SegmentDirectory;
-import io.joshworks.es2.directory.View;
 import io.joshworks.es2.index.IndexEntry;
 
 import java.io.File;
@@ -22,27 +21,23 @@ public class SSTables {
     }
 
     public IndexEntry get(long stream, int fromVersionInclusive) {
-        try (View<SSTable> view = sstables.view()) {
-            for (SSTable sstable : view) {
-                var ie = sstable.get(stream, fromVersionInclusive);
-                if (ie != null) {
-                    return ie;
-                }
+        for (SSTable sstable : sstables) {
+            var ie = sstable.get(stream, fromVersionInclusive);
+            if (ie != null) {
+                return ie;
             }
-            return null;
         }
+        return null;
     }
 
     public int version(long stream) {
-        try (View<SSTable> view = sstables.view()) {
-            for (SSTable sstable : view) {
-                int version = sstable.version(stream);
-                if (version > NO_VERSION) {
-                    return version;
-                }
+        for (SSTable sstable : sstables) {
+            int version = sstable.version(stream);
+            if (version > NO_VERSION) {
+                return version;
             }
-            return NO_VERSION;
         }
+        return NO_VERSION;
     }
 
 

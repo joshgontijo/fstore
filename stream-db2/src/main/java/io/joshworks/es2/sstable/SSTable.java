@@ -72,20 +72,22 @@ class SSTable implements SegmentFile {
 
         SegmentChannel dataChannel = SegmentChannel.create(dataFile);
         SegmentChannel indexChannel = SegmentChannel.create(indexFile);
-        IndexWriter indexWriter = new IndexWriter(indexChannel);
 
         StreamBlockWriter dataChunkWriter = new StreamBlockWriter(BlockCodec.SNAPPY, Memory.PAGE_SIZE);
 
-        while (items.hasNext()) {
-            ByteBuffer data = items.next();
-            dataChunkWriter.add(data, dataChannel, indexWriter);
+        try (IndexWriter indexWriter = new IndexWriter(indexChannel)) {
+            while (items.hasNext()) {
+                ByteBuffer data = items.next();
+                dataChunkWriter.add(data, dataChannel, indexWriter);
+            }
+
+            dataChunkWriter.complete(dataChannel, indexWriter);
+
+            dataChannel.truncate();
+            indexWriter.complete(); //indexwriter already truncates channel
+            return new SSTable(dataChannel, BTreeIndexSegment.open(indexFile));
         }
 
-        dataChunkWriter.complete(dataChannel, indexWriter);
-
-        dataChannel.truncate();
-        indexWriter.complete(); //indexwriter already truncates channel
-        return new SSTable(dataChannel, BTreeIndexSegment.open(indexFile));
     }
 
     private static File indexFile(File dataFile) {
@@ -107,7 +109,7 @@ class SSTable implements SegmentFile {
     }
 
     @Override
-    public File name() {
-        return null;
+    public String name() {
+        return data.name();
     }
 }

@@ -177,7 +177,7 @@ public class SegmentChannel implements Closeable {
     }
 
     public String name() {
-        return handle.getName();
+        return handle.getName().split("\\.")[0];
     }
 
     @Override

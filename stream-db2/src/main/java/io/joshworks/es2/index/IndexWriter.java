@@ -4,11 +4,12 @@ import io.joshworks.es2.SegmentChannel;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.Memory;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class IndexWriter {
+public class IndexWriter implements Closeable {
 
     private static final ThreadLocal<TreeBuffers> buffer = ThreadLocal.withInitial(TreeBuffers::new);
     private final SegmentChannel channel;
@@ -59,7 +60,7 @@ public class IndexWriter {
 
             for (Block block : nodeBlocks) {
                 assert !block.hasData();
-                block.data.clear();
+                block.clear();
             }
 
             channel.truncate();
@@ -72,6 +73,13 @@ public class IndexWriter {
         }
     }
 
+    @Override
+    public void close() {
+        for (Block block : buffer.get().nodeBlocks) {
+            block.clear();
+        }
+    }
+
 
     private static class TreeBuffers {
         private final List<Block> nodeBlocks = new ArrayList<>();
@@ -80,7 +88,9 @@ public class IndexWriter {
             if (level >= nodeBlocks.size()) {
                 nodeBlocks.add(level, Block.create(Memory.PAGE_SIZE, level));
             }
-            return nodeBlocks.get(level);
+            Block block = nodeBlocks.get(level);
+            assert block.level() == level;
+            return block;
         }
 
     }

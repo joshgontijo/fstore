@@ -52,8 +52,11 @@ class Block {
                     Integer.BYTES; //BLOCK_IDX
 
 
-    protected final ByteBuffer data;
+    //internal state
+    private final ByteBuffer data;
     private int tmpEntries;
+
+
     private static final int LEVEL_OFFSET = 0;
     private static final int ENTRIES_OFFSET = LEVEL_OFFSET + Short.BYTES;
     private static final int BLOCK_SIZE = ENTRIES_OFFSET + Integer.BYTES;
@@ -240,6 +243,12 @@ class Block {
         int version = buffer.getInt(bufferPos + Long.BYTES);
 
         return IndexKey.compare(stream, version, keyStream, keyVersion);
+    }
+
+    void clear() {
+        data.clear();
+        data.position(HEADER);
+        tmpEntries = 0;
     }
 
     @Override
