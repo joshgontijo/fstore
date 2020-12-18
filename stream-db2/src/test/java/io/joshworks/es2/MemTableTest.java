@@ -2,7 +2,9 @@ package io.joshworks.es2;
 
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.EventSerializer;
+import io.joshworks.es2.sstable.SSTables;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -50,6 +52,26 @@ public class MemTableTest {
 
     @Test
     public void flush() {
+        String stream = "stream-1";
+        long streamHash = StreamHasher.hash(stream);
+
+        ByteBuffer item1 = EventSerializer.serialize(stream, "type-1", 0, "data", 0);
+        ByteBuffer item2 = EventSerializer.serialize(stream, "type-1", 1, "data", 0);
+        memTable.add(item1);
+        memTable.add(item2);
+
+        SSTables channel = new SSTables(TestUtils.testFolder().toPath());
+        try {
+            memTable.flush(channel);
+
+            Sink.Memory sink = new Sink.Memory();
+            int res = channel.get(streamHash, 0, sink);
+            assertTrue(res > 0);
+
+        } finally {
+            channel.delete();
+        }
+
     }
 
     @Test

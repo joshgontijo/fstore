@@ -2,14 +2,16 @@ package io.joshworks.es2;
 
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.BlockCodec;
+import io.joshworks.es2.sstable.SSTables;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Memory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Queue;
-import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -70,15 +72,11 @@ public class MemTable {
         return events.version();
     }
 
-    public long flush(SegmentChannel channel) {
-        Set<Long> streams = new TreeSet<>(table.keySet());
+    public long flush(SSTables sstables) {
 
-        long written = 0;
-        for (long stream : streams) {
-            written += table.get(stream).flush(channel);
-        }
-
-        return written;
+        MemTableFLushIterator it = new MemTableFLushIterator();
+        sstables.flush(it);
+        return size();
     }
 
     public void clear() {
@@ -166,6 +164,34 @@ public class MemTable {
         private int offset;
         private int length;
         private int version;
+    }
+
+    private class MemTableFLushIterator implements Iterator<ByteBuffer> {
+
+        private final Iterator<Long> streams;
+        private Iterator<EventEntry> currStreamIt;
+
+        public MemTableFLushIterator() {
+            this.streams = new TreeSet<>(table.keySet()).iterator();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return (currStreamIt != null && currStreamIt.hasNext()) || streams.hasNext();
+        }
+
+        @Override
+        public ByteBuffer next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            if (currStreamIt == null || !currStreamIt.hasNext()) {
+                long stream = streams.next();
+                currStreamIt = table.get(stream).entries.iterator();
+            }
+            EventEntry entry = currStreamIt.next();
+            return data.slice(entry.offset, entry.length);
+        }
     }
 
 }
