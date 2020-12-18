@@ -11,6 +11,10 @@ import java.util.List;
 
 public class StreamBlockDeserializer {
 
+    public static List<TestEvent> deserialize(byte[] block) {
+        return deserialize(ByteBuffer.wrap(block));
+    }
+
     public static List<TestEvent> deserialize(ByteBuffer block) {
         assert StreamBlock.isValid(block);
 
