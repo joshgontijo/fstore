@@ -23,8 +23,8 @@ public enum BlockCodec {
             LZ4_HIGH.id, LZ4_HIGH,
             DEFLATE.id, DEFLATE));
 
-    Codec codec;
-    byte id;
+    public final Codec codec;
+    public final byte id;
 
     BlockCodec(byte id, Codec codec) {
         this.id = id;

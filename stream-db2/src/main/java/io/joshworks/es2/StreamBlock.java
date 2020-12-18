@@ -1,5 +1,6 @@
 package io.joshworks.es2;
 
+import io.joshworks.es2.sstable.BlockCodec;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
 import java.nio.ByteBuffer;
@@ -81,7 +82,7 @@ public class StreamBlock {
     //expects compressed data already present,starting at position HEADER_BYTES, fills header fields,
     //limit must the end of the compressed data.
     //position must be zero
-    public static void writeHeader(ByteBuffer chunkData, long stream, int startVersion, int entries, int uncompressedSize, byte codec) {
+    public static void writeHeader(ByteBuffer chunkData, long stream, int startVersion, int entries, int uncompressedSize, BlockCodec codec) {
         assert chunkData.position() == 0;
 
         chunkData.putInt(SIZE_OFFSET, chunkData.remaining()); //RECORD_SIZE (HEADER + compressed data)
@@ -90,7 +91,7 @@ public class StreamBlock {
         chunkData.putInt(ENTRIES_OFFSET, entries); //ENTRIES
         chunkData.putInt(CHECKSUM_OFFSET, computeChecksum(chunkData, chunkData.remaining())); //CHECKSUM
         chunkData.putInt(UNCOMPRESSED_SIZE_OFFSET, uncompressedSize); //UNCOMPRESSED_SIZE
-        chunkData.put(CODEC_OFFSET, codec); //CODEC
+        chunkData.put(CODEC_OFFSET, codec.id); //CODEC
     }
 
     private static int computeChecksum(ByteBuffer chunkData, int recSize) {

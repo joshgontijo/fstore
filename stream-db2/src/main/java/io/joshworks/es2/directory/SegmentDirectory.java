@@ -68,7 +68,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         Lock lock = rwLock.writeLock();
         lock.lock();
         try {
-            if (segments.first().compareTo(newSegmentHead) <= 0) {
+            if (!segments.isEmpty() && segments.first().compareTo(newSegmentHead) <= 0) {
                 throw new IllegalStateException("New segment won't be new head");
             }
             segments.add(newSegmentHead);
@@ -133,7 +133,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
     }
 
     @Override
-    public Iterators.CloseableIterator<T> iterator() {
+    public SegmentIterator iterator() {
         Lock lock = rwLock.readLock();
         lock.lock();
         return new SegmentIterator(lock, segments.iterator());
@@ -145,8 +145,21 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         return new SegmentIterator(lock, segments.descendingIterator());
     }
 
+    public void delete() {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            for (T segment : segments) {
+                segment.delete();
+            }
+            segments.clear();
+        } finally {
+            lock.unlock();
+        }
+    }
 
-    private class SegmentIterator implements Iterators.CloseableIterator<T> {
+
+    public class SegmentIterator implements Iterators.CloseableIterator<T> {
 
         private final Lock lock;
         private final Iterator<T> delegate;

@@ -1,7 +1,7 @@
 package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.directory.SegmentDirectory;
-import io.joshworks.es2.index.IndexEntry;
+import io.joshworks.es2.sink.Sink;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -20,26 +20,27 @@ public class SSTables {
         sstables.loadSegments(SSTable::open);
     }
 
-    public IndexEntry get(long stream, int fromVersionInclusive) {
-        for (SSTable sstable : sstables) {
-            var ie = sstable.get(stream, fromVersionInclusive);
-            if (ie != null) {
-                return ie;
+    public int get(long stream, int fromVersionInclusive, Sink sink) {
+        try (SegmentDirectory<SSTable>.SegmentIterator it = sstables.iterator()) {
+            var res = it.next().get(stream, fromVersionInclusive, sink);
+            if (res >= 0) {
+                return res;
             }
         }
-        return null;
+        return SSTable.NO_DATA;
     }
 
     public int version(long stream) {
-        for (SSTable sstable : sstables) {
-            int version = sstable.version(stream);
-            if (version > NO_VERSION) {
-                return version;
+        try (SegmentDirectory<SSTable>.SegmentIterator it = sstables.iterator()) {
+            while (it.hasNext()) {
+                int version = it.next().version(stream);
+                if (version > NO_VERSION) {
+                    return version;
+                }
             }
+            return NO_VERSION;
         }
-        return NO_VERSION;
     }
-
 
     public void flush(Iterator<ByteBuffer> iterator) {
         File headFile = sstables.newHead();
@@ -47,5 +48,8 @@ public class SSTables {
         sstables.append(sstable);
     }
 
+    public void delete() {
+        sstables.delete();
+    }
 
 }

@@ -78,7 +78,7 @@ public class StreamBlockWriter {
         chunk.flip();
 
         //STREAM BLOCK WRITE
-        StreamBlock.writeHeader(chunk, currentStream, chunkStartVersion, chunkEntries, uncompressedSize, codec.id);
+        StreamBlock.writeHeader(chunk, currentStream, chunkStartVersion, chunkEntries, uncompressedSize, codec);
 
         int chunkSize = chunk.remaining();
         long logPos = channel.append(chunk);

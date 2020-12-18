@@ -20,8 +20,8 @@ class SSTable implements SegmentFile {
 
     private static final String INDEX_EXT = "idx";
 
-    public static final int NO_DATA = -1;
-    public static final int VERSION_TOO_HIGH = -2;
+    public static final int NO_DATA = -11;
+    public static final int VERSION_TOO_HIGH = -22;
 
     private final SegmentChannel data;
     private final BTreeIndexSegment index;
@@ -40,10 +40,10 @@ class SSTable implements SegmentFile {
 
     public int version(long stream) {
         IndexEntry ie = index.find(stream, Integer.MAX_VALUE, IndexFunction.FLOOR);
-        return ie == null ? NO_VERSION : ie.version();
+        return ie == null ? NO_VERSION : ie.version() + ie.entries() - 1;
     }
 
-    public long get(long stream, int version, Sink sink) {
+    public int get(long stream, int version, Sink sink) {
         IndexEntry ie = index.find(stream, version, IndexFunction.FLOOR);
         if (ie == null) {
             return NO_DATA;
@@ -60,7 +60,8 @@ class SSTable implements SegmentFile {
         if (version > startVersion + entries - 1) {
             return VERSION_TOO_HIGH;
         }
-        return data.transferTo(logAddress, recSize, sink);
+        //cast is ok since the data transferred is never going to be grater than stream block (~4kb)
+        return (int) data.transferTo(logAddress, recSize, sink);
     }
 
     public IndexEntry get(long stream, int version) {
