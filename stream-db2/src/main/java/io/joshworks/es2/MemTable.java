@@ -67,7 +67,7 @@ public class MemTable {
     public int version(long stream) {
         StreamEvents events = table.get(stream);
         if (events == null) {
-            return 0;
+            return Event.NO_VERSION;
         }
         return events.version();
     }
@@ -121,14 +121,6 @@ public class MemTable {
 
         private int version() {
             return version.get();
-        }
-
-        private long flush(SegmentChannel channel) {
-            long written = 0;
-            for (EventEntry entry : entries) {
-                written += channel.append(data.slice(entry.offset, entry.length));
-            }
-            return written;
         }
 
         private int writeTo(int fromVersion, Sink sink) {

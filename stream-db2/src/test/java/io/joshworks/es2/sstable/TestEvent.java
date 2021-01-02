@@ -10,22 +10,27 @@ import java.util.Objects;
 
 public class TestEvent {
 
-    private final long stream;
-    private final int version;
-    private final long sequence;
-    private final String type;
-    private final String data;
+    public final long stream;
+    public final int version;
+    public final long sequence;
+    public final long timestamp;
+    public final long eventTimestamp;
+    public final String type;
+    public final String data;
 
-    private TestEvent(long stream, int version, long sequence, String type, String data) {
+    private TestEvent(long stream, int version, long sequence, long timestamp, long eventTimestamp, String type, String data) {
         this.stream = stream;
         this.version = version;
         this.sequence = sequence;
+        this.timestamp = timestamp;
+        this.eventTimestamp = eventTimestamp;
         this.type = type;
         this.data = data;
     }
 
     public static TestEvent create(String stream, int version, long sequence, String type, String data) {
-        return new TestEvent(StreamHasher.hash(stream), version, sequence, type, data);
+        long ts = System.currentTimeMillis();
+        return new TestEvent(StreamHasher.hash(stream), version, sequence, ts, ts, type, data);
     }
 
     public static TestEvent from(ByteBuffer event) {
@@ -33,6 +38,8 @@ public class TestEvent {
                 Event.stream(event),
                 Event.version(event),
                 Event.sequence(event),
+                Event.timestamp(event),
+                Event.eventTimestamp(event),
                 Event.eventType(event),
                 Event.dataString(event));
     }
@@ -50,7 +57,10 @@ public class TestEvent {
         dst.putLong(stream);
         dst.putInt(version);
         dst.putLong(sequence);
-        dst.putLong(System.currentTimeMillis());
+
+        long ts = System.currentTimeMillis();
+        dst.putLong(ts);
+        dst.putLong(ts);
 
         dst.putShort((short) evTypeBytes.length);
         dst.putInt(dataBytes.length);

@@ -13,10 +13,10 @@ class DirectoryUtils {
 
     static void initDirectory(File root) {
         try {
+            Files.createDirectories(root.toPath());
             if (!root.isDirectory()) {
                 throw new IllegalArgumentException("Not a directory " + root.getAbsolutePath());
             }
-            Files.createDirectories(root.toPath());
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to initialize segment directory", e);
         }
