@@ -37,7 +37,6 @@ public class EventStore {
     }
 
     public void append(ByteBuffer event) {
-        int eventSize = Event.sizeOf(event);
         int eventVersion = Event.version(event);
         long stream = Event.stream(event);
 
