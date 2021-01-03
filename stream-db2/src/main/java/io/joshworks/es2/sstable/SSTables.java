@@ -22,9 +22,11 @@ public class SSTables {
 
     public int get(long stream, int fromVersionInclusive, Sink sink) {
         try (SegmentDirectory<SSTable>.SegmentIterator it = sstables.iterator()) {
-            var res = it.next().get(stream, fromVersionInclusive, sink);
-            if (res >= 0) {
-                return res;
+            while (it.hasNext()) {
+                var res = it.next().get(stream, fromVersionInclusive, sink);
+                if (res >= 0) {
+                    return res;
+                }
             }
         }
         return SSTable.NO_DATA;

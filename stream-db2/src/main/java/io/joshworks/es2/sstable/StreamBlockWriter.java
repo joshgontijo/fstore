@@ -54,6 +54,9 @@ public class StreamBlockWriter {
 
         assert chunkStartVersion >= 0;
         int expected = chunkStartVersion + chunkEntries;
+        if(expected != version) {
+            System.out.println();
+        }
         assert expected == version : "Event version must be contiguous (" + expected + " / " + version + ")";
 
         Buffers.copy(data, rawChunkData);

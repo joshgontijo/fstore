@@ -45,7 +45,7 @@ public interface Sink extends WritableByteChannel, Flushable {
 
         @Override
         public void close() {
-            //do nothing
+            baos.reset();
         }
 
         @Override

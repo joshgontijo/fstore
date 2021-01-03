@@ -190,6 +190,16 @@ public class SegmentChannel implements Closeable, SegmentFile {
         }
     }
 
+    @Override
+    public String toString() {
+        return "SegmentChannel{" +
+                "name=" + name() +
+                "handle=" + handle +
+                "size=" + size() +
+                "pos=" + position() +
+                '}';
+    }
+
     public static class MappedReadRegion implements Closeable {
 
         private ByteBuffer mbb;

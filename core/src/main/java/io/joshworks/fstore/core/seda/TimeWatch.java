@@ -18,11 +18,11 @@ public class TimeWatch {
         return this;
     }
 
-    public long time() {
+    public long elapsed() {
         return System.currentTimeMillis() - start;
     }
 
-    public long time(TimeUnit unit) {
-        return unit.convert(time(), TimeUnit.MILLISECONDS);
+    public long elapsed(TimeUnit unit) {
+        return unit.convert(elapsed(), TimeUnit.MILLISECONDS);
     }
 }

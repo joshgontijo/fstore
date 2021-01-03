@@ -17,7 +17,7 @@ public class EventStore {
     public EventStore(Path root) {
         this.sstables = new SSTables(root.resolve("sstables"));
         this.tlog = new TLog(root.resolve("log"));
-        this.memTable = new MemTable(Size.MB.ofInt(5), false);
+        this.memTable = new MemTable(Size.MB.ofInt(10), false);
     }
 
     public int version(long stream) {

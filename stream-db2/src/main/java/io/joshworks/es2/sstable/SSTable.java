@@ -113,4 +113,9 @@ class SSTable implements SegmentFile {
     public String name() {
         return data.name();
     }
+
+    @Override
+    public String toString() {
+        return data.toString();
+    }
 }

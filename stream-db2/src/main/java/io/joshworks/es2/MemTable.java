@@ -4,6 +4,7 @@ import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.BlockCodec;
 import io.joshworks.es2.sstable.SSTables;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.seda.TimeWatch;
 import io.joshworks.fstore.core.util.Memory;
 
 import java.nio.ByteBuffer;
@@ -16,11 +17,15 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class MemTable {
 
     private static final int MAX_READ_SIZE = Memory.PAGE_SIZE;
 
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final ByteBuffer data;
     private final Queue<EventEntry> cached = new ArrayDeque<>();
     private final Map<Long, StreamEvents> table = new ConcurrentHashMap<>();
@@ -38,15 +43,13 @@ public class MemTable {
             return false;
         }
 
-        int offset = data.position();
-        int len = event.remaining();
         EventEntry entry = cached.isEmpty() ? new EventEntry() : cached.poll();
 
         long stream = Event.stream(event);
         int version = Event.version(event);
 
-        entry.offset = offset;
-        entry.length = len;
+        entry.offset = data.position();
+        entry.length = event.remaining();
         entry.version = version;
 
         data.put(event);
@@ -61,7 +64,13 @@ public class MemTable {
             return 0;
         }
 
-        return events.writeTo(version, sink);
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        try {
+            return events.writeTo(version, sink);
+        } finally {
+            lock.unlock();
+        }
     }
 
     public int version(long stream) {
@@ -73,19 +82,28 @@ public class MemTable {
     }
 
     public long flush(SSTables sstables) {
-
+        TimeWatch watch = TimeWatch.start();
         MemTableFLushIterator it = new MemTableFLushIterator();
         sstables.flush(it);
-        return size();
+        int size = size();
+        System.out.println("Flushed " + entries() + " entries (" + size + " bytes) in " + watch.elapsed() + "ms");
+        clear();
+        return size;
     }
 
     public void clear() {
-        for (var key : table.keySet()) {
-            StreamEvents entries = table.remove(key);
-            entries.clear();
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            for (var key : table.keySet()) {
+                StreamEvents entries = table.remove(key);
+                entries.clear();
+            }
+            data.clear();
+            entries.set(0);
+        } finally {
+            lock.unlock();
         }
-        data.clear();
-        entries.set(0);
     }
 
     public int entries() {
@@ -99,7 +117,7 @@ public class MemTable {
     private final class StreamEvents {
 
         private final ConcurrentLinkedQueue<EventEntry> entries = new ConcurrentLinkedQueue<>();
-        private final AtomicInteger version = new AtomicInteger(-1);
+        private final AtomicInteger version = new AtomicInteger(Event.NO_VERSION);
         private final long stream;
         private final int startVersion;
 
@@ -109,9 +127,9 @@ public class MemTable {
         }
 
         private void add(EventEntry entry) {
-            assert entry.version == version.get() + 1 : "Non contiguous version";
             entries.add(entry);
-            version.incrementAndGet();
+            int prevVersion = version.getAndSet(entry.version);
+            assert prevVersion == Event.NO_VERSION || prevVersion + 1 == entry.version;
         }
 
         private void clear() {
