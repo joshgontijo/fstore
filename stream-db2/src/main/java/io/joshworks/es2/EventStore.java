@@ -30,7 +30,7 @@ public class EventStore {
 
     public int read(long stream, int startVersion, Sink sink) {
         int read = memTable.get(stream, startVersion, sink);
-        if (read > 0) {
+        if (read > 0 || read == Event.VERSION_TOO_HIGH) {
             return read;
         }
         return sstables.get(stream, startVersion, sink);

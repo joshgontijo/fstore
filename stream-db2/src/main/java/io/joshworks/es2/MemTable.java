@@ -61,7 +61,7 @@ public class MemTable {
     public int get(long stream, int version, Sink sink) {
         StreamEvents events = table.get(stream);
         if (events == null) {
-            return 0;
+            return Event.NO_VERSION;
         }
 
         Lock lock = rwLock.readLock();
@@ -142,8 +142,11 @@ public class MemTable {
         }
 
         private int writeTo(int fromVersion, Sink sink) {
-            if (fromVersion < startVersion || fromVersion >= startVersion + entries.size()) {
-                return 0;
+            if(fromVersion >= startVersion + entries.size()) {
+                return Event.VERSION_TOO_HIGH;
+            }
+            if (fromVersion < startVersion) {
+                return Event.NO_VERSION;
             }
 
             ByteBuffer buff = writeBuffer.get();

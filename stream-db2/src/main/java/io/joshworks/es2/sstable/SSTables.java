@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.Iterator;
 
 import static io.joshworks.es2.Event.NO_VERSION;
+import static io.joshworks.es2.Event.VERSION_TOO_HIGH;
 
 public class SSTables {
 
@@ -24,7 +25,7 @@ public class SSTables {
         try (SegmentDirectory<SSTable>.SegmentIterator it = sstables.iterator()) {
             while (it.hasNext()) {
                 var res = it.next().get(stream, fromVersionInclusive, sink);
-                if (res >= 0) {
+                if (res >= 0 || res == VERSION_TOO_HIGH) {
                     return res;
                 }
             }

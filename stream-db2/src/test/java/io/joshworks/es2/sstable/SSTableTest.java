@@ -1,5 +1,6 @@
 package io.joshworks.es2.sstable;
 
+import io.joshworks.es2.Event;
 import io.joshworks.es2.StreamHasher;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.sink.Sink;
@@ -79,7 +80,7 @@ public class SSTableTest {
 
         long streamHash = StreamHasher.hash(stream);
         long res = sstable.get(streamHash, version + 1, new Sink.Memory());
-        assertEquals(SSTable.VERSION_TOO_HIGH, res);
+        assertEquals(Event.VERSION_TOO_HIGH, res);
     }
 
     @Test

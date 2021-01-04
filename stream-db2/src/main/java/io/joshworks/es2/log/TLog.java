@@ -26,9 +26,6 @@ public class TLog {
 
         Event.writeTimestamp(data, timestamp);
         Event.writeSequence(data, sequence);
-        if (Event.eventTimestamp(data) == 0) {
-            Event.writeEventTimestamp(data, timestamp);
-        }
 
         head.append(data);
     }

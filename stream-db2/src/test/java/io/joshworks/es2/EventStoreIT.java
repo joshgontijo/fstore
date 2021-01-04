@@ -4,6 +4,7 @@ import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.TestEvent;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -25,6 +26,7 @@ public class EventStoreIT {
     }
 
     @Test
+    @Ignore
     public void read() throws InterruptedException {
 
         Thread.sleep(7000);

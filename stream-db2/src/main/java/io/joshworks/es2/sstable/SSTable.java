@@ -1,5 +1,6 @@
 package io.joshworks.es2.sstable;
 
+import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.SegmentFile;
 import io.joshworks.es2.index.BTreeIndexSegment;
@@ -21,7 +22,6 @@ class SSTable implements SegmentFile {
     private static final String INDEX_EXT = "idx";
 
     public static final int NO_DATA = -11;
-    public static final int VERSION_TOO_HIGH = -22;
 
     private final SegmentChannel data;
     private final BTreeIndexSegment index;
@@ -58,7 +58,7 @@ class SSTable implements SegmentFile {
 
         //end version is greater than latest version from index, sstable should not continue searching (considering sstable lookup is older to newer)
         if (version > startVersion + entries - 1) {
-            return VERSION_TOO_HIGH;
+            return Event.VERSION_TOO_HIGH;
         }
         //cast is ok since the data transferred is never going to be grater than stream block (~4kb)
         return (int) data.transferTo(logAddress, recSize, sink);
