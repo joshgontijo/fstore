@@ -10,7 +10,8 @@ import org.junit.Test;
 import java.io.File;
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class EventStoreTest {
 
@@ -31,6 +32,20 @@ public class EventStoreTest {
 
         store.append(ev1.serialize());
         assertEquals(0, store.version(StreamHasher.hash(stream)));
+    }
+
+    @Test
+    public void read_version_too_high() {
+        String stream = "stream-1";
+        TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, 0, "type-a", "data-1");
+
+        store.append(ev1.serialize());
+
+        Sink.Memory sink = new Sink.Memory();
+        int res = store.read(StreamHasher.hash(stream), 1, sink);
+
+        assertEquals(Event.VERSION_TOO_HIGH, res);
+        assertEquals(0, sink.data().length);
     }
 
     @Test
