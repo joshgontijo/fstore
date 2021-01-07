@@ -12,6 +12,7 @@ import org.junit.Test;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.concurrent.Executors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -63,7 +64,7 @@ public class MemTableTest {
         memTable.add(item1.serialize());
         memTable.add(item2.serialize());
 
-        SSTables channel = new SSTables(TestUtils.testFolder().toPath());
+        SSTables channel = new SSTables(TestUtils.testFolder().toPath(), Executors.newSingleThreadExecutor());
         try {
             memTable.flush(channel);
 

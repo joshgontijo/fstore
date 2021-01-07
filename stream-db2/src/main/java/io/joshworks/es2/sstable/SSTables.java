@@ -1,5 +1,7 @@
 package io.joshworks.es2.sstable;
 
+import io.joshworks.es2.directory.Compaction;
+import io.joshworks.es2.directory.MergeHandle;
 import io.joshworks.es2.directory.SegmentDirectory;
 import io.joshworks.es2.sink.Sink;
 
@@ -7,6 +9,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.concurrent.ExecutorService;
 
 import static io.joshworks.es2.Event.NO_VERSION;
 import static io.joshworks.es2.Event.VERSION_TOO_HIGH;
@@ -16,9 +19,9 @@ public class SSTables {
     private static final String DATA_EXT = "sst";
     private final SegmentDirectory<SSTable> sstables;
 
-    public SSTables(Path folder) {
-        sstables = new SegmentDirectory<>(folder.toFile(), DATA_EXT);
-        sstables.loadSegments(SSTable::open);
+    public SSTables(Path folder, ExecutorService executor) {
+        sstables = new SegmentDirectory<>(folder.toFile(), SSTable::open, DATA_EXT, executor, new SSTableCompaction());
+        sstables.loadSegments();
     }
 
     public int get(long stream, int fromVersionInclusive, Sink sink) {
@@ -53,6 +56,15 @@ public class SSTables {
 
     public void delete() {
         sstables.delete();
+    }
+
+
+    private static class SSTableCompaction implements Compaction<SSTable> {
+
+        @Override
+        public void compact(MergeHandle<SSTable> handle) {
+
+        }
     }
 
 }

@@ -9,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.Executors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -19,7 +20,7 @@ public class SSTablesTest {
 
     @Before
     public void open() {
-        sstables = new SSTables(TestUtils.testFolder().toPath());
+        sstables = new SSTables(TestUtils.testFolder().toPath(), Executors.newSingleThreadExecutor());
     }
 
     @After

@@ -3,12 +3,14 @@ package io.joshworks.es2;
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.TestEvent;
 import io.joshworks.fstore.core.util.TestUtils;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.concurrent.Executors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -22,7 +24,12 @@ public class EventStoreIT {
     @Before
     public void setUp() {
         root = TestUtils.testFolder();
-        store = new EventStore(root.toPath());
+        store = new EventStore(root.toPath(), Executors.newSingleThreadExecutor());
+    }
+
+    @After
+    public void tearDown() {
+        store.close();
     }
 
     @Test

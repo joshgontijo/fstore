@@ -81,14 +81,12 @@ public class MemTable {
         return events.version();
     }
 
-    public long flush(SSTables sstables) {
+    public void flush(SSTables sstables) {
         TimeWatch watch = TimeWatch.start();
         MemTableFLushIterator it = new MemTableFLushIterator();
         sstables.flush(it);
-        int size = size();
-        System.out.println("Flushed " + entries() + " entries (" + size + " bytes) in " + watch.elapsed() + "ms");
+        System.out.println("Flushed " + entries() + " entries (" +  size() + " bytes) in " + watch.elapsed() + "ms");
         clear();
-        return size;
     }
 
     public void clear() {

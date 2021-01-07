@@ -1,28 +1,39 @@
 package io.joshworks.es2.directory;
 
+import io.joshworks.es2.DirLock;
 import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.Iterators;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static io.joshworks.es2.directory.DirectoryUtils.deleteAllWithExtension;
 import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
 import static io.joshworks.es2.directory.DirectoryUtils.level;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentIdx;
+import static java.lang.Math.max;
 
 /**
  * Not Thread safe, synchronization must be done outside
@@ -31,18 +42,35 @@ import static io.joshworks.es2.directory.DirectoryUtils.segmentIdx;
  */
 public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Closeable {
 
+    private static final String MERGE_EXT = "tmp";
+
     private final TreeSet<T> segments = new TreeSet<>();
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<T> merging = new HashSet<>();
 
     private final File root;
+    private final Function<File, T> supplier;
     private final String extension;
+    private final ExecutorService executor;
+    private final Compaction<T> compaction;
 
-    public SegmentDirectory(File root, String extension) {
+    public SegmentDirectory(File root,
+                            Function<File, T> supplier,
+                            String extension,
+                            ExecutorService executor,
+                            Compaction<T> compaction) {
+
+
         this.root = root;
+        this.supplier = supplier;
         this.extension = extension;
+        this.executor = executor;
+        this.compaction = compaction;
+
         initDirectory(root);
+        deleteAllWithExtension(root, MERGE_EXT);
     }
+
 
     public File newHead() {
         Lock lock = rwLock.writeLock();
@@ -56,11 +84,15 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                     segIdx = segmentIdx(currentHead) + 1;
                 }
             }
-            String name = segmentFileName(segIdx, 0, extension);
-            return new File(root, name);
+            return createFile(0, segIdx, extension);
         } finally {
             lock.unlock();
         }
+    }
+
+    private File createFile(int level, long segIdx, String ext) {
+        String name = segmentFileName(segIdx, level, ext);
+        return new File(root, name);
     }
 
     //modifications must be synchronized
@@ -78,14 +110,14 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         }
     }
 
-    public void loadSegments(Function<File, T> fn) {
+    public void loadSegments() {
         Lock lock = rwLock.writeLock();
         lock.lock();
         try {
             Files.list(root.toPath())
                     .map(Path::toFile)
                     .filter(this::matchExtension)
-                    .map(fn)
+                    .map(supplier)
                     .forEach(segments::add);
 
         } catch (Exception e) {
@@ -93,26 +125,117 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         } finally {
             lock.unlock();
         }
-
     }
 
-    public MergeHandle<T> createMerge(int level, int minItems, int maxItems, File result) {
-        List<T> items = new ArrayList<>();
-        for (T segment : segments) {
-            if (items.size() >= maxItems) {
-                break;
+    //TODO move parameters to constructor
+    public CompletableFuture<Void> compact(int minItems, int maxItems) {
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        try {
+            List<CompletableFuture<Void>> tasks = new ArrayList<>();
+            for (int level = 0; level < maxLevel(); level++) {
+
+                List<T> levelSegments = nonMergingSegments(level);
+
+                int nextLevel = level + 1;
+                do {
+                    int items = max(maxItems, levelSegments.size());
+                    List<T> sublist = levelSegments.subList(0, items);
+                    levelSegments.removeAll(sublist);
+
+                    File replacementFile = createFile(nextLevel, maxIdx(nextLevel), MERGE_EXT);
+                    T newSegment = supplier.apply(replacementFile);
+                    MergeHandle<T> handle = new MergeHandle<>(replacementFile, newSegment, sublist);
+
+                    merging.addAll(sublist);
+
+                    tasks.add(submit(handle));
+
+                } while (levelSegments.size() >= minItems);
             }
-            if (DirectoryUtils.level(segment) == level) {
-                items.add(segment);
-            }
+
+            return CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new));
+
+        } finally {
+            lock.unlock();
         }
-        if (items.size() < minItems) {
-            return null;
-        }
-        merging.addAll(items);
-        return new MergeHandle<>(result, items, rwLock, merging, segments);
     }
 
+    private CompletableFuture<Void> submit(MergeHandle<T> handle) {
+        return CompletableFuture.runAsync(() -> safeCompact(handle), executor)
+                .thenRun(() -> completeMerge(handle));
+    }
+
+    private void safeCompact(MergeHandle<T> handle) {
+        try {
+            compaction.compact(handle);
+        } catch (Exception e) {
+            handle.replacement.close();
+            try {
+                Files.delete(handle.replacementFile().toPath());
+            } catch (IOException err) {
+                System.err.println("Failed to delete failed compaction result file: " + handle.replacementFile().getAbsolutePath());
+                err.printStackTrace();
+            }
+            merging.removeAll(handle.sources);
+            //TODO logging
+            e.printStackTrace();
+        }
+    }
+
+    private void completeMerge(MergeHandle<T> handle) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            handle.replacement.close();
+            File file = handle.replacementFile();
+            assert file.getName().endsWith(MERGE_EXT);
+
+            String newFileName = file.getName().replace("\\." + MERGE_EXT, extension);
+            Path path = file.toPath();
+            File renamed = Files.move(path, path.getParent().resolve(newFileName)).toFile();
+
+            List<T> sources = handle.sources();
+            segments.removeAll(sources);
+            if (renamed.length() == 0) {
+                Files.delete(renamed.toPath());
+            } else {
+                segments.add(supplier.apply(renamed));
+            }
+            merging.removeAll(sources);
+
+        } catch (Exception e) {
+            //TODO add logging
+            System.err.println("FAILED TO MERGE");
+            e.printStackTrace();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private List<T> nonMergingSegments(int level) {
+        return levelSegments(level)
+                .filter(s -> !merging.contains(s))
+                .collect(Collectors.toList());
+    }
+
+    private Stream<T> levelSegments(int level) {
+        return segments.stream().filter(l -> level(l) == level);
+    }
+
+    private long maxLevel() {
+        return segments.stream()
+                .mapToInt(DirectoryUtils::level)
+                .max()
+                .orElse(0);
+    }
+
+    private long maxIdx(int level) {
+        return levelSegments(level)
+                .mapToLong(DirectoryUtils::segmentIdx)
+                .max()
+                .orElse(0);
+    }
 
     private boolean matchExtension(File file) {
         return file.getName().endsWith(extension);
@@ -153,11 +276,15 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                 segment.delete();
             }
             segments.clear();
+            try {
+                Files.delete(root.toPath());
+            } catch (IOException e) {
+                throw new RuntimeIOException("Failed to delete directory ", e);
+            }
         } finally {
             lock.unlock();
         }
     }
-
 
     public class SegmentIterator implements Iterators.CloseableIterator<T> {
 

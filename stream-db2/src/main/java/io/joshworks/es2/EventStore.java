@@ -4,20 +4,28 @@ import io.joshworks.es2.log.TLog;
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.SSTables;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.core.util.Threads;
 
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
-public class EventStore {
+public class EventStore implements Closeable {
 
     private final MemTable memTable;
     private final SSTables sstables;
     private final TLog tlog;
+    private final ExecutorService worker;
+    private final DirLock dirLock;
 
-    public EventStore(Path root) {
-        this.sstables = new SSTables(root.resolve("sstables"));
-        this.tlog = new TLog(root.resolve("log"));
-        this.memTable = new MemTable(Size.MB.ofInt(10), false);
+    public EventStore(Path root, ExecutorService worker) {
+        this.dirLock = new DirLock(root.toFile());
+        this.worker = worker;
+        this.sstables = new SSTables(root.resolve("sstables"), worker);
+        this.tlog = new TLog(root.resolve("log"), worker);
+        this.memTable = new MemTable(Size.MB.ofInt(10), true);
     }
 
     public int version(long stream) {
@@ -48,7 +56,6 @@ public class EventStore {
 
         Event.writeVersion(event, nextVersion);
 
-
         tlog.append(event);
         event.flip();
         if (!memTable.add(event)) {
@@ -59,4 +66,12 @@ public class EventStore {
         }
     }
 
+    @Override
+    public void close() {
+        try {
+            Threads.awaitTermination(worker, Long.MAX_VALUE, TimeUnit.MILLISECONDS, () -> System.out.println("Awaiting termination..."));
+        } finally {
+            dirLock.close();
+        }
+    }
 }

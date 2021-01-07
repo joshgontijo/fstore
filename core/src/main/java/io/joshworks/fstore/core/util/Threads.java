@@ -84,17 +84,17 @@ public class Threads {
         }
     }
 
-    public static void awaitTerminationOf(ExecutorService executor, long timeout, TimeUnit timeUnit) {
+    public static boolean awaitTermination(ExecutorService executor, long timeout, TimeUnit timeUnit) {
         try {
             executor.shutdown();
-            executor.awaitTermination(timeout, timeUnit);
+            return executor.awaitTermination(timeout, timeUnit);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
     }
 
-    public static void awaitTerminationOf(ExecutorService executor, long checkInterval, TimeUnit timeUnit, Runnable heartbeatTask) {
+    public static void awaitTermination(ExecutorService executor, long checkInterval, TimeUnit timeUnit, Runnable heartbeatTask) {
         try {
             executor.shutdown();
             while (!executor.awaitTermination(checkInterval, timeUnit)) {

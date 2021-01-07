@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.util.BitUtil;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.Path;
 
 class DirectoryUtils {
 
@@ -22,7 +23,33 @@ class DirectoryUtils {
         }
     }
 
-    public static String segmentFileName(long segmentIdx, int level, String ext) {
+    static void deleteAllWithExtension(File root, String extension) {
+
+        if (!root.exists()) {
+            return;
+        }
+        if (!root.isDirectory()) {
+            throw new IllegalArgumentException("Not a directory " + root.getAbsolutePath());
+        }
+
+        String[] names = root.list();
+        if (names != null) {
+            for (String s : names) {
+                if (s.endsWith("\\." + extension)) {
+                    Path path = root.toPath().resolve(s);
+                    try {
+                        Files.delete(path);
+                    } catch (Exception e) {
+                        throw new RuntimeIOException("Failed to delete: " + path, e);
+                    }
+                }
+            }
+        }
+
+
+    }
+
+    static String segmentFileName(long segmentIdx, int level, String ext) {
         if (segmentIdx < 0 || level < 0) {
             throw new RuntimeException("Invalid segment values, level: " + level + ", idx: " + segmentIdx);
         }
