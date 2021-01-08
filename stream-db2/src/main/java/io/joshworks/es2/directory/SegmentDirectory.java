@@ -144,8 +144,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                     levelSegments.removeAll(sublist);
 
                     File replacementFile = createFile(nextLevel, maxIdx(nextLevel), MERGE_EXT);
-                    T newSegment = supplier.apply(replacementFile);
-                    MergeHandle<T> handle = new MergeHandle<>(replacementFile, newSegment, sublist);
+                    MergeHandle<T> handle = new MergeHandle<>(replacementFile, sublist);
 
                     merging.addAll(sublist);
 
@@ -170,11 +169,10 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         try {
             compaction.compact(handle);
         } catch (Exception e) {
-            handle.replacement.close();
             try {
-                Files.delete(handle.replacementFile().toPath());
+                Files.delete(handle.replacement().toPath());
             } catch (IOException err) {
-                System.err.println("Failed to delete failed compaction result file: " + handle.replacementFile().getAbsolutePath());
+                System.err.println("Failed to delete failed compaction result file: " + handle.replacement().getAbsolutePath());
                 err.printStackTrace();
             }
             merging.removeAll(handle.sources);
@@ -187,8 +185,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         Lock lock = rwLock.writeLock();
         lock.lock();
         try {
-            handle.replacement.close();
-            File file = handle.replacementFile();
+            File file = handle.replacement();
             assert file.getName().endsWith(MERGE_EXT);
 
             String newFileName = file.getName().replace("\\." + MERGE_EXT, extension);

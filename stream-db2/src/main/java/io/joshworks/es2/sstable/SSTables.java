@@ -1,7 +1,5 @@
 package io.joshworks.es2.sstable;
 
-import io.joshworks.es2.directory.Compaction;
-import io.joshworks.es2.directory.MergeHandle;
 import io.joshworks.es2.directory.SegmentDirectory;
 import io.joshworks.es2.sink.Sink;
 
@@ -56,15 +54,6 @@ public class SSTables {
 
     public void delete() {
         sstables.delete();
-    }
-
-
-    private static class SSTableCompaction implements Compaction<SSTable> {
-
-        @Override
-        public void compact(MergeHandle<SSTable> handle) {
-
-        }
     }
 
 }

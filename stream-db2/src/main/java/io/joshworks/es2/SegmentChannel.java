@@ -86,11 +86,7 @@ public class SegmentChannel implements Closeable, SegmentFile {
     }
 
     public int read(ByteBuffer dst, long position) {
-        try {
-            return channel.read(dst, position);
-        } catch (IOException e) {
-            throw new RuntimeIOException(e);
-        }
+        return Channels.read(channel, position, dst);
     }
 
     public long position() {

@@ -37,11 +37,11 @@ class Block {
 
 
     static final int KEY_BYTES =
-            Long.BYTES + //STREAM
+                    Long.BYTES + //STREAM
                     Integer.BYTES; //VERSION
 
     static final int LEAF_ENTRY_BYTES =
-            KEY_BYTES +
+                    KEY_BYTES +
                     Integer.BYTES + //RECORD_SIZE
                     Integer.BYTES + //RECORD_ENTRIES
                     Long.BYTES; // LOG_POS

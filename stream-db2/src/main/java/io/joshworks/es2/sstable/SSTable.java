@@ -3,17 +3,26 @@ package io.joshworks.es2.sstable;
 import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.SegmentFile;
+import io.joshworks.es2.directory.Compaction;
+import io.joshworks.es2.directory.MergeHandle;
 import io.joshworks.es2.index.BTreeIndexSegment;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
 import io.joshworks.es2.index.IndexWriter;
 import io.joshworks.es2.sink.Sink;
+import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 import static io.joshworks.es2.Event.NO_VERSION;
 
@@ -23,8 +32,8 @@ class SSTable implements SegmentFile {
 
     public static final int NO_DATA = -11;
 
-    private final SegmentChannel data;
-    private final BTreeIndexSegment index;
+    final SegmentChannel data;
+    final BTreeIndexSegment index;
 
     private SSTable(SegmentChannel data, BTreeIndexSegment index) {
         this.data = data;
@@ -91,7 +100,7 @@ class SSTable implements SegmentFile {
 
     }
 
-    private static File indexFile(File dataFile) {
+    static File indexFile(File dataFile) {
         Path parent = dataFile.toPath().getParent();
         String indexFileName = dataFile.getName().split("\\.")[0] + "." + INDEX_EXT;
         return parent.resolve(indexFileName).toFile();
@@ -118,4 +127,5 @@ class SSTable implements SegmentFile {
     public String toString() {
         return data.toString();
     }
+
 }
