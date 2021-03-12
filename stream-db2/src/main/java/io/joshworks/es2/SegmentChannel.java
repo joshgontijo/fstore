@@ -36,7 +36,7 @@ public class SegmentChannel implements Closeable, SegmentFile {
 
     public static SegmentChannel create(File file) {
         try {
-            checkFileExist(file);
+            FileUtils.tryCreate(file);
             var channel = FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
             FileLock lock = channel.lock();
 
@@ -48,7 +48,7 @@ public class SegmentChannel implements Closeable, SegmentFile {
 
     public static SegmentChannel create(File file, long size) {
         try {
-            checkFileExist(file);
+            FileUtils.tryCreate(file);
             RandomAccessFile raf = new RandomAccessFile(file, "rw");
             raf.setLength(size);
             FileChannel channel = raf.getChannel();
@@ -68,13 +68,6 @@ public class SegmentChannel implements Closeable, SegmentFile {
             return new SegmentChannel(file, channel, lock);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment", e);
-        }
-    }
-
-    private static void checkFileExist(File file) {
-        boolean newFile = FileUtils.createIfNotExists(file);
-        if (!newFile) {
-            throw new RuntimeIOException("Failed already exists " + file.getAbsolutePath());
         }
     }
 
