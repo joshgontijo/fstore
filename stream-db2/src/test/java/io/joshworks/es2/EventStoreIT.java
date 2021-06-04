@@ -62,6 +62,7 @@ public class EventStoreIT {
 
     private void read(int items, String stream) {
         long s;
+        System.out.println("READING");
         Sink.Memory sink = new Sink.Memory();
         int currVersion = 0;
         s = System.currentTimeMillis();

@@ -3,7 +3,6 @@ package io.joshworks.es2.sstable;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.directory.Compaction;
 import io.joshworks.es2.directory.MergeHandle;
-import io.joshworks.fstore.core.io.Storage;
 
 import java.io.File;
 import java.nio.ByteBuffer;
@@ -24,7 +23,6 @@ class SSTableCompaction implements Compaction<SSTable> {
         SegmentChannel dataChannel = SegmentChannel.create(dataFile);
         SegmentChannel indexChannel = SegmentChannel.create(indexFile);
 
-
         List<LengthPrefixedDataIterator> items = handle.sources().stream()
                 .map(s -> new LengthPrefixedDataIterator(s.data, 0))
                 .collect(Collectors.toList());
@@ -42,16 +40,16 @@ class SSTableCompaction implements Compaction<SSTable> {
                 segmentIterators.add(seg);
             }
 
-            T nextEntry = getNextEntry(segmentIterators);
+            ByteBuffer nextEntry = getNextEntry(segmentIterators);
             if (nextEntry != null && filter(nextEntry)) {
-                long pos = output.append(nextEntry);
-                if (pos == Storage.EOF) {
-                    throw new IllegalStateException("Insufficient output segment (" + output.name() + ") data space: " + output.dataSize());
-                }
+                long pos = dataChannel.append(nextEntry);
             }
         }
 
+    }
 
+    private boolean filter(ByteBuffer nextEntry) {
+        return true;
     }
 
     private ByteBuffer getNextEntry(List<LengthPrefixedDataIterator> segmentIterators) {

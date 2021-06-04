@@ -33,6 +33,13 @@ public class FileUtils {
         }
     }
 
+    public static void tryCreate(File file) {
+        boolean newFile = FileUtils.createIfNotExists(file);
+        if (!newFile) {
+            throw new RuntimeIOException("File already exist " + file.getAbsolutePath());
+        }
+    }
+
     /**
      * returns true if the file was created, false otherwise
      */

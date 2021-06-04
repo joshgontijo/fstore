@@ -1,6 +1,8 @@
 package io.joshworks.es2;
 
 import io.joshworks.es2.sstable.BlockCodec;
+import io.joshworks.fstore.core.codec.Codec;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
 import java.nio.ByteBuffer;
@@ -96,6 +98,17 @@ public class StreamBlock {
 
     private static int computeChecksum(ByteBuffer chunkData, int recSize) {
         return ByteBufferChecksum.crc32(chunkData, HEADER_BYTES, recSize - HEADER_BYTES);
+    }
+
+    private static int decompress(ByteBuffer chunkData, ByteBuffer dst) {
+        int uncompressedSize = uncompressedSize(chunkData);
+        if (dst.remaining() < uncompressedSize) {
+            throw new RuntimeException("Unable to decompress block: Not enough dst buffer data");
+        }
+        Buffers.offsetLimit(dst, uncompressedSize);
+        Codec codec = BlockCodec.from(codec(chunkData));
+        codec.decompress(chunkData.slice(HEADER_BYTES, uncompressedSize), dst);
+        return uncompressedSize;
     }
 
     public static String toString(ByteBuffer data) {
