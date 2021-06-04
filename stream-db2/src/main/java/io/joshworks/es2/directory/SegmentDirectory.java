@@ -166,12 +166,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
             List<T> sources = handle.sources();
 
             long mergeOutLen = mergeOut.length();
-            View<T> mergedView = currentView.apply(segments -> {
-                sources.forEach(segments::delete);
-                if (mergeOutLen > 0) {
-                    segments.add(supplier.apply(mergeOut));
-                }
-            });
+            var replacement = mergeOutLen > 0 ? supplier.apply(mergeOut) : null;
+            View<T> mergedView = currentView.replace(sources, replacement);
             if (mergeOutLen == 0) {
                 Files.delete(mergeOut.toPath());
             }

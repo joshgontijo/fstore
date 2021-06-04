@@ -11,7 +11,6 @@ import java.util.Objects;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -62,25 +61,23 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return segments.size();
     }
 
-    View<T> apply(Consumer<View<T>> fn) {
-        var copy = copy();
-        fn.accept(copy);
-        return copy;
-    }
-
     View<T> add(T segment) {
         var view = copy();
         view.segments.add(new SegmentItem<>(segment));
         return view;
     }
 
-    View<T> delete(T segment) {
+    View<T> replace(Collection<T> segments, T replacement) {
         var view = copy();
-        for (SegmentItem<T> item : view.segments) {
-            if (item.segment.equals(segment)) {
+        var it = view.segments.iterator();
+        while (it.hasNext()) {
+            SegmentItem<T> item = it.next();
+            if (segments.contains(item.segment)) {
+                it.remove();
                 item.delete();
             }
         }
+        view.segments.add(new SegmentItem<>(replacement));
         return view;
     }
 
@@ -94,15 +91,17 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
 
     @Override
     public CloseableIterator<T> iterator() {
+        acquire();
         return mapping(closeableIterator(segments.iterator(), this::close), si -> si.segment);
     }
 
     public CloseableIterator<T> reverse() {
+        acquire();
         return mapping(closeableIterator(segments.descendingIterator(), this::close), si -> si.segment);
     }
 
     public Stream<T> stream() {
-        return Iterators.stream(iterator());
+        return Iterators.closeableStream(iterator());
     }
 
     @Override

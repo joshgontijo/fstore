@@ -182,10 +182,10 @@ public class SegmentChannel implements Closeable, SegmentFile {
     @Override
     public String toString() {
         return "SegmentChannel{" +
-                "name=" + name() +
-                "handle=" + handle +
-                "size=" + size() +
-                "pos=" + position() +
+                " name=" + name() +
+                " handle=" + handle +
+                " size=" + size() +
+                " pos=" + position() +
                 '}';
     }
 
