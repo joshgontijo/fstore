@@ -11,11 +11,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -36,7 +40,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
 
     private static final String MERGE_EXT = "tmp";
 
-    private final AtomicReference<View<T>> viewRef = new AtomicReference<>(new View<>());
+    private final TreeSet<T> segments = new TreeSet<>();
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<T> merging = new HashSet<>();
 
     private final File root;
@@ -64,16 +69,21 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
 
 
     public File newHead() {
-        long segIdx = 0;
-        var view = this.viewRef.get();
-        if (!view.isEmpty()) {
-            T currentHead = view.head();
-            int headLevel = level(currentHead);
-            if (headLevel == 0) {
-                segIdx = segmentIdx(currentHead) + 1;
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            long segIdx = 0;
+            if (!segments.isEmpty()) {
+                T currentHead = segments.first();
+                int headLevel = level(currentHead);
+                if (headLevel == 0) {
+                    segIdx = segmentIdx(currentHead) + 1;
+                }
             }
+            return createFile(0, segIdx, extension);
+        } finally {
+            lock.unlock();
         }
-        return createFile(0, segIdx, extension);
     }
 
     private File createFile(int level, long segIdx, String ext) {
@@ -81,57 +91,69 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         return new File(root, name);
     }
 
-    public synchronized void append(T newSegmentHead) {
-        var currView = this.viewRef.get();
-        if (!currView.isEmpty() && currView.head().compareTo(newSegmentHead) <= 0) {
-            throw new IllegalStateException("Invalid segment head");
+    //modifications must be synchronized
+    public void append(T newSegmentHead) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            if (!segments.isEmpty() && segments.first().compareTo(newSegmentHead) <= 0) {
+                throw new IllegalStateException("New segment won't be new head");
+            }
+            segments.add(newSegmentHead);
+            assert segments.first().equals(newSegmentHead);
+        } finally {
+            lock.unlock();
         }
-        View<T> newView = currView.add(newSegmentHead);
-        this.viewRef.set(newView);
-        currView.close();
     }
 
     public void loadSegments() {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
         try {
-            List<T> segments = Files.list(root.toPath())
+            Files.list(root.toPath())
                     .map(Path::toFile)
                     .filter(this::matchExtension)
                     .map(supplier)
-                    .collect(Collectors.toList());
-            View<T> old = this.viewRef.getAndSet(new View<>(segments));
-            old.close();
+                    .forEach(segments::add);
+
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to load segments", e);
+        } finally {
+            lock.unlock();
         }
     }
 
     //TODO move parameters to constructor
-    public synchronized CompletableFuture<Void> compact(int minItems, int maxItems) {
-        var view = this.viewRef.get();
+    public CompletableFuture<Void> compact(int minItems, int maxItems) {
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        try {
+            List<CompletableFuture<Void>> tasks = new ArrayList<>();
+            for (int level = 0; level <= maxLevel(); level++) {
 
-        List<CompletableFuture<Void>> tasks = new ArrayList<>();
-        for (var level = 0; level <= maxLevel(view); level++) {
+                List<T> levelSegments = nonMergingSegments(level);
 
-            List<T> levelSegments = levelSegments(view, level)
-                    .filter(s -> !merging.contains(s))
-                    .collect(Collectors.toList());
+                int nextLevel = level + 1;
+                do {
+                    int items = max(maxItems, levelSegments.size());
+                    List<T> sublist = new ArrayList<>(levelSegments.subList(0, items));
+                    levelSegments.removeAll(sublist);
 
-            int nextLevel = level + 1;
-            do {
-                int items = max(maxItems, levelSegments.size());
-                var sublist = new ArrayList<>(levelSegments.subList(0, items));
-                levelSegments.removeAll(sublist);
+                    File replacementFile = createFile(nextLevel, maxIdx(nextLevel), MERGE_EXT);
+                    MergeHandle<T> handle = new MergeHandle<>(replacementFile, sublist);
 
-                var replacementFile = createFile(nextLevel, maxIdx(view, nextLevel), MERGE_EXT);
-                var handle = new MergeHandle<>(replacementFile, sublist);
+                    merging.addAll(sublist);
 
-                merging.addAll(sublist);
-                tasks.add(submit(handle));
+                    tasks.add(submit(handle));
 
-            } while (levelSegments.size() >= minItems);
+                } while (levelSegments.size() >= minItems);
+            }
+
+            return CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new));
+
+        } finally {
+            lock.unlock();
         }
-
-        return CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new));
     }
 
     private CompletableFuture<Void> submit(MergeHandle<T> handle) {
@@ -149,54 +171,64 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                 System.err.println("Failed to delete failed compaction result file: " + handle.replacement().getAbsolutePath());
                 err.printStackTrace();
             }
+            merging.removeAll(handle.sources);
             //TODO logging
             e.printStackTrace();
         }
     }
 
     private synchronized void completeMerge(MergeHandle<T> handle) {
-        var currentView = viewRef.get();
+        Lock lock = rwLock.writeLock();
+        lock.lock();
         try {
-            var file = handle.replacement();
+            File file = handle.replacement();
             assert file.getName().endsWith(MERGE_EXT);
 
             String newFileName = file.getName().replaceAll("\\." + MERGE_EXT, "." + extension);
-            var path = file.toPath();
-            var mergeOut = Files.move(path, path.getParent().resolve(newFileName)).toFile();
-            List<T> sources = handle.sources();
+            Path path = file.toPath();
+            File renamed = Files.move(path, path.getParent().resolve(newFileName)).toFile();
 
-            long mergeOutLen = mergeOut.length();
-            var replacement = mergeOutLen > 0 ? supplier.apply(mergeOut) : null;
-            View<T> mergedView = currentView.replace(sources, replacement);
-            if (mergeOutLen == 0) {
-                Files.delete(mergeOut.toPath());
+            handle.sources().forEach(seg -> {
+                boolean v1 = segments.remove(seg);
+                boolean v2 = merging.remove(seg);
+                assert v1;
+                assert v2;
+                seg.delete();
+            });
+            if (renamed.length() == 0) {
+                Files.delete(renamed.toPath());
+            } else {
+                segments.add(supplier.apply(renamed));
             }
-
-            viewRef.set(mergedView);
-            handle.sources.forEach(merging::remove);
-            currentView.close();
 
         } catch (Exception e) {
             //TODO add logging
-            //TODO fail execution and mark handle ?
             System.err.println("FAILED TO MERGE");
             e.printStackTrace();
+        } finally {
+            lock.unlock();
         }
     }
 
-    private static <T extends SegmentFile> Stream<T> levelSegments(View<T> view, int level) {
-        return view.stream().filter(l -> level(l) == level);
+    private List<T> nonMergingSegments(int level) {
+        return levelSegments(level)
+                .filter(s -> !merging.contains(s))
+                .collect(Collectors.toList());
     }
 
-    private static <T extends SegmentFile> long maxLevel(View<T> view) {
-        return view.stream()
+    private Stream<T> levelSegments(int level) {
+        return segments.stream().filter(l -> level(l) == level);
+    }
+
+    private long maxLevel() {
+        return segments.stream()
                 .mapToInt(DirectoryUtils::level)
                 .max()
                 .orElse(0);
     }
 
-    private static <T extends SegmentFile> long maxIdx(View<T> view, int level) {
-        return levelSegments(view, level)
+    private long maxIdx(int level) {
+        return levelSegments(level)
                 .mapToLong(DirectoryUtils::segmentIdx)
                 .max()
                 .orElse(0);
@@ -207,27 +239,73 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
     }
 
     @Override
-    public synchronized void close() {
-        this.viewRef.getAndSet(new View<>()).close();
+    public void close() {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            for (T segment : segments) {
+                segment.close();
+            }
+            segments.clear();
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Override
-    public CloseableIterator<T> iterator() {
-        return this.viewRef.get().iterator();
+    public SegmentIterator iterator() {
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        return new SegmentIterator(lock, segments.iterator());
     }
 
-    public CloseableIterator<T> reverse() {
-        return this.viewRef.get().reverse();
+    public SegmentIterator reverse() {
+        Lock lock = rwLock.readLock();
+        lock.lock();
+        return new SegmentIterator(lock, segments.descendingIterator());
     }
 
     public void delete() {
-        try (var view = viewRef.getAndSet(new View<>())) {
-            for (T segment : view) {
+        Lock lock = rwLock.writeLock();
+        lock.lock();
+        try {
+            for (T segment : segments) {
                 segment.delete();
             }
-            Files.delete(root.toPath());
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to delete directory ", e);
+            segments.clear();
+            try {
+                Files.delete(root.toPath());
+            } catch (IOException e) {
+                throw new RuntimeIOException("Failed to delete directory ", e);
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public class SegmentIterator implements CloseableIterator<T> {
+
+        private final Lock lock;
+        private final Iterator<T> delegate;
+
+        private SegmentIterator(Lock lock, Iterator<T> delegate) {
+            this.lock = lock;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void close() {
+            lock.unlock();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return delegate.next();
         }
     }
 
