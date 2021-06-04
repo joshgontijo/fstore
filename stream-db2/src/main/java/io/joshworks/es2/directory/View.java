@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.iterators.Iterators;
 
 import java.io.Closeable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -19,76 +20,84 @@ import static io.joshworks.fstore.core.iterators.Iterators.mapping;
 
 public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
 
-    private final AtomicInteger refs = new AtomicInteger(1);
-    final TreeSet<SegmentItem<T>> segments = new TreeSet<>();
+    private final long generation;
+    private final TreeSet<SegmentItem<T>> segments = new TreeSet<>();
 
-    private View() {
+    View() {
+        this(Collections.emptySet());
     }
 
-
-    static <T extends SegmentFile> View<T> empty() {
-        return new View<>();
+    View(Collection<T> items) {
+        this(items.stream()
+                        .map(SegmentItem::new)
+                        .collect(Collectors.toList()),
+                0);
     }
 
-    static <T extends SegmentFile> View<T> initialize(Collection<T> segments) {
-        View<T> view = new View<>();
-        view.segments.addAll(segments.stream()
-                .map(SegmentItem::new)
-                .collect(Collectors.toList()));
-        return view;
+    //copy constructor
+    private View(Collection<SegmentItem<T>> segments, long generation) {
+        this.generation = generation;
+        this.segments.addAll(segments);
     }
 
-    static <T extends SegmentFile> View<T> copy(Collection<SegmentItem<T>> segments) {
-        var view = new View<T>();
-        view.segments.addAll(segments);
-        return view;
+    View<T> acquire() {
+        incrementRefs();
+        return this;
     }
 
-    public T head() {
+    View<T> copy() {
+        incrementRefs();
+        return new View<>(segments, generation + 1);
+    }
+
+    T head() {
         return segments.first().segment;
     }
 
-    public boolean isEmpty() {
+    boolean isEmpty() {
         return segments.isEmpty();
     }
 
-    public int size() {
+    int size() {
         return segments.size();
     }
 
-    public View<T> apply(Consumer<View<T>> fn) {
-        var copy = View.copy(segments);
+    View<T> apply(Consumer<View<T>> fn) {
+        var copy = copy();
         fn.accept(copy);
         return copy;
     }
 
-    public View<T> add(T segment) {
-        var view = View.copy(segments);
+    View<T> add(T segment) {
+        var view = copy();
         view.segments.add(new SegmentItem<>(segment));
         return view;
     }
 
-    public View<T> delete(T segment) {
-        var view = View.copy(segments);
-        SegmentItem<T> item = new SegmentItem<>(segment);
-        if (!view.segments.remove(item)) {
-            throw new RuntimeException("Failed to delete segment " + segment.name() + ": Not in view");
-        }
+    View<T> delete(T segment) {
+        var view = copy();
         for (SegmentItem<T> item : view.segments) {
-
+            if (item.segment.equals(segment)) {
+                item.delete();
+            }
         }
-
         return view;
+    }
+
+    private void incrementRefs() {
+        for (SegmentItem<T> segment : segments) {
+            if (segment.refCount.incrementAndGet() == 1) {
+                throw new RuntimeException("Acquiring released segment");
+            }
+        }
     }
 
     @Override
     public CloseableIterator<T> iterator() {
-        refs.incrementAndGet();
         return mapping(closeableIterator(segments.iterator(), this::close), si -> si.segment);
     }
 
     public CloseableIterator<T> reverse() {
-        refs.incrementAndGet();
         return mapping(closeableIterator(segments.descendingIterator(), this::close), si -> si.segment);
     }
 
@@ -98,22 +107,32 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
 
     @Override
     public void close() { //must not be closed twice for a given acquire
-        int count = refs.decrementAndGet();
-        if (count < 0) {
-            throw new RuntimeException("Invalid view ref count");
-        }
-        if (count == 0) {
-            //cleanup
-            System.out.println("View cleanup");
+        for (SegmentItem<T> item : segments) {
+            int refs = item.refCount.decrementAndGet();
+            if (refs == 0) {
+                if (item.markForDeletion.get()) {
+                    item.segment.delete();
+                    System.out.println("Deleting " + item.segment.name());
+                }
+                item.segment.close();
+            }
         }
     }
 
     static class SegmentItem<T extends SegmentFile> implements Comparable<SegmentItem<T>> {
         private final AtomicBoolean markForDeletion = new AtomicBoolean();
+        private final AtomicInteger refCount = new AtomicInteger(1);
         public final T segment;
 
         SegmentItem(T segment) {
             this.segment = segment;
+        }
+
+        private void delete() {
+            markForDeletion.set(true);
+            if (refCount.decrementAndGet() == 0) {
+                segment.delete();
+            }
         }
 
         @Override

@@ -167,7 +167,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
 
             long mergeOutLen = mergeOut.length();
             View<T> mergedView = currentView.apply(segments -> {
-                sources.forEach(segments::remove);
+                sources.forEach(segments::delete);
                 if (mergeOutLen > 0) {
                     segments.add(supplier.apply(mergeOut));
                 }
@@ -212,12 +212,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
 
     @Override
     public synchronized void close() {
-        //TODO wait/cancel compaction ?
-        var view = this.viewRef.getAndSet(View.empty());
-        for (T segment : view) {
-            segment.close();
-        }
-        view.close();
+        this.viewRef.getAndSet(new View<>()).close();
     }
 
     @Override
