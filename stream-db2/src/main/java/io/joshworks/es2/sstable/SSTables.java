@@ -23,7 +23,7 @@ public class SSTables {
     }
 
     public int get(long stream, int fromVersionInclusive, Sink sink) {
-        try (SegmentDirectory<SSTable>.SegmentIterator it = sstables.iterator()) {
+        try (var it = sstables.iterator()) {
             while (it.hasNext()) {
                 var res = it.next().get(stream, fromVersionInclusive, sink);
                 if (res >= 0 || res == VERSION_TOO_HIGH) {
@@ -35,7 +35,7 @@ public class SSTables {
     }
 
     public int version(long stream) {
-        try (SegmentDirectory<SSTable>.SegmentIterator it = sstables.iterator()) {
+        try (var it = sstables.iterator()) {
             while (it.hasNext()) {
                 int version = it.next().version(stream);
                 if (version > NO_VERSION) {

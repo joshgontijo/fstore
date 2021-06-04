@@ -1,6 +1,4 @@
-package io.joshworks.fstore.log.iterators;
-
-import io.joshworks.fstore.log.CloseableIterator;
+package io.joshworks.fstore.core.iterators;
 
 import java.util.function.Function;
 
@@ -15,7 +13,7 @@ class MappingIterator<R, T> implements CloseableIterator<R> {
     }
 
     @Override
-    public void close()  {
+    public void close() {
         delegate.close();
     }
 

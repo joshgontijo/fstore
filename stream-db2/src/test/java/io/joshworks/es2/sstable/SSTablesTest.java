@@ -2,7 +2,7 @@ package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.StreamHasher;
 import io.joshworks.es2.sink.Sink;
-import io.joshworks.fstore.core.util.Iterators;
+import io.joshworks.fstore.core.iterators.Iterators;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;

@@ -1,8 +1,4 @@
-package io.joshworks.fstore.log.iterators;
-
-import io.joshworks.fstore.log.CloseableIterator;
-
-import java.io.IOException;
+package io.joshworks.fstore.core.iterators;
 
 public class PeekingIterator<E> implements CloseableIterator<E> {
 

@@ -1,23 +1,20 @@
-package io.joshworks.fstore.log.iterators;
+package io.joshworks.fstore.core.iterators;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.CloseableIterator;
 
-import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
-class OrderedIterator<T, C extends Comparable<C>> implements CloseableIterator<T> {
+class MergeSortIterator<T> implements CloseableIterator<T> {
 
     private final List<PeekingIterator<T>> iterators;
-    private final Function<T, C> mapper;
+    private final Comparator<T> cmp;
 
-    OrderedIterator(Collection<? extends CloseableIterator<T>> iterators, Function<T, C> mapper) {
-        this.iterators = iterators.stream().map(PeekingIterator::new).collect(Collectors.toList());
-        this.mapper = mapper;
+    MergeSortIterator(List<PeekingIterator<T>> iterators, Comparator<T> cmp) {
+        this.iterators = iterators;
+        this.cmp = cmp;
     }
 
     @Override
@@ -48,9 +45,9 @@ class OrderedIterator<T, C extends Comparable<C>> implements CloseableIterator<T
                 continue;
             }
 
-            C prevItem = mapper.apply(prev.peek());
-            C currItem = mapper.apply(curr.peek());
-            int c = prevItem.compareTo(currItem);
+            T prevItem = prev.peek();
+            T currItem = curr.peek();
+            int c = cmp.compare(prevItem, currItem);
             prev = c >= 0 ? curr : prev;
         }
         if (prev != null) {

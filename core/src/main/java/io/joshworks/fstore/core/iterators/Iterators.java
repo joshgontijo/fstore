@@ -1,19 +1,19 @@
-package io.joshworks.fstore.log.iterators;
+package io.joshworks.fstore.core.iterators;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.util.Threads;
-import io.joshworks.fstore.log.CloseableIterator;
-import io.joshworks.fstore.log.LogIterator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -26,13 +26,17 @@ public class Iterators {
     public static boolean await(CloseableIterator<?> it, long pollMs, long maxTime) {
         pollMs = Math.min(pollMs, maxTime);
         long start = System.currentTimeMillis();
-        while(!it.hasNext()) {
-            if(System.currentTimeMillis() - start > maxTime) {
+        while (!it.hasNext()) {
+            if (System.currentTimeMillis() - start > maxTime) {
                 return false;
             }
             Threads.sleep(pollMs);
         }
         return true;
+    }
+
+    public static <T> Iterator<T> of(T... items) {
+        return Arrays.asList(items).iterator();
     }
 
     public static <T> CloseableIterator<T> of(Collection<T> original) {
@@ -71,46 +75,53 @@ public class Iterators {
         return new BufferingIterator<>(iterator, bufferSize);
     }
 
-    public static <T> CloseableIterator<List<T>> batching(LogIterator<T> iterator, int batchSize) {
+    public static <T> CloseableIterator<List<T>> batching(CloseableIterator<T> iterator, int batchSize) {
         return new BatchingIterator<>(iterator, batchSize);
-    }
-
-
-    //not streaming in the sense of java.util.Stream
-    //it means it will streamline a batched iterator
-    //this is the opposite of batching
-    public static <T> LogIterator<T> streaming(LogIterator<Collection<T>> iterator) {
-        return new StreamingIterator<>(iterator);
-    }
-
-    public static <T> LogIterator<T> limiting(LogIterator<T> iterator, int limit) {
-        return new LimitIterator<>(iterator, limit);
-    }
-
-    public static <T> LogIterator<T> skipping(LogIterator<T> iterator, int skips) {
-        return new SkippingIterator<>(iterator, skips);
     }
 
     /**
      * For <b>SORTED</b> iterators only.
      */
-    public static <T, C extends Comparable<C>> CloseableIterator<T> ordered(Collection<? extends CloseableIterator<T>> iterators, Function<T, C> mapper) {
-        return new OrderedIterator<>(iterators, mapper);
+    public static <T> CloseableIterator<T> merging(Collection<? extends CloseableIterator<T>> iterators, Comparator<T> cmp) {
+        return new MergeSortIterator<>(iterators.stream()
+                .map(PeekingIterator::new)
+                .collect(Collectors.toList()), cmp);
     }
 
     /**
-     * For <b>UNIQUE</b> and <b>SORTED</b> iterators only.
+     * For <b>SORTED</b> iterators only.
      */
-    public static <T extends Comparable<T>> CloseableIterator<T> ordered(Collection<? extends CloseableIterator<T>> iterators) {
-        return new OrderedIterator<>(iterators, t -> t);
-    }
-
-    public static <T> LogIterator<T> merging(Collection<T> iterators, int skips) {
-        throw new UnsupportedOperationException("TODO");
+    public static <T extends Comparable<T>> CloseableIterator<T> merging(Collection<? extends CloseableIterator<T>> iterators) {
+        return merging(iterators, T::compareTo);
     }
 
     public static <T> PeekingIterator<T> peekingIterator(CloseableIterator<T> iterator) {
         return new PeekingIterator<>(iterator);
+    }
+
+    public static <T> CloseableIterator<T> closeableIterator(Iterator<T> iterator) {
+        return closeableIterator(iterator, () -> {
+        });
+    }
+
+    public static <T> CloseableIterator<T> closeableIterator(Iterator<T> iterator, Runnable onClose) {
+        return new CloseableIterator<T>() {
+
+            @Override
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public T next() {
+                return iterator.next();
+            }
+
+            @Override
+            public void close() {
+                onClose.run();
+            }
+        };
     }
 
     public static <T> CloseableIterator<T> empty() {
@@ -127,6 +138,7 @@ public class Iterators {
     public static <T> Stream<T> closeableStream(CloseableIterator<T> iterator) {
         return closeableStream(iterator, Spliterator.ORDERED, false);
     }
+
 
     public static <T> Stream<T> closeableStream(CloseableIterator<T> iterator, int characteristics, boolean parallel) {
         Stream<T> delegate = StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, characteristics), parallel);

@@ -1,43 +1,39 @@
-package io.joshworks.fstore.log.iterators;
+package io.joshworks.fstore.core.iterators;
 
-import io.joshworks.fstore.log.CloseableIterator;
-
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedList;
 import java.util.NoSuchElementException;
+import java.util.Queue;
 
-class BatchingIterator<T> implements CloseableIterator<List<T>> {
+class BufferingIterator<T> implements CloseableIterator<T> {
 
     private final CloseableIterator<T> delegate;
     private final int bufferSize;
-    private List<T> buffer = new ArrayList<>();
+    private final Queue<T> buffer = new LinkedList<>();
 
-    BatchingIterator(CloseableIterator<T> delegate, int bufferSize) {
+    BufferingIterator(CloseableIterator<T> delegate, int bufferSize) {
         this.delegate = delegate;
         this.bufferSize = bufferSize;
     }
 
     @Override
-    public void close()  {
+    public void close() {
         delegate.close();
     }
 
     @Override
     public boolean hasNext() {
-        return !buffer.isEmpty() || batch();
+        return !buffer.isEmpty() || buffer();
     }
 
     @Override
-    public List<T> next() {
-        if (buffer.isEmpty() && !batch()) {
+    public T next() {
+        if (buffer.isEmpty() && !buffer()) {
             throw new NoSuchElementException();
         }
-        List<T> tmp = buffer;
-        buffer = new ArrayList<>();
-        return tmp;
+        return buffer.poll();
     }
 
-    private boolean batch() {
+    private boolean buffer() {
         int buffered = buffer.size();
         while (buffered < bufferSize && delegate.hasNext()) {
             buffer.add(delegate.next());

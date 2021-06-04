@@ -1,7 +1,4 @@
-package io.joshworks.fstore.log.iterators;
-
-import io.joshworks.fstore.log.CloseableIterator;
-import io.joshworks.fstore.log.LogIterator;
+package io.joshworks.fstore.core.iterators;
 
 import java.util.Iterator;
 

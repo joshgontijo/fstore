@@ -1,6 +1,4 @@
-package io.joshworks.fstore.log.iterators;
-
-import io.joshworks.fstore.log.CloseableIterator;
+package io.joshworks.fstore.core.iterators;
 
 import java.util.NoSuchElementException;
 import java.util.function.Predicate;
@@ -17,7 +15,7 @@ class FilteringIterator<T> implements CloseableIterator<T> {
     }
 
     @Override
-    public void close()  {
+    public void close() {
         delegate.close();
     }
 
