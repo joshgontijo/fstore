@@ -3,6 +3,7 @@ package io.joshworks.es2.sstable;
 import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.SegmentFile;
+import io.joshworks.es2.StreamBlock;
 import io.joshworks.es2.index.BTreeIndexSegment;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
@@ -32,7 +33,7 @@ class SSTable implements SegmentFile {
     }
 
     static SSTable open(File dataFile) {
-        File indexFile = indexFile(dataFile);
+        var indexFile = indexFile(dataFile);
         var data = SegmentChannel.open(dataFile);
         var index = BTreeIndexSegment.open(indexFile);
         return new SSTable(data, index);
@@ -69,14 +70,14 @@ class SSTable implements SegmentFile {
     }
 
     static SSTable create(File dataFile, Iterator<ByteBuffer> items) {
-        File indexFile = indexFile(dataFile);
+        var indexFile = indexFile(dataFile);
 
-        SegmentChannel dataChannel = SegmentChannel.create(dataFile);
-        SegmentChannel indexChannel = SegmentChannel.create(indexFile);
+        var dataChannel = SegmentChannel.create(dataFile);
+        var indexChannel = SegmentChannel.create(indexFile);
 
-        StreamBlockWriter dataChunkWriter = new StreamBlockWriter(BlockCodec.SNAPPY, Memory.PAGE_SIZE);
+        var dataChunkWriter = new StreamBlockWriter(BlockCodec.SNAPPY, Memory.PAGE_SIZE);
 
-        try (IndexWriter indexWriter = new IndexWriter(indexChannel)) {
+        try (var indexWriter = new IndexWriter(indexChannel)) {
             while (items.hasNext()) {
                 ByteBuffer data = items.next();
                 dataChunkWriter.add(data, dataChannel, indexWriter);
@@ -88,7 +89,28 @@ class SSTable implements SegmentFile {
             indexWriter.complete(); //indexwriter already truncates channel
             return new SSTable(dataChannel, BTreeIndexSegment.open(indexFile));
         }
+    }
 
+    static void writeBlocks(File dataFile, Iterator<ByteBuffer> blocks) {
+
+        try (var dataChannel = SegmentChannel.create(dataFile);
+             var indexWriter = new IndexWriter(SegmentChannel.create(indexFile(dataFile)))) {
+
+            while(blocks.hasNext()) {
+                var block = blocks.next();
+
+                var stream = StreamBlock.stream(block);
+                var startVersion = StreamBlock.startVersion(block);
+                var blockSize = StreamBlock.sizeOf(block);
+                var blockEntries = StreamBlock.entries(block);
+                long logPos = dataChannel.append(block);
+
+                indexWriter.add(stream, startVersion, blockSize, blockEntries, logPos);
+            }
+
+            dataChannel.truncate();
+            indexWriter.complete(); //indexwriter already truncates channel
+        }
     }
 
     static File indexFile(File dataFile) {

@@ -7,6 +7,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 
 import static io.joshworks.es2.Event.NO_VERSION;
@@ -47,13 +48,17 @@ public class SSTables {
     }
 
     public void flush(Iterator<ByteBuffer> iterator) {
-        File headFile = sstables.newHead();
-        SSTable sstable = SSTable.create(headFile, iterator);
+        var headFile = sstables.newHead();
+        var sstable = SSTable.create(headFile, iterator);
         sstables.append(sstable);
     }
 
     public void delete() {
         sstables.delete();
+    }
+
+    public CompletableFuture<Void> compact() {
+        return sstables.compact(2, 2);
     }
 
 }

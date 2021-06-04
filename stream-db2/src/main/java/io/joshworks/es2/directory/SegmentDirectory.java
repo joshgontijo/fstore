@@ -110,7 +110,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         var view = this.viewRef.get();
 
         List<CompletableFuture<Void>> tasks = new ArrayList<>();
-        for (var level = 0; level < maxLevel(view); level++) {
+        for (var level = 0; level <= maxLevel(view); level++) {
 
             List<T> levelSegments = levelSegments(view, level)
                     .filter(s -> !merging.contains(s))
@@ -119,7 +119,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
             int nextLevel = level + 1;
             do {
                 int items = max(maxItems, levelSegments.size());
-                var sublist = levelSegments.subList(0, items);
+                var sublist = new ArrayList<>(levelSegments.subList(0, items));
                 levelSegments.removeAll(sublist);
 
                 var replacementFile = createFile(nextLevel, maxIdx(view, nextLevel), MERGE_EXT);
@@ -149,25 +149,24 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                 System.err.println("Failed to delete failed compaction result file: " + handle.replacement().getAbsolutePath());
                 err.printStackTrace();
             }
-            merging.removeAll(handle.sources);
             //TODO logging
             e.printStackTrace();
         }
     }
 
     private synchronized void completeMerge(MergeHandle<T> handle) {
-        var view = viewRef.get();
+        var currentView = viewRef.get();
         try {
             var file = handle.replacement();
             assert file.getName().endsWith(MERGE_EXT);
 
-            String newFileName = file.getName().replace("\\." + MERGE_EXT, extension);
+            String newFileName = file.getName().replaceAll("\\." + MERGE_EXT, "." + extension);
             var path = file.toPath();
             var mergeOut = Files.move(path, path.getParent().resolve(newFileName)).toFile();
             List<T> sources = handle.sources();
 
             long mergeOutLen = mergeOut.length();
-            View<T> newView = view.apply(segments -> {
+            View<T> mergedView = currentView.apply(segments -> {
                 sources.forEach(segments::remove);
                 if (mergeOutLen > 0) {
                     segments.add(supplier.apply(mergeOut));
@@ -177,11 +176,13 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                 Files.delete(mergeOut.toPath());
             }
 
-            viewRef.set(newView);
-            view.close();
+            viewRef.set(mergedView);
+            handle.sources.forEach(merging::remove);
+            currentView.close();
 
         } catch (Exception e) {
             //TODO add logging
+            //TODO fail execution and mark handle ?
             System.err.println("FAILED TO MERGE");
             e.printStackTrace();
         }
@@ -212,7 +213,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
     @Override
     public synchronized void close() {
         //TODO wait/cancel compaction ?
-        var view = this.viewRef.getAndSet(new View<>());
+        var view = this.viewRef.getAndSet(View.empty());
         for (T segment : view) {
             segment.close();
         }

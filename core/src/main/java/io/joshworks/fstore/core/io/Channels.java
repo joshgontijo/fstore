@@ -6,7 +6,14 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.*;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.WritableByteChannel;
 
 public class Channels {
 
@@ -124,6 +131,10 @@ public class Channels {
         } catch (Exception e) {
             throw new RuntimeIOException(e);
         }
+    }
+
+    public static long writeFully(GatheringByteChannel dst, ByteBuffer[] buffers) {
+        return writeFully(dst, buffers, 0, buffers.length);
     }
 
     public static long writeFully(GatheringByteChannel dst, ByteBuffer[] buffers, int offset, int count) {

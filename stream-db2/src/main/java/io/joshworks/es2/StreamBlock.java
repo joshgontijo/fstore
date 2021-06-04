@@ -81,6 +81,16 @@ public class StreamBlock {
         return computed == checksum;
     }
 
+    public static int compare(ByteBuffer blockA, ByteBuffer blockB) {
+        var streamA = stream(blockA);
+        var versionA = startVersion(blockA);
+
+        var streamB = stream(blockB);
+        var versionB = startVersion(blockB);
+
+        return IndexKey.compare(streamA, versionA, streamB, versionB);
+    }
+
     //expects compressed data already present,starting at position HEADER_BYTES, fills header fields,
     //limit must the end of the compressed data.
     //position must be zero

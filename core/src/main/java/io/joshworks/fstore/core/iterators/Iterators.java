@@ -95,6 +95,7 @@ public class Iterators {
         return merging(iterators, T::compareTo);
     }
 
+
     public static <T> PeekingIterator<T> peekingIterator(CloseableIterator<T> iterator) {
         return new PeekingIterator<>(iterator);
     }

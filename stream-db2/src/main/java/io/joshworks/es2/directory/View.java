@@ -6,34 +6,46 @@ import io.joshworks.fstore.core.iterators.Iterators;
 
 import java.io.Closeable;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static io.joshworks.fstore.core.iterators.Iterators.closeableIterator;
+import static io.joshworks.fstore.core.iterators.Iterators.mapping;
 
 public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
 
     private final AtomicInteger refs = new AtomicInteger(1);
-    final TreeSet<T> segments = new TreeSet<>();
+    final TreeSet<SegmentItem<T>> segments = new TreeSet<>();
 
-    public View() {
+    private View() {
     }
 
-    public View(Collection<T> segments) {
-        this.segments.addAll(segments);
+
+    static <T extends SegmentFile> View<T> empty() {
+        return new View<>();
     }
 
-    View<T> acquire() {
-        int refCount = refs.getAndIncrement();
-        if (refCount < 0) {
-            refs.set(Integer.MIN_VALUE);
-            throw new RuntimeException("Invalid ref count");
-        }
-        return this;
+    static <T extends SegmentFile> View<T> initialize(Collection<T> segments) {
+        View<T> view = new View<>();
+        view.segments.addAll(segments.stream()
+                .map(SegmentItem::new)
+                .collect(Collectors.toList()));
+        return view;
+    }
+
+    static <T extends SegmentFile> View<T> copy(Collection<SegmentItem<T>> segments) {
+        var view = new View<T>();
+        view.segments.addAll(segments);
+        return view;
     }
 
     public T head() {
-        return segments.first();
+        return segments.first().segment;
     }
 
     public boolean isEmpty() {
@@ -44,33 +56,40 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return segments.size();
     }
 
-    public View<T> apply(Consumer<TreeSet<T>> fn) {
-        var copy = new TreeSet<>(segments);
+    public View<T> apply(Consumer<View<T>> fn) {
+        var copy = View.copy(segments);
         fn.accept(copy);
-        return new View<>(copy);
+        return copy;
     }
 
     public View<T> add(T segment) {
-        var view = new View<T>(segments);
-        view.segments.add(segment);
+        var view = View.copy(segments);
+        view.segments.add(new SegmentItem<>(segment));
         return view;
     }
 
-    public View<T> remove(T segment) {
-        var view = new View<T>(segments);
-        view.segments.add(segment);
+    public View<T> delete(T segment) {
+        var view = View.copy(segments);
+        SegmentItem<T> item = new SegmentItem<>(segment);
+        if (!view.segments.remove(item)) {
+            throw new RuntimeException("Failed to delete segment " + segment.name() + ": Not in view");
+        }
+        for (SegmentItem<T> item : view.segments) {
+
+        }
+
         return view;
     }
 
     @Override
     public CloseableIterator<T> iterator() {
         refs.incrementAndGet();
-        return Iterators.closeableIterator(segments.iterator(), this::close);
+        return mapping(closeableIterator(segments.iterator(), this::close), si -> si.segment);
     }
 
     public CloseableIterator<T> reverse() {
         refs.incrementAndGet();
-        return Iterators.closeableIterator(segments.descendingIterator(), this::close);
+        return mapping(closeableIterator(segments.descendingIterator(), this::close), si -> si.segment);
     }
 
     public Stream<T> stream() {
@@ -80,12 +99,41 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
     @Override
     public void close() { //must not be closed twice for a given acquire
         int count = refs.decrementAndGet();
-        if(count < 0) {
+        if (count < 0) {
             throw new RuntimeException("Invalid view ref count");
         }
         if (count == 0) {
             //cleanup
+            System.out.println("View cleanup");
         }
     }
+
+    static class SegmentItem<T extends SegmentFile> implements Comparable<SegmentItem<T>> {
+        private final AtomicBoolean markForDeletion = new AtomicBoolean();
+        public final T segment;
+
+        SegmentItem(T segment) {
+            this.segment = segment;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SegmentItem<?> that = (SegmentItem<?>) o;
+            return segment.equals(that.segment);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(segment);
+        }
+
+        @Override
+        public int compareTo(SegmentItem<T> o) {
+            return this.segment.compareTo(o.segment);
+        }
+    }
+
 
 }
