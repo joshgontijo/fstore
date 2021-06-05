@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -18,14 +19,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.joshworks.es2.directory.DirectoryUtils.deleteAllWithExtension;
 import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
 import static io.joshworks.es2.directory.DirectoryUtils.level;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentIdx;
-import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 /**
  * Not Thread safe, synchronization must be done outside
@@ -34,7 +34,7 @@ import static java.lang.Math.max;
  */
 public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Closeable {
 
-    private static final String MERGE_EXT = "tmp";
+    private static final String TMP = "tmp";
 
     private final AtomicReference<View<T>> viewRef = new AtomicReference<>(new View<>());
     private final Set<T> merging = new HashSet<>();
@@ -51,7 +51,6 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                             ExecutorService executor,
                             Compaction<T> compaction) {
 
-
         this.root = root;
         this.supplier = supplier;
         this.extension = extension;
@@ -59,7 +58,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         this.compaction = compaction;
 
         initDirectory(root);
-        deleteAllWithExtension(root, MERGE_EXT);
+        deleteAllWithExtension(root, TMP);
     }
 
 
@@ -90,6 +89,14 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         swapView(newView);
     }
 
+    private void move(File src, File dst) {
+        try {
+            Files.move(src.toPath(), dst.toPath(), StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to rename file", e);
+        }
+    }
+
     private void swapView(View<T> view) {
         viewRef.getAndSet(view).close();
     }
@@ -101,8 +108,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                     .filter(this::matchExtension)
                     .map(supplier)
                     .collect(Collectors.toList());
-            View<T> old = this.viewRef.getAndSet(new View<>(segments));
-            old.close();
+            swapView(new View<>(segments));
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to load segments", e);
         }
@@ -115,17 +121,21 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         List<CompletableFuture<Void>> tasks = new ArrayList<>();
         for (var level = 0; level <= maxLevel(view); level++) {
 
-            List<T> levelSegments = levelSegments(view, level).filter(s -> !merging.contains(s))
+            T head = view.head();
+            List<T> levelSegments = levelSegments(view, level)
+                    .stream()
+                    .filter(s -> !merging.contains(s))
+                    .filter(s -> !head.equals(s))
                     .collect(Collectors.toList());
 
             int nextLevel = level + 1;
             do {
-                int items = max(maxItems, levelSegments.size());
+                int items = min(maxItems, levelSegments.size());
                 var sublist = new ArrayList<>(levelSegments.subList(0, items));
                 levelSegments.removeAll(sublist);
 
                 //TODO can have duplicate file names
-                var replacementFile = createFile(nextLevel, maxIdx(view, nextLevel), MERGE_EXT);
+                var replacementFile = createFile(nextLevel, maxIdx(view, nextLevel), TMP);
                 var handle = new MergeHandle<>(view.acquire(), replacementFile, sublist);
 
                 merging.addAll(sublist);
@@ -162,9 +172,9 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         var currentView = viewRef.get();
         try {
             var file = handle.replacement();
-            assert file.getName().endsWith(MERGE_EXT);
+            assert file.getName().endsWith(TMP);
 
-            String newFileName = file.getName().replaceAll("\\." + MERGE_EXT, "." + extension);
+            String newFileName = file.getName().replaceAll("\\." + TMP, "." + extension);
             var path = file.toPath();
             var mergeOut = Files.move(path, path.getParent().resolve(newFileName)).toFile();
             List<T> sources = handle.sources();
@@ -189,18 +199,29 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         }
     }
 
-    private static <T extends SegmentFile> Stream<T> levelSegments(View<T> view, int level) {
-        return view.stream().filter(l -> level(l) == level);
+    private static <T extends SegmentFile> List<T> levelSegments(View<T> view, int level) {
+        try (view) {
+            return view.stream()
+                    .filter(l -> level(l) == level)
+                    .collect(Collectors.toList());
+        }
     }
 
     private static <T extends SegmentFile> long maxLevel(View<T> view) {
-        return view.stream().mapToInt(DirectoryUtils::level)
-                .max()
-                .orElse(0);
+        try (view) {
+            return view.stream()
+                    .mapToInt(DirectoryUtils::level)
+                    .max()
+                    .orElse(0);
+        }
     }
 
     private static <T extends SegmentFile> long maxIdx(View<T> view, int level) {
-        return levelSegments(view, level).mapToLong(DirectoryUtils::segmentIdx)
+        //do not change, other methods are iterating the view stream, it needs to be closed
+        List<T> levelSegments = levelSegments(view, level);
+        return levelSegments
+                .stream()
+                .mapToLong(DirectoryUtils::segmentIdx)
                 .max()
                 .orElse(0);
     }
