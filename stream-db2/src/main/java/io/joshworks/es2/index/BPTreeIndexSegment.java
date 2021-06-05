@@ -9,14 +9,14 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
 
-public class BTreeIndexSegment {
+public class BPTreeIndexSegment {
 
     static final int BLOCK_SIZE = Memory.PAGE_SIZE;
 
     private final MappedFile mf;
     private final Block root;
 
-    public static BTreeIndexSegment open(File file) {
+    public static BPTreeIndexSegment open(File file) {
         try {
             if (!file.exists()) {
                 throw new RuntimeIOException("File does not exist");
@@ -27,13 +27,13 @@ public class BTreeIndexSegment {
                 throw new IllegalStateException("Invalid index file length: " + fileSize);
             }
 
-            return new BTreeIndexSegment(mf);
+            return new BPTreeIndexSegment(mf);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to initialize index", e);
         }
     }
 
-    private BTreeIndexSegment(MappedFile mf) {
+    private BPTreeIndexSegment(MappedFile mf) {
         this.mf = mf;
         this.root = readRoot();
     }

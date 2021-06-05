@@ -35,6 +35,7 @@ public class TLog {
 
     public void roll() {
         head.truncate();
+        head.force(false);
         logs.append(head);
         head = SegmentChannel.create(logs.newHead());
     }

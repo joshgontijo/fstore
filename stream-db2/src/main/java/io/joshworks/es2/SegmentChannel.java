@@ -122,8 +122,12 @@ public class SegmentChannel implements Closeable, SegmentFile {
         }
     }
 
-    public void force(boolean metaData) throws IOException {
-        channel.force(metaData);
+    public void force(boolean metaData) {
+        try {
+            channel.force(metaData);
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to flush channel", e);
+        }
     }
 
     public long transferTo(long position, long count, WritableByteChannel target) {

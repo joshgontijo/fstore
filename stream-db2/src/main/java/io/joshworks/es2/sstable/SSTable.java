@@ -4,7 +4,7 @@ import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.SegmentFile;
 import io.joshworks.es2.StreamBlock;
-import io.joshworks.es2.index.BTreeIndexSegment;
+import io.joshworks.es2.index.BPTreeIndexSegment;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
 import io.joshworks.es2.index.IndexWriter;
@@ -25,9 +25,9 @@ class SSTable implements SegmentFile {
     public static final int NO_DATA = -11;
 
     final SegmentChannel data;
-    final BTreeIndexSegment index;
+    final BPTreeIndexSegment index;
 
-    private SSTable(SegmentChannel data, BTreeIndexSegment index) {
+    private SSTable(SegmentChannel data, BPTreeIndexSegment index) {
         this.data = data;
         this.index = index;
     }
@@ -35,7 +35,7 @@ class SSTable implements SegmentFile {
     static SSTable open(File dataFile) {
         var indexFile = indexFile(dataFile);
         var data = SegmentChannel.open(dataFile);
-        var index = BTreeIndexSegment.open(indexFile);
+        var index = BPTreeIndexSegment.open(indexFile);
         return new SSTable(data, index);
     }
 
@@ -87,7 +87,7 @@ class SSTable implements SegmentFile {
 
             dataChannel.truncate();
             indexWriter.complete(); //indexwriter already truncates channel
-            return new SSTable(dataChannel, BTreeIndexSegment.open(indexFile));
+            return new SSTable(dataChannel, BPTreeIndexSegment.open(indexFile));
         }
     }
 

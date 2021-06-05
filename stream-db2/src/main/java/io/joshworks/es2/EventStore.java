@@ -9,10 +9,14 @@ import io.joshworks.fstore.core.util.Threads;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class EventStore implements Closeable {
+
+    public static final String SSTABLES = "sstables";
+    public static final String LOG = "log";
 
     private final MemTable memTable;
     private final SSTables sstables;
@@ -23,9 +27,10 @@ public class EventStore implements Closeable {
     public EventStore(Path root, ExecutorService worker) {
         this.dirLock = new DirLock(root.toFile());
         this.worker = worker;
-        this.sstables = new SSTables(root.resolve("sstables"), worker);
-        this.tlog = new TLog(root.resolve("log"), worker);
+        this.sstables = new SSTables(root.resolve(SSTABLES), worker);
+        this.tlog = new TLog(root.resolve(LOG), worker);
         this.memTable = new MemTable(Size.MB.ofInt(10), true);
+        //TODO implement reopening (read log add to memtable)
     }
 
     public int version(long stream) {
@@ -73,5 +78,9 @@ public class EventStore implements Closeable {
         } finally {
             dirLock.close();
         }
+    }
+
+    public CompletableFuture<Void> compact() {
+        return sstables.compact();
     }
 }
