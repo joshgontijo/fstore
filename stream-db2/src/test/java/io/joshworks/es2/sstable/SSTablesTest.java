@@ -9,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 
@@ -18,15 +19,18 @@ import static org.junit.Assert.assertTrue;
 public class SSTablesTest {
 
     private SSTables sstables;
+    private Path folder;
 
     @Before
     public void open() {
-        sstables = new SSTables(TestUtils.testFolder().toPath(), Executors.newSingleThreadExecutor());
+        folder = TestUtils.testFolder().toPath();
+        sstables = new SSTables(folder, Executors.newSingleThreadExecutor());
     }
 
     @After
     public void tearDown() {
         sstables.delete();
+        TestUtils.deleteRecursively(folder.toFile());
     }
 
     @Test

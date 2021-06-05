@@ -23,27 +23,24 @@ public class SSTables {
     }
 
     public int get(long stream, int fromVersionInclusive, Sink sink) {
-        try (var it = sstables.iterator()) {
-            while (it.hasNext()) {
-                var res = it.next().get(stream, fromVersionInclusive, sink);
-                if (res >= 0 || res == VERSION_TOO_HIGH) {
-                    return res;
-                }
+        for (SSTable sstable : sstables) {
+            var res = sstable.get(stream, fromVersionInclusive, sink);
+            if (res >= 0 || res == VERSION_TOO_HIGH) {
+                return res;
             }
         }
+
         return SSTable.NO_DATA;
     }
 
     public int version(long stream) {
-        try (var it = sstables.iterator()) {
-            while (it.hasNext()) {
-                int version = it.next().version(stream);
-                if (version > NO_VERSION) {
-                    return version;
-                }
+        for (SSTable sstable : sstables) {
+            int version = sstable.version(stream);
+            if (version > NO_VERSION) {
+                return version;
             }
-            return NO_VERSION;
         }
+        return NO_VERSION;
     }
 
     public void flush(Iterator<ByteBuffer> iterator) {

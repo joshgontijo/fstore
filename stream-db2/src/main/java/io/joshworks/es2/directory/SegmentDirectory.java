@@ -2,7 +2,6 @@ package io.joshworks.es2.directory;
 
 import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.iterators.CloseableIterator;
 
 import java.io.Closeable;
 import java.io.File;
@@ -11,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.joshworks.es2.directory.DirectoryUtils.deleteAllWithExtension;
 import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
@@ -86,8 +87,11 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
             throw new IllegalStateException("Invalid segment head");
         }
         View<T> newView = currView.add(newSegmentHead);
-        this.viewRef.set(newView);
-        currView.close();
+        swapView(newView);
+    }
+
+    private void swapView(View<T> view) {
+        viewRef.getAndSet(view).close();
     }
 
     public void loadSegments() {
@@ -111,11 +115,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         List<CompletableFuture<Void>> tasks = new ArrayList<>();
         for (var level = 0; level <= maxLevel(view); level++) {
 
-            List<T> levelSegments;
-            try(var stream = levelSegments(view, level).stream()) {
-                levelSegments = stream.filter(s -> !merging.contains(s))
-                        .collect(Collectors.toList());
-            }
+            List<T> levelSegments = levelSegments(view, level).filter(s -> !merging.contains(s))
+                    .collect(Collectors.toList());
 
             int nextLevel = level + 1;
             do {
@@ -177,9 +178,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                 Files.delete(mergeOut.toPath());
             }
 
-            viewRef.set(mergedView);
+            swapView(mergedView);
             handle.sources.forEach(merging::remove);
-            currentView.close();
 
         } catch (Exception e) {
             //TODO add logging
@@ -189,26 +189,20 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         }
     }
 
-    private static <T extends SegmentFile> List<T> levelSegments(View<T> view, int level) {
-        try (var s = view.stream()) {
-            return s.filter(l -> level(l) == level).collect(Collectors.toList());
-        }
+    private static <T extends SegmentFile> Stream<T> levelSegments(View<T> view, int level) {
+        return view.stream().filter(l -> level(l) == level);
     }
 
     private static <T extends SegmentFile> long maxLevel(View<T> view) {
-        try (var s = view.stream()) {
-            return s.mapToInt(DirectoryUtils::level)
-                    .max()
-                    .orElse(0);
-        }
+        return view.stream().mapToInt(DirectoryUtils::level)
+                .max()
+                .orElse(0);
     }
 
     private static <T extends SegmentFile> long maxIdx(View<T> view, int level) {
-        try (var s = levelSegments(view, level).stream()) {
-            return s.mapToLong(DirectoryUtils::segmentIdx)
-                    .max()
-                    .orElse(0);
-        }
+        return levelSegments(view, level).mapToLong(DirectoryUtils::segmentIdx)
+                .max()
+                .orElse(0);
     }
 
     private boolean matchExtension(File file) {
@@ -221,22 +215,17 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
     }
 
     @Override
-    public CloseableIterator<T> iterator() {
+    public Iterator<T> iterator() {
         return this.viewRef.get().iterator();
     }
 
-    public CloseableIterator<T> reverse() {
+    public Iterator<T> reverse() {
         return this.viewRef.get().reverse();
     }
 
     public void delete() {
         try (var view = viewRef.getAndSet(new View<>())) {
-            for (T segment : view) {
-                segment.delete();
-            }
-            Files.delete(root.toPath());
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to delete directory ", e);
+            view.deleteAll();
         }
     }
 
