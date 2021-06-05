@@ -15,7 +15,7 @@ public class TLog {
 
     private static final String EXT = "log";
     private final SegmentDirectory<SegmentChannel> logs;
-    private final AtomicLong sequence = new AtomicLong(-1);
+    private final AtomicLong sequence = new AtomicLong(0);
     private SegmentChannel head;
 
     public TLog(Path folder, ExecutorService executor) {
@@ -24,7 +24,7 @@ public class TLog {
     }
 
     public void append(ByteBuffer data) {
-        long sequence = this.sequence.incrementAndGet();
+        long sequence = this.sequence.getAndIncrement();
         long timestamp = System.currentTimeMillis();
 
         Event.writeTimestamp(data, timestamp);
