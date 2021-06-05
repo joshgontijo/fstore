@@ -1,13 +1,13 @@
 package io.joshworks.es2.directory;
 
 import io.joshworks.es2.SegmentFile;
+import io.joshworks.fstore.core.iterators.CloseableIterator;
 import io.joshworks.fstore.core.iterators.Iterators;
 
 import java.io.Closeable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +39,7 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return this;
     }
 
-    View<T> copy() {
+    private View<T> copy() {
         return new View<>(segments, generation + 1);
     }
 
@@ -82,12 +82,14 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
     }
 
     @Override
-    public Iterator<T> iterator() {
-        return segments.iterator();
+    public CloseableIterator<T> iterator() {
+        View<T> v = acquire();
+        return Iterators.closeableIterator(v.segments.iterator(), v::close);
     }
 
-    public Iterator<T> reverse() {
-        return segments.descendingIterator();
+    public CloseableIterator<T> reverse() {
+        View<T> v = acquire();
+        return Iterators.closeableIterator(v.segments.descendingIterator(), v::close);
     }
 
     public Stream<T> stream() {
