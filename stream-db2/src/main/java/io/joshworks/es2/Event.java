@@ -1,5 +1,6 @@
 package io.joshworks.es2;
 
+import io.joshworks.es2.index.IndexKey;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
