@@ -20,10 +20,16 @@ public class TLog {
 
     public TLog(Path folder, ExecutorService executor) {
         this.logs = new SegmentDirectory<>(folder.toFile(), SegmentChannel::open, EXT, executor, new TLogCompaction());
-        this.head = SegmentChannel.create(logs.newHead());
+    }
+
+    public void restore() {
+
     }
 
     public void append(ByteBuffer data) {
+        if (head == null) { //lazy initialization so we run restore logic
+            this.head = SegmentChannel.create(logs.newHead());
+        }
         long sequence = this.sequence.getAndIncrement();
         long timestamp = System.currentTimeMillis();
 

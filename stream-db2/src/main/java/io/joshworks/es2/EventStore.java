@@ -15,9 +15,6 @@ import java.util.concurrent.TimeUnit;
 
 public class EventStore implements Closeable {
 
-    public static final String SSTABLES = "sstables";
-    public static final String LOG = "log";
-
     private final MemTable memTable;
     private final SSTables sstables;
     private final TLog tlog;
@@ -27,10 +24,14 @@ public class EventStore implements Closeable {
     public EventStore(Path root, ExecutorService worker) {
         this.dirLock = new DirLock(root.toFile());
         this.worker = worker;
-        this.sstables = new SSTables(root.resolve(SSTABLES), worker);
-        this.tlog = new TLog(root.resolve(LOG), worker);
+        this.sstables = new SSTables(root, worker);
+        this.tlog = new TLog(root, worker);
         this.memTable = new MemTable(Size.MB.ofInt(10), true);
-        //TODO implement reopening (read log add to memtable)
+        this.loadMemTable();
+    }
+
+    private void loadMemTable() {
+
     }
 
     public int version(long stream) {

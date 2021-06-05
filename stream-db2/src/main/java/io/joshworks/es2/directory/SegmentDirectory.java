@@ -67,7 +67,6 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         deleteAllWithExtension(root, MERGE_EXT);
     }
 
-
     public File newHead() {
         Lock lock = rwLock.writeLock();
         lock.lock();
@@ -129,9 +128,9 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         lock.lock();
         try {
             List<CompletableFuture<Void>> tasks = new ArrayList<>();
-            for (int level = 0; level <= maxLevel(); level++) {
+            for (int level = 0; level <= topLevel(); level++) {
 
-                List<T> levelSegments = nonMergingSegments(level);
+                List<T> levelSegments = eligibleMergeSegments(level);
 
                 int nextLevel = level + 1;
                 do {
@@ -139,7 +138,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                     List<T> sublist = new ArrayList<>(levelSegments.subList(0, items));
                     levelSegments.removeAll(sublist);
 
-                    File replacementFile = createFile(nextLevel, maxIdx(nextLevel), MERGE_EXT);
+                    File replacementFile = createFile(nextLevel, topIdx(nextLevel), MERGE_EXT);
                     MergeHandle<T> handle = new MergeHandle<>(replacementFile, sublist);
 
                     merging.addAll(sublist);
@@ -171,7 +170,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                 System.err.println("Failed to delete failed compaction result file: " + handle.replacement().getAbsolutePath());
                 err.printStackTrace();
             }
-            merging.removeAll(handle.sources);
+            handle.sources.forEach(merging::remove);
             //TODO logging
             e.printStackTrace();
         }
@@ -210,9 +209,11 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         }
     }
 
-    private List<T> nonMergingSegments(int level) {
+    private List<T> eligibleMergeSegments(int level) {
+        var head = segments.first();
         return levelSegments(level)
                 .filter(s -> !merging.contains(s))
+                .filter(s -> !s.equals(head)) //head is used to keep track of log and sstable pairs, used for restoring
                 .collect(Collectors.toList());
     }
 
@@ -220,14 +221,14 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         return segments.stream().filter(l -> level(l) == level);
     }
 
-    private long maxLevel() {
+    private long topLevel() {
         return segments.stream()
                 .mapToInt(DirectoryUtils::level)
                 .max()
                 .orElse(0);
     }
 
-    private long maxIdx(int level) {
+    private long topIdx(int level) {
         return levelSegments(level)
                 .mapToLong(DirectoryUtils::segmentIdx)
                 .max()
