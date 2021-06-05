@@ -62,20 +62,22 @@ public class SSTablesTest {
     public void compaction() {
         String stream = "stream-1";
         long streamHash = StreamHasher.hash(stream);
+        int numSegments = 10;
+        int itemsPerSegment = 100;
 
+        for (int seg = 0; seg < numSegments; seg++) {
+            var startVersion = seg * itemsPerSegment;
+            sstables.flush(IntStream.range(startVersion, startVersion + itemsPerSegment)
+                    .mapToObj(i -> createEntry(stream, i))
+                    .iterator());
+        }
 
-        sstables.flush(IntStream.range(0, 100)
-                .mapToObj(i -> createEntry(stream, i))
-                .iterator());
-
-        sstables.flush(IntStream.range(100, 200)
-                .mapToObj(i -> createEntry(stream, i))
-                .iterator());
-
-        assertStream(streamHash, 199);
+        int expectedVersion = (numSegments * itemsPerSegment) - 1;
+        assertStream(streamHash, expectedVersion);
         sstables.compact().join();
-        assertStream(streamHash, 199);
+        assertStream(streamHash, expectedVersion);
     }
+
 
     private void assertStream(long streamHash, int expectedVersion) {
         int version = sstables.version(streamHash);
