@@ -1,23 +1,26 @@
 package io.joshworks.es2.directory;
 
 import io.joshworks.es2.SegmentFile;
-import io.joshworks.fstore.core.iterators.CloseableIterator;
 import io.joshworks.fstore.core.iterators.Iterators;
 
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+
+import static io.joshworks.fstore.core.iterators.Iterators.reversed;
 
 public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
 
     private final long generation;
     private final AtomicInteger refCount = new AtomicInteger(1);
-    private final TreeSet<T> segments = new TreeSet<>();
+    private final List<T> segments = new ArrayList<>();
     private final Set<T> markedForDeletion = new HashSet<>();
 
     View() {
@@ -32,6 +35,7 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
     private View(Collection<T> segments, long generation) {
         this.generation = generation;
         this.segments.addAll(segments);
+        this.segments.sort(T::compareTo);
     }
 
     View<T> acquire() {
@@ -43,21 +47,26 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return new View<>(segments, generation + 1);
     }
 
-    T head() {
-        return segments.first();
+    public T head() {
+        return segments.get(0);
     }
 
-    boolean isEmpty() {
+    public boolean isEmpty() {
         return segments.isEmpty();
     }
 
-    int size() {
+    public int size() {
         return segments.size();
+    }
+
+    public T get(int i) {
+        return segments.get(i);
     }
 
     View<T> add(T segment) {
         var view = copy();
         view.segments.add(segment);
+        view.segments.sort(T::compareTo);
         return view;
     }
 
@@ -77,24 +86,24 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
                 markedForDeletion.add(item);
             }
         }
+        newView.segments.sort(T::compareTo);
         return newView;
     }
 
     View<T> replace(Collection<T> segments, T replacement) {
         var newView = delete(segments);
         newView.segments.add(replacement);
+        newView.segments.sort(T::compareTo);
         return newView;
     }
 
     @Override
-    public CloseableIterator<T> iterator() {
-        View<T> v = acquire();
-        return Iterators.closeableIterator(v.segments.iterator(), v::close);
+    public Iterator<T> iterator() {
+        return segments.iterator();
     }
 
-    public CloseableIterator<T> reverse() {
-        View<T> v = acquire();
-        return Iterators.closeableIterator(v.segments.descendingIterator(), v::close);
+    public Iterator<T> reverse() {
+        return reversed(segments);
     }
 
     public Stream<T> stream() {

@@ -5,5 +5,5 @@ public class Memory {
     private Memory() {
     }
 
-    public static final int PAGE_SIZE = 4096;
+    public static final int PAGE_SIZE = 4096 * 2;
 }

@@ -10,8 +10,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -26,6 +26,7 @@ import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentId;
 import static io.joshworks.es2.directory.Metadata.add;
 import static io.joshworks.es2.directory.Metadata.merge;
+import static java.lang.Math.max;
 import static java.lang.Math.min;
 
 /**
@@ -33,14 +34,14 @@ import static java.lang.Math.min;
  * Mainly because EventStore needs to sync on both Log and Index a the same time, adding here would just be unecessary overhead
  * head() does not need sync as it does not change
  */
-public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Closeable {
+public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
     private static final Logger log = LoggerFactory.getLogger(SegmentDirectory.class);
 
     public static final String METADATA = "metadata";
 
     private final AtomicReference<View<T>> viewRef = new AtomicReference<>(new View<>());
-    private final Set<T> merging = new HashSet<>();
+    private final Set<MergeHandle<T>> compacting = new HashSet<>();
 
     private final File root;
     private final Metadata metadata;
@@ -129,7 +130,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
             T head = view.head();
             List<T> levelSegments = levelSegments(view, level)
                     .stream()
-                    .filter(s -> !merging.contains(s))
+                    .filter(seg -> eligibleForCompaction(view, seg))
                     .filter(s -> !head.equals(s))
                     .collect(Collectors.toList());
 
@@ -140,10 +141,10 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                 levelSegments.removeAll(sublist);
 
                 //TODO can have duplicate file names, needs to take into consideration merging files as well
-                var replacementFile = createFile(nextLevel, maxIdx(view, nextLevel), tmpExtension);
+                var replacementFile = createFile(nextLevel, nextIdx(view, nextLevel), tmpExtension);
                 var handle = new MergeHandle<>(view.acquire(), replacementFile, sublist);
 
-                merging.addAll(sublist);
+                compacting.add(handle);
                 tasks.add(submit(handle));
 
             } while (levelSegments.size() >= minItems);
@@ -181,12 +182,12 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
 
             String newFileName = file.getName().replaceAll("\\." + tmpExtension, "." + extension);
             var path = file.toPath();
-            var mergeOut = Files.move(path, path.getParent().resolve(newFileName)).toFile();
+            var mergeOut = Files.move(path, root.toPath().resolve(newFileName)).toFile();
+            T out = supplier.apply(mergeOut);
             List<T> sources = handle.sources();
 
             long mergeOutLen = mergeOut.length();
-            if(mergeOutLen > 0) {//merge output has data replace
-                T out = supplier.apply(mergeOut);
+            if (mergeOutLen > 0) {//merge output has data replace
                 View<T> mergedView = currentView.replace(sources, out);
                 metadata.append(merge(
                         out,
@@ -200,11 +201,11 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                 ));
                 View<T> mergedView = currentView.delete(sources);
                 swapView(mergedView);
-                Files.delete(mergeOut.toPath());
+                out.delete();
             }
 
             handle.view.close(); //release merge handle view
-            handle.sources.forEach(merging::remove);
+            compacting.remove(handle);
 
         } catch (Exception e) {
             //TODO add logging
@@ -212,6 +213,17 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
             System.err.println("FAILED TO MERGE");
             e.printStackTrace();
         }
+    }
+
+    private boolean eligibleForCompaction(View<T> view, T segment) {
+        boolean alreadyCompacting = compacting.stream()
+                .map(MergeHandle::sources)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet())
+                .contains(segment);
+
+        return !alreadyCompacting && !view.head().equals(segment);
+
     }
 
     private static <T extends SegmentFile> List<T> levelSegments(View<T> view, int level) {
@@ -232,33 +244,39 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         }
     }
 
-    private static <T extends SegmentFile> long maxIdx(View<T> view, int level) {
+    private long nextIdx(View<T> view, int level) {
         //do not change, other methods are iterating the view stream, it needs to be closed
         List<T> levelSegments = levelSegments(view, level);
-        return levelSegments
+        long mergingMax = compacting.stream()
+                .map(MergeHandle::replacement)
+                .map(DirectoryUtils::segmentId)
+                .filter(segId -> segId.level() == level)
+                .mapToLong(SegmentId::idx)
+                .max()
+                .orElse(-1);
+
+        long currentSegmentsMax = levelSegments
                 .stream()
                 .map(DirectoryUtils::segmentId)
                 .mapToLong(SegmentId::idx)
                 .max()
-                .orElse(0);
+                .orElse(-1);
+
+        return max(mergingMax, currentSegmentsMax) + 1;
+
     }
 
     private boolean matchExtension(File file) {
         return file.getName().endsWith(extension);
     }
 
+    public View<T> view() {
+        return viewRef.get().acquire();
+    }
+
     @Override
     public synchronized void close() {
         this.viewRef.getAndSet(new View<>()).close();
-    }
-
-    @Override
-    public Iterator<T> iterator() {
-        return this.viewRef.get().iterator();
-    }
-
-    public Iterator<T> reverse() {
-        return this.viewRef.get().reverse();
     }
 
     public void delete() {

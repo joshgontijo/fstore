@@ -163,6 +163,7 @@ class Block {
     int find(long stream, int version, IndexFunction fn) {
         int dataSize = dataSize();
         int entrySize = level() == 0 ? LEAF_ENTRY_BYTES : INTERNAL_ENTRY_BYTES;
+
         int idx = binarySearch(HEADER, dataSize, entrySize, stream, version);
         return fn.apply(idx);
     }
