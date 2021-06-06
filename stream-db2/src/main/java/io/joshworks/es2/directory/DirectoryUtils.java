@@ -7,6 +7,8 @@ import io.joshworks.fstore.core.util.BitUtil;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.stream.Stream;
 
 class DirectoryUtils {
 
@@ -23,30 +25,34 @@ class DirectoryUtils {
         }
     }
 
-    static void deleteAllWithExtension(File root, String extension) {
-
+    static Stream<Path> listMatchingExtension(File root, String extension) {
         if (!root.exists()) {
-            return;
+            return Stream.empty();
         }
         if (!root.isDirectory()) {
             throw new IllegalArgumentException("Not a directory " + root.getAbsolutePath());
         }
-
         String[] names = root.list();
-        if (names != null) {
-            for (String s : names) {
-                if (s.endsWith("\\." + extension)) {
-                    Path path = root.toPath().resolve(s);
-                    try {
-                        Files.delete(path);
-                    } catch (Exception e) {
-                        throw new RuntimeIOException("Failed to delete: " + path, e);
-                    }
-                }
-            }
+        if (names == null) {
+            return Stream.empty();
         }
+        return Arrays.stream(names)
+                .filter(path -> path.endsWith("\\." + extension))
+                .map(path -> root.toPath().resolve(path));
+    }
 
 
+    static void deleteAllWithExtension(File root, String extension) {
+        listMatchingExtension(root, extension)
+                .forEach(DirectoryUtils::delete);
+    }
+
+    private static void delete(Path path) {
+        try {
+            Files.delete(path);
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to delete: " + path, e);
+        }
     }
 
     static String segmentFileName(long segmentIdx, int level, String ext) {
@@ -67,8 +73,8 @@ class DirectoryUtils {
 
     static <T extends SegmentFile> SegmentId segmentId(T sf) {
         String[] part = sf.name().split(SEPARATOR);
-        long idx = Long.parseLong(part[1]);
         int level = Integer.parseInt(part[0]);
+        long idx = Long.parseLong(part[1]);
         return new SegmentId(level, idx);
     }
 

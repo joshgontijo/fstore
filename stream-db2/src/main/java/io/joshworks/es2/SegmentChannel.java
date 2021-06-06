@@ -64,8 +64,9 @@ public class SegmentChannel implements Closeable, SegmentFile {
         try {
             FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
             FileLock lock = channel.lock();
-            channel.position(channel.size());
-            return new SegmentChannel(file, channel, lock);
+            SegmentChannel segment = new SegmentChannel(file, channel, lock);
+            segment.position(channel.size());
+            return segment;
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to open segment", e);
         }

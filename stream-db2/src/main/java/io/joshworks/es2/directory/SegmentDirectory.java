@@ -2,13 +2,13 @@ package io.joshworks.es2.directory;
 
 import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -24,6 +24,8 @@ import static io.joshworks.es2.directory.DirectoryUtils.deleteAllWithExtension;
 import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentId;
+import static io.joshworks.es2.directory.Metadata.add;
+import static io.joshworks.es2.directory.Metadata.merge;
 import static java.lang.Math.min;
 
 /**
@@ -33,14 +35,18 @@ import static java.lang.Math.min;
  */
 public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Closeable {
 
-    private static final String TMP = "tmp";
+    private static final Logger log = LoggerFactory.getLogger(SegmentDirectory.class);
+
+    public static final String METADATA = "metadata";
 
     private final AtomicReference<View<T>> viewRef = new AtomicReference<>(new View<>());
     private final Set<T> merging = new HashSet<>();
 
     private final File root;
+    private final Metadata metadata;
     private final Function<File, T> supplier;
     private final String extension;
+    private final String tmpExtension;
     private final ExecutorService executor;
     private final Compaction<T> compaction;
 
@@ -53,11 +59,13 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         this.root = root;
         this.supplier = supplier;
         this.extension = extension;
+        this.tmpExtension = extension + ".tmp";
         this.executor = executor;
         this.compaction = compaction;
+        this.metadata = new Metadata(new File(root, extension + "." + METADATA));
 
         initDirectory(root);
-        deleteAllWithExtension(root, TMP);
+        deleteAllWithExtension(root, tmpExtension);
     }
 
 
@@ -81,16 +89,11 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         if (!currView.isEmpty() && currView.head().compareTo(newSegmentHead) <= 0) {
             throw new IllegalStateException("Invalid segment head");
         }
+        metadata.append(add(
+                newSegmentHead
+        ));
         View<T> newView = currView.add(newSegmentHead);
         swapView(newView);
-    }
-
-    private void move(File src, File dst) {
-        try {
-            Files.move(src.toPath(), dst.toPath(), StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
-            throw new RuntimeIOException("Failed to rename file", e);
-        }
     }
 
     private void swapView(View<T> view) {
@@ -99,11 +102,17 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
 
     public void loadSegments() {
         try {
-            List<T> segments = Files.list(root.toPath())
-                    .map(Path::toFile)
-                    .filter(this::matchExtension)
+            List<T> segments = metadata.state()
+                    .stream()
+                    .map(segId -> segmentFileName(segId.idx(), segId.level(), extension))
+                    .map(name -> new File(root, name))
                     .map(supplier)
                     .collect(Collectors.toList());
+
+            for (T segment : segments) {
+                log.info("Loaded {}", segment);
+            }
+
             swapView(new View<>(segments));
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to load segments", e);
@@ -130,8 +139,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
                 var sublist = new ArrayList<>(levelSegments.subList(0, items));
                 levelSegments.removeAll(sublist);
 
-                //TODO can have duplicate file names
-                var replacementFile = createFile(nextLevel, maxIdx(view, nextLevel), TMP);
+                //TODO can have duplicate file names, needs to take into consideration merging files as well
+                var replacementFile = createFile(nextLevel, maxIdx(view, nextLevel), tmpExtension);
                 var handle = new MergeHandle<>(view.acquire(), replacementFile, sublist);
 
                 merging.addAll(sublist);
@@ -168,23 +177,33 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         var currentView = viewRef.get();
         try {
             var file = handle.replacement();
-            assert file.getName().endsWith(TMP);
+            assert file.getName().endsWith(tmpExtension);
 
-            String newFileName = file.getName().replaceAll("\\." + TMP, "." + extension);
+            String newFileName = file.getName().replaceAll("\\." + tmpExtension, "." + extension);
             var path = file.toPath();
             var mergeOut = Files.move(path, path.getParent().resolve(newFileName)).toFile();
             List<T> sources = handle.sources();
 
             long mergeOutLen = mergeOut.length();
-            var replacement = mergeOutLen > 0 ? supplier.apply(mergeOut) : null;
+            if(mergeOutLen > 0) {//merge output has data replace
+                T out = supplier.apply(mergeOut);
+                View<T> mergedView = currentView.replace(sources, out);
+                metadata.append(merge(
+                        out,
+                        handle.sources
+                ));
+                swapView(mergedView);
 
-            handle.view.close(); //release merge handle view
-            View<T> mergedView = currentView.replace(sources, replacement);
-            if (mergeOutLen == 0) {
+            } else { //merge output segment is empty just delete everything
+                metadata.append(Metadata.delete(
+                        handle.sources
+                ));
+                View<T> mergedView = currentView.delete(sources);
+                swapView(mergedView);
                 Files.delete(mergeOut.toPath());
             }
 
-            swapView(mergedView);
+            handle.view.close(); //release merge handle view
             handle.sources.forEach(merging::remove);
 
         } catch (Exception e) {

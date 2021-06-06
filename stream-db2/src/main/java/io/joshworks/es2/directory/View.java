@@ -67,7 +67,7 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return view;
     }
 
-    View<T> replace(Collection<T> segments, T replacement) {
+    View<T> delete(Collection<T> segments) {
         var newView = copy();
         var it = newView.segments.iterator();
         while (it.hasNext()) {
@@ -77,6 +77,11 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
                 markedForDeletion.add(item);
             }
         }
+        return newView;
+    }
+
+    View<T> replace(Collection<T> segments, T replacement) {
+        var newView = delete(segments);
         newView.segments.add(replacement);
         return newView;
     }
