@@ -65,12 +65,11 @@ class DirectoryUtils {
 
     //------------------------
 
-    static <T extends SegmentFile> long segmentIdx(T sf) {
-        return Long.parseLong(sf.name().split(SEPARATOR)[1]);
-    }
-
-    static <T extends SegmentFile> int level(T sf) {
-        return Integer.parseInt(sf.name().split(SEPARATOR)[0]);
+    static <T extends SegmentFile> SegmentId segmentId(T sf) {
+        String[] part = sf.name().split(SEPARATOR);
+        long idx = Long.parseLong(part[1]);
+        int level = Integer.parseInt(part[0]);
+        return new SegmentId(level, idx);
     }
 
 }

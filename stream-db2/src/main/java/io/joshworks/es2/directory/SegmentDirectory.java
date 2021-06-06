@@ -22,9 +22,8 @@ import java.util.stream.Collectors;
 
 import static io.joshworks.es2.directory.DirectoryUtils.deleteAllWithExtension;
 import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
-import static io.joshworks.es2.directory.DirectoryUtils.level;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
-import static io.joshworks.es2.directory.DirectoryUtils.segmentIdx;
+import static io.joshworks.es2.directory.DirectoryUtils.segmentId;
 import static java.lang.Math.min;
 
 /**
@@ -66,11 +65,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         long segIdx = 0;
         var view = this.viewRef.get();
         if (!view.isEmpty()) {
-            T currentHead = view.head();
-            int headLevel = level(currentHead);
-            if (headLevel == 0) {
-                segIdx = segmentIdx(currentHead) + 1;
-            }
+            var id = segmentId(view.head());
+            segIdx = id.level() == 0 ? id.idx() + 1 : segIdx;
         }
         return createFile(0, segIdx, extension);
     }
@@ -202,7 +198,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
     private static <T extends SegmentFile> List<T> levelSegments(View<T> view, int level) {
         try (view) {
             return view.stream()
-                    .filter(l -> level(l) == level)
+                    .filter(l -> segmentId(l).level() == level)
                     .collect(Collectors.toList());
         }
     }
@@ -210,7 +206,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
     private static <T extends SegmentFile> long maxLevel(View<T> view) {
         try (view) {
             return view.stream()
-                    .mapToInt(DirectoryUtils::level)
+                    .map(DirectoryUtils::segmentId)
+                    .mapToInt(SegmentId::level)
                     .max()
                     .orElse(0);
         }
@@ -221,7 +218,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Iterable<T>, Clo
         List<T> levelSegments = levelSegments(view, level);
         return levelSegments
                 .stream()
-                .mapToLong(DirectoryUtils::segmentIdx)
+                .map(DirectoryUtils::segmentId)
+                .mapToLong(SegmentId::idx)
                 .max()
                 .orElse(0);
     }
