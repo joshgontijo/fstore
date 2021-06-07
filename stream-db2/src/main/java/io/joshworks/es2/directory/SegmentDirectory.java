@@ -24,27 +24,20 @@ import static io.joshworks.es2.directory.DirectoryUtils.deleteAllWithExtension;
 import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentId;
-import static io.joshworks.es2.directory.Metadata.add;
-import static io.joshworks.es2.directory.Metadata.merge;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
-/**
- * Not Thread safe, synchronization must be done outside
- * Mainly because EventStore needs to sync on both Log and Index a the same time, adding here would just be unecessary overhead
- * head() does not need sync as it does not change
- */
 public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
     private static final Logger log = LoggerFactory.getLogger(SegmentDirectory.class);
 
-    public static final String METADATA = "metadata";
+    public static final String METADATA_EXT = "metadata";
 
     private final AtomicReference<View<T>> viewRef = new AtomicReference<>(new View<>());
     private final Set<MergeHandle<T>> compacting = new HashSet<>();
 
     private final File root;
-    private final Metadata metadata;
+    private final Metadata<T> metadata;
     private final Function<File, T> supplier;
     private final String extension;
     private final String tmpExtension;
@@ -63,7 +56,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         this.tmpExtension = extension + ".tmp";
         this.executor = executor;
         this.compaction = compaction;
-        this.metadata = new Metadata(new File(root, extension + "." + METADATA));
+        this.metadata = new Metadata<>(new File(root, extension + "." + METADATA_EXT));
 
         initDirectory(root);
         deleteAllWithExtension(root, tmpExtension);
@@ -90,9 +83,9 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         if (!currView.isEmpty() && currView.head().compareTo(newSegmentHead) <= 0) {
             throw new IllegalStateException("Invalid segment head");
         }
-        metadata.append(add(
+        metadata.add(
                 newSegmentHead
-        ));
+        );
         View<T> newView = currView.add(newSegmentHead);
         swapView(newView);
     }
@@ -140,7 +133,6 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 var sublist = new ArrayList<>(levelSegments.subList(0, items));
                 levelSegments.removeAll(sublist);
 
-                //TODO can have duplicate file names, needs to take into consideration merging files as well
                 var replacementFile = createFile(nextLevel, nextIdx(view, nextLevel), tmpExtension);
                 var handle = new MergeHandle<>(view.acquire(), replacementFile, sublist);
 
@@ -189,16 +181,16 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             long mergeOutLen = mergeOut.length();
             if (mergeOutLen > 0) {//merge output has data replace
                 View<T> mergedView = currentView.replace(sources, out);
-                metadata.append(merge(
+                metadata.merge(
                         out,
                         handle.sources
-                ));
+                );
                 swapView(mergedView);
 
             } else { //merge output segment is empty just delete everything
-                metadata.append(Metadata.delete(
+                metadata.delete(
                         handle.sources
-                ));
+                );
                 View<T> mergedView = currentView.delete(sources);
                 swapView(mergedView);
                 out.delete();

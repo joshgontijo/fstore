@@ -2,9 +2,7 @@ package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
-import io.joshworks.es2.StreamBlock;
 import io.joshworks.es2.index.BIndex;
-import io.joshworks.es2.index.IndexWriter;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;

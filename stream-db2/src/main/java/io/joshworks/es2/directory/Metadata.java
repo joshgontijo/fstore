@@ -24,7 +24,7 @@ import static io.joshworks.fstore.core.iterators.Iterators.closeableIterator;
 import static io.joshworks.fstore.core.iterators.Iterators.stream;
 import static java.nio.file.Files.exists;
 
-public class Metadata {
+public class Metadata<T extends SegmentFile> {
 
     private static final Logger log = LoggerFactory.getLogger(Metadata.class);
 
@@ -51,10 +51,33 @@ public class Metadata {
         }
     }
 
-    public void append(List<FileEvent> events) {
+    private void append(List<FileEvent> events) {
         channel.append(serialize(events));
         channel.flush();
     }
+
+    void add(T segment) {
+        append(List.of(new FileEvent(Op.ADD, segmentId(segment))));
+    }
+
+    void merge(T out, List<T> sources) {
+        List<FileEvent> events = createDeletes(sources);
+        events.add(new FileEvent(Op.ADD, segmentId(out)));
+        append(events);
+    }
+
+    void delete(List<T> items) {
+        append(createDeletes(items));
+    }
+
+    private List<FileEvent> createDeletes(List<T> items) {
+        List<FileEvent> events = new ArrayList<>();
+        for (SegmentFile source : items) {
+            events.add(new FileEvent(Op.DELETE, segmentId(source)));
+        }
+        return events;
+    }
+
 
     private ByteBuffer serialize(List<FileEvent> events) {
         int eventsSerializedSize = events.size() * EVENT_SIZE;
@@ -144,24 +167,6 @@ public class Metadata {
             pos = it.position();
         }
         return pos;
-    }
-
-    static <T extends SegmentFile> List<FileEvent> add(T segment) {
-        return List.of(new FileEvent(Op.ADD, segmentId(segment)));
-    }
-
-    static <T extends SegmentFile> List<FileEvent> merge(T out, List<T> sources) {
-        List<FileEvent> events = delete(sources);
-        events.add(new FileEvent(Op.ADD, segmentId(out)));
-        return events;
-    }
-
-    static <T extends SegmentFile> List<FileEvent> delete(List<T> items) {
-        List<FileEvent> events = new ArrayList<>();
-        for (T source : items) {
-            events.add(new FileEvent(Op.DELETE, segmentId(source)));
-        }
-        return events;
     }
 
     public void close() {

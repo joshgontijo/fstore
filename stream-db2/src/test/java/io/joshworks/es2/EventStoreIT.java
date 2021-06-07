@@ -1,6 +1,7 @@
 package io.joshworks.es2;
 
 import io.joshworks.es2.sink.Sink;
+import io.joshworks.es2.sstable.StreamBlock;
 import io.joshworks.es2.sstable.TestEvent;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;

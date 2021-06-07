@@ -10,20 +10,17 @@ import java.io.File;
 import java.util.List;
 import java.util.Set;
 
-import static io.joshworks.es2.directory.Metadata.add;
-import static io.joshworks.es2.directory.Metadata.delete;
-import static io.joshworks.es2.directory.Metadata.merge;
 import static org.junit.Assert.assertEquals;
 
 public class MetadataTest {
 
     private File testFile;
-    private Metadata metadata;
+    private Metadata<DummySegment> metadata;
 
     @Before
     public void setUp() {
         testFile = TestUtils.testFile();
-        metadata = new Metadata(testFile);
+        metadata = new Metadata<>(testFile);
     }
 
     @After
@@ -33,9 +30,9 @@ public class MetadataTest {
 
     @Test
     public void restore_state() {
-        metadata.append(add(seg(1)));
-        metadata.append(add(seg(2)));
-        metadata.append(merge(seg(3), List.of(seg(1), seg(2))));
+        metadata.add(seg(1));
+        metadata.add(seg(2));
+        metadata.merge(seg(3), List.of(seg(1), seg(2)));
 
         Set<SegmentId> state = metadata.state();
         assertEquals(1, state.size());
@@ -44,12 +41,12 @@ public class MetadataTest {
 
     @Test
     public void restore_state_reopen() {
-        metadata.append(add(seg(1)));
-        metadata.append(add(seg(2)));
-        metadata.append(merge(seg(3), List.of(seg(1), seg(2))));
+        metadata.add(seg(1));
+        metadata.add(seg(2));
+        metadata.merge(seg(3), List.of(seg(1), seg(2)));
 
         metadata.close();
-        metadata = new Metadata(testFile);
+        metadata = new Metadata<>(testFile);
 
         Set<SegmentId> state = metadata.state();
         assertEquals(1, state.size());
@@ -58,18 +55,18 @@ public class MetadataTest {
 
     @Test(expected = Exception.class)
     public void deleting_without_segment_throw_exception() {
-        metadata.append(delete(List.of(seg(1))));
+        metadata.delete(List.of(seg(1)));
         Set<SegmentId> state = metadata.state();
     }
 
     @Test(expected = Exception.class)
     public void duplicate_segment_throw_exception() {
-        metadata.append(add(seg(1)));
-        metadata.append(add(seg(1)));
+        metadata.add(seg(1));
+        metadata.add(seg(1));
         Set<SegmentId> state = metadata.state();
     }
 
-    private static SegmentFile seg(int id) {
+    private static DummySegment seg(int id) {
         return new DummySegment(id);
     }
 

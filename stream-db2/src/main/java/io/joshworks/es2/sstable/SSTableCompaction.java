@@ -1,7 +1,6 @@
 package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.LengthPrefixedIterator;
-import io.joshworks.es2.StreamBlock;
 import io.joshworks.es2.directory.Compaction;
 import io.joshworks.es2.directory.MergeHandle;
 import io.joshworks.fstore.core.iterators.CloseableIterator;

@@ -3,12 +3,9 @@ package io.joshworks.es2.sstable;
 import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.SegmentFile;
-import io.joshworks.es2.StreamBlock;
 import io.joshworks.es2.index.BIndex;
-import io.joshworks.es2.index.BPTreeIndexSegment;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
-import io.joshworks.es2.index.IndexWriter;
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.fstore.core.util.Memory;
 
@@ -93,7 +90,7 @@ class SSTable implements SegmentFile {
         try (var dataChannel = SegmentChannel.create(dataFile);
              var indexWriter = BIndex.writer(indexFile(dataFile))) {
 
-            while(blocks.hasNext()) {
+            while (blocks.hasNext()) {
                 var block = blocks.next();
 
                 var stream = StreamBlock.stream(block);

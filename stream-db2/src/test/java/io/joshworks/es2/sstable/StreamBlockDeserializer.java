@@ -1,7 +1,6 @@
 package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.Event;
-import io.joshworks.es2.StreamBlock;
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
