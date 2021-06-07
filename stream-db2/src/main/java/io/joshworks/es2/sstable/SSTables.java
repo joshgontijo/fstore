@@ -2,6 +2,7 @@ package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.directory.SegmentDirectory;
 import io.joshworks.es2.sink.Sink;
+import io.joshworks.fstore.core.util.Memory;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -50,7 +51,7 @@ public class SSTables {
 
     public void flush(Iterator<ByteBuffer> iterator) {
         var headFile = sstables.newHead();
-        var sstable = SSTable.create(headFile, iterator);
+        var sstable = SSTable.create(headFile, iterator, BlockCodec.SNAPPY, Memory.PAGE_SIZE); //TODO make configurable
         sstables.append(sstable);
     }
 

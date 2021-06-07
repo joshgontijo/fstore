@@ -57,7 +57,7 @@ public class EventStoreIT {
             }
         }
 
-//        store.compact().join();
+        store.compact().join();
 
         //read
         read(items, stream);

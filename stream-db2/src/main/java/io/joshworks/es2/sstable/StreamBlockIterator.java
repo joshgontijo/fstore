@@ -9,7 +9,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class StreamBlockIterator implements Iterator<ByteBuffer> {
+public class StreamBlockIterator implements CloseableIterator<ByteBuffer> {
 
     private final CloseableIterator<ByteBuffer> entryIterator;
     private ByteBuffer decompressed = Buffers.EMPTY;
