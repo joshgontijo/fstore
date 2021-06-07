@@ -14,7 +14,11 @@ public class BIndex {
 
     private final MappedFile mf;
 
-    private static final ThreadLocal<ByteBuffer> buffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
+    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
+
+    private BIndex(MappedFile mf) {
+        this.mf = mf;
+    }
 
     public static BIndex.Writer writer(File file) {
         return new Writer(file);
@@ -25,7 +29,7 @@ public class BIndex {
             if (!file.exists()) {
                 throw new RuntimeIOException("File does not exist");
             }
-            MappedFile mf = MappedFile.open(file, FileChannel.MapMode.READ_ONLY);
+            var mf = MappedFile.open(file, FileChannel.MapMode.READ_ONLY);
             long fileSize = mf.capacity();
             if (fileSize % blockSize != 0) {
                 throw new IllegalStateException("Invalid index file length: " + fileSize);
@@ -37,9 +41,55 @@ public class BIndex {
         }
     }
 
-    private BIndex(MappedFile mf) {
-        this.mf = mf;
+    public IndexEntry find(long stream, int version, IndexFunction fn) {
+        int idx = binarySearch(stream, version);
+        idx = fn.apply(idx);
+        return read(idx);
     }
+
+    private int binarySearch(long stream, int version) {
+        int entries = entries();
+
+        int low = 0;
+        int high = entries - 1;
+
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            int readPos = mid * IndexEntry.BYTES;
+            int cmp = compare(readPos, stream, version);
+            if (cmp < 0)
+                low = mid + 1;
+            else if (cmp > 0)
+                high = mid - 1;
+            else
+                return mid;
+        }
+        return -(low + 1);
+    }
+
+    private IndexEntry read(int idx) {
+        if (idx == -1) {
+            return null;
+        }
+        var offset = idx * IndexEntry.BYTES;
+        var stream = mf.getLong(offset);
+        var version = mf.getInt(offset + Long.BYTES);
+        var recSize = mf.getInt(offset + Long.BYTES + Integer.BYTES);
+        var entries = mf.getInt(offset + Long.BYTES + Integer.BYTES + Integer.BYTES);
+        var logPos = mf.getLong(offset + Long.BYTES + Integer.BYTES + Integer.BYTES + Integer.BYTES);
+        return new IndexEntry(stream, version, recSize, entries, logPos);
+    }
+
+    private int compare(int bufferPos, long keyStream, int keyVersion) {
+        var stream = mf.getLong(bufferPos);
+        var version = mf.getInt(bufferPos + Long.BYTES);
+        return IndexKey.compare(stream, version, keyStream, keyVersion);
+    }
+
+    private int entries() {
+        return mf.capacity() / IndexEntry.BYTES;
+    }
+
 
     static class Writer {
 
@@ -50,7 +100,7 @@ public class BIndex {
         }
 
         public void add(long stream, int version, int recordSize, int recordEntries, long logPos) {
-            var data = BIndex.buffer.get();
+            var data = BIndex.writeBuffer.get();
             if (data.remaining() < IndexEntry.BYTES) {
                 flush();
             }
@@ -62,8 +112,8 @@ public class BIndex {
         }
 
         public void flush() {
-            var data = BIndex.buffer.get();
-            data.clear();
+            var data = BIndex.writeBuffer.get();
+            data.flip();
             channel.append(data);
             data.clear();
         }
