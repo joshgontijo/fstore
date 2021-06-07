@@ -100,7 +100,6 @@ public class SSTableTest {
         assertEquals(2, events.size());
         assertEquals(first, events.get(0));
         assertEquals(second, events.get(1));
-
     }
 
 }

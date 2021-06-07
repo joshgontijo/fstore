@@ -1,34 +1,35 @@
 package io.joshworks.es2;
 
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.iterators.CloseableIterator;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class LengthPrefixedIterator implements Iterator<ByteBuffer> {
+public class LengthPrefixedChannelIterator implements CloseableIterator<ByteBuffer> {
 
     private static final int LEN_LEN = Integer.BYTES;
 
     private ByteBuffer readBuffer = Buffers.allocate(512, false);
-    private ByteBuffer recSlice = Buffers.EMPTY;
+    private LengthPrefixedBufferIterator bufferIt;
     private final SegmentChannel channel;
     private long offset;
 
-    public LengthPrefixedIterator(SegmentChannel channel) {
+    public LengthPrefixedChannelIterator(SegmentChannel channel) {
         this.channel = channel;
-        this.readBuffer.position(readBuffer.limit());
+        this.bufferIt = new LengthPrefixedBufferIterator(Buffers.EMPTY);
     }
 
-    private ByteBuffer read() {
+    private void read() {
         if (offset >= channel.position()) {
-            return Buffers.EMPTY;
+            return;
         }
 
         readBuffer.clear();
         int read = channel.read(readBuffer, offset);
         if (read <= LEN_LEN) {
-            return Buffers.EMPTY;
+            return;
         }
 
         readBuffer.flip();
@@ -40,30 +41,12 @@ public class LengthPrefixedIterator implements Iterator<ByteBuffer> {
             readBuffer.flip();
             if (read < recSize) {
                 //possible broken record with a header
-                return Buffers.EMPTY;
+                return;
             }
         }
 
-        ByteBuffer nextEntry = nextEntry();
-        assert nextEntry.hasRemaining();
-        return nextEntry;
-    }
-
-    private ByteBuffer nextEntry() {
-        if (recSlice.hasRemaining()) { //required so it can be used from 'hasNext'
-            return recSlice;
-        }
-        if (readBuffer.remaining() < LEN_LEN) {
-            return Buffers.EMPTY;
-        }
-        int bpos = readBuffer.position();
-        int recSize = readBuffer.getInt(bpos);
-        if (readBuffer.remaining() < recSize) {
-            return Buffers.EMPTY;
-        }
-        recSlice = readBuffer.slice(bpos, recSize);
-        Buffers.offsetPosition(readBuffer, recSize);
-        return recSlice;
+        bufferIt = new LengthPrefixedBufferIterator(readBuffer);
+        assert bufferIt.hasNext();
     }
 
     public long position() {
@@ -72,7 +55,11 @@ public class LengthPrefixedIterator implements Iterator<ByteBuffer> {
 
     @Override
     public boolean hasNext() {
-        return recSlice.hasRemaining() || nextEntry().hasRemaining() || read().hasRemaining();
+        if (bufferIt.hasNext()) {
+            return true;
+        }
+        read();
+        return bufferIt.hasNext();
     }
 
     @Override
@@ -80,9 +67,8 @@ public class LengthPrefixedIterator implements Iterator<ByteBuffer> {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
-        ByteBuffer slice = recSlice;
+        ByteBuffer slice = bufferIt.next();
         offset += slice.remaining();
-        recSlice = Buffers.EMPTY;
         return slice;
     }
 }

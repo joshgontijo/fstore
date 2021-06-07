@@ -1,6 +1,6 @@
 package io.joshworks.es2.directory;
 
-import io.joshworks.es2.LengthPrefixedIterator;
+import io.joshworks.es2.LengthPrefixedChannelIterator;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.io.buffers.Buffers;
@@ -151,14 +151,14 @@ public class Metadata<T extends SegmentFile> {
     }
 
     Stream<FileEvent> read() {
-        return stream(closeableIterator(new LengthPrefixedIterator(channel)))
+        return stream(closeableIterator(new LengthPrefixedChannelIterator(channel)))
                 .map(Metadata::deserialize)
                 .flatMap(Collection::stream);
     }
 
     private long restore() {
         long pos = 0;
-        var it = new LengthPrefixedIterator(channel);
+        var it = new LengthPrefixedChannelIterator(channel);
         while (it.hasNext()) {
             ByteBuffer item = it.next();
             if (deserialize(item).isEmpty()) {

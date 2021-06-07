@@ -22,11 +22,11 @@ class SSTable implements SegmentFile {
 
     public static final int NO_DATA = -11;
 
-    final SegmentChannel data;
+    final SegmentChannel channel;
     final BIndex index;
 
-    private SSTable(SegmentChannel data, BIndex index) {
-        this.data = data;
+    private SSTable(SegmentChannel channel, BIndex index) {
+        this.channel = channel;
         this.index = index;
     }
 
@@ -60,7 +60,7 @@ class SSTable implements SegmentFile {
             return Event.VERSION_TOO_HIGH;
         }
         //cast is ok since the data transferred is never going to be grater than stream block
-        return (int) data.transferTo(logAddress, recSize, sink);
+        return (int) channel.transferTo(logAddress, recSize, sink);
     }
 
     public IndexEntry get(long stream, int version) {
@@ -114,24 +114,24 @@ class SSTable implements SegmentFile {
 
     @Override
     public void close() {
-        data.close();
+        channel.close();
         index.close();
     }
 
     @Override
     public void delete() {
-        data.delete();
+        channel.delete();
         index.delete();
     }
 
     @Override
     public String name() {
-        return data.name();
+        return channel.name();
     }
 
     @Override
     public String toString() {
-        return data.toString();
+        return channel.toString();
     }
 
 }
