@@ -53,7 +53,7 @@ public class Metadata {
 
     public void append(List<FileEvent> events) {
         channel.append(serialize(events));
-        channel.force(false);
+        channel.flush();
     }
 
     private ByteBuffer serialize(List<FileEvent> events) {

@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.io.mmap.MappedFile;
 import io.joshworks.fstore.core.util.Memory;
 
+import java.io.Closeable;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -24,14 +25,14 @@ public class BIndex {
         return new Writer(file);
     }
 
-    public static BIndex open(File file, int blockSize) {
+    public static BIndex open(File file) {
         try {
             if (!file.exists()) {
                 throw new RuntimeIOException("File does not exist");
             }
             var mf = MappedFile.open(file, FileChannel.MapMode.READ_ONLY);
             long fileSize = mf.capacity();
-            if (fileSize % blockSize != 0) {
+            if (fileSize % IndexEntry.BYTES != 0) {
                 throw new IllegalStateException("Invalid index file length: " + fileSize);
             }
 
@@ -90,8 +91,16 @@ public class BIndex {
         return mf.capacity() / IndexEntry.BYTES;
     }
 
+    public void close() {
+        mf.close();
+    }
 
-    static class Writer {
+    public void delete() {
+        mf.delete();
+    }
+
+
+    public static class Writer implements Closeable {
 
         private final SegmentChannel channel;
 
@@ -118,6 +127,12 @@ public class BIndex {
             data.clear();
         }
 
+        @Override
+        public void close() {
+            flush();
+            channel.flush();
+            channel.close();
+        }
     }
 
 }

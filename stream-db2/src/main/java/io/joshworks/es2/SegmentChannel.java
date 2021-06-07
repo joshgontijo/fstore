@@ -123,9 +123,9 @@ public class SegmentChannel implements Closeable, SegmentFile {
         }
     }
 
-    public void force(boolean metaData) {
+    public void flush() {
         try {
-            channel.force(metaData);
+            channel.force(false);
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to flush channel", e);
         }

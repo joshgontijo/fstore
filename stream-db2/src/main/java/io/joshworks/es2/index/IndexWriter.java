@@ -61,7 +61,7 @@ public class IndexWriter implements Closeable {
         }
 
         channel.truncate();
-        channel.force(false);
+        channel.flush();
 
         assert channel.size() % BPTreeIndexSegment.BLOCK_SIZE == 0 : "Unaligned index";
     }

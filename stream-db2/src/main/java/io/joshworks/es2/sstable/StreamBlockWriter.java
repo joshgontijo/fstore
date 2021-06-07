@@ -3,6 +3,7 @@ package io.joshworks.es2.sstable;
 import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.StreamBlock;
+import io.joshworks.es2.index.BIndex;
 import io.joshworks.es2.index.IndexWriter;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
@@ -37,7 +38,7 @@ public class StreamBlockWriter {
 
     }
 
-    public void add(ByteBuffer data, SegmentChannel dataChannel, IndexWriter indexWriter) {
+    public void add(ByteBuffer data, SegmentChannel dataChannel, BIndex.Writer indexWriter) {
         assert data.remaining() <= rawChunkData.capacity();
 
         long stream = Event.stream(data);
@@ -54,22 +55,19 @@ public class StreamBlockWriter {
 
         assert chunkStartVersion >= 0;
         int expected = chunkStartVersion + chunkEntries;
-        if(expected != version) {
-            System.out.println(); //TODO remove ?
-        }
         assert expected == version : "Event version must be contiguous (" + expected + " / " + version + ")";
 
         Buffers.copy(data, rawChunkData);
         chunkEntries++;
     }
 
-    public void complete(SegmentChannel dataChannel, IndexWriter indexWriter) {
+    public void complete(SegmentChannel dataChannel, BIndex.Writer indexWriter) {
         if (rawChunkData.position() > 0) {
             flushChunk(dataChannel, indexWriter);
         }
     }
 
-    private void flushChunk(SegmentChannel channel, IndexWriter indexWriter) {
+    private void flushChunk(SegmentChannel channel, BIndex.Writer indexWriter) {
         assert chunkStartVersion >= 0;
         assert rawChunkData.position() > 0;
 

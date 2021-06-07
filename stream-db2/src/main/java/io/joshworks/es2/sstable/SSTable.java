@@ -4,6 +4,7 @@ import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.SegmentFile;
 import io.joshworks.es2.StreamBlock;
+import io.joshworks.es2.index.BIndex;
 import io.joshworks.es2.index.BPTreeIndexSegment;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
@@ -25,9 +26,9 @@ class SSTable implements SegmentFile {
     public static final int NO_DATA = -11;
 
     final SegmentChannel data;
-    final BPTreeIndexSegment index;
+    final BIndex index;
 
-    private SSTable(SegmentChannel data, BPTreeIndexSegment index) {
+    private SSTable(SegmentChannel data, BIndex index) {
         this.data = data;
         this.index = index;
     }
@@ -35,7 +36,7 @@ class SSTable implements SegmentFile {
     static SSTable open(File dataFile) {
         var indexFile = indexFile(dataFile);
         var data = SegmentChannel.open(dataFile);
-        var index = BPTreeIndexSegment.open(indexFile);
+        var index = BIndex.open(indexFile);
         return new SSTable(data, index);
     }
 
@@ -73,28 +74,24 @@ class SSTable implements SegmentFile {
         var indexFile = indexFile(dataFile);
 
         var dataChannel = SegmentChannel.create(dataFile);
-        var indexChannel = SegmentChannel.create(indexFile);
-
         var dataChunkWriter = new StreamBlockWriter(BlockCodec.SNAPPY, Memory.PAGE_SIZE);
 
-        try (var indexWriter = new IndexWriter(indexChannel)) {
+        try (var indexWriter = BIndex.writer(indexFile)) {
             while (items.hasNext()) {
                 ByteBuffer data = items.next();
                 dataChunkWriter.add(data, dataChannel, indexWriter);
             }
 
             dataChunkWriter.complete(dataChannel, indexWriter);
-
             dataChannel.truncate();
-            indexWriter.complete(); //indexwriter already truncates channel
-            return new SSTable(dataChannel, BPTreeIndexSegment.open(indexFile));
         }
+        return new SSTable(dataChannel, BIndex.open(indexFile));
     }
 
     static void writeBlocks(File dataFile, Iterator<ByteBuffer> blocks) {
 
         try (var dataChannel = SegmentChannel.create(dataFile);
-             var indexWriter = new IndexWriter(SegmentChannel.create(indexFile(dataFile)))) {
+             var indexWriter = BIndex.writer(indexFile(dataFile))) {
 
             while(blocks.hasNext()) {
                 var block = blocks.next();
@@ -109,7 +106,6 @@ class SSTable implements SegmentFile {
             }
 
             dataChannel.truncate();
-            indexWriter.complete(); //indexwriter already truncates channel
         }
     }
 
