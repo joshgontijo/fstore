@@ -78,21 +78,16 @@ public class SSTablesTest {
         assertStream(streamHash, expectedVersion);
     }
 
-
     private void assertStream(long streamHash, int expectedVersion) {
         int version = sstables.version(streamHash);
         assertEquals(expectedVersion, version);
-        for (int i = 0; i < 200; i++) {
-            int read = sstables.get(streamHash, i, new Sink.Memory());
-            assertTrue(read > 0);
+        for (int v = 0; v <= version; v++) {
+            int read = sstables.get(streamHash, v, new Sink.Memory());
+            assertTrue("Failed on " + v, read > 0);
         }
     }
 
     private ByteBuffer createEntry(String stream, int i) {
         return EventSerializer.serialize(stream, "type-1", i, "data", 0);
-    }
-
-    private ByteBuffer createEntry(int i) {
-        return createEntry("stream-1", i);
     }
 }
