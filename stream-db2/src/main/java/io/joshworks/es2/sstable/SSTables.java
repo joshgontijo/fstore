@@ -25,7 +25,7 @@ public class SSTables {
 
     public int get(long stream, int fromVersionInclusive, Sink sink) {
         try (var view = sstables.view()) {
-            for (int i = 0; i < view.size(); i++) {
+            for (int i = view.size() - 1; i >= 0; i--) {
                 var sstable = view.get(i);
                 var res = sstable.get(stream, fromVersionInclusive, sink);
                 if (res >= 0 || res == VERSION_TOO_HIGH) {
@@ -38,7 +38,7 @@ public class SSTables {
 
     public int version(long stream) {
         try (var view = sstables.view()) {
-            for (int i = 0; i < view.size(); i++) {
+            for (int i = view.size() - 1; i >= 0; i--) {
                 var sstable = view.get(i);
                 int version = sstable.version(stream);
                 if (version > NO_VERSION) {

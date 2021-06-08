@@ -57,7 +57,7 @@ public class EventStoreIT {
             }
         }
 
-        store.compact().join();
+//        store.compact().join();
 
         //read
         read(items, stream);
@@ -70,6 +70,9 @@ public class EventStoreIT {
         int currVersion = 0;
         s = System.currentTimeMillis();
         do {
+            if(currVersion == 419430) {
+                System.out.println();
+            }
             int read = store.read(StreamHasher.hash(stream), currVersion, sink);
             assertTrue("Failed on " + currVersion, read > 0);
 

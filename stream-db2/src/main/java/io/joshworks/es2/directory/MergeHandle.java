@@ -5,6 +5,7 @@ import io.joshworks.es2.SegmentFile;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class MergeHandle<T extends SegmentFile> {
     final View<T> view;
@@ -25,4 +26,8 @@ public class MergeHandle<T extends SegmentFile> {
         return new ArrayList<>(sources);
     }
 
+    @Override
+    public String toString() {
+        return sources.stream().map(SegmentFile::name).collect(Collectors.toList()) + " -> " + replacement.getName();
+    }
 }

@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -20,7 +21,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.joshworks.es2.directory.DirectoryUtils.deleteAllWithExtension;
 import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentId;
@@ -40,7 +40,6 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     private final Metadata<T> metadata;
     private final Function<File, T> supplier;
     private final String extension;
-    private final String tmpExtension;
     private final ExecutorService executor;
     private final Compaction<T> compaction;
 
@@ -53,13 +52,12 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         this.root = root;
         this.supplier = supplier;
         this.extension = extension;
-        this.tmpExtension = extension + ".tmp";
         this.executor = executor;
         this.compaction = compaction;
         this.metadata = new Metadata<>(new File(root, extension + "." + METADATA_EXT));
 
         initDirectory(root);
-        deleteAllWithExtension(root, tmpExtension);
+//        deleteAllWithExtension(root);
     }
 
 
@@ -70,11 +68,11 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             var id = segmentId(view.head());
             segIdx = id.level() == 0 ? id.idx() + 1 : segIdx;
         }
-        return createFile(0, segIdx, extension);
+        return createFile(0, segIdx);
     }
 
-    private File createFile(int level, long segIdx, String ext) {
-        String name = segmentFileName(segIdx, level, ext);
+    private File createFile(int level, long segIdx) {
+        String name = segmentFileName(segIdx, level, extension);
         return new File(root, name);
     }
 
@@ -126,6 +124,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                     .filter(seg -> eligibleForCompaction(view, seg))
                     .filter(s -> !head.equals(s))
                     .collect(Collectors.toList());
+            Collections.reverse(levelSegments); //reverse so we start from oldest files first
 
             int nextLevel = level + 1;
             do {
@@ -133,9 +132,10 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 var sublist = new ArrayList<>(levelSegments.subList(0, items));
                 levelSegments.removeAll(sublist);
 
-                var replacementFile = createFile(nextLevel, nextIdx(view, nextLevel), tmpExtension);
+                var replacementFile = createFile(nextLevel, nextIdx(view, nextLevel));
                 var handle = new MergeHandle<>(view.acquire(), replacementFile, sublist);
 
+                System.err.println("Submitting " + handle);
                 compacting.add(handle);
                 tasks.add(submit(handle));
 
@@ -169,16 +169,12 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     private synchronized void completeMerge(MergeHandle<T> handle) {
         var currentView = viewRef.get();
         try {
-            var file = handle.replacement();
-            assert file.getName().endsWith(tmpExtension);
+            var outFile = handle.replacement();
 
-            String newFileName = file.getName().replaceAll("\\." + tmpExtension, "." + extension);
-            var path = file.toPath();
-            var mergeOut = Files.move(path, root.toPath().resolve(newFileName)).toFile();
-            T out = supplier.apply(mergeOut);
+            T out = supplier.apply(outFile);
             List<T> sources = handle.sources();
 
-            long mergeOutLen = mergeOut.length();
+            long mergeOutLen = outFile.length();
             if (mergeOutLen > 0) {//merge output has data replace
                 View<T> mergedView = currentView.replace(sources, out);
                 metadata.merge(
@@ -196,6 +192,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 out.delete();
             }
 
+            System.err.println("Completing " + handle);
             handle.view.close(); //release merge handle view
             compacting.remove(handle);
 
@@ -256,10 +253,6 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
         return max(mergingMax, currentSegmentsMax) + 1;
 
-    }
-
-    private boolean matchExtension(File file) {
-        return file.getName().endsWith(extension);
     }
 
     public View<T> view() {
