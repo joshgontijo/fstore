@@ -1,6 +1,5 @@
 package io.joshworks.es2.directory;
 
-import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

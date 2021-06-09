@@ -1,7 +1,5 @@
 package io.joshworks.es2.directory;
 
-import io.joshworks.es2.SegmentFile;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;

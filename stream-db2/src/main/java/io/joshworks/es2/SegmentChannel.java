@@ -1,5 +1,6 @@
 package io.joshworks.es2;
 
+import io.joshworks.es2.directory.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.Channels;
 import io.joshworks.fstore.core.io.buffers.Buffers;

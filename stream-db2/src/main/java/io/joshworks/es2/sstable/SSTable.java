@@ -2,13 +2,11 @@ package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
-import io.joshworks.es2.SegmentFile;
+import io.joshworks.es2.directory.SegmentFile;
 import io.joshworks.es2.index.BIndex;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
 import io.joshworks.es2.sink.Sink;
-import io.joshworks.fstore.core.iterators.CloseableIterator;
-import io.joshworks.fstore.core.util.Memory;
 
 import java.io.File;
 import java.nio.ByteBuffer;

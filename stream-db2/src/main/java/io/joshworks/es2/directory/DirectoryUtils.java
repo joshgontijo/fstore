@@ -1,6 +1,5 @@
 package io.joshworks.es2.directory;
 
-import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.BitUtil;
 
@@ -80,7 +79,7 @@ class DirectoryUtils {
         return segmentId(sf.name());
     }
 
-    private static <T extends SegmentFile> SegmentId segmentId(String id) {
+    private static SegmentId segmentId(String id) {
         String[] part = id.split(SEPARATOR);
         int level = Integer.parseInt(part[0]);
         long idx = Long.parseLong(part[1]);

@@ -2,7 +2,6 @@ package io.joshworks.es2.directory;
 
 import io.joshworks.es2.LengthPrefixedChannelIterator;
 import io.joshworks.es2.SegmentChannel;
-import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 import org.slf4j.Logger;

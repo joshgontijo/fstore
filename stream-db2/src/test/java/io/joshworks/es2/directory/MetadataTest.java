@@ -1,6 +1,5 @@
 package io.joshworks.es2.directory;
 
-import io.joshworks.es2.SegmentFile;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;

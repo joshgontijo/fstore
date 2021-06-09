@@ -34,10 +34,7 @@ public class EventStoreIT {
     }
 
     @Test
-    @Ignore
     public void read() throws InterruptedException {
-
-        Thread.sleep(7000);
 
         int items = 5_000_000;
         String stream = "stream-1";
@@ -57,7 +54,7 @@ public class EventStoreIT {
             }
         }
 
-//        store.compact().join();
+        store.compact().join();
 
         //read
         read(items, stream);
