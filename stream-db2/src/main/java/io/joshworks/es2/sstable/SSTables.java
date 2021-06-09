@@ -18,6 +18,8 @@ public class SSTables {
     private static final String DATA_EXT = "sst";
     private final SegmentDirectory<SSTable> sstables;
 
+    private final double fpPercentage = 0.1; //TODO configurable
+
     public SSTables(Path folder, ExecutorService executor) {
         sstables = new SegmentDirectory<>(folder.toFile(), SSTable::open, DATA_EXT, executor, new SSTableCompaction());
         sstables.loadSegments();
@@ -49,9 +51,9 @@ public class SSTables {
         return NO_VERSION;
     }
 
-    public void flush(Iterator<ByteBuffer> iterator) {
+    public void flush(Iterator<ByteBuffer> iterator, int entryCount) {
         var headFile = sstables.newHead();
-        var sstable = SSTable.create(headFile, iterator, BlockCodec.SNAPPY, Memory.PAGE_SIZE); //TODO make configurable
+        var sstable = SSTable.create(headFile, iterator, entryCount, fpPercentage, BlockCodec.SNAPPY, Memory.PAGE_SIZE); //TODO make configurable
         sstables.append(sstable);
     }
 

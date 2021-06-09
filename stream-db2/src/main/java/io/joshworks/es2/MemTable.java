@@ -84,9 +84,9 @@ public class MemTable {
 
     public void flush(SSTables sstables) {
         TimeWatch watch = TimeWatch.start();
-        MemTableFLushIterator it = new MemTableFLushIterator();
-        sstables.flush(it);
-        System.out.println("Flushed " + entries() + " entries (" +  size() + " bytes) in " + watch.elapsed() + "ms");
+        MemTableFlushIterator it = new MemTableFlushIterator();
+        sstables.flush(it, entries.get());
+        System.out.println("Flushed " + entries() + " entries (" + size() + " bytes) in " + watch.elapsed() + "ms");
         clear();
     }
 
@@ -141,7 +141,7 @@ public class MemTable {
         }
 
         private int writeTo(int fromVersion, Sink sink) {
-            if(fromVersion >= startVersion + entries.size()) {
+            if (fromVersion >= startVersion + entries.size()) {
                 return Event.VERSION_TOO_HIGH;
             }
             if (fromVersion < startVersion) {
@@ -178,12 +178,12 @@ public class MemTable {
         private int version;
     }
 
-    private class MemTableFLushIterator implements Iterator<ByteBuffer> {
+    private class MemTableFlushIterator implements Iterator<ByteBuffer> {
 
         private final Iterator<Long> streams;
         private Iterator<EventEntry> currStreamIt;
 
-        public MemTableFLushIterator() {
+        public MemTableFlushIterator() {
             this.streams = new TreeSet<>(table.keySet()).iterator();
         }
 

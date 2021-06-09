@@ -66,28 +66,21 @@ class SSTable implements SegmentFile {
         return index.find(stream, version, IndexFunction.FLOOR);
     }
 
-    static SSTable create(File dataFile, Iterator<ByteBuffer> items, BlockCodec codec, int blockSize) {
+    static SSTable create(File dataFile, Iterator<ByteBuffer> items, int expectedEntries, double fpPercentage, BlockCodec codec, int blockSize) {
         var indexFile = indexFile(dataFile);
-
-        var dataChannel = SegmentChannel.create(dataFile);
-        var dataChunkWriter = new StreamBlockWriter(codec, blockSize);
-
-        try (var indexWriter = BIndex.writer(indexFile)) {
+        try (var dataChunkWriter = new StreamBlockWriter(dataFile, indexFile, codec, blockSize, expectedEntries, fpPercentage)) {
             while (items.hasNext()) {
                 ByteBuffer data = items.next();
-                dataChunkWriter.add(data, dataChannel, indexWriter);
+                dataChunkWriter.add(data);
             }
-
-            dataChunkWriter.complete(dataChannel, indexWriter);
-            dataChannel.truncate();
         }
-        return new SSTable(dataChannel, BIndex.open(indexFile));
+        return new SSTable(SegmentChannel.open(dataFile), BIndex.open(indexFile));
     }
 
-    static void writeBlocks(File dataFile, Iterator<ByteBuffer> blocks) {
+    static void writeBlocks(File dataFile, Iterator<ByteBuffer> blocks, int expectedEntries, double fpPercentage) {
 
         try (var dataChannel = SegmentChannel.create(dataFile);
-             var indexWriter = BIndex.writer(indexFile(dataFile))) {
+             var indexWriter = BIndex.writer(indexFile(dataFile), expectedEntries, fpPercentage)) {
 
             while (blocks.hasNext()) {
                 var block = blocks.next();
@@ -109,6 +102,14 @@ class SSTable implements SegmentFile {
         Path parent = dataFile.toPath().getParent();
         String indexFileName = dataFile.getName().split("\\.")[0] + "." + INDEX_EXT;
         return parent.resolve(indexFileName).toFile();
+    }
+
+    public long sparseEntries() {
+        return index.sparseEntries();
+    }
+
+    public long denseEntries() {
+        return index.denseEntries();
     }
 
     @Override

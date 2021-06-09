@@ -5,10 +5,14 @@ import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.index.BIndex;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
+import java.io.Closeable;
+import java.io.File;
 import java.nio.ByteBuffer;
 
-public class StreamBlockWriter {
+public class StreamBlockWriter implements Closeable {
 
+    private final SegmentChannel channel;
+    private final BIndex.Writer indexWriter;
     private final BlockCodec codec;
     //use do append event data to be compressed
     private final ByteBuffer rawChunkData;
@@ -20,23 +24,15 @@ public class StreamBlockWriter {
     int chunkEntries = 0;
     int chunkStartVersion = -1;
 
-    public StreamBlockWriter(BlockCodec codec, int chunkSize) {
+    public StreamBlockWriter(File dataFile, File indexFile, BlockCodec codec, int blockSize, int expectedEntries, double fpPercentage) {
+        this.channel = SegmentChannel.create(dataFile);
+        this.indexWriter = BIndex.writer(indexFile, expectedEntries, fpPercentage);
         this.codec = codec;
-        this.rawChunkData = Buffers.allocate(chunkSize, false);
-        this.chunk = Buffers.allocate(StreamBlock.HEADER_BYTES + chunkSize, false);
+        this.rawChunkData = Buffers.allocate(blockSize, false);
+        this.chunk = Buffers.allocate(StreamBlock.HEADER_BYTES + blockSize, false);
     }
 
-    public void clear() {
-        currentStream = null;
-        chunkEntries = 0;
-        chunkStartVersion = -1;
-
-        rawChunkData.clear();
-        chunk.clear();
-
-    }
-
-    public void add(ByteBuffer data, SegmentChannel dataChannel, BIndex.Writer indexWriter) {
+    public void add(ByteBuffer data) {
         assert data.remaining() <= rawChunkData.capacity();
 
         long stream = Event.stream(data);
@@ -45,8 +41,11 @@ public class StreamBlockWriter {
             chunkStartVersion = version;
             currentStream = stream;
         }
+
+        indexWriter.stampEntry(stream, version);
+
         if (data.remaining() > rawChunkData.remaining() || stream != currentStream) { // full chunk or different stream
-            flushChunk(dataChannel, indexWriter);
+            flushChunk();
             chunkStartVersion = version;
             currentStream = stream;
         }
@@ -59,13 +58,17 @@ public class StreamBlockWriter {
         chunkEntries++;
     }
 
-    public void complete(SegmentChannel dataChannel, BIndex.Writer indexWriter) {
-        if (rawChunkData.position() > 0) {
-            flushChunk(dataChannel, indexWriter);
-        }
+    private void clear() {
+        currentStream = null;
+        chunkEntries = 0;
+        chunkStartVersion = -1;
+
+        rawChunkData.clear();
+        chunk.clear();
+
     }
 
-    private void flushChunk(SegmentChannel channel, BIndex.Writer indexWriter) {
+    private void flushChunk() {
         assert chunkStartVersion >= 0;
         assert rawChunkData.position() > 0;
 
@@ -85,4 +88,13 @@ public class StreamBlockWriter {
         clear();
     }
 
+    @Override
+    public void close() {
+        if (rawChunkData.position() > 0) {
+            flushChunk();
+        }
+        indexWriter.close();
+        channel.truncate();
+        channel.close();
+    }
 }

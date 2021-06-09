@@ -2,6 +2,7 @@ package io.joshworks.es2.index;
 
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.directory.SegmentFile;
+import io.joshworks.es2.index.filter.BloomFilter;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Memory;
@@ -12,19 +13,24 @@ import java.nio.ByteBuffer;
 
 public class BIndex implements SegmentFile {
 
+    private static final int FOOTER_SIZE = Long.BYTES * 2;
+
     private final SegmentChannel.MappedReadRegion mf;
     private final SegmentChannel channel;
+    private final BloomFilter filter;
+    private final long denseEntries;
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
 
-    public BIndex(SegmentChannel.MappedReadRegion mf, SegmentChannel channel) {
+    private BIndex(SegmentChannel.MappedReadRegion mf, SegmentChannel channel, BloomFilter filter, long denseEntries) {
         this.mf = mf;
         this.channel = channel;
+        this.filter = filter;
+        this.denseEntries = denseEntries;
     }
 
-
-    public static BIndex.Writer writer(File file) {
-        return new Writer(file);
+    public static BIndex.Writer writer(File file, int expectedEntries, double fpPercentage) {
+        return new Writer(file, expectedEntries, fpPercentage);
     }
 
     public static BIndex open(File file) {
@@ -34,19 +40,42 @@ public class BIndex implements SegmentFile {
             }
 
             var channel = SegmentChannel.open(file);
-            if (channel.size() > Buffers.MAX_CAPACITY) {
-                throw new RuntimeIOException("File too big to map");
-            }
 
-            var mappedRegion = channel.map(0, (int) channel.size());
+            //read footer
+            ByteBuffer footer = Buffers.allocate(FOOTER_SIZE, false);
+            int read = channel.read(footer, channel.position() - FOOTER_SIZE);
+            assert read == FOOTER_SIZE;
+            footer.flip();
+            var indexSize = footer.getLong();
+            var entries = footer.getLong();
+
+            //filter
+            int filterSize = (int) (indexSize - FOOTER_SIZE);
+            ByteBuffer filterBuf = Buffers.allocate(filterSize, false);
+            read = channel.read(filterBuf, indexSize);
+            assert read == filterSize;
+            var filter = BloomFilter.load(filterBuf.flip());
+
+
+            checkChannelSize(channel, indexSize);
+
+            var mappedRegion = channel.map(0, (int) indexSize);
             long fileSize = mappedRegion.capacity();
             if (fileSize % IndexEntry.BYTES != 0) {
+                channel.close();
                 throw new IllegalStateException("Invalid index file length: " + fileSize);
             }
 
-            return new BIndex(mappedRegion, channel);
+            return new BIndex(mappedRegion, channel, filter, entries);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to initialize index", e);
+        }
+    }
+
+    private static void checkChannelSize(SegmentChannel channel, long indexSize) {
+        if (indexSize > Buffers.MAX_CAPACITY) {
+            channel.close();
+            throw new RuntimeIOException("Index too big");
         }
     }
 
@@ -57,7 +86,7 @@ public class BIndex implements SegmentFile {
     }
 
     private int binarySearch(long stream, int version) {
-        int entries = entries();
+        int entries = sparseEntries();
 
         int low = 0;
         int high = entries - 1;
@@ -95,8 +124,14 @@ public class BIndex implements SegmentFile {
         return IndexKey.compare(stream, version, keyStream, keyVersion);
     }
 
-    private int entries() {
+    //actual index entries
+    public int sparseEntries() {
         return mf.capacity() / IndexEntry.BYTES;
+    }
+
+    //dense entry count, used for filter or total count
+    public long denseEntries() {
+        return denseEntries;
     }
 
     @Override
@@ -119,9 +154,25 @@ public class BIndex implements SegmentFile {
     public static class Writer implements Closeable {
 
         private final SegmentChannel channel;
+        private final BloomFilter filter;
+        private final ByteBuffer buffer = Buffers.allocate(IndexKey.BYTES, false);
+        private long entries;
 
-        Writer(File file) {
+        Writer(File file, int expectedEntries, double bpFpPercentage) {
             this.channel = SegmentChannel.create(file);
+            this.filter = BloomFilter.create(expectedEntries, bpFpPercentage);
+        }
+
+        //Adds to filter and increment entries count
+        //index is sparse so we need to increment here
+        public void stampEntry(long stream, int version) {
+            filter.add(buffer
+                    .clear()
+                    .putLong(stream)
+                    .putInt(version)
+                    .flip());
+
+            entries++;
         }
 
         public void add(long stream, int version, int recordSize, int recordEntries, long logPos) {
@@ -146,7 +197,22 @@ public class BIndex implements SegmentFile {
         @Override
         public void close() {
             flush();
+
+            long indexSize = channel.size();
+            checkChannelSize(channel, indexSize);
+
+            //filter
+            filter.writeTo(channel);
+
+            //index footer
+            channel.append(writeBuffer.get()
+                    .clear()
+                    .putLong(indexSize)
+                    .putLong(entries)
+                    .flip());
+
             channel.flush();
+            channel.truncate();
             channel.close();
         }
     }

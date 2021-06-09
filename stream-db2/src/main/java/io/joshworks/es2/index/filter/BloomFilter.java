@@ -42,6 +42,14 @@ public class BloomFilter {
         this.bits = bits;
     }
 
+    /**
+     * @param n The expected number of elements in the filter
+     * @param p The acceptable false positive rate
+     */
+    public static BloomFilter create(long n, double p) {
+        return new BloomFilter(n, p);
+    }
+
     public static BloomFilter load(ByteBuffer data) {
         int len = data.getInt();
         long m = data.getLong();
