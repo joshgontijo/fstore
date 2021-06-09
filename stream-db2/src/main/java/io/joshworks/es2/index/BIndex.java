@@ -1,25 +1,27 @@
 package io.joshworks.es2.index;
 
 import io.joshworks.es2.SegmentChannel;
+import io.joshworks.es2.directory.SegmentFile;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.buffers.Buffers;
-import io.joshworks.fstore.core.io.mmap.MappedFile;
 import io.joshworks.fstore.core.util.Memory;
 
 import java.io.Closeable;
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 
-public class BIndex {
+public class BIndex implements SegmentFile {
 
-    private final MappedFile mf;
+    private final SegmentChannel.MappedReadRegion mf;
+    private final SegmentChannel channel;
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
 
-    private BIndex(MappedFile mf) {
+    public BIndex(SegmentChannel.MappedReadRegion mf, SegmentChannel channel) {
         this.mf = mf;
+        this.channel = channel;
     }
+
 
     public static BIndex.Writer writer(File file) {
         return new Writer(file);
@@ -30,13 +32,19 @@ public class BIndex {
             if (!file.exists()) {
                 throw new RuntimeIOException("File does not exist");
             }
-            var mf = MappedFile.open(file, FileChannel.MapMode.READ_ONLY);
-            long fileSize = mf.capacity();
+
+            var channel = SegmentChannel.open(file);
+            if (channel.size() > Buffers.MAX_CAPACITY) {
+                throw new RuntimeIOException("File too big to map");
+            }
+
+            var mappedRegion = channel.map(0, (int) channel.size());
+            long fileSize = mappedRegion.capacity();
             if (fileSize % IndexEntry.BYTES != 0) {
                 throw new IllegalStateException("Invalid index file length: " + fileSize);
             }
 
-            return new BIndex(mf);
+            return new BIndex(mappedRegion, channel);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to initialize index", e);
         }
@@ -91,12 +99,20 @@ public class BIndex {
         return mf.capacity() / IndexEntry.BYTES;
     }
 
+    @Override
     public void close() {
         mf.close();
     }
 
+    @Override
     public void delete() {
-        mf.delete();
+        mf.close();
+        channel.delete();
+    }
+
+    @Override
+    public String name() {
+        return channel.name();
     }
 
 
