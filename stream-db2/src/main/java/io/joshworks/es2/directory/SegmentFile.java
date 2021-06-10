@@ -11,6 +11,8 @@ public interface SegmentFile extends Closeable, Comparable<SegmentFile> {
 
     String name();
 
+    long size();
+
     @Override
     default int compareTo(SegmentFile o) {
         var thisSegmentId = DirectoryUtils.segmentId(this);

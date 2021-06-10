@@ -97,6 +97,7 @@ public class SegmentChannel implements Closeable, SegmentFile {
         }
     }
 
+    @Override
     public long size() {
         try {
             return channel.size();

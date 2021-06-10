@@ -33,7 +33,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     public static final String METADATA_EXT = "metadata";
 
     private final AtomicReference<View<T>> viewRef = new AtomicReference<>(new View<>());
-    private final Set<MergeHandle<T>> compacting = new HashSet<>();
+    private final Set<CompactionItem<T>> compacting = new HashSet<>();
 
     private final File root;
     private final Metadata<T> metadata;
@@ -111,10 +111,11 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     }
 
     //TODO move parameters to constructor
-    public synchronized CompletableFuture<Void> compact(int minItems, int maxItems) {
+    public synchronized CompletableFuture<CompactionStats> compact(int minItems, int maxItems) {
         var view = this.viewRef.get();
 
-        List<CompletableFuture<Void>> tasks = new ArrayList<>();
+//        List<CompletableFuture<CompactionStats>> tasks = new ArrayList<>();
+        CompletableFuture<CompactionStats> task = CompletableFuture.completedFuture(new CompactionStats());
         for (var level = 0; level <= maxLevel(view); level++) {
 
             T head = view.head();
@@ -132,25 +133,24 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 levelSegments.removeAll(sublist);
 
                 var replacementFile = createFile(nextLevel, nextIdx(view, nextLevel));
-                var handle = new MergeHandle<>(view.acquire(), replacementFile, sublist);
+                var handle = new CompactionItem<>(view.acquire(), replacementFile, sublist);
 
                 System.err.println("Submitting " + handle);
+                task = task.thenCombine(submit(handle), CompactionStats::merge);
                 compacting.add(handle);
-                tasks.add(submit(handle));
 
             } while (levelSegments.size() >= minItems);
         }
-
-        return CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new));
+        return task;
     }
 
-    private CompletableFuture<Void> submit(MergeHandle<T> handle) {
-        return CompletableFuture.runAsync(() -> safeCompact(handle), executor)
-                .thenRun(() -> completeMerge(handle));
+    private CompletableFuture<CompactionStats> submit(CompactionItem<T> handle) {
+        return CompletableFuture.supplyAsync(() -> safeCompact(handle), executor)
+                .thenApply(this::completeMerge);
     }
 
     //TODO handle error cases, view must always be closed afterwards
-    private void safeCompact(MergeHandle<T> handle) {
+    private CompactionItem<T> safeCompact(CompactionItem<T> handle) {
         try {
             compaction.compact(handle);
         } catch (Exception e) {
@@ -160,12 +160,13 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 System.err.println("Failed to delete failed compaction result file: " + handle.replacement().getAbsolutePath());
                 err.printStackTrace();
             }
-            //TODO logging
+            //TODO logging / mark failure ?
             e.printStackTrace();
         }
+        return handle;
     }
 
-    private synchronized void completeMerge(MergeHandle<T> handle) {
+    private synchronized CompactionStats completeMerge(CompactionItem<T> handle) {
         var currentView = viewRef.get();
         try {
             var outFile = handle.replacement();
@@ -195,6 +196,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             handle.view.close(); //release merge handle view
             compacting.remove(handle);
 
+            return null; //TODO
+
         } catch (Exception e) {
             //TODO add logging
             //TODO fail execution and mark handle ?
@@ -205,7 +208,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
     private boolean eligibleForCompaction(View<T> view, T segment) {
         boolean alreadyCompacting = compacting.stream()
-                .map(MergeHandle::sources)
+                .map(CompactionItem::sources)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet())
                 .contains(segment);
@@ -236,7 +239,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         //do not change, other methods are iterating the view stream, it needs to be closed
         List<T> levelSegments = levelSegments(view, level);
         long mergingMax = compacting.stream()
-                .map(MergeHandle::replacement)
+                .map(CompactionItem::replacement)
                 .map(DirectoryUtils::segmentId)
                 .filter(segId -> segId.level() == level)
                 .mapToLong(SegmentId::idx)

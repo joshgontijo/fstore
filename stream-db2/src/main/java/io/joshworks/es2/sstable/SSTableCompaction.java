@@ -2,7 +2,7 @@ package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.LengthPrefixedChannelIterator;
 import io.joshworks.es2.directory.Compaction;
-import io.joshworks.es2.directory.MergeHandle;
+import io.joshworks.es2.directory.CompactionItem;
 import io.joshworks.fstore.core.iterators.CloseableIterator;
 import io.joshworks.fstore.core.iterators.Iterators;
 import io.joshworks.fstore.core.iterators.PeekingIterator;
@@ -35,7 +35,7 @@ class SSTableCompaction implements Compaction<SSTable> {
 //    }
 
     @Override
-    public void compact(MergeHandle<SSTable> handle) {
+    public void compact(CompactionItem<SSTable> handle) {
         List<PeekingIterator<ByteBuffer>> iterators = handle.sources()
                 .stream()
                 .map(s -> s.channel)

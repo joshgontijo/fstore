@@ -3,7 +3,7 @@ package io.joshworks.es2.log;
 import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.directory.Compaction;
-import io.joshworks.es2.directory.MergeHandle;
+import io.joshworks.es2.directory.CompactionItem;
 import io.joshworks.es2.directory.SegmentDirectory;
 
 import java.nio.ByteBuffer;
@@ -49,7 +49,7 @@ public class TLog {
     private static class TLogCompaction implements Compaction<SegmentChannel> {
 
         @Override
-        public void compact(MergeHandle<SegmentChannel> handle) {
+        public void compact(CompactionItem<SegmentChannel> handle) {
 
         }
     }

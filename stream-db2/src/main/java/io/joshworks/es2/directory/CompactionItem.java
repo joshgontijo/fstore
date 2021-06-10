@@ -5,12 +5,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class MergeHandle<T extends SegmentFile> {
+public class CompactionItem<T extends SegmentFile> {
     final View<T> view;
     final File replacement;
     final List<T> sources;
+    long created = System.currentTimeMillis();
+    long startTs;
+    long endTs;
 
-    MergeHandle(View<T> view, File replacement, List<T> sources) {
+
+    CompactionItem(View<T> view, File replacement, List<T> sources) {
         this.view = view;
         this.replacement = replacement;
         this.sources = sources;
@@ -22,6 +26,11 @@ public class MergeHandle<T extends SegmentFile> {
 
     public List<T> sources() {
         return new ArrayList<>(sources);
+    }
+
+    CompactionStats stats() {
+
+        return new CompactionStats(this);
     }
 
     @Override
