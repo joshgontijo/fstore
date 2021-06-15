@@ -23,9 +23,9 @@ class SSTable implements SegmentFile {
     public static final int NO_DATA = -11;
 
     final SegmentChannel channel;
-    final BPTreeIndex index;
+    final BIndex index;
 
-    private SSTable(SegmentChannel channel, BPTreeIndex index) {
+    private SSTable(SegmentChannel channel, BIndex index) {
         this.channel = channel;
         this.index = index;
     }
@@ -33,7 +33,7 @@ class SSTable implements SegmentFile {
     static SSTable open(File dataFile) {
         var indexFile = indexFile(dataFile);
         var data = SegmentChannel.open(dataFile);
-        var index = BPTreeIndex.open(indexFile);
+        var index = BIndex.open(indexFile);
         return new SSTable(data, index);
     }
 
@@ -81,7 +81,7 @@ class SSTable implements SegmentFile {
                 dataChunkWriter.add(data);
             }
         }
-        return new SSTable(SegmentChannel.open(dataFile), BPTreeIndex.open(indexFile));
+        return new SSTable(SegmentChannel.open(dataFile), BIndex.open(indexFile));
     }
 
     static void writeBlocks(File dataFile, Iterator<ByteBuffer> blocks, int expectedEntries, double fpPercentage) {

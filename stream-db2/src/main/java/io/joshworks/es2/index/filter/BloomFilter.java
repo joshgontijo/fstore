@@ -1,7 +1,9 @@
 package io.joshworks.es2.index.filter;
 
 import io.joshworks.es2.SegmentChannel;
+import io.joshworks.fstore.core.hash.Hash;
 import io.joshworks.fstore.core.hash.Murmur3;
+import io.joshworks.fstore.core.hash.XXHash;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.nio.ByteBuffer;
@@ -18,8 +20,7 @@ import java.util.Objects;
 public class BloomFilter {
 
     private static final int HEADER = (Integer.BYTES * 2) + Long.BYTES;
-
-    private static final long MAX_VAL = (((long) Buffers.MAX_CAPACITY) * Byte.SIZE);
+    private static final Hash hash = new XXHash();
 
     private final BitSet bits;
     private final int k; // Number of hash functions
@@ -86,7 +87,7 @@ public class BloomFilter {
     }
 
     private int hash(int ki, ByteBuffer val, int offset, int len) {
-        long hash1 = Murmur3.hash64(val, offset, len);
+        long hash1 = hash.hash64(val, offset, len);
         long hash2 = (hash1 >>> 32);
 
         long combinedHash = hash1 + (ki * hash2);
