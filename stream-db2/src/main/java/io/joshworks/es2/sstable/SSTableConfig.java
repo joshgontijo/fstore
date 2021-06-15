@@ -8,7 +8,7 @@ public class SSTableConfig {
     int compactionThreshold = 3;
 
     Config lowConfig = new Config()
-            .codec(BlockCodec.LZ4_HIGH)
+            .codec(BlockCodec.LZ4)
             .bloomFilterFalsePositive(0.01)
             .dataBlockSize(Memory.PAGE_SIZE)
             .compactionThreshold(3);

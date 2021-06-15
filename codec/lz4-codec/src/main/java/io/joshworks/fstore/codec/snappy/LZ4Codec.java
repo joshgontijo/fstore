@@ -26,7 +26,7 @@ public class LZ4Codec implements Codec {
 
     @Override
     public void decompress(ByteBuffer src, ByteBuffer dst) {
-        var decompressor = factory.safeDecompressor();
+        var decompressor = factory.fastDecompressor();
         decompressor.decompress(src, dst);
     }
 

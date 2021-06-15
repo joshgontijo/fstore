@@ -36,7 +36,7 @@ public class EventStoreIT {
     @Test
     public void read() {
 
-        int items = 2_000_000;
+        int items = 5_000_000;
         String stream = "stream-1";
         TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, 0, "type-a", "data-1");
         ByteBuffer data = ev1.serialize();

@@ -13,13 +13,13 @@ public enum BlockCodec {
     NONE((byte) 0, Codec.noCompression()),
     SNAPPY((byte) 1, new SnappyCodec()),
     LZ4_HIGH((byte) 2, new LZ4Codec(true)),
-    LZ4_LOW((byte) 3, new LZ4Codec(false)),
+    LZ4((byte) 3, new LZ4Codec(false)),
     ZLIB((byte) 4, new ZLibCodec());
 
     static final Map<Byte, BlockCodec> codecs = new ConcurrentHashMap<>(Map.of(
             NONE.id, NONE,
             SNAPPY.id, SNAPPY,
-            LZ4_LOW.id, LZ4_LOW,
+            LZ4.id, LZ4,
             LZ4_HIGH.id, LZ4_HIGH,
             ZLIB.id, ZLIB));
 
