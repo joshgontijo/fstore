@@ -217,9 +217,8 @@ public class SegmentChannel implements Closeable, SegmentFile {
             return Buffers.copy(mbb, offset, count, dst);
         }
 
-        public MappedReadRegion slice(int index, int length) {
-            ByteBuffer slice = mbb.slice(index, length);
-            return new MappedReadRegion(slice);
+        public ByteBuffer slice(int index, int length) {
+            return mbb.slice(index, length).asReadOnlyBuffer();
         }
 
         public long getLong(int idx) {

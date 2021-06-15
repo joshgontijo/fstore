@@ -36,7 +36,7 @@ public class MappedFile extends MappedRegion {
             var raf = new RandomAccessFile(file, "rw");
             long length = raf.length();
             FileChannel channel = raf.getChannel();
-            MappedFile mappedFile = new MappedFile(channel, file, length, mode);
+            var mappedFile = new MappedFile(channel, file, length, mode);
             mappedFile.position(length);
             return mappedFile;
         } catch (Exception e) {

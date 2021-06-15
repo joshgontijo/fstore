@@ -1,45 +1,79 @@
 package io.joshworks.es2.index;
 
 import io.joshworks.es2.SegmentChannel;
+import io.joshworks.es2.index.filter.BloomFilter;
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.mmap.MappedFile;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Memory;
 
 import java.io.Closeable;
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
 
 
-public class BPTreeIndexSegment {
+public class BPTreeIndex {
 
     static final int BLOCK_SIZE = Memory.PAGE_SIZE;
+    private static final int FOOTER_SIZE = Long.BYTES * 2;
 
-    private final MappedFile mf;
+    private final SegmentChannel channel;
+    private final SegmentChannel.MappedReadRegion mf;
     private final Block root;
+    private final long denseEntries;
 
-    public static BPTreeIndexSegment open(File file) {
+    private final BloomFilter filter;
+    private final ByteBuffer keyBuffer = Buffers.allocate(IndexKey.BYTES, false); //Bloom filter only
+
+    private BPTreeIndex(SegmentChannel channel, SegmentChannel.MappedReadRegion mf, long denseEntries, BloomFilter filter) {
+        this.channel = channel;
+        this.mf = mf;
+        this.denseEntries = denseEntries;
+        this.filter = filter;
+        this.root = readRoot();
+    }
+
+    public static BPTreeIndex open(File file) {
         try {
             if (!file.exists()) {
                 throw new RuntimeIOException("File does not exist");
             }
-            MappedFile mf = MappedFile.open(file, FileChannel.MapMode.READ_ONLY);
-            long fileSize = mf.capacity();
-            if (fileSize % BLOCK_SIZE != 0) {
-                throw new IllegalStateException("Invalid index file length: " + fileSize);
-            }
 
-            return new BPTreeIndexSegment(mf);
+            var channel = SegmentChannel.open(file);
+            //read footer
+            ByteBuffer footer = Buffers.allocate(FOOTER_SIZE, false);
+            int read = channel.read(footer, channel.position() - FOOTER_SIZE);
+            assert read == FOOTER_SIZE;
+            footer.flip();
+            var indexSize = footer.getLong();
+            var denseEntries = footer.getLong();
+
+            //filter
+            int filterSize = (int) (channel.size() - indexSize - FOOTER_SIZE);
+            ByteBuffer filterBuf = Buffers.allocate(filterSize, false);
+            read = channel.read(filterBuf, indexSize);
+            assert read == filterSize;
+            var filter = BloomFilter.load(filterBuf.flip());
+
+            var mappedRegion = channel.map(0, (int) indexSize);
+            checkChannelSize(channel, indexSize);
+
+            return new BPTreeIndex(channel, mappedRegion, denseEntries, filter);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to initialize index", e);
         }
     }
 
-    private BPTreeIndexSegment(MappedFile mf) {
-        this.mf = mf;
-        this.root = readRoot();
+    private static void checkChannelSize(SegmentChannel channel, long indexSize) {
+        if (indexSize > Buffers.MAX_CAPACITY) {
+            channel.close();
+            throw new RuntimeIOException("Index too big");
+        }
+        if (indexSize % IndexEntry.BYTES != 0) {
+            channel.close();
+            throw new IllegalStateException("Invalid index file length: " + indexSize);
+        }
     }
 
     public IndexEntry find(long stream, int version, IndexFunction fn) {
@@ -76,7 +110,8 @@ public class BPTreeIndexSegment {
     }
 
     public void delete() {
-        mf.delete();
+        mf.close();
+        channel.close();
     }
 
     private Block readRoot() {
@@ -95,18 +130,44 @@ public class BPTreeIndexSegment {
         return mf.capacity();
     }
 
+    //actual index entries
+    public int sparseEntries() {
+        return mf.capacity() / IndexEntry.BYTES;
+    }
+
+    //dense entry count, used for filter or total count
+    public long denseEntries() {
+        return denseEntries;
+    }
 
     private static class IndexWriter implements Closeable {
 
-        private static final ThreadLocal<TreeBuffers> buffer = ThreadLocal.withInitial(TreeBuffers::new);
+        private static final ThreadLocal<TreeBuffers> blocks = ThreadLocal.withInitial(TreeBuffers::new);
         private final SegmentChannel channel;
+        private final BloomFilter filter;
+        private final ByteBuffer buffer = Buffers.allocate(IndexKey.BYTES, false);
+        private long entries;
 
-        public IndexWriter(SegmentChannel channel) {
-            this.channel = channel;
+        public IndexWriter(File file, int expectedEntries, double bpFpPercentage) {
+            this.channel = SegmentChannel.create(file);
+            this.filter = BloomFilter.create(expectedEntries, bpFpPercentage);
+            for (Block block : blocks.get().nodeBlocks) {
+                block.clear();
+            }
+        }
+
+        public void stampEntry(long stream, int version) {
+            filter.add(buffer
+                    .clear()
+                    .putLong(stream)
+                    .putInt(version)
+                    .flip());
+
+            entries++;
         }
 
         public void add(long stream, int version, int recordSize, int recordEntries, long logPos) {
-            Block node = buffer.get().getOrAllocate(0);
+            Block node = blocks.get().getOrAllocate(0);
             if (!node.add(stream, version, recordSize, recordEntries, logPos)) {
                 writeNode(node);
                 node.add(stream, version, recordSize, recordEntries, logPos);
@@ -117,7 +178,7 @@ public class BPTreeIndexSegment {
             int idx = node.writeTo(channel);
 
             //link node to the parent
-            Block parent = buffer.get().getOrAllocate(node.level() + 1);
+            Block parent = blocks.get().getOrAllocate(node.level() + 1);
             if (!parent.addLink(node, idx)) {
                 writeNode(parent);
                 parent.addLink(node, idx);
@@ -131,7 +192,7 @@ public class BPTreeIndexSegment {
 
         public void complete() {
             //flush remaining nodes
-            List<Block> nodeBlocks = buffer.get().nodeBlocks;
+            List<Block> nodeBlocks = blocks.get().nodeBlocks;
             for (int i = 0; i < nodeBlocks.size() - 1; i++) {
                 Block block = nodeBlocks.get(i);
                 if (block.hasData()) {
@@ -152,12 +213,12 @@ public class BPTreeIndexSegment {
             channel.truncate();
             channel.flush();
 
-            assert channel.size() % BPTreeIndexSegment.BLOCK_SIZE == 0 : "Unaligned index";
+            assert channel.size() % BPTreeIndex.BLOCK_SIZE == 0 : "Unaligned index";
         }
 
         @Override
         public void close() {
-            for (Block block : buffer.get().nodeBlocks) {
+            for (Block block : blocks.get().nodeBlocks) {
                 block.clear();
             }
         }
@@ -170,7 +231,7 @@ public class BPTreeIndexSegment {
                 if (level >= nodeBlocks.size()) {
                     nodeBlocks.add(level, Block.create(Memory.PAGE_SIZE, level));
                 }
-                Block block = nodeBlocks.get(level);
+                var block = nodeBlocks.get(level);
                 assert block.level() == level;
                 return block;
             }
