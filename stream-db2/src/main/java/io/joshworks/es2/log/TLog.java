@@ -15,6 +15,7 @@ public class TLog {
 
     private static final String EXT = "log";
     private final SegmentDirectory<SegmentChannel> logs;
+    //TODO load on restore
     private final AtomicLong sequence = new AtomicLong(0);
     private SegmentChannel head;
 
