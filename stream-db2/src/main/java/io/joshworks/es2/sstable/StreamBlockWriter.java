@@ -3,6 +3,7 @@ package io.joshworks.es2.sstable;
 import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.index.BIndex;
+import io.joshworks.es2.index.BPTreeIndex;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.io.Closeable;
@@ -12,7 +13,7 @@ import java.nio.ByteBuffer;
 public class StreamBlockWriter implements Closeable {
 
     private final SegmentChannel channel;
-    private final BIndex.Writer indexWriter;
+    private final BPTreeIndex.Writer indexWriter;
     private final BlockCodec codec;
     //use do append event data to be compressed
     private final ByteBuffer rawChunkData;
@@ -25,7 +26,7 @@ public class StreamBlockWriter implements Closeable {
 
     public StreamBlockWriter(File dataFile, File indexFile, BlockCodec codec, int blockSize, double fpPercentage, int expectedEntries) {
         this.channel = SegmentChannel.create(dataFile);
-        this.indexWriter = BIndex.writer(indexFile, expectedEntries, fpPercentage);
+        this.indexWriter = BPTreeIndex.writer(indexFile, expectedEntries, fpPercentage);
         this.codec = codec;
         this.rawChunkData = Buffers.allocate(blockSize, false);
         this.chunk = Buffers.allocate(StreamBlock.HEADER_BYTES + blockSize, false);

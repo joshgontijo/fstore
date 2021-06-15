@@ -4,6 +4,7 @@ import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.directory.SegmentFile;
 import io.joshworks.es2.index.BIndex;
+import io.joshworks.es2.index.BPTreeIndex;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
 import io.joshworks.es2.sink.Sink;
@@ -22,9 +23,9 @@ class SSTable implements SegmentFile {
     public static final int NO_DATA = -11;
 
     final SegmentChannel channel;
-    final BIndex index;
+    final BPTreeIndex index;
 
-    private SSTable(SegmentChannel channel, BIndex index) {
+    private SSTable(SegmentChannel channel, BPTreeIndex index) {
         this.channel = channel;
         this.index = index;
     }
@@ -32,7 +33,7 @@ class SSTable implements SegmentFile {
     static SSTable open(File dataFile) {
         var indexFile = indexFile(dataFile);
         var data = SegmentChannel.open(dataFile);
-        var index = BIndex.open(indexFile);
+        var index = BPTreeIndex.open(indexFile);
         return new SSTable(data, index);
     }
 
@@ -80,7 +81,7 @@ class SSTable implements SegmentFile {
                 dataChunkWriter.add(data);
             }
         }
-        return new SSTable(SegmentChannel.open(dataFile), BIndex.open(indexFile));
+        return new SSTable(SegmentChannel.open(dataFile), BPTreeIndex.open(indexFile));
     }
 
     static void writeBlocks(File dataFile, Iterator<ByteBuffer> blocks, int expectedEntries, double fpPercentage) {

@@ -70,10 +70,14 @@ public class BPTreeIndex {
             channel.close();
             throw new RuntimeIOException("Index too big");
         }
-        if (indexSize % IndexEntry.BYTES != 0) {
+        if (indexSize % BLOCK_SIZE != 0) {
             channel.close();
             throw new IllegalStateException("Invalid index file length: " + indexSize);
         }
+    }
+
+    public static BPTreeIndex.Writer writer(File indexFile, int expectedEntries, double fpPercentage) {
+        return new Writer(indexFile, expectedEntries, fpPercentage);
     }
 
     public IndexEntry find(long stream, int version, IndexFunction fn) {
@@ -120,10 +124,11 @@ public class BPTreeIndex {
 
     public void close() {
         mf.close();
+        channel.close();
     }
 
     public int numBlocks() {
-        return mf.position() / BLOCK_SIZE;
+        return mf.capacity() / BLOCK_SIZE;
     }
 
     public int size() {
@@ -140,7 +145,11 @@ public class BPTreeIndex {
         return denseEntries;
     }
 
-    private static class IndexWriter implements Closeable {
+    public boolean contains(long stream, int version) {
+        return filter.contains(keyBuffer.clear().putLong(stream).putInt(version).flip());
+    }
+
+    public static class Writer implements Closeable {
 
         private static final ThreadLocal<TreeBuffers> blocks = ThreadLocal.withInitial(TreeBuffers::new);
         private final SegmentChannel channel;
@@ -148,7 +157,7 @@ public class BPTreeIndex {
         private final ByteBuffer buffer = Buffers.allocate(IndexKey.BYTES, false);
         private long entries;
 
-        public IndexWriter(File file, int expectedEntries, double bpFpPercentage) {
+        public Writer(File file, int expectedEntries, double bpFpPercentage) {
             this.channel = SegmentChannel.create(file);
             this.filter = BloomFilter.create(expectedEntries, bpFpPercentage);
             for (Block block : blocks.get().nodeBlocks) {
@@ -190,7 +199,7 @@ public class BPTreeIndex {
             node.writeTo(channel);
         }
 
-        public void complete() {
+        private void flush() {
             //flush remaining nodes
             List<Block> nodeBlocks = blocks.get().nodeBlocks;
             for (int i = 0; i < nodeBlocks.size() - 1; i++) {
@@ -218,6 +227,22 @@ public class BPTreeIndex {
 
         @Override
         public void close() {
+            flush();
+
+            long indexSize = channel.size();
+
+            //filter
+            filter.writeTo(channel);
+
+            //index footer
+            channel.append(Buffers.allocate(Long.BYTES * 2, false)
+                    .putLong(indexSize)
+                    .putLong(entries)
+                    .flip());
+
+            channel.flush();
+            channel.truncate();
+            channel.close();
             for (Block block : blocks.get().nodeBlocks) {
                 block.clear();
             }
