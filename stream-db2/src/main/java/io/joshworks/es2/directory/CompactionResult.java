@@ -1,15 +1,20 @@
 package io.joshworks.es2.directory;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 
 public class CompactionResult extends ArrayList<CompactionStats> {
 
     public CompactionResult() {
     }
 
-    public CompactionResult(CompactionStats item) {
-        super(Arrays.asList(item));
+    public <T extends SegmentFile> CompactionResult(CompactionItem<T> item) {
+        add(new CompactionStats(
+                item.created,
+                item.startTs - item.created,
+                item.endTs - item.startTs,
+                item.sources().stream().mapToLong(SegmentFile::size).sum(),
+                item.replacement.length()
+        ));
     }
 
     public static CompactionResult merge(CompactionResult r1, CompactionResult r2) {

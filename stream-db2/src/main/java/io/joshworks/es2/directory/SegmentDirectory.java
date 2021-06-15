@@ -196,7 +196,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             handle.view.close(); //release merge handle view
             compacting.remove(handle);
 
-            return new CompactionResult(handle.stats());
+            return new CompactionResult(handle);
 
         } catch (Exception e) {
             //TODO add logging

@@ -2,19 +2,18 @@ package io.joshworks.es2.directory;
 
 public class CompactionStats {
 
-    private final long createdTime;
-    private final long queueTime;
-    private final long executionTime;
+    public final long createdTime;
+    public final long queueTime;
+    public final long executionTime;
 
-    private final long sourceSize;
-    private final long outSize;
+    public final long sourceSize;
+    public final long outSize;
 
-
-    public <T extends SegmentFile> CompactionStats(CompactionItem<T> item) {
-        this.createdTime = item.created;
-        this.queueTime = item.startTs - item.created;
-        this.executionTime = item.endTs - item.startTs;
-        this.sourceSize = item.sources().stream().mapToLong(SegmentFile::size).sum();
-        this.outSize = item.replacement.length();
+    public CompactionStats(long createdTime, long queueTime, long executionTime, long sourceSize, long outSize) {
+        this.createdTime = createdTime;
+        this.queueTime = queueTime;
+        this.executionTime = executionTime;
+        this.sourceSize = sourceSize;
+        this.outSize = outSize;
     }
 }

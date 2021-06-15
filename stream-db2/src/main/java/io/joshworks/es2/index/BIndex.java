@@ -151,6 +151,11 @@ public class BIndex implements SegmentFile {
         return channel.name();
     }
 
+    @Override
+    public long size() {
+        return channel.size();
+    }
+
 
     public static class Writer implements Closeable {
 

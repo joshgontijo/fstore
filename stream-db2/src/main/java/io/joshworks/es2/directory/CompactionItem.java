@@ -28,11 +28,6 @@ public class CompactionItem<T extends SegmentFile> {
         return new ArrayList<>(sources);
     }
 
-    CompactionStats stats() {
-
-        return new CompactionStats(this);
-    }
-
     @Override
     public String toString() {
         return sources.stream().map(SegmentFile::name).collect(Collectors.toList()) + " -> " + replacement.getName();
