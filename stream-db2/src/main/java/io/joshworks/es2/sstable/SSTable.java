@@ -130,6 +130,11 @@ class SSTable implements SegmentFile {
     }
 
     @Override
+    public long size() {
+        return channel.size();
+    }
+
+    @Override
     public String toString() {
         return channel.toString();
     }

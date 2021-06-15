@@ -111,11 +111,11 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     }
 
     //TODO move parameters to constructor
-    public synchronized CompletableFuture<CompactionStats> compact(int minItems, int maxItems) {
+    public synchronized CompletableFuture<CompactionResult> compact(int minItems, int maxItems) {
         var view = this.viewRef.get();
 
 //        List<CompletableFuture<CompactionStats>> tasks = new ArrayList<>();
-        CompletableFuture<CompactionStats> task = CompletableFuture.completedFuture(new CompactionStats());
+        CompletableFuture<CompactionResult> task = CompletableFuture.completedFuture(new CompactionResult());
         for (var level = 0; level <= maxLevel(view); level++) {
 
             T head = view.head();
@@ -136,7 +136,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 var handle = new CompactionItem<>(view.acquire(), replacementFile, sublist);
 
                 System.err.println("Submitting " + handle);
-                task = task.thenCombine(submit(handle), CompactionStats::merge);
+                task = task.thenCombine(submit(handle), CompactionResult::merge);
                 compacting.add(handle);
 
             } while (levelSegments.size() >= minItems);
@@ -144,7 +144,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         return task;
     }
 
-    private CompletableFuture<CompactionStats> submit(CompactionItem<T> handle) {
+    private CompletableFuture<CompactionResult> submit(CompactionItem<T> handle) {
         return CompletableFuture.supplyAsync(() -> safeCompact(handle), executor)
                 .thenApply(this::completeMerge);
     }
@@ -166,7 +166,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         return handle;
     }
 
-    private synchronized CompactionStats completeMerge(CompactionItem<T> handle) {
+    private synchronized CompactionResult completeMerge(CompactionItem<T> handle) {
         var currentView = viewRef.get();
         try {
             var outFile = handle.replacement();
@@ -196,13 +196,14 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             handle.view.close(); //release merge handle view
             compacting.remove(handle);
 
-            return null; //TODO
+            return new CompactionResult(handle.stats());
 
         } catch (Exception e) {
             //TODO add logging
             //TODO fail execution and mark handle ?
             System.err.println("FAILED TO MERGE");
             e.printStackTrace();
+            throw new RuntimeException("TODO handle");
         }
     }
 

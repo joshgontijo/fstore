@@ -15,6 +15,7 @@ public class BIndex implements SegmentFile {
 
     private static final int FOOTER_SIZE = Long.BYTES * 2;
 
+    //TODO add midpoints
     private final SegmentChannel.MappedReadRegion mf;
     private final SegmentChannel channel;
     private final BloomFilter filter;
