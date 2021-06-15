@@ -14,7 +14,7 @@ public class SSTableConfig {
             .compactionThreshold(3);
 
     Config highConfig = new Config()
-            .codec(BlockCodec.LZ4_HIGH)
+            .codec(BlockCodec.ZLIB)
             .bloomFilterFalsePositive(0.1)
             .dataBlockSize(Memory.PAGE_SIZE * 2)
             .compactionThreshold(3);
