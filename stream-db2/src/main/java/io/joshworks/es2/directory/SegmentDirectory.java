@@ -1,13 +1,12 @@
 package io.joshworks.es2.directory;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -133,7 +132,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 levelSegments.removeAll(sublist);
 
                 var replacementFile = createFile(nextLevel, nextIdx(view, nextLevel));
-                var handle = new CompactionItem<>(view.acquire(), replacementFile, sublist);
+                var handle = new CompactionItem<>(view.acquire(), replacementFile, sublist, level, nextLevel);
 
                 System.err.println("Submitting " + handle);
                 task = task.thenCombine(submit(handle), CompactionResult::merge);
@@ -153,22 +152,23 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     private CompactionItem<T> safeCompact(CompactionItem<T> handle) {
         try {
             compaction.compact(handle);
+            handle.success = true;
         } catch (Exception e) {
-            try {
-                Files.delete(handle.replacement().toPath());
-            } catch (IOException err) {
-                System.err.println("Failed to delete failed compaction result file: " + handle.replacement().getAbsolutePath());
-                err.printStackTrace();
-            }
-            //TODO logging / mark failure ?
+            FileUtils.deleteIfExists(handle.replacement());
             e.printStackTrace();
         }
         return handle;
     }
 
     private synchronized CompactionResult completeMerge(CompactionItem<T> handle) {
+        if (!handle.success) {
+            handle.view.close(); //release merge handle view
+            return new CompactionResult();
+        }
+
         var currentView = viewRef.get();
         try {
+            var result = new CompactionResult(handle);
             var outFile = handle.replacement();
 
             T out = supplier.apply(outFile);
@@ -196,7 +196,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             handle.view.close(); //release merge handle view
             compacting.remove(handle);
 
-            return new CompactionResult(handle);
+            return result;
 
         } catch (Exception e) {
             //TODO add logging

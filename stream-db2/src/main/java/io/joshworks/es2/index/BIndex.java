@@ -19,9 +19,8 @@ public class BIndex implements SegmentFile {
     private final SegmentChannel.MappedReadRegion mf;
     private final SegmentChannel channel;
     private final BloomFilter filter;
+    private final ByteBuffer keyBuffer = Buffers.allocate(IndexKey.BYTES, false); //Bloom filter only
     private final long denseEntries;
-
-    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
 
     private BIndex(SegmentChannel.MappedReadRegion mf, SegmentChannel channel, BloomFilter filter, long denseEntries) {
         this.mf = mf;
@@ -48,26 +47,19 @@ public class BIndex implements SegmentFile {
             assert read == FOOTER_SIZE;
             footer.flip();
             var indexSize = footer.getLong();
-            var entries = footer.getLong();
+            var denseEntries = footer.getLong();
 
             //filter
-            int filterSize = (int) (indexSize - FOOTER_SIZE);
+            int filterSize = (int) (channel.size() - indexSize - FOOTER_SIZE);
             ByteBuffer filterBuf = Buffers.allocate(filterSize, false);
             read = channel.read(filterBuf, indexSize);
             assert read == filterSize;
             var filter = BloomFilter.load(filterBuf.flip());
 
-
             checkChannelSize(channel, indexSize);
-
             var mappedRegion = channel.map(0, (int) indexSize);
-            long fileSize = mappedRegion.capacity();
-            if (fileSize % IndexEntry.BYTES != 0) {
-                channel.close();
-                throw new IllegalStateException("Invalid index file length: " + fileSize);
-            }
 
-            return new BIndex(mappedRegion, channel, filter, entries);
+            return new BIndex(mappedRegion, channel, filter, denseEntries);
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to initialize index", e);
         }
@@ -78,12 +70,20 @@ public class BIndex implements SegmentFile {
             channel.close();
             throw new RuntimeIOException("Index too big");
         }
+        if (indexSize % IndexEntry.BYTES != 0) {
+            channel.close();
+            throw new IllegalStateException("Invalid index file length: " + indexSize);
+        }
     }
 
     public IndexEntry find(long stream, int version, IndexFunction fn) {
         int idx = binarySearch(stream, version);
         idx = fn.apply(idx);
         return read(idx);
+    }
+
+    public boolean contains(long stream, int version) {
+        return filter.contains(keyBuffer.clear().putLong(stream).putInt(version).flip());
     }
 
     private int binarySearch(long stream, int version) {
@@ -138,6 +138,7 @@ public class BIndex implements SegmentFile {
     @Override
     public void close() {
         mf.close();
+        channel.close();
     }
 
     @Override
@@ -159,6 +160,8 @@ public class BIndex implements SegmentFile {
 
     public static class Writer implements Closeable {
 
+        private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
+
         private final SegmentChannel channel;
         private final BloomFilter filter;
         private final ByteBuffer buffer = Buffers.allocate(IndexKey.BYTES, false);
@@ -167,6 +170,7 @@ public class BIndex implements SegmentFile {
         Writer(File file, int expectedEntries, double bpFpPercentage) {
             this.channel = SegmentChannel.create(file);
             this.filter = BloomFilter.create(expectedEntries, bpFpPercentage);
+            writeBuffer.get().clear();
         }
 
         //Adds to filter and increment entries count
@@ -182,7 +186,7 @@ public class BIndex implements SegmentFile {
         }
 
         public void add(long stream, int version, int recordSize, int recordEntries, long logPos) {
-            var data = BIndex.writeBuffer.get();
+            var data = writeBuffer.get();
             if (data.remaining() < IndexEntry.BYTES) {
                 flush();
             }
@@ -194,8 +198,9 @@ public class BIndex implements SegmentFile {
         }
 
         public void flush() {
-            var data = BIndex.writeBuffer.get();
+            var data = writeBuffer.get();
             data.flip();
+            assert data.remaining() % IndexEntry.BYTES == 0;
             channel.append(data);
             data.clear();
         }

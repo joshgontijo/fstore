@@ -9,7 +9,12 @@ package io.joshworks.es2.index;
  */
 public record IndexEntry(long stream, int version, int recordSize, int entries, long logAddress) {
 
-    public static int BYTES = Long.BYTES + Integer.BYTES + Integer.BYTES + Integer.BYTES + Long.BYTES;
+    public static int BYTES =
+                    Long.BYTES +
+                    Integer.BYTES +
+                    Integer.BYTES +
+                    Integer.BYTES +
+                    Long.BYTES;
 
     public static int compare(IndexEntry entry, long stream, int version) {
         return IndexKey.compare(entry.stream, entry.version, stream, version);

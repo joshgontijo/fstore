@@ -2,6 +2,7 @@ package io.joshworks.es2;
 
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.EventSerializer;
+import io.joshworks.es2.sstable.SSTableConfig;
 import io.joshworks.es2.sstable.SSTables;
 import io.joshworks.es2.sstable.StreamBlockDeserializer;
 import io.joshworks.es2.sstable.TestEvent;
@@ -64,7 +65,7 @@ public class MemTableTest {
         memTable.add(item1.serialize());
         memTable.add(item2.serialize());
 
-        SSTables channel = new SSTables(TestUtils.testFolder().toPath(), Executors.newSingleThreadExecutor());
+        SSTables channel = new SSTables(TestUtils.testFolder().toPath(), new SSTableConfig(), Executors.newSingleThreadExecutor());
         try {
             memTable.flush(channel);
 

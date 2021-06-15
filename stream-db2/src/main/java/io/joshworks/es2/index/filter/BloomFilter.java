@@ -71,13 +71,6 @@ public class BloomFilter {
         return channel.append(buffer.flip());
     }
 
-//    private static int bufferSize(long m) {
-//        if (m > MAX_VAL) {
-//            throw new IllegalArgumentException("Buffer size cannot be greater than " + Integer.MAX_VALUE + ": m is too big");
-//        }
-//        return (int) ((m % Byte.SIZE == 0) ? (m / Byte.SIZE) : (m / Byte.SIZE) + 1);
-//    }
-
     public void add(ByteBuffer key, int offset, int len) {
         for (int i = 0; i < k; i++) {
             long bitIdx = hash(i, key, offset, len);
@@ -113,8 +106,8 @@ public class BloomFilter {
     }
 
     /**
-     * Returns true if the element is in the container.
-     * Returns false with a probability ≈ 1-e^(-ln(2)² * m/n)
+     * Returns false if the element is in the container.
+     * Returns true with a probability ≈ 1-e^(-ln(2)² * m/n)
      * if the element is not in the container.
      **/
     public boolean contains(ByteBuffer key) {

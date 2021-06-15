@@ -2,7 +2,7 @@ package io.joshworks.fstore.codec.test;
 
 import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
-import io.joshworks.fstore.codec.std.DeflaterCodec;
+import io.joshworks.fstore.codec.std.ZLibCodec;
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.util.Size;
 import org.junit.Before;
@@ -206,7 +206,7 @@ public abstract class CodecTest {
             assertByteBufferEquals(src.flip(), uncompressed.flip());
         }
 
-        System.out.println(String.format("AVERAGE COMPRESSION: %.2f", (compression / items)));
+        System.out.println(String.format(codec + ": AVERAGE COMPRESSION: %.2f", (compression / items)));
     }
 
     private static ByteBuffer allocate(int size, boolean direct) {
@@ -282,7 +282,7 @@ public abstract class CodecTest {
 
         @Override
         public Codec codec() {
-            return new DeflaterCodec();
+            return new ZLibCodec();
         }
     }
 
@@ -290,7 +290,7 @@ public abstract class CodecTest {
 
         @Override
         public Codec codec() {
-            return new DeflaterCodec(Deflater.DEFAULT_COMPRESSION, false);
+            return new ZLibCodec(Deflater.DEFAULT_COMPRESSION, false);
         }
     }
 
@@ -298,7 +298,7 @@ public abstract class CodecTest {
 
         @Override
         public Codec codec() {
-            return new DeflaterCodec(Deflater.BEST_COMPRESSION, true);
+            return new ZLibCodec(Deflater.BEST_COMPRESSION, true);
         }
     }
 

@@ -111,7 +111,7 @@ public class Metadata<T extends SegmentFile> {
         }
         buffer.getInt(); //skip
         int crc = buffer.getInt();
-        long timestamp = buffer.getLong();
+        buffer.getLong(); //skip
         int computedChecksum = ByteBufferChecksum.crc32(buffer, buffer.position(), size - HEADER);
         if (computedChecksum != crc) {
             log.warn("File event checksum mismatch");

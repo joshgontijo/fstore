@@ -6,13 +6,13 @@ import io.joshworks.es2.sstable.TestEvent;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executors;
 
+import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -34,9 +34,9 @@ public class EventStoreIT {
     }
 
     @Test
-    public void read() throws InterruptedException {
+    public void read() {
 
-        int items = 5_000_000;
+        int items = 2_000_000;
         String stream = "stream-1";
         TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, 0, "type-a", "data-1");
         ByteBuffer data = ev1.serialize();
@@ -66,8 +66,9 @@ public class EventStoreIT {
         Sink.Memory sink = new Sink.Memory();
         int currVersion = 0;
         s = System.currentTimeMillis();
+        int reads = 0;
         do {
-            if(currVersion == 419430) {
+            if (currVersion == 419430) {
                 System.out.println();
             }
             int read = store.read(StreamHasher.hash(stream), currVersion, sink);
@@ -82,9 +83,13 @@ public class EventStoreIT {
 
             currVersion = startVersion + entries;
             sink.close(); //reset buffer
+            reads++;
 
         } while (currVersion < items);
-        System.out.println("READ: " + (System.currentTimeMillis() - s));
+
+        long timeDiff = System.currentTimeMillis() - s;
+        double avgTimePerRead = timeDiff / (double) reads;
+        System.out.println("READ: " + timeDiff + " -> READS: " + reads + " AVG/R: " + format("%.2f", avgTimePerRead));
     }
 
 }

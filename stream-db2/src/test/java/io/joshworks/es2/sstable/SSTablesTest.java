@@ -18,13 +18,15 @@ import static org.junit.Assert.assertTrue;
 
 public class SSTablesTest {
 
+    private static final int ANY = 10;
+
     private SSTables sstables;
     private Path folder;
 
     @Before
     public void open() {
         folder = TestUtils.testFolder().toPath();
-        sstables = new SSTables(folder, Executors.newSingleThreadExecutor());
+        sstables = new SSTables(folder, new SSTableConfig(), Executors.newSingleThreadExecutor());
     }
 
     @After
@@ -39,7 +41,7 @@ public class SSTablesTest {
         long streamHash = StreamHasher.hash(stream);
         ByteBuffer item1 = createEntry(stream, 0);
         ByteBuffer item2 = createEntry(stream, 1);
-        sstables.flush(Iterators.of(item1, item2));
+        sstables.flush(Iterators.of(item1, item2), ANY);
 
         Sink.Memory mem = new Sink.Memory();
         int res = sstables.get(streamHash, 0, mem);
@@ -52,7 +54,7 @@ public class SSTablesTest {
         long streamHash = StreamHasher.hash(stream);
         ByteBuffer item1 = createEntry(stream, 0);
         ByteBuffer item2 = createEntry(stream, 1);
-        sstables.flush(Iterators.of(item1, item2));
+        sstables.flush(Iterators.of(item1, item2), ANY);
 
         int version = sstables.version(streamHash);
         assertEquals(1, version);
@@ -69,7 +71,7 @@ public class SSTablesTest {
             var startVersion = seg * itemsPerSegment;
             sstables.flush(IntStream.range(startVersion, startVersion + itemsPerSegment)
                     .mapToObj(i -> createEntry(stream, i))
-                    .iterator());
+                    .iterator(), itemsPerSegment);
         }
 
         int expectedVersion = (numSegments * itemsPerSegment) - 1;

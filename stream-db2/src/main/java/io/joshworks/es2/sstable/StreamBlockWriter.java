@@ -19,12 +19,11 @@ public class StreamBlockWriter implements Closeable {
     //StreamChunk header + compressed
     private final ByteBuffer chunk;
 
-
     Long currentStream = null;
     int chunkEntries = 0;
     int chunkStartVersion = -1;
 
-    public StreamBlockWriter(File dataFile, File indexFile, BlockCodec codec, int blockSize, int expectedEntries, double fpPercentage) {
+    public StreamBlockWriter(File dataFile, File indexFile, BlockCodec codec, int blockSize, double fpPercentage, int expectedEntries) {
         this.channel = SegmentChannel.create(dataFile);
         this.indexWriter = BIndex.writer(indexFile, expectedEntries, fpPercentage);
         this.codec = codec;
@@ -33,7 +32,7 @@ public class StreamBlockWriter implements Closeable {
     }
 
     public void add(ByteBuffer data) {
-        assert data.remaining() <= rawChunkData.capacity();
+        assert data.remaining() <= rawChunkData.capacity(); //TODO data cannot be greater than block size ?
 
         long stream = Event.stream(data);
         int version = Event.version(data);

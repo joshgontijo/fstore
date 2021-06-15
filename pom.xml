@@ -97,7 +97,7 @@
             </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
-                <artifactId>standard-codec</artifactId>
+                <artifactId>zlib-codec</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

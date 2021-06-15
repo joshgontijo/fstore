@@ -4,53 +4,95 @@ import io.joshworks.fstore.core.util.Memory;
 
 public class SSTableConfig {
 
-    int dataBlockSize = Memory.PAGE_SIZE;
-    BlockCodec codec = BlockCodec.SNAPPY;
+    int levelThreshold = 4;
     int compactionThreshold = 3;
-    double bloomFilterFalsePositive = 0.01;
 
-    private SSTableConfig() {
+    Config lowConfig = new Config()
+            .codec(BlockCodec.LZ4_HIGH)
+            .bloomFilterFalsePositive(0.01)
+            .dataBlockSize(Memory.PAGE_SIZE)
+            .compactionThreshold(3);
 
+    Config highConfig = new Config()
+            .codec(BlockCodec.LZ4_HIGH)
+            .bloomFilterFalsePositive(0.1)
+            .dataBlockSize(Memory.PAGE_SIZE * 2)
+            .compactionThreshold(3);
+
+    public SSTableConfig() {
     }
 
-    private SSTableConfig(
-            int dataBlockSize,
-            int compactionThreshold,
-            BlockCodec codec,
-            double bloomFilterFalsePositive) {
+    public SSTableConfig levelThreshold(int levelThreshold) {
+        if (levelThreshold < 1) {
+            throw new IllegalArgumentException("level threshold must be greater than zero");
+        }
+        this.levelThreshold = levelThreshold;
+        return this;
+    }
 
-        this.dataBlockSize = dataBlockSize;
+    public SSTableConfig compactionThreshold(int compactionThreshold) {
+        if (levelThreshold <= 1) {
+            throw new IllegalArgumentException("level threshold must be greater than one");
+        }
         this.compactionThreshold = compactionThreshold;
-        this.codec = codec;
-        this.bloomFilterFalsePositive = bloomFilterFalsePositive;
+        return this;
     }
 
-    public static SSTableConfig create() {
-        return new SSTableConfig();
+    public SSTableConfig low(Config lowConfig) {
+        this.lowConfig = lowConfig;
+        return this;
     }
 
-    public void dataBlockSize(int dataBlockSize) {
-        this.dataBlockSize = dataBlockSize;
-    }
-
-    public void compactionThreshold(int compactionThreshold) {
-        this.compactionThreshold = compactionThreshold;
-    }
-
-    public void codec(BlockCodec codec) {
-        this.codec = codec;
-    }
-
-    public void bloomFilterFalsePositive(double bloomFilterFalsePositive) {
-        this.bloomFilterFalsePositive = bloomFilterFalsePositive;
+    public SSTableConfig high(Config highConfig) {
+        this.highConfig = highConfig;
+        return this;
     }
 
     SSTableConfig copy() {
-        return new SSTableConfig(
-                dataBlockSize,
-                compactionThreshold,
-                codec,
-                bloomFilterFalsePositive);
+        return new SSTableConfig()
+                .levelThreshold(levelThreshold)
+                .low(lowConfig.copy())
+                .high(highConfig.copy());
+    }
+
+    public static class Config {
+        int blockSize;
+        BlockCodec codec;
+        int compactionThreshold;
+        double bloomFilterFalsePositive;
+
+        private Config() {
+
+        }
+
+        private Config copy() {
+            Config copy = new Config();
+            copy.blockSize = this.blockSize;
+            copy.compactionThreshold = this.compactionThreshold;
+            copy.codec = this.codec;
+            copy.bloomFilterFalsePositive = this.bloomFilterFalsePositive;
+            return copy;
+        }
+
+        public Config dataBlockSize(int dataBlockSize) {
+            this.blockSize = dataBlockSize;
+            return this;
+        }
+
+        public Config compactionThreshold(int compactionThreshold) {
+            this.compactionThreshold = compactionThreshold;
+            return this;
+        }
+
+        public Config codec(BlockCodec codec) {
+            this.codec = codec;
+            return this;
+        }
+
+        public Config bloomFilterFalsePositive(double bloomFilterFalsePositive) {
+            this.bloomFilterFalsePositive = bloomFilterFalsePositive;
+            return this;
+        }
     }
 
 }

@@ -80,6 +80,11 @@ public class SnappyCodec implements Codec {
             throw RuntimeIOException.of(e);
         }
     }
+
+    @Override
+    public String toString() {
+        return "SNAPPY";
+    }
 }
 
 

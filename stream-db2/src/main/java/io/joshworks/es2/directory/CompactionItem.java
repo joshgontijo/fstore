@@ -9,15 +9,29 @@ public class CompactionItem<T extends SegmentFile> {
     final View<T> view;
     final File replacement;
     final List<T> sources;
+    final int sourceLevel;
+    final int nextLevel;
+
+    boolean success;
     long created = System.currentTimeMillis();
     long startTs;
     long endTs;
 
 
-    CompactionItem(View<T> view, File replacement, List<T> sources) {
+    CompactionItem(View<T> view, File replacement, List<T> sources, int sourceLevel, int nextLevel) {
         this.view = view;
         this.replacement = replacement;
         this.sources = sources;
+        this.sourceLevel = sourceLevel;
+        this.nextLevel = nextLevel;
+    }
+
+    public int sourceLevel() {
+        return sourceLevel;
+    }
+
+    public int nextLevel() {
+        return nextLevel;
     }
 
     public File replacement() {

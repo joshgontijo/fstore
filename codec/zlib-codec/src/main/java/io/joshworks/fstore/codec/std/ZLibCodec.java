@@ -6,16 +6,16 @@ import java.nio.ByteBuffer;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
-public class DeflaterCodec implements Codec {
+public class ZLibCodec implements Codec {
 
     private final ThreadLocal<Deflater> deflater;
     private final ThreadLocal<Inflater> inflater;
 
-    public DeflaterCodec() {
+    public ZLibCodec() {
         this(Deflater.DEFAULT_COMPRESSION, true);
     }
 
-    public DeflaterCodec(int level, boolean nowrap) {
+    public ZLibCodec(int level, boolean nowrap) {
         this.deflater = ThreadLocal.withInitial(() -> new Deflater(level, nowrap));
         this.inflater = ThreadLocal.withInitial(() -> new Inflater(nowrap));
     }
@@ -43,5 +43,10 @@ public class DeflaterCodec implements Codec {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public String toString() {
+        return "ZLIB";
     }
 }

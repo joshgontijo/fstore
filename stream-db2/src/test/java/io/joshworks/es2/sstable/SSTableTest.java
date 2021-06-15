@@ -5,7 +5,6 @@ import io.joshworks.es2.StreamHasher;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.fstore.core.iterators.Iterators;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -23,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 
 public class SSTableTest {
 
+    private static final int ANY = 10;
     private File dataFile;
     private SSTable sstable;
 
@@ -43,7 +43,7 @@ public class SSTableTest {
         String stream = "stream-1";
         int version = 0;
         ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data", 0);
-        sstable = SSTable.create(dataFile, Iterators.of(data), BlockCodec.SNAPPY, Memory.PAGE_SIZE);
+        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, new SSTableConfig().lowConfig);
 
         long streamHash = StreamHasher.hash(stream);
         IndexEntry ie = sstable.get(streamHash, version);
@@ -61,7 +61,7 @@ public class SSTableTest {
                 .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data", 0))
                 .collect(Collectors.toList());
 
-        sstable = SSTable.create(dataFile, events.iterator(), BlockCodec.SNAPPY, Memory.PAGE_SIZE);
+        sstable = SSTable.create(dataFile, events.iterator(), ANY, new SSTableConfig().lowConfig);
 
         for (int version = 0; version < items; version++) {
             Sink.Memory sink = new Sink.Memory();
@@ -77,7 +77,7 @@ public class SSTableTest {
         String stream = "stream-1";
         int version = 0;
         ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data", 0);
-        sstable = SSTable.create(dataFile, Iterators.of(data), BlockCodec.SNAPPY, Memory.PAGE_SIZE);
+        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, new SSTableConfig().lowConfig);
 
         long streamHash = StreamHasher.hash(stream);
         long res = sstable.get(streamHash, version + 1, new Sink.Memory());
@@ -90,7 +90,7 @@ public class SSTableTest {
         int version = 0;
         TestEvent first = TestEvent.create(stream, 0, 0, "type-1", "data1");
         TestEvent second = TestEvent.create(stream, 1, 0, "type-1", "data2");
-        sstable = SSTable.create(dataFile, Iterators.of(first.serialize(), second.serialize()), BlockCodec.SNAPPY, Memory.PAGE_SIZE);
+        sstable = SSTable.create(dataFile, Iterators.of(first.serialize(), second.serialize()), ANY, new SSTableConfig().lowConfig);
 
         long streamHash = StreamHasher.hash(stream);
         Sink.Memory memory = new Sink.Memory();

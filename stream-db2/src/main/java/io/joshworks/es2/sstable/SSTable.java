@@ -42,6 +42,9 @@ class SSTable implements SegmentFile {
     }
 
     public int get(long stream, int version, Sink sink) {
+        if (!index.contains(stream, version)) {
+            return NO_DATA;
+        }
         IndexEntry ie = index.find(stream, version, IndexFunction.FLOOR);
         if (ie == null) {
             return NO_DATA;
@@ -63,12 +66,15 @@ class SSTable implements SegmentFile {
     }
 
     public IndexEntry get(long stream, int version) {
+        if (!index.contains(stream, version)) {
+            return null;
+        }
         return index.find(stream, version, IndexFunction.FLOOR);
     }
 
-    static SSTable create(File dataFile, Iterator<ByteBuffer> items, int expectedEntries, double fpPercentage, BlockCodec codec, int blockSize) {
+    static SSTable create(File dataFile, Iterator<ByteBuffer> items, int expectedEntries, SSTableConfig.Config config) {
         var indexFile = indexFile(dataFile);
-        try (var dataChunkWriter = new StreamBlockWriter(dataFile, indexFile, codec, blockSize, expectedEntries, fpPercentage)) {
+        try (var dataChunkWriter = new StreamBlockWriter(dataFile, indexFile, config.codec, config.blockSize, config.bloomFilterFalsePositive, expectedEntries)) {
             while (items.hasNext()) {
                 ByteBuffer data = items.next();
                 dataChunkWriter.add(data);

@@ -2,7 +2,6 @@ package io.joshworks.es2.sstable;
 
 import io.joshworks.es2.Event;
 import io.joshworks.es2.LengthPrefixedChannelIterator;
-import io.joshworks.fstore.core.util.Memory;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -45,7 +44,7 @@ public class StreamBlockIteratorTest {
                 .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data", 0))
                 .collect(Collectors.toList());
 
-        sstable = SSTable.create(dataFile, events.iterator(), BlockCodec.SNAPPY, Memory.PAGE_SIZE);
+        sstable = SSTable.create(dataFile, events.iterator(), items, new SSTableConfig().lowConfig);
 
         var it = new StreamBlockIterator(new LengthPrefixedChannelIterator(sstable.channel));
 

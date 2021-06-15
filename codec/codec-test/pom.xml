@@ -41,7 +41,7 @@
         </dependency>
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
-            <artifactId>standard-codec</artifactId>
+            <artifactId>zlib-codec</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

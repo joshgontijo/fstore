@@ -91,6 +91,11 @@ public class MetadataTest {
         public String name() {
             return name;
         }
+
+        @Override
+        public long size() {
+            return 0;
+        }
     }
 
 }

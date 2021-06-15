@@ -119,7 +119,9 @@ public class StreamBlock {
         }
         Buffers.offsetLimit(dst, uncompressedSize);
         var codec = BlockCodec.from(codec(chunkData));
-        codec.decompress(chunkData.slice(HEADER_BYTES, chunkData.remaining() - HEADER_BYTES), dst);
+        ByteBuffer compressedBlock = chunkData.slice(HEADER_BYTES, chunkData.remaining() - HEADER_BYTES);
+        codec.decompress(compressedBlock, dst);
+        assert !dst.hasRemaining();
         return uncompressedSize;
     }
 

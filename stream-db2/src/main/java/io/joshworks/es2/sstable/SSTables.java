@@ -1,8 +1,8 @@
 package io.joshworks.es2.sstable;
 
+import io.joshworks.es2.directory.CompactionResult;
 import io.joshworks.es2.directory.SegmentDirectory;
 import io.joshworks.es2.sink.Sink;
-import io.joshworks.fstore.core.util.Memory;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -16,17 +16,18 @@ import static io.joshworks.es2.Event.VERSION_TOO_HIGH;
 public class SSTables {
 
     private static final String DATA_EXT = "sst";
-    private final SegmentDirectory<SSTable> sstables;
+    private final SegmentDirectory<SSTable> items;
 
-    private final double fpPercentage = 0.1; //TODO configurable
+    private final SSTableConfig config;
 
-    public SSTables(Path folder, ExecutorService executor) {
-        sstables = new SegmentDirectory<>(folder.toFile(), SSTable::open, DATA_EXT, executor, new SSTableCompaction());
-        sstables.loadSegments();
+    public SSTables(Path folder, SSTableConfig config, ExecutorService executor) {
+        this.config = config.copy();
+        items = new SegmentDirectory<>(folder.toFile(), SSTable::open, DATA_EXT, executor, new SSTableCompaction(config));
+        items.loadSegments();
     }
 
     public int get(long stream, int fromVersionInclusive, Sink sink) {
-        try (var view = sstables.view()) {
+        try (var view = items.view()) {
             for (int i = 0; i < view.size(); i++) {
                 var sstable = view.get(i);
                 var res = sstable.get(stream, fromVersionInclusive, sink);
@@ -39,7 +40,7 @@ public class SSTables {
     }
 
     public int version(long stream) {
-        try (var view = sstables.view()) {
+        try (var view = items.view()) {
             for (int i = 0; i < view.size(); i++) {
                 var sstable = view.get(i);
                 int version = sstable.version(stream);
@@ -52,17 +53,17 @@ public class SSTables {
     }
 
     public void flush(Iterator<ByteBuffer> iterator, int entryCount) {
-        var headFile = sstables.newHead();
-        var sstable = SSTable.create(headFile, iterator, entryCount, fpPercentage, BlockCodec.SNAPPY, Memory.PAGE_SIZE); //TODO make configurable
-        sstables.append(sstable);
+        var headFile = items.newHead();
+        var sstable = SSTable.create(headFile, iterator, entryCount, config.lowConfig);
+        items.append(sstable);
     }
 
     public void delete() {
-        sstables.delete();
+        items.delete();
     }
 
-    public CompletableFuture<Void> compact() {
-        return sstables.compact(2, 2);
+    public CompletableFuture<CompactionResult> compact() {
+        return items.compact(config.compactionThreshold, config.compactionThreshold);
     }
 
 }

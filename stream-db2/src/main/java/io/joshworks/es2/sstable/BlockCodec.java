@@ -2,7 +2,7 @@ package io.joshworks.es2.sstable;
 
 import io.joshworks.fstore.codec.snappy.LZ4Codec;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
-import io.joshworks.fstore.codec.std.DeflaterCodec;
+import io.joshworks.fstore.codec.std.ZLibCodec;
 import io.joshworks.fstore.core.codec.Codec;
 
 import java.util.Map;
@@ -14,14 +14,14 @@ public enum BlockCodec {
     SNAPPY((byte) 1, new SnappyCodec()),
     LZ4_HIGH((byte) 2, new LZ4Codec(true)),
     LZ4_LOW((byte) 3, new LZ4Codec(false)),
-    DEFLATE((byte) 4, new DeflaterCodec());
+    ZLIB((byte) 4, new ZLibCodec());
 
     static final Map<Byte, BlockCodec> codecs = new ConcurrentHashMap<>(Map.of(
             NONE.id, NONE,
             SNAPPY.id, SNAPPY,
             LZ4_LOW.id, LZ4_LOW,
             LZ4_HIGH.id, LZ4_HIGH,
-            DEFLATE.id, DEFLATE));
+            ZLIB.id, ZLIB));
 
     public final Codec codec;
     public final byte id;

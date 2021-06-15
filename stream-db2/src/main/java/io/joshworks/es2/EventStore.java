@@ -1,7 +1,9 @@
 package io.joshworks.es2;
 
+import io.joshworks.es2.directory.CompactionResult;
 import io.joshworks.es2.log.TLog;
 import io.joshworks.es2.sink.Sink;
+import io.joshworks.es2.sstable.SSTableConfig;
 import io.joshworks.es2.sstable.SSTables;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
@@ -24,7 +26,7 @@ public class EventStore implements Closeable {
     public EventStore(Path root, ExecutorService worker) {
         this.dirLock = new DirLock(root.toFile());
         this.worker = worker;
-        this.sstables = new SSTables(root, worker);
+        this.sstables = new SSTables(root, new SSTableConfig(), worker);
         this.tlog = new TLog(root, worker);
         this.memTable = new MemTable(Size.MB.ofInt(10), true);
         this.loadMemTable();
@@ -81,7 +83,7 @@ public class EventStore implements Closeable {
         }
     }
 
-    public CompletableFuture<Void> compact() {
+    public CompletableFuture<CompactionResult> compact() {
         return sstables.compact();
     }
 }
