@@ -36,6 +36,10 @@ class SSTableCompaction implements Compaction<SSTable> {
 
     @Override
     public void compact(CompactionItem<SSTable> handle) {
+
+        long expectedEntries = handle.sources().stream().mapToLong(SSTable::denseEntries).sum();
+        expectedEntries = Math.max(expectedEntries, Integer.MAX_VALUE); //bloom filter will return more false positive for this segment
+
         List<PeekingIterator<ByteBuffer>> iterators = handle.sources()
                 .stream()
                 .map(s -> s.channel)
@@ -50,7 +54,7 @@ class SSTableCompaction implements Compaction<SSTable> {
         //- use SSTable.create to append each entry
         CloseableIterator<ByteBuffer> merging = Iterators.merging(iterators, StreamBlock::compare);
         //TODO move to constructor or MergeHandle parameter
-        SSTable.create(handle.replacement(), merging, BlockCodec.SNAPPY, Memory.PAGE_SIZE)
+        SSTable.create(handle.replacement(), merging, (int) expectedEntries, BlockCodec.SNAPPY, Memory.PAGE_SIZE)
                 .close();
     }
 }
