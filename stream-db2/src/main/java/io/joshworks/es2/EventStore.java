@@ -27,7 +27,7 @@ public class EventStore implements Closeable {
         this.dirLock = new DirLock(root.toFile());
         this.worker = worker;
         this.sstables = new SSTables(root, new SSTableConfig(), worker);
-        this.tlog = new TLog(root, worker);
+        this.tlog = new TLog(root, worker, Size.MB.of(10));
         this.memTable = new MemTable(Size.MB.ofInt(10), true);
         this.loadMemTable();
     }
@@ -68,8 +68,6 @@ public class EventStore implements Closeable {
         event.flip();
         if (!memTable.add(event)) {
             memTable.flush(sstables);
-            tlog.roll();
-
             memTable.add(event);
         }
     }

@@ -17,7 +17,6 @@ public class SSTables {
 
     private static final String DATA_EXT = "sst";
     private final SegmentDirectory<SSTable> items;
-
     private final SSTableConfig config;
 
     public SSTables(Path folder, SSTableConfig config, ExecutorService executor) {
