@@ -64,7 +64,7 @@ public class EventStore implements Closeable {
 
         Event.writeVersion(event, nextVersion);
 
-        tlog.append(event);
+        tlog.append(event).join();
         event.flip();
         if (!memTable.add(event)) {
             memTable.flush(sstables);

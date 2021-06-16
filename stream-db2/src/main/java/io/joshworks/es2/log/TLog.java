@@ -41,7 +41,7 @@ public class TLog {
 
     }
 
-    public CompletableFuture<Long> append(ByteBuffer data) {
+    public CompletableFuture<Void> append(ByteBuffer data) {
         if (head == null) { //lazy initialization so we run restore logic
             this.head = SegmentChannel.create(logs.newHead());
         }
@@ -71,22 +71,17 @@ public class TLog {
     }
 
     private static class WriteItem {
-        private final CompletableFuture<Long> future;
+        private final CompletableFuture<Void> future;
         private final ByteBuffer data;
-        private long position = -1;
         private boolean poisonPill;
 
-        private WriteItem(CompletableFuture<Long> future, ByteBuffer data) {
+        private WriteItem(CompletableFuture<Void> future, ByteBuffer data) {
             this.future = future;
             this.data = data;
         }
 
-        private void position(long position) {
-            this.position = position;
-        }
-
         private void complete() {
-            future.complete(position);
+            future.complete(null);
         }
     }
 
@@ -96,16 +91,15 @@ public class TLog {
         private final long timeThreshold;
         private final BlockingQueue<WriteItem> items = new ArrayBlockingQueue<>(1000);
         private final List<WriteItem> bufferedItems = new ArrayList<>();
-        private long logPos;
 
         Writer(int capacity, long timeThreshold) {
             this.buffer = Buffers.allocate(capacity, false);
             this.timeThreshold = timeThreshold;
         }
 
-        public CompletableFuture<Long> enqueue(ByteBuffer data) {
+        public CompletableFuture<Void> enqueue(ByteBuffer data) {
             try {
-                var future = new CompletableFuture<Long>();
+                var future = new CompletableFuture<Void>();
                 items.put(new WriteItem(future, data));
                 return future;
 
@@ -115,9 +109,9 @@ public class TLog {
             }
         }
 
-        public CompletableFuture<Long> stop() {
+        public CompletableFuture<Void> stop() {
             try {
-                var future = new CompletableFuture<Long>();
+                var future = new CompletableFuture<Void>();
                 var item = new WriteItem(future, null);
                 item.poisonPill = true;
                 items.put(item);
@@ -148,12 +142,11 @@ public class TLog {
                             flush(buffer.flip());
                             writeEntry(item);
                         }
-                    } else {
-                        tryFlushBuffered();
                     }
+                    tryFlushBuffered();
 
                 } catch (Exception e) {
-                    throw new RuntimeException("Failed to write batch");
+                    throw new RuntimeException("Failed to write batch", e);
                 }
             }
         }
@@ -173,7 +166,6 @@ public class TLog {
 
             TLog.this.writeEntryHeader(data);
 
-            item.position(logPos + buffer.position());
             buffer.put(item.data);
             bufferedItems.add(item);
             return true;
@@ -181,19 +173,14 @@ public class TLog {
 
         private void flush(ByteBuffer buf) {
             var head = TLog.this.head;
-            if (logPos != head.position()) {
-                throw new RuntimeException("Log position mismatch");
-            }
             int bufSize = buf.remaining();
             if (bufSize > 0) {
                 long pos = head.append(buf);
-                assert pos == logPos;
                 for (WriteItem item : bufferedItems) {
                     item.complete();
                 }
                 bufferedItems.clear();
             }
-            logPos += bufSize;
             if (head.position() >= segmentSize) {
                 TLog.this.roll();
             }
