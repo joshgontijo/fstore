@@ -127,11 +127,11 @@ public class TLog {
             while (true) {
                 try {
                     var item = items.poll(timeThreshold, TimeUnit.MILLISECONDS);
-                    if (item != null) {
+                    while (item != null) {
                         if (item.poisonPill) {
                             tryFlushBuffered();
                             item.complete();
-                            break;
+                            return;
                         }
                         if (buffer.capacity() < item.data.remaining()) {
                             tryFlushBuffered();
@@ -142,6 +142,7 @@ public class TLog {
                             flush(buffer.flip());
                             writeEntry(item);
                         }
+                        item = items.poll();
                     }
                     tryFlushBuffered();
 
