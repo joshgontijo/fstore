@@ -74,7 +74,18 @@ public class SegmentChannel implements Closeable, SegmentFile {
     }
 
     public synchronized long append(ByteBuffer src) {
-        int written = Channels.writeFully(channel, src);
+        long written = Channels.writeFully(channel, src);
+        long writePos = writePosition.get();
+        writePosition.accumulateAndGet(written, (curr, add) -> curr + written);
+        return writePos;
+    }
+
+    public synchronized long append(ByteBuffer[] srcs) {
+        return append(srcs, 0, srcs.length);
+    }
+
+    public synchronized long append(ByteBuffer[] srcs, int offset, int count) {
+        long written = Channels.writeFully(channel, srcs, offset, count);
         long writePos = writePosition.get();
         writePosition.accumulateAndGet(written, (curr, add) -> curr + written);
         return writePos;
