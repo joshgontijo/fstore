@@ -4,7 +4,6 @@ import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.directory.SegmentFile;
 import io.joshworks.es2.index.BIndex;
-import io.joshworks.es2.index.BPTreeIndex;
 import io.joshworks.es2.index.IndexEntry;
 import io.joshworks.es2.index.IndexFunction;
 import io.joshworks.es2.sink.Sink;
@@ -16,7 +15,7 @@ import java.util.Iterator;
 
 import static io.joshworks.es2.Event.NO_VERSION;
 
-class SSTable implements SegmentFile {
+public class SSTable implements SegmentFile {
 
     private static final String INDEX_EXT = "idx";
 
@@ -73,9 +72,9 @@ class SSTable implements SegmentFile {
         return index.find(stream, version, IndexFunction.FLOOR);
     }
 
-    static SSTable create(File dataFile, Iterator<ByteBuffer> items, int expectedEntries, SSTableConfig.Config config) {
+    static SSTable create(File dataFile, Iterator<ByteBuffer> items, int expectedEntries, long size, SSTableConfig.Config config) {
         var indexFile = indexFile(dataFile);
-        try (var dataChunkWriter = new StreamBlockWriter(dataFile, indexFile, config.codec, config.blockSize, config.bloomFilterFalsePositive, expectedEntries)) {
+        try (var dataChunkWriter = new StreamBlockWriter(dataFile, indexFile, size, config.codec, config.blockSize, config.bloomFilterFalsePositive, expectedEntries)) {
             while (items.hasNext()) {
                 ByteBuffer data = items.next();
                 dataChunkWriter.add(data);

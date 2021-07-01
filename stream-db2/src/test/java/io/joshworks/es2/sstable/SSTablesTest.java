@@ -32,7 +32,6 @@ public class SSTablesTest {
     @After
     public void tearDown() {
         sstables.delete();
-        TestUtils.deleteRecursively(folder.toFile());
     }
 
     @Test
@@ -41,11 +40,12 @@ public class SSTablesTest {
         long streamHash = StreamHasher.hash(stream);
         ByteBuffer item1 = createEntry(stream, 0);
         ByteBuffer item2 = createEntry(stream, 1);
-        sstables.flush(Iterators.of(item1, item2), ANY);
+        SSTable ssTable = sstables.flush(Iterators.of(item1, item2), ANY, 2);
+        sstables.completeFlush(ssTable);
 
         Sink.Memory mem = new Sink.Memory();
         int res = sstables.get(streamHash, 0, mem);
-        assertTrue(res > 0);
+        assertTrue("Failed with " + res, res > 0);
     }
 
     @Test
@@ -54,7 +54,8 @@ public class SSTablesTest {
         long streamHash = StreamHasher.hash(stream);
         ByteBuffer item1 = createEntry(stream, 0);
         ByteBuffer item2 = createEntry(stream, 1);
-        sstables.flush(Iterators.of(item1, item2), ANY);
+        SSTable newSstable = sstables.flush(Iterators.of(item1, item2), ANY, 2);
+        sstables.completeFlush(newSstable);
 
         int version = sstables.version(streamHash);
         assertEquals(1, version);
@@ -69,9 +70,10 @@ public class SSTablesTest {
 
         for (int seg = 0; seg < numSegments; seg++) {
             var startVersion = seg * itemsPerSegment;
-            sstables.flush(IntStream.range(startVersion, startVersion + itemsPerSegment)
+            SSTable sstable = sstables.flush(IntStream.range(startVersion, startVersion + itemsPerSegment)
                     .mapToObj(i -> createEntry(stream, i))
-                    .iterator(), itemsPerSegment);
+                    .iterator(), itemsPerSegment * numSegments, 10);
+            sstables.completeFlush(sstable);
         }
 
         int expectedVersion = (numSegments * itemsPerSegment) - 1;
@@ -90,6 +92,6 @@ public class SSTablesTest {
     }
 
     private ByteBuffer createEntry(String stream, int i) {
-        return EventSerializer.serialize(stream, "type-1", i, "data", 0);
+        return EventSerializer.serialize(stream, "type-1", i, "data");
     }
 }

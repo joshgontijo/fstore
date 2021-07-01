@@ -24,10 +24,12 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class SegmentChannel implements Closeable, SegmentFile {
 
+
     private final File handle;
     private final FileChannel channel;
     private final AtomicLong writePosition = new AtomicLong();
     private final FileLock lock;
+
 
     private SegmentChannel(File handle, FileChannel channel, FileLock lock) {
         this.handle = handle;
@@ -37,39 +39,38 @@ public class SegmentChannel implements Closeable, SegmentFile {
 
     public static SegmentChannel create(File file) {
         try {
-            FileUtils.tryCreate(file);
-            var channel = FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
+            var channel = FileChannel.open(file.toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, StandardOpenOption.READ);
             FileLock lock = channel.lock();
-
-            return new SegmentChannel(file, channel, lock);
+            return new SegmentChannel(file, channel, lock); //3 = header + data + footer
         } catch (Exception e) {
-            throw new RuntimeIOException("Failed to open segment", e);
+            throw new RuntimeIOException("Failed to create segment " + file.getName(), e);
         }
     }
 
     public static SegmentChannel create(File file, long size) {
         try {
             FileUtils.tryCreate(file);
-            RandomAccessFile raf = new RandomAccessFile(file, "rw");
+            var raf = new RandomAccessFile(file, "rw");
             raf.setLength(size);
-            FileChannel channel = raf.getChannel();
-            FileLock lock = channel.lock();
+            raf.close();
+            var channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+            var lock = channel.lock();
 
             return new SegmentChannel(file, channel, lock);
         } catch (Exception e) {
-            throw new RuntimeIOException("Failed to open segment", e);
+            throw new RuntimeIOException("Failed to create segment " + file.getName(), e);
         }
     }
 
     public static SegmentChannel open(File file) {
         try {
-            FileChannel channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
-            FileLock lock = channel.lock();
-            SegmentChannel segment = new SegmentChannel(file, channel, lock);
+            var channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+            var lock = channel.lock();
+            var segment = new SegmentChannel(file, channel, lock);
             segment.position(channel.size());
             return segment;
         } catch (Exception e) {
-            throw new RuntimeIOException("Failed to open segment", e);
+            throw new RuntimeIOException("Failed to open segment " + file.getName(), e);
         }
     }
 
@@ -176,6 +177,7 @@ public class SegmentChannel implements Closeable, SegmentFile {
 
     public synchronized void delete() {
         try {
+            System.err.println("Deleting " + handle.getName());
             close();
             Files.delete(handle.toPath());
         } catch (IOException e) {

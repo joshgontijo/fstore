@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.iterators.CloseableIterator;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 public class LengthPrefixedChannelIterator implements CloseableIterator<ByteBuffer> {
@@ -17,7 +16,12 @@ public class LengthPrefixedChannelIterator implements CloseableIterator<ByteBuff
     private long offset;
 
     public LengthPrefixedChannelIterator(SegmentChannel channel) {
+        this(channel, 0);
+    }
+
+    public LengthPrefixedChannelIterator(SegmentChannel channel, long startPos) {
         this.channel = channel;
+        this.offset = startPos;
         this.bufferIt = new LengthPrefixedBufferIterator(Buffers.EMPTY);
     }
 

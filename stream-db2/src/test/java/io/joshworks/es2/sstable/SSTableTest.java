@@ -42,8 +42,8 @@ public class SSTableTest {
     public void version_single() {
         String stream = "stream-1";
         int version = 0;
-        ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data", 0);
-        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, new SSTableConfig().lowConfig);
+        ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data");
+        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, 0, new SSTableConfig().lowConfig);
 
         long streamHash = StreamHasher.hash(stream);
         IndexEntry ie = sstable.get(streamHash, version);
@@ -58,10 +58,10 @@ public class SSTableTest {
         int items = 10000;
 
         List<ByteBuffer> events = IntStream.range(0, items)
-                .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data", 0))
+                .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data"))
                 .collect(Collectors.toList());
 
-        sstable = SSTable.create(dataFile, events.iterator(), ANY, new SSTableConfig().lowConfig);
+        sstable = SSTable.create(dataFile, events.iterator(), ANY, 0, new SSTableConfig().lowConfig);
 
         for (int version = 0; version < items; version++) {
             Sink.Memory sink = new Sink.Memory();
@@ -76,21 +76,21 @@ public class SSTableTest {
     public void version_too_high() {
         String stream = "stream-1";
         int version = 0;
-        ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data", 0);
-        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, new SSTableConfig().lowConfig);
+        ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data");
+        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, 0, new SSTableConfig().lowConfig);
 
         long streamHash = StreamHasher.hash(stream);
         long res = sstable.get(streamHash, version + 1, new Sink.Memory());
-        assertEquals(Event.VERSION_TOO_HIGH, res);
+        assertEquals(Event.NO_VERSION, res);
     }
 
     @Test
     public void readEvents() {
         String stream = "stream-1";
         int version = 0;
-        TestEvent first = TestEvent.create(stream, 0, 0, "type-1", "data1");
-        TestEvent second = TestEvent.create(stream, 1, 0, "type-1", "data2");
-        sstable = SSTable.create(dataFile, Iterators.of(first.serialize(), second.serialize()), ANY, new SSTableConfig().lowConfig);
+        TestEvent first = TestEvent.create(stream, 0, "type-1", "data1");
+        TestEvent second = TestEvent.create(stream, 1, "type-1", "data2");
+        sstable = SSTable.create(dataFile, Iterators.of(first.serialize(), second.serialize()), ANY, 0, new SSTableConfig().lowConfig);
 
         long streamHash = StreamHasher.hash(stream);
         Sink.Memory memory = new Sink.Memory();

@@ -82,13 +82,13 @@ public class MemTable {
         return events.version();
     }
 
-    public void flush(SSTables sstables) {
-        TimeWatch watch = TimeWatch.start();
-        MemTableFlushIterator it = new MemTableFlushIterator();
-        sstables.flush(it, entries.get());
-        System.out.println("Flushed " + entries() + " entries (" + size() + " bytes) in " + watch.elapsed() + "ms");
-        clear();
-    }
+//    public void flush(SSTables sstables) {
+//        var watch = TimeWatch.start();
+//        var it = new MemTableFlushIterator();
+//        sstables.flush(it, entries.get());
+//        System.out.println("Flushed " + entries() + " entries (" + size() + " bytes) in " + watch.elapsed() + "ms");
+//        clear();
+//    }
 
     public void clear() {
         Lock lock = rwLock.writeLock();
@@ -111,6 +111,10 @@ public class MemTable {
 
     public int size() {
         return data.position();
+    }
+
+    public Iterator<ByteBuffer> flushIterator() {
+        return new MemTableFlushIterator();
     }
 
     private final class StreamEvents {

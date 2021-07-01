@@ -3,7 +3,6 @@ package io.joshworks.es2.sstable;
 import io.joshworks.es2.Event;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.index.BIndex;
-import io.joshworks.es2.index.BPTreeIndex;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 
 import java.io.Closeable;
@@ -24,8 +23,8 @@ public class StreamBlockWriter implements Closeable {
     int chunkEntries = 0;
     int chunkStartVersion = -1;
 
-    public StreamBlockWriter(File dataFile, File indexFile, BlockCodec codec, int blockSize, double fpPercentage, int expectedEntries) {
-        this.channel = SegmentChannel.create(dataFile);
+    public StreamBlockWriter(File dataFile, File indexFile, long size, BlockCodec codec, int blockSize, double fpPercentage, int expectedEntries) {
+        this.channel = SegmentChannel.create(dataFile, size);
         this.indexWriter = BIndex.writer(indexFile, expectedEntries, fpPercentage);
         this.codec = codec;
         this.rawChunkData = Buffers.allocate(blockSize, false);
@@ -94,6 +93,7 @@ public class StreamBlockWriter implements Closeable {
             flushChunk();
         }
         indexWriter.close();
+        channel.flush();
         channel.truncate();
         channel.close();
     }

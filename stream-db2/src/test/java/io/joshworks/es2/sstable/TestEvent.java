@@ -12,30 +12,27 @@ public class TestEvent {
 
     public final long stream;
     public final int version;
-    public final long sequence;
     public final long timestamp;
     public final String type;
     public final String data;
 
-    private TestEvent(long stream, int version, long sequence, long timestamp, String type, String data) {
+    private TestEvent(long stream, int version, long timestamp, String type, String data) {
         this.stream = stream;
         this.version = version;
-        this.sequence = sequence;
         this.timestamp = timestamp;
         this.type = type;
         this.data = data;
     }
 
-    public static TestEvent create(String stream, int version, long sequence, String type, String data) {
+    public static TestEvent create(String stream, int version, String type, String data) {
         long ts = System.currentTimeMillis();
-        return new TestEvent(StreamHasher.hash(stream), version, sequence, ts, type, data);
+        return new TestEvent(StreamHasher.hash(stream), version, ts, type, data);
     }
 
     public static TestEvent from(ByteBuffer event) {
         return new TestEvent(
                 Event.stream(event),
                 Event.version(event),
-                Event.sequence(event),
                 Event.timestamp(event),
                 Event.eventType(event),
                 Event.dataString(event));
@@ -53,14 +50,12 @@ public class TestEvent {
         dst.putInt(recSize);
         dst.putLong(stream);
         dst.putInt(version);
-        dst.putLong(sequence);
 
         long ts = System.currentTimeMillis();
         dst.putLong(ts);
 
         dst.putShort((short) evTypeBytes.length);
         dst.putInt(dataBytes.length);
-
         dst.put(evTypeBytes);
         dst.put(dataBytes);
 
@@ -77,14 +72,13 @@ public class TestEvent {
         TestEvent testEvent = (TestEvent) o;
         return stream == testEvent.stream &&
                 version == testEvent.version &&
-                sequence == testEvent.sequence &&
                 Objects.equals(type, testEvent.type) &&
                 Objects.equals(data, testEvent.data);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stream, version, sequence, type, data);
+        return Objects.hash(stream, version, type, data);
     }
 
     @Override
@@ -92,7 +86,6 @@ public class TestEvent {
         return "TestEvent{" +
                 "stream=" + stream +
                 ", version=" + version +
-                ", sequence=" + sequence +
                 ", type='" + type + '\'' +
                 ", data='" + data + '\'' +
                 '}';

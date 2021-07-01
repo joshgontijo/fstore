@@ -4,6 +4,7 @@ import io.joshworks.es2.directory.CompactionResult;
 import io.joshworks.es2.directory.SegmentDirectory;
 import io.joshworks.es2.sink.Sink;
 
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
@@ -13,7 +14,7 @@ import java.util.concurrent.ExecutorService;
 import static io.joshworks.es2.Event.NO_VERSION;
 import static io.joshworks.es2.Event.VERSION_TOO_HIGH;
 
-public class SSTables {
+public class SSTables implements Closeable {
 
     private static final String DATA_EXT = "sst";
     private final SegmentDirectory<SSTable> items;
@@ -23,7 +24,6 @@ public class SSTables {
     public SSTables(Path folder, SSTableConfig config, ExecutorService executor) {
         this.config = config.copy();
         items = new SegmentDirectory<>(folder.toFile(), SSTable::open, DATA_EXT, executor, new SSTableCompaction(config));
-        items.loadSegments();
     }
 
     public int get(long stream, int fromVersionInclusive, Sink sink) {
@@ -52,10 +52,13 @@ public class SSTables {
         return NO_VERSION;
     }
 
-    public void flush(Iterator<ByteBuffer> iterator, int entryCount) {
+    public SSTable flush(Iterator<ByteBuffer> iterator, int entryCount, long size) {
         var headFile = items.newHead();
-        var sstable = SSTable.create(headFile, iterator, entryCount, config.lowConfig);
-        items.append(sstable);
+        return SSTable.create(headFile, iterator, entryCount, size, config.lowConfig);
+    }
+
+    public void completeFlush(SSTable ssTable) {
+        items.append(ssTable);
     }
 
     public void delete() {
@@ -66,4 +69,8 @@ public class SSTables {
         return items.compact(config.compactionThreshold, config.compactionThreshold);
     }
 
+    @Override
+    public synchronized void close() {
+        items.close();
+    }
 }

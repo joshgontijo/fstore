@@ -35,10 +35,6 @@ public class BIndex implements SegmentFile {
 
     public static BIndex open(File file) {
         try {
-            if (!file.exists()) {
-                throw new RuntimeIOException("File does not exist");
-            }
-
             var channel = SegmentChannel.open(file);
 
             //read footer
@@ -167,8 +163,8 @@ public class BIndex implements SegmentFile {
         private final ByteBuffer buffer = Buffers.allocate(IndexKey.BYTES, false);
         private long entries;
 
-        Writer(File file, int expectedEntries, double bpFpPercentage) {
-            this.channel = SegmentChannel.create(file);
+        Writer(File file, long expectedEntries, double bpFpPercentage) {
+            this.channel = SegmentChannel.create(file, expectedEntries * IndexEntry.BYTES);
             this.filter = BloomFilter.create(expectedEntries, bpFpPercentage);
             writeBuffer.get().clear();
         }
@@ -209,7 +205,7 @@ public class BIndex implements SegmentFile {
         public void close() {
             flush();
 
-            long indexSize = channel.size();
+            long indexSize = channel.position();
             checkChannelSize(channel, indexSize);
 
             //filter

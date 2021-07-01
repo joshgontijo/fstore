@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 
 public class EventSerializer {
 
-    public static ByteBuffer serialize(String stream, String type, int version, String data, long sequence) {
+    public static ByteBuffer serialize(String stream, String type, int version, String data) {
         byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
         byte[] typeBytes = type.getBytes(StandardCharsets.UTF_8);
         int recSize = dataBytes.length + typeBytes.length + Event.HEADER_BYTES;
@@ -23,7 +23,6 @@ public class EventSerializer {
         dst.putInt(recSize);
         dst.putLong(streamHash);
         dst.putInt(version);
-        dst.putLong(sequence);
         dst.putLong(System.currentTimeMillis());
 
         dst.putShort((short) evTypeBytes.length);

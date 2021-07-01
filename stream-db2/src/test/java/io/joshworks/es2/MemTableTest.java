@@ -32,8 +32,8 @@ public class MemTableTest {
         String stream = "stream-1";
         long streamHash = StreamHasher.hash(stream);
 
-        ByteBuffer item1 = EventSerializer.serialize(stream, "type-1", 0, "data", 0);
-        ByteBuffer item2 = EventSerializer.serialize(stream, "type-1", 1, "data", 0);
+        ByteBuffer item1 = EventSerializer.serialize(stream, "type-1", 0, "data");
+        ByteBuffer item2 = EventSerializer.serialize(stream, "type-1", 1, "data");
         memTable.add(item1);
         memTable.add(item2);
 
@@ -47,41 +47,12 @@ public class MemTableTest {
         String stream = "stream-1";
         long streamHash = StreamHasher.hash(stream);
 
-        ByteBuffer item1 = EventSerializer.serialize(stream, "type-1", 0, "data", 0);
-        ByteBuffer item2 = EventSerializer.serialize(stream, "type-1", 1, "data", 0);
+        ByteBuffer item1 = EventSerializer.serialize(stream, "type-1", 0, "data");
+        ByteBuffer item2 = EventSerializer.serialize(stream, "type-1", 1, "data");
         memTable.add(item1);
         memTable.add(item2);
 
         assertEquals(1, memTable.version(streamHash));
-    }
-
-    @Test
-    public void flush() {
-        String stream = "stream-1";
-        long streamHash = StreamHasher.hash(stream);
-
-        TestEvent item1 = TestEvent.create(stream,  0, 0, "data", "ev-1");
-        TestEvent item2 = TestEvent.create(stream,  1, 1, "data", "ev-2");
-        memTable.add(item1.serialize());
-        memTable.add(item2.serialize());
-
-        SSTables channel = new SSTables(TestUtils.testFolder().toPath(), new SSTableConfig(), Executors.newSingleThreadExecutor());
-        try {
-            memTable.flush(channel);
-
-            Sink.Memory sink = new Sink.Memory();
-            int res = channel.get(streamHash, 0, sink);
-            assertTrue(res > 0);
-
-            List<TestEvent> entries = StreamBlockDeserializer.deserialize(sink.data());
-            assertEquals(2, entries.size());
-            assertEquals(item1, entries.get(0));
-            assertEquals(item2, entries.get(1));
-
-        } finally {
-            channel.delete();
-        }
-
     }
 
     @Test
@@ -90,8 +61,8 @@ public class MemTableTest {
 
     @Test
     public void entries() {
-        ByteBuffer item1 = EventSerializer.serialize("s1", "type-1", 0, "data", 0);
-        ByteBuffer item2 = EventSerializer.serialize("s2", "type-1", 0, "data", 0);
+        ByteBuffer item1 = EventSerializer.serialize("s1", "type-1", 0, "data");
+        ByteBuffer item2 = EventSerializer.serialize("s2", "type-1", 0, "data");
         memTable.add(item1);
         memTable.add(item2);
 
@@ -100,7 +71,7 @@ public class MemTableTest {
 
     @Test
     public void size() {
-        memTable.add(EventSerializer.serialize("s1", "type-1", 0, "data", 0));
+        memTable.add(EventSerializer.serialize("s1", "type-1", 0, "data"));
         assertTrue(memTable.size() > 0);
     }
 }

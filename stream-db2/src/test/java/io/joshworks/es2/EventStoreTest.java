@@ -35,7 +35,7 @@ public class EventStoreTest {
     @Test
     public void version() {
         String stream = "stream-1";
-        TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, 0, "type-a", "data-1");
+        TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-1");
 
         store.append(ev1.serialize());
         assertEquals(0, store.version(StreamHasher.hash(stream)));
@@ -44,7 +44,7 @@ public class EventStoreTest {
     @Test
     public void read_version_too_high() {
         String stream = "stream-1";
-        TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, 0, "type-a", "data-1");
+        TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-1");
 
         store.append(ev1.serialize());
 
@@ -58,8 +58,8 @@ public class EventStoreTest {
     @Test
     public void read() {
         String stream = "stream-1";
-        TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, 0, "type-a", "data-1");
-        TestEvent ev2 = TestEvent.create(stream, Event.NO_VERSION, 1, "type-a", "data-2");
+        TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-1");
+        TestEvent ev2 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-2");
 
         store.append(ev1.serialize());
         store.append(ev2.serialize());

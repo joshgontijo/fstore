@@ -12,7 +12,6 @@ import java.nio.charset.StandardCharsets;
  * RECORD_SIZE (4 BYTES)
  * STREAM_HASH (8 BYTES)
  * VERSION (4 BYTES)
- * SEQUENCE (8 BYTES)
  * TIMESTAMP (8 BYTES)
  * TYPE_LENGTH (2 BYTES)
  * DATA_LENGTH (4 BYTES)
@@ -31,7 +30,6 @@ public class Event {
             Integer.BYTES +  //RECORD_SIZE
                     Long.BYTES + //STREAM_HASH
                     Integer.BYTES + //VERSION
-                    Long.BYTES + // SEQUENCE
                     Long.BYTES + // TIMESTAMP
                     Short.BYTES + //TYPE_LENGTH
                     Integer.BYTES; //DATA_LENGTH
@@ -43,8 +41,7 @@ public class Event {
     private static final int SIZE_OFFSET = 0;
     private static final int STREAM_OFFSET = SIZE_OFFSET + Integer.BYTES;
     private static final int VERSION_OFFSET = STREAM_OFFSET + Long.BYTES;
-    private static final int SEQUENCE_OFFSET = VERSION_OFFSET + Integer.BYTES;
-    private static final int TIMESTAMP_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
+    private static final int TIMESTAMP_OFFSET = VERSION_OFFSET + Integer.BYTES;
     private static final int EVENT_TYPE_LENGTH_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
     private static final int DATA_LENGTH_OFFSET = EVENT_TYPE_LENGTH_OFFSET + Short.BYTES;
     private static final int EVENT_TYPE_OFFSET = DATA_LENGTH_OFFSET + Integer.BYTES;
@@ -60,10 +57,6 @@ public class Event {
 
     public static int version(ByteBuffer data) {
         return data.getInt(data.position() + VERSION_OFFSET);
-    }
-
-    public static long sequence(ByteBuffer data) {
-        return data.getLong(data.position() + SEQUENCE_OFFSET);
     }
 
     public static long timestamp(ByteBuffer data) {
@@ -93,9 +86,8 @@ public class Event {
         int dataLen = dataLen(data);
         int offset = data.position() + EVENT_TYPE_OFFSET + evTypeLen;
 
-        byte[] dataBytes = new byte[dataLen];
+        var dataBytes = new byte[dataLen];
         data.slice(offset, dataLen).get(dataBytes);
-
         return dataBytes;
     }
 
@@ -112,16 +104,11 @@ public class Event {
         data.putLong(data.position() + TIMESTAMP_OFFSET, timestamp);
     }
 
-    public static void writeSequence(ByteBuffer data, long sequence) {
-        data.putLong(data.position() + SEQUENCE_OFFSET, sequence);
-    }
-
     public static String toString(ByteBuffer data) {
         return "RECORD_SIZE=" + sizeOf(data) + ", " +
                 "STREAM_HASH=" + stream(data) + ", " +
                 "VERSION=" + version(data) + ", " +
                 "EVENT_TYPE=" + eventType(data) + ", " +
-                "SEQUENCE=" + sequence(data) + ", " +
                 "TIMESTAMP=" + timestamp(data) + ", " +
                 "TYPE_LENGTH=" + eventTypeLen(data) + ", " +
                 "DATA_LENGTH=" + dataLen(data);

@@ -41,10 +41,12 @@ public class StreamBlockIteratorTest {
         int items = 10_000;
 
         List<ByteBuffer> events = IntStream.range(0, items)
-                .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data", 0))
+                .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data"))
                 .collect(Collectors.toList());
 
-        sstable = SSTable.create(dataFile, events.iterator(), items, new SSTableConfig().lowConfig);
+        long size = events.stream().mapToLong(ByteBuffer::remaining).sum();
+
+        sstable = SSTable.create(dataFile, events.iterator(), items, size, new SSTableConfig().lowConfig);
 
         var it = new StreamBlockIterator(new LengthPrefixedChannelIterator(sstable.channel));
 

@@ -55,6 +55,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         this.metadata = new Metadata<>(new File(root, extension + "." + METADATA_EXT));
 
         initDirectory(root);
+        loadSegments();
 //        deleteAllWithExtension(root);
     }
 
@@ -90,7 +91,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         viewRef.getAndSet(view).close();
     }
 
-    public void loadSegments() {
+    private void loadSegments() {
         try {
             List<T> segments = metadata.state()
                     .stream()
@@ -264,7 +265,12 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
     @Override
     public synchronized void close() {
-        this.viewRef.getAndSet(new View<>()).close();
+        var view = this.viewRef.getAndSet(new View<>());
+        for (T segment : view) {
+            segment.close();
+        }
+        view.close();
+        this.metadata.close();
     }
 
     public void delete() {

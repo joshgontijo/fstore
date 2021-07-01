@@ -27,11 +27,11 @@ public class Channels {
     public static int readFully(FileChannel src, long offset, ByteBuffer dst) {
         try {
             int totalRead = 0;
+            int read;
             do {
-                int read = src.read(dst, offset + totalRead);
-                checkClosed(read);
+                read = src.read(dst, offset + totalRead);
                 totalRead += read;
-            } while (dst.hasRemaining());
+            } while (read > Storage.EOF && dst.hasRemaining());
             return totalRead;
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to read data", e);
@@ -44,11 +44,11 @@ public class Channels {
     public static int read(FileChannel src, long offset, ByteBuffer dst) {
         try {
             int totalRead = 0;
+            int read;
             do {
-                int read = src.read(dst, offset + totalRead);
-                checkClosed(read);
+                read = src.read(dst, offset + totalRead);
                 totalRead += read;
-            } while (dst.hasRemaining() && src.size() > offset + totalRead);
+            } while (read > Storage.EOF && dst.hasRemaining() && src.size() > offset + totalRead);
             return totalRead;
         } catch (Exception e) {
             throw new RuntimeIOException("Failed to read data", e);

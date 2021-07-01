@@ -17,15 +17,18 @@ public class StreamBlockDeserializer {
     public static List<TestEvent> deserialize(ByteBuffer block) {
         assert StreamBlock.isValid(block);
 
+        String blockStr = StreamBlock.toString(block);
+        System.out.println(blockStr);
+
         int uncompressedSize = StreamBlock.uncompressedSize(block);
         byte codecId = StreamBlock.codec(block);
 
         ByteBuffer decompressed = Buffers.allocate(uncompressedSize, false);
         Codec codec = BlockCodec.from(codecId);
 
-        int chunkSize = StreamBlock.sizeOf(block);
-        ByteBuffer dataSlice = block.slice(block.position() + StreamBlock.HEADER_BYTES, chunkSize - StreamBlock.HEADER_BYTES);
-        codec.decompress(dataSlice, decompressed);
+        Buffers.offsetPosition(block, StreamBlock.HEADER_BYTES);
+
+        codec.decompress(block, decompressed);
         decompressed.flip();
 
         assert decompressed.remaining() == uncompressedSize;
