@@ -80,9 +80,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         if (!currView.isEmpty() && currView.head().compareTo(newSegmentHead) <= 0) {
             throw new IllegalStateException("Invalid segment head");
         }
-        metadata.add(
-                newSegmentHead
-        );
+        metadata.add(newSegmentHead);
         View<T> newView = currView.add(newSegmentHead);
         swapView(newView);
     }
@@ -114,8 +112,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     public synchronized CompletableFuture<CompactionResult> compact(int minItems, int maxItems) {
         var view = this.viewRef.get();
 
-//        List<CompletableFuture<CompactionStats>> tasks = new ArrayList<>();
-        CompletableFuture<CompactionResult> task = CompletableFuture.completedFuture(new CompactionResult());
+        var task = CompletableFuture.completedFuture(new CompactionResult());
         for (var level = 0; level <= maxLevel(view); level++) {
 
             T head = view.head();

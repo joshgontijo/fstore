@@ -51,6 +51,10 @@ public class EventStore implements Closeable {
         return sstables.get(stream, startVersion, sink);
     }
 
+    public synchronized void append(ByteBuffer[] events) {
+
+    }
+
     public synchronized void append(ByteBuffer event) {
         int eventVersion = Event.version(event);
         long stream = Event.stream(event);
