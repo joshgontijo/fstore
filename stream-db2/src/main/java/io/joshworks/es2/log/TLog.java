@@ -82,13 +82,14 @@ public class TLog implements Closeable {
 
         composeEntry(data, Type.DATA);
         head.append(writeBuffer);
+        sequence.incrementAndGet();
         writeBuffer[1] = null;
     }
 
     private void composeEntry(ByteBuffer data, Type type) {
         int eventSize = data.remaining();
         int recSize = eventSize + HEADER_SIZE + FOOTER_SIZE;
-        long seq = sequence.incrementAndGet();
+        long seq = sequence.get() + 1;
         writeBuffer[0]
                 .clear()
                 .putInt(recSize)
