@@ -15,8 +15,6 @@ import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 public class EventStore implements Closeable {
 
@@ -33,12 +31,8 @@ public class EventStore implements Closeable {
         this.sstables = new SSTables(root, new SSTableConfig(), worker);
         this.memTable = new MemTable(Size.MB.ofInt(10), true);
 
-        var restored = new AtomicInteger();
-        this.tlog = TLog.open(root, TLOG_SIZE, worker, data -> {
-            restored.incrementAndGet();
-            memTable.add(data);
-        });
-        System.out.println("Restored " + restored.get() + " entries");
+        this.tlog = TLog.open(root, TLOG_SIZE, worker, memTable::add);
+        System.out.println("Restored " + memTable.entries() + " entries");
     }
 
     public int version(long stream) {
