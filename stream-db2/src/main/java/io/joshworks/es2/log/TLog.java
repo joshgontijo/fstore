@@ -111,7 +111,7 @@ public class TLog implements Closeable {
         }
         long seq = sequence.get();
         sequenceBuf.clear().putLong(seq);
-        return writer.submit(sequenceBuf, sequence.incrementAndGet(), Type.DATA);
+        return writer.submit(sequenceBuf, sequence.incrementAndGet(), Type.FLUSH);
     }
 
     private static long firstSequence(SegmentChannel channel) {
