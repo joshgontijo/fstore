@@ -82,7 +82,7 @@ public class EventStore implements Closeable {
         int memTableSize = memTable.size();
 
         var newSStable = sstables.flush(memTable.flushIterator(), entries, memTableSize);
-        tlog.appendFlushEvent().join();
+        tlog.appendFlushEvent();
         sstables.completeFlush(newSStable);//append only after writing to tlog
         memTable.clear();
 

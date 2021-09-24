@@ -6,11 +6,11 @@ import io.joshworks.es2.directory.CompactionItem;
 import io.joshworks.es2.directory.SegmentDirectory;
 import io.joshworks.es2.directory.View;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -25,14 +25,15 @@ public class TLog implements Closeable {
 
     private static final String EXT = "log";
     private static final long START_SEQUENCE = -1;
-    public static final int ENTRY_PART_COUNT = 3; // header + data + footer
+    public static final int ENTRY_PART_SIZE = 3;
     private final SegmentDirectory<SegmentChannel> logs;
+    private final ByteBuffer[] writeBuffers = createWriteBuffers();
     private final ByteBuffer sequenceBuf = Buffers.allocate(Long.BYTES, false);
     private final AtomicLong sequence = new AtomicLong(START_SEQUENCE);
-    private final BatchWriter writer;
     private final long maxSize;
     private SegmentChannel head;
 
+    static final int MAX_BATCH_ENTRIES = 100;
     static final int HEADER_SIZE = Integer.BYTES * 2 + Long.BYTES + Byte.BYTES; //rec_size + crc + sequence + type
     static final int TYPE_OFFSET = Integer.BYTES * 2 + Long.BYTES;
     static final int SEQUENCE_OFFSET = Integer.BYTES * 2;
@@ -40,7 +41,6 @@ public class TLog implements Closeable {
 
     private TLog(Path folder, long maxSize, ExecutorService executor) {
         this.maxSize = maxSize;
-        this.writer = new BatchWriter(this, 100, 200);
         this.logs = new SegmentDirectory<>(folder.toFile(), SegmentChannel::open, EXT, executor, new TLogCompaction());
     }
 
@@ -67,22 +67,26 @@ public class TLog implements Closeable {
         return START_SEQUENCE;
     }
 
-    public synchronized CompletableFuture<Long> append(ByteBuffer[] entries) {
-        if (entries.length == 0) {
-            throw new IllegalArgumentException("Buffer entries must not be empty");
+    public synchronized void append(ByteBuffer[] entries) {
+
+        int batchItems = 0;
+        for (int i = 0; i < entries.length; i++) {
+            long seq = sequence.get() + i;
+            composeEntry(entries[i], Type.DATA, seq, batchItems * ENTRY_PART_SIZE);
+            if (++batchItems >= MAX_BATCH_ENTRIES / 3) {//buffer full
+                head.append(writeBuffers);
+                sequence.addAndGet(batchItems);
+                batchItems = 0;
+            }
         }
 
-        tryCreateNewLog();
-
-        CompletableFuture<Long> future = CompletableFuture.completedFuture(Long.MAX_VALUE);
-        for (ByteBuffer data : entries) {
-            var task = writer.submit(data, sequence.incrementAndGet(), Type.DATA);
-            future = future.thenCombine(task, Math::min);
+        if (batchItems > 0) {
+            head.append(writeBuffers, 0, batchItems);
         }
-        return future;
+        sequence.addAndGet(entries.length);
     }
 
-    private void tryCreateNewLog() {
+    public synchronized void append(ByteBuffer data) {
         if (head == null) { //lazy initialization so we run restore logic
             this.head = SegmentChannel.create(logs.newHead());
             logs.append(head);
@@ -90,13 +94,39 @@ public class TLog implements Closeable {
         if (head.size() >= maxSize) {
             roll();
         }
+
+        long seq = sequence.get() + 1;
+        composeEntry(data, Type.DATA, seq, 0);
+        head.append(writeBuffers);
+        sequence.incrementAndGet();
+        writeBuffers[1] = null;
     }
 
-    public synchronized CompletableFuture<Long> append(ByteBuffer data) {
-        tryCreateNewLog();
-        return writer.submit(data, sequence.incrementAndGet(), Type.DATA);
-    }
+    private void composeEntry(ByteBuffer data, Type type, long sequence, int buffOffset) {
+        if (data.remaining() > maxSize) {
+            throw new RuntimeException("Data too big");
+        }
+        if (buffOffset % ENTRY_PART_SIZE != 0) {
+            throw new IllegalArgumentException("Invalid buffer offset");
+        }
 
+        int eventSize = data.remaining();
+        int recSize = eventSize + HEADER_SIZE + FOOTER_SIZE;
+        writeBuffers[buffOffset]
+                .clear()
+                .putInt(recSize)
+                .putInt(ByteBufferChecksum.crc32(data, data.position(), eventSize))
+                .putLong(sequence)
+                .put(type.i)
+                .flip();
+
+        writeBuffers[buffOffset + 1] = data;
+
+        writeBuffers[buffOffset + 2]
+                .clear()
+                .putInt(recSize)
+                .flip();
+    }
 
     synchronized void roll() {
         head.truncate();
@@ -105,13 +135,24 @@ public class TLog implements Closeable {
         logs.append(head);
     }
 
-    public synchronized CompletableFuture<Long> appendFlushEvent() {
+    public synchronized void appendFlushEvent() {
         if (head.size() >= maxSize) {
             roll();
         }
         long seq = sequence.get();
         sequenceBuf.clear().putLong(seq);
-        return writer.submit(sequenceBuf, sequence.incrementAndGet(), Type.DATA);
+        composeEntry(sequenceBuf, Type.FLUSH, seq + 1, 0);
+        head.append(writeBuffers);
+    }
+
+    private static ByteBuffer[] createWriteBuffers() {
+        var items = new ByteBuffer[ENTRY_PART_SIZE * MAX_BATCH_ENTRIES];
+        for (var i = 0; i < items.length; i += ENTRY_PART_SIZE) {
+            items[i] = Buffers.allocate(HEADER_SIZE, false); //header
+            items[i + 1] = null; //data
+            items[i + 2] = Buffers.allocate(FOOTER_SIZE, false); // footer
+        }
+        return items;
     }
 
     private static long firstSequence(SegmentChannel channel) {
@@ -120,7 +161,7 @@ public class TLog implements Closeable {
         if (read != Long.BYTES) {
             return START_SEQUENCE;
         }
-        var sequence = seqBuf.flip().getLong();
+        long sequence = seqBuf.flip().getLong();
         assert sequence >= 0;
         return sequence;
     }
