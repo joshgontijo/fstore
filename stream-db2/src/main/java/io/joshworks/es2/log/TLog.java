@@ -68,6 +68,7 @@ public class TLog implements Closeable {
     }
 
     public synchronized void append(ByteBuffer[] entries) {
+        tryCreateNewHead();
 
         int batchItems = 0;
         for (int i = 0; i < entries.length; i++) {
@@ -87,6 +88,16 @@ public class TLog implements Closeable {
     }
 
     public synchronized void append(ByteBuffer data) {
+        tryCreateNewHead();
+
+        long seq = sequence.get() + 1;
+        composeEntry(data, Type.DATA, seq, 0);
+        head.append(writeBuffers);
+        sequence.incrementAndGet();
+        writeBuffers[1] = null;
+    }
+
+    private void tryCreateNewHead() {
         if (head == null) { //lazy initialization so we run restore logic
             this.head = SegmentChannel.create(logs.newHead());
             logs.append(head);
@@ -94,12 +105,6 @@ public class TLog implements Closeable {
         if (head.size() >= maxSize) {
             roll();
         }
-
-        long seq = sequence.get() + 1;
-        composeEntry(data, Type.DATA, seq, 0);
-        head.append(writeBuffers);
-        sequence.incrementAndGet();
-        writeBuffers[1] = null;
     }
 
     private void composeEntry(ByteBuffer data, Type type, long sequence, int buffOffset) {
