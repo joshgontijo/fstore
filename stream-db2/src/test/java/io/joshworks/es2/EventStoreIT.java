@@ -4,6 +4,7 @@ import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.StreamBlock;
 import io.joshworks.es2.sstable.TestEvent;
 import io.joshworks.fstore.core.util.TestUtils;
+import io.joshworks.fstore.core.util.Threads;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,6 +57,7 @@ public class EventStoreIT {
             }
         }
 
+        future.join();
         store.compact().join();
 
         //read
@@ -64,15 +66,14 @@ public class EventStoreIT {
 
     private void read(int items, String stream) {
         long s;
+        Threads.sleep(5000);
         System.out.println("READING");
         Sink.Memory sink = new Sink.Memory();
         int currVersion = 0;
         s = System.currentTimeMillis();
+        int totalEntries = 0;
         int reads = 0;
         do {
-            if (currVersion == 419430) {
-                System.out.println();
-            }
             int read = store.read(StreamHasher.hash(stream), currVersion, sink);
             assertTrue("Failed on " + currVersion, read > 0);
 
@@ -80,6 +81,7 @@ public class EventStoreIT {
             int startVersion = StreamBlock.startVersion(readData);
             int entries = StreamBlock.entries(readData);
 
+            totalEntries += entries;
             assertEquals(currVersion, startVersion);
             assertTrue(entries > 0);
 
@@ -91,7 +93,9 @@ public class EventStoreIT {
 
         long timeDiff = System.currentTimeMillis() - s;
         double avgTimePerRead = timeDiff / (double) reads;
-        System.out.println("READ: " + timeDiff + "ms -> READS: " + reads + " AVG/R: " + format("%.2f", avgTimePerRead));
+        System.out.println("READ: " + totalEntries + " in " + timeDiff + "ms -> READS: " + reads + " AVG/R: " + format("%.2f", avgTimePerRead));
+
+        assertEquals(items, totalEntries);
     }
 
 }
