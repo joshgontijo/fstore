@@ -10,6 +10,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 
 import static java.lang.String.format;
@@ -39,14 +40,15 @@ public class EventStoreIT {
         int items = 5_000_000;
         String stream = "stream-1";
         TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-1");
-        ByteBuffer data = ev1.serialize();
+
 
         //write
+        var future = CompletableFuture.completedFuture(-1);
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            data.clear();
+            ByteBuffer data = ev1.serialize();
             Event.writeVersion(data, Event.NO_VERSION);
-            store.append(data);
+            future.thenCombine(store.append(data), Math::max);
 
             if (i % 100_000 == 0) {
                 System.out.println("WRITE: " + i + " - " + (System.currentTimeMillis() - s) + "ms");
@@ -89,7 +91,7 @@ public class EventStoreIT {
 
         long timeDiff = System.currentTimeMillis() - s;
         double avgTimePerRead = timeDiff / (double) reads;
-        System.out.println("READ: " + timeDiff + " -> READS: " + reads + " AVG/R: " + format("%.2f", avgTimePerRead));
+        System.out.println("READ: " + timeDiff + "ms -> READS: " + reads + " AVG/R: " + format("%.2f", avgTimePerRead));
     }
 
 }

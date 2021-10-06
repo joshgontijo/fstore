@@ -37,7 +37,7 @@ public class EventStoreTest {
         String stream = "stream-1";
         TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-1");
 
-        store.append(ev1.serialize());
+        store.append(ev1.serialize()).join();
         assertEquals(0, store.version(StreamHasher.hash(stream)));
     }
 
@@ -46,7 +46,7 @@ public class EventStoreTest {
         String stream = "stream-1";
         TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-1");
 
-        store.append(ev1.serialize());
+        store.append(ev1.serialize()).join();
 
         Sink.Memory sink = new Sink.Memory();
         int res = store.read(StreamHasher.hash(stream), 1, sink);
@@ -61,8 +61,8 @@ public class EventStoreTest {
         TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-1");
         TestEvent ev2 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-2");
 
-        store.append(ev1.serialize());
-        store.append(ev2.serialize());
+        store.append(ev1.serialize()).join();
+        store.append(ev2.serialize()).join();
 
         Sink.Memory sink = new Sink.Memory();
         int read = store.read(StreamHasher.hash(stream), 0, sink);

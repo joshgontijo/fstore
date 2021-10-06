@@ -18,20 +18,26 @@ import java.util.concurrent.TimeUnit;
 
 public class EventStore implements Closeable {
 
-    private final MemTable memTable;
+    final MemTable memTable;
+    final TLog tlog;
     private final SSTables sstables;
-    private final TLog tlog;
     private final ExecutorService worker;
     private final DirLock dirLock;
     private static final long TLOG_SIZE = Size.MB.of(100); // TODO parameter
+    private static final long BATCH_POOL_TIME_MS = 5; // TODO parameter
+    private static final long BATCH_TIMEOUT = 500; // TODO parameter
+    private static final int BATCH_MAX_ENTRIES = 1000; // TODO parameter
+
+    private final BatchWriter writer;
 
     public EventStore(Path root, ExecutorService worker) {
         this.dirLock = new DirLock(root.toFile());
         this.worker = worker;
         this.sstables = new SSTables(root, new SSTableConfig(), worker);
         this.memTable = new MemTable(Size.MB.ofInt(10), true);
-
         this.tlog = TLog.open(root, TLOG_SIZE, worker, memTable::add);
+        this.writer = new BatchWriter(this, BATCH_POOL_TIME_MS, BATCH_TIMEOUT, BATCH_MAX_ENTRIES);
+
         System.out.println("Restored " + memTable.entries() + " entries");
     }
 
@@ -51,32 +57,11 @@ public class EventStore implements Closeable {
         return sstables.get(stream, startVersion, sink);
     }
 
-    public synchronized void append(ByteBuffer[] events) {
-
+    public CompletableFuture<Integer> append(ByteBuffer event) {
+        return writer.write(event);
     }
 
-    public synchronized void append(ByteBuffer event) {
-        int eventVersion = Event.version(event);
-        long stream = Event.stream(event);
-
-        int currVersion = version(stream);
-        int nextVersion = currVersion + 1;
-        if (eventVersion != -1 && eventVersion != nextVersion) {
-            throw new RuntimeException("Version mismatch");
-        }
-
-        Event.writeVersion(event, nextVersion);
-        Event.writeTimestamp(event, System.currentTimeMillis());
-
-        tlog.append(event);
-        event.flip();
-        if (!memTable.add(event)) {
-            roll();
-            memTable.add(event);
-        }
-    }
-
-    private synchronized void roll() {
+    synchronized void roll() {
         var watch = TimeWatch.start();
         int entries = memTable.entries();
         int memTableSize = memTable.size();
@@ -103,4 +88,5 @@ public class EventStore implements Closeable {
     public CompletableFuture<CompactionResult> compact() {
         return sstables.compact();
     }
+
 }

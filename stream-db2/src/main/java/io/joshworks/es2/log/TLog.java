@@ -33,7 +33,7 @@ public class TLog implements Closeable {
     private final long maxSize;
     private SegmentChannel head;
 
-    static final int MAX_BATCH_ENTRIES = 100;
+    public static final int MAX_BATCH_ENTRIES = 100;
     static final int HEADER_SIZE = Integer.BYTES * 2 + Long.BYTES + Byte.BYTES; //rec_size + crc + sequence + type
     static final int TYPE_OFFSET = Integer.BYTES * 2 + Long.BYTES;
     static final int SEQUENCE_OFFSET = Integer.BYTES * 2;
@@ -67,22 +67,22 @@ public class TLog implements Closeable {
         return START_SEQUENCE;
     }
 
-    public synchronized void append(ByteBuffer[] entries) {
+    public synchronized void append(ByteBuffer[] entries, int offset, int count) {
         tryCreateNewHead();
 
         int batchItems = 0;
-        for (int i = 0; i < entries.length; i++) {
+        for (int i = offset; i < count; i++) {
             long seq = sequence.get() + i;
             composeEntry(entries[i], Type.DATA, seq, batchItems * ENTRY_PART_SIZE);
-            if (++batchItems >= MAX_BATCH_ENTRIES / 3) {//buffer full
-                head.append(writeBuffers);
+            if (++batchItems >= MAX_BATCH_ENTRIES / ENTRY_PART_SIZE) {//buffer full
+                head.append(writeBuffers, 0, batchItems * ENTRY_PART_SIZE);
                 sequence.addAndGet(batchItems);
                 batchItems = 0;
             }
         }
 
         if (batchItems > 0) {
-            head.append(writeBuffers, 0, batchItems);
+            head.append(writeBuffers, 0, batchItems * ENTRY_PART_SIZE);
         }
         sequence.addAndGet(entries.length);
     }
@@ -147,11 +147,11 @@ public class TLog implements Closeable {
         long seq = sequence.get();
         sequenceBuf.clear().putLong(seq);
         composeEntry(sequenceBuf, Type.FLUSH, seq + 1, 0);
-        head.append(writeBuffers);
+        head.append(writeBuffers, 0, 1);
     }
 
     private static ByteBuffer[] createWriteBuffers() {
-        var items = new ByteBuffer[ENTRY_PART_SIZE * MAX_BATCH_ENTRIES];
+        var items = new ByteBuffer[MAX_BATCH_ENTRIES * ENTRY_PART_SIZE];
         for (var i = 0; i < items.length; i += ENTRY_PART_SIZE) {
             items[i] = Buffers.allocate(HEADER_SIZE, false); //header
             items[i + 1] = null; //data
