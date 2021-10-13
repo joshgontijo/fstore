@@ -13,6 +13,10 @@ public class Threads {
 
     }
 
+    public static void spawn(String name, Runnable runnable) {
+        thread(name, false, runnable).start();
+    }
+
     public static Thread named(String name, Runnable runnable) {
         return thread(name, false, runnable);
     }

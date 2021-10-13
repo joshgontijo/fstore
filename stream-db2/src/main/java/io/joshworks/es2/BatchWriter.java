@@ -24,7 +24,6 @@ class BatchWriter implements Closeable {
     private final EventStore store;
     private final ByteBuffer[] writeItems;
     private final WriteTask[] inProgress;
-    private final Thread worker = Threads.named("batch-writer", this::flushTask);
     private boolean closed;
     private final CountDownLatch closeLatch = new CountDownLatch(1);
 
@@ -36,7 +35,7 @@ class BatchWriter implements Closeable {
         this.tasks = new ArrayBlockingQueue<>(maxItems);
         this.writeItems = new ByteBuffer[maxItems];
         this.inProgress = new WriteTask[maxItems];
-        this.worker.start();
+        Threads.spawn("batch-writer", this::flushTask);
     }
 
     CompletableFuture<Integer> write(ByteBuffer event) {
@@ -47,13 +46,11 @@ class BatchWriter implements Closeable {
         var task = new WriteTask(event);
         try {
             tasks.put(task);
+            return task;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Failed to queue write task");
         }
-
-
-        return task;
     }
 
     private void flushTask() {
@@ -87,9 +84,7 @@ class BatchWriter implements Closeable {
 
                     cachedVersions.put(stream, nextVersion);
                     task.version = nextVersion;
-
                     //----
-
 
                     inProgress[items] = task;
                     writeItems[items] = event;

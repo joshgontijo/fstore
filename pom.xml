@@ -31,6 +31,9 @@
 <!--        <module>log-server-test</module>-->
 <!--        <module>stream-db</module>-->
         <module>stream-db2</module>
+        <module>net</module>
+        <module>event-server</module>
+        <module>http</module>
     </modules>
 
     <properties>
@@ -41,6 +44,16 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>stream-db2</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>net</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>core</artifactId>

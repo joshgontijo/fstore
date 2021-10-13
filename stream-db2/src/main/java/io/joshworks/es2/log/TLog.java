@@ -24,7 +24,7 @@ import java.util.function.Consumer;
 public class TLog implements Closeable {
 
     private static final String EXT = "log";
-    private static final long START_SEQUENCE = -1;
+    static final long START_SEQUENCE = 0;
     public static final int ENTRY_PART_SIZE = 3;
     private final SegmentDirectory<SegmentChannel> logs;
     private final ByteBuffer[] writeBuffers = createWriteBuffers();
@@ -84,7 +84,7 @@ public class TLog implements Closeable {
         if (batchItems > 0) {
             head.append(writeBuffers, 0, batchItems * ENTRY_PART_SIZE);
         }
-        sequence.addAndGet(entries.length);
+        sequence.addAndGet(count);
     }
 
     public synchronized void append(ByteBuffer data) {

@@ -99,7 +99,7 @@ class TLogRestorer {
             if (entrySize < 0 || entrySize > data.capacity()) {
                 return false;
             }
-            if (sequence < 0) {
+            if (sequence < TLog.START_SEQUENCE) {
                 return false;
             }
             if (Type.of(type) == null) {
