@@ -20,6 +20,10 @@ import java.util.function.Consumer;
  * CRC_CHECKSUM (4 bytes)
  * SEQUENCE (8 bytes)
  * TYPE (1 byte)
+ *
+ * [DATA] (n bytes)
+ *
+ * REC_SIZE (4 bytes)
  */
 public class TLog implements Closeable {
 
