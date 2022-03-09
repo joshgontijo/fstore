@@ -71,22 +71,22 @@ public class TLog implements Closeable {
         return START_SEQUENCE;
     }
 
-    public synchronized void append(ByteBuffer[] entries, int offset, int count) {
+    public synchronized void append(ByteBuffer[] entries) {
         tryCreateNewHead();
 
-        int batchItems = 0;
-        for (int i = offset; i < count; i++) {
-            long seq = sequence.get() + i;
-            composeEntry(entries[i], Type.DATA, seq, batchItems * ENTRY_PART_SIZE);
-            if (++batchItems >= MAX_BATCH_ENTRIES / ENTRY_PART_SIZE) {//buffer full
-                head.append(writeBuffers, 0, batchItems * ENTRY_PART_SIZE);
-                sequence.addAndGet(batchItems);
-                batchItems = 0;
+        var count = 0;
+        for (ByteBuffer entry : entries) {
+            long seq = sequence.get() + count;
+            composeEntry(entry, Type.DATA, seq, count * ENTRY_PART_SIZE);
+            if (++count >= MAX_BATCH_ENTRIES / ENTRY_PART_SIZE) {//buffer full
+                head.append(writeBuffers, 0, count * ENTRY_PART_SIZE);
+                sequence.addAndGet(count);
+                count = 0;
             }
         }
 
-        if (batchItems > 0) {
-            head.append(writeBuffers, 0, batchItems * ENTRY_PART_SIZE);
+        if (count > 0) {
+            head.append(writeBuffers, 0, count * ENTRY_PART_SIZE);
         }
         sequence.addAndGet(count);
     }

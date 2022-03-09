@@ -1,5 +1,6 @@
 package io.joshworks;
 
+import io.joshworks.handlers.KeepAliveHandler;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
@@ -11,6 +12,10 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.codec.serialization.ClassResolvers;
+import io.netty.handler.codec.serialization.ObjectDecoder;
+import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.timeout.IdleStateHandler;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -38,7 +43,11 @@ public class EventServer {
                     @Override
                     public void initChannel(SocketChannel ch) {
                         ch.pipeline()
-                                .addLast(new LengthFieldBasedFrameDecoder(maxEventLength, 0, LENGTH_FIELD_LENGTH, -LENGTH_FIELD_LENGTH, 0))
+                                .addLast(new ObjectEncoder())
+                                .addLast(new ObjectDecoder(ClassResolvers.cacheDisabled(getClass().getClassLoader())))
+//                                .addLast(new IdleStateHandler(10, 10, 0))
+//                                .addLast(new KeepAliveHandler())
+//                                .addLast(new LengthFieldBasedFrameDecoder(maxEventLength, 0, LENGTH_FIELD_LENGTH, -LENGTH_FIELD_LENGTH, 0))
                                 .addLast(handler);
                     }
                 })
@@ -69,10 +78,13 @@ public class EventServer {
 
     public static class EventServerBuilder {
         private int maxEventLength = Integer.MAX_VALUE;
-        private BiConsumer<ChannelHandlerContext, ByteBuf> onMessage = (a, b) -> {};
+        private BiConsumer<ChannelHandlerContext, Object> onMessage = (a, b) -> {
+        };
         private BiConsumer<ChannelHandlerContext, Throwable> onError = (a, e) -> e.printStackTrace(System.err);
-        private Consumer<ChannelHandlerContext> onConnect = a -> {};
-        private Consumer<ChannelHandlerContext> onDisconnect = a -> {};
+        private Consumer<ChannelHandlerContext> onConnect = a -> {
+        };
+        private Consumer<ChannelHandlerContext> onDisconnect = a -> {
+        };
 
         private EventServerBuilder() {
 
@@ -83,7 +95,12 @@ public class EventServer {
             return this;
         }
 
-        public EventServerBuilder onEvent(BiConsumer<ChannelHandlerContext, ByteBuf> onMessage) {
+        public EventServerBuilder onDisconnect(Consumer<ChannelHandlerContext> onDisconnect) {
+            this.onDisconnect = requireNonNull(onDisconnect);
+            return this;
+        }
+
+        public EventServerBuilder onEvent(BiConsumer<ChannelHandlerContext, Object> onMessage) {
             this.onMessage = requireNonNull(onMessage);
             return this;
         }

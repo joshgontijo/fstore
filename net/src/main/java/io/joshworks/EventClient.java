@@ -1,7 +1,7 @@
 package io.joshworks;
 
+import io.joshworks.handlers.KeepAliveHandler;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
@@ -10,9 +10,12 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.serialization.ClassResolvers;
+import io.netty.handler.codec.serialization.ObjectDecoder;
+import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.timeout.IdleStateHandler;
 
 import java.io.Closeable;
-import java.nio.ByteBuffer;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -32,14 +35,19 @@ public class EventClient implements Closeable {
         return new EventClientBuilder();
     }
 
-    public void send(ByteBuffer data) {
-        channel.channel().writeAndFlush(data);
+    public void send(Object data) {
+        channel.channel()
+                .writeAndFlush(data);
     }
 
     @Override
     public void close() {
         channel.channel().close();
         workerGroup.shutdownGracefully();
+    }
+
+    public void awaitClose() throws InterruptedException {
+        channel.channel().closeFuture().await();
     }
 
     private static ChannelFuture connectInternal(String host, int port, EventHandler handler, EventLoopGroup workerGroup) {
@@ -51,7 +59,12 @@ public class EventClient implements Closeable {
             b.handler(new ChannelInitializer<SocketChannel>() {
                 @Override
                 public void initChannel(SocketChannel ch) {
-                    ch.pipeline().addLast(handler);
+                    ch.pipeline()
+                            .addLast(new ObjectEncoder())
+                            .addLast(new ObjectDecoder(ClassResolvers.cacheDisabled(getClass().getClassLoader())))
+                            .addLast(new IdleStateHandler(5, 5, 0))
+                            .addLast(new KeepAliveHandler())
+                            .addLast(handler);
                 }
             });
 
@@ -61,16 +74,17 @@ public class EventClient implements Closeable {
             workerGroup.shutdownGracefully();
             Thread.currentThread().interrupt();
             throw new RuntimeException("Failed to connect", e);
-        } finally {
-            workerGroup.shutdownGracefully();
         }
     }
 
     public static class EventClientBuilder {
-        private BiConsumer<ChannelHandlerContext, ByteBuf> onMessage = (a, b) -> {};
+        private BiConsumer<ChannelHandlerContext, Object> onMessage = (a, b) -> {
+        };
         private BiConsumer<ChannelHandlerContext, Throwable> onError = (a, e) -> e.printStackTrace(System.err);
-        private Consumer<ChannelHandlerContext> onConnect = a -> {};
-        private Consumer<ChannelHandlerContext> onDisconnect = a -> {};
+        private Consumer<ChannelHandlerContext> onConnect = a -> {
+        };
+        private Consumer<ChannelHandlerContext> onDisconnect = a -> {
+        };
 
         private EventClientBuilder() {
         }
@@ -80,7 +94,12 @@ public class EventClient implements Closeable {
             return this;
         }
 
-        public EventClientBuilder onEvent(BiConsumer<ChannelHandlerContext, ByteBuf> onMessage) {
+        public EventClientBuilder onDisconnect(Consumer<ChannelHandlerContext> onDisconnect) {
+            this.onDisconnect = requireNonNull(onDisconnect);
+            return this;
+        }
+
+        public EventClientBuilder onEvent(BiConsumer<ChannelHandlerContext, Object> onMessage) {
             this.onMessage = requireNonNull(onMessage);
             return this;
         }

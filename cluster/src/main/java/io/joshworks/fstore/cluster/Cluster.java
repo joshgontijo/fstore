@@ -53,7 +53,7 @@ public class Cluster implements Closeable {
     private final boolean discardOwnMessages;
 
     private JChannel channel;
-    private volatile View state;
+    private View state;
     private MessageDispatcher dispatcher;
     private ClusterClient client;
     private RpcClient rpcClient;
@@ -113,9 +113,7 @@ public class Cluster implements Closeable {
             executionService = new ExecutionService(channel);
 
             executionRunner = new ExecutionRunner(channel);
-            for (int i = 0; i < 1; i++) {
-                taskPool.submit(executionRunner);
-            }
+            taskPool.submit(executionRunner);
 
             client = new ClusterClient(dispatcher, lockService, executionService);
             rpcClient = new RpcClient(client);

@@ -53,7 +53,8 @@ public class ClusterTest {
         cluster2.register(PongMessage.class, (addr, ping) -> {
         });
 
-        Object resp = cluster2.client().send(cluster1.address(), new PingMessage());
+        Object resp = cluster2.client()
+                .send(cluster1.address(), new PingMessage());
         assertEquals(pong, resp);
     }
 

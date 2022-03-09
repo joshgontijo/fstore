@@ -35,8 +35,8 @@ public class Main {
 
 
         var path = Path.of("store");
-//        TestUtils.deleteRecursively(path.toFile());
-//        Files.createDirectory(path);
+        TestUtils.deleteRecursively(path.toFile());
+        Files.createDirectory(path);
         var store = new EventStore(path, Executors.newFixedThreadPool(2));
 
         cors();
@@ -64,7 +64,12 @@ public class Main {
             int read = store.read(StreamHasher.hash(stream), version, sink);
 
             return Response.ok(parseEvents(ByteBuffer.wrap(sink.data())));
+        });
 
+        get("/streams/{stream}/version", req -> {
+            String stream = req.pathParameter("stream");
+            int version = store.version(StreamHasher.hash(stream));
+            return Response.ok(Map.of("version", version));
         });
 
         start();

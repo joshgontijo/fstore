@@ -94,7 +94,7 @@ class BatchWriter implements Closeable {
                 if (items > 0) {
 //                    System.out.println("Writting " + items + " items, batchTime: " + (System.currentTimeMillis() - poolStart) + "ms");
                     var watch = TimeWatch.start();
-                    flush(inProgress, items);
+                    flush(inProgress);
 //                    System.out.println("Flushed " + items + "in " + watch.elapsed() + "ms");
                     cachedVersions.clear();
                 }
@@ -133,9 +133,9 @@ class BatchWriter implements Closeable {
 //        return true;
 //    }
 
-    private void flush(WriteTask[] tasks, int count) {
-        store.tlog.append(writeItems, 0, count);
-        for (int i = 0; i < count; i++) {
+    private void flush(WriteTask[] tasks) {
+        store.tlog.append(writeItems);
+        for (int i = 0; i < tasks.length; i++) {
             var event = writeItems[i];
             var task = tasks[i];
             assert task.event == event;
