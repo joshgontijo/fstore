@@ -29,7 +29,7 @@ class SSTableCompaction implements Compaction<SSTable> {
 
         expectedEntries = min(expectedEntries, Integer.MAX_VALUE); //bloom filter will return more false positives for this segment
 
-        List<PeekingIterator<ByteBuffer>> iterators = handle.sources()
+        var iterators = handle.sources()
                 .stream()
                 .map(s -> s.channel)
                 .map(LengthPrefixedChannelIterator::new)
@@ -37,7 +37,7 @@ class SSTableCompaction implements Compaction<SSTable> {
                 .map(Iterators::peekingIterator)
                 .collect(Collectors.toList());
 
-        CloseableIterator<ByteBuffer> merging = Iterators.merging(iterators, StreamBlock::compare);
+        var merging = Iterators.merging(iterators, StreamBlock::compare);
         var levelConfig = handle.nextLevel() >= this.config.levelThreshold ? this.config.highConfig : this.config.lowConfig;
         SSTable.create(handle.replacement(), merging, (int) expectedEntries, totalSize, levelConfig)
                 .close();

@@ -63,7 +63,7 @@ public class MemTable {
             return Event.NO_VERSION;
         }
 
-        Lock lock = rwLock.readLock();
+        var lock = rwLock.readLock();
         lock.lock();
         try {
             return events.writeTo(version, sink);
@@ -74,10 +74,7 @@ public class MemTable {
 
     public int version(long stream) {
         StreamEvents events = table.get(stream);
-        if (events == null) {
-            return Event.NO_VERSION;
-        }
-        return events.version();
+        return events == null ? Event.NO_VERSION : events.version();
     }
 
 //    public void flush(SSTables sstables) {
@@ -89,7 +86,7 @@ public class MemTable {
 //    }
 
     public void clear() {
-        Lock lock = rwLock.writeLock();
+        var lock = rwLock.writeLock();
         lock.lock();
         try {
             for (var key : table.keySet()) {

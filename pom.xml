@@ -26,10 +26,10 @@
         <!--        <module>lsmtree-server</module>-->
         <module>cluster</module>
         <!--        <module>cluster-log-test</module>-->
-<!--        <module>indexed-log</module>-->
-<!--        <module>indexed-log-server</module>-->
-<!--        <module>log-server-test</module>-->
-<!--        <module>stream-db</module>-->
+        <!--        <module>indexed-log</module>-->
+        <!--        <module>indexed-log-server</module>-->
+        <!--        <module>log-server-test</module>-->
+        <!--        <module>stream-db</module>-->
         <module>stream-db2</module>
         <module>net</module>
         <module>event-server</module>
@@ -170,7 +170,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.0</version>
                 <configuration>
-                    <release>15</release>
+                    <release>17</release>
                     <compilerArgs>--enable-preview</compilerArgs>
                     <source>17</source>
                     <target>17</target>

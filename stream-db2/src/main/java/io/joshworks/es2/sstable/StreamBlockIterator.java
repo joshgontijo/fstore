@@ -6,7 +6,6 @@ import io.joshworks.fstore.core.iterators.CloseableIterator;
 import io.joshworks.fstore.core.iterators.Iterators;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 public class StreamBlockIterator implements CloseableIterator<ByteBuffer> {

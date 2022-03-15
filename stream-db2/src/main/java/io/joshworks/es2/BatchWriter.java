@@ -6,11 +6,9 @@ import io.joshworks.fstore.core.util.Threads;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.CompletableFuture.failedFuture;
@@ -25,8 +23,7 @@ class BatchWriter implements Closeable {
     private final ByteBuffer[] writeItems;
     private final WriteTask[] inProgress;
     private boolean closed;
-    private final CountDownLatch closeLatch = new CountDownLatch(1);
-
+    private final Thread worker;
 
     BatchWriter(EventStore store, long poolTime, long batchTimeout, int maxItems) {
         this.store = store;
@@ -35,7 +32,7 @@ class BatchWriter implements Closeable {
         this.tasks = new ArrayBlockingQueue<>(maxItems);
         this.writeItems = new ByteBuffer[maxItems];
         this.inProgress = new WriteTask[maxItems];
-        Threads.spawn("batch-writer", this::flushTask);
+        this.worker = Threads.spawn("batch-writer", this::flushTask);
     }
 
     CompletableFuture<Integer> write(ByteBuffer event) {
@@ -55,7 +52,7 @@ class BatchWriter implements Closeable {
 
     private void flushTask() {
         while (!closed) {
-            Map<Long, Integer> cachedVersions = new HashMap<>();
+            var cachedVersions = new HashMap<Long, Integer>();
             try {
                 WriteTask task;
                 int items = 0;
@@ -65,7 +62,6 @@ class BatchWriter implements Closeable {
                     if (task == null) {
                         continue;
                     }
-
 
                     //--- VERSION CHECK
                     var event = task.event;
@@ -116,8 +112,6 @@ class BatchWriter implements Closeable {
         while ((task = tasks.poll()) != null) {
             task.completeExceptionally(new RuntimeException("Closed writer"));
         }
-
-        closeLatch.countDown();
     }
 
 //    private boolean checkVersion(WriteTask task) {
@@ -154,7 +148,7 @@ class BatchWriter implements Closeable {
     public void close() {
         try {
             this.closed = true;
-            closeLatch.await();
+            this.worker.join();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("Failed to close writer");
