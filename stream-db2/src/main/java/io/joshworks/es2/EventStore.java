@@ -67,8 +67,12 @@ public class EventStore implements Closeable {
         int memTableSize = memTable.size();
 
         var newSStable = sstables.flush(memTable.flushIterator(), entries, memTableSize);
+
+        // ---- FIXME writting to two different files may lead to inconsistent results
+        //append may succeed then if the sstables metadata file write fails it will lead to inconsistent state
         tlog.appendFlushEvent();
         sstables.completeFlush(newSStable);//append only after writing to tlog
+        // ---- FIXME ---
         memTable.clear();
 
         System.out.println("Flushed " + entries + " entries (" + memTableSize + " bytes) in " + watch.elapsed() + "ms");

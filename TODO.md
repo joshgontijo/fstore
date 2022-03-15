@@ -1,0 +1,3 @@
+- Refactor TLog to use only events (remove current data format)
+- Move metadata to a TLog so it cannot cause data problems
+- Internal events (flush, metadata, etc) should be just an internal stream
