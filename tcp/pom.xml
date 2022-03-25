@@ -121,6 +121,7 @@
                     <release>17</release>
                     <target>17</target>
                     <compilerArgs>--enable-preview</compilerArgs>
+                    <source>17</source>
                 </configuration>
             </plugin>
         </plugins>

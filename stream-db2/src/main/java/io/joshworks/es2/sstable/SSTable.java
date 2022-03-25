@@ -61,7 +61,7 @@ public class SSTable implements SegmentFile {
         if (version > startVersion + entries - 1) {
             return Event.VERSION_TOO_HIGH;
         }
-        //cast is ok since the data transferred is never going to be grater than stream block
+        //cast is ok since the data transferred is never going to be greater than stream block
         return (int) channel.transferTo(logAddress, recSize, sink);
     }
 

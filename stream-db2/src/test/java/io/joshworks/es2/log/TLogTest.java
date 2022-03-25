@@ -1,5 +1,6 @@
 package io.joshworks.es2.log;
 
+import io.joshworks.es2.Event;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
@@ -50,59 +51,62 @@ public class TLogTest {
         assertTrue(restorer.contains(2));
     }
 
-    @Test
-    public void append_restore_multiple_segments() {
-        var restorer = new IntRestorer();
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
-        log.append(of(1));
-        log.appendFlushEvent();
-        log.append(of(2));
 
-        log.roll();
-        log.append(of(3));
-        log.append(of(4));
+    //FIXME MOVE TO EVENTSTORE as FLUSH EVENT IS OPAQUE
 
-        log.close();
-
-        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
-        assertEquals(3, restorer.size());
-        assertTrue(restorer.contains(2));
-        assertTrue(restorer.contains(3));
-        assertTrue(restorer.contains(4));
-    }
-
-    @Test
-    public void append_restore_last_entry() {
-        var restorer = new IntRestorer();
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
-        log.append(of(1));
-        log.append(of(2));
-        log.appendFlushEvent();
-
-        log.roll();
-        log.close();
-
-        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
-        assertEquals(0, restorer.size());
-    }
-
-    @Test
-    public void append_restore_last_entry_with_entries_in_the_next_one() {
-        var restorer = new IntRestorer();
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
-        log.append(of(1));
-        log.append(of(2));
-        log.appendFlushEvent();
-
-        log.roll();
-        log.append(of(3));
-
-        log.close();
-
-        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
-        assertEquals(1, restorer.size());
-        assertTrue(restorer.contains(3));
-    }
+//    @Test
+//    public void append_restore_multiple_segments() {
+//        var restorer = new IntRestorer();
+//        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+//        log.append(of(1));
+//        log.appendFlushEvent();
+//        log.append(of(2));
+//
+//        log.roll();
+//        log.append(of(3));
+//        log.append(of(4));
+//
+//        log.close();
+//
+//        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+//        assertEquals(3, restorer.size());
+//        assertTrue(restorer.contains(2));
+//        assertTrue(restorer.contains(3));
+//        assertTrue(restorer.contains(4));
+//    }
+//
+//    @Test
+//    public void append_restore_last_entry() {
+//        var restorer = new IntRestorer();
+//        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+//        log.append(of(1));
+//        log.append(of(2));
+//        log.appendFlushEvent();
+//
+//        log.roll();
+//        log.close();
+//
+//        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+//        assertEquals(0, restorer.size());
+//    }
+//
+//    @Test
+//    public void append_restore_last_entry_with_entries_in_the_next_one() {
+//        var restorer = new IntRestorer();
+//        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+//        log.append(of(1));
+//        log.append(of(2));
+//        log.appendFlushEvent();
+//
+//        log.roll();
+//        log.append(of(3));
+//
+//        log.close();
+//
+//        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+//        assertEquals(1, restorer.size());
+//        assertTrue(restorer.contains(3));
+//    }
 
     @Test
     public void initial_sequence() {
@@ -146,7 +150,8 @@ public class TLogTest {
 
 
     private static ByteBuffer of(int val) {
-        return Buffers.allocate(Integer.BYTES, false).putInt(val).flip();
+        var data = ByteBuffer.allocate(Integer.BYTES).putInt(val).array();
+        return Event.create(123, Event.NO_VERSION, "TEST_EVENT", data);
     }
 
     private static class IntRestorer extends ArrayList<Integer> implements Consumer<ByteBuffer> {

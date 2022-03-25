@@ -51,12 +51,14 @@ class BatchWriter implements Closeable {
     }
 
     private void flushTask() {
+        long sequence = store.tlog.sequence();
         while (!closed) {
             var cachedVersions = new HashMap<Long, Integer>();
             try {
                 WriteTask task;
                 int items = 0;
                 long poolStart = System.currentTimeMillis();
+
                 do {
                     task = tasks.poll(poolTime, TimeUnit.MILLISECONDS);
                     if (task == null) {
@@ -75,8 +77,12 @@ class BatchWriter implements Closeable {
                         task.completeExceptionally(new VersionMismatch(stream, eventVersion, currVersion));
                         continue;
                     }
+
+                    //Set event fields
                     Event.writeVersion(event, nextVersion);
                     Event.writeTimestamp(event, System.currentTimeMillis());
+                    Event.writeSequence(event, ++sequence);
+                    Event.writeChecksum(event);
 
                     cachedVersions.put(stream, nextVersion);
                     task.version = nextVersion;

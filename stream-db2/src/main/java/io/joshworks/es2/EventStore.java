@@ -30,6 +30,14 @@ public class EventStore implements Closeable {
 
     private final BatchWriter writer;
 
+    //flush
+    private static final String FLUSH_EVENT_TYPE = "FLUSH";
+    private static final ByteBuffer FLUSH_EVENT = Event.create(Streams.STREAM_INTERNAL, Event.NO_VERSION, FLUSH_EVENT_TYPE, new byte[0]);
+
+    public static boolean isFlushEvent(ByteBuffer record) {
+        return Streams.STREAM_INTERNAL == Event.stream(record) && FLUSH_EVENT_TYPE.equals(Event.eventType(record));
+    }
+
     public EventStore(Path root, ExecutorService worker) {
         this.dirLock = new DirLock(root.toFile());
         this.worker = worker;
@@ -58,6 +66,9 @@ public class EventStore implements Closeable {
     }
 
     public CompletableFuture<Integer> append(ByteBuffer event) {
+        if (!Event.isValid(event)) {
+            return CompletableFuture.failedFuture(new RuntimeException("Invalid event"));
+        }
         return writer.write(event);
     }
 
@@ -68,12 +79,14 @@ public class EventStore implements Closeable {
 
         var newSStable = sstables.flush(memTable.flushIterator(), entries, memTableSize);
 
-        // ---- FIXME writting to two different files may lead to inconsistent results
-        //append may succeed then if the sstables metadata file write fails it will lead to inconsistent state
-        tlog.appendFlushEvent();
-        sstables.completeFlush(newSStable);//append only after writing to tlog
-        // ---- FIXME ---
+        //WORST CASE SCENARIO HERE IS: The sstable is created and the log failed to append a flush event
+        //On restart the memtable will reload with already flushed events causing it to flush it again
+        //result would duplicate entries in another sstable, which is not a problem as these entries would be purged on compaction
+        //TODO check if compaction does in fact ignore duplicated entries during merge
+        sstables.completeFlush(newSStable);
         memTable.clear();
+
+        this.append(FLUSH_EVENT).join();
 
         System.out.println("Flushed " + entries + " entries (" + memTableSize + " bytes) in " + watch.elapsed() + "ms");
     }
