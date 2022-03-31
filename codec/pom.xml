@@ -3,8 +3,8 @@
          xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>fstore</artifactId>
         <groupId>io.joshworks.fstore</groupId>
+        <artifactId>fstore</artifactId>
         <version>0.1</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -36,7 +36,12 @@
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>core</artifactId>
-<!--            <scope>provided</scope>-->
+            <exclusions>
+                <exclusion>
+                    <groupId>net.jpountz.lz4</groupId>
+                    <artifactId>lz4</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
 

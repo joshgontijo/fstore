@@ -1,5 +1,6 @@
 package io.joshworks.es2.sstable;
 
+import io.joshworks.es2.Event;
 import io.joshworks.es2.LengthPrefixedChannelIterator;
 import io.joshworks.es2.directory.Compaction;
 import io.joshworks.es2.directory.CompactionItem;
@@ -37,7 +38,7 @@ class SSTableCompaction implements Compaction<SSTable> {
                 .map(Iterators::peekingIterator)
                 .collect(Collectors.toList());
 
-        var merging = Iterators.merging(iterators, StreamBlock::compare);
+        var merging = Iterators.merging(iterators, Event::compare);
         var levelConfig = handle.nextLevel() >= this.config.levelThreshold ? this.config.highConfig : this.config.lowConfig;
         SSTable.create(handle.replacement(), merging, (int) expectedEntries, totalSize, levelConfig)
                 .close();

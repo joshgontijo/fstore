@@ -15,4 +15,9 @@ class NoOp implements Codec {
     public void decompress(ByteBuffer src, ByteBuffer dst) {
         dst.put(src);
     }
+
+    @Override
+    public String toString() {
+        return "NO_OP";
+    }
 }

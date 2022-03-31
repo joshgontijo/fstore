@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 
@@ -39,15 +40,14 @@ public class EventStoreIT {
     public void read() {
 
         int items = 5_000_000;
-        String stream = "stream-1";
-        TestEvent ev1 = TestEvent.create(stream, Event.NO_VERSION, "type-a", "data-1");
+        long stream = 123L;
 
 
         //write
         var future = CompletableFuture.completedFuture(-1);
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            ByteBuffer data = ev1.serialize();
+            ByteBuffer data = Event.create(stream, Event.NO_VERSION, "type-a", "data-1".getBytes(StandardCharsets.UTF_8));
             Event.writeVersion(data, Event.NO_VERSION);
             future.thenCombine(store.append(data), Math::max);
 
@@ -64,7 +64,7 @@ public class EventStoreIT {
         read(items, stream);
     }
 
-    private void read(int items, String stream) {
+    private void read(int items, long stream) {
         long s;
         Threads.sleep(5000);
         System.out.println("READING");
@@ -74,7 +74,7 @@ public class EventStoreIT {
         int totalEntries = 0;
         int reads = 0;
         do {
-            int read = store.read(StreamHasher.hash(stream), currVersion, sink);
+            int read = store.read(stream, currVersion, sink);
             assertTrue("Failed on " + currVersion, read > 0);
 
             ByteBuffer readData = ByteBuffer.wrap(sink.data());

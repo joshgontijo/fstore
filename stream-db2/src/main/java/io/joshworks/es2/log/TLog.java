@@ -39,9 +39,9 @@ public class TLog implements Closeable {
         return tlog;
     }
 
-    public synchronized void append(ByteBuffer[] entries) {
+    public synchronized void append(ByteBuffer[] entries, int count) {
         tryCreateNewHead();
-        head.append(entries);
+        head.append(entries, count);
         sequence.addAndGet(entries.length);
     }
 

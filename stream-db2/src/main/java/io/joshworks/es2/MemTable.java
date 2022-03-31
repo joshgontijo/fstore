@@ -3,33 +3,29 @@ package io.joshworks.es2;
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.BlockCodec;
 import io.joshworks.es2.sstable.StreamBlock;
+import io.joshworks.fstore.core.io.Channels;
 import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.Memory;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Queue;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class MemTable {
 
-    private static final int MAX_READ_SIZE = Memory.PAGE_SIZE;
-
-    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final ByteBuffer data;
-    private final Queue<EventEntry> cached = new ArrayDeque<>();
     private final Map<Long, StreamEvents> table = new ConcurrentHashMap<>();
     private final AtomicInteger entries = new AtomicInteger();
 
-    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(MAX_READ_SIZE, false));
+    private final AtomicInteger readers = new AtomicInteger();
+
+    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
 
     public MemTable(int maxSize, boolean direct) {
         this.data = Buffers.allocate(maxSize, direct);
@@ -37,37 +33,38 @@ public class MemTable {
 
     public boolean add(ByteBuffer event) {
         assert event.remaining() > 0;
+        assert Event.version(event) >= 0;
+
         if (data.remaining() < event.remaining()) {
             return false;
         }
 
-        EventEntry entry = cached.isEmpty() ? new EventEntry() : cached.poll();
+        EventEntry entry = new EventEntry();
 
         long stream = Event.stream(event);
         int version = Event.version(event);
 
         entry.offset = data.position();
-        entry.length = event.remaining();
+        entry.size = event.remaining();
         entry.version = version;
 
-        data.put(event);
+        var copied = Buffers.copy(event, data);
+        assert entry.size == copied;
         table.computeIfAbsent(stream, k -> new StreamEvents(stream, version)).add(entry);
         entries.incrementAndGet();
         return true;
     }
 
     public int get(long stream, int version, Sink sink) {
-        StreamEvents events = table.get(stream);
-        if (events == null) {
-            return Event.NO_VERSION;
-        }
-
-        var lock = rwLock.readLock();
-        lock.lock();
         try {
+            readers.incrementAndGet();
+            StreamEvents events = table.get(stream);
+            if (events == null) {
+                return Event.NO_VERSION;
+            }
             return events.writeTo(version, sink);
         } finally {
-            lock.unlock();
+            readers.decrementAndGet();
         }
     }
 
@@ -76,27 +73,12 @@ public class MemTable {
         return events == null ? Event.NO_VERSION : events.version();
     }
 
-//    public void flush(SSTables sstables) {
-//        var watch = TimeWatch.start();
-//        var it = new MemTableFlushIterator();
-//        sstables.flush(it, entries.get());
-//        System.out.println("Flushed " + entries() + " entries (" + size() + " bytes) in " + watch.elapsed() + "ms");
-//        clear();
-//    }
-
     public void clear() {
-        var lock = rwLock.writeLock();
-        lock.lock();
-        try {
-            for (var key : table.keySet()) {
-                StreamEvents entries = table.remove(key);
-                entries.clear();
-            }
-            data.clear();
-            entries.set(0);
-        } finally {
-            lock.unlock();
+        while (readers.get() > 0) {
+            Thread.yield(); //wait for readers to complete
         }
+        data.clear();
+        entries.set(0);
     }
 
     public int entries() {
@@ -113,8 +95,7 @@ public class MemTable {
 
     private final class StreamEvents {
 
-        private final ConcurrentLinkedQueue<EventEntry> entries = new ConcurrentLinkedQueue<>();
-        private final AtomicInteger version = new AtomicInteger(Event.NO_VERSION);
+        private final List<EventEntry> entries = new ArrayList<>();
         private final long stream;
         private final int startVersion;
 
@@ -124,55 +105,64 @@ public class MemTable {
         }
 
         private void add(EventEntry entry) {
+            assert entry.version == version() + 1;
             entries.add(entry);
-            int prevVersion = version.getAndSet(entry.version);
-            assert prevVersion == Event.NO_VERSION || prevVersion + 1 == entry.version;
-        }
-
-        private void clear() {
-            cached.addAll(entries);
-            entries.clear();
         }
 
         private int version() {
-            return version.get();
+            return startVersion + entries.size() - 1;
         }
 
         private int writeTo(int fromVersion, Sink sink) {
-            if (fromVersion >= startVersion + entries.size()) {
+            if (fromVersion > version()) {
                 return Event.VERSION_TOO_HIGH;
             }
             if (fromVersion < startVersion) {
                 return Event.NO_VERSION;
             }
 
+            var startIdx = fromVersion - startVersion;
+
+            int totalBytes = 0;
+            int totalEntries = entries.size() - startIdx;
+            for (int idx = startIdx; idx < totalEntries; idx++) {
+                totalBytes += entries.get(idx).size;
+            }
+
+
             ByteBuffer buff = writeBuffer.get();
             buff.clear();
-            buff.position(StreamBlock.HEADER_BYTES);
+            StreamBlock.writeHeader(buff, stream, fromVersion, totalEntries, totalBytes, BlockCodec.NONE);
+            Buffers.offsetPosition(buff, StreamBlock.HEADER_BYTES);
+            Channels.writeFully(sink, buff.flip());
 
-            int size = 0;
-            int entryCount = 0;
-            for (EventEntry entry : entries) {
-                if (entry.version < fromVersion) {
-                    continue;
+            buff.clear();
+
+            long copied = 0;
+            for (int idx = startIdx; idx < totalEntries; idx++) {
+                var entry = entries.get(idx);
+                if (entry.size > buff.remaining()) {
+                    //flush to sink
+                    copied += Channels.writeFully(sink, buff.flip());
+                    buff.clear();
                 }
-                if (buff.remaining() < entry.length) {
-                    break;
-                }
-                size += Buffers.copy(data, entry.offset, entry.length, buff);
-                entryCount++;
+                Buffers.copy(data, entry.offset, entry.size, buff);
             }
-            assert size > 0;
 
-            buff.flip();//write header does not modify buffer's position so it's safe
-            StreamBlock.writeHeader(buff, stream, fromVersion, entryCount, size, BlockCodec.NONE);
-            return sink.write(buff);
+            if (buff.position() > 0) {
+                copied += Channels.writeFully(sink, buff.flip());
+            }
+
+            assert totalBytes == copied;
+            sink.flush();
+
+            return totalBytes;
         }
     }
 
     private static final class EventEntry {
         private int offset;
-        private int length;
+        private int size;
         private int version;
     }
 
@@ -200,7 +190,7 @@ public class MemTable {
                 currStreamIt = table.get(stream).entries.iterator();
             }
             EventEntry entry = currStreamIt.next();
-            return data.slice(entry.offset, entry.length);
+            return data.slice(entry.offset, entry.size);
         }
     }
 

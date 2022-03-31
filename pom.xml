@@ -114,29 +114,6 @@
                 <version>${project.version}</version>
             </dependency>
 
-            <!--            <dependency>-->
-            <!--                <groupId>${project.groupId}</groupId>-->
-            <!--                <artifactId>logstore</artifactId>-->
-            <!--                <version>${project.version}</version>-->
-            <!--            </dependency>-->
-
-            <!--            <dependency>-->
-            <!--                <groupId>${project.groupId}</groupId>-->
-            <!--                <artifactId>event-store</artifactId>-->
-            <!--                <version>${project.version}</version>-->
-            <!--            </dependency>-->
-            <!--            <dependency>-->
-            <!--                <groupId>${project.groupId}</groupId>-->
-            <!--                <artifactId>es-shared</artifactId>-->
-            <!--                <version>${project.version}</version>-->
-            <!--            </dependency>-->
-            <!--            <dependency>-->
-            <!--                <groupId>${project.groupId}</groupId>-->
-            <!--                <artifactId>es-client</artifactId>-->
-            <!--                <version>${project.version}</version>-->
-            <!--            </dependency>-->
-
-
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>tcp</artifactId>

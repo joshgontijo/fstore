@@ -6,11 +6,13 @@ import io.joshworks.fstore.core.util.Threads;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import static io.joshworks.es2.EventStore.FLUSH_EVENT_TYPE;
 import static java.util.concurrent.CompletableFuture.failedFuture;
 
 class BatchWriter implements Closeable {
@@ -24,6 +26,8 @@ class BatchWriter implements Closeable {
     private final WriteTask[] inProgress;
     private boolean closed;
     private final Thread worker;
+
+    private final Map<Long, Integer> cachedVersions = new HashMap<>();
 
     BatchWriter(EventStore store, long poolTime, long batchTimeout, int maxItems) {
         this.store = store;
@@ -51,9 +55,7 @@ class BatchWriter implements Closeable {
     }
 
     private void flushTask() {
-        long sequence = store.tlog.sequence();
         while (!closed) {
-            var cachedVersions = new HashMap<Long, Integer>();
             try {
                 WriteTask task;
                 int items = 0;
@@ -65,38 +67,21 @@ class BatchWriter implements Closeable {
                         continue;
                     }
 
-                    //--- VERSION CHECK
-                    var event = task.event;
-                    int eventVersion = Event.version(event);
-                    long stream = Event.stream(event);
-                    Integer cachedVersion = cachedVersions.get(stream);
-
-                    int currVersion = cachedVersion == null ? store.version(stream) : cachedVersion;
-                    int nextVersion = currVersion + 1;
-                    if (eventVersion != -1 && eventVersion != nextVersion) {
-                        task.completeExceptionally(new VersionMismatch(stream, eventVersion, currVersion));
+                    composeEvent(task);
+                    if (task.isCompletedExceptionally()) {
                         continue;
                     }
 
-                    //Set event fields
-                    Event.writeVersion(event, nextVersion);
-                    Event.writeTimestamp(event, System.currentTimeMillis());
-                    Event.writeSequence(event, ++sequence);
-                    Event.writeChecksum(event);
-
-                    cachedVersions.put(stream, nextVersion);
-                    task.version = nextVersion;
-                    //----
-
                     inProgress[items] = task;
-                    writeItems[items] = event;
+                    writeItems[items] = task.event;
                     items++;
+
                 } while (task != null && items < writeItems.length && System.currentTimeMillis() - poolStart < batchTimeout);
 
                 if (items > 0) {
 //                    System.out.println("Writting " + items + " items, batchTime: " + (System.currentTimeMillis() - poolStart) + "ms");
                     var watch = TimeWatch.start();
-                    flush(inProgress);
+                    flush(inProgress, items);
 //                    System.out.println("Flushed " + items + "in " + watch.elapsed() + "ms");
                     cachedVersions.clear();
                 }
@@ -120,35 +105,61 @@ class BatchWriter implements Closeable {
         }
     }
 
-//    private boolean checkVersion(WriteTask task) {
-//        int eventVersion = Event.version(task.event);
-//        long stream = Event.stream(task.event);
-//
-//        int currVersion = store.version(stream);
-//        int nextVersion = currVersion + 1;
-//        if (eventVersion != -1 && eventVersion != nextVersion) {
-//            task.completeExceptionally(new VersionMismatch(stream, eventVersion, currVersion));
-//            return false;
-//        }
-//        return true;
-//    }
+    private void composeEvent(WriteTask task) {
+        var event = task.event;
+        int eventVersion = Event.version(event);
+        long stream = Event.stream(event);
+        Integer cachedVersion = cachedVersions.get(stream);
 
-    private void flush(WriteTask[] tasks) {
-        store.tlog.append(writeItems);
-        for (int i = 0; i < tasks.length; i++) {
+        int currVersion = cachedVersion == null ? store.version(stream) : cachedVersion;
+        int nextVersion = currVersion + 1;
+        if (eventVersion != -1 && eventVersion != nextVersion) {
+            task.completeExceptionally(new VersionMismatch(stream, eventVersion, currVersion));
+            return;
+        }
+
+        //Set event fields
+        Event.writeVersion(event, nextVersion);
+        Event.writeTimestamp(event, System.currentTimeMillis());
+        Event.writeSequence(event, store.tlog.sequence() + 1);
+        Event.writeChecksum(event);
+
+        cachedVersions.put(stream, nextVersion);
+        task.version = nextVersion;
+    }
+
+    private void flush(WriteTask[] tasks, int count) {
+        store.tlog.append(writeItems, count);
+        for (int i = 0; i < count; i++) {
             var event = writeItems[i];
+            event.flip();
+
             var task = tasks[i];
             assert task.event == event;
 
-            event.flip();
             if (!store.memTable.add(event)) {
                 store.roll();
+                //flush
+                var flushEvent = createFlushEvent();
+                store.tlog.append(flushEvent);
+                flushEvent.flip();
+                store.memTable.add(flushEvent);
+                //--
                 store.memTable.add(event);
             }
             task.complete(task.version);
         }
     }
 
+    private ByteBuffer createFlushEvent() {
+        WriteTask task = new WriteTask(flushEvent());
+        composeEvent(task);
+        return task.event;
+    }
+
+    private static ByteBuffer flushEvent() {
+        return Event.create(Streams.STREAM_INTERNAL, Event.NO_VERSION, FLUSH_EVENT_TYPE, new byte[0]);
+    }
 
     @Override
     public void close() {

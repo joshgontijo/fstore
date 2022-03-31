@@ -180,13 +180,13 @@ public class Event {
 
 
     public static String toString(ByteBuffer data) {
-        return "RECORD_SIZE=" + sizeOf(data) + ", " +
-                "STREAM_HASH=" + stream(data) + ", " +
-                "VERSION=" + version(data) + ", " +
-                "CHECKSUM=" + version(data) + ", " +
-                "EVENT_TYPE=" + eventType(data) + ", " +
-                "TIMESTAMP=" + timestamp(data) + ", " +
-                "TYPE_LENGTH=" + eventTypeLen(data) + ", " +
+        return "RECORD_SIZE=" + sizeOf(data) + "\n" +
+                "STREAM_HASH=" + stream(data) + "\n" +
+                "VERSION=" + version(data) + "\n" +
+                "CHECKSUM=" + version(data) + "\n" +
+                "EVENT_TYPE=" + eventType(data) + "\n" +
+                "TIMESTAMP=" + timestamp(data) + "\n" +
+                "TYPE_LENGTH=" + eventTypeLen(data) + "\n" +
                 "DATA_LENGTH=" + dataLen(data);
     }
 

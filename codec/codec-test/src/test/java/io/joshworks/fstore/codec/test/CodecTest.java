@@ -192,7 +192,7 @@ public abstract class CodecTest {
 
             compressed.flip();
 
-            int compressedSize = compressed.remaining();
+            double compressedSize = compressed.remaining();
             compression += (dataSize - compressedSize) / 100;
 
 
