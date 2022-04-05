@@ -53,11 +53,11 @@ public class Threads {
     public static ThreadFactory namePrefixedThreadFactory(String name) {
         return new ThreadFactory() {
 
-            private final AtomicLong counter = new AtomicLong();
+            private final AtomicLong factoryCounter = new AtomicLong();
 
             @Override
             public Thread newThread(Runnable r) {
-                return Threads.thread(name + "-" + counter.getAndIncrement(), r);
+                return Threads.thread(name + "-" + factoryCounter.getAndIncrement(), r);
             }
         };
     }
