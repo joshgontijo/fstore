@@ -3,6 +3,7 @@ package io.joshworks.es2.sstable;
 import io.joshworks.es2.Event;
 import io.joshworks.es2.index.IndexKey;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.core.iterators.Iterators;
 import io.joshworks.fstore.core.util.ByteBufferChecksum;
 
 import java.nio.ByteBuffer;
@@ -123,13 +124,17 @@ public class StreamBlock {
         return uncompressedSize;
     }
 
+    public static StreamBlockIterator iterator(ByteBuffer block) {
+        return new StreamBlockIterator(Iterators.closeableIterator(Iterators.of(block)));
+    }
+
     public static String toString(ByteBuffer data) {
-        return "RECORD_SIZE=" + sizeOf(data) + ", " +
-                "STREAM_HASH=" + stream(data) + ", " +
-                "START_VERSION=" + startVersion(data) + ", " +
-                "ENTRIES=" + entries(data) + ", " +
-                "CHECKSUM=" + checksum(data) + ", " +
-                "UNCOMPRESSED_SIZE=" + uncompressedSize(data) + ", " +
+        return "RECORD_SIZE=" + sizeOf(data) + "\n" +
+                "STREAM_HASH=" + stream(data) + "\n" +
+                "START_VERSION=" + startVersion(data) + "\n" +
+                "ENTRIES=" + entries(data) + "\n" +
+                "CHECKSUM=" + checksum(data) + "\n" +
+                "UNCOMPRESSED_SIZE=" + uncompressedSize(data) + "\n" +
                 "CODEC=" + codec(data);
     }
 

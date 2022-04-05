@@ -22,8 +22,9 @@ public class MemTable {
     private final ByteBuffer data;
     private final Map<Long, StreamEvents> table = new ConcurrentHashMap<>();
     private final AtomicInteger entries = new AtomicInteger();
-
     private final AtomicInteger readers = new AtomicInteger();
+
+    private static final int MAX_ENTRIES_READ = 1000;
 
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
 
@@ -124,22 +125,27 @@ public class MemTable {
             var startIdx = fromVersion - startVersion;
 
             int totalBytes = 0;
-            int totalEntries = entries.size() - startIdx;
-            for (int idx = startIdx; idx < totalEntries; idx++) {
+            int totalEntries = (entries.size() - startIdx);
+            int readableEntries = Math.min(totalEntries, MAX_ENTRIES_READ);
+            int maxReadableIdx = Math.min(startIdx + readableEntries, startIdx + MAX_ENTRIES_READ);
+
+            assert readableEntries == (maxReadableIdx - startIdx);
+
+            for (int idx = startIdx; idx < maxReadableIdx; idx++) {
                 totalBytes += entries.get(idx).size;
             }
 
 
             ByteBuffer buff = writeBuffer.get();
             buff.clear();
-            StreamBlock.writeHeader(buff, stream, fromVersion, totalEntries, totalBytes, BlockCodec.NONE);
+            StreamBlock.writeHeader(buff, stream, fromVersion, readableEntries, totalBytes, BlockCodec.NONE);
             Buffers.offsetPosition(buff, StreamBlock.HEADER_BYTES);
             Channels.writeFully(sink, buff.flip());
 
             buff.clear();
 
             long copied = 0;
-            for (int idx = startIdx; idx < totalEntries; idx++) {
+            for (int idx = startIdx; idx < maxReadableIdx; idx++) {
                 var entry = entries.get(idx);
                 if (entry.size > buff.remaining()) {
                     //flush to sink

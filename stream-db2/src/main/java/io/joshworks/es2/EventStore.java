@@ -71,7 +71,7 @@ public class EventStore implements Closeable {
         return writer.write(event);
     }
 
-    synchronized void roll() {
+    void roll() {
         var watch = TimeWatch.start();
         int entries = memTable.entries();
         int memTableSize = memTable.size();
@@ -85,9 +85,7 @@ public class EventStore implements Closeable {
         //TODO check if compaction does in fact ignore duplicated entries during merge
         sstables.completeFlush(newSStable);
 
-        var oldMemTable = this.memTable;
         this.memTable = new MemTable(Size.MB.ofInt(10), true);
-        oldMemTable.clear();
 
         System.out.println("Flushed " + entries + " entries (" + memTableSize + " bytes) in " + watch.elapsed() + "ms");
     }
