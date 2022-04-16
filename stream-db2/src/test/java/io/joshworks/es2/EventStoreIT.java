@@ -2,7 +2,6 @@ package io.joshworks.es2;
 
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.StreamBlock;
-import io.joshworks.es2.sstable.TestEvent;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
 import org.junit.After;
@@ -34,6 +33,7 @@ public class EventStoreIT {
     @After
     public void tearDown() {
         store.close();
+        TestUtils.deleteRecursively(root);
     }
 
     @Test

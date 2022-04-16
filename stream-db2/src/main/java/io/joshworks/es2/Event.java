@@ -37,7 +37,7 @@ public class Event {
     public static final int VERSION_TOO_HIGH = -22;
 
     public static final int HEADER_BYTES =
-            Integer.BYTES + //RECORD_SIZE
+                    Integer.BYTES + //RECORD_SIZE
                     Integer.BYTES + //CHECKSUM
                     Long.BYTES +    //STREAM_HASH
                     Integer.BYTES + //VERSION

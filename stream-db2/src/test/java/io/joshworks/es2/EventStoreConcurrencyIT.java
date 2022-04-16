@@ -33,6 +33,7 @@ public class EventStoreConcurrencyIT {
     @After
     public void tearDown() {
         store.close();
+        TestUtils.deleteRecursively(root);
     }
 
     @Test
