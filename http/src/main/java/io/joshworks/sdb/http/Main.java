@@ -23,16 +23,12 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 
-import static io.joshworks.snappy.SnappyServer.cors;
-import static io.joshworks.snappy.SnappyServer.get;
-import static io.joshworks.snappy.SnappyServer.post;
-import static io.joshworks.snappy.SnappyServer.start;
+import static io.joshworks.snappy.SnappyServer.*;
 import static io.joshworks.snappy.http.Response.ok;
 
 public class Main {
 
     public static void main(String[] args) throws IOException {
-
 
         var path = Path.of("store");
         TestUtils.deleteRecursively(path.toFile());
@@ -73,6 +69,7 @@ public class Main {
         });
 
         start();
+        store.close();
 
 
     }

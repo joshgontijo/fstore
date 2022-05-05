@@ -102,7 +102,7 @@ public class MMapStorage extends MemStorage {
             List<ByteBuffer> newBuffers = initBuffers(newLength, mmap(diskStorage));
             this.buffers.addAll(newBuffers);
             computeSize();
-            position.accumulateAndGet(newSize, (curr, newPos) -> curr > newPos ? newPos : curr);
+            position.accumulateAndGet(newSize, Math::min);
         } finally {
             lock.unlock();
         }

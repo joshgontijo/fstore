@@ -13,15 +13,14 @@ public interface SegmentFile extends Closeable, Comparable<SegmentFile> {
 
     long size();
 
+    default SegmentId segmentId() {
+        return DirectoryUtils.segmentId(name());
+    }
+
     @Override
     default int compareTo(SegmentFile o) {
         var thisSegmentId = DirectoryUtils.segmentId(this);
         var otherSegmentId = DirectoryUtils.segmentId(o);
-
-        var levelDiff = Integer.compare(thisSegmentId.level(), otherSegmentId.level());
-        if (levelDiff != 0) {
-            return levelDiff;
-        }
-        return Long.compare(thisSegmentId.idx(), otherSegmentId.idx()) * -1; //reversed
+        return thisSegmentId.compareTo(otherSegmentId);
     }
 }

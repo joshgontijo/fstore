@@ -79,7 +79,7 @@ class DirectoryUtils {
         return segmentId(sf.name());
     }
 
-    private static SegmentId segmentId(String id) {
+    static SegmentId segmentId(String id) {
         String[] part = id.split(SEPARATOR);
         int level = Integer.parseInt(part[0]);
         long idx = Long.parseLong(part[1]);

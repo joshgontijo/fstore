@@ -62,6 +62,10 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return segments.get(i);
     }
 
+    public long generation() {
+        return generation;
+    }
+
     View<T> add(T segment) {
         var view = copy();
         view.segments.add(segment);
