@@ -58,31 +58,19 @@ class DirectoryUtils {
         if (segmentIdx < 0 || level < 0) {
             throw new RuntimeException("Invalid segment values, level: " + level + ", idx: " + segmentIdx);
         }
-        String fileLevel = toLevelString(level);
-        String fileLevelIdx = String.format("%0" + BitUtil.decimalUnitsForDecimal(Long.MAX_VALUE) + "d", segmentIdx);
-        return fileLevel + "-" + fileLevelIdx + "." + ext;
+        return new SegmentId(level, segmentIdx) + "." + ext;
     }
-
-    static String toLevelString(int level) {
-        return String.format("%0" + BitUtil.decimalUnitsForDecimal(Integer.MAX_VALUE) + "d", level);
-    }
-
 
     //------------------------
 
-    static <T extends SegmentFile> SegmentId segmentId(File file) {
+    static SegmentId segmentId(File file) {
         String id = file.getName().split("\\.")[0];
-        return segmentId(id);
+        return SegmentId.from(id);
     }
 
     static <T extends SegmentFile> SegmentId segmentId(T sf) {
-        return segmentId(sf.name());
+        return SegmentId.from(sf.name());
     }
 
-    static SegmentId segmentId(String id) {
-        String[] part = id.split(SEPARATOR);
-        int level = Integer.parseInt(part[0]);
-        long idx = Long.parseLong(part[1]);
-        return new SegmentId(level, idx);
-    }
+
 }

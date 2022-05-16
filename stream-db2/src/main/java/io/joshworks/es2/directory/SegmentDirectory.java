@@ -260,6 +260,10 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         return viewRef.get().acquire();
     }
 
+    public long generation() {
+        return viewRef.get().generation();
+    }
+
     @Override
     public synchronized void close() {
         var view = this.viewRef.getAndSet(new View<>());

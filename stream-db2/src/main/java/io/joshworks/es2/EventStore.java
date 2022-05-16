@@ -5,6 +5,7 @@ import io.joshworks.es2.log.TLog;
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.SSTableConfig;
 import io.joshworks.es2.sstable.SSTables;
+import io.joshworks.fstore.core.iterators.CloseableIterator;
 import io.joshworks.fstore.core.seda.TimeWatch;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
@@ -71,6 +72,10 @@ public class EventStore implements Closeable {
         return writer.write(event);
     }
 
+    public CloseableIterator<ByteBuffer> logIterator() {
+        return tlog.iterator();
+    }
+
     void roll() {
         var watch = TimeWatch.start();
         int entries = memTable.entries();
@@ -82,7 +87,7 @@ public class EventStore implements Closeable {
         //WORST CASE SCENARIO HERE IS: The sstable is created and the log failed to append a flush event
         //On restart the memtable will reload with already flushed events causing it to flush it again
         //result would duplicate entries in another sstable, which is not a problem as these entries would be purged on compaction
-        //TODO check if compaction does in fact ignore duplicated entries during merge
+        //TODO check if sstable compaction does in fact ignore duplicated entries during merge
         sstables.completeFlush(newSStable);
 
         this.memTable = new MemTable(Size.MB.ofInt(10), true);

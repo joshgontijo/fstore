@@ -14,7 +14,7 @@ public interface SegmentFile extends Closeable, Comparable<SegmentFile> {
     long size();
 
     default SegmentId segmentId() {
-        return DirectoryUtils.segmentId(name());
+        return SegmentId.from(name());
     }
 
     @Override

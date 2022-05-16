@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.iterators.CloseableIterator;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 public class LengthPrefixedBufferIterator implements CloseableIterator<ByteBuffer> {

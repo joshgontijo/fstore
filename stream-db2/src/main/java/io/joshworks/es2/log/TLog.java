@@ -4,6 +4,7 @@ import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.directory.Compaction;
 import io.joshworks.es2.directory.CompactionItem;
 import io.joshworks.es2.directory.SegmentDirectory;
+import io.joshworks.fstore.core.iterators.CloseableIterator;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
@@ -12,7 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-public class TLog implements Closeable {
+public class TLog implements Closeable, Iterable<ByteBuffer> {
 
     private static final String EXT = "log";
     static final long NO_SEQUENCE = -1;
@@ -75,6 +76,11 @@ public class TLog implements Closeable {
     @Override
     public synchronized void close() {
         logs.close();
+    }
+
+    @Override
+    public CloseableIterator<ByteBuffer> iterator() {
+        return new TLogIterator(logs);
     }
 
     private static class TLogCompaction implements Compaction<SegmentChannel> {

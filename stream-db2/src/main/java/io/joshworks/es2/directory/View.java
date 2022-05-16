@@ -42,12 +42,25 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return this;
     }
 
+    private void validateReferenceCount() {
+        if (refCount.get() <= 0) {
+            throw new RuntimeException("View reference is invalid");
+        }
+    }
+
     private View<T> copy() {
+        validateReferenceCount();
         return new View<>(segments, generation + 1);
     }
 
     public T head() {
+        validateReferenceCount();
         return segments.get(0);
+    }
+
+    public T tail() {
+        validateReferenceCount();
+        return segments.get(segments.size() - 1);
     }
 
     public boolean isEmpty() {
@@ -102,10 +115,12 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
 
     @Override
     public Iterator<T> iterator() {
+        validateReferenceCount();
         return segments.iterator();
     }
 
     public Iterator<T> reverse() {
+        validateReferenceCount();
         return reversed(segments);
     }
 
