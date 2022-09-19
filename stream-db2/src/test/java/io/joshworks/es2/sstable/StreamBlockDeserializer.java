@@ -24,7 +24,7 @@ public class StreamBlockDeserializer {
         byte codecId = StreamBlock.codec(block);
 
         ByteBuffer decompressed = Buffers.allocate(uncompressedSize, false);
-        Codec codec = BlockCodec.from(codecId);
+        Codec codec = BlockCodec.from(codecId).codec;
 
         Buffers.offsetPosition(block, StreamBlock.HEADER_BYTES);
 

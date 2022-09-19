@@ -82,7 +82,7 @@ public class Iterators {
     /**
      * For <b>SORTED</b> iterators only.
      */
-    public static <T> CloseableIterator<T> merging(Collection<? extends CloseableIterator<T>> iterators, Comparator<T> cmp) {
+    public static <T> CloseableIterator<T> mergeSort(Collection<? extends CloseableIterator<T>> iterators, Comparator<T> cmp) {
         return new MergeSortIterator<>(iterators.stream()
                 .map(PeekingIterator::new)
                 .collect(Collectors.toList()), cmp);
@@ -91,8 +91,8 @@ public class Iterators {
     /**
      * For <b>SORTED</b> iterators only.
      */
-    public static <T extends Comparable<T>> CloseableIterator<T> merging(Collection<? extends CloseableIterator<T>> iterators) {
-        return merging(iterators, T::compareTo);
+    public static <T extends Comparable<T>> CloseableIterator<T> mergeSort(Collection<? extends CloseableIterator<T>> iterators) {
+        return mergeSort(iterators, T::compareTo);
     }
 
 

@@ -37,7 +37,7 @@ public class Event {
     public static final int VERSION_TOO_HIGH = -22;
 
     public static final int HEADER_BYTES =
-                    Integer.BYTES + //RECORD_SIZE
+            Integer.BYTES + //RECORD_SIZE
                     Integer.BYTES + //CHECKSUM
                     Long.BYTES +    //STREAM_HASH
                     Integer.BYTES + //VERSION
@@ -180,14 +180,16 @@ public class Event {
 
 
     public static String toString(ByteBuffer data) {
-        return "RECORD_SIZE=" + sizeOf(data) + "\n" +
-                "STREAM_HASH=" + stream(data) + "\n" +
-                "VERSION=" + version(data) + "\n" +
-                "CHECKSUM=" + version(data) + "\n" +
-                "EVENT_TYPE=" + eventType(data) + "\n" +
-                "TIMESTAMP=" + timestamp(data) + "\n" +
-                "TYPE_LENGTH=" + eventTypeLen(data) + "\n" +
-                "DATA_LENGTH=" + dataLen(data);
+        return "RECORD_SIZE=" + sizeOf(data) + ", " +
+                "CHECKSUM=" + checksum(data) + ", " +
+                "TIMESTAMP=" + timestamp(data) + ", " +
+                "STREAM_HASH=" + stream(data) + ", " +
+                "VERSION=" + version(data) + ", " +
+                "TYPE_LENGTH=" + eventTypeLen(data) + ", " +
+                "DATA_LENGTH=" + dataLen(data) + ", " +
+                "EVENT_TYPE=" + eventType(data) + ", " +
+                "DATA_STRING=" + dataString(data);
+
     }
 
 }

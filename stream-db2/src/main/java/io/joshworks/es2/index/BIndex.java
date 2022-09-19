@@ -19,7 +19,7 @@ public class BIndex implements SegmentFile {
     private final SegmentChannel.MappedReadRegion mf;
     private final SegmentChannel channel;
     private final BloomFilter filter;
-    private final ByteBuffer keyBuffer = Buffers.allocate(IndexKey.BYTES, false); //Bloom filter only
+//    private final ByteBuffer keyBuffer = Buffers.allocate(IndexKey.BYTES, false); //Bloom filter only
     private final long denseEntries;
 
     private BIndex(SegmentChannel.MappedReadRegion mf, SegmentChannel channel, BloomFilter filter, long denseEntries) {
@@ -79,6 +79,7 @@ public class BIndex implements SegmentFile {
     }
 
     public boolean contains(long stream, int version) {
+        var keyBuffer = Buffers.allocate(IndexKey.BYTES, false);
         return filter.contains(keyBuffer.clear().putLong(stream).putInt(version).flip());
     }
 

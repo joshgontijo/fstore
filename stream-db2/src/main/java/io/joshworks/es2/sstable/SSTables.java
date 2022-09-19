@@ -57,8 +57,9 @@ public class SSTables implements Closeable {
         return SSTable.create(headFile, iterator, entryCount, size, config.lowConfig);
     }
 
-    public void completeFlush(SSTable ssTable) {
+    public CompletableFuture<CompactionResult> completeFlush(SSTable ssTable) {
         items.append(ssTable);
+        return compact();
     }
 
     public void delete() {

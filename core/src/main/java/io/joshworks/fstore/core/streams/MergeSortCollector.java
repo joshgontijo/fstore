@@ -30,7 +30,7 @@ class MergeSortCollector<T extends CloseableIterator<E>, E extends Comparable<E>
 
     @Override
     public Function<ArrayList<T>, Stream<E>> finisher() {
-        return i -> Iterators.stream(Iterators.merging(i));
+        return i -> Iterators.stream(Iterators.mergeSort(i));
     }
 
     @Override

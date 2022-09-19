@@ -124,19 +124,18 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             Collections.reverse(levelSegments); //reverse so we start from oldest files first
 
             int nextLevel = level + 1;
-            do {
+            while (levelSegments.size() >= minItems) {
                 int items = min(maxItems, levelSegments.size());
                 var sublist = new ArrayList<>(levelSegments.subList(0, items));
                 levelSegments.removeAll(sublist);
 
                 var replacementFile = createFile(nextLevel, nextIdx(view, nextLevel));
-                var handle = new CompactionItem<>(view.acquire(), replacementFile, sublist, level, nextLevel);
+                var handle = new CompactionItem<>(view.acquire(), replacementFile, sublist, level);
 
                 System.err.println("Submitting " + handle);
                 task = task.thenCombine(submit(handle), CompactionResult::merge);
                 compacting.add(handle);
-
-            } while (levelSegments.size() >= minItems);
+            }
         }
         return task;
     }
@@ -234,6 +233,12 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         }
     }
 
+    //FIXME io.joshworks.fstore.core.RuntimeIOException: Failed to create segment 0000000001-0000000000000000000.sst
+    //Submitting [0000000000-0000000000000000000, 0000000000-0000000000000000001, 0000000000-0000000000000000002] -> 0000000001-0000000000000000000.sst
+    //...
+    //Completing [0000000001-0000000000000000000, 0000000001-0000000000000000001, 0000000001-0000000000000000002] -> 0000000002-0000000000000000000.sst
+    //Submitting [0000000000-0000000000000000009, 0000000000-0000000000000000010, 0000000000-0000000000000000011] -> 0000000001-0000000000000000000.sst
+    //level ends up empty, idx start again from zero, compaction tries to create a file, but the old still exist
     private long nextIdx(View<T> view, int level) {
         //do not change, other methods are iterating the view stream, it needs to be closed
         List<T> levelSegments = levelSegments(view, level);

@@ -2,6 +2,7 @@ package io.joshworks.es2;
 
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.StreamBlock;
+import io.joshworks.es2.utils.SSTableDump;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
 import org.junit.After;
@@ -11,6 +12,7 @@ import org.junit.Test;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -37,22 +39,29 @@ public class EventStoreConcurrencyIT {
     }
 
     @Test
-    public void concurrent() {
+    public void concurrent() throws Exception {
 
-        int items = 5_000_000;
+        int items = 2_000_000;
         long stream = 123L;
+        int writers = 5;
+        int readers = 20;
 
+        var threads = new ArrayList<Thread>();
+        for (int i = 0; i < writers; i++) {
+            threads.add(Threads.spawn("writer-" + i, () -> write(items, stream)));
+        }
+        for (int i = 0; i < readers; i++) {
+            threads.add(Threads.spawn("reader-" + i, () -> read(items * writers, stream)));
+        }
 
-        var writer = Threads.spawn("writer", () -> write(items, stream));
-        var reader = Threads.spawn("reader", () -> read(items, stream));
+        Threads.waitFor(threads);
+        SSTableDump.dumpStream(stream, store, new File("out-" + stream + ".txt"));
 
-        Threads.waitFor(writer, reader);
     }
 
     private void write(int items, long stream) {
         for (int i = 0; i < items; i++) {
-            ByteBuffer data = Event.create(stream, Event.NO_VERSION, "type-a", "data-1".getBytes(StandardCharsets.UTF_8));
-            Event.writeVersion(data, Event.NO_VERSION);
+            ByteBuffer data = Event.create(stream, Event.NO_VERSION, "type-a", (Thread.currentThread().getId() +"_data-" + i).getBytes(StandardCharsets.UTF_8));
             store.append(data);
 
             if (i % 100_000 == 0) {

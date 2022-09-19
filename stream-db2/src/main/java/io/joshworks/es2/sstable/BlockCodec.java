@@ -31,10 +31,10 @@ public enum BlockCodec {
         this.codec = codec;
     }
 
-    public static Codec from(byte id) {
+    public static BlockCodec from(byte id) {
         BlockCodec codec = codecs.get(id);
         if (codec == null) throw new IllegalArgumentException("Invalid codec id " + id);
-        return codec.codec;
+        return codec;
     }
 
 

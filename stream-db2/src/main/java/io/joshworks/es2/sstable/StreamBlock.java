@@ -26,13 +26,13 @@ import java.nio.ByteBuffer;
 public class StreamBlock {
 
     public static final int HEADER_BYTES =
-            Integer.BYTES +  //RECORD_SIZE
-                    Long.BYTES + //STREAM_HASH
+                    Integer.BYTES + //RECORD_SIZE
+                    Long.BYTES +    //STREAM_HASH
                     Integer.BYTES + //START_VERSION
                     Integer.BYTES + // ENTRIES
-                    Integer.BYTES +// CHECKSUM
-                    Integer.BYTES +// UNCOMPRESSED_SIZE
-                    Byte.BYTES;// CHECKSUM
+                    Integer.BYTES + // CHECKSUM
+                    Integer.BYTES + // UNCOMPRESSED_SIZE
+                    Byte.BYTES;     // CHECKSUM
 
 
     static final int SIZE_OFFSET = 0;
@@ -117,7 +117,7 @@ public class StreamBlock {
             throw new RuntimeException("Unable to decompress block: Not enough dst buffer data");
         }
         Buffers.offsetLimit(dst, uncompressedSize);
-        var codec = BlockCodec.from(codec(chunkData));
+        var codec = BlockCodec.from(codec(chunkData)).codec;
         Buffers.offsetPosition(chunkData, HEADER_BYTES);
         codec.decompress(chunkData, dst);
         assert !dst.hasRemaining();
@@ -129,13 +129,13 @@ public class StreamBlock {
     }
 
     public static String toString(ByteBuffer data) {
-        return "RECORD_SIZE=" + sizeOf(data) + "\n" +
-                "STREAM_HASH=" + stream(data) + "\n" +
-                "START_VERSION=" + startVersion(data) + "\n" +
-                "ENTRIES=" + entries(data) + "\n" +
-                "CHECKSUM=" + checksum(data) + "\n" +
-                "UNCOMPRESSED_SIZE=" + uncompressedSize(data) + "\n" +
-                "CODEC=" + codec(data);
+        return "BLOCK_SIZE=" + sizeOf(data) + ", " +
+                "STREAM_HASH=" + stream(data) + ", " +
+                "START_VERSION=" + startVersion(data) + ", " +
+                "ENTRIES=" + entries(data) + ", " +
+                "CHECKSUM=" + checksum(data) + ", " +
+                "UNCOMPRESSED_SIZE=" + uncompressedSize(data) + ", " +
+                "CODEC=" + BlockCodec.from(codec(data));
     }
 
 }

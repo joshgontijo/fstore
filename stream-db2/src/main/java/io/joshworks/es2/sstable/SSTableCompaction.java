@@ -4,12 +4,8 @@ import io.joshworks.es2.Event;
 import io.joshworks.es2.LengthPrefixedChannelIterator;
 import io.joshworks.es2.directory.Compaction;
 import io.joshworks.es2.directory.CompactionItem;
-import io.joshworks.fstore.core.iterators.CloseableIterator;
 import io.joshworks.fstore.core.iterators.Iterators;
-import io.joshworks.fstore.core.iterators.PeekingIterator;
 
-import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.stream.Collectors;
 
 import static java.lang.Math.min;
@@ -35,10 +31,9 @@ class SSTableCompaction implements Compaction<SSTable> {
                 .map(s -> s.channel)
                 .map(LengthPrefixedChannelIterator::new)
                 .map(StreamBlockIterator::new)
-                .map(Iterators::peekingIterator)
                 .collect(Collectors.toList());
 
-        var merging = Iterators.merging(iterators, Event::compare);
+        var merging = Iterators.mergeSort(iterators, Event::compare);
         var levelConfig = handle.nextLevel() >= this.config.levelThreshold ? this.config.highConfig : this.config.lowConfig;
         SSTable.create(handle.replacement(), merging, (int) expectedEntries, totalSize, levelConfig)
                 .close();

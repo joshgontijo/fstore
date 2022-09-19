@@ -50,6 +50,7 @@ public class SSTableConfig {
 
     SSTableConfig copy() {
         return new SSTableConfig()
+                .compactionThreshold(compactionThreshold)
                 .levelThreshold(levelThreshold)
                 .low(lowConfig.copy())
                 .high(highConfig.copy());

@@ -1,5 +1,6 @@
 package io.joshworks.fstore.core.util;
 
+import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -73,6 +74,10 @@ public class Threads {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+    }
+
+    public static void waitFor(Collection<Thread> threads) {
+        waitFor(threads.toArray(Thread[]::new));
     }
 
     public static void waitFor(Thread... threads) {
