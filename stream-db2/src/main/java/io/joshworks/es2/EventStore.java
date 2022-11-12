@@ -38,6 +38,7 @@ public class EventStore implements Closeable {
     }
 
     public EventStore(Path root, ExecutorService worker) {
+        System.out.println("Opening " + root);
         this.dirLock = new DirLock(root.toFile());
         this.worker = worker;
         this.sstables = new SSTables(root, new SSTableConfig(), worker);

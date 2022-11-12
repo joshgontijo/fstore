@@ -28,18 +28,20 @@ public class TLogIterator implements CloseableIterator<ByteBuffer> {
     }
 
     private void nextIterator() {
-        if (!viewIterator.hasNext()) {
-            View<SegmentChannel> newView = directory.view();
-            if (currentView.generation() == newView.generation()) {
-                newView.close();
-                this.segmentIterator = Iterators.empty();
-                return;
-            }
-            currentView.close();
-            currentView = newView;
-            viewIterator = currentView.iterator();
-            //TODO compare with lastSegmentId in order to read only new segment
+        if (viewIterator.hasNext()) {
+            return;
         }
+        View<SegmentChannel> newView = directory.view();
+        if (currentView.generation() == newView.generation()) {
+            newView.close();
+            this.segmentIterator = Iterators.empty();
+            return;
+        }
+        currentView.close();
+        currentView = newView;
+        viewIterator = currentView.iterator();
+
+        //TODO compare with lastSegmentId in order to read only new segment
         this.segmentIterator = new LengthPrefixedChannelIterator(this.viewIterator.next());
     }
 

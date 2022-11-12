@@ -11,6 +11,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.joshworks.fstore.core.iterators.Iterators.reversed;
@@ -38,8 +39,8 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
     }
 
     View<T> acquire() {
-        refCount.incrementAndGet();
-        return this;
+        int refCount = this.refCount.getAndUpdate(v -> v <= 0 ? v : v + 1);
+        return refCount <= 0 ? null : this;
     }
 
     private View<T> copy() {
@@ -81,10 +82,11 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
 
     View<T> delete(Collection<T> segments) {
         var newView = copy();
+        var segmentNames = segments.stream().map(SegmentFile::name).collect(Collectors.toSet());
         var it = newView.segments.iterator();
         while (it.hasNext()) {
             T item = it.next();
-            if (segments.contains(item)) {
+            if (segmentNames.contains(item.name())) {
                 it.remove();
                 markedForDeletion.add(item);
             }
@@ -113,10 +115,12 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return Iterators.stream(iterator());
     }
 
+    //must not be closed twice
     @Override
     public void close() { //must not be closed twice for a given acquire
         int refs = refCount.decrementAndGet();
-        if (refs == 0 && !markedForDeletion.isEmpty()) {
+        System.out.println("REFS: " + refs);
+        if (refs == 0) {
             for (T segment : markedForDeletion) {
                 segment.delete();
             }

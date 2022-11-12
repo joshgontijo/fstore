@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -60,7 +62,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     }
 
 
-    public File newHead() {
+    public synchronized File newHead() {
         long segIdx = 0;
         var view = this.viewRef.get();
         if (!view.isEmpty()) {
@@ -72,6 +74,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
     private File createFile(int level, long segIdx) {
         String name = segmentFileName(segIdx, level, extension);
+        assert !Files.exists(Path.of(name));
         return new File(root, name);
     }
 
@@ -110,7 +113,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
     //TODO move parameters to constructor
     public synchronized CompletableFuture<CompactionResult> compact(int minItems, int maxItems) {
-        var view = this.viewRef.get();
+        var view = view();
 
         var task = CompletableFuture.completedFuture(new CompactionResult());
         for (var level = 0; level <= maxLevel(view); level++) {
@@ -121,7 +124,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                     .filter(seg -> eligibleForCompaction(view, seg))
                     .filter(s -> !head.equals(s))
                     .collect(Collectors.toList());
-            Collections.reverse(levelSegments); //reverse so we start from oldest files first
+            Collections.reverse(levelSegments); //reverse so we start from the oldest files first
 
             int nextLevel = level + 1;
             while (levelSegments.size() >= minItems) {
@@ -130,13 +133,19 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 levelSegments.removeAll(sublist);
 
                 var replacementFile = createFile(nextLevel, nextIdx(view, nextLevel));
-                var handle = new CompactionItem<>(view.acquire(), replacementFile, sublist, level);
+                var handle = new CompactionItem<>(view, replacementFile, sublist, level);
 
                 System.err.println("Submitting " + handle);
                 task = task.thenCombine(submit(handle), CompactionResult::merge);
                 compacting.add(handle);
             }
         }
+
+        //we need to release the view as no compaction will happen, and we acquired it above
+        if (compacting.isEmpty()) {
+            view.close();
+        }
+
         return task;
     }
 
@@ -151,6 +160,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             compaction.compact(handle);
             handle.success = true;
         } catch (Exception e) {
+
             FileUtils.deleteIfExists(handle.replacement());
             e.printStackTrace();
         }
@@ -158,13 +168,14 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     }
 
     private synchronized CompactionResult completeMerge(CompactionItem<T> handle) {
-        if (!handle.success) {
-            handle.view.close(); //release merge handle view
-            return new CompactionResult();
-        }
+        System.out.println("Completing merge");
 
         var currentView = viewRef.get();
         try {
+            if (!handle.success) {
+                return new CompactionResult();
+            }
+
             var result = new CompactionResult(handle);
             var outFile = handle.replacement();
 
@@ -190,17 +201,21 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             }
 
             System.err.println("Completing " + handle);
-            handle.view.close(); //release merge handle view
             compacting.remove(handle);
 
             return result;
-
         } catch (Exception e) {
             //TODO add logging
             //TODO fail execution and mark handle ?
             System.err.println("FAILED TO MERGE");
             e.printStackTrace();
             throw new RuntimeException("TODO handle");
+        } finally {
+            //safeguard to prevent 'double free' of the same view
+            //to dot reuse 'currentView' here as we need to get the latest from the viewRef
+            if (handle.view != viewRef.get()) {
+                handle.view.close();
+            }
         }
     }
 
@@ -216,21 +231,17 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     }
 
     private static <T extends SegmentFile> List<T> levelSegments(View<T> view, int level) {
-        try (view) {
-            return view.stream()
-                    .filter(l -> segmentId(l).level() == level)
-                    .collect(Collectors.toList());
-        }
+        return view.stream()
+                .filter(l -> segmentId(l).level() == level)
+                .collect(Collectors.toList());
     }
 
     private static <T extends SegmentFile> long maxLevel(View<T> view) {
-        try (view) {
-            return view.stream()
-                    .map(DirectoryUtils::segmentId)
-                    .mapToInt(SegmentId::level)
-                    .max()
-                    .orElse(0);
-        }
+        return view.stream()
+                .map(DirectoryUtils::segmentId)
+                .mapToInt(SegmentId::level)
+                .max()
+                .orElse(0);
     }
 
     //FIXME io.joshworks.fstore.core.RuntimeIOException: Failed to create segment 0000000001-0000000000000000000.sst
@@ -241,7 +252,6 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     //level ends up empty, idx start again from zero, compaction tries to create a file, but the old still exist
     private long nextIdx(View<T> view, int level) {
         //do not change, other methods are iterating the view stream, it needs to be closed
-        List<T> levelSegments = levelSegments(view, level);
         long mergingMax = compacting.stream()
                 .map(CompactionItem::replacement)
                 .map(DirectoryUtils::segmentId)
@@ -250,7 +260,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 .max()
                 .orElse(-1);
 
-        long currentSegmentsMax = levelSegments
+        long currentSegmentsMax = levelSegments(view, level)
                 .stream()
                 .map(DirectoryUtils::segmentId)
                 .mapToLong(SegmentId::idx)
@@ -262,7 +272,11 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     }
 
     public View<T> view() {
-        return viewRef.get().acquire();
+        View<T> view;
+        while ((view = viewRef.get().acquire()) == null) {
+            Thread.onSpinWait();
+        }
+        return view;
     }
 
     @Override
@@ -275,7 +289,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
         this.metadata.close();
     }
 
-    public void delete() {
+    public synchronized void delete() {
         try (var view = viewRef.getAndSet(new View<>())) {
             view.deleteAll();
         }
