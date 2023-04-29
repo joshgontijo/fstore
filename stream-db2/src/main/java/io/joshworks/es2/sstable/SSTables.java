@@ -19,11 +19,11 @@ public class SSTables implements Closeable {
     private static final String DATA_EXT = "sst";
     private final SegmentDirectory<SSTable> items;
 
-    private final SSTableConfig config;
+    private final CompactionConfig config;
 
-    public SSTables(Path folder, SSTableConfig config, ExecutorService executor) {
+    public SSTables(Path folder, CompactionConfig config, ExecutorService executor) {
         this.config = config.copy();
-        items = new SegmentDirectory<>(folder.toFile(), SSTable::open, DATA_EXT, executor, new SSTableCompaction(config));
+        items = new SegmentDirectory<>(folder.toFile(), SSTable::open, DATA_EXT, executor, new SSTableCompaction(config.copy()));
     }
 
     public int get(long stream, int fromVersionInclusive, Sink sink) {
@@ -67,7 +67,7 @@ public class SSTables implements Closeable {
     }
 
     public CompletableFuture<CompactionResult> compact() {
-        return items.compact(config.compactionThreshold, config.compactionThreshold);
+        return items.compact(config);
     }
 
     @Override

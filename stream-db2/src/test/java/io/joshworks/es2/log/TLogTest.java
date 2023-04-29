@@ -1,5 +1,6 @@
 package io.joshworks.es2.log;
 
+import io.joshworks.es2.Builder;
 import io.joshworks.es2.Event;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
@@ -37,7 +38,7 @@ public class TLogTest {
     @Test
     public void no_items_are_restored_for_new_log() {
         var restorer = new IntRestorer();
-        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        tlog(restorer);
         assertEquals(0, restorer.size());
     }
 
@@ -101,12 +102,12 @@ public class TLogTest {
     @Test
     public void append_restore() {
         var restorer = new IntRestorer();
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        var log = tlog(restorer);
         log.append(of(1));
         log.append(of(2));
 
         log.close();
-        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        tlog(restorer);
         assertEquals(2, restorer.size());
         assertTrue(restorer.contains(1));
         assertTrue(restorer.contains(2));
@@ -115,14 +116,14 @@ public class TLogTest {
     @Test
     public void initial_sequence() {
         var restorer = new IntRestorer();
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        var log = tlog(restorer);
         assertEquals(-1, log.sequence());
     }
 
     @Test
     public void sequence_is_incremented() {
         var restorer = new IntRestorer();
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        var log = tlog(restorer);
         log.append(of(1));
 
         assertEquals(0, log.sequence());
@@ -131,25 +132,29 @@ public class TLogTest {
     @Test
     public void sequence_is_reloaded() {
         var restorer = new IntRestorer();
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        var log = tlog(restorer);
         log.append(of(1));
 
         log.close();
 
-        log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        log = tlog(restorer);
         assertEquals(0, log.sequence());
     }
 
     @Test
     public void sequence_with_empty_head_is_loaded_correctly() {
         var restorer = new IntRestorer();
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        var log = tlog(restorer);
         log.append(of(1));
         log.roll();
         log.close();
 
-        log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        log = tlog(restorer);
         assertEquals(0, log.sequence());
+    }
+
+    private TLog tlog(IntRestorer restorer) {
+        return TLog.open(folder.toPath(), Builder.FlushMode.ON_WRITE, 4096, newSingleThreadExecutor(), restorer);
     }
 
     private static class IntRestorer extends ArrayList<Integer> implements Consumer<ByteBuffer> {

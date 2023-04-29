@@ -1,8 +1,10 @@
 package io.joshworks.es2;
 
 import io.joshworks.es2.sink.Sink;
+import io.joshworks.es2.sstable.CompactionProfile;
 import io.joshworks.es2.sstable.StreamBlock;
 import io.joshworks.es2.utils.SSTableDump;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.TestUtils;
 import io.joshworks.fstore.core.util.Threads;
 import org.junit.After;
@@ -27,7 +29,19 @@ public class EventStoreConcurrencyIT {
     @Before
     public void setUp() {
         root = TestUtils.testFolder();
-        store = EventStore.open(root.toPath()).build();
+        var builder = EventStore.builder();
+        builder.memtable()
+                .direct(false)
+                .size(Size.MB.ofInt(100));
+        builder.compaction()
+                .threshold(3)
+                .high(new CompactionProfile());
+
+        builder.log()
+                .flushMode(Builder.FlushMode.ON_WRITE);
+
+        store = builder
+                .open(root.toPath());
     }
 
     @After
@@ -53,7 +67,13 @@ public class EventStoreConcurrencyIT {
         }
 
         Threads.waitFor(threads);
+
+        store.compact().join();
+
         SSTableDump.dumpStream(stream, store, new File("out-" + stream + ".txt"));
+
+
+
 
     }
 

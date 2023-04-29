@@ -23,7 +23,8 @@ public class EventStoreTest {
     @Before
     public void setUp() {
         root = TestUtils.testFolder();
-        store = EventStore.open(root.toPath()).build();
+        store = EventStore.builder()
+                .open(root.toPath());
     }
 
     @After

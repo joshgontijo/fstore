@@ -34,7 +34,7 @@ public class SSTable implements SegmentFile {
         return new SSTable(data, index);
     }
 
-    static SSTable create(File dataFile, Iterator<ByteBuffer> items, int expectedEntries, long size, SSTableConfig.Config config) {
+    static SSTable create(File dataFile, Iterator<ByteBuffer> items, int expectedEntries, long size, CompactionProfile config) {
         var indexFile = indexFile(dataFile);
         try (var dataChunkWriter = new StreamBlockWriter(dataFile, indexFile, size, config.codec, config.blockSize, config.bloomFilterFalsePositive, expectedEntries)) {
             while (items.hasNext()) {

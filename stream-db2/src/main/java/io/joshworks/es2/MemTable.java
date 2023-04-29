@@ -56,6 +56,9 @@ public class MemTable {
 
     public int get(long stream, int version, Sink sink) {
         try {
+            if (entries.get() == 0) {
+                return Event.NO_VERSION;
+            }
             readers.incrementAndGet();
             StreamEvents events = table.get(stream);
             if (events == null) {
@@ -72,12 +75,14 @@ public class MemTable {
         return events == null ? Event.NO_VERSION : events.version();
     }
 
+    //relies on this being called from the main writer thread
     public void clear() {
+        entries.set(0);
         while (readers.get() > 0) {
             Thread.yield(); //wait for readers to complete
         }
+        table.clear();
         data.clear();
-        entries.set(0);
     }
 
     public int entries() {
@@ -86,6 +91,14 @@ public class MemTable {
 
     public int size() {
         return data.position();
+    }
+
+    public boolean direct() {
+        return data.isDirect();
+    }
+
+    public int capacity() {
+        return data.capacity();
     }
 
     public Iterator<ByteBuffer> flushIterator() {

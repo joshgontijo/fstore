@@ -1,5 +1,6 @@
 package io.joshworks.es2.log;
 
+import io.joshworks.es2.Builder;
 import io.joshworks.es2.SegmentChannel;
 import io.joshworks.es2.directory.Compaction;
 import io.joshworks.es2.directory.CompactionItem;
@@ -18,17 +19,19 @@ public class TLog implements Closeable {
     private static final String EXT = "log";
     private final SegmentDirectory<SegmentChannel> logs;
     private final AtomicLong sequence = new AtomicLong(NO_SEQUENCE);
+    private final Builder.FlushMode flushMode;
     private final long maxSize;
     private SegmentChannel head;
 
 
-    private TLog(Path folder, long maxSize, ExecutorService executor) {
+    private TLog(Path folder, Builder.FlushMode flushMode, long maxSize, ExecutorService executor) {
+        this.flushMode = flushMode;
         this.maxSize = maxSize;
         this.logs = new SegmentDirectory<>(folder.toFile(), SegmentChannel::open, EXT, executor, new TLogCompaction());
     }
 
-    public static TLog open(Path folder, long maxSize, ExecutorService executor, Consumer<ByteBuffer> fn) {
-        var tlog = new TLog(folder, maxSize, executor);
+    public static TLog open(Path folder, Builder.FlushMode flushMode, long maxSize, ExecutorService executor, Consumer<ByteBuffer> fn) {
+        var tlog = new TLog(folder, flushMode, maxSize, executor);
         try (var view = tlog.logs.view()) {
             if (view.isEmpty()) {
                 return tlog;
@@ -48,6 +51,9 @@ public class TLog implements Closeable {
     public synchronized void append(ByteBuffer data) {
         tryCreateNewHead();
         head.append(data);
+        if (Builder.FlushMode.ON_WRITE.equals(flushMode)) {
+            head.flush();
+        }
         sequence.incrementAndGet();
     }
 

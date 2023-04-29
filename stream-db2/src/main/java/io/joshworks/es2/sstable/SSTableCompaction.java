@@ -12,9 +12,9 @@ import static java.lang.Math.min;
 
 class SSTableCompaction implements Compaction<SSTable> {
 
-    private final SSTableConfig config;
+    private final CompactionConfig config;
 
-    SSTableCompaction(SSTableConfig config) {
+    SSTableCompaction(CompactionConfig config) {
         this.config = config;
     }
 
@@ -34,7 +34,7 @@ class SSTableCompaction implements Compaction<SSTable> {
                 .collect(Collectors.toList());
 
         var merging = Iterators.mergeSort(iterators, Event::compare);
-        var levelConfig = handle.nextLevel() >= this.config.levelThreshold ? this.config.highConfig : this.config.lowConfig;
+        var levelConfig = config.profileForLevel(handle.nextLevel());
         SSTable.create(handle.replacement(), merging, (int) expectedEntries, totalSize, levelConfig)
                 .close();
     }

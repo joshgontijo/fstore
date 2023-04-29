@@ -35,7 +35,8 @@ public class Main {
         var path = Path.of("store");
         TestUtils.deleteRecursively(path.toFile());
         Files.createDirectory(path);
-        var store = EventStore.open(path).build();
+        var store = EventStore.builder()
+                .open(path);
 
         cors();
 

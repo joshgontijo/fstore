@@ -1,5 +1,6 @@
 package io.joshworks.es2.directory;
 
+import io.joshworks.es2.sstable.CompactionConfig;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.util.FileUtils;
 import org.slf4j.Logger;
@@ -132,11 +133,12 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     }
 
     //TODO move parameters to constructor
-    public synchronized CompletableFuture<CompactionResult> compact(int minItems, int maxItems) {
+    public synchronized CompletableFuture<CompactionResult> compact(CompactionConfig config) {
         var view = view();
 
         var task = CompletableFuture.completedFuture(new CompactionResult());
         for (var level = 0; level <= maxLevel(view); level++) {
+            var threshold = config.profileForLevel(level).compactionThreshold();
 
             T head = view.head();
             List<T> levelSegments = levelSegments(view, level)
@@ -147,8 +149,8 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             Collections.reverse(levelSegments); //reverse so we start from the oldest files first
 
             int nextLevel = level + 1;
-            while (levelSegments.size() >= minItems) {
-                int items = min(maxItems, levelSegments.size());
+            while (levelSegments.size() >= threshold) {
+                int items = min(threshold, levelSegments.size());
                 var sublist = new ArrayList<>(levelSegments.subList(0, items));
                 levelSegments.removeAll(sublist);
 

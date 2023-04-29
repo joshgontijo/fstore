@@ -163,6 +163,7 @@ class BatchWriter implements Closeable {
     @Override
     public void close() {
         try {
+            System.out.println("Closing batch writer");
             this.closed = true;
             this.worker.join();
         } catch (InterruptedException e) {

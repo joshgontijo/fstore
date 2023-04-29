@@ -3,10 +3,8 @@ package io.joshworks.es2;
 import io.joshworks.es2.directory.CompactionResult;
 import io.joshworks.es2.log.TLog;
 import io.joshworks.es2.sink.Sink;
-import io.joshworks.es2.sstable.SSTableConfig;
 import io.joshworks.es2.sstable.SSTables;
 import io.joshworks.fstore.core.seda.TimeWatch;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.core.util.Threads;
 
 import java.io.Closeable;
@@ -28,14 +26,14 @@ public class EventStore implements Closeable {
     private final BatchWriter writer;
     MemTable memTable;
 
-    private EventStore(Builder builder) {
-        System.out.println("Opening " + builder.root);
-        this.dirLock = new DirLock(builder.root.toFile());
-        this.worker = Executors.newFixedThreadPool(builder.compactionThreads);
-        this.sstables = new SSTables(builder.root, new SSTableConfig(), worker);
-        this.memTable = new MemTable(builder.memtableSize, builder.memtableDirectBuffer);
-        this.tlog = TLog.open(builder.root, builder.transactionLogSize, worker, memTable::add);
-        this.writer = new BatchWriter(this, builder.batchWriterPoolTimeMs, builder.batchWriterTimeout, builder.batchMaxEntries);
+    EventStore(Path root, Builder builder) {
+        System.out.println("Opening " + root);
+        this.dirLock = new DirLock(root.toFile());
+        this.worker = Executors.newFixedThreadPool(builder.compaction.threads());
+        this.sstables = new SSTables(root, builder.compaction, worker);
+        this.memTable = new MemTable(builder.memTable.size, builder.memTable.direct);
+        this.tlog = TLog.open(root, builder.log.flushMode, builder.log.size, worker, memTable::add);
+        this.writer = new BatchWriter(this, builder.writer.poolTimeMs, builder.writer.waitTimeout, builder.writer.maxEntries);
 
         System.out.println("Restored " + memTable.entries() + " entries");
     }
@@ -44,8 +42,8 @@ public class EventStore implements Closeable {
         return Streams.STREAM_INTERNAL == Event.stream(record) && FLUSH_EVENT_TYPE.equals(Event.eventType(record));
     }
 
-    public static Builder open(Path path) {
-        return new Builder(path);
+    public static Builder builder() {
+        return new Builder();
     }
 
     public int version(long stream) {
@@ -71,6 +69,7 @@ public class EventStore implements Closeable {
         return writer.write(event);
     }
 
+    // must be called only from the batch-writer thread
     void roll() {
         var watch = TimeWatch.start();
         int entries = memTable.entries();
@@ -87,7 +86,7 @@ public class EventStore implements Closeable {
         //TODO - check if compaction does in fact ignore duplicated entries during merge
         sstables.completeFlush(newSStable);
 
-        this.memTable = new MemTable(Size.MB.ofInt(10), true);
+        this.memTable.clear();
 
         System.out.println("Flushed " + entries + " entries (" + memTableSize + " bytes) in " + watch.elapsed() + "ms");
     }
@@ -95,6 +94,7 @@ public class EventStore implements Closeable {
     @Override
     public void close() {
         try {
+            writer.close();
             Threads.awaitTermination(worker, Long.MAX_VALUE, TimeUnit.MILLISECONDS, () -> System.out.println("Awaiting termination..."));
         } finally {
             dirLock.close();
@@ -107,62 +107,5 @@ public class EventStore implements Closeable {
         return sstables.compact();
     }
 
-
-    public static class Builder {
-        private final Path root;
-        private long transactionLogSize = Size.MB.of(100);
-        private int memtableSize = Size.MB.ofInt(50);
-        private boolean memtableDirectBuffer = false;
-        private int compactionThreads = 3;
-
-        //writer
-        private long batchWriterPoolTimeMs = 2;
-        private long batchWriterTimeout = 50;
-        private int batchMaxEntries = 1000;
-
-        public Builder(Path root) {
-            this.root = root;
-        }
-
-        public Builder batchWriterPoolTimeMs(long batchWriterPoolTimeMs) {
-            this.batchWriterPoolTimeMs = batchWriterPoolTimeMs;
-            return this;
-        }
-
-        public Builder batchWriterTimeout(long batchWriterTimeout) {
-            this.batchWriterTimeout = batchWriterTimeout;
-            return this;
-        }
-
-        public Builder batchMaxEntries(int batchMaxEntries) {
-            this.batchMaxEntries = batchMaxEntries;
-            return this;
-        }
-
-        public Builder compactionThreads(int compactionThreads) {
-            this.compactionThreads = compactionThreads;
-            return this;
-        }
-
-        public Builder memtableSize(int memtableSize) {
-            this.memtableSize = memtableSize;
-            return this;
-        }
-
-        public Builder memtableDirectBuffer(boolean memtableDirectBuffer) {
-            this.memtableDirectBuffer = memtableDirectBuffer;
-            return this;
-        }
-
-        public Builder transactionLogSize(long transactionLogSize) {
-            this.transactionLogSize = transactionLogSize;
-            return this;
-        }
-
-        public EventStore build() {
-            return new EventStore(this);
-        }
-
-    }
 
 }

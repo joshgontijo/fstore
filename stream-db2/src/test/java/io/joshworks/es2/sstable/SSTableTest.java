@@ -43,7 +43,7 @@ public class SSTableTest {
         String stream = "stream-1";
         int version = 0;
         ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data");
-        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, 0, new SSTableConfig().lowConfig);
+        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, 0, new CompactionConfig().lowConfig);
 
         long streamHash = StreamHasher.hash(stream);
         IndexEntry ie = sstable.get(streamHash, version);
@@ -61,7 +61,7 @@ public class SSTableTest {
                 .mapToObj(v -> EventSerializer.serialize(stream, "type-1", v, "data"))
                 .collect(Collectors.toList());
 
-        sstable = SSTable.create(dataFile, events.iterator(), ANY, 0, new SSTableConfig().lowConfig);
+        sstable = SSTable.create(dataFile, events.iterator(), ANY, 0, new CompactionConfig().lowConfig);
 
         for (int version = 0; version < items; version++) {
             Sink.Memory sink = new Sink.Memory();
@@ -77,7 +77,7 @@ public class SSTableTest {
         String stream = "stream-1";
         int version = 0;
         ByteBuffer data = EventSerializer.serialize(stream, "type-1", version, "data");
-        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, 0, new SSTableConfig().lowConfig);
+        sstable = SSTable.create(dataFile, Iterators.of(data), ANY, 0, new CompactionConfig().lowConfig);
 
         long streamHash = StreamHasher.hash(stream);
         long res = sstable.get(streamHash, version + 1, new Sink.Memory());
@@ -90,7 +90,7 @@ public class SSTableTest {
         int version = 0;
         TestEvent first = TestEvent.create(stream, 0, "type-1", "data1");
         TestEvent second = TestEvent.create(stream, 1, "type-1", "data2");
-        sstable = SSTable.create(dataFile, Iterators.of(first.serialize(), second.serialize()), ANY, 0, new SSTableConfig().lowConfig);
+        sstable = SSTable.create(dataFile, Iterators.of(first.serialize(), second.serialize()), ANY, 0, new CompactionConfig().lowConfig);
 
         long streamHash = StreamHasher.hash(stream);
         Sink.Memory memory = new Sink.Memory();

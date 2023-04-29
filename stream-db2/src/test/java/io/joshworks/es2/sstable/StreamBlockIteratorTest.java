@@ -46,7 +46,7 @@ public class StreamBlockIteratorTest {
 
         long size = events.stream().mapToLong(ByteBuffer::remaining).sum();
 
-        sstable = SSTable.create(dataFile, events.iterator(), items, size, new SSTableConfig().lowConfig);
+        sstable = SSTable.create(dataFile, events.iterator(), items, size, new CompactionConfig().lowConfig);
 
         var it = new StreamBlockIterator(new LengthPrefixedChannelIterator(sstable.channel));
 

@@ -26,7 +26,7 @@ public class SSTablesTest {
     @Before
     public void open() {
         folder = TestUtils.testFolder().toPath();
-        sstables = new SSTables(folder, new SSTableConfig(), Executors.newSingleThreadExecutor());
+        sstables = new SSTables(folder, new CompactionConfig(), Executors.newSingleThreadExecutor());
     }
 
     @After
