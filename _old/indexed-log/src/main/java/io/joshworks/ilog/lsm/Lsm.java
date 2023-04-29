@@ -32,10 +32,8 @@ public class Lsm {
     protected final Log<SSTable> ssTables;
 
     protected final RecordPool pool;
-
-    private final long maxAge;
     protected final RowKey rowKey;
-
+    private final long maxAge;
     private final ObjectPool<Block> blockPool;
 
     Lsm(File root,

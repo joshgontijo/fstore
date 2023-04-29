@@ -28,10 +28,6 @@ public class StripedBufferPool implements Closeable {
     private final Map<Integer, AtomicInteger> allocated = new HashMap<>();
     private final Map<Integer, AtomicInteger> inUse = new HashMap<>();
 
-    public static StripedBufferPool create(int capacityInBytes, boolean direct, Set<Integer> stripes) {
-        return new StripedBufferPool(capacityInBytes, direct, stripes);
-    }
-
     private StripedBufferPool(int capacityInBytes, boolean direct, Set<Integer> stripes) {
         this.capacityInBytes = capacityInBytes;
         this.direct = direct;
@@ -46,6 +42,10 @@ public class StripedBufferPool implements Closeable {
             allocated.put(stripe, new AtomicInteger());
             inUse.put(stripe, new AtomicInteger());
         }
+    }
+
+    public static StripedBufferPool create(int capacityInBytes, boolean direct, Set<Integer> stripes) {
+        return new StripedBufferPool(capacityInBytes, direct, stripes);
     }
 
     public ByteBuffer allocate(int size) {

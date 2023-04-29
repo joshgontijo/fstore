@@ -30,7 +30,7 @@ public abstract class LogHeaderTest {
         testFile = TestUtils.testFile();
         testFile.deleteOnExit();
         storage = Storage.create(testFile, store(), STORAGE_SIZE);
-        stream = new DataStream(new ThreadLocalBufferPool( STORAGE_SIZE, false), storage);
+        stream = new DataStream(new ThreadLocalBufferPool(STORAGE_SIZE, false), storage);
     }
 
     @After

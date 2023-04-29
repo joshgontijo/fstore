@@ -19,16 +19,14 @@ public class LogHeader {
     public static final int DELETED_SECTION_START = MERGE_SECTION_START + SECTION_SIZE;
 
     public static final int UNKNOWN = -1;
-
-    private OpenSection open;
-    private CompletedSection completed;
-    private DeletedSection deleted;
     private final DataStream stream;
-
     private final Serializer<OpenSection> openSerializer = OpenSection.serializer();
     private final Serializer<CompletedSection> completedSerializer = CompletedSection.serializer();
     private final Serializer<DeletedSection> deletedSerializer = DeletedSection.serializer();
     private final Serializer<MergeSection> mergeSerializer = MergeSection.serializer();
+    private OpenSection open;
+    private CompletedSection completed;
+    private DeletedSection deleted;
 
     private LogHeader(DataStream stream) {
         this.stream = stream;
@@ -38,6 +36,10 @@ public class LogHeader {
         this.open = stream.read(Direction.FORWARD, OPEN_SECTION_START, openSerializer).entry();
         this.completed = stream.read(Direction.FORWARD, COMPLETED_SECTION_START, completedSerializer).entry();
         this.deleted = stream.read(Direction.FORWARD, DELETED_SECTION_START, deletedSerializer).entry();
+    }
+
+    public static LogHeader read(DataStream stream) {
+        return new LogHeader(stream);
     }
 
     public Type type() {
@@ -138,10 +140,6 @@ public class LogHeader {
             throw new IllegalStateException("Can only read footer map of read only segment");
         }
         return completed.footerMapPosition;
-    }
-
-    public static LogHeader read(DataStream stream) {
-        return new LogHeader(stream);
     }
 
     public void writeNew(WriteMode mode, long fileSize, long dataSize, boolean encrypted) {

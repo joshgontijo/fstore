@@ -14,8 +14,8 @@ import java.util.function.Consumer;
 
 public class TLog implements Closeable {
 
-    private static final String EXT = "log";
     static final long NO_SEQUENCE = -1;
+    private static final String EXT = "log";
     private final SegmentDirectory<SegmentChannel> logs;
     private final AtomicLong sequence = new AtomicLong(NO_SEQUENCE);
     private final long maxSize;

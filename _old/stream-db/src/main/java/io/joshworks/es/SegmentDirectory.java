@@ -60,6 +60,39 @@ public class SegmentDirectory<T extends SegmentFile> {
         }
     }
 
+    private static <T extends SegmentFile> T removeHigherLevel(T t1, T t2) {
+        if (SegmentDirectory.level(t1) > SegmentDirectory.level(t2)) {
+            delete(t2);
+            return t1;
+        }
+        delete(t1);
+        return t2;
+    }
+
+    private static <T extends SegmentFile> void delete(T sf) {
+        log.info("REMOVING [" + sf + "]");
+        sf.delete();
+    }
+
+    public static String segmentFileName(long segmentIdx, int level, String ext, long maxFiles) {
+        if (segmentIdx < 0 || level < 0) {
+            throw new RuntimeException("Invalid segment values, level: " + level + ", idx: " + segmentIdx);
+        }
+        return String.format("%02d", level) + "-" + String.format("%0" + BitUtil.decimalUnitsForDecimal(maxFiles) + "d", segmentIdx) + "." + ext;
+    }
+
+    public static long segmentIdx(SegmentFile sf) {
+        return Long.parseLong(name(sf.file()).split(SEPARATOR)[1]);
+    }
+
+    private static String name(File file) {
+        return file.getName().split("\\.")[0];
+    }
+
+    public static int level(SegmentFile sf) {
+        return Integer.parseInt(name(sf.file()).split(SEPARATOR)[0]);
+    }
+
     protected void loadSegments(Function<File, T> fn) {
         try {
             Map<Long, Optional<T>> items = Files.list(root.toPath())
@@ -81,20 +114,6 @@ public class SegmentDirectory<T extends SegmentFile> {
 
     private long computeHeadIx() {
         return segments.keySet().stream().mapToLong(k -> k).max().orElse(-1);
-    }
-
-    private static <T extends SegmentFile> T removeHigherLevel(T t1, T t2) {
-        if (SegmentDirectory.level(t1) > SegmentDirectory.level(t2)) {
-            delete(t2);
-            return t1;
-        }
-        delete(t1);
-        return t2;
-    }
-
-    private static <T extends SegmentFile> void delete(T sf) {
-        log.info("REMOVING [" + sf + "]");
-        sf.delete();
     }
 
     //add to the head
@@ -210,6 +229,8 @@ public class SegmentDirectory<T extends SegmentFile> {
         }
     }
 
+    //------------------------
+
     public void close() {
         for (var entry : segments.values()) {
             entry.close();
@@ -223,29 +244,8 @@ public class SegmentDirectory<T extends SegmentFile> {
         return new File(root, name);
     }
 
-    public static String segmentFileName(long segmentIdx, int level, String ext, long maxFiles) {
-        if (segmentIdx < 0 || level < 0) {
-            throw new RuntimeException("Invalid segment values, level: " + level + ", idx: " + segmentIdx);
-        }
-        return String.format("%02d", level) + "-" + String.format("%0" + BitUtil.decimalUnitsForDecimal(maxFiles) + "d", segmentIdx) + "." + ext;
-    }
-
     private boolean matchExtension(File file) {
         return file.getName().endsWith(extension);
-    }
-
-    //------------------------
-
-    public static long segmentIdx(SegmentFile sf) {
-        return Long.parseLong(name(sf.file()).split(SEPARATOR)[1]);
-    }
-
-    private static String name(File file) {
-        return file.getName().split("\\.")[0];
-    }
-
-    public static int level(SegmentFile sf) {
-        return Integer.parseInt(name(sf.file()).split(SEPARATOR)[0]);
     }
 
     protected T tryGet(long segmentIdx) {

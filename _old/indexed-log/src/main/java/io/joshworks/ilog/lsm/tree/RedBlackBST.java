@@ -18,10 +18,10 @@ import java.util.Queue;
 public class RedBlackBST implements Iterable<Node> {
     private static final boolean RED = true;
     private static final boolean BLACK = false;
-    private Node root;
     private final RowKey rowKey;
     private final int maxEntries;
     private final NodePool nodePool;
+    private Node root;
 
     public RedBlackBST(RowKey rowKey, int maxEntries, boolean direct) {
         this.rowKey = rowKey;

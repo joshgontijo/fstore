@@ -21,19 +21,17 @@ import java.nio.ByteBuffer;
 public class EventStore implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(EventStore.class);
-
-    private final Log log;
-    private final Index index;
-    private final StoreWriter writer;
-    private final StoreReader reader;
-    private final StoreLock storeLock = new StoreLock();
-
     private static final int READ_MAX_ITEMS = 50;
     private static final int WRITE_BATCH_MAX_ITEMS = 100;
     private static final int WRITE_QUEUE_SIZE = 200;
     private static final int WRITE_BUFFER_SIZE = Memory.PAGE_SIZE;
     private static final int READ_BUFFER_SIZE = Memory.PAGE_SIZE;
     private static final int WRITE_POOL_WAIT = 50;
+    private final Log log;
+    private final Index index;
+    private final StoreWriter writer;
+    private final StoreReader reader;
+    private final StoreLock storeLock = new StoreLock();
 
     public EventStore(File root, int logSize, int indexEntries, int blockSize) {
         this.log = new Log(root, logSize);

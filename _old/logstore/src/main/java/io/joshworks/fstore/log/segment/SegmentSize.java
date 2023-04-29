@@ -42,7 +42,7 @@ public class SegmentSize {
     }
 
     public long remainingDataSize() {
-        if(logHeader.readOnly()) {
+        if (logHeader.readOnly()) {
             return 0;
         }
         return dataSize() - position;

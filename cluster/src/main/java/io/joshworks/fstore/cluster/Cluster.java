@@ -45,13 +45,23 @@ import java.util.function.Function;
 public class Cluster implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(Cluster.class);
-
+    private static final BiFunction<Address, Object, Object> NO_OP = (addr, msg) -> {
+        logger.warn("No message handler for code {}", msg.getClass().getName());
+        return null;
+    };
     private final AtomicBoolean closed = new AtomicBoolean();
-
     private final String clusterName;
     private final String nodeId;
     private final boolean discardOwnMessages;
-
+    private final ExecutorService consumerPool = Executors.newFixedThreadPool(10);
+    private final ExecutorService taskPool = Executors.newFixedThreadPool(1);
+    private final ExecutorService statePool = Executors.newSingleThreadExecutor();
+    private final Nodes nodes = new Nodes();
+    private final Map<Class<?>, BiFunction<Address, Object, Object>> handlers = new ConcurrentHashMap<>();
+    private final Map<Address, Object> rpcProxyClients = new ConcurrentHashMap<>();
+    private final List<Consumer<NodeInfo>> nodeUpdatedListeners = new ArrayList<>();
+    private final List<BiConsumer<Address, Object>> interceptors = new ArrayList<>();
+    private final List<Runnable> connectionListeners = new ArrayList<>();
     private JChannel channel;
     private View state;
     private MessageDispatcher dispatcher;
@@ -60,24 +70,6 @@ public class Cluster implements Closeable {
     private Class<?> rpcProxyType;
     private ExecutionService executionService;
     private ExecutionRunner executionRunner;
-
-    private final ExecutorService consumerPool = Executors.newFixedThreadPool(10);
-    private final ExecutorService taskPool = Executors.newFixedThreadPool(1);
-    private final ExecutorService statePool = Executors.newSingleThreadExecutor();
-
-    private final Nodes nodes = new Nodes();
-    private final Map<Class<?>, BiFunction<Address, Object, Object>> handlers = new ConcurrentHashMap<>();
-    private final Map<Address, Object> rpcProxyClients = new ConcurrentHashMap<>();
-
-    private final List<Consumer<NodeInfo>> nodeUpdatedListeners = new ArrayList<>();
-
-    private final List<BiConsumer<Address, Object>> interceptors = new ArrayList<>();
-    private final List<Runnable> connectionListeners = new ArrayList<>();
-
-    private static final BiFunction<Address, Object, Object> NO_OP = (addr, msg) -> {
-        logger.warn("No message handler for code {}", msg.getClass().getName());
-        return null;
-    };
 
     public Cluster(String clusterName, String nodeId) {
         this(clusterName, nodeId, true);

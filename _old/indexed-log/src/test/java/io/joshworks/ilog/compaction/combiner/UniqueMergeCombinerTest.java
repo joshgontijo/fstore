@@ -30,6 +30,10 @@ public class UniqueMergeCombinerTest {
     private static final RowKey rowKey = RowKey.LONG;
     private final List<IndexedSegment> segments = new ArrayList<>();
 
+    private static void assertRecord(String expectedVal, Record record) {
+        String val = RecordUtils.stringValue(record);
+        assertEquals(expectedVal, val);
+    }
 
     @After
     public void tearDown() {
@@ -264,11 +268,6 @@ public class UniqueMergeCombinerTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static void assertRecord(String expectedVal, Record record) {
-        String val = RecordUtils.stringValue(record);
-        assertEquals(expectedVal, val);
     }
 
     private IndexedSegment createSegment() {

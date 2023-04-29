@@ -1,12 +1,10 @@
 package io.joshworks.fstore.core;
 
-import java.io.Closeable;
 import java.io.File;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.util.ArrayList;
-import java.util.List;
 
 public class RefQueueTest {
 
@@ -50,13 +48,14 @@ public class RefQueueTest {
 
         public void finalizeResources() {
             // free resources
-            System.out.println("clearing ... "  + file);
+            System.out.println("clearing ... " + file);
         }
     }
 
     private static class User {
         private final int age;
         private final File file;
+
         public User(int age, File file) {
             this.age = age;
             this.file = file;

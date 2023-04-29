@@ -15,6 +15,64 @@ public interface Storage extends Closeable {
 
     int EOF = -1;
 
+    static void ensureNonEmpty(ByteBuffer src) {
+        if (src.remaining() == 0) {
+            throw new StorageException("Cannot store empty record");
+        }
+    }
+
+    static Storage createOrOpen(File file, StorageMode mode, long size) {
+        return Files.exists(file.toPath()) ? open(file, mode) : create(file, mode, size);
+    }
+
+    static Storage create(File file, StorageMode mode, long size) {
+        requireNonNull(file, "File must be provided");
+        requireNonNull(mode, "StorageMode must be provided");
+        if (size <= 0) {
+            throw new IllegalArgumentException("Storage size must be greater than zero");
+        }
+        return getStorage(file, mode, size);
+    }
+
+    static Storage open(File file, StorageMode mode) {
+        requireNonNull(file, "File must be provided");
+        if (!Files.exists(file.toPath())) {
+            throw new IllegalStateException("File " + file.getName() + " doesn't exist");
+        }
+        if (file.length() <= 0) {
+            throw new IllegalStateException("File " + file.getName() + " has length equals to zero");
+        }
+        Storage storage = getStorage(file, mode, file.length());
+        storage.position(file.length());
+        return storage;
+    }
+
+    private static Storage getStorage(File file, StorageMode mode, long size) {
+        switch (mode) {
+            case MMAP:
+                DiskStorage diskStorage1 = new DiskStorage(file, size, IOUtils.randomAccessFile(file, size));
+                return new MMapStorage(diskStorage1);
+            case RAF:
+                return new DiskStorage(file, size, IOUtils.randomAccessFile(file, size));
+            case RAF_CACHED:
+                DiskStorage diskStorage2 = new DiskStorage(file, size, IOUtils.randomAccessFile(file, size));
+                return new MMapCache(diskStorage2);
+            case OFF_HEAP:
+                return new OffHeapStorage(file.getAbsolutePath(), size);
+            case HEAP:
+                return new HeapStorage(file.getName(), size);
+            default:
+                throw new IllegalArgumentException("Invalid storage mode: " + mode);
+        }
+    }
+
+    static long align(long length) {
+        if (length % Memory.PAGE_SIZE == 0) {
+            return length;
+        }
+        return Memory.PAGE_SIZE * ((length / Memory.PAGE_SIZE) + 1);
+    }
+
     /**
      * RELATIVE WRITE
      * Writes to current position and increment the written bytes to its internal position.
@@ -46,7 +104,6 @@ public interface Storage extends Closeable {
      * @return The written bytes
      */
     long write(ByteBuffer[] src);
-
 
     /**
      * ABSOLUTE READ
@@ -109,65 +166,6 @@ public interface Storage extends Closeable {
     default boolean hasAvailableData(long readPos) {
         long writePos = position();
         return readPos < writePos;
-    }
-
-
-    static void ensureNonEmpty(ByteBuffer src) {
-        if (src.remaining() == 0) {
-            throw new StorageException("Cannot store empty record");
-        }
-    }
-
-    static Storage createOrOpen(File file, StorageMode mode, long size) {
-        return Files.exists(file.toPath()) ? open(file, mode) : create(file, mode, size);
-    }
-
-    static Storage create(File file, StorageMode mode, long size) {
-        requireNonNull(file, "File must be provided");
-        requireNonNull(mode, "StorageMode must be provided");
-        if (size <= 0) {
-            throw new IllegalArgumentException("Storage size must be greater than zero");
-        }
-        return getStorage(file, mode, size);
-    }
-
-    static Storage open(File file, StorageMode mode) {
-        requireNonNull(file, "File must be provided");
-        if (!Files.exists(file.toPath())) {
-            throw new IllegalStateException("File " + file.getName() + " doesn't exist");
-        }
-        if (file.length() <= 0) {
-            throw new IllegalStateException("File " + file.getName() + " has length equals to zero");
-        }
-        Storage storage = getStorage(file, mode, file.length());
-        storage.position(file.length());
-        return storage;
-    }
-
-    private static Storage getStorage(File file, StorageMode mode, long size) {
-        switch (mode) {
-            case MMAP:
-                DiskStorage diskStorage1 = new DiskStorage(file, size, IOUtils.randomAccessFile(file, size));
-                return new MMapStorage(diskStorage1);
-            case RAF:
-                return new DiskStorage(file, size, IOUtils.randomAccessFile(file, size));
-            case RAF_CACHED:
-                DiskStorage diskStorage2 = new DiskStorage(file, size, IOUtils.randomAccessFile(file, size));
-                return new MMapCache(diskStorage2);
-            case OFF_HEAP:
-                return new OffHeapStorage(file.getAbsolutePath(), size);
-            case HEAP:
-                return new HeapStorage(file.getName(), size);
-            default:
-                throw new IllegalArgumentException("Invalid storage mode: " + mode);
-        }
-    }
-
-    static long align(long length) {
-        if (length % Memory.PAGE_SIZE == 0) {
-            return length;
-        }
-        return Memory.PAGE_SIZE * ((length / Memory.PAGE_SIZE) + 1);
     }
 
 }

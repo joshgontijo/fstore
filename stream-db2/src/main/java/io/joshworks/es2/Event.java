@@ -45,14 +45,8 @@ public class Event {
                     Long.BYTES +    // TIMESTAMP
                     Short.BYTES +   //TYPE_LENGTH
                     Integer.BYTES;  //DATA_LENGTH
-
-    private Event() {
-
-    }
-
     private static final int SIZE_OFFSET = 0;
     private static final int CHECKSUM_OFFSET = SIZE_OFFSET + Integer.BYTES;
-
     private static final int STREAM_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
     private static final int VERSION_OFFSET = STREAM_OFFSET + Long.BYTES;
     private static final int SEQUENCE_OFFSET = VERSION_OFFSET + Integer.BYTES;
@@ -60,7 +54,9 @@ public class Event {
     private static final int EVENT_TYPE_LENGTH_OFFSET = TIMESTAMP_OFFSET + Long.BYTES;
     private static final int DATA_LENGTH_OFFSET = EVENT_TYPE_LENGTH_OFFSET + Short.BYTES;
     private static final int EVENT_TYPE_OFFSET = DATA_LENGTH_OFFSET + Integer.BYTES;
+    private Event() {
 
+    }
 
     public static int sizeOf(ByteBuffer data) {
         return data.getInt(data.position() + SIZE_OFFSET);

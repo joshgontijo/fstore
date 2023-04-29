@@ -14,8 +14,12 @@ public class BloomFilterTest {
 
     private File testFile;
 
+    private static ByteBuffer bufferOf(long val) {
+        return ByteBuffer.allocate(Long.BYTES).putLong(val).flip();
+    }
+
     @Before
-    public void setUp()  {
+    public void setUp() {
         testFile = TestUtils.testFile();
     }
 
@@ -74,9 +78,5 @@ public class BloomFilterTest {
         for (int i = 0; i < items; i++) {
             assertFalse(bf.contains(key));
         }
-    }
-
-    private static ByteBuffer bufferOf(long val) {
-        return ByteBuffer.allocate(Long.BYTES).putLong(val).flip();
     }
 }

@@ -22,16 +22,13 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class Replica {
 
+    static final AtomicLong sequence = new AtomicLong();
     private static final Logger log = LoggerFactory.getLogger(Replica.class);
-
     private final Lsm lsm;
     private final SocketChannel channel;
     private final ByteBuffer replicateBuffer = Buffers.allocate(8096, false);
     private final ByteBuffer protocolBuffer = Buffers.allocate(24, false);
-
     private final ReplicationExecutor writer = new ReplicationExecutor(100000);
-
-    static final AtomicLong sequence = new AtomicLong();
 
 
     public Replica(File dir, int port) {
@@ -80,7 +77,7 @@ public class Replica {
                     RecordBatch.advance(buffer);
                 }
 
-                if(lastSequence >= 0) {
+                if (lastSequence >= 0) {
                     sequence.set(lastSequence);
                     protocolBuffer.clear();
                     Replication.replicated(protocolBuffer, lastSequence);

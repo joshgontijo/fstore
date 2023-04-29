@@ -18,6 +18,17 @@ public class Compactor {
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor(Threads.namedThreadFactory("compactor"));
 
+    public static <T> Stream<List<T>> batches(List<T> source, int length) {
+        if (length <= 0)
+            throw new IllegalArgumentException("length = " + length);
+        int size = source.size();
+        if (size <= 0)
+            return Stream.empty();
+        int fullChunks = (size - 1) / length;
+        return IntStream.range(0, fullChunks + 1).mapToObj(
+                n -> source.subList(n * length, n == fullChunks ? size : (n + 1) * length));
+    }
+
     public void compactLog(Log log, int threshold) {
         for (int level = 0; level <= log.depth(); level++) {
             List<LogSegment> segments = log.compactionSegments(level);
@@ -55,18 +66,6 @@ public class Compactor {
         File outFile = log.newMergeFile(chunk);
         long size = chunk.stream().mapToLong(LogSegment::size).sum();
         return LogSegment.create(outFile, size);
-    }
-
-
-    public static <T> Stream<List<T>> batches(List<T> source, int length) {
-        if (length <= 0)
-            throw new IllegalArgumentException("length = " + length);
-        int size = source.size();
-        if (size <= 0)
-            return Stream.empty();
-        int fullChunks = (size - 1) / length;
-        return IntStream.range(0, fullChunks + 1).mapToObj(
-                n -> source.subList(n * length, n == fullChunks ? size : (n + 1) * length));
     }
 
 }

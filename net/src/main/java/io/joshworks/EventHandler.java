@@ -32,13 +32,13 @@ class EventHandler extends SimpleChannelInboundHandler<Object> {
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception{
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
         onDisconnect.accept(ctx);
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception{
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         cause.printStackTrace();
         super.exceptionCaught(ctx, cause);
         onError.accept(ctx, cause);

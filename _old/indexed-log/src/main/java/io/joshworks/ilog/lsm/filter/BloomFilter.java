@@ -32,6 +32,18 @@ public class BloomFilter {
     }
 
     /**
+     * Calculate the number of bits needed to produce the provided probability of false
+     * positives with the given element position.
+     *
+     * @param p The probability of false positives.
+     * @param n The estimated number of elements.
+     * @return The number of bits.
+     */
+    private static long getNumberOfBits(double p, long n) {
+        return (long) (Math.abs(n * Math.log(p)) / (Math.pow(Math.log(2), 2)));
+    }
+
+    /**
      * Add an element to the container
      */
     public void add(ByteBuffer key) {
@@ -51,7 +63,6 @@ public class BloomFilter {
         return combinedHash % m;
     }
 
-
     /**
      * Returns true if the element is in the container.
      * Returns false with a probability ≈ 1-e^(-ln(2)² * m/n)
@@ -65,7 +76,6 @@ public class BloomFilter {
         }
         return true;
     }
-
 
     /**
      * Generate a unique hash representing the filter
@@ -84,19 +94,6 @@ public class BloomFilter {
      */
     private int getOptimalNumberOfHashesByBits(long n, long m) {
         return (int) Math.ceil(Math.log(2) * ((double) m / n));
-    }
-
-
-    /**
-     * Calculate the number of bits needed to produce the provided probability of false
-     * positives with the given element position.
-     *
-     * @param p The probability of false positives.
-     * @param n The estimated number of elements.
-     * @return The number of bits.
-     */
-    private static long getNumberOfBits(double p, long n) {
-        return (long) (Math.abs(n * Math.log(p)) / (Math.pow(Math.log(2), 2)));
     }
 
     public long size() {

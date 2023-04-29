@@ -15,15 +15,12 @@ import java.util.function.BiConsumer;
 
 public class Log extends SegmentDirectory<LogSegment> {
 
-    private static final Logger logger = LoggerFactory.getLogger(Log.class);
-
     public static final int START = 0;
-
+    private static final Logger logger = LoggerFactory.getLogger(Log.class);
     private static final int SEGMENT_BITS = 24;
     private static final int SEGMENT_ADDRESS_BITS = Long.SIZE - SEGMENT_BITS;
-    private static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
     private static final long MAX_SEGMENT_ADDRESS = BitUtil.maxValueForBits(SEGMENT_ADDRESS_BITS);
-
+    private static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
     private static final String EXTENSION = "log";
     private final long logSize;
 
@@ -33,6 +30,30 @@ public class Log extends SegmentDirectory<LogSegment> {
         logger.info("MAX_SEGMENT_ADDRESS: {}", MAX_SEGMENT_ADDRESS);
         this.logSize = logSize;
         this.openLogs();
+    }
+
+    public static int segmentIdx(long address) {
+        long segmentIdx = (address >>> SEGMENT_ADDRESS_BITS);
+        if (segmentIdx > MAX_SEGMENTS) {
+            throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + MAX_SEGMENTS);
+        }
+
+        return (int) segmentIdx;
+    }
+
+    public static long toSegmentedPosition(long segmentIdx, long position) {
+        if (segmentIdx < 0) {
+            throw new IllegalArgumentException("Segment index must be greater than zero");
+        }
+        if (segmentIdx > MAX_SEGMENTS) {
+            throw new IllegalArgumentException("Segment index cannot be greater than " + MAX_SEGMENTS);
+        }
+        return (segmentIdx << SEGMENT_ADDRESS_BITS) | position;
+    }
+
+    public static long positionOnSegment(long address) {
+        long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
+        return (address & mask);
     }
 
     public long restore(long address, BiConsumer<Long, ByteBuffer> handler) {
@@ -100,6 +121,8 @@ public class Log extends SegmentDirectory<LogSegment> {
         return head().writePosition();
     }
 
+    //---------
+
     public int read(long address, ByteBuffer dst) {
         int segIdx = segmentIdx(address);
         long logPos = positionOnSegment(address);
@@ -125,32 +148,6 @@ public class Log extends SegmentDirectory<LogSegment> {
             segments.add(segment);
         }
         return segments;
-    }
-
-    //---------
-
-    public static int segmentIdx(long address) {
-        long segmentIdx = (address >>> SEGMENT_ADDRESS_BITS);
-        if (segmentIdx > MAX_SEGMENTS) {
-            throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + MAX_SEGMENTS);
-        }
-
-        return (int) segmentIdx;
-    }
-
-    public static long toSegmentedPosition(long segmentIdx, long position) {
-        if (segmentIdx < 0) {
-            throw new IllegalArgumentException("Segment index must be greater than zero");
-        }
-        if (segmentIdx > MAX_SEGMENTS) {
-            throw new IllegalArgumentException("Segment index cannot be greater than " + MAX_SEGMENTS);
-        }
-        return (segmentIdx << SEGMENT_ADDRESS_BITS) | position;
-    }
-
-    public static long positionOnSegment(long address) {
-        long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
-        return (address & mask);
     }
 
 

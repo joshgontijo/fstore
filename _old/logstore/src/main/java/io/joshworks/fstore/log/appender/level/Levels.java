@@ -23,10 +23,9 @@ import java.util.stream.Collectors;
 //LEVEL3 ...
 public class Levels<T> {
 
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private volatile List<Log<T>> segments = new CopyOnWriteArrayList<>();
     private volatile Log<T> current;
-
-    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     private Levels(List<Log<T>> segments) {
         this.segments.addAll(segments);
@@ -56,6 +55,10 @@ public class Levels<T> {
             }
             return levelDiff;
         };
+    }
+
+    public static <T> Levels<T> create(List<Log<T>> segments) {
+        return new Levels<>(segments);
     }
 
     public <R> R apply(Direction direction, Function<List<Log<T>>, R> function) {
@@ -122,10 +125,6 @@ public class Levels<T> {
 
     public int depth() {
         return apply(Direction.FORWARD, segs -> segs.stream().mapToInt(Log::level).max().orElse(0));
-    }
-
-    public static <T> Levels<T> create(List<Log<T>> segments) {
-        return new Levels<>(segments);
     }
 
     public void appendSegment(Log<T> newHead) {

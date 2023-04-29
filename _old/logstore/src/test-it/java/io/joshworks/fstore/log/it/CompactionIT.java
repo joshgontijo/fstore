@@ -22,10 +22,9 @@ public abstract class CompactionIT {
     private static final long SEGMENT_SIZE = Size.MB.of(5);
     private static final int COMPACTION_THRESHOLD = 2;
     private LogAppender<String> appender;
+    private File testDirectory;
 
     protected abstract LogAppender<String> appender(File testDirectory);
-
-    private File testDirectory;
 
     @Before
     public void setUp() {

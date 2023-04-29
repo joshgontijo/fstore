@@ -21,11 +21,9 @@ public class BatchingWriter {
     private final Index index;
     private final int bufferSize;
     private final int maxBatchSize;
-
+    private final List<IndexEntry> stagingIndex = new ArrayList<>();
     //staging
     private ByteBuffer writeBuffer;
-    private final List<IndexEntry> stagingIndex = new ArrayList<>();
-
     //state
     private long segmentIdx;
     private long logPos;

@@ -2,8 +2,6 @@ package io.joshworks.fstore.log;
 
 public interface SegmentIterator<T> extends LogIterator<T> {
 
-    boolean endOfLog();
-
     static <T> SegmentIterator<T> empty() {
         return new SegmentIterator<>() {
             @Override
@@ -32,5 +30,7 @@ public interface SegmentIterator<T> extends LogIterator<T> {
             }
         };
     }
+
+    boolean endOfLog();
 
 }

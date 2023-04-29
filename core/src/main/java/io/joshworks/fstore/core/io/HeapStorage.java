@@ -17,7 +17,7 @@ public class HeapStorage extends MemStorage {
 
     @Override
     protected void destroy(ByteBuffer buffer) {
-       //do nothing
+        //do nothing
     }
 
     @Override

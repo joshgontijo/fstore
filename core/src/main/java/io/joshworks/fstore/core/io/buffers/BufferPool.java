@@ -7,15 +7,6 @@ import java.util.function.Consumer;
 
 public interface BufferPool extends Pool<ByteBuffer> {
 
-    default void withBuffer(Consumer<ByteBuffer> func) {
-        ByteBuffer buffer = allocate();
-        try {
-            func.accept(buffer);
-        } finally {
-            free(buffer);
-        }
-    }
-
     static BufferPool defaultPool(int poolSize, int bufferSize, boolean direct) {
         return new BasicBufferPool(poolSize, bufferSize, direct);
     }
@@ -30,6 +21,15 @@ public interface BufferPool extends Pool<ByteBuffer> {
 
     static BufferPool unpooled(int bufferSize, boolean direct) {
         return new Unpooled(bufferSize, direct);
+    }
+
+    default void withBuffer(Consumer<ByteBuffer> func) {
+        ByteBuffer buffer = allocate();
+        try {
+            func.accept(buffer);
+        } finally {
+            free(buffer);
+        }
     }
 
 }

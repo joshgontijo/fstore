@@ -54,16 +54,13 @@ import static io.joshworks.fstore.core.io.Storage.align;
  */
 public class LogAppender<T> implements Closeable {
 
-    private final Logger logger;
-
     private static final int SEGMENT_BITS = 16;
-    private static final int SEGMENT_ADDRESS_BITS = Long.SIZE - SEGMENT_BITS;
-
     static final long MAX_SEGMENTS = BitUtil.maxValueForBits(SEGMENT_BITS);
+    private static final int SEGMENT_ADDRESS_BITS = Long.SIZE - SEGMENT_BITS;
     static final long MAX_SEGMENT_ADDRESS = BitUtil.maxValueForBits(SEGMENT_ADDRESS_BITS);
-
     private static final int FLUSH_INTERVAL_SEC = 5;
-
+    final Levels<T> levels;
+    private final Logger logger;
     private final File directory;
     private final Serializer<T> serializer;
     private final Metadata metadata;
@@ -73,22 +70,13 @@ public class LogAppender<T> implements Closeable {
     private final BufferPool bufferPool;
     private final double checksumProbability;
     private final int readPageSize;
-
-    final Levels<T> levels;
-
     //Stores only READ_ONLY segment entries
     private final AtomicLong entries = new AtomicLong();
-    private AtomicBoolean closed = new AtomicBoolean();
-
     private final ScheduledExecutorService flushWorker;
     private final List<ForwardLogReader<T>> forwardReaders = new CopyOnWriteArrayList<>();
     private final ICompactor compactor;
-
     private final Metrics metrics = new Metrics();
-
-    public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
-        return new Config<>(directory, serializer);
-    }
+    private AtomicBoolean closed = new AtomicBoolean();
 
     LogAppender(Config<T> config) {
         this.directory = config.directory;
@@ -137,6 +125,40 @@ public class LogAppender<T> implements Closeable {
 
         this.entries.set(computedEntries);
         logger.info(config.toString());
+    }
+
+    public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
+        return new Config<>(directory, serializer);
+    }
+
+    static int getSegment(long position) {
+        long segmentIdx = (position >>> SEGMENT_ADDRESS_BITS);
+        if (segmentIdx > MAX_SEGMENTS) {
+            throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + MAX_SEGMENTS);
+        }
+
+        return (int) segmentIdx;
+    }
+
+    static long toSegmentedPosition(long segmentIdx, long position) {
+        if (segmentIdx < 0) {
+            throw new IllegalArgumentException("Segment index must be greater than zero");
+        }
+        if (segmentIdx > MAX_SEGMENTS) {
+            throw new IllegalArgumentException("Segment index cannot be greater than " + MAX_SEGMENTS);
+        }
+        return (segmentIdx << SEGMENT_ADDRESS_BITS) | position;
+    }
+
+    static long getPositionOnSegment(long position) {
+        long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
+        return (position & mask);
+    }
+
+    static <T> void validateSegmentIdx(int segmentIdx, long pos, Levels<T> levels) {
+        if (segmentIdx < 0 || segmentIdx > levels.numSegments()) {
+            throw new IllegalArgumentException("No segment for address " + pos + " (segmentIdx: " + segmentIdx + "), available segments: " + levels.numSegments());
+        }
     }
 
     public Metrics metrics() {
@@ -245,30 +267,6 @@ public class LogAppender<T> implements Closeable {
         });
     }
 
-    static int getSegment(long position) {
-        long segmentIdx = (position >>> SEGMENT_ADDRESS_BITS);
-        if (segmentIdx > MAX_SEGMENTS) {
-            throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + MAX_SEGMENTS);
-        }
-
-        return (int) segmentIdx;
-    }
-
-    static long toSegmentedPosition(long segmentIdx, long position) {
-        if (segmentIdx < 0) {
-            throw new IllegalArgumentException("Segment index must be greater than zero");
-        }
-        if (segmentIdx > MAX_SEGMENTS) {
-            throw new IllegalArgumentException("Segment index cannot be greater than " + MAX_SEGMENTS);
-        }
-        return (segmentIdx << SEGMENT_ADDRESS_BITS) | position;
-    }
-
-    static long getPositionOnSegment(long position) {
-        long mask = (1L << SEGMENT_ADDRESS_BITS) - 1;
-        return (position & mask);
-    }
-
     private void notifyPollers(Log<T> newSegment) {
         for (ForwardLogReader<T> reader : forwardReaders) {
             reader.addSegment(newSegment);
@@ -366,12 +364,6 @@ public class LogAppender<T> implements Closeable {
             return segments.get(segmentIdx).get(positionOnSegment);
         });
 
-    }
-
-    static <T> void validateSegmentIdx(int segmentIdx, long pos, Levels<T> levels) {
-        if (segmentIdx < 0 || segmentIdx > levels.numSegments()) {
-            throw new IllegalArgumentException("No segment for address " + pos + " (segmentIdx: " + segmentIdx + "), available segments: " + levels.numSegments());
-        }
     }
 
     @Override

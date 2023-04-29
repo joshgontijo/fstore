@@ -169,8 +169,8 @@ class LRUCache<K, V> implements Cache<K, V> {
         private static final AtomicReferenceFieldUpdater<CacheEntry, Object> tokenUpdator = AtomicReferenceFieldUpdater.newUpdater(CacheEntry.class, Object.class, "accessToken");
 
         private final K key;
-        private volatile V value;
         private final long expires;
+        private volatile V value;
         private volatile int hits = 1;
         private volatile Object accessToken;
 
@@ -180,12 +180,12 @@ class LRUCache<K, V> implements Cache<K, V> {
             this.expires = expires;
         }
 
-        public void setValue(final V value) {
-            this.value = value;
-        }
-
         public V getValue() {
             return value;
+        }
+
+        public void setValue(final V value) {
+            this.value = value;
         }
 
         public int hit() {

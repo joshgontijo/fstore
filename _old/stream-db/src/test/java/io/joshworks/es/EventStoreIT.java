@@ -39,7 +39,7 @@ public class EventStoreIT {
 
         long s = System.currentTimeMillis();
         for (int i = 0; i < items; i++) {
-            store.append(evOf(stream + rand.nextInt(0, 20), - 1, "TEST", "abc"));
+            store.append(evOf(stream + rand.nextInt(0, 20), -1, "TEST", "abc"));
             if (i % 1000000 == 0) {
                 long now = System.currentTimeMillis();
                 System.out.println("WRITE: " + i + " -> " + (now - s));

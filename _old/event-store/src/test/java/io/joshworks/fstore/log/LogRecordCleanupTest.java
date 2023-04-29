@@ -38,6 +38,10 @@ public class LogRecordCleanupTest {
     private File dummyFolder;
     private Index index;
 
+    private static StreamMetadata dummyMetadata(long stream) {
+        return new StreamMetadata(String.valueOf(stream), stream, 0, NO_MAX_AGE, NO_MAX_COUNT, NO_TRUNCATE, new HashMap<>(), new HashMap<>(), StreamMetadata.STREAM_ACTIVE);
+    }
+
     @Before
     public void setUp() {
         dummyFolder = TestUtils.testFolder();
@@ -51,10 +55,6 @@ public class LogRecordCleanupTest {
         streams.close();
         index.close();
         TestUtils.deleteRecursively(dummyFolder);
-    }
-
-    private static StreamMetadata dummyMetadata(long stream) {
-        return new StreamMetadata(String.valueOf(stream), stream, 0, NO_MAX_AGE, NO_MAX_COUNT, NO_TRUNCATE, new HashMap<>(), new HashMap<>(), StreamMetadata.STREAM_ACTIVE);
     }
 
     @Test(expected = IllegalArgumentException.class)

@@ -23,11 +23,15 @@ public class LsmTest {
 
     public static final RowKey RK = RowKey.LONG;
     public static final int BATCH_SIZE = 1000;
-    private Lsm lsm;
     private static final int MEM_TABLE_SIZE = 500000;
     private final RecordPool pool = RecordPool.create()
             .batchSize(BATCH_SIZE)
             .build();
+    private Lsm lsm;
+
+    private static ByteBuffer keyOf(long key) {
+        return Buffers.wrap(key);
+    }
 
     @Before
     public void setUp() {
@@ -50,21 +54,6 @@ public class LsmTest {
         lsm.append(records);
 
         getAll(items);
-    }
-
-    @Test
-    public void append_MANY_TEST() {
-        int inserted = 0;
-        while (inserted < MEM_TABLE_SIZE * 50.5) {
-            Records records = RecordUtils.createN(inserted, BATCH_SIZE, pool);
-            lsm.append(records);
-            inserted += records.size();
-        }
-
-        System.out.println("READING");
-        long s = System.currentTimeMillis();
-        getAll(inserted);
-        System.out.println(System.currentTimeMillis() - s);
     }
 
 
@@ -92,6 +81,21 @@ public class LsmTest {
 //
 //        assertEquals(items, entries);
 //    }
+
+    @Test
+    public void append_MANY_TEST() {
+        int inserted = 0;
+        while (inserted < MEM_TABLE_SIZE * 50.5) {
+            Records records = RecordUtils.createN(inserted, BATCH_SIZE, pool);
+            lsm.append(records);
+            inserted += records.size();
+        }
+
+        System.out.println("READING");
+        long s = System.currentTimeMillis();
+        getAll(inserted);
+        System.out.println(System.currentTimeMillis() - s);
+    }
 
     @Test
     public void append_flush() {
@@ -145,10 +149,6 @@ public class LsmTest {
         Records records = pool.empty();
         records.add(LsmRecordUtils.delete(key));
         return records;
-    }
-
-    private static ByteBuffer keyOf(long key) {
-        return Buffers.wrap(key);
     }
 
     private void getAll(int items) {

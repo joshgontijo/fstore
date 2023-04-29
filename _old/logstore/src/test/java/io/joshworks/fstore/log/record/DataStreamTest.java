@@ -32,14 +32,18 @@ import static org.junit.Assert.assertTrue;
 public class DataStreamTest {
 
     private static final double CHCKSUM_PROB = 1;
-
+    private static final long FILE_SIZE = Size.MB.of(10);
+    private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
     private File file;
     private Storage storage;
     private BufferPool bufferPool;
-    private static final long FILE_SIZE = Size.MB.of(10);
-    private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
-
     private DataStream stream;
+
+    private static String ofSize(int size) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("a".repeat(Math.max(0, size)));
+        return sb.toString();
+    }
 
     @Before
     public void setUp() {
@@ -348,12 +352,6 @@ public class DataStreamTest {
         storage.position(10);
         stream.write(5, entry, Serializers.INTEGER);
         assertEquals(10, storage.position());
-    }
-
-    private static String ofSize(int size) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("a".repeat(Math.max(0, size)));
-        return sb.toString();
     }
 
     private static class SetDstLimitSerializer implements Serializer<Integer> {

@@ -17,18 +17,6 @@ class Java9ImmutableListSerializer extends Serializer<List<Object>> {
         super(DOES_NOT_ACCEPT_NULL, IMMUTABLE);
     }
 
-
-    @Override
-    public void write(Kryo kryo, Output output, List<Object> immutableList) {
-        kryo.writeObject(output, new ArrayList<>(immutableList));
-    }
-
-    @Override
-    public List<Object> read(Kryo kryo, Input input, Class<List<Object>> type) {
-        List<Object> list = kryo.readObject(input, ArrayList.class);
-        return List.copyOf(list);
-    }
-
     /**
      * for the several ImmutableMap related classes.
      *
@@ -64,5 +52,16 @@ class Java9ImmutableListSerializer extends Serializer<List<Object>> {
         kryo.register(List.of(value0, value1, value2, value3, value4, value5, value6, value7, value8, value9, value10, value11).getClass(), serializer);
         kryo.register(List.copyOf(new ArrayList<>()).getClass(), serializer);
 
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output, List<Object> immutableList) {
+        kryo.writeObject(output, new ArrayList<>(immutableList));
+    }
+
+    @Override
+    public List<Object> read(Kryo kryo, Input input, Class<List<Object>> type) {
+        List<Object> list = kryo.readObject(input, ArrayList.class);
+        return List.copyOf(list);
     }
 }

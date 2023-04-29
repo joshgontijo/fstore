@@ -17,11 +17,9 @@ public class ServerPushTest {
 
     private static final String HOST = "localhost";
     private static final int PORT = 9999;
-
+    private static final String MESSAGE = "Hello push event!";
     private TcpEventServer server;
     private TcpConnection client;
-
-    private static final String MESSAGE = "Hello push event!";
     private CountDownLatch latch = new CountDownLatch(1);
     private AtomicReference<String> received = new AtomicReference<>();
 

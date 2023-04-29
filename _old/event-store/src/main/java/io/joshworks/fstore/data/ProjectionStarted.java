@@ -7,9 +7,8 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 public class ProjectionStarted {
 
-    public final String name;
-
     public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_RUN_STARTED";
+    public final String name;
 
     private ProjectionStarted(String name) {
         this.name = name;

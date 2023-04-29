@@ -22,6 +22,10 @@ public class LogSegmentTest {
     private File testFile;
     private LogSegment segment;
 
+    private static ByteBuffer create(long seq) {
+        return EventHelper.evOf(seq, "stream-1", 1, "test");
+    }
+
     @Before
     public void setUp() {
         testFile = TestUtils.testFile(SegmentDirectory.segmentFileName(1, 3, "abc", 100));
@@ -100,10 +104,6 @@ public class LogSegmentTest {
         dst.flip();
         assertTrue(Event.isValid(dst));
         assertEquals(sequence, Event.sequence(dst));
-    }
-
-    private static ByteBuffer create(long seq) {
-        return EventHelper.evOf(seq, "stream-1", 1, "test");
     }
 
 }

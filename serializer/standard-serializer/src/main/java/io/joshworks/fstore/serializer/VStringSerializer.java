@@ -9,6 +9,10 @@ import static java.util.Objects.requireNonNull;
 
 public class VStringSerializer implements Serializer<String> {
 
+    public static byte[] toBytes(String value) {
+        return requireNonNull(value).getBytes(StandardCharsets.UTF_8);
+    }
+
     @Override
     public void writeTo(String data, ByteBuffer dst) {
         byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
@@ -27,10 +31,6 @@ public class VStringSerializer implements Serializer<String> {
         String value = new String(buffer.array(), buffer.position(), length, StandardCharsets.UTF_8);
         buffer.position(buffer.position() + length);
         return value;
-    }
-
-    public static byte[] toBytes(String value) {
-        return requireNonNull(value).getBytes(StandardCharsets.UTF_8);
     }
 
 }

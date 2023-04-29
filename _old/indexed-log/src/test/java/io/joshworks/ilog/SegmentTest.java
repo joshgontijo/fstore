@@ -26,6 +26,12 @@ public class SegmentTest {
             .build();
     private String fileName;
 
+    private static String largeString(int bytes) {
+        byte[] data = new byte[bytes];
+        Arrays.fill(data, (byte) 65);
+        return new String(data, StandardCharsets.UTF_8);
+    }
+
     @Before
     public void setUp() {
         int randLevel = ThreadLocalRandom.current().nextInt(0, 99);
@@ -174,12 +180,6 @@ public class SegmentTest {
         }
 
         assertEquals(items, idx);
-    }
-
-    private static String largeString(int bytes) {
-        byte[] data = new byte[bytes];
-        Arrays.fill(data, (byte) 65);
-        return new String(data, StandardCharsets.UTF_8);
     }
 
 }

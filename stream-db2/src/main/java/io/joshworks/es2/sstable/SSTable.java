@@ -17,10 +17,8 @@ import static io.joshworks.es2.Event.NO_VERSION;
 
 public class SSTable implements SegmentFile {
 
-    private static final String INDEX_EXT = "idx";
-
     public static final int NO_DATA = -11;
-
+    private static final String INDEX_EXT = "idx";
     final SegmentChannel channel;
     final BIndex index;
 
@@ -34,42 +32,6 @@ public class SSTable implements SegmentFile {
         var data = SegmentChannel.open(dataFile);
         var index = BIndex.open(indexFile);
         return new SSTable(data, index);
-    }
-
-    public int version(long stream) {
-        IndexEntry ie = index.find(stream, Integer.MAX_VALUE, IndexFunction.FLOOR);
-        return ie == null ? NO_VERSION : ie.version() + ie.entries() - 1;
-    }
-
-    public int get(long stream, int version, Sink sink) {
-        if (!index.contains(stream, version)) {
-            return NO_DATA;
-        }
-        IndexEntry ie = index.find(stream, version, IndexFunction.FLOOR);
-        if (ie == null) {
-            return NO_DATA;
-        }
-
-        int recSize = ie.recordSize();
-        long logAddress = ie.logAddress();
-        int startVersion = ie.version();
-        int entries = ie.entries();
-
-        assert startVersion <= version;
-
-        //end version is greater than latest version from index, sstable should not continue searching (considering sstable lookup is older to newer)
-        if (version > startVersion + entries - 1) {
-            return Event.VERSION_TOO_HIGH;
-        }
-        //cast is ok since the data transferred is never going to be greater than stream block
-        return (int) channel.transferTo(logAddress, recSize, sink);
-    }
-
-    public IndexEntry get(long stream, int version) {
-        if (!index.contains(stream, version)) {
-            return null;
-        }
-        return index.find(stream, version, IndexFunction.FLOOR);
     }
 
     static SSTable create(File dataFile, Iterator<ByteBuffer> items, int expectedEntries, long size, SSTableConfig.Config config) {
@@ -108,6 +70,42 @@ public class SSTable implements SegmentFile {
         Path parent = dataFile.toPath().getParent();
         String indexFileName = dataFile.getName().split("\\.")[0] + "." + INDEX_EXT;
         return parent.resolve(indexFileName).toFile();
+    }
+
+    public int version(long stream) {
+        IndexEntry ie = index.find(stream, Integer.MAX_VALUE, IndexFunction.FLOOR);
+        return ie == null ? NO_VERSION : ie.version() + ie.entries() - 1;
+    }
+
+    public int get(long stream, int version, Sink sink) {
+        if (!index.contains(stream, version)) {
+            return NO_DATA;
+        }
+        IndexEntry ie = index.find(stream, version, IndexFunction.FLOOR);
+        if (ie == null) {
+            return NO_DATA;
+        }
+
+        int recSize = ie.recordSize();
+        long logAddress = ie.logAddress();
+        int startVersion = ie.version();
+        int entries = ie.entries();
+
+        assert startVersion <= version;
+
+        //end version is greater than latest version from index, sstable should not continue searching (considering sstable lookup is older to newer)
+        if (version > startVersion + entries - 1) {
+            return Event.VERSION_TOO_HIGH;
+        }
+        //cast is ok since the data transferred is never going to be greater than stream block
+        return (int) channel.transferTo(logAddress, recSize, sink);
+    }
+
+    public IndexEntry get(long stream, int version) {
+        if (!index.contains(stream, version)) {
+            return null;
+        }
+        return index.find(stream, version, IndexFunction.FLOOR);
     }
 
     public long sparseEntries() {

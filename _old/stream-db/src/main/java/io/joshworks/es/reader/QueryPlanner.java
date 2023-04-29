@@ -30,6 +30,19 @@ public class QueryPlanner {
         this.pageBufferCache = ThreadLocal.withInitial(() -> Buffers.allocate(pageBufferSize, false));
     }
 
+    private static long posDiff(long startAddress, long nextAddress) {
+        int idx1 = Log.segmentIdx(startAddress);
+        int idx2 = Log.segmentIdx(nextAddress);
+        if (idx1 != idx2) { //different segments
+            return -1;
+        }
+
+        long segPos1 = Log.positionOnSegment(startAddress);
+        long segPos2 = Log.positionOnSegment(nextAddress);
+
+        return segPos2 - segPos1;
+    }
+
     public boolean prepare(long stream, int version, int maxItems) {
         this.pageBuffer = pageBufferCache.get().clear();
         this.stream = stream;
@@ -98,19 +111,6 @@ public class QueryPlanner {
         } while (entries.size() < maxItems);
 
         return entries;
-    }
-
-    private static long posDiff(long startAddress, long nextAddress) {
-        int idx1 = Log.segmentIdx(startAddress);
-        int idx2 = Log.segmentIdx(nextAddress);
-        if (idx1 != idx2) { //different segments
-            return -1;
-        }
-
-        long segPos1 = Log.positionOnSegment(startAddress);
-        long segPos2 = Log.positionOnSegment(nextAddress);
-
-        return segPos2 - segPos1;
     }
 
     private static class PageEntry {

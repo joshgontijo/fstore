@@ -21,18 +21,6 @@ public final class OpenSection {
         this.encrypted = encrypted;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        OpenSection that = (OpenSection) o;
-        return created == that.created &&
-                physical == that.physical &&
-                dataSize == that.dataSize &&
-                encrypted == that.encrypted &&
-                mode == that.mode;
-    }
-
     static Serializer<OpenSection> serializer() {
         return new Serializer<>() {
             @Override
@@ -54,6 +42,18 @@ public final class OpenSection {
                 return new OpenSection(created, mode, physical, dataSize, encrypted);
             }
         };
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        OpenSection that = (OpenSection) o;
+        return created == that.created &&
+                physical == that.physical &&
+                dataSize == that.dataSize &&
+                encrypted == that.encrypted &&
+                mode == that.mode;
     }
 
     @Override

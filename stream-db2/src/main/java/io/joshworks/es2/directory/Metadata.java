@@ -50,6 +50,31 @@ public class Metadata<T extends SegmentFile> {
         }
     }
 
+    private static List<FileEvent> deserialize(ByteBuffer buffer) {
+        int size = buffer.getInt(0);
+        if (size != buffer.remaining()) {
+            log.warn("Invalid file event buffer");
+            return Collections.emptyList();
+        }
+        buffer.getInt(); //skip
+        int crc = buffer.getInt();
+        buffer.getLong(); //skip
+        int computedChecksum = ByteBufferChecksum.crc32(buffer, buffer.position(), size - HEADER);
+        if (computedChecksum != crc) {
+            log.warn("File event checksum mismatch");
+            return Collections.emptyList();
+        }
+
+        List<FileEvent> events = new ArrayList<>();
+        while (buffer.hasRemaining()) {
+            int op = buffer.getInt();
+            int level = buffer.getInt();
+            long idx = buffer.getLong();
+            events.add(new FileEvent(Op.from(op), new SegmentId(level, idx)));
+        }
+        return events;
+    }
+
     private void append(List<FileEvent> events) {
         channel.append(serialize(events));
         channel.flush();
@@ -77,7 +102,6 @@ public class Metadata<T extends SegmentFile> {
         return events;
     }
 
-
     private ByteBuffer serialize(List<FileEvent> events) {
         int eventsSerializedSize = events.size() * EVENT_SIZE;
         var bufferSize = HEADER + eventsSerializedSize;
@@ -103,44 +127,20 @@ public class Metadata<T extends SegmentFile> {
         return buffer;
     }
 
-    private static List<FileEvent> deserialize(ByteBuffer buffer) {
-        int size = buffer.getInt(0);
-        if (size != buffer.remaining()) {
-            log.warn("Invalid file event buffer");
-            return Collections.emptyList();
-        }
-        buffer.getInt(); //skip
-        int crc = buffer.getInt();
-        buffer.getLong(); //skip
-        int computedChecksum = ByteBufferChecksum.crc32(buffer, buffer.position(), size - HEADER);
-        if (computedChecksum != crc) {
-            log.warn("File event checksum mismatch");
-            return Collections.emptyList();
-        }
-
-        List<FileEvent> events = new ArrayList<>();
-        while (buffer.hasRemaining()) {
-            int op = buffer.getInt();
-            int level = buffer.getInt();
-            long idx = buffer.getLong();
-            events.add(new FileEvent(Op.from(op), new SegmentId(level, idx)));
-        }
-        return events;
-    }
-
     HashSet<SegmentId> state() {
         return read()
                 .reduce(new HashSet<>(), (list, curr) -> {
                     switch (curr.op) {
-                        case ADD:
+                        case ADD -> {
                             if (!list.add(curr.segmentId)) {
                                 throw new RuntimeException("Invalid event state");
                             }
-                            break;
-                        case DELETE:
+                        }
+                        case DELETE -> {
                             if (!list.remove(curr.segmentId)) {
                                 throw new RuntimeException("Invalid event state");
                             }
+                        }
                     }
                     return list;
                 }, (l1, l2) -> {
@@ -172,9 +172,6 @@ public class Metadata<T extends SegmentFile> {
         channel.close();
     }
 
-    public record FileEvent(Op op, SegmentId segmentId) {
-    }
-
     public enum Op {
         ADD(1),
         DELETE(2);
@@ -191,6 +188,9 @@ public class Metadata<T extends SegmentFile> {
             throw new RuntimeException("Invalid enum value: " + v);
         }
 
+    }
+
+    public record FileEvent(Op op, SegmentId segmentId) {
     }
 
 

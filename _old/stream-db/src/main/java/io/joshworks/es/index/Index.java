@@ -15,16 +15,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Index extends SegmentDirectory<BTreeIndexSegment> {
 
+    public static final int NONE = -1;
+    static final String EXT = "idx";
     private static final Logger log = LoggerFactory.getLogger(Index.class);
-
     private final Map<Long, List<IndexEntry>> table = new ConcurrentHashMap<>();
     private final AtomicInteger entries = new AtomicInteger();
     private final int maxEntries;
     private final int blockSize;
-
-    static final String EXT = "idx";
-
-    public static final int NONE = -1;
 
     public Index(File root, int maxEntries, int blockSize) {
         super(root, EXT, Long.MAX_VALUE);

@@ -8,10 +8,9 @@ import static io.joshworks.fstore.es.shared.EventId.SYSTEM_PREFIX;
 
 public class IndexFlushed {
 
+    public static final String TYPE = SYSTEM_PREFIX + "INDEX_FLUSHED";
     public final long logPosition;
     public final long timeTaken;
-
-    public static final String TYPE = SYSTEM_PREFIX + "INDEX_FLUSHED";
 
     private IndexFlushed(long logPosition, long timeTaken) {
         this.logPosition = logPosition;

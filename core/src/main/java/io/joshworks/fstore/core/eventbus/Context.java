@@ -16,6 +16,6 @@ public class Context {
     @Override
     public String toString() {
         return handler == null ? "" : handler.getClass().getSimpleName() + "#" +
-                method + "(" + String.valueOf(arg) + ")";
+                method + "(" + arg + ")";
     }
 }

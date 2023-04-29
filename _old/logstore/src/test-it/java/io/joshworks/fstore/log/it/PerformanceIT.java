@@ -25,10 +25,9 @@ public abstract class PerformanceIT {
     private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
     private static final int COMPACTION_THRESHOLD = 2;
     private LogAppender<String> appender;
+    private File testDirectory;
 
     protected abstract LogAppender<String> appender(File testDirectory);
-
-    private File testDirectory;
 
     @Before
     public void setUp() {

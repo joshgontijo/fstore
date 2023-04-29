@@ -2,18 +2,11 @@ package io.joshworks.es2;
 
 import io.joshworks.es2.sink.Sink;
 import io.joshworks.es2.sstable.EventSerializer;
-import io.joshworks.es2.sstable.SSTableConfig;
-import io.joshworks.es2.sstable.SSTables;
-import io.joshworks.es2.sstable.StreamBlockDeserializer;
-import io.joshworks.es2.sstable.TestEvent;
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.Executors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

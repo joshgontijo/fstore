@@ -6,8 +6,8 @@ public class EventContext<T> {
 
     public final String correlationId;
     public final T data;
-    private SedaContext sedaContext;
     private final CompletableFuture<Object> future;
+    private SedaContext sedaContext;
 
     EventContext(String correlationId, T data, SedaContext sedaContext, CompletableFuture<Object> future) {
         this.correlationId = correlationId;

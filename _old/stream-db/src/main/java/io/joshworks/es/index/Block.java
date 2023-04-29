@@ -31,27 +31,24 @@ import java.nio.ByteBuffer;
 class Block {
 
     static final int KEY_BYTES =
-                Long.BYTES + //STREAM
+            Long.BYTES + //STREAM
                     Integer.BYTES; //VERSION
 
     static final int LEAF_ENTRY_BYTES =
-                    KEY_BYTES +
+            KEY_BYTES +
                     Long.BYTES; // LOG_POS
 
 
     static final int INTERNAL_ENTRY_BYTES =
-                    KEY_BYTES +
+            KEY_BYTES +
                     Integer.BYTES; //BLOCK_IDX
-
-
-    protected final ByteBuffer data;
-    private int tmpEntries;
+    //common for both leaf and internal nodes
+    static final int HEADER = Short.BYTES + Integer.BYTES + Short.BYTES;
     private static final int LEVEL_OFFSET = 0;
     private static final int ENTRIES_OFFSET = LEVEL_OFFSET + Short.BYTES;
     private static final int BLOCK_SIZE = ENTRIES_OFFSET + Integer.BYTES;
-
-    //common for both leaf and internal nodes
-    static final int HEADER = Short.BYTES + Integer.BYTES + Short.BYTES;
+    protected final ByteBuffer data;
+    private int tmpEntries;
 
 
     Block(int size, int level) {
@@ -98,7 +95,7 @@ class Block {
     }
 
     int writeTo(MappedRegion mf) {
-        assert mf.remaining() >= data.capacity()  : "Not enough index space";
+        assert mf.remaining() >= data.capacity() : "Not enough index space";
 
         data.putInt(ENTRIES_OFFSET, tmpEntries);
         data.putShort(BLOCK_SIZE, (short) data.position());

@@ -23,10 +23,9 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class SegmentReaderTest {
 
-    private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
     protected static final double CHECKSUM_PROB = 1;
     protected static final int SEGMENT_SIZE = Size.KB.ofInt(128);
-
+    private static final int MAX_ENTRY_SIZE = Size.MB.ofInt(1);
     protected Log<String> segment;
     private File testFile;
 

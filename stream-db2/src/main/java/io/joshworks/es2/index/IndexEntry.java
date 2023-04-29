@@ -10,7 +10,7 @@ package io.joshworks.es2.index;
 public record IndexEntry(long stream, int version, int recordSize, int entries, long logAddress) {
 
     public static int BYTES =
-                    Long.BYTES +
+            Long.BYTES +
                     Integer.BYTES +
                     Integer.BYTES +
                     Integer.BYTES +

@@ -16,6 +16,10 @@ public class MetadataTest {
     private File testFile;
     private Metadata<DummySegment> metadata;
 
+    private static DummySegment seg(int id) {
+        return new DummySegment(id);
+    }
+
     @Before
     public void setUp() {
         testFile = TestUtils.testFile();
@@ -63,10 +67,6 @@ public class MetadataTest {
         metadata.add(seg(1));
         metadata.add(seg(1));
         Set<SegmentId> state = metadata.state();
-    }
-
-    private static DummySegment seg(int id) {
-        return new DummySegment(id);
     }
 
     private static class DummySegment implements SegmentFile {

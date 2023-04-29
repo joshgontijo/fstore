@@ -9,8 +9,6 @@ import java.io.File;
 @FunctionalInterface
 public interface SegmentFactory<T extends Segment> {
 
-    T create(File file, RecordPool pool, long maxSize, long maxEntries);
-
     static SegmentFactory<IndexedSegment> indexed(RowKey rowKey) {
         return (file, pool, maxSize, maxEntries) -> new IndexedSegment(file, pool, rowKey, maxEntries);
     }
@@ -18,6 +16,8 @@ public interface SegmentFactory<T extends Segment> {
     static SegmentFactory<SSTable> sstable(RowKey rowKey) {
         return (file, pool, maxSize, maxEntries) -> new SSTable(file, pool, rowKey, maxEntries);
     }
+
+    T create(File file, RecordPool pool, long maxSize, long maxEntries);
 
 
 }

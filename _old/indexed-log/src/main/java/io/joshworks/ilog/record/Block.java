@@ -30,23 +30,18 @@ import java.util.Map;
  */
 public class Block implements Closeable {
 
+    private static final int HEADER_BYTES = Integer.BYTES * 3;
     private final RowKey rowKey;
     private final Codec codec;
+    private final List<Key> keys = new ArrayList<>();
+    private final ByteBuffer block;
+    private final ByteBuffer data;
+    private final RecordPool pool;
     private State state = State.EMPTY;
-
-    private static final int HEADER_BYTES = Integer.BYTES * 3;
-
     private int uncompressedSize;
     private int compressedSize;
     private int entries;
-
-    private final List<Key> keys = new ArrayList<>();
-
-    private final ByteBuffer block;
-    private final ByteBuffer data;
-
     private ObjectPool<Block> objectPool;
-    private final RecordPool pool;
 
     public Block(ObjectPool<Block> objectPool, RecordPool pool, int blockSize, RowKey rowKey, Codec codec) {
         this.objectPool = objectPool;
@@ -290,10 +285,28 @@ public class Block implements Closeable {
         return data;
     }
 
+    public enum BlockCodec {
+        NO_COMPRESSION(0),
+        SNAPPY(1),
+        LZ4_H(2),
+        LZ4_L(3),
+        DEFLATE(4);
+
+        private int i;
+
+        BlockCodec(int i) {
+            this.i = i;
+        }
+    }
+
+    private enum State {
+        EMPTY, CREATING, COMPRESSED, DECOMPRESSED, READ_ONLY,
+    }
+
     private static class Key implements Comparable<ByteBuffer> {
-        private int offset;
         private final ByteBuffer data;
         private final RowKey comparator;
+        private int offset;
 
         private Key(RowKey comparator) {
             this.data = Buffers.allocate(comparator.keySize(), false);
@@ -329,20 +342,6 @@ public class Block implements Closeable {
         }
     }
 
-    public enum BlockCodec {
-        NO_COMPRESSION(0),
-        SNAPPY(1),
-        LZ4_H(2),
-        LZ4_L(3),
-        DEFLATE(4);
-
-        private int i;
-
-        BlockCodec(int i) {
-            this.i = i;
-        }
-    }
-
     private static class Codecs {
 
         private static final Map<Integer, Codec> codecs = Map.of(
@@ -360,10 +359,5 @@ public class Block implements Closeable {
             }
             return codec;
         }
-    }
-
-
-    private enum State {
-        EMPTY, CREATING, COMPRESSED, DECOMPRESSED, READ_ONLY,
     }
 }

@@ -46,25 +46,19 @@ import static java.util.Objects.requireNonNull;
  */
 public class Segment<T> implements Log<T> {
 
-    private final Logger logger;
-
     private static final double FOOTER_EXTRA_LENGTH_PERCENT = 0.1;
-
+    protected final AtomicLong entries = new AtomicLong();
+    final LogHeader header;
+    private final Logger logger;
     private final Serializer<T> serializer;
     private final BufferPool bufferPool;
     private final MetricStorage storage;
     private final DataStream stream;
-
-    protected final AtomicLong entries = new AtomicLong();
     //writePosition must be kept separate from store, so it allows reads happening when rolling segment
     private final AtomicLong dataWritePosition = new AtomicLong();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean markedForDeletion = new AtomicBoolean();
-
     private final FooterMap footerMap = new FooterMap();
-
-    final LogHeader header;
-
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Set<SegmentIterator<T>> readers = ConcurrentHashMap.newKeySet();
 
@@ -309,7 +303,8 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void roll(int level, boolean trim) {
-        roll(level, trim, fw -> {});
+        roll(level, trim, fw -> {
+        });
     }
 
     @Override

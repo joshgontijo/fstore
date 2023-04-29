@@ -12,9 +12,9 @@ import static io.joshworks.es.Event.OVERHEAD;
 
 public class SegmentIterator implements Iterators.CloseableIterator<ByteBuffer> {
 
-    private ByteBuffer readBuffer;
     private final int bufferSize;
     private final LogSegment segment;
+    private ByteBuffer readBuffer;
     private long readPos;
     private int bufferPos;
     private int bufferLimit;

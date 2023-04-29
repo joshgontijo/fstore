@@ -20,13 +20,11 @@ public class SendRawTest {
 
     private static final String HOST = "localhost";
     private static final int PORT = 9999;
-
+    private static final int ITEMS = 10000;
+    private final Set<Integer> received = new ConcurrentSkipListSet<>();
     private TcpEventServer server;
     private TcpConnection client;
-
-    private static final int ITEMS = 10000;
     private CountDownLatch latch;
-    private final Set<Integer> received = new ConcurrentSkipListSet<>();
 
     @Before
     public void setUp() {

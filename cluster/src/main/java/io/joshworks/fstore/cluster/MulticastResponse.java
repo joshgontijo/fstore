@@ -17,7 +17,7 @@ public class MulticastResponse {
     }
 
     public <T> T message() {
-        if(message instanceof NullMessage) {
+        if (message instanceof NullMessage) {
             return null;
         }
         return (T) message;

@@ -52,6 +52,7 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     /**
      * Remaining bytes that can be written to the data size
+     *
      * @return
      */
     long remaining();

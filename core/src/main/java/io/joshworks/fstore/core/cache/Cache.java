@@ -2,16 +2,6 @@ package io.joshworks.fstore.core.cache;
 
 public interface Cache<K, V> {
 
-    void add(K key, V newValue);
-
-    V get(K key);
-
-    V remove(K key);
-
-    void clear();
-
-    long size();
-
     static <K, V> Cache<K, V> lruCache(int size, int maxAgeSec) {
         return size > 0 ? new LRUCache<>(size, maxAgeSec) : new NoCache<>();
     }
@@ -24,4 +14,14 @@ public interface Cache<K, V> {
     static <K, V> Cache<K, V> noCache() {
         return new NoCache<>();
     }
+
+    void add(K key, V newValue);
+
+    V get(K key);
+
+    V remove(K key);
+
+    void clear();
+
+    long size();
 }

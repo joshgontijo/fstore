@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 public class Murmur3 {
     // from 64-bit linear congruential generator
     public static final long NULL_HASHCODE = 2862933555777941757L;
-
+    public static final int DEFAULT_SEED = 104729;
     // Constants for 32 bit variant
     private static final int C1_32 = 0xcc9e2d51;
     private static final int C2_32 = 0x1b873593;
@@ -13,7 +13,6 @@ public class Murmur3 {
     private static final int R2_32 = 13;
     private static final int M_32 = 5;
     private static final int N_32 = 0xe6546b64;
-
     // Constants for 128 bit variant
     private static final long C1 = 0x87c37b91114253d5L;
     private static final long C2 = 0x4cf5ad432745937fL;
@@ -23,9 +22,6 @@ public class Murmur3 {
     private static final int M = 5;
     private static final int N1 = 0x52dce729;
     private static final int N2 = 0x38495ab5;
-
-    public static final int DEFAULT_SEED = 104729;
-
 
     public static int hash32(ByteBuffer data) {
         return hash32(data, DEFAULT_SEED);
@@ -458,6 +454,9 @@ public class Murmur3 {
         return h;
     }
 
+    private static int orBytes(byte b1, byte b2, byte b3, byte b4) {
+        return (b1 & 0xff) | ((b2 & 0xff) << 8) | ((b3 & 0xff) << 16) | ((b4 & 0xff) << 24);
+    }
 
     public static class IncrementalHash32 {
         byte[] tail = new byte[3];
@@ -550,9 +549,5 @@ public class Murmur3 {
             hash ^= (hash >>> 16);
             return hash;
         }
-    }
-
-    private static int orBytes(byte b1, byte b2, byte b3, byte b4) {
-        return (b1 & 0xff) | ((b2 & 0xff) << 8) | ((b3 & 0xff) << 16) | ((b4 & 0xff) << 24);
     }
 }

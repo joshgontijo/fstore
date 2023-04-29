@@ -8,10 +8,10 @@ import java.nio.ByteBuffer;
 
 public class XXHash implements Hash {
 
+    private static final int SEED = 0x9747b28c;
     private final XXHashFactory factory = XXHashFactory.fastestInstance();
     private final XXHash32 hash32 = factory.hash32();
     private final XXHash64 hash64 = factory.hash64();
-    private static final int SEED = 0x9747b28c;
 
     @Override
     public int hash32(ByteBuffer data) {

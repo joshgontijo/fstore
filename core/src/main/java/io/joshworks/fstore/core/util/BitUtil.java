@@ -87,7 +87,7 @@ public class BitUtil {
         String[] bits = value.split(",");
         for (int i = 0; i < bits.length; i++) {
             bits[i] = bits[i].trim();
-            set.set(Integer.valueOf(bits[i]));
+            set.set(Integer.parseInt(bits[i]));
         }
         return set;
     }

@@ -28,20 +28,25 @@ public class IdleTimeoutConduit implements StreamSinkConduit, StreamSourceCondui
     private static final Logger logger = LoggerFactory.getLogger(IdleTimeoutConduit.class);
 
     private static final int DELTA = 100;
-    private volatile XnioExecutor.Key handle;
-    private volatile long idleTimeout;
-    private volatile long expireTime = -1;
-    private volatile boolean timedOut = false;
-
     private final StreamSinkConduit sink;
     private final StreamSourceConduit source;
     private final StreamConnection connection;
     private final Consumer<StreamConnection> idleHandler;
-
+    private volatile XnioExecutor.Key handle;
+    private volatile long idleTimeout;
+    private volatile long expireTime = -1;
+    private volatile boolean timedOut = false;
     private volatile WriteReadyHandler writeReadyHandler;
     private volatile ReadReadyHandler readReadyHandler;
 
-    private final Runnable timeoutCommand = new Runnable() {
+    public IdleTimeoutConduit(StreamConnection connection, Consumer<StreamConnection> idleHandler) {
+        this.connection = connection;
+        this.sink = connection.getSinkChannel().getConduit();
+        this.source = connection.getSourceChannel().getConduit();
+        setWriteReadyHandler(new WriteReadyHandler.ChannelListenerHandler<>(connection.getSinkChannel()));
+        setReadReadyHandler(new ReadReadyHandler.ChannelListenerHandler<>(connection.getSourceChannel()));
+        this.idleHandler = idleHandler;
+    }    private final Runnable timeoutCommand = new Runnable() {
         @Override
         public void run() {
             handle = null;
@@ -71,24 +76,29 @@ public class IdleTimeoutConduit implements StreamSinkConduit, StreamSourceCondui
         }
     };
 
+    public IdleTimeoutConduit(StreamConnection connection) {
+        this(connection, conn -> {
+        });
+    }
+
+    private static void safeClose(final StreamSourceConduit sink) {
+        try {
+            sink.terminateReads();
+        } catch (IOException e) {
+        }
+    }
+
+    private static void safeClose(final StreamSinkConduit sink) {
+        try {
+            sink.truncateWrites();
+        } catch (IOException e) {
+        }
+    }
+
     protected void doClose() {
         idleHandler.accept(connection);
         safeClose(sink);
         safeClose(source);
-    }
-
-    public IdleTimeoutConduit(StreamConnection connection, Consumer<StreamConnection> idleHandler) {
-        this.connection = connection;
-        this.sink = connection.getSinkChannel().getConduit();
-        this.source = connection.getSourceChannel().getConduit();
-        setWriteReadyHandler(new WriteReadyHandler.ChannelListenerHandler<>(connection.getSinkChannel()));
-        setReadReadyHandler(new ReadReadyHandler.ChannelListenerHandler<>(connection.getSourceChannel()));
-        this.idleHandler = idleHandler;
-    }
-
-    public IdleTimeoutConduit(StreamConnection connection) {
-        this(connection, conn -> {
-        });
     }
 
     private void handleIdleTimeout() throws ClosedChannelException {
@@ -277,20 +287,6 @@ public class IdleTimeoutConduit implements StreamSinkConduit, StreamSourceCondui
         source.setReadReadyHandler(handler);
     }
 
-    private static void safeClose(final StreamSourceConduit sink) {
-        try {
-            sink.terminateReads();
-        } catch (IOException e) {
-        }
-    }
-
-    private static void safeClose(final StreamSinkConduit sink) {
-        try {
-            sink.truncateWrites();
-        } catch (IOException e) {
-        }
-    }
-
     @Override
     public void terminateWrites() throws IOException {
         sink.terminateWrites();
@@ -386,7 +382,6 @@ public class IdleTimeoutConduit implements StreamSinkConduit, StreamSourceCondui
         }
     }
 
-
     @Override
     public boolean flush() throws IOException {
         return sink.flush();
@@ -412,4 +407,6 @@ public class IdleTimeoutConduit implements StreamSinkConduit, StreamSourceCondui
             expireTime = -1;
         }
     }
+
+
 }

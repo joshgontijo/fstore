@@ -3,9 +3,9 @@ package io.joshworks.fstore.tcp.conduits;
 import io.joshworks.fstore.core.codec.Codec;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
 import io.joshworks.fstore.core.io.buffers.Buffers;
+import io.joshworks.fstore.tcp.TcpHeader;
 import io.joshworks.fstore.tcp.codec.CodecRegistry;
 import io.joshworks.fstore.tcp.codec.Compression;
-import io.joshworks.fstore.tcp.TcpHeader;
 import org.xnio.conduits.AbstractSourceConduit;
 import org.xnio.conduits.MessageSourceConduit;
 
@@ -53,7 +53,7 @@ public class CodecConduit extends AbstractSourceConduit<MessageSourceConduit> im
 
         } catch (Exception e) {
             throw new RuntimeException(e);
-        }finally {
+        } finally {
             pool.free(compressed);
         }
     }

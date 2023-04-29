@@ -20,16 +20,14 @@ public abstract class MemStorage implements Storage {
 
     public static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
     private static final double GROWTH_RATE = 0.5; //50%
-
+    protected final AtomicLong position = new AtomicLong();
+    protected final List<ByteBuffer> buffers = new ArrayList<>();
     //    protected final int bufferSize;
     private final BiFunction<Long, Integer, ByteBuffer> bufferSupplier;
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final AtomicBoolean closed = new AtomicBoolean();
-    protected final AtomicLong position = new AtomicLong();
     private final AtomicLong size = new AtomicLong();
     private final String name;
-
-    protected final List<ByteBuffer> buffers = new ArrayList<>();
 
     MemStorage(String name, long size, BiFunction<Long, Integer, ByteBuffer> bufferSupplier) {
         this.name = name;

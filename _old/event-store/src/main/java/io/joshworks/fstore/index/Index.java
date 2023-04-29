@@ -56,6 +56,10 @@ public class Index implements Closeable {
         throw new UnsupportedOperationException("COMMENTED OUT");
     }
 
+    private static boolean matchStream(long stream, Entry<IndexKey, Long> entry) {
+        return entry.key.stream == stream;
+    }
+
     @Override
     public void close() {
         sstables.close();
@@ -100,10 +104,6 @@ public class Index implements Closeable {
             return fetched;
         }
         return NO_VERSION;
-    }
-
-    private static boolean matchStream(long stream, Entry<IndexKey, Long> entry) {
-        return entry.key.stream == stream;
     }
 
     public IndexIterator iterator(Direction direction, long stream, int startVersionInclusive) {

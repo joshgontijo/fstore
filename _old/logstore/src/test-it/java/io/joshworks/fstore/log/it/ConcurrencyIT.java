@@ -28,13 +28,20 @@ import static org.junit.Assert.assertFalse;
 
 public abstract class ConcurrencyIT {
 
+    private static final long SEGMENT_SIZE = Size.MB.of(5);
     private LogAppender<String> appender;
-
-    protected abstract LogAppender<String> appender(File testDirectory);
-
     private File testDirectory;
 
-    private static final long SEGMENT_SIZE = Size.MB.of(5);
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected abstract LogAppender<String> appender(File testDirectory);
 
     @Before
     public void setUp() {
@@ -182,7 +189,7 @@ public abstract class ConcurrencyIT {
         Runnable readTask = () -> {
             String name = Thread.currentThread().getName();
             for (int i = 0; i < scans; i++) {
-                if(failed.get()) {
+                if (failed.get()) {
                     break;
                 }
                 System.out.println(name + " -> Scanning " + i + "/" + scans);
@@ -212,7 +219,7 @@ public abstract class ConcurrencyIT {
 
         appender.compact();
         executor.shutdown();
-        if(!executor.awaitTermination(3, TimeUnit.HOURS)) {
+        if (!executor.awaitTermination(3, TimeUnit.HOURS)) {
             throw new IllegalStateException("Timeout while waiting for read threads");
         }
 
@@ -220,16 +227,6 @@ public abstract class ConcurrencyIT {
 
         appender.close(); //close will wait for compaction
         appender = appender(testDirectory);
-    }
-
-
-    private static void sleep(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
     }
 
     public static class RafIT extends ConcurrencyIT {

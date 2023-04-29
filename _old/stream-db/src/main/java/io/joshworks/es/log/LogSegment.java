@@ -26,6 +26,13 @@ public class LogSegment implements SegmentFile {
     private final long idx;
     private final int level;
 
+    private LogSegment(File file, SegmentChannel channel) {
+        this.file = file;
+        this.channel = channel;
+        this.idx = SegmentDirectory.segmentIdx(this);
+        this.level = SegmentDirectory.level(this);
+    }
+
     public static LogSegment create(File file, long initialSize) {
         SegmentChannel channel = SegmentChannel.create(file, initialSize);
         LogSegment segment = new LogSegment(file, channel);
@@ -44,13 +51,6 @@ public class LogSegment implements SegmentFile {
             throw new IllegalStateException("Segment does not exist");
         }
         return segment;
-    }
-
-    private LogSegment(File file, SegmentChannel channel) {
-        this.file = file;
-        this.channel = channel;
-        this.idx = SegmentDirectory.segmentIdx(this);
-        this.level = SegmentDirectory.level(this);
     }
 
     public synchronized long restore(Predicate<ByteBuffer> onRecord) {

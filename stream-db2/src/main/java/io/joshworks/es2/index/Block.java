@@ -49,19 +49,14 @@ class Block {
     static final int INTERNAL_ENTRY_BYTES =
             KEY_BYTES +
                     Integer.BYTES; //BLOCK_IDX
-
-
-    //internal state
-    private final ByteBuffer data;
-    private int tmpEntries;
-
-
+    //common for both leaf and internal nodes
+    static final int HEADER = Short.BYTES + Integer.BYTES + Short.BYTES;
     private static final int LEVEL_OFFSET = 0;
     private static final int ENTRIES_OFFSET = LEVEL_OFFSET + Short.BYTES;
     private static final int BLOCK_SIZE = ENTRIES_OFFSET + Integer.BYTES;
-
-    //common for both leaf and internal nodes
-    static final int HEADER = Short.BYTES + Integer.BYTES + Short.BYTES;
+    //internal state
+    private final ByteBuffer data;
+    private int tmpEntries;
 
 
     private Block(ByteBuffer buffer) {

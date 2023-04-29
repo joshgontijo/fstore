@@ -16,6 +16,7 @@ import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.timeout.IdleStateHandler;
 
 import java.io.Closeable;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -26,13 +27,40 @@ public class EventClient implements Closeable {
     private final ChannelFuture channel;
     private final EventLoopGroup workerGroup;
 
-    private EventClient(String host, int port, EventHandler handler) {
+    private EventClient(String host, int port, int keepAlive, EventHandler handler) {
         workerGroup = new NioEventLoopGroup();
-        channel = connectInternal(host, port, handler, workerGroup);
+        channel = connectInternal(host, port, keepAlive, handler, workerGroup);
     }
 
     public static EventClientBuilder create() {
         return new EventClientBuilder();
+    }
+
+    private static ChannelFuture connectInternal(String host, int port, int keepAlive, EventHandler handler, EventLoopGroup workerGroup) {
+        try {
+            var b = new Bootstrap();
+            b.group(workerGroup);
+            b.channel(NioSocketChannel.class);
+            b.option(ChannelOption.SO_KEEPALIVE, true);
+            b.handler(new ChannelInitializer<SocketChannel>() {
+                @Override
+                public void initChannel(SocketChannel ch) {
+                    ch.pipeline()
+                            .addLast(new ObjectEncoder())
+                            .addLast(new ObjectDecoder(ClassResolvers.cacheDisabled(getClass().getClassLoader())))
+                            .addLast(new IdleStateHandler(0, keepAlive, 0, TimeUnit.MILLISECONDS))
+                            .addLast(new KeepAliveHandler())
+                            .addLast(handler);
+                }
+            });
+
+            return b.connect(host, port).sync();
+
+        } catch (InterruptedException e) {
+            workerGroup.shutdownGracefully();
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Failed to connect", e);
+        }
     }
 
     public void send(Object data) {
@@ -50,33 +78,6 @@ public class EventClient implements Closeable {
         channel.channel().closeFuture().await();
     }
 
-    private static ChannelFuture connectInternal(String host, int port, EventHandler handler, EventLoopGroup workerGroup) {
-        try {
-            var b = new Bootstrap();
-            b.group(workerGroup);
-            b.channel(NioSocketChannel.class);
-            b.option(ChannelOption.SO_KEEPALIVE, true);
-            b.handler(new ChannelInitializer<SocketChannel>() {
-                @Override
-                public void initChannel(SocketChannel ch) {
-                    ch.pipeline()
-                            .addLast(new ObjectEncoder())
-                            .addLast(new ObjectDecoder(ClassResolvers.cacheDisabled(getClass().getClassLoader())))
-                            .addLast(new IdleStateHandler(5, 5, 0))
-                            .addLast(new KeepAliveHandler())
-                            .addLast(handler);
-                }
-            });
-
-            return b.connect(host, port).sync();
-
-        } catch (InterruptedException e) {
-            workerGroup.shutdownGracefully();
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Failed to connect", e);
-        }
-    }
-
     public static class EventClientBuilder {
         private BiConsumer<ChannelHandlerContext, Object> onMessage = (a, b) -> {
         };
@@ -85,6 +86,9 @@ public class EventClient implements Closeable {
         };
         private Consumer<ChannelHandlerContext> onDisconnect = a -> {
         };
+
+        private int keepAlive;
+
 
         private EventClientBuilder() {
         }
@@ -109,10 +113,16 @@ public class EventClient implements Closeable {
             return this;
         }
 
+        public EventClientBuilder keepAlive(int keepAlive) {
+            this.keepAlive = keepAlive;
+            return this;
+        }
+
         public EventClient connect(String host, int port) {
             return new EventClient(
                     host,
                     port,
+                    keepAlive,
                     new EventHandler(
                             onMessage,
                             onError,

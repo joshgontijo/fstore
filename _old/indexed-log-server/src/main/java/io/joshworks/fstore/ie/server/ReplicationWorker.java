@@ -21,6 +21,7 @@ import java.util.function.LongConsumer;
 class ReplicationWorker {
 
 
+    private static final Logger log = LoggerFactory.getLogger(ReplicationWorker.class);
     private final SocketChannel sink;
     private final Lsm lsm;
     private final int poolMs;
@@ -29,7 +30,6 @@ class ReplicationWorker {
     private final ByteBuffer buffer;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Thread thread;
-    private static final Logger log = LoggerFactory.getLogger(ReplicationWorker.class);
     private final LongConsumer onReplication;
 
     ReplicationWorker(int replicaPort, LongConsumer onReplication, Lsm lsm, long lastSequence, int readSize, int poolMs) throws IOException {

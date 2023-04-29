@@ -7,11 +7,10 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 public class ProjectionStopped {
 
+    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_RUN_STOPPED";
     public final String name;
     public final String reason;
     public final long processedItems;
-
-    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_RUN_STOPPED";
 
     private ProjectionStopped(String name, String reason, long processedItems) {
         this.name = name;

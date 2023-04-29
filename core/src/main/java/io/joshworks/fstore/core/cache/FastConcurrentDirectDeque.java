@@ -242,6 +242,28 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
      */
 
     private static final long serialVersionUID = 876323262645176354L;
+    private static final Node<Object> PREV_TERMINATOR, NEXT_TERMINATOR;
+    private static final int HOPS = 2;
+    private static final Unsafe UNSAFE;
+    private static final long headOffset;
+    private static final long tailOffset;
+
+    static {
+        PREV_TERMINATOR = new Node<>();
+        PREV_TERMINATOR.next = PREV_TERMINATOR;
+        NEXT_TERMINATOR = new Node<>();
+        NEXT_TERMINATOR.prev = NEXT_TERMINATOR;
+        try {
+            UNSAFE = getUnsafe();
+            Class<?> k = FastConcurrentDirectDeque.class;
+            headOffset = UNSAFE.objectFieldOffset
+                    (k.getDeclaredField("head"));
+            tailOffset = UNSAFE.objectFieldOffset
+                    (k.getDeclaredField("tail"));
+        } catch (Exception e) {
+            throw new Error(e);
+        }
+    }
 
     /**
      * A node from which the first node on list (that is, the unique node p
@@ -257,7 +279,6 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
      * - head may not be reachable from the first or last node, or from tail
      */
     private transient volatile Node<E> head;
-
     /**
      * A node from which the last node on list (that is, the unique node p
      * with p.next == null && p.prev != p) can be reached in O(1) time.
@@ -272,7 +293,69 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
      */
     private transient volatile Node<E> tail;
 
-    private static final Node<Object> PREV_TERMINATOR, NEXT_TERMINATOR;
+    /**
+     * Constructs an empty deque.
+     */
+    public FastConcurrentDirectDeque() {
+        head = tail = new Node<>(null);
+    }
+
+    /**
+     * Constructs a deque initially containing the elements of
+     * the given collection, added in traversal order of the
+     * collection's iterator.
+     *
+     * @param c the collection of elements to initially contain
+     * @throws NullPointerException if the specified collection or any
+     *                              of its elements are null
+     */
+    public FastConcurrentDirectDeque(Collection<? extends E> c) {
+        // Copy c into a private chain of Nodes
+        Node<E> h = null, t = null;
+        for (E e : c) {
+            checkNotNull(e);
+            Node<E> newNode = new Node<>(e);
+            if (h == null)
+                h = t = newNode;
+            else {
+                t.lazySetNext(newNode);
+                newNode.lazySetPrev(t);
+                t = newNode;
+            }
+        }
+        initHeadTail(h, t);
+    }
+
+    /**
+     * Throws NullPointerException if argument is null.
+     *
+     * @param v the element
+     */
+    private static void checkNotNull(Object v) {
+        if (v == null)
+            throw new NullPointerException();
+    }
+
+    private static Unsafe getUnsafe() {
+        if (System.getSecurityManager() != null) {
+            return new PrivilegedAction<Unsafe>() {
+                public Unsafe run() {
+                    return getUnsafe0();
+                }
+            }.run();
+        }
+        return getUnsafe0();
+    }
+
+    private static Unsafe getUnsafe0() {
+        try {
+            Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
+            theUnsafe.setAccessible(true);
+            return (Unsafe) theUnsafe.get(null);
+        } catch (Throwable t) {
+            throw new RuntimeException("JDK did not allow accessing unsafe", t);
+        }
+    }
 
     @SuppressWarnings("unchecked")
     Node<E> prevTerminator() {
@@ -282,77 +365,6 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
     @SuppressWarnings("unchecked")
     Node<E> nextTerminator() {
         return (Node<E>) NEXT_TERMINATOR;
-    }
-
-    static final class Node<E> {
-
-        volatile Node<E> prev;
-        volatile E item;
-        volatile Node<E> next;
-
-        Node() {  // default constructor for NEXT_TERMINATOR, PREV_TERMINATOR
-        }
-
-        /**
-         * Constructs a new node.  Uses relaxed write because item can
-         * only be seen after publication via casNext or casPrev.
-         */
-        Node(E item) {
-            UNSAFE.putObject(this, itemOffset, item);
-        }
-
-        boolean casItem(E cmp, E val) {
-            return UNSAFE.compareAndSwapObject(this, itemOffset, cmp, val);
-        }
-
-        void lazySetNext(Node<E> val) {
-            UNSAFE.putOrderedObject(this, nextOffset, val);
-        }
-
-        boolean casNext(Node<E> cmp, Node<E> val) {
-            return UNSAFE.compareAndSwapObject(this, nextOffset, cmp, val);
-        }
-
-        void lazySetPrev(Node<E> val) {
-            UNSAFE.putOrderedObject(this, prevOffset, val);
-        }
-
-        boolean casPrev(Node<E> cmp, Node<E> val) {
-            return UNSAFE.compareAndSwapObject(this, prevOffset, cmp, val);
-        }
-
-        // Unsafe mechanics
-
-        private static final Unsafe UNSAFE;
-        private static final long prevOffset;
-        private static final long itemOffset;
-        private static final long nextOffset;
-
-        static {
-            try {
-                UNSAFE = getUnsafe();
-                Class<?> k = Node.class;
-                prevOffset = UNSAFE.objectFieldOffset
-                        (k.getDeclaredField("prev"));
-                itemOffset = UNSAFE.objectFieldOffset
-                        (k.getDeclaredField("item"));
-                nextOffset = UNSAFE.objectFieldOffset
-                        (k.getDeclaredField("next"));
-            } catch (Exception e) {
-                throw new Error(e);
-            }
-        }
-
-        private static Unsafe getUnsafe() {
-            if (System.getSecurityManager() != null) {
-                return AccessController.doPrivileged(new PrivilegedAction<Unsafe>() {
-                    public Unsafe run() {
-                        return getUnsafe0();
-                    }
-                });
-            }
-            return getUnsafe0();
-        }
     }
 
     /**
@@ -420,8 +432,6 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
                 }
             }
     }
-
-    private static final int HOPS = 2;
 
     /**
      * Unlinks non-null node x.
@@ -597,6 +607,8 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
             }
         }
     }
+
+    // Minor convenience utilities
 
     /**
      * Guarantees that any node which was unlinked before a call to
@@ -787,18 +799,6 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
             }
     }
 
-    // Minor convenience utilities
-
-    /**
-     * Throws NullPointerException if argument is null.
-     *
-     * @param v the element
-     */
-    private static void checkNotNull(Object v) {
-        if (v == null)
-            throw new NullPointerException();
-    }
-
     /**
      * Returns element unless it is null, in which case throws
      * NoSuchElementException.
@@ -826,39 +826,6 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
                 list.add(item);
         }
         return list;
-    }
-
-    /**
-     * Constructs an empty deque.
-     */
-    public FastConcurrentDirectDeque() {
-        head = tail = new Node<>(null);
-    }
-
-    /**
-     * Constructs a deque initially containing the elements of
-     * the given collection, added in traversal order of the
-     * collection's iterator.
-     *
-     * @param c the collection of elements to initially contain
-     * @throws NullPointerException if the specified collection or any
-     *                              of its elements are null
-     */
-    public FastConcurrentDirectDeque(Collection<? extends E> c) {
-        // Copy c into a private chain of Nodes
-        Node<E> h = null, t = null;
-        for (E e : c) {
-            checkNotNull(e);
-            Node<E> newNode = new Node<>(e);
-            if (h == null)
-                h = t = newNode;
-            else {
-                t.lazySetNext(newNode);
-                newNode.lazySetPrev(t);
-                t = newNode;
-            }
-        }
-        initHeadTail(h, t);
     }
 
     /**
@@ -974,6 +941,8 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
         return screenNullResult(peekFirst());
     }
 
+    // *** Queue and stack methods ***
+
     /**
      * @throws NoSuchElementException {@inheritDoc}
      */
@@ -1016,8 +985,6 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
     public E removeLast() {
         return screenNullResult(pollLast());
     }
-
-    // *** Queue and stack methods ***
 
     /**
      * Inserts the specified element at the tail of this deque.
@@ -1338,6 +1305,134 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
         return new DescendingItr();
     }
 
+    /**
+     * Saves this deque to a stream (that is, serializes it).
+     *
+     * @serialData All of the elements (each an {@code E}) in
+     * the proper order, followed by a null
+     */
+    private void writeObject(java.io.ObjectOutputStream s)
+            throws java.io.IOException {
+
+        // Write out any hidden stuff
+        s.defaultWriteObject();
+
+        // Write out all elements in the proper order.
+        for (Node<E> p = first(); p != null; p = succ(p)) {
+            E item = p.item;
+            if (item != null)
+                s.writeObject(item);
+        }
+
+        // Use trailing null as sentinel
+        s.writeObject(null);
+    }
+
+    /**
+     * Reconstitutes this deque from a stream (that is, deserializes it).
+     */
+    private void readObject(java.io.ObjectInputStream s)
+            throws java.io.IOException, ClassNotFoundException {
+        s.defaultReadObject();
+
+        // Read in elements until trailing null sentinel found
+        Node<E> h = null, t = null;
+        Object item;
+        while ((item = s.readObject()) != null) {
+            @SuppressWarnings("unchecked")
+            Node<E> newNode = new Node<>((E) item);
+            if (h == null)
+                h = t = newNode;
+            else {
+                t.lazySetNext(newNode);
+                newNode.lazySetPrev(t);
+                t = newNode;
+            }
+        }
+        initHeadTail(h, t);
+    }
+
+    // Unsafe mechanics
+
+    private boolean casHead(Node<E> cmp, Node<E> val) {
+        return UNSAFE.compareAndSwapObject(this, headOffset, cmp, val);
+    }
+
+    private boolean casTail(Node<E> cmp, Node<E> val) {
+        return UNSAFE.compareAndSwapObject(this, tailOffset, cmp, val);
+    }
+
+    static final class Node<E> {
+
+        private static final Unsafe UNSAFE;
+        private static final long prevOffset;
+        private static final long itemOffset;
+        private static final long nextOffset;
+
+        static {
+            try {
+                UNSAFE = getUnsafe();
+                Class<?> k = Node.class;
+                prevOffset = UNSAFE.objectFieldOffset
+                        (k.getDeclaredField("prev"));
+                itemOffset = UNSAFE.objectFieldOffset
+                        (k.getDeclaredField("item"));
+                nextOffset = UNSAFE.objectFieldOffset
+                        (k.getDeclaredField("next"));
+            } catch (Exception e) {
+                throw new Error(e);
+            }
+        }
+
+        volatile Node<E> prev;
+        volatile E item;
+        volatile Node<E> next;
+
+        Node() {  // default constructor for NEXT_TERMINATOR, PREV_TERMINATOR
+        }
+
+        /**
+         * Constructs a new node.  Uses relaxed write because item can
+         * only be seen after publication via casNext or casPrev.
+         */
+        Node(E item) {
+            UNSAFE.putObject(this, itemOffset, item);
+        }
+
+        // Unsafe mechanics
+
+        private static Unsafe getUnsafe() {
+            if (System.getSecurityManager() != null) {
+                return AccessController.doPrivileged(new PrivilegedAction<Unsafe>() {
+                    public Unsafe run() {
+                        return getUnsafe0();
+                    }
+                });
+            }
+            return getUnsafe0();
+        }
+
+        boolean casItem(E cmp, E val) {
+            return UNSAFE.compareAndSwapObject(this, itemOffset, cmp, val);
+        }
+
+        void lazySetNext(Node<E> val) {
+            UNSAFE.putOrderedObject(this, nextOffset, val);
+        }
+
+        boolean casNext(Node<E> cmp, Node<E> val) {
+            return UNSAFE.compareAndSwapObject(this, nextOffset, cmp, val);
+        }
+
+        void lazySetPrev(Node<E> val) {
+            UNSAFE.putOrderedObject(this, prevOffset, val);
+        }
+
+        boolean casPrev(Node<E> cmp, Node<E> val) {
+            return UNSAFE.compareAndSwapObject(this, prevOffset, cmp, val);
+        }
+    }
+
     private abstract class AbstractItr implements Iterator<E> {
         /**
          * Next node to return item for.
@@ -1358,13 +1453,13 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
          */
         private Node<E> lastRet;
 
-        abstract Node<E> startNode();
-
-        abstract Node<E> nextNode(Node<E> p);
-
         AbstractItr() {
             advance();
         }
+
+        abstract Node<E> startNode();
+
+        abstract Node<E> nextNode(Node<E> p);
 
         /**
          * Sets nextNode and nextItem to next valid node, or to null
@@ -1433,105 +1528,6 @@ public class FastConcurrentDirectDeque<E> extends ConcurrentDirectDeque<E> imple
 
         Node<E> nextNode(Node<E> p) {
             return pred(p);
-        }
-    }
-
-    /**
-     * Saves this deque to a stream (that is, serializes it).
-     *
-     * @serialData All of the elements (each an {@code E}) in
-     * the proper order, followed by a null
-     */
-    private void writeObject(java.io.ObjectOutputStream s)
-            throws java.io.IOException {
-
-        // Write out any hidden stuff
-        s.defaultWriteObject();
-
-        // Write out all elements in the proper order.
-        for (Node<E> p = first(); p != null; p = succ(p)) {
-            E item = p.item;
-            if (item != null)
-                s.writeObject(item);
-        }
-
-        // Use trailing null as sentinel
-        s.writeObject(null);
-    }
-
-    /**
-     * Reconstitutes this deque from a stream (that is, deserializes it).
-     */
-    private void readObject(java.io.ObjectInputStream s)
-            throws java.io.IOException, ClassNotFoundException {
-        s.defaultReadObject();
-
-        // Read in elements until trailing null sentinel found
-        Node<E> h = null, t = null;
-        Object item;
-        while ((item = s.readObject()) != null) {
-            @SuppressWarnings("unchecked")
-            Node<E> newNode = new Node<>((E) item);
-            if (h == null)
-                h = t = newNode;
-            else {
-                t.lazySetNext(newNode);
-                newNode.lazySetPrev(t);
-                t = newNode;
-            }
-        }
-        initHeadTail(h, t);
-    }
-
-    private boolean casHead(Node<E> cmp, Node<E> val) {
-        return UNSAFE.compareAndSwapObject(this, headOffset, cmp, val);
-    }
-
-    private boolean casTail(Node<E> cmp, Node<E> val) {
-        return UNSAFE.compareAndSwapObject(this, tailOffset, cmp, val);
-    }
-
-    // Unsafe mechanics
-
-    private static final Unsafe UNSAFE;
-    private static final long headOffset;
-    private static final long tailOffset;
-
-    static {
-        PREV_TERMINATOR = new Node<>();
-        PREV_TERMINATOR.next = PREV_TERMINATOR;
-        NEXT_TERMINATOR = new Node<>();
-        NEXT_TERMINATOR.prev = NEXT_TERMINATOR;
-        try {
-            UNSAFE = getUnsafe();
-            Class<?> k = FastConcurrentDirectDeque.class;
-            headOffset = UNSAFE.objectFieldOffset
-                    (k.getDeclaredField("head"));
-            tailOffset = UNSAFE.objectFieldOffset
-                    (k.getDeclaredField("tail"));
-        } catch (Exception e) {
-            throw new Error(e);
-        }
-    }
-
-    private static Unsafe getUnsafe() {
-        if (System.getSecurityManager() != null) {
-            return new PrivilegedAction<Unsafe>() {
-                public Unsafe run() {
-                    return getUnsafe0();
-                }
-            }.run();
-        }
-        return getUnsafe0();
-    }
-
-    private static Unsafe getUnsafe0() {
-        try {
-            Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
-            theUnsafe.setAccessible(true);
-            return (Unsafe) theUnsafe.get(null);
-        } catch (Throwable t) {
-            throw new RuntimeException("JDK did not allow accessing unsafe", t);
         }
     }
 }

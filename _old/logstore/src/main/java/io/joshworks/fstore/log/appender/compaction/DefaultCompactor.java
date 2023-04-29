@@ -84,6 +84,24 @@ public class DefaultCompactor<T> implements ICompactor {
         this.coordinator = singleThreadExecutor(name + "-compaction-coordinator");
     }
 
+    private static ExecutorService levelExecutor(String name) {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1,
+                TimeUnit.MINUTES,
+                new ArrayBlockingQueue<>(5),
+                Threads.namedThreadFactory(name),
+                new ThreadPoolExecutor.DiscardPolicy());
+        return new MonitoredThreadPool(name, executor);
+    }
+
+    private static ExecutorService singleThreadExecutor(String name) {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1,
+                TimeUnit.MINUTES,
+                new LinkedBlockingDeque<>(),
+                Threads.namedThreadFactory(name),
+                new ThreadPoolExecutor.DiscardPolicy());
+        return new MonitoredThreadPool(name, executor);
+    }
+
     @Override
     public void compact(boolean force) {
         scheduleCompaction(1, force);
@@ -219,7 +237,6 @@ public class DefaultCompactor<T> implements ICompactor {
         return levelCompaction.compute(executorName, (k, v) -> v == null ? levelExecutor(executorName) : v);
     }
 
-
     @Override
     public synchronized void close() {
         if (closed.compareAndSet(false, true)) {
@@ -229,23 +246,5 @@ public class DefaultCompactor<T> implements ICompactor {
             levelCompaction.values().forEach(exec -> Threads.awaitTerminationOf(exec, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction task")));
             Threads.awaitTerminationOf(cleanupWorker, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction cleanup task"));
         }
-    }
-
-    private static ExecutorService levelExecutor(String name) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1,
-                TimeUnit.MINUTES,
-                new ArrayBlockingQueue<>(5),
-                Threads.namedThreadFactory(name),
-                new ThreadPoolExecutor.DiscardPolicy());
-        return new MonitoredThreadPool(name, executor);
-    }
-
-    private static ExecutorService singleThreadExecutor(String name) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(0, 1, 1,
-                TimeUnit.MINUTES,
-                new LinkedBlockingDeque<>(),
-                Threads.namedThreadFactory(name),
-                new ThreadPoolExecutor.DiscardPolicy());
-        return new MonitoredThreadPool(name, executor);
     }
 }

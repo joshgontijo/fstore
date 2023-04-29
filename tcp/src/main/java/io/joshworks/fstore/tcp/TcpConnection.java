@@ -36,19 +36,18 @@ public class TcpConnection implements Closeable {
     private static final AtomicLongFieldUpdater<TcpConnection> messagesSentUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "messagesSent");
     private static final AtomicLongFieldUpdater<TcpConnection> messagesReceivedUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "messagesReceived");
     private static final AtomicLongFieldUpdater<TcpConnection> bytesDecompressedUpdater = AtomicLongFieldUpdater.newUpdater(TcpConnection.class, "bytesDecompressed");
-
-    private final StreamConnection connection;
     final ResponseTable responseTable;
+    private final StreamConnection connection;
     private final AtomicLong reqids = new AtomicLong();
     private final long since = System.currentTimeMillis();
+    private final BufferPool pool;
+    private final Compression compression;
     private volatile long bytesSent;
     private volatile long bytesReceived;
     private volatile long messagesSent;
     private volatile long messagesReceived;
     private volatile long bytesDecompressed; //total number of bytes received
     private long bytesCompressed;
-    private final BufferPool pool;
-    private final Compression compression;
 
     public TcpConnection(StreamConnection connection, BufferPool pool, ResponseTable responseTable, Compression compression) {
         this.connection = connection;
@@ -56,6 +55,23 @@ public class TcpConnection implements Closeable {
         this.pool = pool;
         this.compression = compression;
     }
+
+    static void write0(ByteBuffer src, ByteBuffer dst, Compression compression) {
+        int basePos = dst.position();
+        Buffers.offsetPosition(dst, TcpHeader.BYTES);
+        int recordStart = dst.position();
+        if (Compression.NONE.equals(compression)) {
+            int copied = Buffers.copy(src, dst);
+            Buffers.offsetPosition(src, copied);
+        } else {
+            CodecRegistry.lookup(compression).compress(src, dst);
+        }
+        int dataLen = dst.position() - recordStart;
+        TcpHeader.messageLength(basePos, dst, dataLen + TcpHeader.COMPRESSION_LENGTH);
+        TcpHeader.compression(basePos, dst, compression);
+    }
+
+    //--------------------- RPC ------------
 
     //-------------- REQUEST - RESPONSE
     public <R> Response<R> request(Object data) {
@@ -66,8 +82,6 @@ public class TcpConnection implements Closeable {
         write(message, false);
         return response;
     }
-
-    //--------------------- RPC ------------
 
     /**
      * Expects a return from the server, calling void methods will return null
@@ -96,11 +110,11 @@ public class TcpConnection implements Closeable {
                 new RpcProxyHandler(timeoutMillis));
     }
 
+    //---------------------------------
+
     public BatchWriter batching(int batchSize) {
         return new BatchWriter(Buffers.allocate(batchSize, false), compression, connection.getSinkChannel());
     }
-
-    //---------------------------------
 
     public void send(ByteBuffer buffer, boolean flush) {
         requireNonNull(buffer, "Data must node be null");
@@ -162,21 +176,6 @@ public class TcpConnection implements Closeable {
         } finally {
             pool.free(dst);
         }
-    }
-
-    static void write0(ByteBuffer src, ByteBuffer dst, Compression compression) {
-        int basePos = dst.position();
-        Buffers.offsetPosition(dst, TcpHeader.BYTES);
-        int recordStart = dst.position();
-        if (Compression.NONE.equals(compression)) {
-            int copied = Buffers.copy(src, dst);
-            Buffers.offsetPosition(src, copied);
-        } else {
-            CodecRegistry.lookup(compression).compress(src, dst);
-        }
-        int dataLen = dst.position() - recordStart;
-        TcpHeader.messageLength(basePos, dst, dataLen + TcpHeader.COMPRESSION_LENGTH);
-        TcpHeader.compression(basePos, dst, compression);
     }
 
     public void flush() throws IOException {

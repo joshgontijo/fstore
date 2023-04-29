@@ -6,8 +6,8 @@ public enum OP {
     VERSION((short) 2),
     SUBSCRIBE((short) 3);
 
-    public final short val;
     public static int LEN = Short.BYTES;
+    public final short val;
 
     OP(short val) {
         this.val = val;

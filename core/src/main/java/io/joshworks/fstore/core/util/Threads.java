@@ -12,11 +12,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class Threads {
 
-    private static AtomicInteger counter = new AtomicInteger();
     public static final Thread.UncaughtExceptionHandler UNCAUGHT_EXCEPTION_HANDLER = (t, e) -> {
         System.err.println("UncaughtException on " + t.getName() + ": " + e.getMessage());
         e.printStackTrace(System.err);
     };
+    private static AtomicInteger counter = new AtomicInteger();
 
     private Threads() {
 

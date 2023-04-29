@@ -4,10 +4,13 @@ import java.util.StringTokenizer;
 
 public final class Java {
 
+    private static final Version VERSION = parseVersion(System.getProperty("java.specification.version"));
+    // Having these as static final provides the best opportunity for compilar optimization
+    public static final boolean IS_JAVA9_COMPATIBLE = VERSION.isJava9Compatible();
+    public static final boolean IS_JAVA8_COMPATIBLE = VERSION.isJava8Compatible();
+
     private Java() {
     }
-
-    private static final Version VERSION = parseVersion(System.getProperty("java.specification.version"));
 
     // Package private for testing
     static Version parseVersion(String versionString) {
@@ -20,10 +23,6 @@ public final class Java {
             minorVersion = 0;
         return new Version(majorVersion, minorVersion);
     }
-
-    // Having these as static final provides the best opportunity for compilar optimization
-    public static final boolean IS_JAVA9_COMPATIBLE = VERSION.isJava9Compatible();
-    public static final boolean IS_JAVA8_COMPATIBLE = VERSION.isJava8Compatible();
 
     public static boolean isIbmJdk() {
         return System.getProperty("java.vendor").contains("IBM");

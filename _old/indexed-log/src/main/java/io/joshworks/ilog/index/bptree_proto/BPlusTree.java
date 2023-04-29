@@ -8,21 +8,15 @@ import java.util.Queue;
 
 public class BPlusTree<K extends Comparable<? super K>, V> {
 
-    public static enum RangePolicy {
-        EXCLUSIVE, INCLUSIVE
-    }
-
     /**
      * The branching factor used when none specified in constructor.
      */
     private static final int DEFAULT_BRANCHING_FACTOR = 128;
-
     /**
      * The branching factor for the B+ tree, that measures the capacity of nodes
      * (i.e., the number of children nodes) for internal nodes in the tree.
      */
     int branchingFactor;
-
     /**
      * The root node of the B+ tree.
      */
@@ -124,6 +118,10 @@ public class BPlusTree<K extends Comparable<? super K>, V> {
         }
 
         return sb.toString();
+    }
+
+    public static enum RangePolicy {
+        EXCLUSIVE, INCLUSIVE
     }
 
 }

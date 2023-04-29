@@ -28,8 +28,8 @@ public class SortingSegment {
     private static final Logger log = LoggerFactory.getLogger(SortingSegment.class);
 
     private final LogSegment segment;
-    private MappedFile mf;
     private final File tmpFile;
+    private MappedFile mf;
     private List<IndexEntry> entries = new ArrayList<>();
 
     private SortingSegment(LogSegment segment) {

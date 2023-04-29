@@ -25,19 +25,25 @@ import java.util.concurrent.TimeUnit;
 public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit {
 
     private static final Logger logger = LoggerFactory.getLogger(KeepAliveConduit.class);
+    private final StreamSinkConduit sink;
+    private final StreamSourceConduit source;
+    private final ByteBuffer keepAliveData = ByteBuffer.wrap(KeepAlive.DATA);
     private volatile XnioExecutor.Key handle;
     private StreamConnection connection;
     private volatile long interval;
     private volatile long lastActivity = System.nanoTime();
-
-    private final StreamSinkConduit sink;
-    private final StreamSourceConduit source;
-
     private volatile WriteReadyHandler writeReadyHandler;
     private volatile ReadReadyHandler readReadyHandler;
-    private final ByteBuffer keepAliveData = ByteBuffer.wrap(KeepAlive.DATA);
 
-    private final Runnable timeoutCommand = new Runnable() {
+    public KeepAliveConduit(StreamConnection connection, long interval) {
+        this.sink = connection.getSinkChannel().getConduit();
+        this.source = connection.getSourceChannel().getConduit();
+        this.connection = connection;
+        this.interval = interval;
+        setWriteReadyHandler(new WriteReadyHandler.ChannelListenerHandler<>(connection.getSinkChannel()));
+        setReadReadyHandler(new ReadReadyHandler.ChannelListenerHandler<>(connection.getSourceChannel()));
+        this.handle = WorkerUtils.executeAfter(getWriteThread(), timeoutCommand, interval, TimeUnit.MILLISECONDS);
+    }    private final Runnable timeoutCommand = new Runnable() {
         @Override
         public void run() {
             handle.remove();
@@ -49,6 +55,20 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
             handle = WorkerUtils.executeAfter(getWriteThread(), timeoutCommand, interval, TimeUnit.MILLISECONDS);
         }
     };
+
+    private static void safeClose(final StreamSourceConduit sink) {
+        try {
+            sink.terminateReads();
+        } catch (IOException e) {
+        }
+    }
+
+    private static void safeClose(final StreamSinkConduit sink) {
+        try {
+            sink.truncateWrites();
+        } catch (IOException e) {
+        }
+    }
 
     protected void doSend() {
         try {
@@ -64,16 +84,6 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
             IoUtils.safeClose(connection);
             connection.getWorker().shutdown();
         }
-    }
-
-    public KeepAliveConduit(StreamConnection connection, long interval) {
-        this.sink = connection.getSinkChannel().getConduit();
-        this.source = connection.getSourceChannel().getConduit();
-        this.connection = connection;
-        this.interval = interval;
-        setWriteReadyHandler(new WriteReadyHandler.ChannelListenerHandler<>(connection.getSinkChannel()));
-        setReadReadyHandler(new ReadReadyHandler.ChannelListenerHandler<>(connection.getSourceChannel()));
-        this.handle = WorkerUtils.executeAfter(getWriteThread(), timeoutCommand, interval, TimeUnit.MILLISECONDS);
     }
 
     private void updateActivityTimestamp() {
@@ -246,20 +256,6 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
         source.setReadReadyHandler(handler);
     }
 
-    private static void safeClose(final StreamSourceConduit sink) {
-        try {
-            sink.terminateReads();
-        } catch (IOException e) {
-        }
-    }
-
-    private static void safeClose(final StreamSinkConduit sink) {
-        try {
-            sink.truncateWrites();
-        } catch (IOException e) {
-        }
-    }
-
     @Override
     public void terminateWrites() throws IOException {
         sink.terminateWrites();
@@ -354,5 +350,7 @@ public class KeepAliveConduit implements StreamSinkConduit, StreamSourceConduit 
     public long getInterval() {
         return interval;
     }
+
+
 
 }

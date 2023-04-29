@@ -23,20 +23,15 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class Server implements Closeable {
 
+    public static final AtomicLong sequence = new AtomicLong();
     private static final int DELETION = 1 << 2;
     private static final int APPEND = 1 << 3;
-
     private static final Logger log = LoggerFactory.getLogger(Server.class);
-
     private final Replicas replicas;
-
     //    private final TcpEventClient replicationClient;
     //    private final TcpEventServer tcpEndpoint;
     private final Lsm lsm;
-
     private final BufferPool bufferPool = BufferPool.defaultPool(10, 4096, false);
-
-    public static final AtomicLong sequence = new AtomicLong();
 
     public Server(File file, int... replicas) {
         this.lsm = Lsm.create(file, RowKey.LONG)

@@ -1,7 +1,6 @@
 package io.joshworks.es2.log;
 
 import io.joshworks.es2.Event;
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
 import org.junit.Before;
@@ -20,6 +19,11 @@ public class TLogTest {
 
     private File folder;
 
+    private static ByteBuffer of(int val) {
+        var data = ByteBuffer.allocate(Integer.BYTES).putInt(val).array();
+        return Event.create(123, Event.NO_VERSION, "TEST_EVENT", data);
+    }
+
     @Before
     public void init() {
         folder = TestUtils.testFolder();
@@ -35,20 +39,6 @@ public class TLogTest {
         var restorer = new IntRestorer();
         TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
         assertEquals(0, restorer.size());
-    }
-
-    @Test
-    public void append_restore() {
-        var restorer = new IntRestorer();
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
-        log.append(of(1));
-        log.append(of(2));
-
-        log.close();
-        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
-        assertEquals(2, restorer.size());
-        assertTrue(restorer.contains(1));
-        assertTrue(restorer.contains(2));
     }
 
 
@@ -109,6 +99,20 @@ public class TLogTest {
 //    }
 
     @Test
+    public void append_restore() {
+        var restorer = new IntRestorer();
+        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        log.append(of(1));
+        log.append(of(2));
+
+        log.close();
+        TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
+        assertEquals(2, restorer.size());
+        assertTrue(restorer.contains(1));
+        assertTrue(restorer.contains(2));
+    }
+
+    @Test
     public void initial_sequence() {
         var restorer = new IntRestorer();
         var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
@@ -146,12 +150,6 @@ public class TLogTest {
 
         log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), restorer);
         assertEquals(0, log.sequence());
-    }
-
-
-    private static ByteBuffer of(int val) {
-        var data = ByteBuffer.allocate(Integer.BYTES).putInt(val).array();
-        return Event.create(123, Event.NO_VERSION, "TEST_EVENT", data);
     }
 
     private static class IntRestorer extends ArrayList<Integer> implements Consumer<ByteBuffer> {

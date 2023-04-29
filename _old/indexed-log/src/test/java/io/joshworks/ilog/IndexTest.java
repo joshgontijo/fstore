@@ -17,9 +17,9 @@ import static org.junit.Assert.assertEquals;
 
 public class IndexTest {
 
+    private static final int ITEMS = 100000;
     private Index index;
     private File testFile = TestUtils.testFile();
-    private static final int ITEMS = 100000;
 
     @Before
     public void setUp() {

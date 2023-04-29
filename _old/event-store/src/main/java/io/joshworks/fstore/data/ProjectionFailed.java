@@ -7,13 +7,12 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 public class ProjectionFailed {
 
+    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_RUN_FAILED";
     public final String name;
     public final String reason;
     public final String streamName;
     public final int streamVersion;
     public final long processedItems;
-
-    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_RUN_FAILED";
 
     private ProjectionFailed(String name, String reason, long processedItems, String streamName, int streamVersion) {
         this.name = name;

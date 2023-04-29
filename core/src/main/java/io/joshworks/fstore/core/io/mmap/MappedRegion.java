@@ -18,10 +18,9 @@ import static io.joshworks.fstore.core.io.buffers.Buffers.MAX_CAPACITY;
 public class MappedRegion {
 
     private static final byte[] ZERO = new byte[8192];
-
-    protected MappedByteBuffer mbb;
     protected final long regionStart;
     protected final FileChannel.MapMode mode;
+    protected MappedByteBuffer mbb;
 
     public MappedRegion(FileChannel channel, long regionStart, long size, FileChannel.MapMode mode) {
         this.regionStart = regionStart;
@@ -31,6 +30,13 @@ public class MappedRegion {
         } catch (Exception e) {
             throw new RuntimeIOException("Could not open mapped file", e);
         }
+    }
+
+    static int safeCast(long size) {
+        if (size > MAX_CAPACITY) {
+            throw new IllegalArgumentException("File size must be less than " + MAX_CAPACITY + ", got " + size);
+        }
+        return (int) size;
     }
 
     protected void map(FileChannel channel, long size, FileChannel.MapMode mode) throws IOException {
@@ -173,13 +179,6 @@ public class MappedRegion {
 
     public void flush() {
         mbb.force();
-    }
-
-    static int safeCast(long size) {
-        if (size > MAX_CAPACITY) {
-            throw new IllegalArgumentException("File size must be less than " + MAX_CAPACITY + ", got " + size);
-        }
-        return (int) size;
     }
 
     ByteBuffer buffer() {

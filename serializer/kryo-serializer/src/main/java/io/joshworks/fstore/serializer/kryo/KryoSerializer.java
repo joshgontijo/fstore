@@ -13,7 +13,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
-public class KryoSerializer  {
+public class KryoSerializer {
 
     private static final ThreadLocal<Kryo> localKryo = ThreadLocal.withInitial(DefaultInstance::newKryoInstance);
 

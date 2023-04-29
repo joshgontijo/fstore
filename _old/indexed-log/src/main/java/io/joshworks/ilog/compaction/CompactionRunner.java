@@ -20,12 +20,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CompactionRunner {
 
-    private static final Logger logger = LoggerFactory.getLogger(CompactionRunner.class);
     static final AtomicBoolean closed = new AtomicBoolean();
+    private static final Logger logger = LoggerFactory.getLogger(CompactionRunner.class);
 
     //TODO - MOVE TO VIEW OR USE A MAP
-
-
     //global thread pools
     private static final ExecutorService cleanupWorker = threadPool("compaction-cleanup", 1);
     private static final ExecutorService coordinator = threadPool("compaction-coordinator", 1);
@@ -42,6 +40,25 @@ public class CompactionRunner {
         if (threshold < 0) {
             logger.info("Compaction is disabled");
         }
+    }
+
+    public static synchronized void shutdown() {
+        if (closed.compareAndSet(false, true)) {
+            logger.info("Closing compactor");
+            //Order matters here
+            coordinator.shutdown();
+            Threads.awaitTerminationOf(compactionWorker, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction task"));
+            Threads.awaitTerminationOf(cleanupWorker, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction cleanup task"));
+        }
+    }
+
+    private static ExecutorService threadPool(String name, int poolSize) {
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(poolSize, poolSize, 1,
+                TimeUnit.MINUTES,
+                new LinkedBlockingDeque<>(),
+                Threads.namePrefixedThreadFactory(name),
+                new ThreadPoolExecutor.DiscardPolicy());
+        return new MonitoredThreadPool(name, executor);
     }
 
     public void compact(View view, boolean force) {
@@ -140,26 +157,6 @@ public class CompactionRunner {
             view.addToCompacting(toBeCompacted);
             return toBeCompacted;
         });
-    }
-
-
-    public static synchronized void shutdown() {
-        if (closed.compareAndSet(false, true)) {
-            logger.info("Closing compactor");
-            //Order matters here
-            coordinator.shutdown();
-            Threads.awaitTerminationOf(compactionWorker, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction task"));
-            Threads.awaitTerminationOf(cleanupWorker, 2, TimeUnit.SECONDS, () -> logger.info("Awaiting active compaction cleanup task"));
-        }
-    }
-
-    private static ExecutorService threadPool(String name, int poolSize) {
-        ThreadPoolExecutor executor = new ThreadPoolExecutor(poolSize, poolSize, 1,
-                TimeUnit.MINUTES,
-                new LinkedBlockingDeque<>(),
-                Threads.namePrefixedThreadFactory(name),
-                new ThreadPoolExecutor.DiscardPolicy());
-        return new MonitoredThreadPool(name, executor);
     }
 
 }

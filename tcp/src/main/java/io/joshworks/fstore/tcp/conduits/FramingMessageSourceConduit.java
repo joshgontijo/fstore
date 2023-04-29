@@ -18,8 +18,8 @@
 
 package io.joshworks.fstore.tcp.conduits;
 
-import io.joshworks.fstore.core.io.buffers.Buffers;
 import io.joshworks.fstore.core.io.buffers.BufferPool;
+import io.joshworks.fstore.core.io.buffers.Buffers;
 import org.xnio.conduits.AbstractSourceConduit;
 import org.xnio.conduits.MessageSourceConduit;
 import org.xnio.conduits.StreamSourceConduit;

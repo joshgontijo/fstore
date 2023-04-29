@@ -1,7 +1,7 @@
 package io.joshworks.fstore.cluster.rpc;
 
-import io.joshworks.fstore.cluster.ClusterClientException;
 import io.joshworks.fstore.cluster.Cluster;
+import io.joshworks.fstore.cluster.ClusterClientException;
 import io.joshworks.fstore.cluster.LoggingInterceptor;
 import io.joshworks.fstore.core.io.IOUtils;
 import org.junit.After;

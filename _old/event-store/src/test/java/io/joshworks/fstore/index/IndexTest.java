@@ -23,9 +23,9 @@ import static org.junit.Assert.assertEquals;
 
 public class IndexTest {
 
+    private static final int FLUSH_THRESHOLD = 100;
     private Index index;
     private File testDir;
-    private static final int FLUSH_THRESHOLD = 100;
 
     @Before
     public void setUp() {

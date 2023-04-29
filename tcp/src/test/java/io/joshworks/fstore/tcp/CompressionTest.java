@@ -24,13 +24,15 @@ public abstract class CompressionTest {
 
     private static final String HOST = "localhost";
     private static final int PORT = 9999;
-
+    private static final int ITEMS = 10000;
+    private final Set<String> received = new ConcurrentSkipListSet<>();
     private TcpEventServer server;
     private TcpConnection client;
-
-    private static final int ITEMS = 10000;
     private CountDownLatch latch;
-    private final Set<String> received = new ConcurrentSkipListSet<>();
+
+    private static String longStringOf(int i) {
+        return IntStream.range(0, 100).map(a -> i).mapToObj(String::valueOf).collect(Collectors.joining("-"));
+    }
 
     @Before
     public void setUp() {
@@ -87,10 +89,6 @@ public abstract class CompressionTest {
             String expected = longStringOf(i);
             assertTrue("Server did not receive " + i, received.contains(expected));
         }
-    }
-
-    private static String longStringOf(int i) {
-        return IntStream.range(0, 100).map(a -> i).mapToObj(String::valueOf).collect(Collectors.joining("-"));
     }
 
     public static class NoCompression extends CompressionTest {

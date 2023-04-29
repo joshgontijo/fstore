@@ -17,14 +17,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class StoreWriter {
 
-    private final Thread thread = new Thread(this::process, "writer");
     private final AtomicBoolean closed = new AtomicBoolean();
-
     private final BlockingQueue<WriteTask> tasks;
-
     private final long poolWait;
     private final BatchingWriter writer;
     private final List<WriteTask> pending = new ArrayList<>();
+    private final Thread thread = new Thread(this::process, "writer");
 
     public StoreWriter(Log log, Index index, int writeQueueSize, int maxBatchSize, int bufferSize, long poolWait) {
         this.poolWait = poolWait;

@@ -24,10 +24,9 @@ class BatchWriter implements Closeable {
     private final EventStore store;
     private final ByteBuffer[] writeItems;
     private final WriteTask[] inProgress;
-    private boolean closed;
     private final Thread worker;
-
     private final Map<Long, Integer> cachedVersions = new HashMap<>();
+    private boolean closed;
 
     BatchWriter(EventStore store, long poolTime, long batchTimeout, int maxItems) {
         this.store = store;
@@ -37,6 +36,10 @@ class BatchWriter implements Closeable {
         this.writeItems = new ByteBuffer[maxItems];
         this.inProgress = new WriteTask[maxItems];
         this.worker = Threads.spawn("batch-writer", this::flushTask);
+    }
+
+    private static ByteBuffer flushEvent() {
+        return Event.create(Streams.STREAM_INTERNAL, Event.NO_VERSION, FLUSH_EVENT_TYPE, new byte[0]);
     }
 
     CompletableFuture<Integer> write(ByteBuffer event) {
@@ -155,10 +158,6 @@ class BatchWriter implements Closeable {
         WriteTask task = new WriteTask(flushEvent());
         composeEvent(task);
         return task.event;
-    }
-
-    private static ByteBuffer flushEvent() {
-        return Event.create(Streams.STREAM_INTERNAL, Event.NO_VERSION, FLUSH_EVENT_TYPE, new byte[0]);
     }
 
     @Override

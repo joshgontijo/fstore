@@ -1,6 +1,6 @@
 package io.joshworks.es2.directory;
 
-public record SegmentId(int level, long idx) implements Comparable<SegmentId>{
+public record SegmentId(int level, long idx) implements Comparable<SegmentId> {
 
     @Override
     public int compareTo(SegmentId o) {

@@ -17,11 +17,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public class DiskStorage implements Storage {
 
     protected final RandomAccessFile raf;
-    final FileChannel channel;
     protected final File file;
     protected final FileLock lock;
     protected final AtomicLong position = new AtomicLong();
     protected final AtomicLong size = new AtomicLong();
+    final FileChannel channel;
 
     public DiskStorage(File target, long size, RandomAccessFile raf) {
         Objects.requireNonNull(target, "File must specified");

@@ -9,10 +9,9 @@ import java.util.NoSuchElementException;
 public class LengthPrefixedChannelIterator implements CloseableIterator<ByteBuffer> {
 
     private static final int LEN_LEN = Integer.BYTES;
-
+    private final SegmentChannel channel;
     private ByteBuffer readBuffer = Buffers.allocate(512, false);
     private LengthPrefixedBufferIterator bufferIt;
-    private final SegmentChannel channel;
     private long offset;
 
     public LengthPrefixedChannelIterator(SegmentChannel channel) {

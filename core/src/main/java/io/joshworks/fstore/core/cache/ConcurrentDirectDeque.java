@@ -27,7 +27,7 @@ import java.util.Deque;
  *
  * @author Jason T. Greene
  */
-public abstract  class ConcurrentDirectDeque<E> extends AbstractCollection<E> implements Deque<E>, java.io.Serializable {
+public abstract class ConcurrentDirectDeque<E> extends AbstractCollection<E> implements Deque<E>, java.io.Serializable {
     private static final Constructor<? extends ConcurrentDirectDeque> CONSTRUCTOR;
 
     static {

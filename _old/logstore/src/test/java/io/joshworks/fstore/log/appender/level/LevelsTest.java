@@ -277,10 +277,10 @@ public class LevelsTest {
 
     private static final class DummySegment implements Log<String> {
 
-        private int level;
         private final String name;
-        private Type type;
         private final long createdDate;
+        private int level;
+        private Type type;
         private boolean readOnly;
 
         private DummySegment(int level, Type type) {

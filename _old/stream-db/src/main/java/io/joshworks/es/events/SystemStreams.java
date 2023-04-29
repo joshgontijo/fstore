@@ -9,14 +9,13 @@ import java.nio.ByteBuffer;
 
 public class SystemStreams {
 
-    private SystemStreams() {
-
-    }
-
+    public static final String INDEX_STREAM = "$INDEX";
     private static final String LINKTO_TYPE = ">";
     private static final String INDEX_FLUSH_TYPE = "$INDEX_FLUSH";
 
-    public static final String INDEX_STREAM = "$INDEX";
+    private SystemStreams() {
+
+    }
 
     public static boolean isLinkTo(ByteBuffer buffer) {
         return LINKTO_TYPE.equals(Event.eventType(buffer));

@@ -12,7 +12,6 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -27,7 +26,7 @@ public class EventStoreIT {
     @Before
     public void setUp() {
         root = TestUtils.testFolder();
-        store = new EventStore(root.toPath(), Executors.newSingleThreadExecutor());
+        store = EventStore.open(root.toPath()).build();
     }
 
     @After

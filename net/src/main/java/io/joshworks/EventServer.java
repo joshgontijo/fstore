@@ -1,8 +1,7 @@
 package io.joshworks;
 
-import io.joshworks.handlers.KeepAliveHandler;
+import io.joshworks.handlers.IdleHandler;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
@@ -11,12 +10,12 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.timeout.IdleStateHandler;
 
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -29,11 +28,7 @@ public class EventServer {
     private final EventLoopGroup bossGroup;
     private final EventLoopGroup workerGroup;
 
-    public static EventServerBuilder create() {
-        return new EventServerBuilder();
-    }
-
-    private EventServer(int port, int maxEventLength, EventHandler handler) {
+    private EventServer(int port, int maxEventLength, int idleTimeout, EventHandler handler) {
         bossGroup = new NioEventLoopGroup();
         workerGroup = new NioEventLoopGroup();
         var server = new ServerBootstrap();
@@ -45,8 +40,8 @@ public class EventServer {
                         ch.pipeline()
                                 .addLast(new ObjectEncoder())
                                 .addLast(new ObjectDecoder(ClassResolvers.cacheDisabled(getClass().getClassLoader())))
-//                                .addLast(new IdleStateHandler(10, 10, 0))
-//                                .addLast(new KeepAliveHandler())
+                                .addLast(new IdleStateHandler(idleTimeout, 0, 0, TimeUnit.MILLISECONDS))
+                                .addLast(new IdleHandler())
 //                                .addLast(new LengthFieldBasedFrameDecoder(maxEventLength, 0, LENGTH_FIELD_LENGTH, -LENGTH_FIELD_LENGTH, 0))
                                 .addLast(handler);
                     }
@@ -63,6 +58,10 @@ public class EventServer {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+    }
+
+    public static EventServerBuilder create() {
+        return new EventServerBuilder();
     }
 
     public void close() {
@@ -85,6 +84,8 @@ public class EventServer {
         };
         private Consumer<ChannelHandlerContext> onDisconnect = a -> {
         };
+
+        private int idleTimeout;
 
         private EventServerBuilder() {
 
@@ -115,10 +116,16 @@ public class EventServer {
             return this;
         }
 
+        public EventServerBuilder idleTimeout(int idleTimeout) {
+            this.idleTimeout = idleTimeout;
+            return this;
+        }
+
         public EventServer bind(int port) {
             return new EventServer(
                     port,
                     maxEventLength,
+                    idleTimeout,
                     new EventHandler(
                             onMessage,
                             onError,

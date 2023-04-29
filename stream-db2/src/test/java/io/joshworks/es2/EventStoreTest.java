@@ -10,7 +10,6 @@ import org.junit.Test;
 
 import java.io.File;
 import java.util.List;
-import java.util.concurrent.Executors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -24,7 +23,7 @@ public class EventStoreTest {
     @Before
     public void setUp() {
         root = TestUtils.testFolder();
-        store = new EventStore(root.toPath(), Executors.newSingleThreadExecutor());
+        store = EventStore.open(root.toPath()).build();
     }
 
     @After

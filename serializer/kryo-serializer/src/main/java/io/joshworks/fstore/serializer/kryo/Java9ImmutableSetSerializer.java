@@ -18,18 +18,6 @@ class Java9ImmutableSetSerializer extends Serializer<Set<Object>> {
         super(DOES_NOT_ACCEPT_NULL, IMMUTABLE);
     }
 
-
-    @Override
-    public void write(Kryo kryo, Output output, Set<Object> immutableSet) {
-        kryo.writeObject(output, new LinkedHashSet<>(immutableSet));
-    }
-
-    @Override
-    public Set<Object> read(Kryo kryo, Input input, Class<Set<Object>> type) {
-        Set<Object> set = kryo.readObject(input, LinkedHashSet.class);
-        return Set.copyOf(set);
-    }
-
     /**
      * for the several ImmutableMap related classes.
      *
@@ -64,5 +52,16 @@ class Java9ImmutableSetSerializer extends Serializer<Set<Object>> {
         kryo.register(Set.of(value0, value1, value2, value3, value4, value5, value6, value7, value8, value9, value10, value11).getClass(), serializer);
         kryo.register(Set.copyOf(new ArrayList<>()).getClass(), serializer);
 
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output, Set<Object> immutableSet) {
+        kryo.writeObject(output, new LinkedHashSet<>(immutableSet));
+    }
+
+    @Override
+    public Set<Object> read(Kryo kryo, Input input, Class<Set<Object>> type) {
+        Set<Object> set = kryo.readObject(input, LinkedHashSet.class);
+        return Set.copyOf(set);
     }
 }

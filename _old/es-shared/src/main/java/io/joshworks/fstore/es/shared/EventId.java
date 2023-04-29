@@ -25,26 +25,6 @@ public class EventId {
         this.version = Math.max(version, NO_VERSION);
     }
 
-    public String name() {
-        return stream;
-    }
-
-    public int version() {
-        return version;
-    }
-
-    public boolean isSystemStream() {
-        return stream.startsWith(SYSTEM_PREFIX);
-    }
-
-    public boolean isAll() {
-        return SystemStreams.ALL.equals(stream);
-    }
-
-    public boolean hasVersion() {
-        return version > NO_VERSION;
-    }
-
     public static EventId of(String stream) {
         return of(stream, NO_VERSION);
     }
@@ -95,6 +75,26 @@ public class EventId {
             return stream;
         }
         return stream + STREAM_VERSION_SEPARATOR + version;
+    }
+
+    public String name() {
+        return stream;
+    }
+
+    public int version() {
+        return version;
+    }
+
+    public boolean isSystemStream() {
+        return stream.startsWith(SYSTEM_PREFIX);
+    }
+
+    public boolean isAll() {
+        return SystemStreams.ALL.equals(stream);
+    }
+
+    public boolean hasVersion() {
+        return version > NO_VERSION;
     }
 
     @Override

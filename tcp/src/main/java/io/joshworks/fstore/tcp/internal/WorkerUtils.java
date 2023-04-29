@@ -18,7 +18,8 @@ public class WorkerUtils {
     /**
      * Schedules a task for future execution. If the execution is rejected because the worker is shutting
      * down then it is logged at debug level and the exception is not re-thrown
-     *  @param thread   The IO thread
+     *
+     * @param thread   The IO thread
      * @param task     The task to execute
      * @param timeout  The timeout
      * @param timeUnit The time unit
@@ -27,7 +28,7 @@ public class WorkerUtils {
         try {
             return thread.executeAfter(task, timeout, timeUnit);
         } catch (RejectedExecutionException e) {
-            if(thread.getWorker().isShutdown()) {
+            if (thread.getWorker().isShutdown()) {
                 logger.warn("Failed to schedule task {} as worker is shutting down", task);
                 //we just return a bogus key in this case
                 return new XnioExecutor.Key() {

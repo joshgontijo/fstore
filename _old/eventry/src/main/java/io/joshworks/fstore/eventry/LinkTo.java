@@ -21,7 +21,7 @@ public class LinkTo {
     }
 
     public static LinkTo from(EventRecord record) {
-        if(!record.isLinkToEvent()) {
+        if (!record.isLinkToEvent()) {
             throw new IllegalArgumentException("Not a LinkTo type event");
         }
         String target = new String(record.data, StandardCharsets.UTF_8);

@@ -4,14 +4,13 @@ package io.joshworks.es2.index;
 public abstract class IndexFunction {
 
     public static final int NONE = -1;
-
-    public abstract int apply(int idx);
-
     public static final IndexFunction EQUALS = new Equals();
     public static final IndexFunction FLOOR = new Floor();
     public static final IndexFunction CEILING = new Ceiling();
     public static final IndexFunction HIGHER = new Higher();
     public static final IndexFunction LOWER = new Lower();
+
+    public abstract int apply(int idx);
 
     private static class Equals extends IndexFunction {
 

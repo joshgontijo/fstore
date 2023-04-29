@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 public class UnsafeBuffer {
 
     private static final sun.misc.Unsafe UNSAFE;
+    private static final Field ADDRESS_FIELD;
 
     static {
         Object result = null;
@@ -26,8 +27,6 @@ public class UnsafeBuffer {
         }
         UNSAFE = result == null ? null : (sun.misc.Unsafe) result;
     }
-
-    private static final Field ADDRESS_FIELD;
 
     static {
         Field f;

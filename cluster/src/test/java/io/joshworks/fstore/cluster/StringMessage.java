@@ -1,6 +1,6 @@
 package io.joshworks.fstore.cluster;
 
-public class StringMessage  {
+public class StringMessage {
 
     public final String message;
 

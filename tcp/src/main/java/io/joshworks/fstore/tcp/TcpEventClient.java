@@ -41,12 +41,11 @@ public class TcpEventClient {
     private final XnioWorker worker;
 
     private final BufferPool pool;
-    private transient TcpConnection tcpConnection;
     private final CountDownLatch connectLatch = new CountDownLatch(1);
-
     private final ResponseTable responseTable = new ResponseTable();
     private final Compression compression;
     private final boolean async;
+    private transient TcpConnection tcpConnection;
 
     private TcpEventClient(OptionMap options,
                            InetSocketAddress bindAddress,
@@ -99,39 +98,6 @@ public class TcpEventClient {
         } catch (Exception e) {
             worker.shutdown();
             throw new RuntimeException("Failed to connect", e);
-        }
-    }
-
-    private class ConnectionAccepted implements ChannelListener<StreamConnection> {
-
-        @Override
-        public void handleEvent(StreamConnection channel) {
-            tcpConnection = new TcpConnection(channel, pool, responseTable, compression);
-
-            channel.setCloseListener(conn -> onClose.accept(tcpConnection));
-
-            ConduitPipeline pipeline = new ConduitPipeline(channel);
-            pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
-            pipeline.addMessageSource(conduit -> {
-                var framing = new FramingMessageSourceConduit(conduit, pool);
-                return new CodecConduit(framing, pool, tcpConnection::updateDecompressedBytes);
-            });
-
-//            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, pool));
-            pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
-
-            if (keepAliveInterval > 0) {
-                new KeepAliveConduit(channel, keepAliveInterval); //adds to source and sink
-            }
-
-            ReadListener readListener = new ReadListener(tcpConnection, eventHandler, async);
-            pipeline.readListener(readListener);
-
-            channel.setCloseListener(conn -> responseTable.clear());
-
-            channel.getSourceChannel().resumeReads();
-            channel.getSinkChannel().resumeWrites();
-            connectLatch.countDown();
         }
     }
 
@@ -222,6 +188,39 @@ public class TcpEventClient {
                     handler);
 
             return client.connect(timeout, unit);
+        }
+    }
+
+    private class ConnectionAccepted implements ChannelListener<StreamConnection> {
+
+        @Override
+        public void handleEvent(StreamConnection channel) {
+            tcpConnection = new TcpConnection(channel, pool, responseTable, compression);
+
+            channel.setCloseListener(conn -> onClose.accept(tcpConnection));
+
+            ConduitPipeline pipeline = new ConduitPipeline(channel);
+            pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
+            pipeline.addMessageSource(conduit -> {
+                var framing = new FramingMessageSourceConduit(conduit, pool);
+                return new CodecConduit(framing, pool, tcpConnection::updateDecompressedBytes);
+            });
+
+//            pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, pool));
+            pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
+
+            if (keepAliveInterval > 0) {
+                new KeepAliveConduit(channel, keepAliveInterval); //adds to source and sink
+            }
+
+            ReadListener readListener = new ReadListener(tcpConnection, eventHandler, async);
+            pipeline.readListener(readListener);
+
+            channel.setCloseListener(conn -> responseTable.clear());
+
+            channel.getSourceChannel().resumeReads();
+            channel.getSinkChannel().resumeWrites();
+            connectLatch.countDown();
         }
     }
 

@@ -24,12 +24,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class SegmentChannel implements Closeable, SegmentFile {
 
-
     private final File handle;
     private final FileChannel channel;
     private final AtomicLong writePosition = new AtomicLong();
     private final FileLock lock;
-
 
     private SegmentChannel(File handle, FileChannel channel, FileLock lock) {
         this.handle = handle;
@@ -39,7 +37,7 @@ public class SegmentChannel implements Closeable, SegmentFile {
 
     public static SegmentChannel create(File file) {
         try {
-            var channel = FileChannel.open(file.toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE, StandardOpenOption.READ);
+            var channel = FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
             FileLock lock = channel.lock();
             return new SegmentChannel(file, channel, lock); //3 = header + data + footer
         } catch (Exception e) {
@@ -50,6 +48,21 @@ public class SegmentChannel implements Closeable, SegmentFile {
     public static SegmentChannel create(File file, long size) {
         try {
             FileUtils.tryCreate(file);
+            var raf = new RandomAccessFile(file, "rw");
+            raf.setLength(size);
+            raf.close();
+            var channel = FileChannel.open(file.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE);
+            var lock = channel.lock();
+
+            return new SegmentChannel(file, channel, lock);
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to create segment " + file.getName(), e);
+        }
+    }
+
+    public static SegmentChannel open(File file, long size) {
+        try {
+            FileUtils.createIfNotExists(file);
             var raf = new RandomAccessFile(file, "rw");
             raf.setLength(size);
             raf.close();

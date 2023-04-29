@@ -13,7 +13,6 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -21,15 +20,14 @@ import static org.junit.Assert.assertTrue;
 
 public class EventStoreConcurrencyIT {
 
+    private final AtomicInteger read = new AtomicInteger();
     private EventStore store;
     private File root;
-
-    private final AtomicInteger read = new AtomicInteger();
 
     @Before
     public void setUp() {
         root = TestUtils.testFolder();
-        store = new EventStore(root.toPath(), Executors.newSingleThreadExecutor());
+        store = EventStore.open(root.toPath()).build();
     }
 
     @After
@@ -41,7 +39,7 @@ public class EventStoreConcurrencyIT {
     @Test
     public void concurrent() throws Exception {
 
-        int items = 2_000_000;
+        int items = 10_000_000;
         long stream = 123L;
         int writers = 5;
         int readers = 20;
@@ -61,7 +59,7 @@ public class EventStoreConcurrencyIT {
 
     private void write(int items, long stream) {
         for (int i = 0; i < items; i++) {
-            ByteBuffer data = Event.create(stream, Event.NO_VERSION, "type-a", (Thread.currentThread().getId() +"_data-" + i).getBytes(StandardCharsets.UTF_8));
+            ByteBuffer data = Event.create(stream, Event.NO_VERSION, "type-a", (Thread.currentThread().getId() + "_data-" + i).getBytes(StandardCharsets.UTF_8));
             store.append(data);
 
             if (i % 100_000 == 0) {

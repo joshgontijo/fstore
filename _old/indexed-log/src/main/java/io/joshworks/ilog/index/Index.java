@@ -27,10 +27,10 @@ import static java.util.Objects.requireNonNull;
  */
 public class Index implements Closeable {
 
+    public static final int NONE = -1;
     private final MappedFile mf;
     private final RowKey rowKey;
     private final AtomicBoolean readOnly = new AtomicBoolean();
-    public static final int NONE = -1;
 
     public Index(File file, long maxEntries, RowKey rowKey) {
         this.rowKey = rowKey;

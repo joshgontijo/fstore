@@ -9,6 +9,10 @@ import static org.junit.Assert.assertTrue;
 
 public class BloomFilterTest {
 
+    private static ByteBuffer bufferOf(long val) {
+        return ByteBuffer.allocate(Long.BYTES).putLong(val).flip();
+    }
+
     @Test
     public void sample() {
         int items = 5_000_000;
@@ -41,9 +45,5 @@ public class BloomFilterTest {
         for (int i = 0; i < items; i++) {
             assertFalse(bf.contains(key));
         }
-    }
-
-    private static ByteBuffer bufferOf(long val) {
-        return ByteBuffer.allocate(Long.BYTES).putLong(val).flip();
     }
 }

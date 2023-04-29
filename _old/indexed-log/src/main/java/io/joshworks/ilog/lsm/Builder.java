@@ -14,14 +14,12 @@ import java.io.File;
 public class Builder {
     private final File root;
     private final RowKey comparator;
+    private final PoolConfig pool = RecordPool.create();
     private long maxAge = -1;
-
     private int compactionThreshold = 2;
-
     private int memTableMaxEntries = 500000;
     private int memTableMaxSize = Size.MB.ofInt(20);
     private boolean memTableDirectBuffers = false;
-    private final PoolConfig pool = RecordPool.create();
     private Codec codec = new SnappyCodec();
     private int blockSize = Memory.PAGE_SIZE;
 

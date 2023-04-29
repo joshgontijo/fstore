@@ -30,20 +30,16 @@ import static io.joshworks.ilog.LogUtil.segmentFile;
 public class View {
 
     private static final Logger log = LoggerFactory.getLogger(View.class);
-
-    private volatile List<Segment> segments = new CopyOnWriteArrayList<>();
     private final Set<Segment> compacting = new CopyOnWriteArraySet<>();
-
-    private volatile Segment head;
-
     private final AtomicLong entries = new AtomicLong();
     private final File root;
     private final RecordPool pool;
     private final long maxLogSize;
     private final long maxLogEntries;
     private final SegmentFactory<?> segmentFactory;
-
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
+    private volatile List<Segment> segments = new CopyOnWriteArrayList<>();
+    private volatile Segment head;
 
     View(File root, RecordPool pool, long maxLogSize, long maxLogEntries, SegmentFactory<?> segmentFactory) {
         this.root = root;
@@ -77,10 +73,17 @@ public class View {
         }
     }
 
+    private static long nextSegmentIdx(List<Segment> segments, int level) {
+        return segments.stream()
+                .filter(seg -> seg.level() == level)
+                .mapToLong(Segment::segmentIdx)
+                .max()
+                .orElse(-1) + 1;
+    }
+
     private Segment createHead() {
         return newSegment(0, maxLogSize, maxLogEntries);
     }
-
 
     Segment head() {
         return head;
@@ -144,14 +147,14 @@ public class View {
         }
     }
 
+    //----------------------------------
+
     public void close() {
         for (Segment segment : segments) {
             log.info("Closing segment {}", segment);
             segment.close();
         }
     }
-
-    //----------------------------------
 
     public <T extends Segment, R> R apply(Direction direction, Function<List<T>, R> function) {
         Lock lock = this.rwLock.readLock();
@@ -281,14 +284,6 @@ public class View {
             }
             latestIndex = i;
         }
-    }
-
-    private static long nextSegmentIdx(List<Segment> segments, int level) {
-        return segments.stream()
-                .filter(seg -> seg.level() == level)
-                .mapToLong(Segment::segmentIdx)
-                .max()
-                .orElse(-1) + 1;
     }
 
     public boolean isCompacting(Segment segment) {

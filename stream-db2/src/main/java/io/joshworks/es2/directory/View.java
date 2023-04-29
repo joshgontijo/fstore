@@ -1,6 +1,7 @@
 package io.joshworks.es2.directory;
 
 import io.joshworks.fstore.core.iterators.Iterators;
+import org.slf4j.Logger;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -19,32 +20,34 @@ import static io.joshworks.fstore.core.iterators.Iterators.reversed;
 public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
 
     private final long generation;
+    private final Logger logger;
     private final AtomicInteger refCount = new AtomicInteger(1);
     private final List<T> segments = new ArrayList<>();
     private final Set<T> markedForDeletion = new HashSet<>();
 
-    View() {
-        this(Collections.emptySet());
+    View(Logger logger) {
+        this(Collections.emptySet(), logger);
     }
 
-    View(Collection<T> items) {
-        this(items, 0);
+    View(Collection<T> items, Logger logger) {
+        this(items, 0, logger);
     }
 
     //copy constructor
-    private View(Collection<T> segments, long generation) {
+    private View(Collection<T> segments, long generation, Logger logger) {
         this.generation = generation;
+        this.logger = logger;
         this.segments.addAll(segments);
         this.segments.sort(T::compareTo);
     }
 
-    View<T> acquire() {
+    synchronized View<T> acquire() {
         int refCount = this.refCount.getAndUpdate(v -> v <= 0 ? v : v + 1);
         return refCount <= 0 ? null : this;
     }
 
     private View<T> copy() {
-        return new View<>(segments, generation + 1);
+        return new View<>(segments, generation + 1, this.logger);
     }
 
     public T head() {
@@ -67,20 +70,20 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return generation;
     }
 
-    View<T> add(T segment) {
+    synchronized View<T> add(T segment) {
         var view = copy();
         view.segments.add(segment);
         view.segments.sort(T::compareTo);
         return view;
     }
 
-    View<T> deleteAll() {
-        var view = new View<T>();
+    synchronized View<T> deleteAll() {
+        var view = new View<T>(this.logger);
         markedForDeletion.addAll(segments);
         return view;
     }
 
-    View<T> delete(Collection<T> segments) {
+    synchronized View<T> delete(Collection<T> segments) {
         var newView = copy();
         var segmentNames = segments.stream().map(SegmentFile::name).collect(Collectors.toSet());
         var it = newView.segments.iterator();
@@ -95,7 +98,7 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
         return newView;
     }
 
-    View<T> replace(Collection<T> segments, T replacement) {
+    synchronized View<T> replace(Collection<T> segments, T replacement) {
         var newView = delete(segments);
         newView.segments.add(replacement);
         newView.segments.sort(T::compareTo);
@@ -117,10 +120,13 @@ public class View<T extends SegmentFile> implements Iterable<T>, Closeable {
 
     //must not be closed twice
     @Override
-    public void close() { //must not be closed twice for a given acquire
+    public synchronized void close() { //must not be closed twice for a given acquire
         int refs = refCount.decrementAndGet();
-        System.out.println("REFS: " + refs);
         if (refs == 0) {
+            logger.info("### DROPING GEN " + this.generation + " ###");
+            if (this.generation == 0) {
+                System.out.println();
+            }
             for (T segment : markedForDeletion) {
                 segment.delete();
             }

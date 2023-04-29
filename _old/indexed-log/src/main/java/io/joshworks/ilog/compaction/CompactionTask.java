@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class CompactionTask  {
+public class CompactionTask {
 
     private static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
 

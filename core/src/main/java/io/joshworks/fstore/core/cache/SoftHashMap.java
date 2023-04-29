@@ -91,7 +91,6 @@ public class SoftHashMap<K, V> implements Map<K, V> {
      * Note that in a highly concurrent environments the exact total number of strong references may differ slightly
      * than the actual <code>retentionSize</code> value.  This number is intended to be a best-effort retention low
      * water mark.
-     *
      */
     public SoftHashMap(int initialCapacity) {
         queue = new ReferenceQueue<>();
@@ -103,7 +102,7 @@ public class SoftHashMap<K, V> implements Map<K, V> {
      * size of {@link #DEFAULT_RETENTION_SIZE DEFAULT_RETENTION_SIZE} (100 entries).
      *
      * @param source the backing map to populate this {@code SoftHashMap}
-     * @see #SoftHashMap(Map,int)
+     * @see #SoftHashMap(Map, int)
      */
     public SoftHashMap(Map<K, V> source) {
         this(DEFAULT_RETENTION_SIZE);

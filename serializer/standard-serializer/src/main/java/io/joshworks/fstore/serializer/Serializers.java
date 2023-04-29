@@ -27,16 +27,10 @@ import java.util.function.Supplier;
 
 public class Serializers {
 
-    private Serializers() {
-
-    }
-
     //No serializer
 //    public static final Serializer<ByteBuffer> NONE = new DirectSerializer();
     public static final Serializer<byte[]> FROM_BYTE_ARRAY = new FromByteArraySerializer();
-
     public static final Serializer<String> VSTRING = new VStringSerializer();
-
     public static final Serializer<Integer> INTEGER = new IntegerSerializer();
     public static final Serializer<String> STRING = new StringSerializer();
     public static final Serializer<Long> LONG = new LongSerializer();
@@ -46,7 +40,6 @@ public class Serializers {
     public static final Serializer<Boolean> BOOLEAN = new BooleanSerializer();
     public static final Serializer<Character> CHAR = new CharacterSerializer();
     public static final Serializer<Byte> BYTE = new ByteSerializer();
-
     public static final Serializer<byte[]> VLEN_BYTE_ARRAY = new ByteArraySerializer();
     public static final Serializer<int[]> VLEN_INTEGER_ARRAY = new IntegerArraySerializer();
     public static final Serializer<long[]> VLEN_LONG_ARRAY = new LongArraySerializer();
@@ -54,6 +47,9 @@ public class Serializers {
     public static final Serializer<float[]> VLEN_FLOAT_ARRAY = new FloatArraySerializer();
     public static final Serializer<short[]> VLEN_SHORT_ARRAY = new ShortArraySerializer();
     public static final Serializer<boolean[]> VLEN_BOOLEAN_ARRAY = new BooleanArraySerializer();
+    private Serializers() {
+
+    }
 
     public static Serializer<ByteBuffer> transfer(BufferPool pool) {
         return new ByteBufferTransfer(pool);

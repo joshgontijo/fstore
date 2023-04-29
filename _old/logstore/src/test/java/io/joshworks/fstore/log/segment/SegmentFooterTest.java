@@ -249,9 +249,8 @@ public abstract class SegmentFooterTest {
 
         private static final String FOOTER_ITEM_NAME = "ITEMS";
         private static Serializer<List<Long>> listSerializer = Serializers.listSerializer(Serializers.LONG);
-        private List<Long> footerItems = new ArrayList<>();
-
         private final Segment<String> delegate;
+        private List<Long> footerItems = new ArrayList<>();
 
         public FooterSegment(File file, StorageMode storageMode) {
             this.delegate = new Segment<>(file, storageMode, Size.KB.ofInt(128), Serializers.VSTRING, new ThreadLocalBufferPool(MAX_ENTRY_SIZE, false), WriteMode.LOG_HEAD, 1);

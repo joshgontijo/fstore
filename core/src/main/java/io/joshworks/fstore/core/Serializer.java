@@ -8,7 +8,7 @@ public interface Serializer<T> {
      * Writes data to this {@link ByteBuffer}
      *
      * @param data The data to be put in the ByteBuffer
-     * @param dst The destination buffer
+     * @param dst  The destination buffer
      */
     void writeTo(T data, ByteBuffer dst);
 

@@ -1,9 +1,6 @@
 package io.joshworks.fstore.tcp;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.tcp.TcpConnection;
-import io.joshworks.fstore.tcp.TcpEventClient;
-import io.joshworks.fstore.tcp.TcpEventServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -23,11 +20,9 @@ public class PushRawTest {
 
     private static final String HOST = "localhost";
     private static final int PORT = 9999;
-
+    private static final String MESSAGE = "Hello push raw event!";
     private TcpEventServer server;
     private TcpConnection client;
-
-    private static final String MESSAGE = "Hello push raw event!";
     private CountDownLatch latch = new CountDownLatch(1);
     private AtomicReference<String> received = new AtomicReference<>();
 

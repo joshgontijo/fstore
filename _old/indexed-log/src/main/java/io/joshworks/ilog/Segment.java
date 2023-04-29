@@ -20,11 +20,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class Segment implements Iterable<Record> {
 
-    private static final Logger log = LoggerFactory.getLogger(Segment.class);
-
     public static final int NO_MAX_SIZE = -1;
     public static final int NO_MAX_ENTRIES = -1;
-
+    private static final Logger log = LoggerFactory.getLogger(Segment.class);
     protected final File file;
     protected final long maxSize;
     protected final long maxEntries;
@@ -271,9 +269,9 @@ public class Segment implements Iterable<Record> {
         private static final int BYTES = 4096;
 
         private final AtomicLong entries = new AtomicLong();
+        private final AtomicBoolean markedForDeletion = new AtomicBoolean();
         private long created;
         private long rolled;
-        private final AtomicBoolean markedForDeletion = new AtomicBoolean();
 
         private void read() {
             ByteBuffer buffer = pool.allocate(BYTES);

@@ -13,6 +13,7 @@ public class ResizableBlock extends Block {
 
     /**
      * Always returns true as it expands when there's no space in the block.
+     *
      * @return always true
      */
     @Override

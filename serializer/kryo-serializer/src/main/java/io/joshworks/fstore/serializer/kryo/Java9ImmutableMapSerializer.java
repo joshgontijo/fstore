@@ -18,20 +18,6 @@ public class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>>
         super(DOES_NOT_ACCEPT_NULL, IMMUTABLE);
     }
 
-
-    @Override
-    public void write(Kryo kryo, Output output, Map<Object, Object> immutableMap) {
-        kryo.writeObject(output, new HashMap<>(immutableMap));
-    }
-
-    @Override
-    public Map<Object, Object> read(Kryo kryo, Input input, Class<Map<Object, Object>> type) {
-        Map map = kryo.readObject(input, HashMap.class);
-        Set<Map.Entry<Object, Object>> entries = map.entrySet();
-        Map.Entry<Object, Object>[] entriesArray = entries.toArray(new Map.Entry[entries.size()]);
-        return Map.ofEntries(entriesArray);
-    }
-
     /**
      * for the several ImmutableMap related classes.
      *
@@ -39,7 +25,7 @@ public class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>>
      */
     public static void registerSerializers(final Kryo kryo) {
 
-       final Java9ImmutableMapSerializer serializer = new Java9ImmutableMapSerializer();
+        final Java9ImmutableMapSerializer serializer = new Java9ImmutableMapSerializer();
 
         Object key1 = new Object();
         Object key2 = new Object();
@@ -66,5 +52,18 @@ public class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>>
         kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value, key9, value, key10, value).getClass(), serializer);
         kryo.register(Map.ofEntries(Map.entry(key1, value)).getClass(), serializer);
 
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output, Map<Object, Object> immutableMap) {
+        kryo.writeObject(output, new HashMap<>(immutableMap));
+    }
+
+    @Override
+    public Map<Object, Object> read(Kryo kryo, Input input, Class<Map<Object, Object>> type) {
+        Map map = kryo.readObject(input, HashMap.class);
+        Set<Map.Entry<Object, Object>> entries = map.entrySet();
+        Map.Entry<Object, Object>[] entriesArray = entries.toArray(new Map.Entry[entries.size()]);
+        return Map.ofEntries(entriesArray);
     }
 }

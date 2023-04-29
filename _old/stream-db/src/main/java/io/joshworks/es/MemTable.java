@@ -96,6 +96,12 @@ public class MemTable {
         return data.position();
     }
 
+    private static final class EventEntry {
+        private int offset;
+        private int length;
+        private int version;
+    }
+
     private final class StreamEvents {
 
         private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
@@ -168,12 +174,6 @@ public class MemTable {
                 lock.unlock();
             }
         }
-    }
-
-    private static final class EventEntry {
-        private int offset;
-        private int length;
-        private int version;
     }
 
 

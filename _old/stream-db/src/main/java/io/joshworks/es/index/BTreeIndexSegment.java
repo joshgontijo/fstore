@@ -19,12 +19,10 @@ public class BTreeIndexSegment implements IndexSegment {
     private final MappedFile mf;
     private final AtomicBoolean readOnly = new AtomicBoolean();
     private final int blockSize;
-
-    //read path
-    private Block root;
-
     //write path
     private final List<Block> nodeBlocks = new ArrayList<>();
+    //read path
+    private Block root;
 
     public BTreeIndexSegment(File file, long numEntries, int blockSize) {
         this.blockSize = blockSize;

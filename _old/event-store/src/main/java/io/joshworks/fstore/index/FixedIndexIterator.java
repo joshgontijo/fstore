@@ -12,8 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class FixedIndexIterator implements IndexIterator {
 
-    private final SSTables<IndexKey, Long> delegate;
     protected final EventMap eventMap;
+    private final SSTables<IndexKey, Long> delegate;
     private final Direction direction;
     private final AtomicBoolean closed = new AtomicBoolean();
     private long currentStream;

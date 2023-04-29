@@ -37,6 +37,21 @@ public class ConcurrencyIT {
     private File directory;
     private IEventStore store;
 
+    private static void write(IEventStore store, String stream, CountDownLatch writeLatch, AtomicInteger writeCount) {
+        int id = writeCount.getAndIncrement();
+        store.append(EventRecord.create(stream, "" + id, Map.of()));
+        writeLatch.countDown();
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
     @Before
     public void setUp() {
         directory = TestUtils.testFolder();
@@ -155,12 +170,6 @@ public class ConcurrencyIT {
 
     }
 
-    private static void write(IEventStore store, String stream, CountDownLatch writeLatch, AtomicInteger writeCount) {
-        int id = writeCount.getAndIncrement();
-        store.append(EventRecord.create(stream, "" + id, Map.of()));
-        writeLatch.countDown();
-    }
-
     @Test
     public void concurrent_write_thread_per_stream() throws InterruptedException, IOException {
 
@@ -216,15 +225,6 @@ public class ConcurrencyIT {
             }
         }
 
-    }
-
-    private static void sleep(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
     }
 
 }

@@ -2,7 +2,7 @@ package io.joshworks.fstore.cluster;
 
 import java.util.Objects;
 
-public class PongMessage  {
+public class PongMessage {
 
     private final String message = "PONG";
 

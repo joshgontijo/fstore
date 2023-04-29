@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
  * A modified version of ConcurrentLinkedDequeue which includes direct
  * removal and is portable accorss all JVMs. This is only a fallback if
  * the JVM does not offer access to Unsafe.
- *
+ * <p>
  * More specifically, an unbounded concurrent {@linkplain Deque deque} based on linked nodes.
  * Concurrent insertion, removal, and access operations execute safely
  * across multiple threads.
@@ -77,15 +77,15 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
  * <a href="{@docRoot}/../technotes/guides/collections/index.html">
  * Java Collections Framework</a>.
  *
- * @since 1.7
+ * @param <E> the type of elements held in this collection
  * @author Doug Lea
  * @author Martin Buchholz
  * @author Jason T. Grene
- * @param <E> the type of elements held in this collection
+ * @since 1.7
  */
 
 public class PortableConcurrentDirectDeque<E>
-    extends ConcurrentDirectDeque<E> implements Deque<E>, java.io.Serializable {
+        extends ConcurrentDirectDeque<E> implements Deque<E>, java.io.Serializable {
 
     /*
      * This is an implementation of a concurrent lock-free deque
@@ -239,6 +239,17 @@ public class PortableConcurrentDirectDeque<E>
      */
 
     private static final long serialVersionUID = 876323262645176354L;
+    private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque, Node> headUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.class, Node.class, "head");
+    private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque, Node> tailUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.class, Node.class, "tail");
+    private static final Node<Object> PREV_TERMINATOR, NEXT_TERMINATOR;
+    private static final int HOPS = 2;
+
+    static {
+        PREV_TERMINATOR = new Node<>();
+        PREV_TERMINATOR.next = PREV_TERMINATOR;
+        NEXT_TERMINATOR = new Node<>();
+        NEXT_TERMINATOR.prev = NEXT_TERMINATOR;
+    }
 
     /**
      * A node from which the first node on list (that is, the unique node p
@@ -254,7 +265,6 @@ public class PortableConcurrentDirectDeque<E>
      * - head may not be reachable from the first or last node, or from tail
      */
     private transient volatile Node<E> head;
-
     /**
      * A node from which the last node on list (that is, the unique node p
      * with p.next == null && p.prev != p) can be reached in O(1) time.
@@ -269,10 +279,48 @@ public class PortableConcurrentDirectDeque<E>
      */
     private transient volatile Node<E> tail;
 
-    private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque, Node> headUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.class, Node.class, "head");
-    private static final AtomicReferenceFieldUpdater<PortableConcurrentDirectDeque, Node> tailUpdater = AtomicReferenceFieldUpdater.newUpdater(PortableConcurrentDirectDeque.class, Node.class, "tail");
+    /**
+     * Constructs an empty deque.
+     */
+    public PortableConcurrentDirectDeque() {
+        head = tail = new Node<>(null);
+    }
 
-    private static final Node<Object> PREV_TERMINATOR, NEXT_TERMINATOR;
+    /**
+     * Constructs a deque initially containing the elements of
+     * the given collection, added in traversal order of the
+     * collection's iterator.
+     *
+     * @param c the collection of elements to initially contain
+     * @throws NullPointerException if the specified collection or any
+     *                              of its elements are null
+     */
+    public PortableConcurrentDirectDeque(Collection<? extends E> c) {
+        // Copy c into a private chain of Nodes
+        Node<E> h = null, t = null;
+        for (E e : c) {
+            checkNotNull(e);
+            Node<E> newNode = new Node<>(e);
+            if (h == null)
+                h = t = newNode;
+            else {
+                t.lazySetNext(newNode);
+                newNode.lazySetPrev(t);
+                t = newNode;
+            }
+        }
+        initHeadTail(h, t);
+    }
+
+    /**
+     * Throws NullPointerException if argument is null.
+     *
+     * @param v the element
+     */
+    private static void checkNotNull(Object v) {
+        if (v == null)
+            throw new NullPointerException();
+    }
 
     @SuppressWarnings("unchecked")
     Node<E> prevTerminator() {
@@ -284,48 +332,6 @@ public class PortableConcurrentDirectDeque<E>
         return (Node<E>) NEXT_TERMINATOR;
     }
 
-    static final class Node<E> {
-        private static final AtomicReferenceFieldUpdater<Node, Node> prevUpdater = AtomicReferenceFieldUpdater.newUpdater(Node.class, Node.class, "prev");
-        private static final AtomicReferenceFieldUpdater<Node, Node> nextUpdater = AtomicReferenceFieldUpdater.newUpdater(Node.class, Node.class, "next");
-        private static final AtomicReferenceFieldUpdater<Node, Object> itemUpdater = AtomicReferenceFieldUpdater.newUpdater(Node.class, Object.class, "item");
-
-
-        volatile Node<E> prev;
-        volatile E item;
-        volatile Node<E> next;
-
-        Node() {  // default constructor for NEXT_TERMINATOR, PREV_TERMINATOR
-        }
-
-        /**
-         * Constructs a new node.  Uses relaxed write because item can
-         * only be seen after publication via casNext or casPrev.
-         */
-        Node(E item) {
-            this.item = item;
-        }
-
-        boolean casItem(E cmp, E val) {
-            return itemUpdater.compareAndSet(this, cmp, val);
-        }
-
-        void lazySetNext(Node<E> val) {
-            next = val;
-        }
-
-        boolean casNext(Node<E> cmp, Node<E> val) {
-            return nextUpdater.compareAndSet(this, cmp, val);
-        }
-
-        void lazySetPrev(Node<E> val) {
-            prev = val;
-        }
-
-        boolean casPrev(Node<E> cmp, Node<E> val) {
-            return prevUpdater.compareAndSet(this, cmp, val);
-        }
-    }
-
     /**
      * Links e as first element.
      */
@@ -334,10 +340,10 @@ public class PortableConcurrentDirectDeque<E>
         final Node<E> newNode = new Node<>(e);
 
         restartFromHead:
-        for (;;)
-            for (Node<E> h = head, p = h, q;;) {
+        for (; ; )
+            for (Node<E> h = head, p = h, q; ; ) {
                 if ((q = p.prev) != null &&
-                    (q = (p = q).prev) != null)
+                        (q = (p = q).prev) != null)
                     // Check for head updates every other hop.
                     // If p == q, we are sure to follow head instead.
                     p = (h != (h = head)) ? h : q;
@@ -367,10 +373,10 @@ public class PortableConcurrentDirectDeque<E>
         final Node<E> newNode = new Node<>(e);
 
         restartFromTail:
-        for (;;)
-            for (Node<E> t = tail, p = t, q;;) {
+        for (; ; )
+            for (Node<E> t = tail, p = t, q; ; ) {
                 if ((q = p.next) != null &&
-                    (q = (p = q).next) != null)
+                        (q = (p = q).next) != null)
                     // Check for tail updates every other hop.
                     // If p == q, we are sure to follow tail instead.
                     p = (t != (t = tail)) ? t : q;
@@ -391,8 +397,6 @@ public class PortableConcurrentDirectDeque<E>
                 }
             }
     }
-
-    private static final int HOPS = 2;
 
     /**
      * Unlinks non-null node x.
@@ -447,8 +451,7 @@ public class PortableConcurrentDirectDeque<E>
                     activePred = p;
                     isFirst = true;
                     break;
-                }
-                else if (p == q)
+                } else if (p == q)
                     return;
                 else
                     p = q;
@@ -468,8 +471,7 @@ public class PortableConcurrentDirectDeque<E>
                     activeSucc = p;
                     isLast = true;
                     break;
-                }
-                else if (p == q)
+                } else if (p == q)
                     return;
                 else
                     p = q;
@@ -477,8 +479,8 @@ public class PortableConcurrentDirectDeque<E>
 
             // TODO: better HOP heuristics
             if (hops < HOPS
-                // always squeeze out interior deleted nodes
-                && (isFirst | isLast))
+                    // always squeeze out interior deleted nodes
+                    && (isFirst | isLast))
                 return;
 
             // Squeeze out deleted nodes between activePred and
@@ -489,18 +491,18 @@ public class PortableConcurrentDirectDeque<E>
             // Try to gc-unlink, if possible
             if ((isFirst | isLast) &&
 
-                // Recheck expected state of predecessor and successor
-                (activePred.next == activeSucc) &&
-                (activeSucc.prev == activePred) &&
-                (isFirst ? activePred.prev == null : activePred.item != null) &&
-                (isLast  ? activeSucc.next == null : activeSucc.item != null)) {
+                    // Recheck expected state of predecessor and successor
+                    (activePred.next == activeSucc) &&
+                    (activeSucc.prev == activePred) &&
+                    (isFirst ? activePred.prev == null : activePred.item != null) &&
+                    (isLast ? activeSucc.next == null : activeSucc.item != null)) {
 
                 updateHead(); // Ensure x is not reachable from head
                 updateTail(); // Ensure x is not reachable from tail
 
                 // Finally, actually gc-unlink
                 x.lazySetPrev(isFirst ? prevTerminator() : x);
-                x.lazySetNext(isLast  ? nextTerminator() : x);
+                x.lazySetNext(isLast ? nextTerminator() : x);
             }
         }
     }
@@ -512,13 +514,13 @@ public class PortableConcurrentDirectDeque<E>
         // assert first != null;
         // assert next != null;
         // assert first.item == null;
-        for (Node<E> o = null, p = next, q;;) {
+        for (Node<E> o = null, p = next, q; ; ) {
             if (p.item != null || (q = p.next) == null) {
                 if (o != null && p.prev != p && first.casNext(next, p)) {
                     skipDeletedPredecessors(p);
                     if (first.prev == null &&
-                        (p.next == null || p.item != null) &&
-                        p.prev == first) {
+                            (p.next == null || p.item != null) &&
+                            p.prev == first) {
 
                         updateHead(); // Ensure o is not reachable from head
                         updateTail(); // Ensure o is not reachable from tail
@@ -529,8 +531,7 @@ public class PortableConcurrentDirectDeque<E>
                     }
                 }
                 return;
-            }
-            else if (p == q)
+            } else if (p == q)
                 return;
             else {
                 o = p;
@@ -546,13 +547,13 @@ public class PortableConcurrentDirectDeque<E>
         // assert last != null;
         // assert prev != null;
         // assert last.item == null;
-        for (Node<E> o = null, p = prev, q;;) {
+        for (Node<E> o = null, p = prev, q; ; ) {
             if (p.item != null || (q = p.prev) == null) {
                 if (o != null && p.next != p && last.casPrev(prev, p)) {
                     skipDeletedSuccessors(p);
                     if (last.next == null &&
-                        (p.prev == null || p.item != null) &&
-                        p.next == last) {
+                            (p.prev == null || p.item != null) &&
+                            p.next == last) {
 
                         updateHead(); // Ensure o is not reachable from head
                         updateTail(); // Ensure o is not reachable from tail
@@ -563,8 +564,7 @@ public class PortableConcurrentDirectDeque<E>
                     }
                 }
                 return;
-            }
-            else if (p == q)
+            } else if (p == q)
                 return;
             else {
                 o = p;
@@ -585,17 +585,16 @@ public class PortableConcurrentDirectDeque<E>
         Node<E> h, p, q;
         restartFromHead:
         while ((h = head).item == null && (p = h.prev) != null) {
-            for (;;) {
+            for (; ; ) {
                 if ((q = p.prev) == null ||
-                    (q = (p = q).prev) == null) {
+                        (q = (p = q).prev) == null) {
                     // It is possible that p is PREV_TERMINATOR,
                     // but if so, the CAS is guaranteed to fail.
                     if (casHead(h, p))
                         return;
                     else
                         continue restartFromHead;
-                }
-                else if (h != head)
+                } else if (h != head)
                     continue restartFromHead;
                 else
                     p = q;
@@ -615,17 +614,16 @@ public class PortableConcurrentDirectDeque<E>
         Node<E> t, p, q;
         restartFromTail:
         while ((t = tail).item == null && (p = t.next) != null) {
-            for (;;) {
+            for (; ; ) {
                 if ((q = p.next) == null ||
-                    (q = (p = q).next) == null) {
+                        (q = (p = q).next) == null) {
                     // It is possible that p is NEXT_TERMINATOR,
                     // but if so, the CAS is guaranteed to fail.
                     if (casTail(t, p))
                         return;
                     else
                         continue restartFromTail;
-                }
-                else if (t != tail)
+                } else if (t != tail)
                     continue restartFromTail;
                 else
                     p = q;
@@ -642,7 +640,7 @@ public class PortableConcurrentDirectDeque<E>
             // assert x != PREV_TERMINATOR;
             Node<E> p = prev;
             findActive:
-            for (;;) {
+            for (; ; ) {
                 if (p.item != null)
                     break findActive;
                 Node<E> q = p.prev;
@@ -650,8 +648,7 @@ public class PortableConcurrentDirectDeque<E>
                     if (p.next == p)
                         continue whileActive;
                     break findActive;
-                }
-                else if (p == q)
+                } else if (p == q)
                     continue whileActive;
                 else
                     p = q;
@@ -673,7 +670,7 @@ public class PortableConcurrentDirectDeque<E>
             // assert x != PREV_TERMINATOR;
             Node<E> p = next;
             findActive:
-            for (;;) {
+            for (; ; ) {
                 if (p.item != null)
                     break findActive;
                 Node<E> q = p.next;
@@ -681,8 +678,7 @@ public class PortableConcurrentDirectDeque<E>
                     if (p.prev == p)
                         continue whileActive;
                     break findActive;
-                }
-                else if (p == q)
+                } else if (p == q)
                     continue whileActive;
                 else
                     p = q;
@@ -706,6 +702,8 @@ public class PortableConcurrentDirectDeque<E>
         return (p == q) ? first() : q;
     }
 
+    // Minor convenience utilities
+
     /**
      * Returns the predecessor of p, or the last node if p.prev has been
      * linked to self, which will only be true if traversing with a
@@ -718,23 +716,23 @@ public class PortableConcurrentDirectDeque<E>
 
     /**
      * Returns the first node, the unique node p for which:
-     *     p.prev == null && p.next != p
+     * p.prev == null && p.next != p
      * The returned node may or may not be logically deleted.
      * Guarantees that head is set to the returned node.
      */
     Node<E> first() {
         restartFromHead:
-        for (;;)
-            for (Node<E> h = head, p = h, q;;) {
+        for (; ; )
+            for (Node<E> h = head, p = h, q; ; ) {
                 if ((q = p.prev) != null &&
-                    (q = (p = q).prev) != null)
+                        (q = (p = q).prev) != null)
                     // Check for head updates every other hop.
                     // If p == q, we are sure to follow head instead.
                     p = (h != (h = head)) ? h : q;
                 else if (p == h
-                         // It is possible that p is PREV_TERMINATOR,
-                         // but if so, the CAS is guaranteed to fail.
-                         || casHead(h, p))
+                        // It is possible that p is PREV_TERMINATOR,
+                        // but if so, the CAS is guaranteed to fail.
+                        || casHead(h, p))
                     return p;
                 else
                     continue restartFromHead;
@@ -743,39 +741,27 @@ public class PortableConcurrentDirectDeque<E>
 
     /**
      * Returns the last node, the unique node p for which:
-     *     p.next == null && p.prev != p
+     * p.next == null && p.prev != p
      * The returned node may or may not be logically deleted.
      * Guarantees that tail is set to the returned node.
      */
     Node<E> last() {
         restartFromTail:
-        for (;;)
-            for (Node<E> t = tail, p = t, q;;) {
+        for (; ; )
+            for (Node<E> t = tail, p = t, q; ; ) {
                 if ((q = p.next) != null &&
-                    (q = (p = q).next) != null)
+                        (q = (p = q).next) != null)
                     // Check for tail updates every other hop.
                     // If p == q, we are sure to follow tail instead.
                     p = (t != (t = tail)) ? t : q;
                 else if (p == t
-                         // It is possible that p is NEXT_TERMINATOR,
-                         // but if so, the CAS is guaranteed to fail.
-                         || casTail(t, p))
+                        // It is possible that p is NEXT_TERMINATOR,
+                        // but if so, the CAS is guaranteed to fail.
+                        || casTail(t, p))
                     return p;
                 else
                     continue restartFromTail;
             }
-    }
-
-    // Minor convenience utilities
-
-    /**
-     * Throws NullPointerException if argument is null.
-     *
-     * @param v the element
-     */
-    private static void checkNotNull(Object v) {
-        if (v == null)
-            throw new NullPointerException();
     }
 
     /**
@@ -805,39 +791,6 @@ public class PortableConcurrentDirectDeque<E>
                 list.add(item);
         }
         return list;
-    }
-
-    /**
-     * Constructs an empty deque.
-     */
-    public PortableConcurrentDirectDeque() {
-        head = tail = new Node<>(null);
-    }
-
-    /**
-     * Constructs a deque initially containing the elements of
-     * the given collection, added in traversal order of the
-     * collection's iterator.
-     *
-     * @param c the collection of elements to initially contain
-     * @throws NullPointerException if the specified collection or any
-     *         of its elements are null
-     */
-    public PortableConcurrentDirectDeque(Collection<? extends E> c) {
-        // Copy c into a private chain of Nodes
-        Node<E> h = null, t = null;
-        for (E e : c) {
-            checkNotNull(e);
-            Node<E> newNode = new Node<>(e);
-            if (h == null)
-                h = t = newNode;
-            else {
-                t.lazySetNext(newNode);
-                newNode.lazySetPrev(t);
-                t = newNode;
-            }
-        }
-        initHeadTail(h, t);
     }
 
     /**
@@ -909,7 +862,8 @@ public class PortableConcurrentDirectDeque<E>
         }
 
         Node node = (Node) (token);
-        while (! node.casItem(node.item, null)) {}
+        while (!node.casItem(node.item, null)) {
+        }
         unlink(node);
     }
 
@@ -1159,8 +1113,8 @@ public class PortableConcurrentDirectDeque<E>
      *
      * @param c the elements to be inserted into this deque
      * @return {@code true} if this deque changed as a result of the call
-     * @throws NullPointerException if the specified collection or any
-     *         of its elements are null
+     * @throws NullPointerException     if the specified collection or any
+     *                                  of its elements are null
      * @throws IllegalArgumentException if the collection is this deque
      */
     public boolean addAll(Collection<? extends E> c) {
@@ -1186,10 +1140,10 @@ public class PortableConcurrentDirectDeque<E>
 
         // Atomically append the chain at the tail of this collection
         restartFromTail:
-        for (;;)
-            for (Node<E> t = tail, p = t, q;;) {
+        for (; ; )
+            for (Node<E> t = tail, p = t, q; ; ) {
                 if ((q = p.next) != null &&
-                    (q = (p = q).next) != null)
+                        (q = (p = q).next) != null)
                     // Check for tail updates every other hop.
                     // If p == q, we are sure to follow tail instead.
                     p = (t != (t = tail)) ? t : q;
@@ -1219,7 +1173,8 @@ public class PortableConcurrentDirectDeque<E>
      * Removes all of the elements from this deque.
      */
     public void clear() {
-        while (pollFirst() != null) { }
+        while (pollFirst() != null) {
+        }
     }
 
     /**
@@ -1262,8 +1217,8 @@ public class PortableConcurrentDirectDeque<E>
      * The following code can be used to dump the deque into a newly
      * allocated array of {@code String}:
      *
-     *  <pre> {@code String[] y = x.toArray(new String[0]);}</pre>
-     *
+     * <pre> {@code String[] y = x.toArray(new String[0]);}</pre>
+     * <p>
      * Note that {@code toArray(new Object[0])} is identical in function to
      * {@code toArray()}.
      *
@@ -1271,9 +1226,9 @@ public class PortableConcurrentDirectDeque<E>
      *          be stored, if it is big enough; otherwise, a new array of the
      *          same runtime type is allocated for this purpose
      * @return an array containing all of the elements in this deque
-     * @throws ArrayStoreException if the runtime type of the specified array
-     *         is not a supertype of the runtime type of every element in
-     *         this deque
+     * @throws ArrayStoreException  if the runtime type of the specified array
+     *                              is not a supertype of the runtime type of every element in
+     *                              this deque
      * @throws NullPointerException if the specified array is null
      */
     public <T> T[] toArray(T[] a) {
@@ -1315,6 +1270,103 @@ public class PortableConcurrentDirectDeque<E>
         return new DescendingItr();
     }
 
+    /**
+     * Saves this deque to a stream (that is, serializes it).
+     *
+     * @serialData All of the elements (each an {@code E}) in
+     * the proper order, followed by a null
+     */
+    private void writeObject(java.io.ObjectOutputStream s)
+            throws java.io.IOException {
+
+        // Write out any hidden stuff
+        s.defaultWriteObject();
+
+        // Write out all elements in the proper order.
+        for (Node<E> p = first(); p != null; p = succ(p)) {
+            E item = p.item;
+            if (item != null)
+                s.writeObject(item);
+        }
+
+        // Use trailing null as sentinel
+        s.writeObject(null);
+    }
+
+    /**
+     * Reconstitutes this deque from a stream (that is, deserializes it).
+     */
+    private void readObject(java.io.ObjectInputStream s)
+            throws java.io.IOException, ClassNotFoundException {
+        s.defaultReadObject();
+
+        // Read in elements until trailing null sentinel found
+        Node<E> h = null, t = null;
+        Object item;
+        while ((item = s.readObject()) != null) {
+            @SuppressWarnings("unchecked")
+            Node<E> newNode = new Node<>((E) item);
+            if (h == null)
+                h = t = newNode;
+            else {
+                t.lazySetNext(newNode);
+                newNode.lazySetPrev(t);
+                t = newNode;
+            }
+        }
+        initHeadTail(h, t);
+    }
+
+    private boolean casHead(Node<E> cmp, Node<E> val) {
+        return headUpdater.compareAndSet(this, cmp, val);
+    }
+
+    private boolean casTail(Node<E> cmp, Node<E> val) {
+        return tailUpdater.compareAndSet(this, cmp, val);
+    }
+
+    static final class Node<E> {
+        private static final AtomicReferenceFieldUpdater<Node, Node> prevUpdater = AtomicReferenceFieldUpdater.newUpdater(Node.class, Node.class, "prev");
+        private static final AtomicReferenceFieldUpdater<Node, Node> nextUpdater = AtomicReferenceFieldUpdater.newUpdater(Node.class, Node.class, "next");
+        private static final AtomicReferenceFieldUpdater<Node, Object> itemUpdater = AtomicReferenceFieldUpdater.newUpdater(Node.class, Object.class, "item");
+
+
+        volatile Node<E> prev;
+        volatile E item;
+        volatile Node<E> next;
+
+        Node() {  // default constructor for NEXT_TERMINATOR, PREV_TERMINATOR
+        }
+
+        /**
+         * Constructs a new node.  Uses relaxed write because item can
+         * only be seen after publication via casNext or casPrev.
+         */
+        Node(E item) {
+            this.item = item;
+        }
+
+        boolean casItem(E cmp, E val) {
+            return itemUpdater.compareAndSet(this, cmp, val);
+        }
+
+        void lazySetNext(Node<E> val) {
+            next = val;
+        }
+
+        boolean casNext(Node<E> cmp, Node<E> val) {
+            return nextUpdater.compareAndSet(this, cmp, val);
+        }
+
+        void lazySetPrev(Node<E> val) {
+            prev = val;
+        }
+
+        boolean casPrev(Node<E> cmp, Node<E> val) {
+            return prevUpdater.compareAndSet(this, cmp, val);
+        }
+    }
+
     private abstract class AbstractItr implements Iterator<E> {
         /**
          * Next node to return item for.
@@ -1335,12 +1387,13 @@ public class PortableConcurrentDirectDeque<E>
          */
         private Node<E> lastRet;
 
-        abstract Node<E> startNode();
-        abstract Node<E> nextNode(Node<E> p);
-
         AbstractItr() {
             advance();
         }
+
+        abstract Node<E> startNode();
+
+        abstract Node<E> nextNode(Node<E> p);
 
         /**
          * Sets nextNode and nextItem to next valid node, or to null
@@ -1350,7 +1403,7 @@ public class PortableConcurrentDirectDeque<E>
             lastRet = nextNode;
 
             Node<E> p = (nextNode == null) ? startNode() : nextNode(nextNode);
-            for (;; p = nextNode(p)) {
+            for (; ; p = nextNode(p)) {
                 if (p == null) {
                     // p might be active end or TERMINATOR node; both are OK
                     nextNode = null;
@@ -1386,7 +1439,9 @@ public class PortableConcurrentDirectDeque<E>
         }
     }
 
-    /** Forward iterator */
+    /**
+     * Forward iterator
+     */
     private class Itr extends AbstractItr {
         Node<E> startNode() {
             return first();
@@ -1396,6 +1451,8 @@ public class PortableConcurrentDirectDeque<E>
             return succ(p);
         }
     }
+
+    // Unsafe mechanics
 
     /**
      * Descending iterator
@@ -1408,69 +1465,5 @@ public class PortableConcurrentDirectDeque<E>
         Node<E> nextNode(Node<E> p) {
             return pred(p);
         }
-    }
-
-    /**
-     * Saves this deque to a stream (that is, serializes it).
-     *
-     * @serialData All of the elements (each an {@code E}) in
-     * the proper order, followed by a null
-     */
-    private void writeObject(java.io.ObjectOutputStream s)
-        throws java.io.IOException {
-
-        // Write out any hidden stuff
-        s.defaultWriteObject();
-
-        // Write out all elements in the proper order.
-        for (Node<E> p = first(); p != null; p = succ(p)) {
-            E item = p.item;
-            if (item != null)
-                s.writeObject(item);
-        }
-
-        // Use trailing null as sentinel
-        s.writeObject(null);
-    }
-
-    /**
-     * Reconstitutes this deque from a stream (that is, deserializes it).
-     */
-    private void readObject(java.io.ObjectInputStream s)
-        throws java.io.IOException, ClassNotFoundException {
-        s.defaultReadObject();
-
-        // Read in elements until trailing null sentinel found
-        Node<E> h = null, t = null;
-        Object item;
-        while ((item = s.readObject()) != null) {
-            @SuppressWarnings("unchecked")
-            Node<E> newNode = new Node<>((E) item);
-            if (h == null)
-                h = t = newNode;
-            else {
-                t.lazySetNext(newNode);
-                newNode.lazySetPrev(t);
-                t = newNode;
-            }
-        }
-        initHeadTail(h, t);
-    }
-
-    private boolean casHead(Node<E> cmp, Node<E> val) {
-        return headUpdater.compareAndSet(this, cmp, val);
-    }
-
-    private boolean casTail(Node<E> cmp, Node<E> val) {
-        return tailUpdater.compareAndSet(this, cmp, val);
-    }
-
-    // Unsafe mechanics
-
-    static {
-        PREV_TERMINATOR = new Node<>();
-        PREV_TERMINATOR.next = PREV_TERMINATOR;
-        NEXT_TERMINATOR = new Node<>();
-        NEXT_TERMINATOR.prev = NEXT_TERMINATOR;
     }
 }

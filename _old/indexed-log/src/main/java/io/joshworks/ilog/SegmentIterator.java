@@ -12,10 +12,10 @@ import java.util.Queue;
 
 public class SegmentIterator implements Iterators.CloseableIterator<Record> {
 
-    private ByteBuffer readBuffer;
     private final Segment segment;
     private final RecordPool pool;
     private final Queue<Record> records = new ArrayDeque<>();
+    private ByteBuffer readBuffer;
     private long readPos;
     private boolean closed;
 

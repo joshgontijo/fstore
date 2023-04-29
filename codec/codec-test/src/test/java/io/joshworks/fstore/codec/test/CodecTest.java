@@ -24,7 +24,44 @@ public abstract class CodecTest {
 
     private Codec codec;
 
+    private static ByteBuffer allocate(int size, boolean direct) {
+        return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+    }
+
+    private static ByteBuffer randBytesSlicedBuffer(int dataLen, boolean direct) {
+        String data = IntStream.range(0, dataLen).boxed().map(s -> UUID.randomUUID().toString()).collect(Collectors.joining(""));
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+        var bb = allocate(bytes.length + 256, direct); //+256 is to avoid corner cases with exact size buffers
+
+        bb.position(1);
+        bb.put(bytes);
+        bb.position(1);
+        bb.limit(bb.position() + bytes.length);
+
+        return bb.slice();
+    }
+
+    /**
+     * Similar to {@link ByteBuffer#equals(Object)} but does not take the buffer type into consideration
+     *
+     * @param expected
+     * @param actual
+     */
+    private static void assertByteBufferEquals(ByteBuffer expected, ByteBuffer actual) {
+        expected.flip();
+        byte[] expectedBytes = new byte[expected.remaining()];
+        expected.get(expectedBytes);
+
+        actual.flip();
+        byte[] actualBytes = new byte[actual.remaining()];
+        actual.get(actualBytes);
+
+        assertArrayEquals("ByteBuffer contents are not equal", expectedBytes, actualBytes);
+    }
+
     public abstract Codec codec();
+
+    //-----------
 
     @Before
     public void setUp() {
@@ -41,7 +78,7 @@ public abstract class CodecTest {
         testCompress(true, true, true);
     }
 
-    //-----------
+    //-----------------
 
     @Test
     public void compress_decompress_direct_heap_heap() {
@@ -58,8 +95,6 @@ public abstract class CodecTest {
         testCompress(false, false, true);
     }
 
-    //-----------------
-
     @Test
     public void compress_decompress_direct_direct_heap() {
         testCompress(true, true, false);
@@ -74,7 +109,6 @@ public abstract class CodecTest {
     public void compress_decompress_direct_heap_direct() {
         testCompress(true, false, true);
     }
-
 
     @Test
     public void compress_starts_from_the_current_buffer_position() {
@@ -208,43 +242,6 @@ public abstract class CodecTest {
 
         System.out.println(String.format(codec + ": AVERAGE COMPRESSION: %.2f", (compression / items)));
     }
-
-    private static ByteBuffer allocate(int size, boolean direct) {
-        return direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
-    }
-
-    private static ByteBuffer randBytesSlicedBuffer(int dataLen, boolean direct) {
-        String data = IntStream.range(0, dataLen).boxed().map(s -> UUID.randomUUID().toString()).collect(Collectors.joining(""));
-        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
-        var bb = allocate(bytes.length + 256, direct); //+256 is to avoid corner cases with exact size buffers
-
-        bb.position(1);
-        bb.put(bytes);
-        bb.position(1);
-        bb.limit(bb.position() + bytes.length);
-
-        return bb.slice();
-    }
-
-
-    /**
-     * Similar to {@link ByteBuffer#equals(Object)} but does not take the buffer type into consideration
-     *
-     * @param expected
-     * @param actual
-     */
-    private static void assertByteBufferEquals(ByteBuffer expected, ByteBuffer actual) {
-        expected.flip();
-        byte[] expectedBytes = new byte[expected.remaining()];
-        expected.get(expectedBytes);
-
-        actual.flip();
-        byte[] actualBytes = new byte[actual.remaining()];
-        actual.get(actualBytes);
-
-        assertArrayEquals("ByteBuffer contents are not equal", expectedBytes, actualBytes);
-    }
-
 
     public static class SnappyTest extends CodecTest {
 

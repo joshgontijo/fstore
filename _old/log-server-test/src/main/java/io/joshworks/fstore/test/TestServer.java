@@ -19,18 +19,14 @@ public class TestServer {
                 .open();
 
 
-
-
         TcpServer.builder()
                 .
 
 
-
-        File replica = new File(root, "replica");
+                File replica = new File(root, "replica");
         Lsm lsmReplica = Lsm.create(master, RowKey.LONG)
                 .compactionThreshold(-1)
                 .open();
-
 
 
     }

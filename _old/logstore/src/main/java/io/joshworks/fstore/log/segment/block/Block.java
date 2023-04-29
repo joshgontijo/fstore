@@ -27,10 +27,10 @@ import java.util.NoSuchElementException;
  */
 public class Block implements Iterable<ByteBuffer> {
 
-    protected ByteBuffer data;
     protected final List<Integer> lengths = new ArrayList<>();
     protected final List<Integer> positions = new ArrayList<>();
     protected final boolean readOnly;
+    protected ByteBuffer data;
 
     //returns the uncompressed size
     public Block(int blockSize) {
@@ -45,6 +45,18 @@ public class Block implements Iterable<ByteBuffer> {
     protected Block(Codec codec, ByteBuffer data) {
         this.readOnly = true;
         this.data = this.unpack(codec, data);
+    }
+
+    public static BlockFactory vlenBlock() {
+        return new VLenBlockFactory();
+    }
+
+    public static BlockFactory resizableVlenBlock() {
+        return new ResizableVLenBlockFactory();
+    }
+
+    public static BlockFactory flenBlock(int entrySize) {
+        return new FixedSizeBlockFactory(entrySize);
     }
 
     protected ByteBuffer createBuffer(int size) {
@@ -238,18 +250,6 @@ public class Block implements Iterable<ByteBuffer> {
             idx++;
             return found;
         }
-    }
-
-    public static BlockFactory vlenBlock() {
-        return new VLenBlockFactory();
-    }
-
-    public static BlockFactory resizableVlenBlock() {
-        return new ResizableVLenBlockFactory();
-    }
-
-    public static BlockFactory flenBlock(int entrySize) {
-        return new FixedSizeBlockFactory(entrySize);
     }
 
     private static class FixedSizeBlockFactory implements BlockFactory {

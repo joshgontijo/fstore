@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -24,43 +25,77 @@ import java.util.stream.Collectors;
 import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentId;
-import static java.lang.Math.max;
 import static java.lang.Math.min;
 
 public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
-    private static final Logger log = LoggerFactory.getLogger(SegmentDirectory.class);
 
     public static final String METADATA_EXT = "metadata";
-
-    private final AtomicReference<View<T>> viewRef = new AtomicReference<>(new View<>());
+    private final Logger logger;
+    private final AtomicReference<View<T>> viewRef;
     private final Set<CompactionItem<T>> compacting = new HashSet<>();
 
     private final File root;
     private final Metadata<T> metadata;
-    private final Function<File, T> supplier;
+    private final Function<File, T> segmentFn;
     private final String extension;
     private final ExecutorService executor;
     private final Compaction<T> compaction;
 
     public SegmentDirectory(File root,
-                            Function<File, T> supplier,
+                            Function<File, T> segmentFn,
                             String extension,
                             ExecutorService executor,
                             Compaction<T> compaction) {
 
+        logger = LoggerFactory.getLogger(extension);
+
         this.root = root;
-        this.supplier = supplier;
+        this.segmentFn = segmentFn;
         this.extension = extension;
         this.executor = executor;
         this.compaction = compaction;
         this.metadata = new Metadata<>(new File(root, extension + "." + METADATA_EXT));
 
+        var view = loadSegments(root, metadata, extension, segmentFn, logger);
+        viewRef = new AtomicReference<>(view);
         initDirectory(root);
-        loadSegments();
+
 //        deleteAllWithExtension(root);
     }
 
+    private static <T extends SegmentFile> View<T> loadSegments(File root, Metadata<T> metadata, String extension, Function<File, T> segmentFn, Logger logger) {
+        try {
+            List<T> segments = metadata.state()
+                    .stream()
+                    .map(segId -> segmentFileName(segId.idx(), segId.level(), extension))
+                    .map(name -> new File(root, name))
+                    .map(segmentFn)
+                    .collect(Collectors.toList());
+
+            for (T segment : segments) {
+                logger.info("Loaded {}", segment);
+            }
+
+            return new View<>(segments, logger);
+        } catch (Exception e) {
+            throw new RuntimeIOException("Failed to load segments", e);
+        }
+    }
+
+    private static <T extends SegmentFile> List<T> levelSegments(View<T> view, int level) {
+        return view.stream()
+                .filter(l -> segmentId(l).level() == level)
+                .collect(Collectors.toList());
+    }
+
+    private static <T extends SegmentFile> long maxLevel(View<T> view) {
+        return view.stream()
+                .map(DirectoryUtils::segmentId)
+                .mapToInt(SegmentId::level)
+                .max()
+                .orElse(0);
+    }
 
     public synchronized File newHead() {
         long segIdx = 0;
@@ -75,7 +110,11 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     private File createFile(int level, long segIdx) {
         String name = segmentFileName(segIdx, level, extension);
         assert !Files.exists(Path.of(name));
-        return new File(root, name);
+        File file = new File(root, name);
+        if (!FileUtils.createIfNotExists(file)) {
+            throw new RuntimeException("File Already exist + " + file.getAbsolutePath());
+        }
+        return file;
     }
 
     public synchronized void append(T newSegmentHead) {
@@ -90,25 +129,6 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
     private void swapView(View<T> view) {
         viewRef.getAndSet(view).close();
-    }
-
-    private void loadSegments() {
-        try {
-            List<T> segments = metadata.state()
-                    .stream()
-                    .map(segId -> segmentFileName(segId.idx(), segId.level(), extension))
-                    .map(name -> new File(root, name))
-                    .map(supplier)
-                    .collect(Collectors.toList());
-
-            for (T segment : segments) {
-                log.info("Loaded {}", segment);
-            }
-
-            swapView(new View<>(segments));
-        } catch (Exception e) {
-            throw new RuntimeIOException("Failed to load segments", e);
-        }
     }
 
     //TODO move parameters to constructor
@@ -132,7 +152,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
                 var sublist = new ArrayList<>(levelSegments.subList(0, items));
                 levelSegments.removeAll(sublist);
 
-                var replacementFile = createFile(nextLevel, nextIdx(view, nextLevel));
+                var replacementFile = createFile(nextLevel, nextIdx(nextLevel));
                 var handle = new CompactionItem<>(view, replacementFile, sublist, level);
 
                 System.err.println("Submitting " + handle);
@@ -179,7 +199,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
             var result = new CompactionResult(handle);
             var outFile = handle.replacement();
 
-            T out = supplier.apply(outFile);
+            T out = segmentFn.apply(outFile);
             List<T> sources = handle.sources();
 
             long mergeOutLen = outFile.length();
@@ -230,45 +250,28 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
     }
 
-    private static <T extends SegmentFile> List<T> levelSegments(View<T> view, int level) {
-        return view.stream()
-                .filter(l -> segmentId(l).level() == level)
-                .collect(Collectors.toList());
-    }
-
-    private static <T extends SegmentFile> long maxLevel(View<T> view) {
-        return view.stream()
-                .map(DirectoryUtils::segmentId)
-                .mapToInt(SegmentId::level)
-                .max()
-                .orElse(0);
-    }
-
     //FIXME io.joshworks.fstore.core.RuntimeIOException: Failed to create segment 0000000001-0000000000000000000.sst
     //Submitting [0000000000-0000000000000000000, 0000000000-0000000000000000001, 0000000000-0000000000000000002] -> 0000000001-0000000000000000000.sst
     //...
     //Completing [0000000001-0000000000000000000, 0000000001-0000000000000000001, 0000000001-0000000000000000002] -> 0000000002-0000000000000000000.sst
     //Submitting [0000000000-0000000000000000009, 0000000000-0000000000000000010, 0000000000-0000000000000000011] -> 0000000001-0000000000000000000.sst
     //level ends up empty, idx start again from zero, compaction tries to create a file, but the old still exist
-    private long nextIdx(View<T> view, int level) {
-        //do not change, other methods are iterating the view stream, it needs to be closed
-        long mergingMax = compacting.stream()
-                .map(CompactionItem::replacement)
-                .map(DirectoryUtils::segmentId)
-                .filter(segId -> segId.level() == level)
-                .mapToLong(SegmentId::idx)
-                .max()
-                .orElse(-1);
+    //TODO - ISSUE DESCRIBED ABOVE SEEMS FIXED
+    long nextIdx(int level) {
+        try {
+            return Files.list(this.root.toPath())
+                    .map(Path::getFileName)
+                    .map(Path::toFile)
+                    .filter(fileName -> fileName.getName().endsWith(extension))
+                    .map(DirectoryUtils::segmentId)
+                    .filter(s -> s.level() == level)
+                    .mapToLong(SegmentId::idx)
+                    .max()
+                    .orElse(-1) + 1;
 
-        long currentSegmentsMax = levelSegments(view, level)
-                .stream()
-                .map(DirectoryUtils::segmentId)
-                .mapToLong(SegmentId::idx)
-                .max()
-                .orElse(-1);
-
-        return max(mergingMax, currentSegmentsMax) + 1;
-
+        } catch (IOException e) {
+            throw new RuntimeIOException("Failed to determine next segment idx", e);
+        }
     }
 
     public View<T> view() {
@@ -281,7 +284,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
 
     @Override
     public synchronized void close() {
-        var view = this.viewRef.getAndSet(new View<>());
+        var view = this.viewRef.getAndSet(new View<>(this.logger));
         for (T segment : view) {
             segment.close();
         }
@@ -290,7 +293,7 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     }
 
     public synchronized void delete() {
-        try (var view = viewRef.getAndSet(new View<>())) {
+        try (var view = viewRef.getAndSet(new View<>(this.logger))) {
             view.deleteAll();
         }
     }

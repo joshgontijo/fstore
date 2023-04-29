@@ -19,14 +19,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class MemTable {
 
+    private static final int MAX_ENTRIES_READ = 1000;
+    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
     private final ByteBuffer data;
     private final Map<Long, StreamEvents> table = new ConcurrentHashMap<>();
     private final AtomicInteger entries = new AtomicInteger();
     private final AtomicInteger readers = new AtomicInteger();
-
-    private static final int MAX_ENTRIES_READ = 1000;
-
-    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(() -> Buffers.allocate(Memory.PAGE_SIZE, false));
 
     public MemTable(int maxSize, boolean direct) {
         this.data = Buffers.allocate(maxSize, direct);
@@ -92,6 +90,12 @@ public class MemTable {
 
     public Iterator<ByteBuffer> flushIterator() {
         return new MemTableFlushIterator();
+    }
+
+    private static final class EventEntry {
+        private int offset;
+        private int size;
+        private int version;
     }
 
     private final class StreamEvents {
@@ -164,12 +168,6 @@ public class MemTable {
 
             return totalBytes;
         }
-    }
-
-    private static final class EventEntry {
-        private int offset;
-        private int size;
-        private int version;
     }
 
     private class MemTableFlushIterator implements Iterator<ByteBuffer> {

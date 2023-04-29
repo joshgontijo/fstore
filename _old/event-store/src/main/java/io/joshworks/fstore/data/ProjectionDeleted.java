@@ -7,9 +7,8 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 public class ProjectionDeleted {
 
-    public final String name;
-
     public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_DELETED";
+    public final String name;
 
     private ProjectionDeleted(String name) {
         this.name = name;

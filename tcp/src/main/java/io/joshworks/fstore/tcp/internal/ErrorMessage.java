@@ -1,7 +1,7 @@
 package io.joshworks.fstore.tcp.internal;
 
 
-public class ErrorMessage  {
+public class ErrorMessage {
 
     public final String message;
 

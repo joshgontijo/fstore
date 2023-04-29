@@ -14,7 +14,6 @@ public class FooterPosition {
     }
 
 
-
     @Override
     public String toString() {
         return "FooterPosition{" +

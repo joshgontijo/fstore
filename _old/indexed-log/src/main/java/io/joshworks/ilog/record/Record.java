@@ -32,8 +32,6 @@ import java.nio.ByteBuffer;
  */
 public class Record implements Closeable {
 
-    private ByteBuffer data;
-
     static final int HEADER_BYTES =
             Integer.BYTES +         //RECORD_LEN
                     Integer.BYTES + //CHECKSUM
@@ -42,7 +40,6 @@ public class Record implements Closeable {
                     Short.BYTES +   //ATTRIBUTES
                     Short.BYTES +   //KEY_LEN
                     Integer.BYTES;  //VALUE_LEN
-
     static final int RECORD_LEN_OFFSET = 0;
     static final int CHECKSUM_OFFSET = RECORD_LEN_OFFSET + Integer.BYTES;
     static final int TIMESTAMP_OFFSET = CHECKSUM_OFFSET + Integer.BYTES;
@@ -50,34 +47,12 @@ public class Record implements Closeable {
     static final int ATTRIBUTE_OFFSET = SEQUENCE_OFFSET + Long.BYTES;
     static final int KEY_LEN_OFFSET = ATTRIBUTE_OFFSET + Short.BYTES;
     static final int KEY_OFFSET = KEY_LEN_OFFSET + Short.BYTES;
-
-    boolean active;
     private final RecordPool owner;
+    boolean active;
+    private ByteBuffer data;
 
     Record(RecordPool owner) {
         this.owner = owner;
-    }
-
-    void init(ByteBuffer buffer) {
-        if (active) {
-            throw new RuntimeException("Record is active");
-        }
-        assert isValid(buffer);
-
-        this.data = buffer;
-        this.active = true;
-    }
-
-    @Override
-    public void close() {
-        ByteBuffer tmp = data;
-        data = null;
-        active = false;
-        if (owner != null) {
-            owner.free(tmp);
-            owner.free(this);
-        }
-
     }
 
     //Returns the total size in bytes of this record, including RECORD_LEN field
@@ -87,10 +62,6 @@ public class Record implements Closeable {
 
     public static int recordSize(ByteBuffer recData, int offset) {
         return recData.getInt(offset + RECORD_LEN_OFFSET);
-    }
-
-    public boolean isValid() {
-        return isValid(data);
     }
 
     public static boolean hasHeaderData(ByteBuffer recData) {
@@ -139,6 +110,53 @@ public class Record implements Closeable {
         int computed = ByteBufferChecksum.crc32(recData, chksOffset, chksLen);
 
         return computed == checksum;
+    }
+
+    public static Record create(ByteBuffer key, ByteBuffer value, int... attr) {
+        int recordSize = computeRecordSize(key.remaining(), value.remaining());
+        ByteBuffer dst = Buffers.allocate(recordSize, false);
+        Record rec = new Record(null);
+        rec.create(dst, key, value, attr);
+        return rec;
+    }
+
+    //computes the total record size including the RECORD_LEN field
+    static int computeRecordSize(int kLen, int vLen) {
+        return HEADER_BYTES + kLen + vLen;
+    }
+
+    private static short attribute(int... attributes) {
+        short b = 0;
+        for (int attr : attributes) {
+            b = (short) (b | 1 << attr);
+        }
+        return b;
+    }
+
+    void init(ByteBuffer buffer) {
+        if (active) {
+            throw new RuntimeException("Record is active");
+        }
+        assert isValid(buffer);
+
+        this.data = buffer;
+        this.active = true;
+    }
+
+    @Override
+    public void close() {
+        ByteBuffer tmp = data;
+        data = null;
+        active = false;
+        if (owner != null) {
+            owner.free(tmp);
+            owner.free(this);
+        }
+
+    }
+
+    public boolean isValid() {
+        return isValid(data);
     }
 
     public boolean hasAttribute(int attribute) {
@@ -221,27 +239,6 @@ public class Record implements Closeable {
         dst.putInt(CHECKSUM_OFFSET, checksum);
 
         init(dst);
-    }
-
-    public static Record create(ByteBuffer key, ByteBuffer value, int... attr) {
-        int recordSize = computeRecordSize(key.remaining(), value.remaining());
-        ByteBuffer dst = Buffers.allocate(recordSize, false);
-        Record rec = new Record(null);
-        rec.create(dst, key, value, attr);
-        return rec;
-    }
-
-    //computes the total record size including the RECORD_LEN field
-    static int computeRecordSize(int kLen, int vLen) {
-        return HEADER_BYTES + kLen + vLen;
-    }
-
-    private static short attribute(int... attributes) {
-        short b = 0;
-        for (int attr : attributes) {
-            b = (short) (b | 1 << attr);
-        }
-        return b;
     }
 
     public int copyKey(ByteBuffer dst) {

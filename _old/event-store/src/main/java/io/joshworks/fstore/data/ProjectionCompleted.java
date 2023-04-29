@@ -7,10 +7,9 @@ import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 public class ProjectionCompleted {
 
+    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_RUN_COMPLETED";
     public final String id;
     public final long processedItems;
-
-    public static final String TYPE = EventId.SYSTEM_PREFIX + "PROJECTION_RUN_COMPLETED";
 
     private ProjectionCompleted(String id, long processedItems) {
         this.id = id;

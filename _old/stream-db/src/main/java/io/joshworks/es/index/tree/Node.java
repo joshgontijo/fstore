@@ -5,17 +5,14 @@ import io.joshworks.fstore.core.util.ObjectPool;
 
 public class Node {
 
+    final ObjectPool<Node> ref;
     public long stream;
     public int version;
     public long logAddress;
-
     Node left;
     Node right;
     boolean color;
     int size;
-
-
-    final ObjectPool<Node> ref;
 
     public Node(ObjectPool<Node> ref) {
         this.ref = ref;

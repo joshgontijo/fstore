@@ -27,10 +27,13 @@ public abstract class LogAppenderIT {
 
     public static final long SEGMENT_SIZE = Size.MB.of(128);
     private LogAppender<String> appender;
+    private File testDirectory;
+
+    private static String stringOfLength(int length) {
+        return "A".repeat(Math.max(0, length));
+    }
 
     protected abstract LogAppender<String> appender(File testDirectory);
-
-    private File testDirectory;
 
     @Before
     public void setUp() {
@@ -228,11 +231,6 @@ public abstract class LogAppenderIT {
             assertEquals(iterations, appender.stream(Direction.FORWARD).count());
             assertEquals(iterations, appender.entries());
         }
-    }
-
-
-    private static String stringOfLength(int length) {
-        return "A".repeat(Math.max(0, length));
     }
 
     private void appendN(String value, long num) {

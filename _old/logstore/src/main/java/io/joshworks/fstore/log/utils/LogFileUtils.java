@@ -14,10 +14,9 @@ import java.util.stream.Stream;
 
 public final class LogFileUtils {
 
-    private static final Logger logger = LoggerFactory.getLogger(LogFileUtils.class);
-
     public static final String METADATA_FILE = ".metadata";
     public static final String STATE_FILE = ".state";
+    private static final Logger logger = LoggerFactory.getLogger(LogFileUtils.class);
     private static final String SEGMENT_EXTENSION = ".lsm";
 
     private LogFileUtils() {

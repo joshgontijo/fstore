@@ -5,12 +5,12 @@ import java.util.concurrent.TimeUnit;
 public class TimeWatch {
     long start;
 
-    public static TimeWatch start() {
-        return new TimeWatch();
-    }
-
     private TimeWatch() {
         reset();
+    }
+
+    public static TimeWatch start() {
+        return new TimeWatch();
     }
 
     public TimeWatch reset() {

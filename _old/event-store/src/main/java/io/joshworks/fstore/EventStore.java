@@ -62,14 +62,12 @@ public class EventStore implements IEventStore {
     private static final int WRITE_QUEUE_SIZE = -1;
     private static final int INDEX_FLUSH_THRESHOLD = 1000000;
     private static final int STREAMS_FLUSH_THRESHOLD = 50000;
-
+    public final Index index;
+    public final Streams streams; //TODO fix test to make this protected
     //TODO externalize
     private final Cache<Long, Integer> versionCache = Cache.lruCache(5000000, -1);
     //    private final Cache<Long, StreamMetadata> streamCache = Cache.lruCache(100000, 120);
     private final Cache<Long, StreamMetadata> streamCache = Cache.lruCache(5000, -1);
-
-    public final Index index;
-    public final Streams streams; //TODO fix test to make this protected
     private final IEventLog eventLog;
     private final EventWriter eventWriter;
 
@@ -108,6 +106,10 @@ public class EventStore implements IEventStore {
         }
     }
 
+    public static EventStore open(File rootDir) {
+        return new EventStore(rootDir);
+    }
+
     private void initializeSystemStreams() {
         Future<Void> task = eventWriter.queue(() -> {
             streams.createIfAbsent(SystemStreams.PROJECTIONS, meta -> logger.info("Created {}", SystemStreams.PROJECTIONS));
@@ -115,10 +117,6 @@ public class EventStore implements IEventStore {
         });
 
         Threads.waitFor(task);
-    }
-
-    public static EventStore open(File rootDir) {
-        return new EventStore(rootDir);
     }
 
     private void loadStreams() {

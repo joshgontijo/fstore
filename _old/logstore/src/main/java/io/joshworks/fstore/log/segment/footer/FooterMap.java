@@ -25,9 +25,9 @@ import java.util.stream.Collectors;
 
 public class FooterMap {
 
+    static final long NONE = -1;
     private final Serializer<Map.Entry<String, Long>> entrySerializer = new EntrySerializer<>(Serializers.VSTRING, Serializers.LONG);
     private final Map<String, Long> items = new ConcurrentHashMap<>();
-    static final long NONE = -1;
     private final BlockFactory blockFactory = Block.vlenBlock();
     private final Serializer<Block> blockSerializer = new BlockSerializer(Codec.noCompression(), blockFactory);
 

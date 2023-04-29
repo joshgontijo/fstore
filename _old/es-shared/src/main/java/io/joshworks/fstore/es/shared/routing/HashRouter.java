@@ -11,13 +11,13 @@ public class HashRouter implements Router {
 
     private static final Hash hasher = new XXHash();
 
-    @Override
-    public Node route(List<Node> nodes, String stream) {
+    public static Node select(List<Node> nodes, String stream) {
         int hash = hasher.hash32(stream.getBytes(StandardCharsets.UTF_8));
         return nodes.get(Math.abs(hash) % nodes.size());
     }
 
-    public static Node select(List<Node> nodes, String stream) {
+    @Override
+    public Node route(List<Node> nodes, String stream) {
         int hash = hasher.hash32(stream.getBytes(StandardCharsets.UTF_8));
         return nodes.get(Math.abs(hash) % nodes.size());
     }

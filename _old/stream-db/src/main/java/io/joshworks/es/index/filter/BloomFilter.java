@@ -67,6 +67,18 @@ public class BloomFilter implements Closeable {
         return bsize;
     }
 
+    /**
+     * Calculate the number of bits needed to produce the provided probability of false
+     * positives with the given element position.
+     *
+     * @param p The probability of false positives.
+     * @param n The estimated number of elements.
+     * @return The number of bits.
+     */
+    private static long getNumberOfBits(double p, long n) {
+        return (long) (Math.abs(n * Math.log(p)) / (Math.pow(Math.log(2), 2)));
+    }
+
     public void add(ByteBuffer key, int offset, int len) {
         for (int i = 0; i < k; i++) {
             long bitIdx = hash(i, key, offset, len);
@@ -91,7 +103,6 @@ public class BloomFilter implements Closeable {
         return combinedHash % m;
     }
 
-
     public boolean contains(ByteBuffer key, int offset, int len) {
         for (int i = 0; i < k; i++) {
             long bitIdx = hash(i, key, offset, len);
@@ -110,7 +121,6 @@ public class BloomFilter implements Closeable {
         return contains(key, key.position(), key.remaining());
     }
 
-
     /**
      * Generate a unique hash representing the filter
      **/
@@ -128,19 +138,6 @@ public class BloomFilter implements Closeable {
      */
     private int getOptimalNumberOfHashesByBits(long n, long m) {
         return (int) Math.ceil(Math.log(2) * ((double) m / n));
-    }
-
-
-    /**
-     * Calculate the number of bits needed to produce the provided probability of false
-     * positives with the given element position.
-     *
-     * @param p The probability of false positives.
-     * @param n The estimated number of elements.
-     * @return The number of bits.
-     */
-    private static long getNumberOfBits(double p, long n) {
-        return (long) (Math.abs(n * Math.log(p)) / (Math.pow(Math.log(2), 2)));
     }
 
     public long size() {

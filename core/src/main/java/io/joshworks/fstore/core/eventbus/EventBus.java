@@ -22,13 +22,11 @@ import java.util.function.Function;
  */
 public class EventBus {
 
+    private static final Logger logger = LoggerFactory.getLogger(EventBus.class);
+    private static final ErrorHandler DEFAULT_ERROR_HANDLER = (e, ctx) -> logger.error("Error on " + ctx, e);
     private final Map<Class, List<Subscriber>> subscribers = new ConcurrentHashMap<>();
     private final ExecutorService executor;
     private final ErrorHandler errorHandler;
-
-    private static final Logger logger = LoggerFactory.getLogger(EventBus.class);
-
-    private static final ErrorHandler DEFAULT_ERROR_HANDLER = (e, ctx) -> logger.error("Error on " + ctx, e);
 
     public EventBus() {
         this(Executors.newCachedThreadPool(), DEFAULT_ERROR_HANDLER);
@@ -127,6 +125,36 @@ public class EventBus {
         Object invoke(Object event, ErrorHandler errorHandler);
     }
 
+    @FunctionalInterface
+    public interface EventConsumer<T> extends Consumer<T> {
+
+        @Override
+        default void accept(final T elem) {
+            try {
+                acceptThrows(elem);
+            } catch (Exception e) {
+                throw new FunctionException(e);
+            }
+        }
+
+        void acceptThrows(T elem) throws Exception;
+    }
+
+    @FunctionalInterface
+    public interface EventFunction<T, R> extends Function<T, R> {
+
+        @Override
+        default R apply(final T elem) {
+            try {
+                return applyThrows(elem);
+            } catch (Exception e) {
+                throw new FunctionException(e);
+            }
+        }
+
+        R applyThrows(T elem) throws Exception;
+    }
+
     private static class ObjectSubscriber implements Subscriber {
         final Object object;
         final Method method;
@@ -177,36 +205,6 @@ public class EventBus {
             }
             return null;
         }
-    }
-
-    @FunctionalInterface
-    public interface EventConsumer<T> extends Consumer<T> {
-
-        @Override
-        default void accept(final T elem) {
-            try {
-                acceptThrows(elem);
-            } catch (Exception e) {
-                throw new FunctionException(e);
-            }
-        }
-
-        void acceptThrows(T elem) throws Exception;
-    }
-
-    @FunctionalInterface
-    public interface EventFunction<T, R> extends Function<T, R> {
-
-        @Override
-        default R apply(final T elem) {
-            try {
-                return applyThrows(elem);
-            } catch (Exception e) {
-                throw new FunctionException(e);
-            }
-        }
-
-        R applyThrows(T elem) throws Exception;
     }
 
     private static class FunctionException extends RuntimeException {

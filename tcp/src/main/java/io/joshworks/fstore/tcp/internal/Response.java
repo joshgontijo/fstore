@@ -9,16 +9,13 @@ import java.util.function.Consumer;
 public class Response<T> extends CompletableFuture<T> {
 
     private static final int TIMEOUT = 60;
-    private enum State {WAITING, DONE, CANCELLED}
-
     private static final Object POISON_PILL = new Object();
     private final long id;
     private final Consumer<Long> cleaner;
-    private State state = State.WAITING;
     private final BlockingQueue<Object> queue = new ArrayBlockingQueue<>(1);
     private final long start = System.nanoTime();
+    private State state = State.WAITING;
     private long end;
-
     public Response(long id, Consumer<Long> cleaner) {
         this.id = id;
         this.cleaner = cleaner;
@@ -79,7 +76,6 @@ public class Response<T> extends CompletableFuture<T> {
         return getOrThrow(response);
     }
 
-
     private T getOrThrow(Object msg) {
         if (msg instanceof ErrorMessage) {
             throw new TcpClientException(((ErrorMessage) msg).message);
@@ -100,4 +96,6 @@ public class Response<T> extends CompletableFuture<T> {
     private void cleanUp() {
         cleaner.accept(id);
     }
+
+    private enum State {WAITING, DONE, CANCELLED}
 }

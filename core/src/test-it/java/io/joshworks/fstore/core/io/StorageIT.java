@@ -1,8 +1,8 @@
 package io.joshworks.fstore.core.io;
 
 import io.joshworks.fstore.core.util.Size;
-import io.joshworks.fstore.core.util.Threads;
 import io.joshworks.fstore.core.util.TestUtils;
+import io.joshworks.fstore.core.util.Threads;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

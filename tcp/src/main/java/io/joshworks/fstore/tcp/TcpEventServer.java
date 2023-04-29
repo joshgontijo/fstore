@@ -89,6 +89,10 @@ public class TcpEventServer implements Closeable {
         }
     }
 
+    public static Builder create() {
+        return new Builder();
+    }
+
     private AcceptingChannel<StreamConnection> connect(InetSocketAddress bindAddress, Acceptor acceptor, OptionMap options) throws IOException {
         AcceptingChannel<StreamConnection> conn = worker.createStreamConnectionServer(bindAddress, acceptor, options);
         conn.resumeAccepts();
@@ -151,10 +155,6 @@ public class TcpEventServer implements Closeable {
         worker.awaitTermination();
     }
 
-    public static Builder create() {
-        return new Builder();
-    }
-
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
@@ -167,71 +167,6 @@ public class TcpEventServer implements Closeable {
         connections.clear();
         channel.getWorker().shutdown();
         IoUtils.safeClose(channel);
-    }
-
-    private class Acceptor implements ChannelListener<AcceptingChannel<StreamConnection>> {
-
-        private final long timeout;
-        private final BufferPool pool;
-        private final boolean async;
-
-        Acceptor(long timeout, BufferPool pool, boolean async) {
-            this.timeout = timeout;
-            this.pool = pool;
-            this.async = async;
-        }
-
-        @Override
-        public void handleEvent(AcceptingChannel<StreamConnection> channel) {
-            StreamConnection conn = null;
-            try {
-                while ((conn = channel.accept()) != null) {
-                    var tcpConnection = new TcpConnection(conn, pool, responseTable, compression);
-                    connections.put(conn, tcpConnection);
-
-                    if (timeout > 0) {
-                        //adds to both source and sink channels
-                        var idleTimeoutConduit = new IdleTimeoutConduit(conn, TcpEventServer.this::onIdle);
-                        idleTimeoutConduit.setIdleTimeout(timeout);
-                    }
-
-                    ConduitPipeline pipeline = new ConduitPipeline(conn);
-                    pipeline.closeListener(TcpEventServer.this::onClose);
-
-                    //---------- source
-                    pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
-                    pipeline.addMessageSource(conduit -> {
-                        var framing = new FramingMessageSourceConduit(conduit, pool);
-                        return new CodecConduit(framing, pool, tcpConnection::updateDecompressedBytes);
-                    });
-
-                    //---------- sink
-//                    pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, pool));
-                    pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
-
-                    //---------- listeners
-                    EventHandler keepAliveHandler = new KeepAliveHandler(handler);
-                    ReadListener readListener = new ReadListener(tcpConnection, keepAliveHandler, async);
-
-                    pipeline.readListener(readListener);
-
-                    conn.getSourceChannel().resumeReads();
-                    conn.getSinkChannel().resumeWrites();
-
-                    onConnect(tcpConnection);
-                }
-            } catch (Exception e) {
-                log.error("Failed to accept connection", e);
-                if (conn != null) {
-                    try {
-                        Channels.flushBlocking(conn.getSinkChannel());
-                    } catch (IOException ignore) {
-                    }
-                    IoUtils.safeClose(conn);
-                    connections.remove(conn);
-                }
-            }
-        }
     }
 
     public static class Builder {
@@ -337,6 +272,71 @@ public class TcpEventServer implements Closeable {
                     onClose,
                     onIdle,
                     handler);
+        }
+    }
+
+    private class Acceptor implements ChannelListener<AcceptingChannel<StreamConnection>> {
+
+        private final long timeout;
+        private final BufferPool pool;
+        private final boolean async;
+
+        Acceptor(long timeout, BufferPool pool, boolean async) {
+            this.timeout = timeout;
+            this.pool = pool;
+            this.async = async;
+        }
+
+        @Override
+        public void handleEvent(AcceptingChannel<StreamConnection> channel) {
+            StreamConnection conn = null;
+            try {
+                while ((conn = channel.accept()) != null) {
+                    var tcpConnection = new TcpConnection(conn, pool, responseTable, compression);
+                    connections.put(conn, tcpConnection);
+
+                    if (timeout > 0) {
+                        //adds to both source and sink channels
+                        var idleTimeoutConduit = new IdleTimeoutConduit(conn, TcpEventServer.this::onIdle);
+                        idleTimeoutConduit.setIdleTimeout(timeout);
+                    }
+
+                    ConduitPipeline pipeline = new ConduitPipeline(conn);
+                    pipeline.closeListener(TcpEventServer.this::onClose);
+
+                    //---------- source
+                    pipeline.addStreamSource(conduit -> new BytesReceivedStreamSourceConduit(conduit, tcpConnection::updateBytesReceived));
+                    pipeline.addMessageSource(conduit -> {
+                        var framing = new FramingMessageSourceConduit(conduit, pool);
+                        return new CodecConduit(framing, pool, tcpConnection::updateDecompressedBytes);
+                    });
+
+                    //---------- sink
+//                    pipeline.addMessageSink(conduit -> new FramingMessageSinkConduit(conduit, pool));
+                    pipeline.addStreamSink(conduit -> new BytesSentStreamSinkConduit(conduit, tcpConnection::updateBytesSent));
+
+                    //---------- listeners
+                    EventHandler keepAliveHandler = new KeepAliveHandler(handler);
+                    ReadListener readListener = new ReadListener(tcpConnection, keepAliveHandler, async);
+
+                    pipeline.readListener(readListener);
+
+                    conn.getSourceChannel().resumeReads();
+                    conn.getSinkChannel().resumeWrites();
+
+                    onConnect(tcpConnection);
+                }
+            } catch (Exception e) {
+                log.error("Failed to accept connection", e);
+                if (conn != null) {
+                    try {
+                        Channels.flushBlocking(conn.getSinkChannel());
+                    } catch (IOException ignore) {
+                    }
+                    IoUtils.safeClose(conn);
+                    connections.remove(conn);
+                }
+            }
         }
     }
 

@@ -24,7 +24,7 @@ public class StreamBlockWriter implements Closeable {
     int chunkStartVersion = -1;
 
     public StreamBlockWriter(File dataFile, File indexFile, long size, BlockCodec codec, int blockSize, double fpPercentage, int expectedEntries) {
-        this.channel = SegmentChannel.create(dataFile, size);
+        this.channel = SegmentChannel.open(dataFile, size);
         this.indexWriter = BIndex.writer(indexFile, expectedEntries, fpPercentage);
         this.codec = codec;
         this.rawChunkData = Buffers.allocate(blockSize, false);

@@ -17,6 +17,14 @@ public class Metrics {
         this.items = items;
     }
 
+    public static Metrics merge(Metrics... items) {
+        Map<String, Long> merged = Stream.of(items)
+                .flatMap(map -> map.items.entrySet().stream())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Long::sum));
+
+        return new Metrics(merged);
+    }
+
     public void update(String name) {
         update(name, 1);
     }
@@ -40,14 +48,6 @@ public class Metrics {
 
     public long get(String key) {
         return items.getOrDefault(key, 0L);
-    }
-
-    public static Metrics merge(Metrics... items) {
-        Map<String, Long> merged = Stream.of(items)
-                .flatMap(map -> map.items.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Long::sum));
-
-        return new Metrics(merged);
     }
 
 }

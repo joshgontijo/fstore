@@ -23,6 +23,20 @@ public abstract class BlockTest {
     private BlockFactory factory;
     private Codec codec = Codec.noCompression();
 
+    private static ByteBuffer write(String data) {
+        ByteBuffer bb = ByteBuffer.allocate(data.length());
+        Serializers.STRING.writeTo(data, bb);
+        return bb.flip();
+    }
+
+    private static String read(ByteBuffer data) {
+        return Serializers.STRING.fromBytes(data);
+    }
+
+    private static String read(Block block, int idx) {
+        return Serializers.STRING.fromBytes(block.get(idx));
+    }
+
     @Before
     public void setUp() {
         factory = factory();
@@ -214,26 +228,11 @@ public abstract class BlockTest {
         assertEquals(block.data.capacity(), block.data.limit());
     }
 
-
     private ByteBuffer packBlock(Block block) {
         ByteBuffer dst = ByteBuffer.allocate(BLOCK_SIZE);
         block.pack(codec, dst);
         dst.flip();
         return dst;
-    }
-
-    private static ByteBuffer write(String data) {
-        ByteBuffer bb = ByteBuffer.allocate(data.length());
-        Serializers.STRING.writeTo(data, bb);
-        return bb.flip();
-    }
-
-    private static String read(ByteBuffer data) {
-        return Serializers.STRING.fromBytes(data);
-    }
-
-    private static String read(Block block, int idx) {
-        return Serializers.STRING.fromBytes(block.get(idx));
     }
 
     public static class DefaultBlockTest extends BlockTest {

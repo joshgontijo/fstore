@@ -15,9 +15,9 @@ import java.util.NoSuchElementException;
 public class RedBlackBST implements Iterable<Node> {
     private static final boolean RED = true;
     private static final boolean BLACK = false;
-    private Node root;
     private final int maxEntries;
     private final ObjectPool<Node> nodePool;
+    private Node root;
 
     public RedBlackBST(int maxEntries) {
         this.maxEntries = maxEntries;

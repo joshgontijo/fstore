@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
 public class StreamBlock {
 
     public static final int HEADER_BYTES =
-                    Integer.BYTES + //RECORD_SIZE
+            Integer.BYTES + //RECORD_SIZE
                     Long.BYTES +    //STREAM_HASH
                     Integer.BYTES + //START_VERSION
                     Integer.BYTES + // ENTRIES
