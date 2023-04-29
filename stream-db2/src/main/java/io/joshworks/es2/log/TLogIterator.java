@@ -9,50 +9,54 @@ import io.joshworks.fstore.core.iterators.CloseableIterator;
 import io.joshworks.fstore.core.iterators.Iterators;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
+import java.util.NoSuchElementException;
+
+import static io.joshworks.fstore.core.iterators.Iterators.stream;
 
 public class TLogIterator implements CloseableIterator<ByteBuffer> {
 
     private final SegmentDirectory<SegmentChannel> directory;
     private View<SegmentChannel> currentView;
-    private Iterator<SegmentChannel> viewIterator;
     private CloseableIterator<ByteBuffer> segmentIterator;
-    private SegmentId lastSegment;
 
 
     public TLogIterator(SegmentDirectory<SegmentChannel> directory) {
         this.directory = directory;
         this.currentView = directory.view();
-        this.viewIterator = currentView.iterator();
-        this.segmentIterator = new LengthPrefixedChannelIterator(this.viewIterator.next());
+        this.segmentIterator = iterator(currentView, null);
     }
 
-    private void nextIterator() {
-        if (viewIterator.hasNext()) {
-            return;
-        }
-        View<SegmentChannel> newView = directory.view();
-        if (currentView.generation() == newView.generation()) {
-            newView.close();
-            this.segmentIterator = Iterators.empty();
-            return;
-        }
-        currentView.close();
-        currentView = newView;
-        viewIterator = currentView.iterator();
+    private CloseableIterator<ByteBuffer> iterator(View<SegmentChannel> view, SegmentId lastSegment) {
+        var iterators = stream(view.reverse())
+                .filter(sc -> lastSegment == null || lastSegment.compareTo(sc.segmentId()) > 0)
+                .map(LengthPrefixedChannelIterator::new)
+                .toList();
 
-        //TODO compare with lastSegmentId in order to read only new segment
-        this.segmentIterator = new LengthPrefixedChannelIterator(this.viewIterator.next());
+        return Iterators.concat(iterators);
     }
 
     @Override
     public boolean hasNext() {
-        return false;
+        if (segmentIterator.hasNext()) {
+            return true;
+        }
+        if (currentView.generation() == directory.generation()) { //no changes
+            return false;
+        }
+        //view has changed and current iterator has no elements, time to go to the next view
+        var lastSegment = this.currentView.tail().segmentId();
+        this.currentView.close();
+        this.currentView = directory.view();
+        this.segmentIterator = iterator(this.currentView, lastSegment);
+        return segmentIterator.hasNext();
     }
 
     @Override
     public ByteBuffer next() {
-        return null;
+        if (!hasNext()) {
+            throw new NoSuchElementException();
+        }
+        return segmentIterator.next();
     }
 
     @Override
