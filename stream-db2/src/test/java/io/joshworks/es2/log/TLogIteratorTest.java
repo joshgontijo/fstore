@@ -1,5 +1,6 @@
 package io.joshworks.es2.log;
 
+import io.joshworks.es2.Builder;
 import io.joshworks.es2.Event;
 import io.joshworks.fstore.core.util.TestUtils;
 import org.junit.After;
@@ -31,7 +32,7 @@ public class TLogIteratorTest {
 
     @Test
     public void iteratorTest() {
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), a -> {
+        var log = TLog.open(folder.toPath(), Builder.FlushMode.ON_WRITE, 4096, newSingleThreadExecutor(), a -> {
         });
         log.append(of(1));
         log.append(of(2));
@@ -62,7 +63,7 @@ public class TLogIteratorTest {
 
     @Test
     public void iterator_new_segment() {
-        var log = TLog.open(folder.toPath(), 4096, newSingleThreadExecutor(), a -> {
+        var log = TLog.open(folder.toPath(), Builder.FlushMode.ON_WRITE, 4096, newSingleThreadExecutor(), a -> {
         });
         log.append(of(1));
 

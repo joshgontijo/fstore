@@ -31,7 +31,7 @@ public class EventStoreConcurrencyIT {
         root = TestUtils.testFolder();
         var builder = EventStore.builder();
         builder.memtable()
-                .direct(false)
+                .direct(true)
                 .size(Size.MB.ofInt(100));
         builder.compaction()
                 .threshold(3)
@@ -53,7 +53,7 @@ public class EventStoreConcurrencyIT {
     @Test
     public void concurrent() throws Exception {
 
-        int items = 10_000_000;
+        int items = 50_000_000;
         long stream = 123L;
         int writers = 5;
         int readers = 20;

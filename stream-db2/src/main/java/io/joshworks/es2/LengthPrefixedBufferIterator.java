@@ -37,7 +37,7 @@ public class LengthPrefixedBufferIterator implements CloseableIterator<ByteBuffe
         }
 
         var rpos = data.position();
-        var recLen = data.getInt(rpos); //returns LEN_LEN field as well
+        var recLen = data.getInt(rpos); //also returns LEN_LEN field
         var slice = data.slice(rpos, recLen);
         Buffers.offsetPosition(data, recLen); //assumes recLen value includes the len field itself
         this.offset += recLen;

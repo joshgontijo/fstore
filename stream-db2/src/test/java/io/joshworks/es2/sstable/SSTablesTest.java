@@ -21,11 +21,10 @@ public class SSTablesTest {
     private static final int ANY = 10;
 
     private SSTables sstables;
-    private Path folder;
 
     @Before
     public void open() {
-        folder = TestUtils.testFolder().toPath();
+        var folder = TestUtils.testFolder().toPath();
         sstables = new SSTables(folder, new CompactionConfig(), Executors.newSingleThreadExecutor());
     }
 

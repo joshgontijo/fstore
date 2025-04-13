@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public class TestUtils {
 
-    public static final String TEST_DIR = "test.dir";
+    public static final String TEST_DIR = "fstore.test.dir";
     public static final String FSTORE_TEST = "fstore-test";
     public static final String TEST_FILES = "test-files";
 

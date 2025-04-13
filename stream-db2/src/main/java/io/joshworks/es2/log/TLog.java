@@ -69,8 +69,8 @@ public class TLog implements Closeable, Iterable<ByteBuffer> {
     }
 
     synchronized void roll() {
-        head.truncate();
         head.flush();
+        head.truncate();
         head = SegmentChannel.create(logs.newHead());
         logs.append(head);
     }

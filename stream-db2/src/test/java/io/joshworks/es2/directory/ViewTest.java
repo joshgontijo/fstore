@@ -2,6 +2,8 @@ package io.joshworks.es2.directory;
 
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
@@ -18,7 +20,7 @@ public class ViewTest {
                 new DummySegment(1,0)
         );
 
-        var view = new View<>(items);
+        var view = new View<>(items, LoggerFactory.getLogger("test"));
 
         assertEquals(new SegmentId(0,2),  view.head().segmentId);
         assertEquals(new SegmentId(0,1),  view.get(1).segmentId);

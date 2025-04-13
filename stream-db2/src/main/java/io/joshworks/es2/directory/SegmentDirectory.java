@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.joshworks.es2.directory.DirectoryUtils.initDirectory;
 import static io.joshworks.es2.directory.DirectoryUtils.segmentFileName;
@@ -261,15 +262,18 @@ public class SegmentDirectory<T extends SegmentFile> implements Closeable {
     //TODO - ISSUE DESCRIBED ABOVE SEEMS FIXED
     long nextIdx(int level) {
         try {
-            return Files.list(this.root.toPath())
-                    .map(Path::getFileName)
-                    .map(Path::toFile)
-                    .filter(fileName -> fileName.getName().endsWith(extension))
-                    .map(DirectoryUtils::segmentId)
-                    .filter(s -> s.level() == level)
-                    .mapToLong(SegmentId::idx)
-                    .max()
-                    .orElse(-1) + 1;
+            Stream<Path> files = Files.list(this.root.toPath());
+            try (files) {
+                return files.map(Path::getFileName)
+                        .map(Path::toFile)
+                        .filter(fileName -> fileName.getName().endsWith(extension))
+                        .map(DirectoryUtils::segmentId)
+                        .filter(s -> s.level() == level)
+                        .mapToLong(SegmentId::idx)
+                        .max()
+                        .orElse(-1) + 1;
+            }
+
 
         } catch (IOException e) {
             throw new RuntimeIOException("Failed to determine next segment idx", e);

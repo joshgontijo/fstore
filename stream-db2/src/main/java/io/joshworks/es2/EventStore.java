@@ -102,9 +102,9 @@ public class EventStore implements Closeable {
             writer.close();
             Threads.awaitTermination(worker, Long.MAX_VALUE, TimeUnit.MILLISECONDS, () -> System.out.println("Awaiting termination..."));
         } finally {
-            dirLock.close();
             sstables.close();
             tlog.close();
+            dirLock.close();
         }
     }
 

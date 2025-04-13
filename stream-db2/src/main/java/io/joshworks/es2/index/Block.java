@@ -36,18 +36,18 @@ class Block {
 
 
     static final int KEY_BYTES =
-            Long.BYTES + //STREAM
+                    Long.BYTES + //STREAM
                     Integer.BYTES; //VERSION
 
     static final int LEAF_ENTRY_BYTES =
-            KEY_BYTES +
+                    KEY_BYTES +
                     Integer.BYTES + //RECORD_SIZE
                     Integer.BYTES + //RECORD_ENTRIES
                     Long.BYTES; // LOG_POS
 
 
     static final int INTERNAL_ENTRY_BYTES =
-            KEY_BYTES +
+                    KEY_BYTES +
                     Integer.BYTES; //BLOCK_IDX
     //common for both leaf and internal nodes
     static final int HEADER = Short.BYTES + Integer.BYTES + Short.BYTES;
